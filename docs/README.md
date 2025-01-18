@@ -19,12 +19,6 @@
 
 ## [🛡 Что такое Zapret](https://teletype.in/@censorliber/zapretvpndpi)
 
-## [🌐 Настройка браузеров](https://github.com/censorliber/zapret/blob/main/docs/browser.md)
-
-## [❓ Частые вопросы и ошибки](https://github.com/censorliber/zapret/blob/main/docs/faq.md)
-
-## [🚀 Как добавить Запрет в автозагрузку (как службу)](https://github.com/censorliber/zapret/blob/main/docs/autorun.md)
-
 ## [👾 О вирусах](https://teletype.in/@censorliber/zapretvirus)
 
 > [!CAUTION]  
