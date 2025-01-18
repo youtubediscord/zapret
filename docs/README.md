@@ -56,4 +56,4 @@
 > Автор KDS. Его оригинальный [архив сборок](https://ntc.party/t/ytdisbystro-%D0%B0%D1%80%D1%85%D0%B8%D0%B2-%D0%B2%D1%81%D0%B5%D1%85-%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D0%B9/12582)
 > 
 
-<div align='center'><a href=''><img src='https://www.websitecounterfree.com/c.php?d=9&id=60326&s=1' border='0' alt='Free Website Counter'></a><br / ><small></small></div>
+<div align='center'><img src='https://www.websitecounterfree.com/c.php?d=9&id=64971&s=1' border='0' alt='Free Website Counter'><br / ><small></small></div>
