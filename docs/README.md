@@ -11,6 +11,8 @@
 ## ❗ Хочу быстро и просто. Как установить и использовать? 
 Для неопытных пользователей рекомендуем: https://teletype.in/@censorliber/zapret
 
+Для опытных пользователей Вы можете скачать весь архив самостоятельно с серверов GitHub: https://github.com/youtubediscord/zapret/archive/refs/heads/main.zip
+
 ![image](https://github.com/user-attachments/assets/96347519-4bd6-42c2-8426-a839be348af6)
 
 <h2 align="center">Хочу узнать подробнее </h2>
