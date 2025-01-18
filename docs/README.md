@@ -17,7 +17,7 @@
 
 <h1 align="center">Хочу узнать подробнее </h1>
 
-## [🛡 Что такое Zapret](https://github.com/censorliber/zapret/blob/main/docs/zapret.md)
+## [🛡 Что такое Zapret](https://teletype.in/@censorliber/zapretvpndpi)
 
 ## [🌐 Настройка браузеров](https://github.com/censorliber/zapret/blob/main/docs/browser.md)
 
@@ -25,7 +25,7 @@
 
 ## [🚀 Как добавить Запрет в автозагрузку (как службу)](https://github.com/censorliber/zapret/blob/main/docs/autorun.md)
 
-## [👾 О вирусах](https://github.com/censorliber/zapret/blob/main/docs/virus.md)
+## [👾 О вирусах](https://teletype.in/@censorliber/zapretvirus)
 
 > [!CAUTION]  
 > [Касперский](https://github.com/bol-van/zapret/issues/611) и иные российские вирусы начали войну с запретами и иными средствами обхода блокировок. Чтобы использовать их спокойно рекомендуется перейти на **альтернативные** антивирусы (Defender, ESET32 и т.д.), которые не выдают ложные и обманчивые срабатывания и помогают от большего количества угроз. Также не следует использовать российские антивирусы, либо добавлять файлы в исключения.
