@@ -2,8 +2,6 @@
 
 > [!IMPORTANT]  
 > Есть вопросы? Задай их здесь: https://github.com/youtubediscord/zapret/issues/new
-> 
-> Новые обновления (дорожная карта) доступна здесь: https://github.com/youtubediscord/zapret/issues/17
 
 > [!CAUTION]  
 > Совсем никак не работает Запрет?
