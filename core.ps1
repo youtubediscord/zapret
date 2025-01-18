@@ -207,10 +207,12 @@ function Check-AndDownload-WinDivert {
     $WinDivertDll = "WinDivert.dll"
     $WinDivert64Sys = "WinDivert64.sys"
     $exeName = "winws.exe"
+    $cygwin1 = "cygwin1.dll"
 
     $WinDivertDLLURL = "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/WinDivert.dll"
     $WinDivert64SysURL = "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/WinDivert64.sys"
     $exeRawUrl = "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/winws.exe"
+    $cygwin1Url = "https://github.com/bol-van/zapret-win-bundle/raw/refs/heads/master/zapret-winws/cygwin1.dll"
 
     # Проверяем наличие папки bin
     if (-not (Test-Path -Path $BIN)) {
@@ -253,6 +255,20 @@ function Check-AndDownload-WinDivert {
             Start-Sleep -Seconds 3
             Invoke-WebRequest -Uri $exeRawUrl -OutFile $exePath
             Write-Host "Исполняемый файл $exeName успешно скачан."
+        } catch {
+            Write-Error "Ошибка при скачивании исполняемого файла: $_"
+            return # Прерываем выполнение функции в случае ошибки
+        }
+    } else {
+    }
+
+    $cygwin1Path = Join-Path -Path $BIN -ChildPath $cygwin1
+    if (-not (Test-Path -Path $cygwin1Path)) {
+        Write-Host "Исполняемый файл $cygwin1 не найден. Скачиваю..."
+        try {
+            Start-Sleep -Seconds 3
+            Invoke-WebRequest -Uri $cygwin1Url -OutFile $cygwin1Path
+            Write-Host "Исполняемый файл $cygwin1 успешно скачан."
         } catch {
             Write-Error "Ошибка при скачивании исполняемого файла: $_"
             return # Прерываем выполнение функции в случае ошибки
