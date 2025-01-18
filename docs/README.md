@@ -9,7 +9,7 @@
 > Попробуйте наш новый HTTP VPN на основе Tor с безлимитной скоростью: `https://github.com/youtubediscord/roskomfree` пока недоступно
 
 ## ❗ Хочу быстро и просто. Как установить и использовать? 
-Инструкция по установке: https://teletype.in/@censorliber/zapret
+Для неопытных пользователей рекомендуем: https://teletype.in/@censorliber/zapret
 
 ![image](https://github.com/user-attachments/assets/96347519-4bd6-42c2-8426-a839be348af6)
 
