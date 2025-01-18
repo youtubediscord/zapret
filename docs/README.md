@@ -13,11 +13,10 @@
 
 ![image](https://github.com/user-attachments/assets/96347519-4bd6-42c2-8426-a839be348af6)
 
-<h1 align="center">Хочу узнать подробнее </h1>
+<h2 align="center">Хочу узнать подробнее </h2>
 
-## [🛡 Что такое Zapret](https://teletype.in/@censorliber/zapretvpndpi)
-
-## [👾 О вирусах](https://teletype.in/@censorliber/zapretvirus)
+### [🛡 Что такое Zapret](https://teletype.in/@censorliber/zapretvpndpi)
+### [👾 О вирусах](https://teletype.in/@censorliber/zapretvirus)
 
 > [!CAUTION]  
 > [Касперский](https://github.com/bol-van/zapret/issues/611) и иные российские вирусы начали войну с запретами и иными средствами обхода блокировок. Чтобы использовать их спокойно рекомендуется перейти на **альтернативные** антивирусы (Defender, ESET32 и т.д.), которые не выдают ложные и обманчивые срабатывания и помогают от большего количества угроз. Также не следует использовать российские антивирусы, либо добавлять файлы в исключения.
