@@ -101,7 +101,7 @@ Write-Host ""
 
 $BIN = "$PSScriptRoot\bin\"
 $LISTS = "$PSScriptRoot\lists\"
-$localVersion = "6.4.3"
+$localVersion = "6.5.0"
 
 $YT1 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=3 --new"
 $YT5 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_2.bin"" --dpi-desync-autottl=2 --new"
@@ -484,9 +484,10 @@ function Reset-DNS {
 
 function Edit-Hosts {
     $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+    $tempHostsPath = "$env:TEMP\hosts_temp.txt" 
 
-    $newHostsContent = @(
-        "0.0.0.0 www.aomeitech.com",
+    $addHostsContent = @(
+        "0.0.0.0 www.aomeitech.com"
         "185.15.211.203 bt.t-ru.org",
         "185.15.211.203 bt2.t-ru.org",
         "185.15.211.203 bt3.t-ru.org",
@@ -503,8 +504,175 @@ function Edit-Hosts {
         "157.240.247.63 scontent-hel3-1.cdninstagram.com"
     )
 
-    $newHostsContent -join "`n" | Set-Content -Path $hostsPath -Encoding UTF8
-    Write-Host "Файл hosts успешно обновлён."
+    # 1. Прочитать существующее содержимое файла (с обработкой отсутствия файла).
+    try {
+        $existingContent = Get-Content -Path $hostsPath -Raw -ErrorAction Stop
+    }
+    catch {
+        if ($_.Exception -is [System.IO.FileNotFoundException]) {
+            Write-Warning "Файл hosts не найден. Будет создан новый."
+            $existingContent = ""
+        }
+        else {
+            Write-Warning "Ошибка при чтении файла hosts: $($_.Exception.Message)"
+            return
+        }
+    }
+
+    # 2. Определить, какие строки нужно добавить.
+    $linesToAdd = foreach ($line in $addHostsContent) {
+        if ($existingContent -and $existingContent -notmatch [regex]::Escape($line)) {
+            $line
+        }
+        elseif (-not $existingContent) {
+            $line
+        }
+    }
+
+    # 3. Если нет строк для добавления, выходим.
+    if (-not $linesToAdd) {
+        Write-Host "Все необходимые строки уже присутствуют в файле hosts."
+        return
+    }
+
+    # 4. Добавить только отсутствующие строки НАПРЯМУЮ в файл.
+    try {
+        # Остановка службы DNS-клиента
+        Write-Host "Остановка службы DNS-клиента..."
+        #Stop-Service -Name "Dnscache" -Force -ErrorAction Stop
+
+        # Очистка DNS-кэша
+        Write-Host "Очистка кэша DNS..."
+        ipconfig /flushdns | Out-Null
+
+        # Добавление новых строк
+        Write-Host "Добавление новых строк в файл hosts..."
+        if ($existingContent) {
+          Add-Content -Path $hostsPath -Value ("`n" + ($linesToAdd -join "`n")) -Encoding String -ErrorAction Stop
+        } else {
+          Add-Content -Path $hostsPath -Value ($linesToAdd -join "`n") -Encoding String -ErrorAction Stop
+        }
+
+        Write-Host "Файл hosts успешно обновлён."
+    }
+    catch {
+        Write-Warning "Ошибка при обновлении файла hosts: $($_.Exception.Message)"
+    }
+}
+
+function ChatGPT-Gemini {
+    $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+    $tempHostsPath = "$env:TEMP\hosts_temp.txt" 
+
+    $addHostsContent = @(
+        "50.7.85.220 chatgpt.com"
+        "50.7.85.220 ab.chatgpt.com"
+        "50.7.85.220 auth.openai.com"
+        "50.7.85.220 auth0.openai.com"
+        "50.7.85.220 platform.openai.com"
+        "50.7.85.220 cdn.oaistatic.com"
+        "50.7.85.220 files.oaiusercontent.com"
+        "50.7.85.220 cdn.auth0.com"
+        "50.7.85.220 tcr9i.chat.openai.com"
+        "50.7.85.220 webrtc.chatgpt.com"
+        "50.7.85.220 android.chat.openai.com"
+        "50.7.85.220 api.openai.com"
+        "50.7.85.220 gemini.google.com"
+        "50.7.85.220 aistudio.google.com"
+        "50.7.85.220 generativelanguage.googleapis.com"
+        "50.7.85.220 alkalimakersuite-pa.clients6.google.com"
+        "50.7.85.220 copilot.microsoft.com"
+        "50.7.85.220 www.bing.com"
+        "50.7.85.220 sydney.bing.com"
+        "50.7.85.220 edgeservices.bing.com"
+        "50.7.85.220 claude.ai"
+        "50.7.85.220 aitestkitchen.withgoogle.com"
+        "50.7.85.220 aisandbox-pa.googleapis.com"
+        "50.7.85.220 o.pki.goog"
+        "50.7.85.220 labs.google"
+        "50.7.85.220 notebooklm.google"
+        "50.7.85.220 notebooklm.google.com"
+        "50.7.85.220 webchannel-alkalimakersuite-pa.clients6.google.com"
+        "50.7.85.220 api.spotify.com"
+        "50.7.85.220 xpui.app.spotify.com"
+        "50.7.85.220 appresolve.spotify.com"
+        "50.7.85.220 login5.spotify.com"
+        "50.7.85.220 gew1-spclient.spotify.com"
+        "50.7.85.220 gew1-dealer.spotify.com"
+        "50.7.85.220 spclient.wg.spotify.com"
+        "50.7.85.220 api-partner.spotify.com"
+        "50.7.85.220 aet.spotify.com"
+        "50.7.85.220 www.spotify.com"
+        "50.7.85.220 accounts.spotify.com"
+        "50.7.85.220 www.notion.so"
+        "50.7.85.222 www.canva.com"
+        "204.12.192.222 www.intel.com"
+        "204.12.192.219 www.dell.com"
+        "50.7.87.85 codeium.com"
+        "50.7.85.219 inference.codeium.com"
+        "107.150.34.101 plugins.jetbrains.com"
+        "50.7.85.219 www.tiktok.com"
+        "50.7.87.84 api.github.com"
+        "50.7.85.221 api.individual.githubcopilot.com"
+        "50.7.87.83 proxy.individual.githubcopilot.com"
+        "94.131.119.85 autodesk.com"
+        "94.131.119.85 accounts.autodesk.com"
+    )
+
+    # 1. Прочитать существующее содержимое файла (с обработкой отсутствия файла).
+    try {
+        $existingContent = Get-Content -Path $hostsPath -Raw -ErrorAction Stop
+    }
+    catch {
+        if ($_.Exception -is [System.IO.FileNotFoundException]) {
+            Write-Warning "Файл hosts не найден. Будет создан новый."
+            $existingContent = ""
+        }
+        else {
+            Write-Warning "Ошибка при чтении файла hosts: $($_.Exception.Message)"
+            return
+        }
+    }
+
+    # 2. Определить, какие строки нужно добавить.
+    $linesToAdd = foreach ($line in $addHostsContent) {
+        if ($existingContent -and $existingContent -notmatch [regex]::Escape($line)) {
+            $line
+        }
+        elseif (-not $existingContent) {
+            $line
+        }
+    }
+
+    # 3. Если нет строк для добавления, выходим.
+    if (-not $linesToAdd) {
+        Write-Host "Все необходимые строки уже присутствуют в файле hosts."
+        return
+    }
+
+    # 4. Добавить только отсутствующие строки НАПРЯМУЮ в файл.
+    try {
+        # Остановка службы DNS-клиента
+        Write-Host "Остановка службы DNS-клиента..."
+        #Stop-Service -Name "Dnscache" -Force -ErrorAction Stop
+
+        # Очистка DNS-кэша
+        Write-Host "Очистка кэша DNS..."
+        ipconfig /flushdns | Out-Null
+
+        # Добавление новых строк
+        Write-Host "Добавление новых строк в файл hosts..."
+        if ($existingContent) {
+          Add-Content -Path $hostsPath -Value ("`n" + ($linesToAdd -join "`n")) -Encoding String -ErrorAction Stop
+        } else {
+          Add-Content -Path $hostsPath -Value ($linesToAdd -join "`n") -Encoding String -ErrorAction Stop
+        }
+
+        Write-Host "Файл hosts успешно обновлён."
+    }
+    catch {
+        Write-Warning "Ошибка при обновлении файла hosts: $($_.Exception.Message)"
+    }
 }
 
 function Check-Availability {
@@ -835,6 +1003,7 @@ Write-Host "61. Сменить DNS на Google DNS (помогает если В
 Write-Host "62. Сменить DNS на SB DNS"
 Write-Host ""
 Write-Host "70. Отредактировать файл hosts (помогает разблокировать Instagram, Facebook, Twitter и т.д.)"
+Write-Host "71. Разблокировать ChatGPT, Gemini, Spotify, TikTok, Notion и другие ресурсы"
 Write-Host ""
 
 if (Check-Update) {
@@ -858,13 +1027,10 @@ do {
     $Host.UI.RawUI.WindowTitle = "Zapret $localVersion | Текущая стратегия - $StrategyName | Автозапуск - $AutostartEnabled | https://t.me/bypassblock"
     $userInput = Read-Host "Введите цифру (если Вы выбрали стратегию она автоматически станет стратегией по умолчанию)"
 
-    if ($AutostartEnabled) {
-            Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
-    } 
-
     switch ($userInput) {
         "0" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     Write-Host "Приложение находится в автозапуске! Запрет выключается ТОЛЬКО через выключение автозапуска, наберите 40 чтобы убрать его из автозапуска!"
                     Write-Host "В будущих версиях эта ошибка исправится..."
             } else {
@@ -874,6 +1040,7 @@ do {
         }
         "1" {
               if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "06.01.2025"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50100 $YRTMP1 $YQ8 $YT10 $YGV3 $other1 $DISIP5 $DISTCP11 $DISUDP9 $UDP7 $YRTMP2 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -888,6 +1055,7 @@ do {
         }
         "2" {
                if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "lite orig v1"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50100 $faceinsta $TCP80 $YT11 $YQ9 $other3 $TCP443 $UDP8 $DISIP6"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -902,6 +1070,7 @@ do {
         }
         "3" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Discord TCP 80"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-59000 $YQ1 $YGV1 $YT1 $DISTCP80 $DISUDP2 $UDP2 $DISTCP2 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -916,6 +1085,7 @@ do {
         }
         "4" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Discord fake"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-59000 $YQ1 $YGV1 $YT1 $DISUDP1 $UDP1 $DISTCP1 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -930,6 +1100,7 @@ do {
         }
         "5" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Discord fake и split"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50100 $DISUDP3 $DISIP1 $DISTCP80 $DISTCP3 $YQ1 $YGV1 $YT2 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -944,6 +1115,7 @@ do {
         }
         "6" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Ultimate Fix ALT Beeline-Rostelekom"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-65535 $DISUDP4 $DISIP2 $DISTCP80 $DISTCP4 $YQ1 $YGV1 $YT2 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -958,6 +1130,7 @@ do {
         }
         "7" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "split с sniext"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-59000 $YQ2 $YGV3 $YT3 $DISTCP5 $DISUDP5 $DISIP3 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -971,6 +1144,7 @@ do {
         }
         "8" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "split с badseq"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-59000 $YQ2 $YGV1 $YT4 $DISTCP5 $DISUDP5 $DISIP3 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -984,6 +1158,7 @@ do {
         }
         "9" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Rostelecom & Megafon"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-59000 $YQ2 $YT4 $DISUDP3 $UDP3 $DISTCP6 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -997,6 +1172,7 @@ do {
         }
         "10" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Rostelecom v2"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-59000 $YQ3 $YT5 $DISUDP3 $UDP3 $DISTCP6 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1010,6 +1186,7 @@ do {
         }
         "11" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Other v1"
                     $DefaultConfigArg = "--wf-l3=ipv4,ipv6 --wf-tcp=443 --wf-udp=443,50000-65535 $YQ4 $YT3 $DISTCP7 $DISUDP6 $UDP4 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1023,6 +1200,7 @@ do {
         }
         "12" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Other v2"
                     $DefaultConfigArg = "--wf-l3=ipv4,ipv6 --wf-tcp=443 --wf-udp=443,50000-65535 $YQ4 $YT6 $DISUDP7 $UDP5 $DISTCP8 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1036,6 +1214,7 @@ do {
         }
         "13" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "MGTS v1"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50900 $YQ2 $YT7 $DISUDP5 $DISIP3 $DISTCP9 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1049,6 +1228,7 @@ do {
         }
         "14" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "MGTS v2"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50900 $YT8 $DISTCP10 $YQ5 $DISUDP1 $UDP1 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1062,6 +1242,7 @@ do {
         }
         "15" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "MGTS v3"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50900 $YT1 $DISTCP10 $YQ5 $DISUDP1 $UDP1 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1075,6 +1256,7 @@ do {
         }
         "16" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "MGTS v4"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50900 $YQ1 $YGV3 $YT1 $DISUDP1 $UDP1 $DISTCP1 $other1 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1088,6 +1270,7 @@ do {
         }
         "30" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Ultimate Config ZL"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50099 $YQ6 $YGV2 $YT9 $DISTCP11 $DISUDP8 $DISIP4 $other3 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1101,6 +1284,7 @@ do {
         }
         "31" {
             if ($AutostartEnabled) {
+                    Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
                     $DefaultConfigName = "Ultimate Config v2"
                     $DefaultConfigArg = "--wf-tcp=80,443 --wf-udp=443,50000-50090 $YRTMP1 $YQ7 $DISIP5 $DISTCP12 $DISUDP9 $UDP7 $YGV3 $other2 $other4 $faceinsta"
                     Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
@@ -1130,6 +1314,9 @@ do {
         }
         "70" {
             Edit-Hosts
+        }
+        "71" {
+            ChatGPT-Gemini
         }
         default {
             Write-Host "Вы не выбрали правильную цифру!"
