@@ -17,7 +17,7 @@
 
 Для опытных пользователей Вы можете скачать весь архив самостоятельно с серверов GitHub: https://github.com/youtubediscord/zapret/archive/refs/heads/main.zip
 
-![image](https://github.com/user-attachments/assets/96347519-4bd6-42c2-8426-a839be348af6)
+![image](https://github.com/user-attachments/assets/32399f59-41fe-4d0b-81c9-537f4e2f9824)
 
 <h2 align="center">Хочу узнать подробнее </h2>
 
