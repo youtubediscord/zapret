@@ -1,4 +1,4 @@
-function Check-AndDownload-WinDivert {
+function DownloadDLLFile {
     $WinDivertDll = "WinDivert.dll"
     $WinDivert64Sys = "WinDivert64.sys"
     $exeName = "winws.exe"
@@ -70,6 +70,7 @@ function Check-AndDownload-WinDivert {
         }
     } else {
     }
+
 }
 
 # Устанавливаем кодовую страницу UTF-8
