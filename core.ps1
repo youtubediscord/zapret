@@ -1,208 +1,3 @@
-﻿# Устанавливаем кодовую страницу UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
-if ($PSVersionTable.PSVersion.Major -lt 6) {
-    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
-    Clear-Host
-}
-
-<#
-### 1.3. Настройки файла hosts
-В файл `C:\Windows\System32\drivers\etc\hosts` пропишите следующее содержание (_рекомендуется использовать [`Notepad++`](https://github.com/notepad-plus-plus/notepad-plus-plus/releases), ссылка на оф. сайт была заблокирована_):
-
-```
-31.13.72.36 facebook.com
-31.13.72.36 www.facebook.com
-31.13.72.12 static.xx.fbcdn.net
-31.13.72.18 fburl.com
-157.240.227.174 www.instagram.com
-157.240.227.174 instagram.com
-31.13.72.53 static.cdninstagram.com
-31.13.72.53 edge-chat.instagram.com
-157.240.254.63 scontent.cdninstagram.com
-157.240.205.63 scontent-hel3-1.cdninstagram.com
-104.21.32.39 rutracker.org
-172.67.182.196 rutracker.org
-116.202.120.184 torproject.org
-116.202.120.184 bridges.torproject.org
-116.202.120.166 community.torproject.org
-162.159.152.4 medium.com
-172.67.182.196 rutracker.org
-188.114.96.1 dept.one
-142.250.185.238 youtube.com
-142.250.186.110 www.youtube.com
-130.255.77.28 ntc.party
-```
-
-Либо на какой-то из примеров ниже (_предыдущий вариант удалите_):
-```
-31.13.72.36 facebook.com
-31.13.72.36 www.facebook.com
-31.13.72.12 static.xx.fbcdn.net
-31.13.72.18 fburl.com
-157.240.229.174 www.instagram.com
-157.240.229.174 instagram.com
-31.13.72.53 static.cdninstagram.com
-31.13.72.53 edge-chat.instagram.com
-31.13.72.53 scontent-arn2-1.cdninstagram.com
-157.240.247.63 scontent.cdninstagram.com
-157.240.205.63 scontent-hel3-1.cdninstagram.com
-104.21.32.39 rutracker.org
-172.67.182.196 rutracker.org
-116.202.120.184 torproject.org
-116.202.120.184 bridges.torproject.org
-116.202.120.166 community.torproject.org
-162.159.152.4 medium.com
-172.67.182.196 rutracker.org
-188.114.96.1 dept.one
-142.250.185.238 youtube.com
-142.250.186.110 www.youtube.com
-130.255.77.28 ntc.party
-```
-
-```
-31.13.72.36 facebook.com
-31.13.72.36 www.facebook.com
-31.13.72.12 static.xx.fbcdn.net
-31.13.72.18 fburl.com
-157.240.225.174 instagram.com
-157.240.225.174 www.instagram.com
-157.240.225.174 i.instagram.com
-31.13.72.53 edge-chat.instagram.com
-31.13.72.53 scontent-arn2-1.cdninstagram.com
-31.13.72.53 scontent.cdninstagram.com
-31.13.72.53 static.cdninstagram.com 
-157.240.205.63 scontent-hel3-1.cdninstagram.com
-104.21.32.39 rutracker.org
-172.67.182.196 rutracker.org
-116.202.120.184 torproject.org
-116.202.120.184 bridges.torproject.org
-116.202.120.166 community.torproject.org
-162.159.152.4 medium.com
-172.67.182.196 rutracker.org
-188.114.96.1 dept.one
-142.250.185.238 youtube.com
-142.250.186.110 www.youtube.com
-130.255.77.28 ntc.party
-```
-#>
-
-Write-Host "██████████████████████████████████████████████████████████████████"
-Write-Host ""
-Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
-Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
-Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
-Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
-Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
-Write-Host ""
-Write-Host "██████████████████████████████████████████████████████████████████"
-Write-Host ""
-
-$BIN = "$PSScriptRoot\bin\"
-$LISTS = "$PSScriptRoot\lists\"
-$localVersion = "6.5.0"
-
-$YT1 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=3 --new"
-$YT5 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_2.bin"" --dpi-desync-autottl=2 --new"
-$YT2 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --new"
-$YT4 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl=2 --new"
-$YT8 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-cutoff=d2 --dpi-desync-ttl=3 --new"
-$YT7 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new"
-$YT3 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=split --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=1 --new"
-$YT6 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=4 --new"
-$YT9 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_2.bin"" --dpi-desync-ttl=3 --new"
-$YT10 = "--filter-tcp=443 --hostlist=""$LISTS\youtube_v2.txt"" --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --new"
-$YT11 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
-
-$YGV1 = "--filter-tcp=443 --hostlist=""$LISTS\youtubeGV.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-cutoff=d2 --dpi-desync-ttl=4 --new"
-$YGV2 = "--filter-tcp=443 --hostlist=""$LISTS\youtubeGV.txt"" --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new"
-$YGV3 = "--filter-tcp=443 --hostlist=""$LISTS\youtubeGV.txt"" --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld-1 --new"
-
-$YRTMP1 = "--filter-tcp=443 --ipset=""$LISTS\russia-youtube-rtmps.txt"" --dpi-desync=syndata --dpi-desync-fake-syndata=""$BIN\tls_clienthello_4.bin"" --dpi-desync-autottl --new"
-$YRTMP2 = "--filter-tcp=443 --ipset-ip=XXX.XXX.XXX.XXX/XX,XXX.XXX.XXX.XXX/XX --wssize=1:6 --hostlist-domains=googlevideo.com --dpi-desync=multidisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2 --new"
-
-$DISTCP1 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new"
-$DISTCP2 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=split2 --dpi-desync-split-seqovl=652 --dpi-desync-split-pos=2 --dpi-desync-split-seqovl-pattern=""$BIN\tls_clienthello_4.bin"" --new"
-$DISTCP3 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
-$DISTCP4 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split2 --dpi-desync-ttl=1 --dpi-desync-autottl=5 --dpi-desync-repeats=6 --dpi-desync-fake-tls=""$BIN\tls_clienthello_sberbank_ru.bin"" --new"
-$DISTCP5 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=syndata --dpi-desync-fake-syndata=""$BIN\tls_clienthello_3.bin"" --dpi-desync-ttl=5 --new"
-$DISTCP6 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split --dpi-desync-autottl=2 --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
-$DISTCP7 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_4.bin"" --dpi-desync-ttl=4 --new"
-$DISTCP8 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=2 --new"
-$DISTCP9 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"
-$DISTCP10 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=3 --new"
-$DISTCP11 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"
-$DISTCP12 = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"" --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --new"
-$DISTCP80 = "--filter-tcp=80 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split2 --dpi-desync-autottl=2 --dpi-desync-fooling=md5sig --new"
-
-$TCP443 = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"" --hostlist=""$LISTS\other.txt"" --dpi-desync=fake,multidisorder --dpi-desync-split-pos=midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new"
-
-$TCP80 = "--filter-tcp=80 --dpi-desync=fake,fakedsplit --dpi-desync-autottl=2 --dpi-desync-fooling=md5sig --new"
-
-$UDP1 = "--filter-udp=50000-59000 --dpi-desync=fake,split2 --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --new"
-#$UDP6 = "--filter-udp=50000-65535 --dpi-desync=fake,split2 --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --new"
-$UDP2 = "--filter-udp=50000-59000 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"
-$UDP3 = "--filter-udp=50000-59000 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$UDP4 = "--filter-udp=50000-59000 --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$UDP5 = "--filter-udp=50000-59000 --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=n5 --dpi-desync-repeats=10 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$UDP7 = "--filter-udp=50000-50090 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=n3 --new"
-$UDP8 = "--filter-udp=443 --dpi-desync=fake --dpi-desync-repeats=11 --new"
-
-$YQ1 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-repeats=2 --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --new"
-$YQ2 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-repeats=4 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$YQ3 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-repeats=4 --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --new"
-$YQ4 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-repeats=11 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$YQ5 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-repeats=2 --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$YQ6 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --dpi-desync-repeats=4 --new"
-$YQ7 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake,udplen --dpi-desync-udplen-increment=2 --dpi-desync-fake-quic=""$BIN\quic_3.bin"" --dpi-desync-cutoff=n3 --dpi-desync-repeats=2 --new"
-$YQ8 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake,udplen --dpi-desync-udplen-increment=4 --dpi-desync-fake-quic=""$BIN\quic_3.bin"" --dpi-desync-cutoff=n3 --dpi-desync-repeats=2 --new"
-$YQ9 = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"" --dpi-desync=fake --dpi-desync-repeats=11 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-
-$DISUDP1 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=7 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --dpi-desync-cutoff=n2 --new"
-$DISUDP2 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --new"
-$DISUDP3 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$DISUDP4 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_vk_com.bin"" --new"
-$DISUDP5 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=7 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$DISUDP6 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split2 --dpi-desync-udplen-increment=10 --dpi-desync-repeats=6 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$DISUDP7 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=6 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$DISUDP8 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_2.bin"" --dpi-desync-repeats=8 --dpi-desync-cutoff=n2 --new"
-$DISUDP9 = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,udplen --dpi-desync-udplen-increment=5 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_2.bin"" --dpi-desync-repeats=7 --dpi-desync-cutoff=n2 --new"
-
-$DISIP1 = "--filter-udp=50000-50100 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"
-$DISIP2 = "--filter-udp=50000-65535 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"
-$DISIP3 = "--filter-udp=50000-59000 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
-$DISIP4 = "--filter-udp=50000-50099 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --new"
-$DISIP5 = "--filter-tcp=443 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=syndata --dpi-desync-fake-syndata=""$BIN\tls_clienthello_3.bin"" --dpi-desync-autottl --new"
-$DISIP6 = "--filter-udp=50000-50099 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-any-protocol --dpi-desync-cutoff=n4 -- new"
-
-$faceinsta = "--filter-tcp=443 --hostlist=""$LISTS\faceinsta.txt"" --dpi-desync=split2 --dpi-desync-split-seqovl=652 --dpi-desync-split-pos=2 --dpi-desync-split-seqovl-pattern=""$BIN\tls_clienthello_4.bin"" --new"
-
-$other1 = "--filter-tcp=443 --hostlist=""$LISTS\other.txt"" --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_3.bin"" --dpi-desync-ttl=2 --new"
-$other2 = "--filter-tcp=80 --hostlist=""$LISTS\other.txt"" --dpi-desync=fake,multisplit --dpi-desync-fooling=md5sig --dpi-desync-autottl --new"
-$other3 = "--filter-tcp=443 --hostlist=""$LISTS\other.txt"" --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1 --dpi-desync-fake-tls=""$BIN\tls_clienthello_vk_com.bin"" --dpi-desync-ttl=5 --new"
-$other4 = "--filter-tcp=443 --hostlist=""$LISTS\other.txt"" --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld-1 --dpi-desync-fooling=md5sig,badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_4.bin"" --dpi-desync-ttl=2 --new"
-
-function Test-Administrator {
-    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
-    $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Show-Telegram {
-    $regKey = "HKCU:\Software\Zapret"
-    $regValue = "TelegramOpened"
-
-    if ((Get-ItemProperty -Path $regKey -Name $regValue -ErrorAction SilentlyContinue).$regValue -eq 1) {
-        Write-Host "Присоединяйтесь к нашему каналу Telegram (для обновлений) https://t.me/bypassblock"
-    } else {
-        Write-Host "Присоединяйтесь к нашему каналу Telegram"
-        Start-Process https://t.me/bypassblock
-        New-Item -Path $regKey -Force | Out-Null
-        New-ItemProperty -Path $regKey -Name $regValue -Value 1 -PropertyType DWORD -Force | Out-Null
-    }
-}
-
 function Check-AndDownload-WinDivert {
     $WinDivertDll = "WinDivert.dll"
     $WinDivert64Sys = "WinDivert64.sys"
@@ -277,14 +72,56 @@ function Check-AndDownload-WinDivert {
     }
 }
 
-function Invoke-ZapretStrategy {
+# Устанавливаем кодовую страницу UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    Clear-Host
+}
+
+Write-Host "██████████████████████████████████████████████████████████████████"
+Write-Host ""
+Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
+Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
+Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
+Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
+Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
+Write-Host ""
+Write-Host "██████████████████████████████████████████████████████████████████"
+Write-Host ""
+
+$BIN = "$PSScriptRoot\bin\"
+$LISTS = "$PSScriptRoot\lists\"
+
+function Test-Administrator {
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
+    $principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Show-Telegram {
+    $regKey = "HKCU:\Software\Zapret"
+    $regValue = "TelegramOpened"
+
+    if ((Get-ItemProperty -Path $regKey -Name $regValue -ErrorAction SilentlyContinue).$regValue -eq 1) {
+        Write-Host "Присоединяйтесь к нашему каналу Telegram (для обновлений) https://t.me/bypassblock"
+    } else {
+        Write-Host "Присоединяйтесь к нашему каналу Telegram"
+        Start-Process https://t.me/bypassblock
+        New-Item -Path $regKey -Force | Out-Null
+        New-ItemProperty -Path $regKey -Name $regValue -Value 1 -PropertyType DWORD -Force | Out-Null
+    }
+}
+
+function StartZapret {
     param(
         [string]$StrategyName,
         [string]$Arguments
     )
 
     Start-Sleep -Seconds 1
-    $global:STRATEGY_STARTED = $true
 
     # Добавление проверки существования файла winws.exe
     if (-Not (Test-Path -Path "$BIN\winws.exe")) {
@@ -294,7 +131,7 @@ function Invoke-ZapretStrategy {
 
     # Попытка запуска процесса
     try {
-        $process = Start-Process -FilePath "$BIN\winws.exe" -ArgumentList $Arguments -WindowStyle Minimized -PassThru -WorkingDirectory $PSScriptRoot
+        $process = Start-Process -FilePath "$BIN\winws.exe" -ArgumentList $Arguments -WindowStyle Hidden -PassThru -WorkingDirectory $PSScriptRoot
         # Проверка успешности запуска
         if ($process -eq $null) {
             Write-Error "Не удалось запустить winws.exe с аргументами: $Arguments"
@@ -302,15 +139,15 @@ function Invoke-ZapretStrategy {
         }
 
         # Сохранение PID запущенного процесса
-        #$process.Id | Out-File -FilePath "$PSScriptRoot\zapret_pid.txt" -Encoding UTF8
-        Write-Host "Стратегия '$StrategyName' успешно загружена! PID: $($process.Id)"
+        "Process ID: $($process.Id) | $localVersion `nСтратегия: $($StrategyName) `nАргументы: $($Arguments -join ' ') `nВремя запуска: $($process.StartTime)" | Out-File -FilePath "$PSScriptRoot\log.txt" -Encoding UTF8 -Append
+        Write-Host "Стратегия '$StrategyName' успешно загружена!" -ForegroundColor Green
     }
     catch {
         Write-Error "Ошибка при запуске winws.exe: $_"
     }
 }
 
-function Stop-Zapret {
+function StopZapret {
     $zapretProcess = Get-Process winws -ErrorAction SilentlyContinue
     if ($zapretProcess) {
         Stop-Process -Force -Name winws
@@ -356,6 +193,15 @@ function Stop-Zapret {
 
     Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\WinDivert" -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Services\WinDivert14" -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+function OpenLogFile {
+    $logFilePath = Join-Path -Path $PSScriptRoot -ChildPath "log.txt"
+    if (Test-Path -Path $logFilePath) {
+        Invoke-Item -Path $logFilePath
+    } else {
+        Write-Warning "Лог файл '$logFilePath' не найден."
+    }
 }
 
 function Set-CustomDNS {
@@ -874,7 +720,7 @@ function Uninstall-Service {
     } catch {
         Write-Host "Не удалось удалить службу" -ForegroundColor Red
     }
-    Stop-Zapret
+    StopZapret
 }
 
 # Функция для включения/выключения автозапуска
@@ -923,7 +769,7 @@ function Start-DefaultStrategy {
         Write-Host "Приложение находится в автозапуске! Стратегии не запускаются в ручном режиме."
     } else {
         Write-Host "Запуск стратегии по умолчанию из реестра: '$($DefaultStrategyInfo.StrategyName)'"
-        Invoke-ZapretStrategy -StrategyName $DefaultStrategyInfo.StrategyName -Arguments $DefaultStrategyInfo.ConfigArg
+        StartZapret -StrategyName $DefaultStrategyInfo.StrategyName -Arguments $DefaultStrategyInfo.ConfigArg
     }
 }
 
@@ -1019,44 +865,63 @@ function Toggle-DiscordRestartSetting {
     }
 }
 
-Check-AndDownload-WinDivert
+#####################################################################################################################
+$localVersion = "6.5.2"
+#####################################################################################################################
+DownloadDLLFile
 Show-Telegram
-Start-DefaultStrategy
-
-Write-Host "-----------------------"
-Write-Host "ВЫБЕРИТЕ СТРАТЕГИЮ:"
 Write-Host ""
+Write-Host "----------------------- ВЫБЕРИТЕ СТРАТЕГИЮ: -----------------------" -ForegroundColor Cyan
 Write-Host "0. Остановить Zapret"
 Write-Host ""
-Write-Host "1. Запустить стратегию от 06.01.2025 (разблокирует любые сайты)"
-Write-Host "2. Запустить стратегию лайт v1 (лёгкая и быстрая, минимальный детект для античитов игр, разблокирует любые сайты)"
-Write-Host "3. Запустить стратегию Discord TCP 80 (предпочтительно Ростелеком)"
-Write-Host "4. Запустить стратегию Discord fake (предпочтительно Ростелеком)"
-Write-Host "5. Запустить стратегию Discord fake и split (предпочтительно Уфанет)"
-Write-Host "6. Запустить стратегию Discord fake и split2 (УльтиМейт фикс, предпочтительно Билайн и Ростелеком)"
+Write-Host "1. Запустить 06.01.2025 " -NoNewline
+Write-Host "(разблокирует любые сайты)" -ForegroundColor DarkGray
+Write-Host "2. Запустить лайт v1 " -NoNewline
+Write-Host "(лёгкая и быстрая, минимальный детект для античитов игр, разблокирует любые сайты)" -ForegroundColor DarkGray
+Write-Host "3. Запустить Discord TCP 80 " -NoNewline
+Write-Host "(предпочтительно Ростелеком)" -ForegroundColor DarkGray
+Write-Host "4. Запустить Discord fake " -NoNewline
+Write-Host "(предпочтительно Ростелеком)" -ForegroundColor DarkGray
+Write-Host "5. Запустить Discord fake и split " -NoNewline
+Write-Host "(предпочтительно Уфанет)" -ForegroundColor DarkGray
+Write-Host "6. Запустить Discord fake и split2 " -NoNewline
+Write-Host "(УльтиМейт фикс, предпочтительно Билайн и Ростелеком)" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "7. Запустить стратегию split с sniext (предпочтительно ДомРу)"
-Write-Host "8. Запустить стратегию split с badseq (предпочтительно ДомРу)"
+Write-Host "7. Запустить split с sniext " -NoNewline
+Write-Host "(предпочтительно ДомРу)" -ForegroundColor DarkGray
+Write-Host "8. Запустить split с badseq " -NoNewline
+Write-Host "(предпочтительно ДомРу)" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "9. Запустить стратегию split с badseq (предпочтительно Ростелеком и Мегафон)"
-Write-Host "10. Запустить стратегию fake и split2, второй bin файл (предпочтительно Ростелеком)"
+Write-Host "9. Запустить split с badseq " -NoNewline
+Write-Host "(предпочтительно Ростелеком и Мегафон)" -ForegroundColor DarkGray
+Write-Host "10. Запустить fake и split2, второй bin файл " -NoNewline
+Write-Host "(предпочтительно Ростелеком)" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "11. Запустить стратегию YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake"
-Write-Host "12. Запустить стратегию YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake и split 2"
+Write-Host "11. Запустить YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake"
+Write-Host "12. Запустить YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake и split 2"
+Write-Host "13. Запустить syndata " -NoNewline
+Write-Host "(устаревшая стратегия)" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "13. Запустить стратегию split с badseq (предпочтительно МГТС)"
-Write-Host "14. Запустить стратегию split с badseq, дополнительно cutoff (предпочтительно МГТС или ЯлтаТВ)"
-Write-Host "15. Запустить стратегию fake и split2, bin файл google (предпочтительно МГТС)"
-Write-Host "16. Запустить стратегию fake и split2 bin файл quic_test_00 (предпочтительно МГТС)"
+Write-Host "14. Запустить split с badseq " -NoNewline
+Write-Host "(предпочтительно МГТС)" -ForegroundColor DarkGray
+Write-Host "15. Запустить split с badseq, дополнительно cutoff " -NoNewline
+Write-Host "(предпочтительно МГТС или ЯлтаТВ)" -ForegroundColor DarkGray
+Write-Host "16. Запустить fake и split2, bin файл google " -NoNewline
+Write-Host "(предпочтительно МГТС)" -ForegroundColor DarkGray
+Write-Host "17. Запустить fake и split2 bin файл quic_test_00 " -NoNewline
+Write-Host "(предпочтительно МГТС)" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "30. Запустить стратегию ультимейт конфиг ZL (разблокирует любые сайты)"
-Write-Host "31. Запустить стратегию ультимейт конфиг v2 (разблокирует любые сайты)"
+Write-Host "30. Запустить ультимейт конфиг ZL " -NoNewline
+Write-Host "(разблокирует любые сайты)" -ForegroundColor DarkGray
+Write-Host "31. Запустить ультимейт конфиг v2 " -NoNewline
+Write-Host "(разблокирует любые сайты)" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host ""
+Write-Host "----------------------- ДРУГИЕ ОПЦИИ: -----------------------" -ForegroundColor Cyan
 Write-Host "40. Включить / выключить автозапуск"
 Write-Host "41. Включить / выключить автоматический перезапуск Discord при запуске Запрета"
 Write-Host ""
 Write-Host "50 Проверить работу YouTube и Discord глобально! (если никакие стратегии не помогают)"
+Write-Host "51 Открыть лог файл"
 Write-Host ""
 Write-Host "60. Очистить DNS (установить дефолтные) (помогает если после смены DNS сломался интернет)"
 Write-Host "61. Сменить DNS на Google DNS (помогает если Вы этого ещё не сделали)"
@@ -1066,38 +931,146 @@ Write-Host ""
 Write-Host "70. Отредактировать файл hosts (помогает разблокировать Instagram, Facebook, Twitter и т.д.)"
 Write-Host "71. Разблокировать ChatGPT, Gemini, Spotify, TikTok, Notion и другие ресурсы"
 Write-Host ""
-#####################################################################################################################
-$localVersion = "6.5.1"
-#####################################################################################################################
 
 if (Check-Update) {
     # Предлагаем пользователю скачать обновление
-    Write-Host "Доступно новое обновление! Текущая версия: $localVersion, Новая версия: $latestVersion"
-    $choice = Read-Host "Вы можете скачать его прямо сейчас (введите цифру 1 если Вы согласны обновить программу / введите цифру 0 если против)"
+    Write-Warning "Доступно новое обновление! Текущая версия: $localVersion, Новая версия: $latestVersion"
+    Write-Warning "Вы можете скачать его прямо сейчас (1 - обновить программу / 0 - пропустить обновление)"
+    $choice = Read-Host "Введите цифру:"
     if ($choice -eq "1") {
         # Здесь код для скачивания и установки обновления
         Start-Process -FilePath "powershell.exe" -ArgumentList "-File `"$BIN\check_update.ps1`""
         Exit 0
     } elseif ($choice -eq "0") {
-        Write-Host "ОБНОВЛЕНИЕ ОТМЕНЕНО! В БУДУЩЕМ ВЫ ДОЛЖНЫ СКАЧАТЬ НОВУЮ ВЕРСИЮ"
+        Write-Warning "ОБНОВЛЕНИЕ ОТМЕНЕНО! В БУДУЩЕМ ВЫ ДОЛЖНЫ СКАЧАТЬ НОВУЮ ВЕРСИЮ"
     } else {
         Exit 0
     }
 }
 
+Start-DefaultStrategy
+
+$YT = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"""
+$YT_2 = "--filter-tcp=443 --hostlist=""$LISTS\youtube_v2.txt"""
+
+$YT1 = "$YT --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=3 --new"
+$YT5 = "$YT --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_2.bin"" --dpi-desync-autottl=2 --new"
+$YT2 = "$YT --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --new"
+$YT4 = "$YT --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl=2 --new"
+$YT8 = "$YT --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-cutoff=d2 --dpi-desync-ttl=3 --new"
+$YT7 = "$YT --dpi-desync=split --dpi-desync-split-pos=3 --dpi-desync-repeats=4 --dpi-desync-autottl=1 --new"
+$YT3 = "$YT --dpi-desync=split --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=1 --new"
+$YT6 = "$YT --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=4 --new"
+$YT9 = "$YT --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=""$BIN\tls_clienthello_2.bin"" --dpi-desync-ttl=3 --new"
+$YT10 = "$YT_2 --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --new"
+$YT11 = "$YT --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
+#YoutubeFix (ALT v10).bat
+$Ankddev10_4 = "$YT --dpi-desync=syndata,multidisorder2 --dpi-desync-split-pos=4 --dpi-desync-repeats=10 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls=""$BIN\tls_clienthello_vk_com_kyber.bin"" --new"
+
+$YGV = "--filter-tcp=443 --hostlist=""$LISTS\youtubeGV.txt"""
+$YGV1 = "$YGV --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-cutoff=d2 --dpi-desync-ttl=4 --new"
+$YGV2 = "$YGV --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new"
+$YGV3 = "$YGV --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld-1 --new"
+
+$YRTMP1 = "--filter-tcp=443 --ipset=""$LISTS\russia-youtube-rtmps.txt"" --dpi-desync=syndata --dpi-desync-fake-syndata=""$BIN\tls_clienthello_4.bin"" --dpi-desync-autottl --new"
+$YRTMP2 = "--filter-tcp=443 --ipset-ip=XXX.XXX.XXX.XXX/XX,XXX.XXX.XXX.XXX/XX --wssize=1:6 --hostlist-domains=googlevideo.com --dpi-desync=multidisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2 --new"
+
+$DISTCP80 = "--filter-tcp=80"
+$DISTCP = "--filter-tcp=443 --hostlist=""$LISTS\discord.txt"""
+
+$DISTCP1 = "$DISTCP --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new"
+$DISTCP2 = "$DISTCP --dpi-desync=split2 --dpi-desync-split-seqovl=652 --dpi-desync-split-pos=2 --dpi-desync-split-seqovl-pattern=""$BIN\tls_clienthello_4.bin"" --new"
+$DISTCP3 = "$DISTCP --dpi-desync=fake,split --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
+$DISTCP4 = "$DISTCP --dpi-desync=fake,split2 --dpi-desync-ttl=1 --dpi-desync-autottl=5 --dpi-desync-repeats=6 --dpi-desync-fake-tls=""$BIN\tls_clienthello_sberbank_ru.bin"" --new"
+$DISTCP5 = "$DISTCP --dpi-desync=syndata --dpi-desync-fake-syndata=""$BIN\tls_clienthello_3.bin"" --dpi-desync-ttl=5 --new"
+$DISTCP6 = "$DISTCP --dpi-desync=fake,split --dpi-desync-autottl=2 --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
+$DISTCP7 = "$DISTCP --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_4.bin"" --dpi-desync-ttl=4 --new"
+$DISTCP8 = "$DISTCP --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --dpi-desync-ttl=2 --new"
+$DISTCP9 = "$DISTCP --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"
+$DISTCP10 = "$DISTCP --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=3 --new"
+$DISTCP11 = "$DISTCP --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"
+$DISTCP12 = "$DISTCP --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --new"
+$DISTCP13 = "$DISTCP80 $DISTCP --dpi-desync=fake,multidisorder --dpi-desync-split-pos=midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new"
+#DiscordFix (ALT v10).bat
+$Ankddev10_1 = "$DISTCP --dpi-desync=syndata,disorder2 --dpi-desync-split-pos=3 --dpi-desync-repeats=11 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_www_google_com.bin"" --new"
+
+$DISTCP80 = "--filter-tcp=80 --hostlist=""$LISTS\discord.txt"" --dpi-desync=fake,split2 --dpi-desync-autottl=2 --dpi-desync-fooling=md5sig --new"
+
+$TCP80 = "--filter-tcp=80 --dpi-desync=fake,fakedsplit --dpi-desync-autottl=2 --dpi-desync-fooling=md5sig --new"
+
+$UDP1 = "--filter-udp=50000-59000 --dpi-desync=fake,split2 --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --new"
+#$UDP6 = "--filter-udp=50000-65535 --dpi-desync=fake,split2 --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --new"
+$UDP2 = "--filter-udp=50000-59000 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"
+$UDP3 = "--filter-udp=50000-59000 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$UDP4 = "--filter-udp=50000-59000 --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$UDP5 = "--filter-udp=50000-59000 --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=n5 --dpi-desync-repeats=10 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$UDP7 = "--filter-udp=50000-50090 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=n3 --new"
+$UDP8 = "--filter-udp=443 --dpi-desync=fake --dpi-desync-repeats=11 --new"
+
+$YQ = "--filter-udp=443 --hostlist=""$LISTS\youtubeQ.txt"""
+
+$YQ1 = "--dpi-desync=fake --dpi-desync-repeats=2 --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --new"
+$YQ2 = "$YQ --dpi-desync=fake --dpi-desync-repeats=4 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$YQ3 = "$YQ --dpi-desync=fake --dpi-desync-repeats=4 --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --new"
+$YQ4 = "$YQ --dpi-desync=fake --dpi-desync-repeats=11 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$YQ5 = "$YQ --dpi-desync=fake --dpi-desync-repeats=2 --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$YQ6 = "$YQ --dpi-desync=fake --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --dpi-desync-repeats=4 --new"
+$YQ7 = "$YQ --dpi-desync=fake,udplen --dpi-desync-udplen-increment=2 --dpi-desync-fake-quic=""$BIN\quic_3.bin"" --dpi-desync-cutoff=n3 --dpi-desync-repeats=2 --new"
+$YQ8 = "$YQ --dpi-desync=fake,udplen --dpi-desync-udplen-increment=4 --dpi-desync-fake-quic=""$BIN\quic_3.bin"" --dpi-desync-cutoff=n3 --dpi-desync-repeats=2 --new"
+$YQ9 = "$YQ --dpi-desync=fake --dpi-desync-repeats=11 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$Ankddev10_5 = "$YQ --dpi-desync=fake,split2 --dpi-desync-repeats=10 --dpi-desync-udplen-increment=25 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+
+$DISUDP = "--filter-udp=443 --hostlist=""$LISTS\discord.txt"""
+
+$DISUDP1 = "$DISUDP --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=7 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_test_00.bin"" --dpi-desync-cutoff=n2 --new"
+$DISUDP2 = "$DISUDP --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --new"
+$DISUDP3 = "$DISUDP --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$DISUDP4 = "$DISUDP --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=""$BIN\quic_initial_vk_com.bin"" --new"
+$DISUDP5 = "$DISUDP --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=7 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$DISUDP6 = "$DISUDP --dpi-desync=fake,split2 --dpi-desync-udplen-increment=10 --dpi-desync-repeats=6 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$DISUDP7 = "$DISUDP --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=6 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$DISUDP8 = "$DISUDP --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_2.bin"" --dpi-desync-repeats=8 --dpi-desync-cutoff=n2 --new"
+$DISUDP9 = "$DISUDP --dpi-desync=fake,udplen --dpi-desync-udplen-increment=5 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=""$BIN\quic_2.bin"" --dpi-desync-repeats=7 --dpi-desync-cutoff=n2 --new"
+$Ankddev10_2 = "$DISUDP --dpi-desync=fake,split2 --dpi-desync-repeats=11 --dpi-desync-udplen-increment=15 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+
+$DISIP1 = "--filter-udp=50000-50010 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"
+$DISIP2 = "--filter-udp=50000-65535 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"
+$DISIP3 = "--filter-udp=50000-59000 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=""$BIN\quic_initial_www_google_com.bin"" --new"
+$DISIP4 = "--filter-udp=50000-50099 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=""$BIN\quic_1.bin"" --new"
+$DISIP5 = "--filter-tcp=443 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=syndata --dpi-desync-fake-syndata=""$BIN\tls_clienthello_3.bin"" --dpi-desync-autottl --new"
+$DISIP6 = "--filter-udp=50000-50099 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-any-protocol --dpi-desync-cutoff=n4 --new"
+$Ankddev10_3 = "--filter-udp=50000-50099 --ipset=""$LISTS\ipset-discord.txt"" --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=d5 --dpi-desync-repeats=11 --new"
+
+$faceinsta = "--filter-tcp=443 --hostlist=""$LISTS\faceinsta.txt"" --dpi-desync=split2 --dpi-desync-split-seqovl=652 --dpi-desync-split-pos=2 --dpi-desync-split-seqovl-pattern=""$BIN\tls_clienthello_4.bin"" --new"
+
+$other = "--filter-tcp=443 --hostlist=""$LISTS\other.txt"""
+$other1 = "$other --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=""$BIN\tls_clienthello_3.bin"" --dpi-desync-ttl=2 --new"
+$other2 = "$other --dpi-desync=fake,multisplit --dpi-desync-fooling=md5sig --dpi-desync-autottl --new"
+$other3 = "$other --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1 --dpi-desync-fake-tls=""$BIN\tls_clienthello_vk_com.bin"" --dpi-desync-ttl=5 --new"
+$other4 = "$other --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld-1 --dpi-desync-fooling=md5sig,badseq --dpi-desync-fake-tls=""$BIN\tls_clienthello_4.bin"" --dpi-desync-ttl=2 --new"
+$other5 = "$other --dpi-desync=fake,multidisorder --dpi-desync-split-pos=midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new"
+
 do {
     $AutostartEnabled = Get-AutostartState
     $DefaultStrategyInfo = Get-DefaultStrategy
     $StrategyName = $DefaultStrategyInfo.StrategyName # Получаем имя стратегии из объекта
-    try {
-        $DiscordRestartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart"
-    } catch {
-        Write-Host "Параметр 'DiscordRestart' не найден в реестре. Используйте опцию 41"
+    $DiscordRestartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart"
+
+    $winwsProcess = Get-Process -Name winws -ErrorAction SilentlyContinue
+    if ($winwsProcess) {
+        $winwsStatus = "Запущен"
+        $winwsColor = "Green" # Зеленый цвет для "Запущен"
+    } else {
+        $winwsStatus = "Не запущен"
+        $winwsColor = "Red"   # Красный цвет для "Не запущен"
     }
 
     $wf = "--wf-tcp=80,443"
-    $Host.UI.RawUI.WindowTitle = "Zapret $localVersion | Текущая стратегия - $StrategyName | Автозапуск - $AutostartEnabled (0 - ВЫКЛ, 1 - ВКЛ) | Дискорд - $discordRestartEnabled | https://t.me/bypassblock"
-    $userInput = Read-Host "Введите цифру"
+    $Host.UI.RawUI.WindowTitle = "Zapret $localVersion | $winwsStatus | Текущая стратегия - $StrategyName | Автозапуск - $AutostartEnabled (0 - ВЫКЛ, 1 - ВКЛ) | Дискорд - $discordRestartEnabled | https://t.me/bypassblock"
+
+    Write-Host "Статус программы: " -NoNewline
+    Write-Host $winwsStatus -ForegroundColor $winwsColor
+    $userInput = Read-Host "Введите цифру стратегии или необходимую опцию"
 
     switch ($userInput) {
         "0" {
@@ -1105,8 +1078,7 @@ do {
                 Write-Host "Приложение находится в автозапуске! Запрет выключается ТОЛЬКО через выключение автозапуска, наберите 40 чтобы убрать его из автозапуска!"
                 Write-Host "В будущих версиях эта ошибка исправится..."
             } else {
-                Stop-Zapret
-                Write-Host "ЗАПРЕТ ОСТАНОВЛЕН!"
+                StopZapret
             }
         }
         "1" {
@@ -1158,18 +1130,22 @@ do {
             $DefaultConfigArg = "--wf-l3=ipv4,ipv6 --wf-tcp=443 --wf-udp=443,50000-65535 $YQ4 $YT6 $DISUDP7 $UDP5 $DISTCP8 $other1 $faceinsta"
         }
         "13" {
-            $DefaultConfigName = "MGTS v1"
-            $DefaultConfigArg = "$wf --wf-udp=443,50000-50900 $YQ2 $YT7 $DISUDP5 $DISIP3 $DISTCP9 $other1 $faceinsta"
+            $DefaultConfigName = "Ankddev v10"
+            $DefaultConfigArg = "--wf-l3=ipv4,ipv6 --wf-tcp=443 --wf-udp=443,50000-65535 $Ankddev10_1 $Ankddev10_2 $Ankddev10_3 $Ankddev10_4 $Ankddev10_5"           
         }
         "14" {
+            $DefaultConfigName = "MGTS v1"
+            $DefaultConfigArg = "$wf --wf-udp=443,50000-50010 $YGV1 $YT7 $DISIP1 $DISTCP9 $other1 $faceinsta"
+        }
+        "15" {
             $DefaultConfigName = "MGTS v2"
             $DefaultConfigArg = "$wf --wf-udp=443,50000-50900 $YT8 $DISTCP10 $YQ5 $DISUDP1 $other1 $faceinsta"
         }
-        "15" {
-            $DefaultConfigName = "MGTS v3"
-            $DefaultConfigArg = "$wf --wf-udp=443,50000-50900 $YT1 $DISTCP10 $YQ5 $DISUDP1 $UDP1 $other1 $faceinsta"
-        }
         "16" {
+            $DefaultConfigName = "MGTS v3"
+            $DefaultConfigArg = "$wf --wf-udp=443,50000-50900 $YT7 $DISTCP10 $YQ5 $DISUDP1 $UDP1 $other1 $faceinsta"
+        }
+        "17" {
             $DefaultConfigName = "MGTS v4"
             $DefaultConfigArg = "$wf --wf-udp=443,50000-50900 $YQ1 $YGV3 $YT1 $DISUDP1 $UDP1 $DISTCP1 $other1 $faceinsta"
         }
@@ -1195,6 +1171,9 @@ do {
         "50" {
             Check-Discord
             Check-YouTube
+        }
+        "51" {
+            OpenLogFile
         }
         "60" {
             Reset-DNS
@@ -1227,8 +1206,8 @@ do {
         if ($AutostartEnabled) {
             Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
         } else {
-            Stop-Zapret
-            Invoke-ZapretStrategy -StrategyName $DefaultConfigName -Arguments $DefaultConfigArg
+            StopZapret
+            StartZapret -StrategyName $DefaultConfigName -Arguments $DefaultConfigArg
 
             if ($discordRestartEnabled -eq $null -or $discordRestartEnabled -eq 0) {
                 Restart-Discord
