@@ -1,3 +1,26 @@
+# Устанавливаем кодовую страницу UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    Clear-Host
+}
+
+Write-Host "██████████████████████████████████████████████████████████████████"
+Write-Host ""
+Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
+Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
+Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
+Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
+Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
+Write-Host ""
+Write-Host "██████████████████████████████████████████████████████████████████"
+Write-Host ""
+
+$BIN = "$PSScriptRoot\bin\"
+$LISTS = "$PSScriptRoot\lists\"
+
 function DownloadDLLFile {
     $WinDivertDll = "WinDivert.dll"
     $WinDivert64Sys = "WinDivert64.sys"
@@ -72,29 +95,6 @@ function DownloadDLLFile {
     }
 
 }
-
-# Устанавливаем кодовую страницу UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
-if ($PSVersionTable.PSVersion.Major -lt 6) {
-    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
-    Clear-Host
-}
-
-Write-Host "██████████████████████████████████████████████████████████████████"
-Write-Host ""
-Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
-Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
-Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
-Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
-Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
-Write-Host ""
-Write-Host "██████████████████████████████████████████████████████████████████"
-Write-Host ""
-
-$BIN = "$PSScriptRoot\bin\"
-$LISTS = "$PSScriptRoot\lists\"
 
 function Test-Administrator {
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
