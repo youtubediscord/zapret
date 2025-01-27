@@ -1,25 +1,83 @@
-# Устанавливаем кодовую страницу UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+﻿<#
+### 1.3. Настройки файла hosts
+В файл `C:\Windows\System32\drivers\etc\hosts` пропишите следующее содержание (_рекомендуется использовать [`Notepad++`](https://github.com/notepad-plus-plus/notepad-plus-plus/releases), ссылка на оф. сайт была заблокирована_):
 
-# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
-if ($PSVersionTable.PSVersion.Major -lt 6) {
-    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
-    Clear-Host
-}
+```
+31.13.72.36 facebook.com
+31.13.72.36 www.facebook.com
+31.13.72.12 static.xx.fbcdn.net
+31.13.72.18 fburl.com
+157.240.227.174 www.instagram.com
+157.240.227.174 instagram.com
+31.13.72.53 static.cdninstagram.com
+31.13.72.53 edge-chat.instagram.com
+157.240.254.63 scontent.cdninstagram.com
+157.240.205.63 scontent-hel3-1.cdninstagram.com
+104.21.32.39 rutracker.org
+172.67.182.196 rutracker.org
+116.202.120.184 torproject.org
+116.202.120.184 bridges.torproject.org
+116.202.120.166 community.torproject.org
+162.159.152.4 medium.com
+172.67.182.196 rutracker.org
+188.114.96.1 dept.one
+142.250.185.238 youtube.com
+142.250.186.110 www.youtube.com
+130.255.77.28 ntc.party
+```
 
-Write-Host "██████████████████████████████████████████████████████████████████"
-Write-Host ""
-Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
-Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
-Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
-Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
-Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
-Write-Host ""
-Write-Host "██████████████████████████████████████████████████████████████████"
-Write-Host ""
+Либо на какой-то из примеров ниже (_предыдущий вариант удалите_):
+```
+31.13.72.36 facebook.com
+31.13.72.36 www.facebook.com
+31.13.72.12 static.xx.fbcdn.net
+31.13.72.18 fburl.com
+157.240.229.174 www.instagram.com
+157.240.229.174 instagram.com
+31.13.72.53 static.cdninstagram.com
+31.13.72.53 edge-chat.instagram.com
+31.13.72.53 scontent-arn2-1.cdninstagram.com
+157.240.247.63 scontent.cdninstagram.com
+157.240.205.63 scontent-hel3-1.cdninstagram.com
+104.21.32.39 rutracker.org
+172.67.182.196 rutracker.org
+116.202.120.184 torproject.org
+116.202.120.184 bridges.torproject.org
+116.202.120.166 community.torproject.org
+162.159.152.4 medium.com
+172.67.182.196 rutracker.org
+188.114.96.1 dept.one
+142.250.185.238 youtube.com
+142.250.186.110 www.youtube.com
+130.255.77.28 ntc.party
+```
 
-$BIN = "$PSScriptRoot\bin\"
-$LISTS = "$PSScriptRoot\lists\"
+```
+31.13.72.36 facebook.com
+31.13.72.36 www.facebook.com
+31.13.72.12 static.xx.fbcdn.net
+31.13.72.18 fburl.com
+157.240.225.174 instagram.com
+157.240.225.174 www.instagram.com
+157.240.225.174 i.instagram.com
+31.13.72.53 edge-chat.instagram.com
+31.13.72.53 scontent-arn2-1.cdninstagram.com
+31.13.72.53 scontent.cdninstagram.com
+31.13.72.53 static.cdninstagram.com 
+157.240.205.63 scontent-hel3-1.cdninstagram.com
+104.21.32.39 rutracker.org
+172.67.182.196 rutracker.org
+116.202.120.184 torproject.org
+116.202.120.184 bridges.torproject.org
+116.202.120.166 community.torproject.org
+162.159.152.4 medium.com
+172.67.182.196 rutracker.org
+188.114.96.1 dept.one
+142.250.185.238 youtube.com
+142.250.186.110 www.youtube.com
+130.255.77.28 ntc.party
+```
+#>
 
 function DownloadDLLFile {
     $WinDivertDll = "WinDivert.dll"
@@ -95,6 +153,29 @@ function DownloadDLLFile {
     }
 
 }
+
+# Устанавливаем кодовую страницу UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    Clear-Host
+}
+
+Write-Host "██████████████████████████████████████████████████████████████████"
+Write-Host ""
+Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
+Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
+Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
+Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
+Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
+Write-Host ""
+Write-Host "██████████████████████████████████████████████████████████████████"
+Write-Host ""
+
+$BIN = "$PSScriptRoot\bin\"
+$LISTS = "$PSScriptRoot\lists\"
 
 function Test-Administrator {
     $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -811,26 +892,6 @@ function Toggle-DiscordRestartSetting {
     $registryPath = "HKCU:\SOFTWARE\Zapret"
     $registryValueName = "DiscordRestart"
 
-    # Проверяем, существует ли раздел реестра, если нет - создаем
-    if (!(Test-Path -Path $registryPath)) {
-        try {
-            New-Item -Path $registryPath -ItemType Directory -Force | Out-Null
-            Write-Host "Раздел реестра '$registryPath' создан (единожды)."
-        }
-        catch {
-            Write-Warning "Не удалось создать раздел реестра '$registryPath': $($_.Exception.Message)"
-            return $false
-        }
-    }
-
-    # Получаем текущее значение из реестра. Если нет значения, считаем, что функция включена (значение 0)
-    $currentValue = Get-ItemProperty -Path $registryPath -Name $registryValueName -ErrorAction SilentlyContinue
-    if ($currentValue -and $currentValue.$registryValueName -eq 1) {
-        $DiscordRestartEnabled = 1 # Выключено
-    } else {
-        $DiscordRestartEnabled = 0 # Включено или значение не установлено
-    }
-
     if ($DiscordRestartEnabled -eq 0) {
         # Сейчас включено, будем отключать - показываем сообщение с подтверждением
         Write-Warning @"
@@ -1055,7 +1116,12 @@ do {
     $AutostartEnabled = Get-AutostartState
     $DefaultStrategyInfo = Get-DefaultStrategy
     $StrategyName = $DefaultStrategyInfo.StrategyName # Получаем имя стратегии из объекта
-    $DiscordRestartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart"
+    try {
+        $DiscordRestartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart"
+    } catch {
+        Set-ItemProperty -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart" -Value 0 -Type DWord -Force
+        $DiscordRestartEnabled = 0
+    }
 
     $winwsProcess = Get-Process -Name winws -ErrorAction SilentlyContinue
     if ($winwsProcess) {
@@ -1210,7 +1276,7 @@ do {
             StopZapret
             StartZapret -StrategyName $DefaultConfigName -Arguments $DefaultConfigArg
 
-            if ($discordRestartEnabled -eq $null -or $discordRestartEnabled -eq 0) {
+            if ($discordRestartEnabled -eq 0) {
                 Restart-Discord
             }
         }
