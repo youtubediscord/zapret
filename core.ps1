@@ -451,7 +451,7 @@ function Edit-Hosts {
                 #"185.15.211.203 bt3.t-ru.org",
                 #"185.15.211.203 bt4.t-ru.org",
                 "3.66.189.153 mail.proton.me",
-                "3.73.85.131 mail.proton.me",
+                #"3.73.85.131 mail.proton.me",
                 "31.13.72.36 facebook.com",
                 "31.13.72.36 www.facebook.com",
                 "31.13.72.12 static.xx.fbcdn.net",
@@ -928,7 +928,7 @@ function Toggle-DiscordRestartSetting {
 }
 
 #####################################################################################################################
-$localVersion = "6.5.2"
+$localVersion = Get-Content -Path "$PSScriptRoot\version.txt"
 #####################################################################################################################
 DownloadDLLFile
 Show-Telegram
