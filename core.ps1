@@ -1,3 +1,12 @@
+# Устанавливаем кодовую страницу UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    Clear-Host
+}
+
 function DownloadDLLFile {
     $WinDivertDll = "WinDivert.dll"
     $WinDivert64Sys = "WinDivert64.sys"
@@ -71,15 +80,6 @@ function DownloadDLLFile {
     } else {
     }
 
-}
-
-# Устанавливаем кодовую страницу UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
-if ($PSVersionTable.PSVersion.Major -lt 6) {
-    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
-    Clear-Host
 }
 
 function ShowTitle {
