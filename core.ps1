@@ -1,4 +1,4 @@
-# Устанавливаем кодовую страницу UTF-8
+﻿# Устанавливаем кодовую страницу UTF-8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Устанавливаем синий цвет фона (не работает в PowerShell 7+)
