@@ -5,7 +5,7 @@
 - Возможность прописать кастомные DNS сервера
 
 > [!IMPORTANT]  
-> Есть вопросы? Задай их здесь: https://github.com/youtubediscord/zapret/issues/new
+> Есть вопросы? Задай их здесь: https://github.com/youtubediscord/zapret/issues/new или же в группе https://t.me/youtubenotwork или https://discord.gg/kkcBDG2uws
 
 > [!CAUTION]  
 > Совсем никак не работает Запрет?
@@ -32,7 +32,6 @@
 > [!CAUTION]  
 > [Яндекс DNS](https://t.me/bypassblock/134) перестали открывать Discord и другие заблокированные сайты. Не пользуйтесь ими. Рекомендуем сменить их на [**Google DNS**](https://developers.google.com/speed/public-dns) или [**Quad9 DNS**](https://quad9.net/service/service-addresses-and-features). Программа быстро позволяет Вам это сделать (опции `51` и `52`)
 
-### По всем вопросам обращаться в группу https://t.me/youtubenotwork или https://discord.gg/kkcBDG2uws
 ### Другие полезные сервисы и VPN https://github.com/awesome-windows11/CensorNet
 
 > [!CAUTION]  
