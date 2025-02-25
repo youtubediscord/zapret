@@ -82,16 +82,25 @@ function DownloadDLLFile {
 
 }
 
+# Устанавливаем кодовую страницу UTF-8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Устанавливаем синий цвет фона (не работает в PowerShell 7+)
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    Clear-Host
+}
+
 function ShowTitle {
-    Write-Host "██████████████████████████████████████████████████████████████████"
+    Write-Host " ███████████████████████████████████████████████████████████████"
     Write-Host ""
-    Write-Host "███████      ██████      ██████     ██████       ███████    ███████"
-    Write-Host "    ███     ██    ██     ██    ██   ██    ██     ██           ███"
-    Write-Host "   ███      ████████     ██████     ██████       ███████      ███"
-    Write-Host "  ███       ██    ██     ██         ██   ██      ██           ███"
-    Write-Host " ██████     ██    ██     ██         ██    ██     ███████      ███"
+    Write-Host " ██████     ██████      ██████     ██████       ███████   ██████"
+    Write-Host "    ██     ██    ██     ██    ██   ██    ██     ██          ██"
+    Write-Host "   ██      ████████     ██████     ██████       ███████     ██"
+    Write-Host "  ██       ██    ██     ██         ██   ██      ██          ██"
+    Write-Host " ██████    ██    ██     ██         ██    ██     ███████     ██"
     Write-Host ""
-    Write-Host "██████████████████████████████████████████████████████████████████"
+    Write-Host " ███████████████████████████████████████████████████████████████"
     Write-Host ""
 }
 
@@ -599,7 +608,7 @@ function Check-Update {
 
     try {
         # Загружаем актуальную версию с сервера
-        $global:latestVersion = (Invoke-WebRequest -Uri $versionUrl).Content.Trim()
+        $global:latestVersion = (Invoke-WebRequest -Uri $versionUrl -UseBasicParsing).Content.Trim()
 
         # Сравниваем версии
         if ([version]$localVersion -lt [version]$latestVersion) {
@@ -641,42 +650,6 @@ function Get-DefaultStrategy {
         Set-ItemProperty -Path $RegistryPath -Name "DefaultConfigArg" -Value $DefaultConfigArg -Force
         Write-Host "Раздел реестра HKCU:\Software\Zapret не найден. Создан новый раздел и установлены значения по умолчанию."
         return @{"StrategyName" = $DefaultStrategy; "ConfigArg" = $DefaultConfigArg}
-    }
-}
-
-# Функция для сохранения состояния автозапуска в реестр
-function Set-AutostartState {
-    param(
-        [int]$AutostartEnabled
-    )
-
-    $RegistryPath = "HKCU:\Software\Zapret"
-    $Name = "AutostartEnabled"
-
-    # Создаем раздел реестра, если он не существует
-    if (!(Test-Path $RegistryPath)) {
-        New-Item -Path $RegistryPath -Force | Out-Null
-    }
-
-    # Записываем состояние автозапуска в реестр
-    Set-ItemProperty -Path $RegistryPath -Name $Name -Value $AutostartEnabled
-}
-
-# Функция для получения состояния автозапуска из реестра
-function Get-AutostartState {
-    $RegistryPath = "HKCU:\Software\Zapret"
-    $Name = "AutostartEnabled"
-    $DefaultValue = 0 # Автозапуск выключен по умолчанию
-
-    if (Test-Path $RegistryPath) {
-        $AutostartEnabled = Get-ItemProperty -Path $RegistryPath -Name $Name -ErrorAction SilentlyContinue | Select-Object -ExpandProperty $Name
-        if ($AutostartEnabled -ne $null) {
-            return $AutostartEnabled
-        } else {
-            return $DefaultValue
-        }
-    } else {
-        return $DefaultValue
     }
 }
 
@@ -733,18 +706,18 @@ function Uninstall-Service {
 
 # Функция для включения/выключения автозапуска
 function Toggle-Autostart {
-    Clear-Host
-    $AutostartEnabled = Get-AutostartState
-
-    if ((Get-Process winws -ErrorAction SilentlyContinue) -and ($AutostartEnabled -eq 0)) {
-        Write-Host "Процесс winws.exe уже запущен! Остановите его через опцию 0 и только тогда запустите установку автозапуска!"
-        return
-    } elseif ($AutostartEnabled -eq 1) {
-        Uninstall-Service
-        Set-AutostartState -AutostartEnabled 0
-    } else {
+    if ($global:AutostartEnabled -eq 0) {
+        StopZapret
         Install-Service
-        Set-AutostartState -AutostartEnabled 1
+        Set-ItemProperty -Path "HKCU:\Software\Zapret" -Name "AutostartEnabled" -Value 1 -Force
+    } elseif ($global:AutostartEnabled -eq 1) {
+        Uninstall-Service
+        Set-ItemProperty -Path "HKCU:\Software\Zapret" -Name "AutostartEnabled" -Value 0 -Force
+        $global:AutostartEnabled = 0
+        Start-DefaultStrategy
+    }
+    else {
+
     }
 }
 
@@ -784,7 +757,6 @@ function Set-DefaultStrategy {
 
 # Функция для запуска стратегии по умолчанию при старте скрипта
 function Start-DefaultStrategy {
-    $AutostartEnabled = Get-AutostartState
     $DefaultStrategyInfo = Get-DefaultStrategy
 
     if ($AutostartEnabled) {
@@ -867,13 +839,8 @@ if (!(Test-Administrator)) {
 }
 
 #####################################################################################################################
-$localVersion = "7.0.1"
+$localVersion = "7.1.0"
 #####################################################################################################################
-ShowTitle
-DownloadDLLFile
-Show-Telegram
-
-Start-DefaultStrategy
 
 $YT = "--filter-tcp=443 --hostlist=""$LISTS\youtube.txt"""
 $YT_2 = "--filter-tcp=443 --hostlist=""$LISTS\youtube_v2.txt"""
@@ -976,284 +943,156 @@ $other4 = "$other --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi
 $other5 = "$other --dpi-desync=fake,multidisorder --dpi-desync-split-pos=midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new"
 $wf = "--wf-tcp=80,443"
 
+# Функция главного меню
+function MainMenu {
+ShowTitle
+DownloadDLLFile
+Show-Telegram
+Start-DefaultStrategy
+
 do {
-    $AutostartEnabled = Get-AutostartState
-    $DefaultStrategyInfo = Get-DefaultStrategy
-    $StrategyName = $DefaultStrategyInfo.StrategyName # Получаем имя стратегии из объекта
+$DefaultStrategyInfo = Get-DefaultStrategy
+$StrategyName = $DefaultStrategyInfo.StrategyName # Получаем имя стратегии из объекта
 
-    ######################## установление значений по умолчанию ###################################################
-    try {
-        $DiscordRestartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart"
-        Write-Log "[RESTARTDISCORD] $DiscordRestartEnabled"
-    } catch {
-        Set-ItemProperty -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart" -Value 1 -Type DWord -Force
-        $DiscordRestartEnabled = 1
-        Write-Log "[RESTARTDISCORD] ЗНАЧЕНИЕ НЕ УСТАНОВЛЕНО! Устанавливаем $DiscordRestartEnabled"
-    }
-    try {
-        $global:AutoUpdate = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "AutoUpdate"
-        Write-Log "[AUTOUPDATE] $global:AutoUpdate"
-    } catch {
-        Set-ItemProperty -Path "HKCU:\SOFTWARE\Zapret" -Name "AutoUpdate" -Value 1 -Type DWord -Force
-        $global:AutoUpdate = 1
-        Write-Log "[AUTOUPDATE] ЗНАЧЕНИЕ НЕ УСТАНОВЛЕНО! Устанавливаем $global:AutoUpdate"
-    }
+######################## установление значений по умолчанию ###################################################
+try {
+    $DiscordRestartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart"
+    Write-Log "[RESTARTDISCORD] $DiscordRestartEnabled"
+} catch {
+    Set-ItemProperty -Path "HKCU:\SOFTWARE\Zapret" -Name "DiscordRestart" -Value 1 -Type DWord -Force
+    $DiscordRestartEnabled = 1
+    Write-Log "[RESTARTDISCORD] ЗНАЧЕНИЕ НЕ УСТАНОВЛЕНО! Устанавливаем $DiscordRestartEnabled"
+}
+try {
+    $global:AutoUpdate = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "AutoUpdate"
+    Write-Log "[AUTOUPDATE] $global:AutoUpdate"
+} catch {
+    Set-ItemProperty -Path "HKCU:\SOFTWARE\Zapret" -Name "AutoUpdate" -Value 1 -Type DWord -Force
+    $global:AutoUpdate = 1
+    Write-Log "[AUTOUPDATE] ЗНАЧЕНИЕ НЕ УСТАНОВЛЕНО! Устанавливаем $global:AutoUpdate"
+}
+try {
+    $global:AutostartEnabled = Get-ItemPropertyValue -Path "HKCU:\SOFTWARE\Zapret" -Name "AutostartEnabled"
+    Write-Log "[AUTOSTART] $global:AutostartEnabled"
+} catch {
+    Set-ItemProperty -Path "HKCU:\SOFTWARE\Zapret" -Name "AutostartEnabled" -Value 0 -Type DWord -Force
+    $global:AutostartEnabled = 0
+    Write-Log "[AUTOSTART] ЗНАЧЕНИЕ НЕ УСТАНОВЛЕНО! Устанавливаем $global:AutoUpdate"
+}
 
-    $winwsProcess = Get-Process -Name winws -ErrorAction SilentlyContinue
-    if ($winwsProcess) {
-        $winwsStatus = "Запущен"
-        $winwsColor = "Green" # Зеленый цвет для "Запущен"
-    } else {
-        $winwsStatus = "Не запущен"
-        $winwsColor = "Red"   # Красный цвет для "Не запущен"
+if ($global:AutoUpdate -eq 1) {
+    if (Check-Update) {
+        # Предлагаем пользователю скачать обновление
+        Write-Warning "Доступно новое обновление! Текущая версия: $localVersion, Новая версия: $latestVersion"
+        Start-Process -FilePath "powershell.exe" -ArgumentList "-File `"$BIN\check_update.ps1`""
+        Exit 0
+    }
+}
+
+$winwsProcess = Get-Process -Name winws -ErrorAction SilentlyContinue
+if ($winwsProcess) {
+    $winwsStatus = "Запущен"
+    $winwsColor = "Green" # Зеленый цвет для "Запущен"
+} else {
+    $winwsStatus = "Не запущен"
+    $winwsColor = "Red"   # Красный цвет для "Не запущен"
+}
+
+if ($global:AutostartEnabled -eq 1) {
+    $AutostartEnabledStatus = "Запущена"
+    $AutostartEnabledColor = "Green" # Зеленый цвет для "Запущен"
+} else {
+    $AutostartEnabledStatus = "Не запущена"
+    $AutostartEnabledColor = "Red"   # Красный цвет для "Не запущен"
+}
+
+if ($global:AutoUpdate -eq 1) {
+    $AutoUpdateStatus = "Включены"
+    $AutoUpdateColor = "Green" # Зеленый цвет для "Запущен"
+} else {
+    $AutoUpdateStatus = "Выключены"
+    $AutoUpdateColor = "Red"   # Красный цвет для "Не запущен"
+}
+
+$Host.UI.RawUI.WindowTitle = "Zapret $localVersion | https://t.me/bypassblock"
+Write-Host "╔════════════════════ Главное меню ════════════════════╗" -ForegroundColor Cyan
+Write-Host "║ 0. Выход из программы                                ║" -ForegroundColor Red
+Write-Host "║ 1. Запустить программу                               ║" -ForegroundColor Green
+Write-Host "║ 2. Поменять стратегию обхода блокировок              ║"
+Write-Host "║ 3. Настройки программы                               ║"
+Write-Host "║ 4. ГУИ Интерфейс                                     ║"
+Write-Host "╠════════════════════ Статус ══════════════════════════╣" -ForegroundColor Cyan
+Write-Host "║ Программа: " -NoNewline
+Write-Host "$winwsStatus".PadRight(15) -ForegroundColor $winwsColor -NoNewline
+Write-Host " Автозапуск: " -NoNewline
+Write-Host "$AutostartEnabledStatus".PadRight(10) -ForegroundColor $AutostartEnabledColor -NoNewline
+Write-Host " Обновления: " -NoNewline
+Write-Host "$AutoUpdateStatus" -ForegroundColor $AutoUpdateColor
+Write-Host "╚══════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+
+$mainChoice = Read-Host "Выберите опцию"
+
+switch ($mainChoice) {
+    "0" { 
+        Clear-Host
+        ShowTitle
+        StopZapret
+    }
+    "1" {
+        Clear-Host
+        ShowTitle
+        Start-DefaultStrategy
+    }
+    "2" { StrategyMenu }
+    "3" { OtherOptionsMenu }
+    "4" {
+        Clear-Host
+        ShowTitle        
+        Write-Host "скоро... Следите здесь: https://t.me/bypassblock"
+        }
+    default {
+        Clear-Host
+        ShowTitle
+        Write-Host "Неверный выбор. Повторите попытку." -ForegroundColor Red
+    }
+}
+} while ($true)
+}
+
+# Функция меню стратегий
+function StrategyMenu {
+    Clear-Host
+    ShowTitle
+    Write-Host "--------- Меню стратегий ---------" -ForegroundColor Cyan
+    Write-Host "1. 06.01.2025"
+    Write-Host "2. lite orig v1"
+    Write-Host "3. Discord TCP 80"
+    Write-Host "4. Discord fake"
+    Write-Host "5. Discord fake и split"
+    Write-Host "6. Ultimate Fix ALT Beeline-Rostelekom"
+    Write-Host "7. split с sniext"
+    Write-Host "8. split с badseq"
+    Write-Host "9. Rostelecom & Megafon"
+    Write-Host "10. Rostelecom v2"
+    Write-Host "11. Other v1"
+    Write-Host "12. Other v2"
+    Write-Host "13. Ankddev v10"
+    Write-Host "14. MGTS v1"
+    Write-Host "15. MGTS v2"
+    Write-Host "16. MGTS v3"
+    Write-Host "17. MGTS v4"
+    Write-Host "30. Ultimate Config ZL"
+    Write-Host "31. Ultimate Config v2"
+    Write-Host "0. Назад в главное меню"
+    
+    $strategyChoice = Read-Host "Введите цифру стратегии"
+    if ($strategyChoice -eq "0") {
+        Clear-Host
+        ShowTitle
+        return
     }
     
-    if ($global:AutoUpdate -eq 1) {
-        if (Check-Update) {
-            # Предлагаем пользователю скачать обновление
-            Write-Warning "Доступно новое обновление! Текущая версия: $localVersion, Новая версия: $latestVersion"
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-File `"$BIN\check_update.ps1`""
-            Exit 0
-        }
-    }
-
-    $Host.UI.RawUI.WindowTitle = "Zapret $localVersion | https://t.me/bypassblock"
-    Write-Host ""
-    Write-Host "----------------------- ВЫБЕРИТЕ СТРАТЕГИЮ: -----------------------" -ForegroundColor Cyan
-    Write-Host "0. Остановить Zapret"
-    Write-Host ""
-
-    # Стратегия 1
-    if ($StrategyName -eq "06.01.2025") {
-        Write-Host "1. Выбрана 06.01.2025 " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "1. Запустить 06.01.2025 " -NoNewline
-    }
-    Write-Host "(разблокирует любые сайты)" -ForegroundColor DarkGray
-
-    # Стратегия 2
-    if ($StrategyName -eq "lite orig v1") {
-        Write-Host "2. Выбрана лайт v1 " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "2. Запустить лайт v1 " -NoNewline
-    }
-    Write-Host "(лёгкая и быстрая, минимальный детект для античитов игр, разблокирует любые сайты)" -ForegroundColor DarkGray
-
-    # Стратегия 3
-    if ($StrategyName -eq "Discord TCP 80") {
-        Write-Host "3. Выбрана Discord TCP 80 " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "3. Запустить Discord TCP 80 " -NoNewline
-    }
-    Write-Host "(предпочтительно Ростелеком)" -ForegroundColor DarkGray
-
-    # Стратегия 4
-    if ($StrategyName -eq "Discord fake") {
-        Write-Host "4. Запустить Discord fake " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "4. Запустить Discord fake " -NoNewline
-    }
-    Write-Host "(предпочтительно Ростелеком)" -ForegroundColor DarkGray
-
-    # Стратегия 5
-    if ($StrategyName -eq "Discord fake и split") {
-        Write-Host "5. Выбрана Discord fake и split " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "5. Запустить Discord fake и split " -NoNewline
-    }
-    Write-Host "(предпочтительно Уфанет)" -ForegroundColor DarkGray
-
-    # Стратегия 6
-    if ($StrategyName -eq "Ultimate Fix ALT Beeline-Rostelekom") {
-        Write-Host "6. Выбрана Discord fake и split2 " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "6. Запустить Discord fake и split2 " -NoNewline
-    }
-    Write-Host "(УльтиМейт фикс, предпочтительно Билайн и Ростелеком)" -ForegroundColor DarkGray
-    Write-Host ""
-
-    # Стратегия 7
-    if ($StrategyName -eq "split с sniext") {
-        Write-Host "7. Выбрана split с sniext " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "7. Запустить split с sniext " -NoNewline
-    }
-    Write-Host "(предпочтительно ДомРу)" -ForegroundColor DarkGray
-
-    # Стратегия 8
-    if ($StrategyName -eq "split с badseq") {
-        Write-Host "8. Выбрана split с badseq " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "8. Запустить split с badseq " -NoNewline
-    }
-    Write-Host "(предпочтительно ДомРу)" -ForegroundColor DarkGray
-    Write-Host ""
-
-    # Стратегия 9
-    if ($StrategyName -eq "Rostelecom & Megafon") {
-        Write-Host "9. Выбрана split с badseq " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "9. Запустить split с badseq " -NoNewline
-    }
-    Write-Host "(предпочтительно Ростелеком и Мегафон)" -ForegroundColor DarkGray
-
-    # Стратегия 10
-    if ($StrategyName -eq "Rostelecom v2") {
-        Write-Host "10. Выбрана fake и split2, второй bin файл " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "10. Запустить fake и split2, второй bin файл " -NoNewline
-    }
-    Write-Host "(предпочтительно Ростелеком)" -ForegroundColor DarkGray
-    Write-Host ""
-
-    # Стратегия 11
-    if ($StrategyName -eq "Other v1") {
-        Write-Host "11. Выбрана YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake" -ForegroundColor Green
-    }
-    else {
-        Write-Host "11. Запустить YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake"
-    }
-
-    # Стратегия 12
-    if ($StrategyName -eq "Other v2") {
-        Write-Host "12. Выбрана YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake и split 2" -ForegroundColor Green
-    }
-    else {
-        Write-Host "12. Запустить YouTube fake QUIC, bin файл google, больше размер пакетов, также YouTube fake и split 2"
-    }
-
-    # Стратегия 13
-    if ($StrategyName -eq "Ankddev v10") { # Оригинальное имя стратегии из меню - "syndata", DefaultConfigName - "Ankddev v10"
-        Write-Host "13. Выбрана syndata " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "13. Запустить syndata " -NoNewline
-    }
-    Write-Host "(устаревшая стратегия)" -ForegroundColor DarkGray
-    Write-Host ""
-
-    # Стратегия 14
-    if ($StrategyName -eq "MGTS v1") {
-        Write-Host "14. Выбрана split с badseq " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "14. Запустить split с badseq " -NoNewline
-    }
-    Write-Host "(предпочтительно МГТС)" -ForegroundColor DarkGray
-
-    # Стратегия 15
-    if ($StrategyName -eq "MGTS v2") {
-        Write-Host "15. Выбрана split с badseq, дополнительно cutoff " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "15. Запустить split с badseq, дополнительно cutoff " -NoNewline
-    }
-    Write-Host "(предпочтительно МГТС или ЯлтаТВ)" -ForegroundColor DarkGray
-
-    # Стратегия 16
-    if ($StrategyName -eq "MGTS v3") {
-        Write-Host "16. Выбрана fake и split2, bin файл google " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "16. Запустить fake и split2, bin файл google " -NoNewline
-    }
-    Write-Host "(предпочтительно МГТС)" -ForegroundColor DarkGray
-
-    # Стратегия 17
-    if ($StrategyName -eq "MGTS v4") {
-        Write-Host "17. Выбрана fake и split2 bin файл quic_test_00 " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "17. Запустить fake и split2 bin файл quic_test_00 " -NoNewline
-    }
-    Write-Host "(предпочтительно МГТС)" -ForegroundColor DarkGray
-    Write-Host ""
-
-    # Стратегия 30
-    if ($StrategyName -eq "Ultimate Config ZL") {
-        Write-Host "30. Выбрана ультимейт конфиг ZL " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "30. Запустить ультимейт конфиг ZL " -NoNewline
-    }
-    Write-Host "(разблокирует любые сайты)" -ForegroundColor DarkGray
-
-    # Стратегия 31
-    if ($StrategyName -eq "Ultimate Config v2") {
-        Write-Host "31. Выбрана ультимейт конфиг v2 " -ForegroundColor Green -NoNewline
-    }
-    else {
-        Write-Host "31. Запустить ультимейт конфиг v2 " -NoNewline
-    }
-    Write-Host "(разблокирует любые сайты)" -ForegroundColor DarkGray
-
-    Write-Host ""
-    Write-Host "----------------------- ДРУГИЕ ОПЦИИ: -----------------------" -ForegroundColor Cyan
-    if ($AutostartEnabled -eq 1) {
-        Write-Host "40. Выключить автозапуск (" -NoNewline
-        Write-Host "включён" -ForegroundColor DarkGreen -NoNewline
-        Write-Host ")"
-    } else {
-        Write-Host "40. Включить автозапуск (" -NoNewline
-        Write-Host "выключен" -ForegroundColor DarkRed -NoNewline
-        Write-Host ")"
-    }
-    if ($discordRestartEnabled -eq 1) {
-        Write-Host "41. Выключить автоматический перезапуск Discord при запуске Запрета (" -NoNewline
-        Write-Host "включён" -ForegroundColor DarkGreen -NoNewline
-        Write-Host ")"
-    } else {
-        Write-Host "41. Включить автоматический перезапуск Discord при запуске Запрета (" -NoNewline
-        Write-Host "выключен" -ForegroundColor DarkRed -NoNewline
-        Write-Host ")"
-    }
-    if ($global:AutoUpdate -eq 1) {
-        Write-Host "42. Выключить автообновление программы Zapret (" -NoNewline
-        Write-Host "включён" -ForegroundColor DarkGreen -NoNewline
-        Write-Host ")"
-    } else {
-        Write-Host "41. Включить автообновление программы Zapret (" -NoNewline
-        Write-Host "выключен" -ForegroundColor DarkRed -NoNewline
-        Write-Host ")"
-    }
-    Write-Host ""
-    Write-Host "50. Проверить работу YouTube и Discord глобально! (если никакие стратегии не помогают)"
-    Write-Host "51. Открыть лог файл"
-    Write-Host "52. Запросить помощь (открыть Telegram канал)"
-    Write-Host ""
-    Write-Host "60. Очистить DNS (установить дефолтные) (помогает если после смены DNS сломался интернет)"
-    Write-Host "61. Сменить DNS на Google DNS (помогает если Вы этого ещё не сделали)"
-    Write-Host "62. Сменить DNS на SB DNS"
-    Write-Host "63. Сменить DNS на свои (кастомные)"
-    Write-Host ""
-    Write-Host "70. Отредактировать файл hosts (помогает разблокировать Instagram, Facebook, Twitter и т.д.)"
-    Write-Host "71. Разблокировать ChatGPT, Gemini, Spotify, TikTok, Notion и другие ресурсы"
-    Write-Host ""
-    Write-Host "Статус программы: " -NoNewline
-    Write-Host $winwsStatus -ForegroundColor $winwsColor
-    $userInput = Read-Host "Введите цифру стратегии или необходимую опцию"
-
-    switch ($userInput) {
-        "0" {
-            if ($AutostartEnabled) {
-                Write-Host "Приложение находится в автозапуске! Запрет выключается ТОЛЬКО через выключение автозапуска, наберите 40 чтобы убрать его из автозапуска!"
-                Write-Host "В будущих версиях эта ошибка исправится..."
-            } else {
-                Clear-Host
-                ShowTitle
-                StopZapret
-            }
-        }
+    switch ($strategyChoice) {
         "1" {
             $DefaultConfigName = "06.01.2025"
             $DefaultConfigArg = "$wf --wf-udp=443,50000-50100 $YRTMP1 $YQ8 $YT10 $YGV3 $other1 $DISIP5 $DISTCP11 $DISUDP9 $UDP7 $YRTMP2 $faceinsta"
@@ -1268,11 +1107,11 @@ do {
         }
         "4" {
             $DefaultConfigName = "Discord fake"
-            $DefaultConfigArg = "$wf --wf-udp=443,50000-59000 $YQ1 $YGV1 $YT1 $DISUDP1 $UDP1 $DISTCP1 $other1 $faceinsta" 
+            $DefaultConfigArg = "$wf --wf-udp=443,50000-59000 $YQ1 $YGV1 $YT1 $DISUDP1 $UDP1 $DISTCP1 $other1 $faceinsta"
         }
         "5" {
             $DefaultConfigName = "Discord fake и split"
-            $DefaultConfigArg = "$wf --wf-udp=443,50000-50100 $DISUDP3 $DISIP1 $DISTCP80 $DISTCP3 $YQ1 $YGV1 $YT2 $other1 $faceinsta" 
+            $DefaultConfigArg = "$wf --wf-udp=443,50000-50100 $DISUDP3 $DISIP1 $DISTCP80 $DISTCP3 $YQ1 $YGV1 $YT2 $other1 $faceinsta"
         }
         "6" {
             $DefaultConfigName = "Ultimate Fix ALT Beeline-Rostelekom"
@@ -1304,7 +1143,7 @@ do {
         }
         "13" {
             $DefaultConfigName = "Ankddev v10"
-            $DefaultConfigArg = "--wf-l3=ipv4,ipv6 --wf-tcp=443 --wf-udp=443,50000-65535 $Ankddev10_1 $Ankddev10_2 $Ankddev10_3 $Ankddev10_4 $Ankddev10_5"           
+            $DefaultConfigArg = "--wf-l3=ipv4,ipv6 --wf-tcp=443 --wf-udp=443,50000-65535 $Ankddev10_1 $Ankddev10_2 $Ankddev10_3 $Ankddev10_4 $Ankddev10_5"
         }
         "14" {
             $DefaultConfigName = "MGTS v1"
@@ -1330,68 +1169,92 @@ do {
             $DefaultConfigName = "Ultimate Config v2"
             $DefaultConfigArg = "$wf --wf-udp=443,50000-50090 $YRTMP1 $YQ7 $DISIP5 $DISTCP12 $DISUDP9 $UDP7 $YGV3 $other2 $other4 $faceinsta"
         }
-        "40" {
+        default {
+            Clear-Host
+            ShowTitle
+            return
+        }
+    }
+    Clear-Host
+    ShowTitle
+    # После выбора стратегии сразу запускаем её, как и в оригинале
+    Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
+    if ($global:AutostartEnabled) {
+        Write-Host "Важно: Запрет не применит новую выбранную стратегию, пока Вы не перезапустите автозапуск через меню других опций!"
+    } else {
+        StopZapret
+        StartZapret -StrategyName $DefaultConfigName -Arguments $DefaultConfigArg
+        if ($discordRestartEnabled -eq 1) {
+            Restart-Discord
+        }
+    }
+
+    
+}
+
+# Функция меню других опций
+function OtherOptionsMenu {
+    Clear-Host
+    ShowTitle
+    Write-Host "--------- Другие опции ---------" -ForegroundColor Cyan
+    Write-Host "1. Переключить автозапуск"
+    Write-Host "2. Переключить автоматический перезапуск Discord"
+    Write-Host "3. Переключить автообновление Zapret"
+    Write-Host "4. Проверить работу YouTube и Discord"
+    Write-Host "5. Открыть лог файл"
+    Write-Host "6. Запросить помощь (открыть Telegram)"
+    Write-Host "7. Очистить DNS (сброс до дефолт)"
+    Write-Host "8. Установить Google DNS"
+    Write-Host "9. Установить SB DNS"
+    Write-Host "10. Установить кастомные DNS"
+    Write-Host "11. Отредактировать файл hosts (Facebook)"
+    Write-Host "12. Разблокировать ChatGPT, Gemini и другие"
+    Write-Host "0. Назад в главное меню"
+    
+    $otherChoice = Read-Host "Введите номер опции"
+    if ($otherChoice -eq "0") {
+        Clear-Host
+        ShowTitle
+        return
+    }
+    
+    switch ($otherChoice) {
+        "1" {
             Toggle-Autostart
         }
-        "41" {
+        "2" {
             $result = Toggle-DiscordRestartSetting
-            if ($result) {
-                # Функция выполнилась успешно, сообщение уже выведено внутри Toggle-DiscordRestartSetting
-            } else {
+            if (-not $result) {
                 Write-Error "Не удалось изменить настройку перезапуска Discord. Проверьте права доступа или журнал событий."
             }
         }
-        "42" {
-            Toggle-AutoUpdate
-        }
-        "50" {
+        "3" { Toggle-AutoUpdate }
+        "4" {
             Check-Discord
             Check-YouTube
         }
-        "51" {
-            OpenLogFile
-        }
-        "52" {
-            ShowTelegram
-        }
-        "60" {
-            Reset-DNS
-        }
-        "61" {
-            Set-CustomDNS -DNSType "Google"
-        }
-        "62" {
-            Set-CustomDNS -DNSType "DnsSB"
-        }
-        "63" {
+        "5" { OpenLogFile }
+        "6" { ShowTelegram }
+        "7" { Reset-DNS }
+        "8" { Set-CustomDNS -DNSType "Google" }
+        "9" { Set-CustomDNS -DNSType "DnsSB" }
+        "10" {
             $PrimaryCustomDNS = Read-Host "Введите первичный DNS сервер"
             $SecondaryCustomDNS = Read-Host "Введите вторичный DNS сервер"
             Set-CustomDNS -DNSType "Custom" -PrimaryDNS $PrimaryCustomDNS -SecondaryDNS $SecondaryCustomDNS
         }
-        "70" {
-            Edit-Hosts -ContentName "Facebook"
-        }
-        "71" {
-            Edit-Hosts -ContentName "ChatGPT-Gemini"
-        }
-        default {
-            Write-Host "Вы не выбрали правильную цифру!"
-        }
-    }
-
-    if ($userInput -in @("1".."17"; "30"; "31")) {
-        Set-DefaultStrategy -StrategyName $DefaultConfigName -ConfigArg $DefaultConfigArg
-        if ($AutostartEnabled) {
-            Write-Host "Важно: Запрет не применит новую выбранную стратегию пока Вы не перезапустите автозапуск через цифру 40!"
-        } else {
+        "11" { Edit-Hosts -ContentName "Facebook" }
+        "12" { Edit-Hosts -ContentName "ChatGPT-Gemini" }
+        default { 
             Clear-Host
             ShowTitle
-            StopZapret
-            StartZapret -StrategyName $DefaultConfigName -Arguments $DefaultConfigArg
-
-            if ($discordRestartEnabled -eq 1) {
-                Restart-Discord
-            }
+            return
         }
     }
-} while ($true)
+
+    Clear-Host
+    ShowTitle
+}
+
+
+MainMenu
