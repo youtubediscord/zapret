@@ -207,7 +207,6 @@ PREDEFINED_DOMAINS = {
             'dota2.com',
             'csgo.com',
             'counter-strike.net',
-            'media.steampowered.com',
             'steamcommunity-a.akamaihd.net',
             'cdn.cloudflare.steamstatic.com',
             'steamstore-a.akamaihd.net',
@@ -251,7 +250,7 @@ PREDEFINED_DOMAINS = {
             'w5.web.whatsapp.com',
             'w6.web.whatsapp.com',
             'w7.web.whatsapp.com',
-            'w8.web.whatsapp.com'
+            'w8.web.whatsapp.com',
         ]
     },
     'twitch': {
@@ -272,7 +271,7 @@ PREDEFINED_DOMAINS = {
             'gql.twitch.tv',
             'vod-secure.twitch.tv',
             'usher.ttvnw.net',
-            'video-weaver.fra02.hls.ttvnw.net'
+            'video-weaver.fra02.hls.ttvnw.net',
         ]
     }
 }
@@ -450,3 +449,4 @@ def startup_hostlists_check():
         log(f"Ошибка при проверке хостлистов: {e}", "❌ ERROR")
 
         return False
+
