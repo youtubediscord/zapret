@@ -1,10 +1,11 @@
 # utils/hostlists_manager.py
 
-import os
 import json
-from typing import Set, List, Dict
-from log import log
+import os
+from typing import Set, List
+
 from config import OTHER_PATH, OTHER2_PATH, reg
+from log import log
 
 # Ключи реестра для хостлистов
 _HOSTLISTS_KEY = r"Software\Zapret"
@@ -205,6 +206,15 @@ PREDEFINED_DOMAINS = {
             'valvesoftware.com',
             'dota2.com',
             'csgo.com'
+            'media.steampowered.com',
+            'steamcommunity-a.akamaihd.net',
+            'cdn.cloudflare.steamstatic.com',
+            'steamstore-a.akamaihd.net',
+            'content.steampowered.com',
+            'api.steampowered.com',
+            'partner.steamgames.com',
+            'dota2.steampowered.com',
+            'csgo.steampowered.com'
         ]
     },
     'telegram': {
@@ -225,6 +235,9 @@ PREDEFINED_DOMAINS = {
             'vesta.web.telegram.org',
             'aurora.web.telegram.org',
             'api.telegram.org'
+            'tdesktop.com',
+            'cdn.tlgr.org',
+            'download.tdesktop.com'
         ]
     },
     'whatsapp': {
@@ -245,6 +258,10 @@ PREDEFINED_DOMAINS = {
             'w6.web.whatsapp.com',
             'w7.web.whatsapp.com',
             'w8.web.whatsapp.com'
+            'mmg.whatsapp.net',
+            'mms.whatsapp.net',
+            'v.whatsapp.net',
+            'cdn.whatsapp.net'
         ]
     },
     'twitch': {
@@ -266,6 +283,9 @@ PREDEFINED_DOMAINS = {
             'vod-secure.twitch.tv',
             'usher.ttvnw.net',
             'video-weaver.fra02.hls.ttvnw.net'
+            'video-edge.twitch.tv',
+            'clips-media-assets.twitch.tv',
+            'api.twitch.tv'
         ]
     }
 }
