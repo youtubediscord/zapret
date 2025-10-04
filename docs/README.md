@@ -18,7 +18,7 @@
 - Возможность прописать кастомные DNS сервера (против атак провайдеров типа подмены ДНС)
 - Блокирует установку национального мессенджера `Max`
 
-![image](https://github.com/user-attachments/assets/05775d10-996c-4edb-a128-839df0f0571d)
+<img width="452" height="762" alt="image" src="https://github.com/user-attachments/assets/738e1a9c-f0d2-4cc6-8d40-c50f4324ace4" />
 
 > [!IMPORTANT]  
 > Есть вопросы? Задай их здесь: https://github.com/youtubediscord/zapret/issues/new или же в группе https://t.me/youtubenotwork или https://discord.gg/kkcBDG2uws
