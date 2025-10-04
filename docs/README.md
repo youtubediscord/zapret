@@ -20,6 +20,7 @@
 
 <img width="452" height="762" alt="image" src="https://github.com/user-attachments/assets/738e1a9c-f0d2-4cc6-8d40-c50f4324ace4" />
 
+
 > [!IMPORTANT]  
 > Есть вопросы? Задай их здесь: https://github.com/youtubediscord/zapret/issues/new или же в группе https://t.me/youtubenotwork или https://discord.gg/kkcBDG2uws
 
