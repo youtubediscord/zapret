@@ -1,7 +1,9 @@
+# autostart/checker.py
 import subprocess
 import winreg
 from utils import run_hidden
 from .autostart_direct import check_direct_autostart_exists
+from .registry_check import is_autostart_enabled as registry_is_enabled
 
 class CheckerManager:
     def __init__(self, winws_exe, status_callback=None, ui_callback=None, service_name="ZapretCensorliber"):
@@ -62,7 +64,21 @@ class CheckerManager:
 
     def check_autostart_exists(self) -> bool:
         """
-        True → хоть один механизм автозапуска найден.
+        БЫСТРАЯ проверка автозапуска через реестр.
+        Используется для большинства проверок в UI.
+        
+        Returns:
+            bool: True если автозапуск включен (по данным реестра)
+        """
+        return registry_is_enabled()
+
+    def check_autostart_exists_full(self) -> bool:
+        """
+        ПОЛНАЯ проверка всех механизмов автозапуска.
+        Медленная, но точная. Используется при удалении и синхронизации.
+        
+        Returns:
+            bool: True если хоть один механизм автозапуска найден
         """
         try:
             from pathlib import Path
@@ -90,14 +106,14 @@ class CheckerManager:
                 return True
             
             # Проверяем Direct автозапуск
-            if check_direct_autostart_exists():  # НОВОЕ
+            if check_direct_autostart_exists():
                 return True
 
             return False
 
         except Exception:
             from log import log
-            log("check_autostart_exists: необработанная ошибка", level="❌ ERROR")
+            log("check_autostart_exists_full: необработанная ошибка", level="❌ ERROR")
             return False
     
     def check_scheduler_task_exists(self) -> bool:
@@ -109,7 +125,8 @@ class CheckerManager:
             "ZapretStrategy", 
             "ZapretGUI_AutoStart",
             "ZapretDirect",
-            "ZapretDirect_AutoStart"  # НОВОЕ
+            "ZapretDirect_AutoStart",
+            "ZapretDirectBoot"
         )
 
         for tn in task_names:
@@ -131,18 +148,23 @@ class CheckerManager:
     def check_windows_service_exists(self):
         """
         Проверяет наличие службы Windows
-        
-        Returns:
-            bool: True если служба существует, иначе False
         """
-        try:
-            service_result = run_hidden(
-                f'C:\\Windows\\System32\\sc.exe query {self.service_name}',
-                shell=True,
-                capture_output=True,
-                text=True,
-                encoding='cp866'
-            )
-            return service_result.returncode == 0 and "STATE" in service_result.stdout
-        except:
-            return False
+        service_names = [
+            self.service_name,
+            "ZapretDirectService"  # Добавить
+        ]
+        
+        for svc_name in service_names:
+            try:
+                service_result = run_hidden(
+                    f'C:\\Windows\\System32\\sc.exe query {svc_name}',
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    encoding='cp866'
+                )
+                if service_result.returncode == 0 and "STATE" in service_result.stdout:
+                    return True
+            except:
+                continue
+        return False
