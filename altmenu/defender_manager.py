@@ -5,7 +5,7 @@ import subprocess
 import winreg
 from typing import Callable, Optional, List, Tuple
 from log import log
-REGISTRY_PATH = r"Software\Zapret"
+REGISTRY_PATH = r"Software\ZapretReg2"
 
 def set_defender_disabled(enabled: bool):
     """Сохраняет настройку отключения Windows Defender"""
