@@ -1,16 +1,3 @@
-# autostart_remove.py
-# ────────────────────────────────────────────────────────────────────────────
-# «Пылесос» для всех видов автозапуска Zapret
-#
-#   • ярлыки в %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
-#   • ветка HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
-#   • задачи Планировщика  (ZapretStrategy / ZapretCensorliber)
-#   • службы Windows       (ZapretCensorliber)
-#
-# Если появляется ещё одна служба/задача/ярлык — просто добавьте имя в
-# соответствующий список/кортеж ниже, и чистильщик автоматически удалит её.
-# ────────────────────────────────────────────────────────────────────────────
-
 from __future__ import annotations
 import os, subprocess, time, winreg
 from pathlib import Path
@@ -18,6 +5,7 @@ from typing import Callable, Iterable
 from utils import run_hidden
 from log import log
 from .autostart_direct import remove_direct_autostart
+from .registry_check import set_autostart_enabled
 
 
 class AutoStartCleaner:
@@ -25,18 +13,19 @@ class AutoStartCleaner:
     Полностью убирает все механизмы автозапуска, связанные с проектом Zapret.
     """
 
-
     STARTUP_SHORTCUTS: tuple[str, ...] = ("ZapretGUI.lnk", "ZapretStrategy.lnk")
     SCHEDULER_TASKS:   tuple[str, ...] = (
         "ZapretStrategy", 
         "ZapretCensorliber",
         "ZapretDirect_AutoStart",
         "ZapretDirect",
+        "ZapretDirectBoot",
         "ZapretGUI_AutoStart"
     )
     SERVICE_NAMES:     tuple[str, ...] = (
         "ZapretCensorliber", 
-        "ZapretDirect"
+        "ZapretDirect",
+        "ZapretDirectService"
     )
 
     def __init__(
@@ -68,12 +57,14 @@ class AutoStartCleaner:
                 services_removed_any = True
 
         # Удаляем Direct автозапуск
-        direct_removed = remove_direct_autostart()  # НОВОЕ
+        direct_removed = remove_direct_autostart()
 
         removed_any = any((shortcuts, tasks, services_removed_any, registry, direct_removed))
         
         if removed_any:
             log("Механизмы автозапуска удалены", "INFO")
+            # Обновляем реестр - автозапуск полностью отключен
+            set_autostart_enabled(False)
         else:
             log("Механизмы автозапуска не найдены", "INFO")
 
