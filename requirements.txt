@@ -1,7 +1,7 @@
 # ─── базовые зависимости приложения ───
 PyQt6
 packaging
-requests
+requests #  Dependency pypi:requests:2.28.2 is vulnerable CVE-2023-32681 6.1 Information Leak / Disclosure CVE-2024-35195 5.6 Always-Incorrect Control Flow Implementation  Results powered by Mend.io
 python-telegram-bot
 psutil
 qt_material

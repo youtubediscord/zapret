@@ -1,10 +1,11 @@
 # utils/hostlists_manager.py
 
-import os
 import json
-from typing import Set, List, Dict
-from log import log
+import os
+from typing import Set, List
+
 from config import OTHER_PATH, OTHER2_PATH, reg
+from log import log
 
 # Ключи реестра для хостлистов
 _HOSTLISTS_KEY = r"Software\Zapret"
@@ -204,7 +205,11 @@ PREDEFINED_DOMAINS = {
             'valve.net',
             'valvesoftware.com',
             'dota2.com',
-            'csgo.com'
+            'csgo.com',
+            'counter-strike.net',
+            'steamcommunity-a.akamaihd.net',
+            'cdn.cloudflare.steamstatic.com',
+            'steamstore-a.akamaihd.net',
         ]
     },
     'telegram': {
@@ -224,7 +229,8 @@ PREDEFINED_DOMAINS = {
             'flora.web.telegram.org',
             'vesta.web.telegram.org',
             'aurora.web.telegram.org',
-            'api.telegram.org'
+            'tdesktop.com',
+            'cdn.tlgr.org',
         ]
     },
     'whatsapp': {
@@ -244,7 +250,7 @@ PREDEFINED_DOMAINS = {
             'w5.web.whatsapp.com',
             'w6.web.whatsapp.com',
             'w7.web.whatsapp.com',
-            'w8.web.whatsapp.com'
+            'w8.web.whatsapp.com',
         ]
     },
     'twitch': {
@@ -265,7 +271,7 @@ PREDEFINED_DOMAINS = {
             'gql.twitch.tv',
             'vod-secure.twitch.tv',
             'usher.ttvnw.net',
-            'video-weaver.fra02.hls.ttvnw.net'
+            'video-weaver.fra02.hls.ttvnw.net',
         ]
     }
 }
@@ -441,4 +447,6 @@ def startup_hostlists_check():
         
     except Exception as e:
         log(f"Ошибка при проверке хостлистов: {e}", "❌ ERROR")
+
         return False
+

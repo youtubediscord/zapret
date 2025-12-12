@@ -2,12 +2,14 @@
 
 import os
 import subprocess
-import shlex
-from typing import Optional, List, Dict
-from log import log
 from datetime import datetime
+from typing import Optional, List
 
+import psutil
+
+from log import log
 from .constants import SW_HIDE, CREATE_NO_WINDOW, STARTF_USESHOWWINDOW
+
 
 def log_full_command(cmd_list: List[str], strategy_name: str):
     """
@@ -275,6 +277,21 @@ class StrategyRunner:
         
         return resolved_args
 
+    def _kill_process_by_name(name: str):
+        killed = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            if proc.info['name'].lower() == name.lower():
+                try:
+                    proc.terminate()  # soft kill
+                    proc.wait(timeout=3)
+                    killed.append(proc.info['pid'])
+                except psutil.NoSuchProcess:
+                    pass
+                except psutil.TimeoutExpired:
+                    proc.kill()  # if not soft killed - kill it to death hehe
+                    killed.append(proc.info['pid'])
+        return killed
+
     def _force_cleanup_windivert(self):
         """Принудительная очистка службы и драйвера WinDivert"""
         try:
@@ -299,13 +316,8 @@ class StrategyRunner:
             )
             
             time.sleep(0.5)
-            
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "winws.exe", "/T"],
-                capture_output=True,
-                creationflags=0x08000000,
-                timeout=5
-            )
+
+            self._kill_process_by_name("winws.exe")
             
             try:
                 subprocess.run(
@@ -493,12 +505,7 @@ class StrategyRunner:
     def _kill_all_winws_processes(self):
         """Принудительно завершает все процессы winws.exe"""
         try:
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "winws.exe", "/T"],
-                capture_output=True,
-                creationflags=CREATE_NO_WINDOW,
-                timeout=10
-            )
+            self._kill_process_by_name("winws.exe")
             log("Все процессы winws.exe завершены", "DEBUG")
             
         except Exception as e:

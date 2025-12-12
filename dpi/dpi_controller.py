@@ -2,11 +2,12 @@
 """
 Контроллер для управления DPI - содержит всю логику запуска и остановки
 """
-
+import psutil
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
+
 from config import get_strategy_launch_method
 from log import log
-import time
+
 
 class DPIStartWorker(QObject):
     """Worker для асинхронного запуска DPI"""
@@ -165,7 +166,22 @@ class DPIStopWorker(QObject):
         super().__init__()
         self.app_instance = app_instance
         self.launch_method = launch_method
-    
+
+    def _kill_process_by_name(name: str):
+        killed = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            if proc.info['name'].lower() == name.lower():
+                try:
+                    proc.terminate()  # soft kill
+                    proc.wait(timeout=3)
+                    killed.append(proc.info['pid'])
+                except psutil.NoSuchProcess:
+                    pass
+                except psutil.TimeoutExpired:
+                    proc.kill()  # if not soft killed - kill it to death hehe
+                    killed.append(proc.info['pid'])
+        return killed
+
     def run(self):
         try:
             self.progress.emit("Остановка DPI...")
@@ -205,12 +221,11 @@ class DPIStopWorker(QObject):
             
             # Дополнительно убиваем все процессы winws.exe
             if not success or self.app_instance.dpi_starter.check_process_running_wmi(silent=True):
-                import subprocess
-                subprocess.run(
-                    ["taskkill", "/F", "/IM", "winws.exe", "/T"],
-                    capture_output=True,
-                    creationflags=0x08000000  # CREATE_NO_WINDOW
-                )
+                killed_pids = self._kill_process_by_name("winws.exe")
+                if killed_pids:
+                    pass # add any debug logs if needed
+                else:
+                    pass # add any debug logs if needed
             
             # Проверяем результат
             return not self.app_instance.dpi_starter.check_process_running_wmi(silent=True)
