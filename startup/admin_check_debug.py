@@ -2,6 +2,7 @@
 import os, ctypes
 from ctypes import wintypes
 from log import log
+from utils import get_system32_path
 
 def debug_admin_status():
     """Детальная диагностика прав администратора"""
@@ -90,7 +91,7 @@ def debug_admin_status():
     
     # 4. Реальный тест
     log("=== РЕАЛЬНЫЙ ТЕСТ ПРАВ ===", level="🔍 DIAG")
-    test_file = "C:\\Windows\\System32\\admin_test.tmp"
+    test_file = os.path.join(get_system32_path(), "admin_test.tmp")
     try:
         with open(test_file, 'w') as f:
             f.write("test")

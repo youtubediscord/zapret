@@ -124,6 +124,9 @@ class AsyncServiceChecker:
         """Остановить фоновый поток."""
         self._running = False
         self._queue.put(None)
+        # Ждем завершения потока
+        if self._worker.is_alive():
+            self._worker.join(timeout=2.0)
 
 
 # Глобальные экземпляры
@@ -251,9 +254,23 @@ def preload_service_status(service_name: str = "BFE"):
 # Очистка при выходе
 def cleanup():
     """Очистить ресурсы при завершении программы."""
-    async_checker.stop()
-    with _periodic_lock:
-        _periodic_checks.clear()
+    from log import log
+    try:
+        # Останавливаем асинхронный чекер
+        log("Останавливаем async_checker...", "DEBUG")
+        async_checker.stop()
+        
+        # Останавливаем все периодические проверки
+        with _periodic_lock:
+            if _periodic_checks:
+                log(f"Останавливаем {len(_periodic_checks)} периодических проверок...", "DEBUG")
+                _periodic_checks.clear()
+        
+        # Даем потокам время завершиться
+        time.sleep(0.1)
+        log("BFE cleanup завершен", "DEBUG")
+    except Exception as e:
+        log(f"Ошибка в BFE cleanup: {e}", "DEBUG")
 
 
 # Регистрируем очистку
