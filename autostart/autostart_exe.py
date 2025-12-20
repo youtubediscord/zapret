@@ -10,6 +10,7 @@ import traceback
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Callable, Dict, Any
+from utils import get_system_exe
 
 TASK_NAME = "ZapretGUI_AutoStart"
 
@@ -21,7 +22,7 @@ def _log(message: str, level: str = "INFO"):
 
 def _run_schtasks(args: list, check_output: bool = True) -> Any:
     """Выполняет команду schtasks с правильной обработкой кодировок"""
-    cmd = ["C:\\Windows\\System32\\schtasks.exe"] + args
+    cmd = [get_system_exe("schtasks.exe")] + args
     
     for encoding in ['utf-8', 'cp866', 'cp1251']:
         try:
@@ -232,10 +233,9 @@ def _save_last_strategy(strategy: str) -> bool:
     """Сохраняет последнюю стратегию в реестр"""
     try:
         import winreg
+        from config import REGISTRY_PATH_GUI
         
-        reg_path = r"Software\ZapretReg2GUI"
-        
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_path) as key:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_GUI) as key:
             winreg.SetValueEx(key, "LastStrategy", 0, winreg.REG_SZ, strategy)
         
         _log(f"Сохранена стратегия в реестр: {strategy}", "INFO")

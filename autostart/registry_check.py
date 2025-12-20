@@ -3,8 +3,7 @@
 import winreg
 from typing import Optional
 from log import log
-
-REGISTRY_PATH = r"Software\ZapretReg2\Autostart"
+from config import REGISTRY_PATH_AUTOSTART
 AUTOSTART_KEY = "AutostartEnabled"
 AUTOSTART_METHOD_KEY = "AutostartMethod"  # Тип автозапуска: exe, task, service
 
@@ -18,7 +17,7 @@ class AutostartRegistryChecker:
         Это быстрая проверка без сканирования системы.
         """
         try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_AUTOSTART) as key:
                 value, _ = winreg.QueryValueEx(key, AUTOSTART_KEY)
                 return bool(value)
         except (FileNotFoundError, OSError):
@@ -39,7 +38,7 @@ class AutostartRegistryChecker:
         """
         try:
             # Создаем ключ если его нет
-            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_AUTOSTART) as key:
                 # Сохраняем статус
                 winreg.SetValueEx(key, AUTOSTART_KEY, 0, winreg.REG_DWORD, int(enabled))
                 
@@ -67,7 +66,7 @@ class AutostartRegistryChecker:
             'exe', 'task', 'service' или None
         """
         try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_AUTOSTART) as key:
                 method, _ = winreg.QueryValueEx(key, AUTOSTART_METHOD_KEY)
                 return method
         except:

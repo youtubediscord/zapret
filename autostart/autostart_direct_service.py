@@ -1,47 +1,26 @@
 """
-Модуль для создания Windows службы для Direct режима через NSSM.
-NSSM должен находиться в папке exe/ рядом с winws.exe
+Модуль для создания Windows службы для Direct режима (Zapret 2).
+Использует прямой Windows API для максимальной скорости.
 """
 
 import os
-import subprocess
 import time
 from pathlib import Path
 from typing import Optional, Callable, List
 from log import log
-from utils import run_hidden
 from .registry_check import set_autostart_enabled
+from .service_api import (
+    create_bat_service,
+    create_zapret_service,
+    delete_service,
+    start_service,
+    stop_service,
+    service_exists
+)
 
 SERVICE_NAME = "ZapretDirectService"
 SERVICE_DISPLAY_NAME = "Zapret Direct Mode Service"
-SERVICE_DESCRIPTION = "Запускает Zapret в Direct режиме при загрузке системы"
-
-def get_nssm_path() -> Optional[str]:
-    """
-    Возвращает путь к nssm.exe из папки exe/
-    """
-    try:
-        from config import EXE_FOLDER
-        
-        # Ищем nssm.exe в папке exe
-        nssm_path = os.path.join(EXE_FOLDER, "nssm.exe")
-        
-        if os.path.exists(nssm_path):
-            log(f"NSSM найден: {nssm_path}", "DEBUG")
-            return nssm_path
-        
-        # Альтернативное имя (на случай если переименован)
-        nssm_x64_path = os.path.join(EXE_FOLDER, "nssm-x64.exe")
-        if os.path.exists(nssm_x64_path):
-            log(f"NSSM найден: {nssm_x64_path}", "DEBUG")
-            return nssm_x64_path
-            
-        log(f"NSSM не найден в {EXE_FOLDER}", "⚠ WARNING")
-        return None
-        
-    except Exception as e:
-        log(f"Ошибка поиска NSSM: {e}", "❌ ERROR")
-        return None
+SERVICE_DESCRIPTION = "Позволяет запустить Zapret в Direct режиме при загрузке системы"
 
 
 def create_direct_service_bat(
@@ -55,19 +34,14 @@ def create_direct_service_bat(
     try:
         from .autostart_direct import _resolve_file_paths
         from config import MAIN_DIRECTORY
+        from strategy_menu.apply_filters import apply_all_filters
         
         # Разрешаем пути
         resolved_args = _resolve_file_paths(strategy_args, work_dir)
         
-        # Применяем параметры
-        from strategy_menu.strategy_runner import (
-            apply_game_filter_parameter,
-            apply_wssize_parameter
-        )
-        
+        # Применяем ВСЕ фильтры в правильном порядке
         lists_dir = os.path.join(work_dir, "lists")
-        resolved_args = apply_game_filter_parameter(resolved_args, lists_dir)
-        resolved_args = apply_wssize_parameter(resolved_args)
+        resolved_args = apply_all_filters(resolved_args, lists_dir)
         
         # Создаем .bat файл в корневой папке программы
         bat_path = os.path.join(MAIN_DIRECTORY, "zapret_service.bat")
@@ -108,85 +82,6 @@ exit /b !EXIT_CODE!
         return None
 
 
-def setup_direct_service_alternative(
-    winws_exe: str,
-    strategy_args: List[str],
-    work_dir: str
-) -> bool:
-    """
-    Альтернативный метод: устанавливает службу напрямую для winws.exe через NSSM
-    """
-    try:
-        nssm_path = get_nssm_path()
-        if not nssm_path:
-            return False
-        
-        from .autostart_direct import _resolve_file_paths
-        from strategy_menu.strategy_runner import (
-            apply_game_filter_parameter,
-            apply_wssize_parameter
-        )
-        
-        # Разрешаем пути
-        resolved_args = _resolve_file_paths(strategy_args, work_dir)
-        lists_dir = os.path.join(work_dir, "lists")
-        resolved_args = apply_game_filter_parameter(resolved_args, lists_dir)
-        resolved_args = apply_wssize_parameter(resolved_args)
-        
-        # Удаляем старую службу
-        remove_direct_service()
-        
-        # Устанавливаем службу напрямую для winws.exe
-        install_cmd = [nssm_path, "install", SERVICE_NAME, winws_exe]
-        
-        # Добавляем аргументы
-        for arg in resolved_args:
-            install_cmd.append(arg)
-        
-        log(f"Альтернативная установка службы напрямую для winws.exe", "INFO")
-        
-        result = run_hidden(
-            install_cmd,
-            capture_output=True,
-            text=True,
-            encoding="cp866",
-            errors="ignore"
-        )
-        
-        if result.returncode == 0:
-            # Настраиваем дополнительные параметры
-            from config import LOGS_FOLDER
-            os.makedirs(LOGS_FOLDER, exist_ok=True)
-            
-            settings = [
-                ["set", SERVICE_NAME, "DisplayName", SERVICE_DISPLAY_NAME],
-                ["set", SERVICE_NAME, "Description", SERVICE_DESCRIPTION],
-                ["set", SERVICE_NAME, "AppDirectory", work_dir],
-                ["set", SERVICE_NAME, "Start", "SERVICE_AUTO_START"],
-                ["set", SERVICE_NAME, "AppStdout", os.path.join(LOGS_FOLDER, "winws_stdout.log")],
-                ["set", SERVICE_NAME, "AppStderr", os.path.join(LOGS_FOLDER, "winws_stderr.log")],
-                ["set", SERVICE_NAME, "AppRotateFiles", "1"],
-                ["set", SERVICE_NAME, "AppRotateBytes", "2097152"],
-                ["set", SERVICE_NAME, "AppExit", "Default", "Restart"],
-                ["set", SERVICE_NAME, "AppRestartDelay", "5000"],
-            ]
-            
-            for args in settings:
-                cmd = [nssm_path] + args
-                run_hidden(cmd, capture_output=True)
-            
-            # Запускаем службу
-            run_hidden([nssm_path, "start", SERVICE_NAME], capture_output=True)
-            
-            return True
-        
-        return False
-        
-    except Exception as e:
-        log(f"Ошибка альтернативной установки: {e}", "ERROR")
-        return False
-
-
 def setup_direct_service(
     winws_exe: str,
     strategy_args: List[str],
@@ -194,45 +89,21 @@ def setup_direct_service(
     ui_error_cb: Optional[Callable[[str], None]] = None
 ) -> bool:
     """
-    Создает Windows службу через NSSM для запуска Direct режима
+    ⚡ Создает Windows службу для запуска Direct режима.
+    Приоритет: NSSM > BAT-обертка
     """
     try:
-        # НОВОЕ: Проверяем, не запущен ли уже winws.exe
-        try:
-            # Пробуем остановить существующий процесс
-            log("Проверка запущенных процессов winws.exe...", "INFO")
-            
-            # Используем taskkill для остановки всех winws.exe
-            kill_result = run_hidden(
-                ["taskkill", "/F", "/IM", "winws.exe"],
-                capture_output=True,
-                text=True,
-                encoding="cp866",
-                errors="ignore"
-            )
-            
-            if kill_result.returncode == 0:
-                log("Остановлены существующие процессы winws.exe", "INFO")
-                time.sleep(2)  # Даем время на завершение
-            else:
-                log("Процессы winws.exe не найдены или не удалось остановить", "DEBUG")
-                
-        except Exception as e:
-            log(f"Ошибка при остановке процессов: {e}", "WARNING")
+        from config import MAIN_DIRECTORY, LOGS_FOLDER
+        from .autostart_direct import _resolve_file_paths
+        from strategy_menu.apply_filters import apply_all_filters
+        from .nssm_service import (
+            get_nssm_path, 
+            create_service_with_nssm, 
+            start_service_with_nssm
+        )
         
-        # Проверяем наличие NSSM
-        nssm_path = get_nssm_path()
-        if not nssm_path:
-            error_msg = (
-                "NSSM.exe не найден!\n\n"
-                "Для создания службы необходим NSSM (Non-Sucking Service Manager).\n"
-                "Скачайте nssm.exe с https://nssm.cc/ и поместите в папку 'exe'\n"
-                "рядом с winws.exe"
-            )
-            log(error_msg, "❌ ERROR")
-            if ui_error_cb:
-                ui_error_cb(error_msg)
-            return False
+        # Создаем папку для логов если её нет
+        os.makedirs(LOGS_FOLDER, exist_ok=True)
         
         if not os.path.exists(winws_exe):
             error_msg = f"winws.exe не найден: {winws_exe}"
@@ -241,29 +112,39 @@ def setup_direct_service(
                 ui_error_cb(error_msg)
             return False
         
-        # Определяем директории
-        from config import MAIN_DIRECTORY, LOGS_FOLDER
+        # Разрешаем пути и применяем фильтры
+        resolved_args = _resolve_file_paths(strategy_args, MAIN_DIRECTORY)
+        lists_dir = os.path.join(MAIN_DIRECTORY, "lists")
+        resolved_args = apply_all_filters(resolved_args, lists_dir)
         
-        # Создаем папку для логов если её нет
-        os.makedirs(LOGS_FOLDER, exist_ok=True)
-        
-        # Сначала пробуем альтернативный метод (напрямую winws.exe)
-        log("Пробуем установить службу напрямую для winws.exe...", "INFO")
-        if setup_direct_service_alternative(winws_exe, strategy_args, MAIN_DIRECTORY):
-            log(f"Служба {SERVICE_NAME} успешно создана (альтернативный метод)", "✅ SUCCESS")
-            set_autostart_enabled(True, "direct_service")
+        # Метод 1: NSSM (предпочтительный)
+        nssm_path = get_nssm_path()
+        if nssm_path:
+            log("⚡ Создание службы через NSSM (рекомендуется)...", "INFO")
             
-            if ui_error_cb:
-                ui_error_cb(
-                    "✅ Служба Windows создана!\n\n"
-                    f"Служба '{SERVICE_DISPLAY_NAME}' установлена.\n"
-                    "Zapret будет автоматически запускаться при загрузке системы."
-                )
-            return True
+            if create_service_with_nssm(
+                service_name=SERVICE_NAME,
+                display_name=SERVICE_DISPLAY_NAME,
+                exe_path=winws_exe,
+                args=resolved_args,
+                description=f"{SERVICE_DESCRIPTION} (стратегия: {strategy_name})",
+                auto_start=True
+            ):
+                # Запускаем службу
+                if start_service_with_nssm(SERVICE_NAME):
+                    log(f"✅ Служба {SERVICE_NAME} создана через NSSM и запущена", "SUCCESS")
+                else:
+                    log(f"⚠ Служба создана через NSSM, но не запущена", "WARNING")
+                
+                set_autostart_enabled(True, "direct_service")
+                return True
+            else:
+                log("NSSM не смог создать службу, пробуем BAT-обертку...", "WARNING")
+        else:
+            log("NSSM не найден, используем BAT-обертку...", "INFO")
         
-        log("Альтернативный метод не сработал, используем .bat файл...", "INFO")
-        
-        # Создаем .bat файл
+        # Метод 2: BAT-обертка (fallback)
+        log("Создание службы через BAT-обертку...", "INFO")
         bat_path = create_direct_service_bat(winws_exe, strategy_args, MAIN_DIRECTORY)
         if not bat_path:
             error_msg = "Не удалось создать .bat файл для службы"
@@ -272,85 +153,33 @@ def setup_direct_service(
                 ui_error_cb(error_msg)
             return False
         
-        # Удаляем старую службу если есть
-        remove_direct_service()
+        if create_bat_service(
+            service_name=SERVICE_NAME,
+            display_name=SERVICE_DISPLAY_NAME,
+            bat_path=bat_path,
+            description=f"{SERVICE_DESCRIPTION} (стратегия: {strategy_name})",
+            auto_start=True
+        ):
+            # Запускаем службу
+            if start_service(SERVICE_NAME):
+                log(f"Служба {SERVICE_NAME} создана через .bat и запущена", "✅ SUCCESS")
+            else:
+                log(f"Служба создана, но не удалось запустить", "WARNING")
+            
+            set_autostart_enabled(True, "direct_service")
+            # Сообщение об успехе показывает вызывающий код
+            return True
         
-        # Устанавливаем службу для .bat файла напрямую
-        install_cmd = [nssm_path, "install", SERVICE_NAME, bat_path]
-        
-        log(f"Установка службы для .bat: {' '.join(install_cmd)}", "DEBUG")
-        
-        result = run_hidden(
-            install_cmd,
-            capture_output=True,
-            text=True,
-            encoding="cp866",
-            errors="ignore"
-        )
-        
-        if result.returncode != 0:
-            error_msg = f"Не удалось установить службу через NSSM.\nКод: {result.returncode}\n{result.stderr}"
-            log(error_msg, "❌ ERROR")
-            if ui_error_cb:
-                ui_error_cb(error_msg)
-            return False
-        
-        log("Служба установлена, настраиваем параметры...", "INFO")
-        
-        # Настраиваем параметры службы
-        settings = [
-            ["set", SERVICE_NAME, "DisplayName", SERVICE_DISPLAY_NAME],
-            ["set", SERVICE_NAME, "Description", SERVICE_DESCRIPTION],
-            ["set", SERVICE_NAME, "AppDirectory", MAIN_DIRECTORY],
-            ["set", SERVICE_NAME, "Start", "SERVICE_AUTO_START"],
-            ["set", SERVICE_NAME, "AppStdout", os.path.join(LOGS_FOLDER, "zapret_service_stdout.log")],
-            ["set", SERVICE_NAME, "AppStderr", os.path.join(LOGS_FOLDER, "zapret_service_stderr.log")],
-            ["set", SERVICE_NAME, "AppRotateFiles", "1"],
-            ["set", SERVICE_NAME, "AppRotateOnline", "1"],
-            ["set", SERVICE_NAME, "AppRotateBytes", "2097152"],
-            ["set", SERVICE_NAME, "AppExit", "Default", "Restart"],
-            ["set", SERVICE_NAME, "AppRestartDelay", "5000"],
-        ]
-        
-        for args in settings:
-            cmd = [nssm_path] + args
-            run_hidden(cmd, capture_output=True)
-        
-        # Запускаем службу
-        log("Запуск службы...", "INFO")
-        start_result = run_hidden(
-            [nssm_path, "start", SERVICE_NAME],
-            capture_output=True,
-            text=True,
-            encoding="cp866",
-            errors="ignore"
-        )
-        
-        if start_result.returncode != 0:
-            log(f"Попытка запуска через sc...", "INFO")
-            run_hidden(["sc", "start", SERVICE_NAME], capture_output=True)
-        
-        # Проверяем статус
-        time.sleep(2)
-        
-        log(f"Служба {SERVICE_NAME} создана", "✅ SUCCESS")
-        set_autostart_enabled(True, "direct_service")
-        
+        error_msg = "Не удалось создать службу ни одним из методов"
+        log(error_msg, "❌ ERROR")
         if ui_error_cb:
-            ui_error_cb(
-                "✅ Служба Windows создана!\n\n"
-                f"Служба '{SERVICE_DISPLAY_NAME}' установлена и запущена.\n\n"
-                "Zapret теперь работает как системная служба и будет\n"
-                "автоматически запускаться при загрузке Windows.\n\n"
-                "Примечание: GUI-версия Zapret была остановлена.\n"
-                "Для управления службой используйте:\n"
-                "• services.msc (Службы Windows)\n"
-                "• Или кнопку 'Выкл. автозапуск' в программе"
-            )
-        return True
+            ui_error_cb(error_msg)
+        return False
             
     except Exception as e:
         log(f"Ошибка создания службы: {e}", "❌ ERROR")
+        import traceback
+        log(traceback.format_exc(), "DEBUG")
         if ui_error_cb:
             ui_error_cb(f"Ошибка: {e}")
         return False
@@ -358,19 +187,19 @@ def setup_direct_service(
 
 def remove_direct_service() -> bool:
     """
-    Удаляет службу Direct режима
+    ⚡ Удаляет службу Direct режима (NSSM или Windows API)
     """
     try:
-        nssm_path = get_nssm_path()
+        from .nssm_service import remove_service_with_nssm, service_exists_nssm
         
-        if nssm_path and os.path.exists(nssm_path):
-            run_hidden([nssm_path, "stop", SERVICE_NAME], capture_output=True)
-            time.sleep(1)
-            run_hidden([nssm_path, "remove", SERVICE_NAME, "confirm"], capture_output=True)
-        
-        run_hidden(["sc", "stop", SERVICE_NAME], capture_output=True)
-        time.sleep(1)
-        run_hidden(["sc", "delete", SERVICE_NAME], capture_output=True)
+        # Пробуем удалить через NSSM сначала
+        if service_exists_nssm(SERVICE_NAME):
+            log("Удаление службы через NSSM...", "INFO")
+            result = remove_service_with_nssm(SERVICE_NAME)
+        else:
+            # Удаляем через Windows API
+            log("Удаление службы через Windows API...", "INFO")
+            result = delete_service(SERVICE_NAME)
         
         # Удаляем .bat файл
         from config import MAIN_DIRECTORY
@@ -382,25 +211,42 @@ def remove_direct_service() -> bool:
             except:
                 pass
         
-        return True
+        return result
         
     except Exception as e:
-        log(f"Ошибка при удалении службы: {e}", "⚠ WARNING")
+        log(f"Ошибка при удалении службы: {e}", "WARNING")
         return False
 
 
 def check_direct_service_exists() -> bool:
     """
-    Проверяет существование службы Direct режима
+    ⚡ Проверяет существование службы Direct режима (NSSM или Windows API)
     """
-    try:
-        result = run_hidden(
-            ["sc", "query", SERVICE_NAME],
-            capture_output=True,
-            text=True,
-            encoding="cp866",
-            errors="ignore"
-        )
-        return result.returncode == 0 and "STATE" in result.stdout
-    except:
-        return False
+    from .nssm_service import service_exists_nssm
+    
+    # Проверяем через NSSM сначала
+    if service_exists_nssm(SERVICE_NAME):
+        return True
+    
+    # Fallback на Windows API
+    return service_exists(SERVICE_NAME)
+
+
+def stop_direct_service() -> bool:
+    """⚡ Останавливает службу Direct режима (NSSM или Windows API)"""
+    from .nssm_service import stop_service_with_nssm, service_exists_nssm
+    
+    if service_exists_nssm(SERVICE_NAME):
+        return stop_service_with_nssm(SERVICE_NAME)
+    
+    return stop_service(SERVICE_NAME)
+
+
+def start_direct_service() -> bool:
+    """⚡ Запускает службу Direct режима (NSSM или Windows API)"""
+    from .nssm_service import start_service_with_nssm, service_exists_nssm
+    
+    if service_exists_nssm(SERVICE_NAME):
+        return start_service_with_nssm(SERVICE_NAME)
+    
+    return start_service(SERVICE_NAME)

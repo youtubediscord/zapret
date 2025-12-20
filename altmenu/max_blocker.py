@@ -11,7 +11,7 @@ from typing import Optional, Callable, List, Tuple
 from log import log
 
 # Ключ в реестре для хранения настройки
-REGISTRY_PATH = r"Software\ZapretReg2GUI"
+from config import REGISTRY_PATH_GUI
 REGISTRY_KEY_MAX_BLOCKED = "MaxBlocked"
 
 # Путь к политикам Explorer для блокировки запуска
@@ -59,7 +59,7 @@ class MaxBlockerManager:
     def is_max_blocked(self) -> bool:
         """Проверяет, включена ли блокировка MAX"""
         try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_GUI) as key:
                 value, _ = winreg.QueryValueEx(key, REGISTRY_KEY_MAX_BLOCKED)
                 return bool(value)
         except (FileNotFoundError, OSError):
@@ -69,7 +69,7 @@ class MaxBlockerManager:
         """Сохраняет состояние блокировки в реестр"""
         try:
             # Создаем ключ если не существует
-            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
+            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_GUI) as key:
                 winreg.SetValueEx(key, REGISTRY_KEY_MAX_BLOCKED, 0, winreg.REG_DWORD, int(blocked))
             return True
         except Exception as e:
@@ -329,7 +329,7 @@ class MaxBlockerManager:
             ]
             
             for rule_cmd in rules:
-                result = subprocess.run(rule_cmd, capture_output=True, text=True, shell=True)
+                result = subprocess.run(rule_cmd, capture_output=True, text=True, shell=True, encoding='cp866', errors='replace')
                 if result.returncode != 0:
                     log(f"Ошибка добавления правила firewall: {result.stderr}", "⚠️ WARNING")
             
@@ -351,7 +351,7 @@ class MaxBlockerManager:
             ]
             
             for rule_cmd in rules:
-                subprocess.run(rule_cmd, capture_output=True, text=True, shell=True)
+                subprocess.run(rule_cmd, capture_output=True, text=True, shell=True, encoding='cp866', errors='replace')
             
             log("Правила блокировки MAX удалены из Windows Firewall", "✅ INFO")
             return True
@@ -369,17 +369,13 @@ class MaxBlockerManager:
         
         for process_name in MAX_PROCESSES:
             try:
-                # Используем taskkill для завершения процесса
-                result = subprocess.run(
-                    ['taskkill', '/F', '/IM', process_name],
-                    capture_output=True,
-                    text=True,
-                    shell=True
-                )
+                # Используем Win API для завершения процесса
+                from utils.process_killer import kill_process_by_name
+                killed = kill_process_by_name(process_name, kill_all=True)
                 
-                if result.returncode == 0:
-                    killed_count += 1
-                    log(f"Процесс {process_name} завершен", "🛑 INFO")
+                if killed > 0:
+                    killed_count += killed
+                    log(f"Процесс {process_name} завершён через Win API", "🛑 INFO")
                     
             except Exception as e:
                 log(f"Ошибка завершения процесса {process_name}: {e}", "⚠️ WARNING")

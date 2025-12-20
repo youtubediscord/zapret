@@ -1,8 +1,8 @@
 from pathlib import Path
-import json, sys, subprocess, traceback
+import sys, subprocess, traceback
 from log import log
 from typing import Callable, Optional
-from utils import run_hidden # обёртка для subprocess.run
+from utils import run_hidden, get_system_exe  # обёртка для subprocess.run
 from .registry_check import set_autostart_enabled
 
 
@@ -25,56 +25,83 @@ def _resolve_bat_folder(bat_folder: str) -> Path:
 
     return p.resolve()
 
+
+def _find_bat_by_name(bat_dir: Path, strategy_name: str) -> Optional[Path]:
+    """
+    Находит .bat файл по имени стратегии.
+    Сначала проверяет REM NAME: в файлах, затем пробует имя файла.
+    """
+    import re
+    
+    if not bat_dir.is_dir():
+        return None
+    
+    name_pattern = re.compile(r'^REM\s+NAME:\s*(.+)$', re.IGNORECASE)
+    
+    # Сначала ищем по REM NAME:
+    for bat_file in bat_dir.glob('*.bat'):
+        try:
+            with open(bat_file, 'r', encoding='utf-8-sig', errors='ignore') as f:
+                for i, line in enumerate(f):
+                    if i > 30:  # Читаем только первые 30 строк
+                        break
+                    line = line.strip()
+                    match = name_pattern.match(line)
+                    if match and match.group(1).strip() == strategy_name:
+                        return bat_file
+        except Exception:
+            continue
+    
+    # Пробуем прямое соответствие имени файла
+    # strategy_name -> strategy_name.bat
+    direct_path = bat_dir / f"{strategy_name}.bat"
+    if direct_path.is_file():
+        return direct_path
+    
+    # Пробуем без пробелов и с подчёркиваниями
+    # "My Strategy" -> "my_strategy.bat"
+    normalized = strategy_name.lower().replace(' ', '_')
+    for bat_file in bat_dir.glob('*.bat'):
+        if bat_file.stem.lower().replace(' ', '_') == normalized:
+            return bat_file
+    
+    return None
+
+
 def setup_autostart_for_strategy(
     selected_mode: str,
     bat_folder: str,
-    index_path: str | None = None,
+    index_path: str | None = None,  # Устарел, игнорируется
     ui_error_cb: Optional[Callable[[str], None]] = None,
 ) -> bool:
     """
     Создаёт задачу в планировщике на BAT-файл выбранной стратегии.
 
     Args:
-        selected_mode: отображаемое имя стратегии (поле "name" в index.json)
-        bat_folder:    каталог с *.bat* и index.json
-        index_path:    путь к index.json
+        selected_mode: отображаемое имя стратегии (поле "name" из REM NAME: в .bat)
+        bat_folder:    каталог с *.bat файлами
+        index_path:    устарел, игнорируется
 
     Returns:
-        True  – ярлык создан;
+        True  – задача создана;
         False – возникла ошибка (подробности в log()).
     """
     try:
         # ----------- ищем BAT ------------------------------------------------
         bat_dir = _resolve_bat_folder(bat_folder)
 
-        idx_path = Path(index_path) if index_path else bat_dir / "index.json"
-        if not idx_path.is_file():
-            log(f"index.json не найден: {idx_path}", "❌ ERROR")
+        if not bat_dir.is_dir():
+            log(f"Папка стратегий не найдена: {bat_dir}", "❌ ERROR")
             return False
 
-        with idx_path.open(encoding="utf-8-sig") as f:
-            data: dict = json.load(f)
-
-        entry_key, entry_val = next(
-            ((k, v) for k, v in data.items()
-             if isinstance(v, dict) and v.get("name") == selected_mode),
-            (None, None)
-        )
-        if not entry_key:
-            log(f"Стратегия «{selected_mode}» не найдена", "❌ ERROR")
+        # Ищем .bat файл по имени стратегии
+        bat_path = _find_bat_by_name(bat_dir, selected_mode)
+        
+        if not bat_path or not bat_path.is_file():
+            log(f"Стратегия «{selected_mode}» не найдена в {bat_dir}", "❌ ERROR")
             return False
 
-        # берём file_path, если указан
-        if isinstance(entry_val, dict) and entry_val.get("file_path"):
-            bat_name = entry_val["file_path"]
-        else:
-            bat_name = entry_key if entry_key.lower().endswith(".bat") \
-                                 else f"{entry_key}.bat"
-
-        bat_path = (bat_dir / bat_name).resolve()
-        if not bat_path.is_file():
-            log(f".bat отсутствует: {bat_path}", "❌ ERROR")
-            return False
+        log(f"Найден .bat файл для стратегии '{selected_mode}': {bat_path}", "DEBUG")
 
         # ----------- создаём/обновляем задачу Планировщика -------------------
         ok = _create_task_scheduler_job(
@@ -191,8 +218,9 @@ def remove_task_scheduler_job(task_name: str = "ZapretStrategy") -> bool:
         True если задача удалена, False если её не было или ошибка
     """
     try:
+        schtasks = get_system_exe("schtasks.exe")
         # Проверяем существование задачи
-        check_cmd = ["schtasks", "/Query", "/TN", task_name]
+        check_cmd = [schtasks, "/Query", "/TN", task_name]
         check_res = run_hidden(
             check_cmd,
             capture_output=True,
@@ -200,13 +228,13 @@ def remove_task_scheduler_job(task_name: str = "ZapretStrategy") -> bool:
             encoding="cp866",
             errors="ignore"
         )
-        
+
         if check_res.returncode != 0:
             # Задачи нет
             return False
-        
+
         # Удаляем задачу
-        delete_cmd = ["schtasks", "/Delete", "/TN", task_name, "/F"]
+        delete_cmd = [schtasks, "/Delete", "/TN", task_name, "/F"]
         delete_res = run_hidden(
             delete_cmd,
             capture_output=True,

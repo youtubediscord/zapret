@@ -1,7 +1,7 @@
 # autostart/checker.py
 import subprocess
 import winreg
-from utils import run_hidden
+from utils import run_hidden, get_system_exe
 from .autostart_direct import check_direct_autostart_exists
 from .registry_check import is_autostart_enabled as registry_is_enabled
 
@@ -132,7 +132,7 @@ class CheckerManager:
         for tn in task_names:
             try:
                 res = run_hidden(
-                    ["C:\\Windows\\System32\\schtasks.exe", "/Query", "/TN", tn],
+                    [get_system_exe("schtasks.exe"), "/Query", "/TN", tn],
                     capture_output=True,
                     text=True,
                     encoding="cp866",
@@ -157,7 +157,7 @@ class CheckerManager:
         for svc_name in service_names:
             try:
                 service_result = run_hidden(
-                    f'C:\\Windows\\System32\\sc.exe query {svc_name}',
+                    f'"{get_system_exe("sc.exe")}" query {svc_name}',
                     shell=True,
                     capture_output=True,
                     text=True,

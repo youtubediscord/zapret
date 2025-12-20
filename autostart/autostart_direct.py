@@ -11,7 +11,7 @@ import traceback
 from pathlib import Path
 from typing import Optional, Callable, Dict, List
 from log import log
-from utils import run_hidden
+from utils import run_hidden, get_system_exe
 from .registry_check import set_autostart_enabled
 
 # Имена для задач Direct режима
@@ -29,8 +29,8 @@ def _resolve_file_paths(args: List[str], work_dir: str) -> List[str]:
     bin_dir = os.path.join(work_dir, "bin")
     
     for arg in args:
-        # Обработка --wf-raw
-        if arg.startswith("--wf-raw="):
+        # Обработка --wf-raw-part (новый формат для winws2)
+        if arg.startswith("--wf-raw-part="):
             value = arg.split("=", 1)[1]
             
             # Если значение начинается с @, это означает файл
@@ -46,9 +46,9 @@ def _resolve_file_paths(args: List[str], work_dir: str) -> List[str]:
                     if not os.path.exists(full_path):
                         log(f"Предупреждение: файл фильтра не найден: {full_path}", "WARNING")
                     
-                    resolved_args.append(f'--wf-raw=@{full_path}')
+                    resolved_args.append(f'--wf-raw-part=@{full_path}')
                 else:
-                    resolved_args.append(f'--wf-raw=@{filename}')
+                    resolved_args.append(f'--wf-raw-part=@{filename}')
             else:
                 # Если не файл, оставляем как есть
                 resolved_args.append(arg)
@@ -80,7 +80,7 @@ def _resolve_file_paths(args: List[str], work_dir: str) -> List[str]:
             prefix, filename = arg.split("=", 1)
             
             # Проверяем специальные значения (hex или модификаторы)
-            if filename.startswith("0x") or filename.startswith("!"):
+            if filename.startswith("0x") or filename.startswith("!") or filename.startswith("^"):
                 resolved_args.append(arg)
             else:
                 filename = filename.strip('"')
@@ -99,18 +99,14 @@ def _build_command_line(winws_exe: str, args: List[str], work_dir: str) -> str:
     """
     Строит командную строку для winws.exe с правильным экранированием
     """
+    from strategy_menu.apply_filters import apply_all_filters
+    
     # Разрешаем пути к файлам
     resolved_args = _resolve_file_paths(args, work_dir)
     
-    # Применяем дополнительные параметры
-    from strategy_menu.strategy_runner import (
-        apply_game_filter_parameter,
-        apply_wssize_parameter
-    )
-    
+    # ✅ Применяем ВСЕ фильтры в правильном порядке
     lists_dir = os.path.join(work_dir, "lists")
-    resolved_args = apply_game_filter_parameter(resolved_args, lists_dir)
-    resolved_args = apply_wssize_parameter(resolved_args)
+    resolved_args = apply_all_filters(resolved_args, lists_dir)
     
     # Экранируем аргументы для командной строки Windows
     escaped_args = []
@@ -167,7 +163,7 @@ def setup_direct_autostart_task(
         
         # Создаем задачу с прямым запуском winws.exe
         create_cmd = [
-            "C:\\Windows\\System32\\schtasks.exe",
+            get_system_exe("schtasks.exe"),
             "/Create",
             "/TN", DIRECT_TASK_NAME,
             "/TR", cmd_line,
@@ -179,6 +175,7 @@ def setup_direct_autostart_task(
         
         log(f"Создание задачи: {DIRECT_TASK_NAME}", "INFO")
         log(f"Длина команды: {len(cmd_line)} символов", "DEBUG")
+        log(f"Команда schtasks: {' '.join(create_cmd)}", "DEBUG")
         
         result = run_hidden(
             create_cmd,
@@ -188,13 +185,17 @@ def setup_direct_autostart_task(
             errors="ignore"
         )
         
+        log(f"schtasks returncode: {result.returncode}", "DEBUG")
+        log(f"schtasks stdout: {result.stdout}", "DEBUG")
+        log(f"schtasks stderr: {result.stderr}", "DEBUG")
+        
         if result.returncode == 0:
             log(f"Задача {DIRECT_TASK_NAME} создана", "✅ SUCCESS")
             # Обновляем статус в реестре
             set_autostart_enabled(True, "direct_task")
             return True
         else:
-            error_msg = f"Ошибка создания задачи. Код: {result.returncode}\n{result.stderr}"
+            error_msg = f"Ошибка создания задачи (код {result.returncode}):\n{result.stderr or result.stdout}"
             log(error_msg, "❌ ERROR")
             if ui_error_cb:
                 ui_error_cb(error_msg)
@@ -240,6 +241,12 @@ def setup_direct_autostart_service(
         # Удаляем старую задачу
         _delete_task(DIRECT_BOOT_TASK_NAME)
         
+        # Разрешаем пути и применяем фильтры для XML
+        from strategy_menu.apply_filters import apply_all_filters
+        resolved_args = _resolve_file_paths(strategy_args, work_dir)
+        lists_dir = os.path.join(work_dir, "lists")
+        resolved_args = apply_all_filters(resolved_args, lists_dir)
+        
         # Создаем XML для задачи с триггером при запуске системы
         xml_content = f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -278,7 +285,7 @@ def setup_direct_autostart_service(
   <Actions Context="Author">
     <Exec>
       <Command>{winws_exe}</Command>
-      <Arguments>{' '.join(_resolve_file_paths(strategy_args, work_dir))}</Arguments>
+      <Arguments>{' '.join(resolved_args)}</Arguments>
       <WorkingDirectory>{work_dir}</WorkingDirectory>
     </Exec>
   </Actions>
@@ -291,7 +298,7 @@ def setup_direct_autostart_service(
         
         # Создаем задачу из XML
         create_cmd = [
-            "C:\\Windows\\System32\\schtasks.exe",
+            get_system_exe("schtasks.exe"),
             "/Create",
             "/TN", DIRECT_BOOT_TASK_NAME,
             "/XML", xml_path,
@@ -354,21 +361,17 @@ def _create_task_with_bat_fallback(
     Создает задачу через .bat файл когда командная строка слишком длинная
     """
     try:
+        from strategy_menu.apply_filters import apply_all_filters
+        
         # Создаем .bat файл
         bat_path = os.path.join(work_dir, "zapret_autostart.bat")
         
         # Разрешаем пути
         resolved_args = _resolve_file_paths(args, work_dir)
         
-        # Применяем параметры
-        from strategy_menu.strategy_runner import (
-            apply_game_filter_parameter,
-            apply_wssize_parameter
-        )
-        
+        # ✅ Применяем ВСЕ фильтры в правильном порядке
         lists_dir = os.path.join(work_dir, "lists")
-        resolved_args = apply_game_filter_parameter(resolved_args, lists_dir)
-        resolved_args = apply_wssize_parameter(resolved_args)
+        resolved_args = apply_all_filters(resolved_args, lists_dir)
         
         # Создаем .bat содержимое
         bat_content = f"""@echo off
@@ -386,7 +389,7 @@ cd /d "{work_dir}"
         
         # Создаем задачу для .bat файла
         create_cmd = [
-            "C:\\Windows\\System32\\schtasks.exe",
+            get_system_exe("schtasks.exe"),
             "/Create",
             "/TN", task_name,
             "/TR", f'"{bat_path}"',
@@ -396,6 +399,8 @@ cd /d "{work_dir}"
             "/F"
         ]
         
+        log(f"Выполняем команду: {' '.join(create_cmd)}", "DEBUG")
+        
         result = run_hidden(
             create_cmd,
             capture_output=True,
@@ -404,6 +409,10 @@ cd /d "{work_dir}"
             errors="ignore"
         )
         
+        log(f"schtasks returncode: {result.returncode}", "DEBUG")
+        log(f"schtasks stdout: {result.stdout}", "DEBUG")
+        log(f"schtasks stderr: {result.stderr}", "DEBUG")
+        
         if result.returncode == 0:
             log(f"Задача {task_name} создана через .bat файл", "✅ SUCCESS")
             # Обновляем статус в реестре
@@ -411,9 +420,10 @@ cd /d "{work_dir}"
             set_autostart_enabled(True, method)
             return True
         else:
-            log(f"Ошибка создания задачи: {result.stderr}", "❌ ERROR")
+            error_msg = f"Ошибка создания задачи (код {result.returncode}):\n{result.stderr or result.stdout}"
+            log(error_msg, "❌ ERROR")
             if ui_error_cb:
-                ui_error_cb(f"Ошибка: {result.stderr}")
+                ui_error_cb(error_msg)
             return False
             
     except Exception as e:
@@ -433,15 +443,16 @@ def remove_direct_autostart() -> bool:
     if _delete_task(DIRECT_BOOT_TASK_NAME):
         removed_any = True
     
-    # НОВОЕ: Удаляем службу Direct режима
+    # Удаляем службу Direct режима
     from .autostart_direct_service import remove_direct_service
     if remove_direct_service():
         removed_any = True
     
     # Удаляем .bat файлы
+    from config import PROGRAMDATA_PATH
     for filename in ["zapret_autostart.bat", "zapret_direct.bat", "zapret_boot_task.xml"]:
         try:
-            for base_path in [Path.cwd(), Path(os.environ.get("PROGRAMDATA", "C:\\ProgramData")) / "ZapretDev"]:
+            for base_path in [Path.cwd(), Path(PROGRAMDATA_PATH)]:
                 file_path = base_path / filename
                 if file_path.exists():
                     file_path.unlink()
@@ -482,12 +493,13 @@ def collect_direct_strategy_args(app_instance) -> tuple[List[str], str, str]:
     try:
         from strategy_menu import get_direct_strategy_selections
         from strategy_menu.strategy_lists_separated import combine_strategies
+        from config import WINWS2_EXE
         
-        # Получаем путь к winws.exe
+        # Для прямого запуска всегда используем winws2.exe
         if hasattr(app_instance, 'dpi_starter') and hasattr(app_instance.dpi_starter, 'winws_exe'):
             winws_exe = app_instance.dpi_starter.winws_exe
         else:
-            winws_exe = str(Path.cwd() / "bin" / "winws.exe")
+            winws_exe = WINWS2_EXE  # Zapret 2 для прямого запуска
         
         # Получаем выборы стратегий
         selections = get_direct_strategy_selections()
@@ -495,9 +507,9 @@ def collect_direct_strategy_args(app_instance) -> tuple[List[str], str, str]:
         # Комбинируем стратегии
         combined = combine_strategies(**selections)
         
-        # Парсим аргументы
+        # Парсим аргументы (posix=False для Windows чтобы сохранить бэкслеши в путях)
         import shlex
-        args = shlex.split(combined['args'])
+        args = shlex.split(combined['args'], posix=False)
         
         log(f"Собрано {len(args)} аргументов", "INFO")
         
@@ -511,7 +523,7 @@ def collect_direct_strategy_args(app_instance) -> tuple[List[str], str, str]:
 def _delete_task(task_name: str) -> bool:
     """Удаляет задачу планировщика"""
     try:
-        cmd = ["C:\\Windows\\System32\\schtasks.exe", "/Delete", "/TN", task_name, "/F"]
+        cmd = [get_system_exe("schtasks.exe"), "/Delete", "/TN", task_name, "/F"]
         result = run_hidden(cmd, capture_output=True)
         if result.returncode == 0:
             log(f"Задача {task_name} удалена", "INFO")
@@ -524,7 +536,7 @@ def _delete_task(task_name: str) -> bool:
 def _check_task_exists(task_name: str) -> bool:
     """Проверяет существование задачи"""
     try:
-        cmd = ["C:\\Windows\\System32\\schtasks.exe", "/Query", "/TN", task_name]
+        cmd = [get_system_exe("schtasks.exe"), "/Query", "/TN", task_name]
         result = run_hidden(cmd, capture_output=True)
         return result.returncode == 0
     except:
@@ -535,14 +547,14 @@ def _save_direct_strategy_config(args: List[str], name: str, cmd_line: str):
     """Сохраняет конфигурацию в реестр"""
     try:
         import winreg
+        from config import REGISTRY_PATH_DIRECT
         config = {
             "args": args,
             "name": name,
             "cmd_line": cmd_line
         }
         
-        reg_path = r"Software\ZapretReg2GUI\DirectAutostart"
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_path) as key:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_DIRECT) as key:
             winreg.SetValueEx(key, "Config", 0, winreg.REG_SZ, json.dumps(config))
         
         log("Конфигурация сохранена", "DEBUG")
@@ -554,8 +566,8 @@ def _delete_direct_strategy_config() -> bool:
     """Удаляет конфигурацию из реестра"""
     try:
         import winreg
-        reg_path = r"Software\ZapretReg2GUI"
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_WRITE) as key:
+        from config import REGISTRY_PATH
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_WRITE) as key:
             winreg.DeleteKey(key, "DirectAutostart")
         log("Конфигурация удалена", "DEBUG")
         return True

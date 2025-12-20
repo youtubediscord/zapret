@@ -2,7 +2,7 @@ from __future__ import annotations
 import os, subprocess, time, winreg
 from pathlib import Path
 from typing import Callable, Iterable
-from utils import run_hidden
+from utils import run_hidden, get_system_exe
 from log import log
 from .autostart_direct import remove_direct_autostart
 from .registry_check import set_autostart_enabled
@@ -111,9 +111,10 @@ class AutoStartCleaner:
     @classmethod
     def _remove_scheduler_tasks(cls) -> bool:
         removed_any = False
+        schtasks = get_system_exe("schtasks.exe")
         for task in cls.SCHEDULER_TASKS:
             check = run_hidden(
-                ["C:\\Windows\\System32\\schtasks.exe", "/Query", "/TN", task],
+                [schtasks, "/Query", "/TN", task],
                 capture_output=True,
                 text=True,
                 encoding="cp866",
@@ -122,7 +123,7 @@ class AutoStartCleaner:
             if check.returncode == 0:
                 log(f"Найдена задача {task}, удаляем…", "INFO")
                 run_hidden(
-                    ["C:\\Windows\\System32\\schtasks.exe", "/Delete", "/TN", task, "/F"],
+                    [schtasks, "/Delete", "/TN", task, "/F"],
                     capture_output=True,
                     text=True,
                 )
@@ -135,11 +136,12 @@ class AutoStartCleaner:
     def _remove_service(self, svc_name: str) -> bool:
         """
         Удаляет конкретную службу.
-        Return True, если служба была удалена (или попробовали удалить)  
+        Return True, если служба была удалена (или попробовали удалить)
         False – служба не найдена.
         """
+        sc_exe = get_system_exe("sc.exe")
         query = run_hidden(
-            ["sc", "query", svc_name],
+            [sc_exe, "query", svc_name],
             capture_output=True,
             text=True,
             encoding="cp866",     # sc выводит CP866 в русской локали
@@ -150,14 +152,14 @@ class AutoStartCleaner:
 
         self._status(f"Остановка службы «{svc_name}»…")
         log(f"Останавливаем службу {svc_name}", "INFO")
-        run_hidden(["C:\\Windows\\System32\\sc.exe", "stop", svc_name], capture_output=True)
+        run_hidden([sc_exe, "stop", svc_name], capture_output=True)
 
         time.sleep(1)  # даём службе погаснуть
 
         self._status(f"Удаление службы «{svc_name}»…")
         log(f"Удаляем службу {svc_name}", "INFO")
         delete = run_hidden(
-            ["C:\\Windows\\System32\\sc.exe", "delete", svc_name],
+            [sc_exe, "delete", svc_name],
             capture_output=True,
             text=True,
             encoding="cp866",

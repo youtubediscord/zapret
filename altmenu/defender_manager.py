@@ -5,7 +5,7 @@ import subprocess
 import winreg
 from typing import Callable, Optional, List, Tuple
 from log import log
-REGISTRY_PATH = r"Software\ZapretReg2"
+from config import REGISTRY_PATH
 
 def set_defender_disabled(enabled: bool):
     """Сохраняет настройку отключения Windows Defender"""
@@ -35,7 +35,7 @@ class WindowsDefenderManager:
                 log("Требуются права администратора для изменения Windows Defender", "⚠️ WARNING")
                 return False
                 
-            result = subprocess.run(command, shell=True, capture_output=True, text=True)
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
             if result.returncode == 0:
                 return True
             else:
@@ -123,14 +123,14 @@ class WindowsDefenderManager:
                 
         # Пытаемся остановить службу
         self._set_status("Остановка службы Windows Defender...")
-        stop_result = subprocess.run('sc stop WinDefend', shell=True, capture_output=True, text=True)
+        stop_result = subprocess.run('sc stop WinDefend', shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
         if stop_result.returncode == 0:
             log("✅ Служба WinDefend остановлена", "INFO")
         else:
             log(f"⚠️ Не удалось остановить службу WinDefend: {stop_result.stderr or 'Служба уже остановлена'}", "WARNING")
         
         # Отключаем автозапуск службы
-        disable_result = subprocess.run('sc config WinDefend start=disabled', shell=True, capture_output=True, text=True)
+        disable_result = subprocess.run('sc config WinDefend start=disabled', shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
         if disable_result.returncode == 0:
             log("✅ Автозапуск службы WinDefend отключен", "INFO")
         else:
@@ -166,12 +166,12 @@ class WindowsDefenderManager:
         for i, cmd in enumerate(commands):
             self._set_status(f"Восстановление настроек... ({i+1}/{total})")
             # Игнорируем ошибки удаления (ключ может не существовать)
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
             if result.returncode == 0:
                 success_count += 1
                 
         # Включаем автозапуск службы
-        enable_result = subprocess.run('sc config WinDefend start=auto', shell=True, capture_output=True, text=True)
+        enable_result = subprocess.run('sc config WinDefend start=auto', shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
         if enable_result.returncode == 0:
             success_count += 1
             log("✅ Автозапуск службы WinDefend включен", "INFO")
@@ -180,7 +180,7 @@ class WindowsDefenderManager:
             
         # Запускаем службу
         self._set_status("Запуск службы Windows Defender...")
-        start_result = subprocess.run('sc start WinDefend', shell=True, capture_output=True, text=True)
+        start_result = subprocess.run('sc start WinDefend', shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
         if start_result.returncode == 0:
             success_count += 1
             log("✅ Служба WinDefend запущена", "INFO")
@@ -199,7 +199,7 @@ class WindowsDefenderManager:
         """Получает текущий статус Windows Defender"""
         try:
             # Проверяем состояние службы
-            result = subprocess.run('sc query WinDefend', shell=True, capture_output=True, text=True)
+            result = subprocess.run('sc query WinDefend', shell=True, capture_output=True, text=True, encoding='cp866', errors='replace')
             if "RUNNING" in result.stdout:
                 return "Служба запущена"
             elif "STOPPED" in result.stdout:

@@ -478,9 +478,9 @@ class AboutDialog(QDialog):
             p {{ margin: 8px 0; line-height: 1.6; }}
         </style>
         <p>📖 <a href="{INFO_URL}">Руководство пользователя</a></p>
-        <p>👨‍💻 Автор GUI: <a href="https://t.me/bypassblock">@bypassblock</a></p>
+        <p>👨‍💻 Автор GUI: <a href="tg://resolve?domain=bypassblock">@bypassblock</a></p>
         <p>🔧 Автор Zapret: <a href="{BOLVAN_URL}">bol-van (GitHub)</a></p>
-        <p>💬 Поддержка: <a href="https://t.me/youtubenotwork">@youtubenotwork</a></p>
+        <p>💬 Поддержка: <a href="tg://resolve?domain=youtubenotwork">@youtubenotwork</a></p>
         <br>
         <p style="font-size: 11px;">
         Zapret GUI - это графический интерфейс для утилиты обхода блокировок.<br>
@@ -490,7 +490,8 @@ class AboutDialog(QDialog):
         
         info_label = QLabel(info_html)
         info_label.setTextFormat(Qt.TextFormat.RichText)
-        info_label.setOpenExternalLinks(True)
+        info_label.setOpenExternalLinks(False)  # Обрабатываем вручную
+        info_label.linkActivated.connect(self._on_link_clicked)
         info_label.setWordWrap(True)
         
         layout.addWidget(info_label)
@@ -514,34 +515,34 @@ class AboutDialog(QDialog):
         
         # Папка с чатами
         folder_group = self._create_link_group("📂 Папка с чатами", [
-            ("Все наши каналы одним списком", "https://t.me/addlist/xjPs164MI7AxZWE6")
+            ("Все наши каналы одним списком", "tg://addlist?slug=xjPs164MI7AxZWE6")
         ])
         layout.addWidget(folder_group)
         
         # Основные каналы
         main_channels = self._create_link_group("💬 Основные каналы", [
-            ("👅 Основная группа", "https://t.me/bypassblock/399"),
-            ("🧩 Группа по блокировкам", "https://t.me/youtubenotwork"),
-            ("😹 Android и VPN сервисы", "https://t.me/zapretyoutubediscordvpn"),
-            ("🤖 Популярные моды APK", "https://t.me/androidawesome"),
-            ("🔗 Переходник (все каналы)", "https://t.me/runetvpnyoutubediscord")
+            ("👅 Основная группа", "tg://resolve?domain=bypassblock&post=399"),
+            ("🧩 Группа по блокировкам", "tg://resolve?domain=youtubenotwork"),
+            ("😹 Android и VPN сервисы", "tg://resolve?domain=zapretyoutubediscordvpn"),
+            ("🤖 Популярные моды APK", "tg://resolve?domain=androidawesome"),
+            ("🔗 Переходник (все каналы)", "tg://resolve?domain=runetvpnyoutubediscord")
         ])
         layout.addWidget(main_channels)
         
         # О Zapret
         zapret_channels = self._create_link_group("📦 О Zapret", [
-            ("☺️ Скачать Zapret (все версии)", "https://t.me/zapretnetdiscordyoutube"),
-            ("ℹ️ Скачать Blockcheck", "https://t.me/zapretblockcheck"),
-            ("😒 Дорожная карта", "https://t.me/approundmap"),
-            ("❓ Помощь с настройками", "https://t.me/zaprethelp"),
-            ("😷 Вирусы в Запрете?", "https://t.me/zapretvirus")
+            ("☺️ Скачать Zapret (все версии)", "tg://resolve?domain=zapretnetdiscordyoutube"),
+            ("ℹ️ Скачать Blockcheck", "tg://resolve?domain=zapretblockcheck"),
+            ("😒 Дорожная карта", "tg://resolve?domain=approundmap"),
+            ("❓ Помощь с настройками", "tg://resolve?domain=zaprethelp"),
+            ("😷 Вирусы в Запрете?", "tg://resolve?domain=zapretvirus")
         ])
         layout.addWidget(zapret_channels)
         
         # Боты
         bots_group = self._create_link_group("🤖 Боты", [
-            ("☺️ ИИ помощник по обходу", "https://t.me/zapretbypass_bot"),
-            ("💵 Платный VPN от команды", "https://t.me/zapretvpns_bot")
+            ("☺️ ИИ помощник по обходу", "tg://resolve?domain=zapretbypass_bot"),
+            ("💵 Платный VPN от команды", "tg://resolve?domain=zapretvpns_bot")
         ])
         layout.addWidget(bots_group)
         
@@ -557,17 +558,19 @@ class AboutDialog(QDialog):
         group = QGroupBox(title)
         layout = QVBoxLayout()
         layout.setSpacing(5)
-        
+
         hover_bg = "#f0f8ff" if not self.theme_info['is_dark'] else "#2a2a2a"
         if self.theme_info['is_pure_black']:
             hover_bg = "#1a1a1a"
         elif self.theme_info['is_amoled']:
             hover_bg = "#111111"
-        
+
         for text, url in links:
             link_label = QLabel(f'<a href="{url}">{text}</a>')
             link_label.setTextFormat(Qt.TextFormat.RichText)
-            link_label.setOpenExternalLinks(True)
+            link_label.setOpenExternalLinks(False)  # Обрабатываем вручную
+            link_label.linkActivated.connect(self._on_link_clicked)
+            link_label.setCursor(Qt.CursorShape.PointingHandCursor)
             link_label.setStyleSheet(f"""
                 QLabel {{
                     padding: 4px 8px;
@@ -579,9 +582,37 @@ class AboutDialog(QDialog):
                 }}
             """)
             layout.addWidget(link_label)
-        
+
         group.setLayout(layout)
         return group
+
+    def _on_link_clicked(self, url: str):
+        """Обрабатывает клик по ссылке с fallback на https"""
+        from config.telegram_links import open_telegram_url
+        import webbrowser
+
+        if url.startswith("tg://"):
+            # Telegram ссылка - используем fallback
+            if url.startswith("tg://resolve?domain="):
+                # Извлекаем domain и post
+                parts = url.replace("tg://resolve?", "").split("&")
+                params = dict(p.split("=") for p in parts if "=" in p)
+                domain = params.get("domain", "")
+                post = params.get("post", "")
+                if post:
+                    https_url = f"https://t.me/{domain}/{post}"
+                else:
+                    https_url = f"https://t.me/{domain}"
+            elif url.startswith("tg://addlist?slug="):
+                slug = url.replace("tg://addlist?slug=", "")
+                https_url = f"https://t.me/addlist/{slug}"
+            else:
+                https_url = url.replace("tg://", "https://t.me/")
+
+            open_telegram_url(url, https_url)
+        else:
+            # Обычная ссылка
+            webbrowser.open(url)
 
     def _copy_cid(self, cid: str):
         """Копирует CID в clipboard и показывает уведомление"""
