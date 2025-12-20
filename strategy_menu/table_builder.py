@@ -1,11 +1,43 @@
 # strategy_menu/table_builder.py
 
-from PyQt6.QtWidgets import (QTableWidget, QTableWidgetItem, QWidget, 
-                            QHBoxLayout, QLabel)
+from PyQt6.QtWidgets import (QTableWidget, QTableWidgetItem, QWidget,
+                            QHBoxLayout, QLabel, QPushButton, QMenu)
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QColor, QBrush
+from PyQt6.QtGui import QFont, QColor, QBrush, QCursor
 
 from .constants import LABEL_TEXTS, LABEL_COLORS
+
+# Цвета подсветки рейтинга стратегий (полупрозрачные)
+RATING_COLORS = {
+    'working': QColor(74, 222, 128, 40),   # Зелёный полупрозрачный rgba(74, 222, 128, 0.15)
+    'broken': QColor(248, 113, 113, 40),   # Красный полупрозрачный rgba(248, 113, 113, 0.15)
+}
+
+
+class ScrollBlockingTableWidget(QTableWidget):
+    """QTableWidget который не пропускает прокрутку к родителю"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Запрещаем перетаскивание окна при взаимодействии с таблицей
+        self.setProperty("noDrag", True)
+    
+    def wheelEvent(self, event):
+        scrollbar = self.verticalScrollBar()
+        delta = event.angleDelta().y()
+        
+        # Если прокручиваем вверх и уже в начале - блокируем
+        if delta > 0 and scrollbar.value() == scrollbar.minimum():
+            event.accept()
+            return
+        
+        # Если прокручиваем вниз и уже в конце - блокируем
+        if delta < 0 and scrollbar.value() == scrollbar.maximum():
+            event.accept()
+            return
+        
+        super().wheelEvent(event)
+        event.accept()
 
 
 class StrategyTableBuilder:
@@ -13,67 +45,116 @@ class StrategyTableBuilder:
     
     @staticmethod
     def create_strategies_table():
-        """Создает и настраивает таблицу стратегий."""
-        table = QTableWidget()
-        table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["Стратегия", "Статус", "Метка"])
+        """Создает и настраивает таблицу стратегий - современный стиль."""
+        table = ScrollBlockingTableWidget()
+        table.setColumnCount(3)  # Звезда, Стратегия, Метка
+        table.setHorizontalHeaderLabels(["", "СТРАТЕГИЯ", "МЕТКА"])
         
         # Настройки таблицы
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         table.verticalHeader().setVisible(False)
-        table.setAlternatingRowColors(True)
+        table.setAlternatingRowColors(False)
+        table.setShowGrid(False)
+        table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         
-        # Стиль таблицы
+        # Современный минималистичный стиль
         table.setStyleSheet("""
             QTableWidget {
-                background-color: #2a2a2a;
-                alternate-background-color: #333333;
-                gridline-color: #444;
-                selection-background-color: #2196F3;
-                border: 1px solid #444;
-                border-radius: 3px;
+                background-color: #1a1a1a;
+                border: none;
+                outline: none;
+                selection-background-color: transparent;
             }
             QTableWidget::item {
-                padding: 2px;
-                color: #ffffff;
+                padding: 4px 8px;
+                color: rgba(255, 255, 255, 0.85);
+                border: none;
+            }
+            QTableWidget::item:hover {
+                background-color: rgba(255, 255, 255, 0.05);
             }
             QTableWidget::item:selected {
-                background-color: #2196F3;
-                color: #ffffff;
+                background-color: rgba(96, 205, 255, 0.12);
+                color: #60cdff;
             }
             QHeaderView::section {
-                background-color: #3a3a3a;
-                color: #ffffff;
-                font-weight: bold;
-                padding: 4px;
+                background-color: #1a1a1a;
+                color: rgba(255, 255, 255, 0.45);
+                font-weight: 600;
+                font-size: 11px;
+                padding: 10px 8px;
                 border: none;
-                border-bottom: 2px solid #2196F3;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            QHeaderView::section:first {
+                padding-left: 12px;
+            }
+            QScrollBar:vertical {
+                width: 6px;
+                background: transparent;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: rgba(255, 255, 255, 0.12);
+                border-radius: 3px;
+                min-height: 30px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                height: 0px;
+                background: none;
             }
         """)
         
         # Настройка колонок
         header = table.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, header.ResizeMode.Fixed)
-        header.setSectionResizeMode(2, header.ResizeMode.Fixed)
+        header.setSectionResizeMode(0, header.ResizeMode.Fixed)    # Звезда
+        header.setSectionResizeMode(1, header.ResizeMode.Stretch)  # Стратегия
+        header.setSectionResizeMode(2, header.ResizeMode.Fixed)    # Метка
         
-        table.setColumnWidth(1, 80)
-        table.setColumnWidth(2, 100)
-        
-        table.verticalHeader().setDefaultSectionSize(25)
+        table.setColumnWidth(0, 48)   # Звезда
+        table.setColumnWidth(2, 130)  # Метка
+        table.verticalHeader().setDefaultSectionSize(42)
         
         return table
     
     @staticmethod
-    def populate_table(table, strategies, strategy_manager=None):
+    def populate_table(table, strategies, strategy_manager=None, favorite_callback=None, category_key="bat"):
         """Заполняет таблицу стратегиями."""
+        from strategy_menu import get_favorite_strategies
+        
         table.setRowCount(0)
         strategies_map = {}
         
-        # Группируем по провайдерам
-        providers = {}
+        # Сохраняем category_key в таблице для использования в обработчиках
+        table.category_key = category_key
+        table.favorite_callback = favorite_callback
+        
+        # Получаем список избранных
+        favorites_list = get_favorite_strategies(category_key) or []
+        favorites_set = set(favorites_list)
+        
+        # Разделяем на избранные и остальные
+        favorite_strategies = {}
+        regular_strategies = {}
+        
         for strategy_id, strategy_info in strategies.items():
+            if strategy_id in favorites_set:
+                favorite_strategies[strategy_id] = strategy_info
+            else:
+                regular_strategies[strategy_id] = strategy_info
+        
+        # Группируем обычные по провайдерам
+        providers = {}
+        for strategy_id, strategy_info in regular_strategies.items():
             provider = strategy_info.get('provider', 'universal')
             if provider not in providers:
                 providers[provider] = []
@@ -82,40 +163,103 @@ class StrategyTableBuilder:
         sorted_providers = sorted(providers.items())
         
         # Подсчитываем строки
-        total_rows = sum(1 + len(strategies_list) 
+        total_rows = 0
+        if favorite_strategies:
+            total_rows += 1 + len(favorite_strategies)  # Заголовок + избранные
+        total_rows += sum(1 + len(strategies_list) 
                         for provider, strategies_list in sorted_providers)
         table.setRowCount(total_rows)
         
         current_row = 0
         
+        # === ИЗБРАННЫЕ (вверху) ===
+        if favorite_strategies:
+            bg_color = QColor(40, 35, 20)  # Тёплый золотистый оттенок
+            
+            # Колонка 0: Звезда в заголовке (по центру)
+            star_item = QTableWidgetItem("★")
+            star_item.setBackground(QBrush(bg_color))
+            star_item.setForeground(QBrush(QColor(255, 193, 7)))
+            star_item.setFont(QFont("Segoe UI", 12))
+            star_item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
+            star_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            table.setItem(current_row, 0, star_item)
+            
+            # Колонка 1: Заголовок избранных
+            fav_header_item = QTableWidgetItem(f"Избранные ({len(favorite_strategies)})")
+            fav_header_font = QFont("Segoe UI", 10)
+            fav_header_font.setBold(True)
+            fav_header_item.setFont(fav_header_font)
+            fav_header_item.setBackground(QBrush(bg_color))
+            fav_header_item.setForeground(QBrush(QColor(255, 193, 7)))
+            fav_header_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            table.setItem(current_row, 1, fav_header_item)
+            
+            # Колонка 2: Пустая
+            empty_item = QTableWidgetItem("")
+            empty_item.setBackground(QBrush(bg_color))
+            empty_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            table.setItem(current_row, 2, empty_item)
+            
+            table.setRowHeight(current_row, 36)
+            current_row += 1
+            
+            # Добавляем избранные стратегии
+            fav_number = 1
+            for strategy_id, strategy_info in favorite_strategies.items():
+                strategies_map[current_row] = {
+                    'id': strategy_id,
+                    'name': strategy_info.get('name') or strategy_id
+                }
+                
+                StrategyTableBuilder.populate_row(
+                    table, current_row, strategy_id,
+                    strategy_info, fav_number, category_key
+                )
+                
+                current_row += 1
+                fav_number += 1
+        
+        # === ОСТАЛЬНЫЕ СТРАТЕГИИ (по провайдерам) ===
         for provider, strategies_list in sorted_providers:
-            # Заголовок провайдера
             provider_name = StrategyTableBuilder.get_provider_display_name(provider)
+            bg_color = QColor(28, 28, 28)
+            
+            # Колонка 0: Пустая ячейка для звезды
+            empty_star_item = QTableWidgetItem("")
+            empty_star_item.setBackground(QBrush(bg_color))
+            empty_star_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            table.setItem(current_row, 0, empty_star_item)
+            
+            # Колонка 1: Заголовок провайдера
             provider_item = QTableWidgetItem(f"📡 {provider_name}")
-            
-            provider_font = provider_item.font()
+            provider_font = QFont("Segoe UI", 10)
             provider_font.setBold(True)
-            provider_font.setPointSize(9)
             provider_item.setFont(provider_font)
-            provider_item.setBackground(QBrush(QColor(70, 70, 70)))
-            provider_item.setForeground(QBrush(QColor(255, 255, 255)))
+            provider_item.setBackground(QBrush(bg_color))
+            provider_item.setForeground(QBrush(QColor(255, 255, 255, 140)))
             provider_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            table.setItem(current_row, 1, provider_item)
             
-            table.setItem(current_row, 0, provider_item)
-            table.setSpan(current_row, 0, 1, 3)
+            # Колонка 2: Пустая ячейка
+            empty_label_item = QTableWidgetItem("")
+            empty_label_item.setBackground(QBrush(bg_color))
+            empty_label_item.setFlags(Qt.ItemFlag.NoItemFlags)
+            table.setItem(current_row, 2, empty_label_item)
+            
+            table.setRowHeight(current_row, 36)
             current_row += 1
             
             strategy_number = 1
             for strategy_id, strategy_info in strategies_list:
                 strategies_map[current_row] = {
                     'id': strategy_id,
-                    'name': strategy_info.get('name', strategy_id)
+                    'name': strategy_info.get('name') or strategy_id
                 }
                 
-                # Заполняем строку
                 StrategyTableBuilder.populate_row(
                     table, current_row, strategy_id, 
-                    strategy_info, strategy_manager, strategy_number
+                    strategy_info, strategy_number, category_key
                 )
                 
                 current_row += 1
@@ -124,88 +268,225 @@ class StrategyTableBuilder:
         return strategies_map
     
     @staticmethod
-    def populate_row(table, row, strategy_id, strategy_info, 
-                    strategy_manager=None, strategy_number=None):
+    def populate_row(table, row, strategy_id, strategy_info, strategy_number=None, category_key="bat"):
         """Заполняет одну строку таблицы."""
-        # Имя стратегии
-        strategy_name = strategy_info.get('name', strategy_id)
-        display_name = f"  {strategy_number}. {strategy_name}"
-        
+        from strategy_menu import get_strategy_rating
+
+        table.setRowHeight(row, 42)
+
+        # Получаем рейтинг стратегии для подсветки (с учетом category_key)
+        rating = get_strategy_rating(strategy_id, category_key)
+        rating_bg = RATING_COLORS.get(rating) if rating else None
+
+        # Колонка 0: Звезда избранного
+        star_widget = StrategyTableBuilder.create_favorite_star(
+            table, strategy_id, category_key
+        )
+        # Если есть рейтинг, добавляем фоновый цвет виджету
+        if rating_bg:
+            star_widget.setStyleSheet(f"background: rgba({rating_bg.red()}, {rating_bg.green()}, {rating_bg.blue()}, {rating_bg.alpha() / 255:.2f});")
+        table.setCellWidget(row, 0, star_widget)
+
+        # Колонка 1: Имя стратегии
+        strategy_name = strategy_info.get('name') or strategy_id
+        display_name = f"{strategy_number}. {strategy_name}"
+
         all_sites = StrategyTableBuilder.is_strategy_for_all_sites(strategy_info)
         if all_sites:
             display_name += " [ВСЕ]"
-        
+
         name_item = QTableWidgetItem(display_name)
-        name_item.setFont(QFont("Arial", 9))
-        table.setItem(row, 0, name_item)
-        
-        # Статус
-        if strategy_info.get('_is_builtin', False):
-            status_text = "✓ ОК"
-            status_color = "#00C800"
-        else:
-            # Определяем статус для BAT стратегий
-            version_status = None
-            if strategy_manager:
-                version_status = strategy_manager.check_strategy_version_status(strategy_id)
-            
-            if version_status == 'outdated':
-                status_text = "ОБНОВ"
-                status_color = "#FF6600"
-            elif version_status == 'not_downloaded':
-                status_text = "НЕТ"
-                status_color = "#CC0000"
-            elif version_status == 'unknown':
-                status_text = "?"
-                status_color = "#888888"
-            else:
-                status_text = "✓ ОК"
-                status_color = "#00C800"
-        
-        # Создаем виджет для статуса
-        status_widget = QWidget()
-        status_layout = QHBoxLayout(status_widget)
-        status_layout.setContentsMargins(0, 0, 0, 0)
-        status_label = QLabel(status_text)
-        status_label.setStyleSheet(
-            f"color: {status_color}; font-weight: bold; font-size: 8pt;"
+        name_item.setFont(QFont("Segoe UI", 10))
+        # Подсветка рейтинга
+        if rating_bg:
+            name_item.setBackground(QBrush(rating_bg))
+        table.setItem(row, 1, name_item)
+
+        # Колонка 2: Метка + формат файла
+        label = strategy_info.get('label') or None
+        format_label = strategy_info.get('format_label')  # TXT или BAT
+
+        label_widget = StrategyTableBuilder.create_label_with_format(
+            label, format_label, rating_bg
         )
-        status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        status_layout.addWidget(status_label)
-        status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        table.setCellWidget(row, 1, status_widget)
-        
-        # Метка
-        label = strategy_info.get('label', None)
+        table.setCellWidget(row, 2, label_widget)
+    
+    @staticmethod
+    def create_label_with_format(label, format_label, rating_bg=None):
+        """Создает виджет с меткой и форматом файла (TXT/BAT)."""
+        container = QWidget()
+        if rating_bg:
+            container.setStyleSheet(f"background: rgba({rating_bg.red()}, {rating_bg.green()}, {rating_bg.blue()}, {rating_bg.alpha() / 255:.2f});")
+        else:
+            container.setStyleSheet("background: transparent;")
+
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(4, 6, 8, 6)
+        layout.setSpacing(6)
+
+        # Метка формата файла (TXT/BAT)
+        if format_label:
+            format_color = "#4ade80" if format_label == "TXT" else "#60a5fa"  # Зелёный для TXT, синий для BAT
+            format_lbl = QLabel(format_label)
+            format_lbl.setStyleSheet(f"""
+                QLabel {{
+                    color: {format_color};
+                    font-weight: 600;
+                    font-size: 9px;
+                    padding: 3px 6px;
+                    border: 1px solid {format_color};
+                    border-radius: 3px;
+                    background: transparent;
+                }}
+            """)
+            format_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(format_lbl)
+
+        # Основная метка (recommended, deprecated, etc.)
         if label and label in LABEL_TEXTS:
-            label_widget = QWidget()
-            label_layout = QHBoxLayout(label_widget)
-            label_layout.setContentsMargins(0, 0, 0, 0)
-            
             label_text = QLabel(LABEL_TEXTS[label])
             label_color = LABEL_COLORS[label]
-            
             label_text.setStyleSheet(f"""
                 QLabel {{
-                    color: {label_color};
-                    font-weight: bold;
-                    font-size: 8pt;
-                    padding: 1px 4px;
-                    border: 1px solid {label_color};
-                    border-radius: 3px;
-                    background-color: {label_color}20;
+                    color: #ffffff;
+                    font-weight: 600;
+                    font-size: 10px;
+                    padding: 5px 10px;
+                    border: none;
+                    border-radius: 4px;
+                    background-color: {label_color};
                 }}
             """)
             label_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            label_layout.addWidget(label_text)
-            label_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            table.setCellWidget(row, 2, label_widget)
+            layout.addWidget(label_text)
+
+        layout.addStretch()
+        layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        return container
+
+    @staticmethod
+    def create_label_widget(label, rating_bg=None):
+        """Создает виджет метки (устаревший, используйте create_label_with_format)."""
+        label_widget = QWidget()
+        if rating_bg:
+            label_widget.setStyleSheet(f"background: rgba({rating_bg.red()}, {rating_bg.green()}, {rating_bg.blue()}, {rating_bg.alpha() / 255:.2f});")
         else:
-            empty_widget = QWidget()
-            table.setCellWidget(row, 2, empty_widget)
+            label_widget.setStyleSheet("background: transparent;")
+        label_layout = QHBoxLayout(label_widget)
+        label_layout.setContentsMargins(4, 6, 8, 6)
+        label_layout.setSpacing(0)
+
+        label_text = QLabel(LABEL_TEXTS[label])
+        label_color = LABEL_COLORS[label]
+
+        label_text.setStyleSheet(f"""
+            QLabel {{
+                color: #ffffff;
+                font-weight: 600;
+                font-size: 10px;
+            padding: 5px 10px;
+                border: none;
+            border-radius: 4px;
+                background-color: {label_color};
+            }}
+        """)
+        label_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        label_layout.addWidget(label_text)
+        label_layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        return label_widget
+    
+    @staticmethod
+    def create_favorite_star(table, strategy_id, category_key):
+        """Создает виджет звезды избранного."""
+        from strategy_menu import is_favorite_strategy, toggle_favorite_strategy
+        
+        is_favorite = is_favorite_strategy(strategy_id, category_key)
+        
+        # Контейнер
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(4, 0, 0, 0)
+        layout.setSpacing(0)
+        
+        # Кнопка-звезда
+        star_btn = QPushButton()
+        star_btn.setFixedSize(26, 26)
+        star_btn.setCheckable(True)
+        star_btn.setChecked(is_favorite)
+        star_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        star_btn.setFont(QFont("Segoe UI Symbol", 14))
+        
+        # Сохраняем данные в кнопке
+        star_btn.strategy_id = strategy_id
+        star_btn.category_key = category_key
+        star_btn.table = table
+        star_btn.is_favorite = is_favorite
+        
+        def update_star_style(btn):
+            if btn.is_favorite:
+                btn.setText("★")
+                btn.setToolTip("Убрать из избранных")
+                btn.setStyleSheet("""
+                    QPushButton {
+                        border: none;
+                        background: transparent;
+                        color: #ffc107;
+                        font-size: 18px;
+                        padding: 0;
+                        margin: 0;
+                    }
+                    QPushButton:hover {
+                        color: #ffca28;
+                        background: rgba(255, 193, 7, 0.15);
+                        border-radius: 13px;
+                    }
+                    QPushButton:pressed {
+                        color: #ffb300;
+                    }
+                """)
+            else:
+                btn.setText("☆")
+                btn.setToolTip("Добавить в избранные")
+                btn.setStyleSheet("""
+                    QPushButton {
+                        border: none;
+                        background: transparent;
+                        color: rgba(255, 255, 255, 0.2);
+                        font-size: 18px;
+                        padding: 0;
+                        margin: 0;
+                    }
+                    QPushButton:hover {
+                        color: #ffc107;
+                        background: rgba(255, 193, 7, 0.1);
+                        border-radius: 13px;
+                    }
+                    QPushButton:pressed {
+                        color: #ffb300;
+                    }
+                """)
+        
+        def on_star_clicked():
+            new_state = toggle_favorite_strategy(star_btn.strategy_id, star_btn.category_key)
+            star_btn.is_favorite = new_state
+            star_btn.setChecked(new_state)
+            update_star_style(star_btn)
+            
+            # Вызываем callback если есть
+            if hasattr(star_btn.table, 'favorite_callback') and star_btn.table.favorite_callback:
+                star_btn.table.favorite_callback(star_btn.strategy_id, new_state)
+        
+        update_star_style(star_btn)
+        star_btn.clicked.connect(on_star_clicked)
+        
+        layout.addWidget(star_btn)
+        layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        
+        return container
     
     @staticmethod
     def is_strategy_for_all_sites(strategy_info):
@@ -222,12 +503,12 @@ class StrategyTableBuilder:
             if 'all' in host_lists.lower() or 'все' in host_lists.lower():
                 return True
         
-        description = strategy_info.get('description', '').lower()
-        if 'все сайты' in description or 'всех сайтов' in description:
+        description = strategy_info.get('description') or ''
+        if 'все сайты' in description.lower() or 'всех сайтов' in description.lower():
             return True
             
-        name = strategy_info.get('name', '').lower()
-        if 'все сайты' in name or 'всех сайтов' in name:
+        name = strategy_info.get('name') or ''
+        if 'все сайты' in name.lower() or 'всех сайтов' in name.lower():
             return True
             
         return strategy_info.get('all_sites', False)

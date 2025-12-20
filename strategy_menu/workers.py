@@ -102,7 +102,7 @@ class StrategyFilesDownloader(QObject):
                     version_status = self.strategy_manager.check_strategy_version_status(strategy_id)
                     if version_status in ['not_downloaded', 'outdated']:
                         current_file += 1
-                        strategy_name = strategy_info.get('name', strategy_id)
+                        strategy_name = strategy_info.get('name') or strategy_id
                         
                         # Обновляем прогресс
                         progress_percent = int((current_file / total_count) * 100)
@@ -119,8 +119,54 @@ class StrategyFilesDownloader(QObject):
                             log(f"Ошибка при скачивании {file_path}: {e}", "⚠ WARNING")
             
             self.finished.emit(downloaded_count, total_count, "")
-            
+
         except Exception as e:
             error_msg = f"Ошибка скачивания: {str(e)}"
             log(error_msg, "❌ ERROR")
             self.finished.emit(0, 0, error_msg)
+
+
+class CategoryTabLoader(QObject):
+    """
+    Асинхронный загрузчик контента вкладки категории.
+    Загружает стратегии, избранные и текущий выбор в фоновом потоке.
+    """
+
+    # category_key, strategies_dict, favorites_list, current_selection
+    finished = pyqtSignal(str, dict, list, str)
+    # category_key, error_message
+    error = pyqtSignal(str, str)
+
+    def __init__(self, category_key: str):
+        super().__init__()
+        self.category_key = category_key
+
+    def run(self):
+        """Загружает данные категории в фоновом потоке"""
+        try:
+            from strategy_menu.strategies_registry import registry
+            from strategy_menu import get_direct_strategy_selections, get_favorite_strategies
+
+            # Загружаем стратегии для категории
+            strategies_dict = registry.get_category_strategies(self.category_key)
+
+            # Загружаем избранные
+            favorites_list = get_favorite_strategies(self.category_key) or []
+
+            # Загружаем текущий выбор
+            selections = get_direct_strategy_selections()
+            current_selection = selections.get(self.category_key, "none")
+
+            log(f"Категория {self.category_key}: загружено {len(strategies_dict)} стратегий", "DEBUG")
+
+            self.finished.emit(
+                self.category_key,
+                strategies_dict,
+                favorites_list,
+                current_selection
+            )
+
+        except Exception as e:
+            error_msg = f"Ошибка загрузки категории {self.category_key}: {e}"
+            log(error_msg, "ERROR")
+            self.error.emit(self.category_key, str(e))

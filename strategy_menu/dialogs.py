@@ -53,10 +53,10 @@ class StrategyInfoDialog(QDialog):
                 strategy_info = strategies[strategy_id]
                 
                 # Устанавливаем заголовок
-                title_text = strategy_info.get('name', strategy_id)
+                title_text = strategy_info.get('name') or strategy_id
                 
                 # Добавляем метку
-                label = strategy_info.get('label', None)
+                label = strategy_info.get('label') or None
                 if label and label in LABEL_TEXTS:
                     title_text += f" [{LABEL_TEXTS[label]}]"
                     label_color = LABEL_COLORS.get(label, "#000000")
@@ -94,23 +94,23 @@ class StrategyInfoDialog(QDialog):
                 border-radius: 3px;'>{LABEL_TEXTS[label]}</p>"""
         
         # Описание
-        description = strategy_info.get('description', 'Описание отсутствует')
+        description = strategy_info.get('description') or 'Описание отсутствует'
         html += f"<h4>Описание</h4><p>{description}</p>"
         
         # Основная информация
         html += "<h4>Информация</h4><table style='width: 100%;'>"
         
-        provider = strategy_info.get('provider', 'universal')
+        provider = strategy_info.get('provider') or 'universal'
         html += f"<tr><td><b>Провайдер:</b></td><td>{provider}</td></tr>"
         
-        version = strategy_info.get('version', 'неизвестно')
+        version = strategy_info.get('version') or 'неизвестно'
         html += f"<tr><td><b>Версия:</b></td><td>{version}</td></tr>"
         
-        author = strategy_info.get('author', 'неизвестно')
+        author = strategy_info.get('author') or 'неизвестно'
         html += f"<tr><td><b>Автор:</b></td><td>{author}</td></tr>"
         
-        updated = strategy_info.get('updated', 'неизвестно')
-        html += f"<tr><td><b>Обновлено:</b></td><td>{updated}</td></tr>"
+        date = strategy_info.get('date') or strategy_info.get('updated') or 'неизвестно'
+        html += f"<tr><td><b>Дата:</b></td><td>{date}</td></tr>"
         
         html += "</table>"
         

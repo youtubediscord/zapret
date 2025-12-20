@@ -9,6 +9,7 @@ LABEL_RECOMMENDED = "recommended"
 LABEL_CAUTION = "caution"
 LABEL_EXPERIMENTAL = "experimental"
 LABEL_STABLE = "stable"
+LABEL_GAME = "game"
 LABEL_WARP = "warp"
 
 # Константы для скрытого запуска
@@ -22,14 +23,16 @@ LABEL_COLORS = {
     LABEL_CAUTION: "#FF6600",      # Оранжевый для стратегий с осторожностью
     LABEL_EXPERIMENTAL: "#CC0000", # Красный для экспериментальных
     LABEL_STABLE: "#006DDA",       # Синий для стабильных
+    LABEL_GAME: "#FFC862",         # Оранжевый для игровых
     LABEL_WARP: "#EE850C"          # Оранжевый для WARP
 }
 
 LABEL_TEXTS = {
-    LABEL_RECOMMENDED: "РЕКОМЕНДУЕМ",
-    LABEL_CAUTION: "С ОСТОРОЖНОСТЬЮ",
-    LABEL_EXPERIMENTAL: "ЭКСПЕРИМЕНТАЛЬНАЯ",
-    LABEL_STABLE: "СТАБИЛЬНАЯ",
+    LABEL_RECOMMENDED: "Рекомендуется",
+    LABEL_CAUTION: "Осторожно",
+    LABEL_EXPERIMENTAL: "Эксперимент",
+    LABEL_STABLE: "Стабильная",
+    LABEL_GAME: "Для игр",
     LABEL_WARP: "WARP"
 }
 

@@ -1,0 +1,453 @@
+# zapret2 v0.1
+
+## Зачем это нужно
+
+Автономное средство противодействия DPI, которое не требует подключения каких-либо сторонних серверов. Может помочь
+обойти блокировки или замедление сайтов HTTP(S), сигнатурный анализ TCP и UDP протоколов, например, с целью блокировки
+VPN. Может использоваться для частичной прозрачной обфускации протоколов.
+
+Проект нацелен прежде всего на маломощные embedded устройства - роутеры, работающие под OpenWrt. Поддерживаются
+традиционные Linux-системы, FreeBSD, OpenBSD, Windows. В некоторых случаях возможна самостоятельная прикрутка
+решения к различным прошивкам.
+
+## Чем это отличается от zapret1
+
+zapret2 является дальнейшим развитием проекта zapret.
+Проблема его основной части *nfqws1* в том, что он перегружен опциями и в условиях нарастающего противостояния регулятора и пользователей
+не обеспечивает достаточную гибкость воздействия на трафик.
+Обход DPI требует все более тонких и специфических воздействий, которые меняются со временем, а старые перестают работать.
+
+Стратегии - это программы, управляющие сценарием атаки на DPI. В *nfqws1* они зашиваются в C код. Написание C кода - занятие нелегкое,
+требующее достаточной квалификации разработчика и времени.
+
+Цель *nfqws2* - сделать так, чтобы программы стратегий мог написать любой человек, владеющий знаниями в области сетей, понимающий уязвимости DPI
+или хотя бы область , в которой их можно искать, плюс владеющий базовыми навыками программирования.
+
+*nfqws2* оставляет в себе практически тот же функционал - распознавание протоколов, реассемблинг, дешифровка, управление профилями, хостлисты, ipset-ы, базовая фильтрация.
+Но он полностью лишается возможностей самостоятельно воздействовать на трафик. Часть "дурения" переносится в скриптовой язык программирования LUA.
+
+LUA код получает от C кода структурированное представление приходящих пакетов в виде дерева (диссекты), подобного тем, что вы видите в wireshark.
+Туда же приходят результаты сборки или дешифровки частей некоторых протоколов (tls, quic).
+С код предоставляет функции-хелперы, позволяющие отсылать пакеты, работать с двоичными данными, разбирать TLS, искать маркер-позции и т.д.
+Имеется библиотека хелперов, написанных на LUA, а так же готовая библиотека программ атаки на DPI (стратегий), реализующая функции *nfqws1* в расширенном варианте
+и с большей гибкостью.
+
+Вы всегда сможете взять и дописать что-то свое. В этом и есть смысл, чтобы борьбой с DPI смог заняться любой, кто разбирается в пакетах.
+Мог "потыкать" его, проверить свои идеи. А потом поделиться с друзьями своим решением "одного клика".
+zapret2 - инструмент для таких энтузиастов. Но это не готовое решение для чайников. Проект не ставит себе целью сделать все простым для всех.
+Автор считает, что это невозможно в принципе по обьективным причинам.
+
+
+## С чего начать
+
+Хотелось бы избежать "талмуда" на главной странице. Поэтому начнем со способа запуска *nfqws2* и описания способов портирования стратегий *nfqws1* - как в *nfqws2* сделать то же самое, что можно было в *nfqws1*.
+Когда вы поймете как это работает, вы можете посмотреть LUA код, находящийся "под капотом". Разобрать как он работает, попробовать написать что-то свое.
+"талмуд" обязательно будет, как он есть у любых более-менее сложных проектов. Он нужен как справочник.
+
+### Механика обработки трафика
+
+Изначально сетевой трафик в любой ОС появляется в ядре. Первая задача - извлечь его оттуда и перенаправить на процесс *nfqws2*.
+Эта задача решается в Linux с помощью iptables и nftables, в BSD - ipfw и pf, в Windows - windivert.
+Процесс перенаправления трафика из ядра отнимает достаточно много ресурсов, поэтому лучше всего отфильтровать как можно больше прямо в нем.
+
+Для экспериментов на Linux можно начать со следующих nftables, которые перенаправят начальные пакеты соединений на порты tcp 80,443 и udp 443 в очередь NFQUEUE с номером 200.
+
+```
+nft delete table inet ztest
+nft create table inet ztest
+nft add chain inet ztest post "{type filter hook postrouting priority 101;}"
+nft add rule inet ztest post meta mark and 0x40000000 == 0 tcp dport "{80,443}" ct original packets 1-12 queue num 200 bypass
+nft add rule inet ztest post meta mark and 0x40000000 == 0 udp dport "{443}" ct original packets 1-12 queue num 200 bypass
+
+sysctl net.netfilter.nf_conntrack_tcp_be_liberal=1 
+nft add chain inet ztest pre "{type filter hook prerouting priority -101;}"
+nft add rule inet ztest pre meta mark and 0x40000000 == 0 tcp sport "{80,443}" ct reply packets 1-12 queue num 200 bypass
+nft add rule inet ztest pre meta mark and 0x40000000 == 0 udp sport "{443}" ct reply packets 1-12 queue num 200 bypass
+
+nft add chain inet ztest predefrag "{type filter hook output priority -401;}"
+nft add rule inet ztest predefrag "mark & 0x40000000 != 0x00000000 notrack"
+```
+
+В windows функция перехвата вшита прямо в код движка для windows, который называется *winws2*. Он использует драйвер windivert.
+Для перехвата портов целиком используются параметры `--wf-tcp-in`, `--wf-tcp-out`, `--wf-udp-in`, `--wf-udp-out`.
+Они относятся к протоколам tcp или udp, к входящим или исходящим пакетам. Например, `--wf-tcp-out=80,443`.
+Для более точного перехвата пишутся фильтры на языке фильтров windivert. Он похож на язык фильтров tcpdump или wireshark.
+Фильтры отдаются *winws2* в параметрах `--wf-raw-part`. Конструктор фильтров обьединяет все указанные опции перехвата в
+единый raw фильтр и запускает перехват windivert.
+
+К сожалению, самый болезненный недостаток windivert (а так же BSD ipfw и pf) - отсутствие ограничителя на номер пакета в соединении (connbytes в iptables, ct packets в nftables).
+windivert вообще не отслеживает соединения. Поэтому если перехватывать порт целиком, то все соединение по указанному направлению
+пойдет на перехват, что нелегко для процессора, если там передаются многие мегабайты.
+Поэтому по возможности пишите собственные фильтры windivert, проверяющие тип пейлоада хотя бы частично. Дофильтрацию может выполнить *winws2*.
+
+Дальше под рутом нужно запустить *nfqws2* с параметрами командной строки. Они строятся примерно следующим образом :
+
+```
+nfqws2 --qnum 200 --debug --lua-init=@zapret-lib.lua --lua-init=@zapret-antidpi.lua \
+  --filter-tcp=80,443 --filter-l7=tls,http \
+  --payload=tls_client_hello --lua-desync=fake:blob=fake_default_tls:tcp_md5:tls_mod=rnd,rndsni,dupsid \
+  --payload=http_req --lua-desync=fake:blob=fake_default_http:tcp_md5 \
+  --payload=tls_client_hello,http_req --lua-desync=multisplit:pos=1:seqovl=5:seqovl_pattern=0x1603030000
+```
+
+Данный пример предполагает, что в той же директории находятся файлы `zapret-lib.lua` - библиотека хелперов на LUA и `zapret-antidpi.lua` - библиотека базовых стратегий.
+`--lua-init` может содержать LUA код в виде строки. Так удобно писать простой код, например присвоить константу переменной, чтобы не создавать файлы ради этой мелочи.
+Либо подцепляется файл, если значение параметра начинается с `@`. Код из `--lua-init` выполняется 1 раз при старте.
+
+Далее указаны параметры `--lua-desync`. Они содержат имя LUA функции, вызываемой при обработке каждого пакета, проходящего через профиль мультистратегии.
+После двоеточия и через двоеточия следуют параметры для данной функции в формате `param[=value]`. В примере реализована стратегия
+
+```
+nfqws --qnum 200 --debug \
+--filter-tcp=80,443 --filter-l7=tls,http \
+ --dpi-desync=fake,multisplit --dpi-desync-fooling=md5sig --dpi-desync-split-pos=1,midsld \
+ --dpi-desync-split-seqovl=5 --dpi-desync-split-seqovl-pattern=0x1603030000 \
+ --dpi-desync-fake-tls-mod=rnd,rndsni,dupsid
+```
+
+Что сразу заметно - это наличие понятия "payload". В *nfqws1* были только протоколы соединения, которые участвовали в фильтрации профилей.
+Они так же остались в *nfqws2*, но введено другое понятие - тип пейлоада. Пейлоад - это содержание текущего пакета.
+Тип пейлоада - тип данных, содержащихся в пакете или группе пакетов. Например, протокол соединения может быть tls, а пейлоады - tls_client_hello, tls_server_hello, unknown.
+
+Другое важное отличие - отсутствие жестко определенных фаз десинхронизации. То, что вы раньше писали как `fake,multisplit` реализуется двумя
+последовательно вызываемыми LUA функциями. Их может быть столько, сколько нужно, учитывая логику прохождения пакетов и операций с ними, и у каждой могут быть свои параметры.
+Может даже несколько раз вызываться одна и так же функция с разными параметрами. Так, например, можно послать несколько фейков, причем с разными фулингами.
+Конкретный вызов `--lua-desync` функции называется инстансом. Инстанс - это связка имени функции, номера вызова внутри профиля и номера самого профиля.
+Это похоже на одну программу, которую можно запустить много раз с разными параметрами.
+
+Другое немаловажное отличие - поддержка автоматической tcp сегментации. Вам больше не нужно думать о размерах отсылаемых tcp пакетов.
+По каждому соединению отслеживается MSS. Если пакет не влезает в MSS, выполняется сегментация.
+Например, это может случиться при отправке tls фейка с kyber. Или если вы режете kyber tls так, что одна из частей получается размером 1600 байт,
+что, очевидно, не влезает в MTU. Или если вы задали seqovl=10000. В *nfqws1* такое значение вызвало бы ошибку. В *nfqws2* будет отправлено
+несколько tcp сегментов с начальным sequence -10000 общим размером 10000 байт, в последнем из которых будет кусок оригинального сообщения.
+
+В *nfqws2* нет жестко зашитых параметров кастомных фейков типа `--dpi-desync-fake-tls`, `dpi-desync-fake-http` и тд.
+Вместо них есть блобы. Блоб (blob) - это переменная LUA типа *string*, содержащая блок двоичных данных произвольной длины. От 1 байта до гигабайтов.
+*nfqws2* автоматически инициализирует блобы со стандартными фейками tls, http, quic, как это и было в *nfqws1*.
+Блобы могут быть заданы как hex-строка прямо в параметре desync функции, либо пред-загружены при старте с помощью параметра `--blob=name:0xHEX|[+ofs]@filename`
+
+Что касается профилей мультистратегии и хостлистов , то они остались практически в неизменном виде. За исключением одной тонкости автолиста.
+Теперь профиль с автолистом берет на себя только те соединения, для которых уже известен хост. Пока хоста нет - они проходят мимо.
+В *nfqws1* они падали на профиль с автолистом.
+
+```
+nfqws2 --qnum 200 --debug --lua-init=@zapret-lib.lua --lua-init=@zapret-antidpi.lua \
+--filter-tcp=80 --filter-l7=http --hostlist=mylist1.txt --lua-desync=multisplit --new \
+--filter-tcp=80 --filter-l7=http --hostlist-exclude=mylist2.txt --lua-desync=fake:blob=0x00000000:ip_ttl=5:ip6_ttl=3 --lua-desync=multidisorder:pos=5,endhost-1 --new \
+--filter-tcp=443 --filter-l7=tls --hostlist=mylist1.txt --lua-desync=multidisorder
+```
+
+Параметры *nfqws1* start/cutoff (`--dpi-desync-start`, `--dpi-desync-cutoff`, ...) теперь называются диапазонами (ranges).
+Остались только 2 range : `--in-range` и `--out-range`. Они относятся к входящему и исходящему направлению соответственно.
+Да, теперь можно полноценно работать как с входящими пакетами, так и с исходящими. Есть и специальный режим для сервера - `--server`, который
+адаптирует интерпретацию IP адресов и портов источника/приемника, чтобы корректно работали ipset-ы и фильтры.
+
+range задается как `mX-mY`, `mX<mY`, `-mY`, `<mY`, `mX-`.
+Буква `m` означает режим счетчика. `n` - номер пакета, `d` - номер пакета с данными, `b` - количество переданных байт, `s` - относительный sequence для tcp.
+После буквы режима пишется число. Например, `n5-s10000` означает с 5-го по очереди пакета до смещения 10000 байт относительно начала tcp соединения.
+Есть и режимы, не требущие числа - `a` - всегда, `x` - никогда.
+Если разделителем указан знак '-' - конечная позиция включительна, а если '<' - не включительна.
+
+Установка по умолчанию `--in-range=x --out-range=a --payload all`. То есть отсекаются все входящие пакеты и берутся все исходящие.
+
+`--in-range`, `--out-range` и `--payload` фильтры могут присутствовать множественно в одном профиле.
+Их действие распространяется на все последующие `--lua-desync` функции до следующего фильтра того же типа или до конца профиля.
+Следующий профиль снова принимает значения по умолчанию.
+
+Что будет, если вы не напишите фильтр `--payload` для fake или multisplit ? В *nfqws1* без `--dpi-desync-any-protocol` они работали только по известным пейлоадам.
+В *nfqws2* "any protocol" - режим по умолчанию. Однако, функции из библиотеки `zapret-antidpi.lua` написаны так, что по умолчанию работают только по известные пейлоадам
+и не работают по пустым пакетам или unknown - точно так же, как это было в *nfqws1*.
+Но лучше все-же писать фильтры `--payload`, потому что они работают на уровне C кода, который выполняется существенно быстрее, чем LUA.
+
+Диссект пакета проходит поочередно по всем `--lua-desync` инстансам профиля, для которых не выполняется условие отсечения (cutoff).
+Отсечение может быть по range, payload или добровольное отсечение. Последний вариант - когда инстанс сам отказывается обрабатывать пакеты
+по входящему, исходящему или обоим направлениям. Например, задача стратегии wsize - отреагировать только на пакет с tcp флагами SYN,ACK. После этого он не нужен, в коде вызывается функция отсечения.
+Это сделано для экономии ресурсов процессора.
+Если все инстансы в профиле точно никогда больше не будут вызваны по соединению + направлению - вошли в превышение верхней границы range или выполнили добровольный cutoff, то движок LUA не вызывается вообще.
+
+От инстанса к инстансу содержимое диссекта может ими меняться. Следующий инстанс видит изменения предыдущего.
+Каждый инстанс выносит свой вердикт - что делать с текущим диссектом. VERDICT_PASS - означает отправить как есть,
+VERDICT_MODIFY - отправить модифицированную версию, VERDICT_DROP - дропнуть диссект (не отправлять).
+Итоговый вердикт формируется на основании вердиктов отдельных инстансов.
+Если какой-либо инстанс выдал VERDICT_DROP - итоговый результат - всегда VERDICT_DROP.
+Если ни один инстанс не выдал VERDICT_DROP, а какой-либо инстанс выдал VERDICT_MODIFY, то будет VERDICT_MODIFY.
+Если все инстансы выдали VERDICT_PASS - будет VERDICT_PASS.
+
+Например, функция pktmod применяет фулинг к текущему диссекту и выставляет вердикт VERDICT_MODIFY.
+Если после этого будет вызван инстанс multisplit, то произойдет резка текущего уже измененного диссекта, отправка частей и в случае успеха VERDICT_DROP.
+Получается, что мы применили фулинг и отправили с этим фулингом все tcp сегменты.
+
+### Примеры портирования стратегий *nfqws1*
+
+Кратко, на примерах, покажем как стратегии с *nfqws1* переписываются под *nfqws2*.
+Для краткости здесь опущены директивы `--qnum`, `--lua-init`, `--wf-tcp-out` и тому подобное, что не касается напрямую стратегий и их непосредственного обслуживания.
+
+Параметр `--filter-l7` относится к фильтру профиля мультистратегии. Здесь приведен как указание, что будет обрабатываться только конкретный протокол.
+
+
+Автоматического использования ttl для ipv6 больше нет. Нужно писать отдельно для ipv4 и ipv6. Если не будет написано для ipv6, то к нему не будет применен ttl.
+Функция pktmod применяет фулинг к текущему диссекту.
+
+```
+nfqws \
+ --filter-l7=http --dpi-desync=fake --dpi-desync-fake-http=0x00000000 --dpi-desync-ttl=6 \
+ --orig-ttl=1 --orig-mod-start=s1 --orig-mod-cutoff=d1
+
+nfqws2 \
+ --filter-l7=http \
+ --payload=http_req --lua-desync=fake:blob=0x00000000:ip_ttl=6:ip6_ttl=6 \
+ --payload=empty --out-range="s1<d1" --lua-desync=pktmod:ip_ttl=1:ip6_ttl=1
+```
+
+badseq без параметров в *nfqws1* применял инкремент -10000 для syn и -66000 для ack.
+В функциях `zapret-antidpi.lua` понятия badseq нет. Есть фулинги - уменьшить seq или ack на указанное значение.
+
+tcp_ts_up - очень странное явление, обнаруженное в процессе тестирования *nfqws2*.
+Оказывается, если есть tcp опция timestamp, linux стабильно отбрасывает пакеты с валидным seq и инвалидным ack только если опция идет первой.
+*nfqws1* не соблюдал порядок tcp опций, timestamp получался первым всегда.
+Поэтому оказалось, что старая версия работает стабильно , а новая нет.
+tcp_ts_up дублирует старое поведение - двигает timestamp в самый верх.
+
+```
+nfqws \
+ --filter-l7=http \
+ --dpi-desync=fakedsplit --dpi-desync-fooling=badseq --dpi-desync-badseq-increment=0 --dpi-desync-split-pos=method+2
+
+nfqws2 \
+ --filter-l7=http \
+ --payload=http_req --lua-desync=fakedsplit:pos=method+2:tcp_ack=-66000:tcp_ts_up
+```
+
+autottl пишется полностью в формате `delta,min-max`. Вместо двоеточия используется запятая, чтобы не конфликтовать с разделителем параметров функции.
+
+```
+nfqws \
+ --filter-l7=tls \
+ --dpi-desync=fakedsplit --dpi-desync-fakedsplit-pattern=tls_clienthello_google_com.bin \
+ --dpi-desync-ttl=1 --dpi-desync-autottl=-1 --dpi-desync-split-pos=method+2 --dpi-desync-fakedsplit-mod=altorder=1
+
+nfqws2 \
+ --blob=tls_google:@tls_clienthello_google_com.bin \
+ --filter-l7=tls \
+ --payload tls_client_hello,http_req \
+ --lua-desync=fakedsplit:pattern=tls_google:pos=method+2:nofake1:ip_ttl=1:ip6_ttl=1:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
+```
+
+Здесь важен порядок вызова функций.
+wssize работает как модификатор диссекта - переписывает window size и scale factor. syndata должна быть отослана с модифицированными
+wsize и scale. Если перепутать порядок следования, то syndata будет отправлена без wssize. Поскольку важна модификация, начиная с SYN пакета,
+то wssize не сработает ожидаемым образом.
+
+```
+nfqws --dpi-desync=syndata,multisplit --dpi-desync-split-pos=midsld --wssize 1:6
+
+nfqws2 --lua-desync=wssize:wsize=1:scale=6 --lua-desync=syndata --lua-desync=multisplit:pos=midsld
+```
+
+В первом примере все модификации tls применяются на лету.
+Это так же означает, что рандомы будут применяться каждый раз, а не один раз, как в *nfqws1*.
+Поведение можно привести к варианту *nfqws1* при желании - во втором примере показано как.
+
+```
+nfqws1 \
+ --filter-l7 tls \
+ --dpi-desync=fake --dpi-desync-fooling=datanoack --dpi-desync-fake-tls=! \
+ --dpi-desync-fake-tls-mod=rnd,rndsni,dupsid
+
+nfqws2
+ --filter-l7 tls \
+ --payload=tls_client_hello --lua-desync=fake:blob=fake_default_tls:tcp_flags_unset=ack:tls_mod=rnd,rndsni,dupsid,padencap \
+ --payload=empty --out-range="s1<d1" --lua-desync=pktmod:ip_ttl=1:ip6_ttl=1
+
+
+nfqws2 \
+ --lua-init="fake_default_tls=tls_mod(fake_default_tls,'rnd,rndsni')" \
+ --filter-l7 tls \
+ --payload=tls_client_hello --lua-desync=fake:blob=fake_default_tls:tcp_flags_unset=ack:tls_mod=dupsid,padencap \
+ --payload=empty --out-range="s1<d1" --lua-desync=pktmod:ip_ttl=1:ip6_ttl=1
+```
+
+IP фрагментация является теперь опцией процесса отсылки. Функция send отсылает текущий диссект, применяя указанные модификаторы, но не дропает оригинал.
+Чтобы оригинал не пошел следом - применяется функция drop. Она ничего не делает, только выносит VERDICT_DROP.
+При желании ipfrag можно применить и к fake, multisplit и другим функциям. Так же можно писать свои функции IP фрагментации.
+Функция по умолчанию ipfrag2 делит пакет на 2 части. Но вы можете написать функцию, которая разделит его на 10 частей и указать ее как `ipfrag=my_frag_function`.
+Функция фрагментации получает диссект подлежащего фрагментации пакета на вход и возвращает массив диссектов - фрагментов.
+
+```
+nfqws --dpi-desync=ipfrag2 --dpi-desync-ipfrag-pos-udp=8
+nfqws2 --lua-desync=send:ipfrag:ipfrag_pos_udp=8 --lua-desync=drop
+```
+
+Рассмотрим теперь пример из zapret-win-bundle. Как `preset_example.cmd` был переписан в `preset2_example.cmd`.
+
+Фильтр windivert поменялся только одним - больше нет параметров `--wf-tcp` и `--wf-udp`. Они разделены по направлениям in/out.
+Для отлова UDP не перехватывается весь udp порт - используются пейлоад фильтры windivert. Тем самым во много раз экономятся ресурсы процессора,
+вплоть до сотен раз. Когда попадет что-то на мощную выгрузку торрента, и она пойдет через winws, вы вполне можете словить загрузку целого ядра CPU
+и вой кулеров вашего ноута. А так его не будет.
+
+Для TCP так тоже можно было бы сделать, но не всегда. Во-первых, надо перехватывать SYN по порту, чтобы работал conntrack.
+Но это решаемо. А что не решаемо - это перехват вторых частей kyber tls hello. Их невозможно опознать без связи с предыдущими фрагментами. Поэтому перехватывается весь порт.
+Для HTTP вопрос решаемый, поскольку там нет реассемблирования запросов, но http сейчас стал настолько редким, что и смысла нет заморачиваться.
+
+Везде расставлены фильтры профиля мультистратегии `--filter-l7`, фильтры по `--out-range` и по `--payload`.
+Зачем ? В основном для сокращения вызовов LUA кода, который заведомо медленнее C кода.
+Если пакет не попадет в профили с LUA - ни о каком вызове кода LUA речи быть не может.
+Если пакет попал в профиль с LUA, то после первых 10 пакетов с данными наступает отсечение по верхней границе range. Все LUA инстансы входят в состояние instance cutoff,
+соединение входит в состояние "lua cutoff" по направлению "out". Значит вызовов LUA не будет вообще. Не просто вызовов, а даже обращения к движку LUA
+с какой-либо целью. Будет только C код, который посмотрит на признак "cutoff" и сразу же отпустит пакет.
+
+Так же везде расставлены фильтры по payload type. Отчасти так же с целью сократить вызовы LUA даже в пределах первых 10 пакетов с данными.
+С другой стороны, даже при совпадении протокола соединения (`--filter-l7`) может пробежать не интересующий нас пейлоад.
+По умолчанию многие функции из `zapret-antidpi.lua` реагируют только на известные типы пейлоада, но не на конкретные, а на любые известные.
+Если допустить малореальный, но гипотетически возможный сценарий, что в рамках протокола http будет отправлен блок данных с tls или фраза, похожая на сообщение из xmpp,
+то тип пейлоада выскочит tls_client_hello или xmpp_stream, например. Лучше от этого сразу уберечься. Тем более что в других видах протоколов - xmpp, например, -
+пейлоады могут проскакивать нескольких типов вполне ожидаемо. Но работать надо не по всем.
+
+В фейке для TLS по умолчанию - fake_default_tls - однократно при старте меняется SNI с "www.microsoft.com" на случайный и рандомизируется поле "random" в TLS handshake.
+Это делается простой строчкой LUA кода. Больше нет никаких специальных параметров *nfqws2* для модификации пейлоадов.
+В профиле для youtube на лету меняется SNI на "www.google.com", копируется поле TLS "session id" с обрабатываемого в данный момент TLS handshake.
+
+```
+start "zapret: http,https,quic" /min "%~dp0winws.exe" ^
+--wf-tcp=80,443 ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.discord_media.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.stun.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.wireguard.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.quic_initial_ietf.txt" ^
+--filter-tcp=80 --dpi-desync=fake,fakedsplit --dpi-desync-autottl=2 --dpi-desync-fooling=md5sig --new ^
+--filter-tcp=443 --hostlist="%~dp0files\list-youtube.txt" --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com --new ^
+--filter-tcp=443 --dpi-desync=fake,multidisorder --dpi-desync-split-pos=midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new ^
+--filter-l7=quic --hostlist="%~dp0files\list-youtube.txt" --dpi-desync=fake --dpi-desync-repeats=11 --dpi-desync-fake-quic="%~dp0files\quic_initial_www_google_com.bin" --new ^
+--filter-l7=quic --dpi-desync=fake --dpi-desync-repeats=11 ^
+--filter-l7=wireguard,stun,discord --dpi-desync=fake --dpi-desync-repeats=2
+
+
+start "zapret: http,https,quic" /min "%~dp0winws2.exe" ^
+--wf-tcp-out=80,443 ^
+--lua-init=@"%~dp0lua\zapret-lib.lua" --lua-init=@"%~dp0lua\zapret-antidpi.lua" ^
+--lua-init="fake_default_tls = tls_mod(fake_default_tls,'rnd,rndsni')" ^
+--blob=quic_google:@"%~dp0files\quic_initial_www_google_com.bin" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.discord_media.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.stun.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.wireguard.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.quic_initial_ietf.txt" ^
+--filter-tcp=80 --filter-l7=http ^
+  --out-range=-d10 ^
+  --payload=http_req ^
+   --lua-desync=fake:blob=fake_default_http:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:tcp_md5 ^
+   --lua-desync=fakedsplit:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:tcp_md5 ^
+  --new ^
+--filter-tcp=443 --filter-l7=tls --hostlist="%~dp0files\list-youtube.txt" ^
+  --out-range=-d10 ^
+  --payload=tls_client_hello ^
+   --lua-desync=fake:blob=fake_default_tls:tcp_md5:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com ^
+   --lua-desync=multidisorder:pos=1,midsld ^
+  --new ^
+--filter-tcp=443 --filter-l7=tls ^
+  --out-range=-d10 ^
+  --payload=tls_client_hello ^
+   --lua-desync=fake:blob=fake_default_tls:tcp_md5:tcp_seq=-10000:repeats=6 ^
+   --lua-desync=multidisorder:pos=midsld ^
+  --new ^
+--filter-udp=443 --filter-l7=quic --hostlist="%~dp0files\list-youtube.txt" ^
+  --out-range=-d10 ^
+  --payload=quic_initial ^
+   --lua-desync=fake:blob=quic_google:repeats=11 ^
+  --new ^
+--filter-udp=443 --filter-l7=quic ^
+  --out-range=-d10 ^
+  --payload=quic_initial ^
+   --lua-desync=fake:blob=fake_default_quic:repeats=11 ^
+  --new ^
+--filter-l7=wireguard,stun,discord ^
+  --out-range=-d10 ^
+  --payload=wireguard_initiation,wireguard_cookie,stun_binding_req,discord_ip_discovery ^
+   --lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2
+```
+
+И напоследок стоит продемонстрировать как делаются нестандартные вещи. То, что очень непросто запрограммировать в чисто описательном виде
+в фиксированном коде, не превращая программу в монстро-комбайн, перегруженный частными функциями и разваливающийся под своей тяжестью со временем,
+когда эти частные функции перестают быть нужны и забываются.
+
+Надо послать исходный запрос с известным пейлоадом с seqovl случайного размера от 5 до 10 символов со случайным содержимым, состоящим из букв от ‘a’ до ‘z’.
+Здесь раскрывается не декларативный характер стратегий, а алгоритмический. Стратегия - это программа, и пишите ее вы на языке программирования.
+Для облегчения простых или стандартных действий есть готовые средства, так что далеко не всегда надо писать свою функцию.
+Частенько можно обойтись простенькими кусками LUA кода в дополнение к имеющимся.
+
+Здесь используется функция `luaexec`, предназначенная для динамического выполнения LUA кода в процессе обработки текущего диссекта.
+Она инициализирует требуемый blob, записывая его в таблицу desync, которая передается от инстанса к инстансу.
+Следующий инстанс `tcpseg` использует `rnd` как blob - источник seqovl паттерна.
+
+Символы `%` и `#` используются для разименования блобов и подстановки их размера соответственно. Реализовано на уровне C кода.
+desync функция получает уже подставленные значения. В данном случае seqovl устанавливается как размер сгенерированного блоба.
+
+Функция `tcpseg` предназначена для отсылки tcp сегмента - части текущего пейлоада (или реасма - сборки нескольких пакетов, например в случае tls kyber).
+`pos=0,-1` - это диапазон, состоящий из двух маркеров - начала и конца. 0 - положительный абсолютный маркер, соответствующий началу пакета.
+-1 - отрицательный абсолютный маркер, соответствующий концу пакета. Получается, мы отсылаем целиком текущий пейлоад, но с seqovl.
+`tcpseg` не дропает пакет. Его надо дропнуть отдельно. По умолчанию `tcpseg` работает только с известными пейлоадами, а функция `drop` - с любыми.
+Поэтому нужно ей указать дропать только известные пейлоады.
+
+Такая связка из 3 инстансов решает поставленную задачу без кучи частных параметров вида `--dpi-desync...`.
+
+```
+nfqws2 \
+ --lua-desync=luaexec:code='desync.rnd=brandom_az(math.random(5,10))' \
+ --lua-desync=tcpseg:pos=0,-1:seqovl=#rnd:seqovl_pattern=rnd \
+ --lua-desync=drop:payload=known
+```
+
+### Какие есть еще параметры
+
+Как узнать какие есть еще функции и какие у них бывают параметры ? Смотрите `zapret-antidpi.lua`. Перед каждой функцией подробно описано какие параметры она берет.
+Описание стандартных блоков параметров есть в начале. Позже - по мере сил и возможностей - будет писаться талмуд - справочник с руководством по программированию
+*nfqws2* и описание стандартных библиотек.
+
+### Очень важный совет
+
+Научитесь пользоваться `--debug` логом. Без него будет очень сложно понять *nfqws2* на начальном этапе и приспособиться к новой схеме.
+Ошибок будет много. Особенно, когда вы начнете писать свой LUA код. Их надо читать.
+
+## Пример
+```
+start "zapret: http,https,quic" /min "%~dp0winws2.exe" ^
+--wf-tcp-out=80,443 ^
+--lua-init=@"%~dp0lua\zapret-lib.lua" --lua-init=@"%~dp0lua\zapret-antidpi.lua" ^
+--lua-init="fake_default_tls = tls_mod(fake_default_tls,'rnd,rndsni')" ^
+--blob=quic_google:@"%~dp0files\quic_initial_www_google_com.bin" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.discord_media.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.stun.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.wireguard.txt" ^
+--wf-raw-part=@"%~dp0windivert.filter\windivert_part.quic_initial_ietf.txt" ^
+--filter-tcp=80 --filter-l7=http ^
+  --out-range=-d10 ^
+  --payload=http_req ^
+   --lua-desync=fake:blob=fake_default_http:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:tcp_md5 ^
+   --lua-desync=fakedsplit:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:tcp_md5 ^
+  --new ^
+--filter-tcp=443 --filter-l7=tls --hostlist="%~dp0files\list-youtube.txt" ^
+  --out-range=-d10 ^
+  --payload=tls_client_hello ^
+   --lua-desync=fake:blob=fake_default_tls:tcp_md5:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com ^
+   --lua-desync=multidisorder:pos=1,midsld ^
+  --new ^
+--filter-tcp=443 --filter-l7=tls ^
+  --out-range=-d10 ^
+  --payload=tls_client_hello ^
+   --lua-desync=fake:blob=fake_default_tls:tcp_md5:tcp_seq=-10000:repeats=6 ^
+   --lua-desync=multidisorder:pos=midsld ^
+  --new ^
+--filter-udp=443 --filter-l7=quic --hostlist="%~dp0files\list-youtube.txt" ^
+  --out-range=-d10 ^
+  --payload=quic_initial ^
+   --lua-desync=fake:blob=quic_google:repeats=11 ^
+  --new ^
+--filter-udp=443 --filter-l7=quic ^
+  --out-range=-d10 ^
+  --payload=quic_initial ^
+   --lua-desync=fake:blob=fake_default_quic:repeats=11 ^
+  --new ^
+--filter-l7=wireguard,stun,discord ^
+  --out-range=-d10 ^
+  --payload=wireguard_initiation,wireguard_cookie,stun_binding_req,discord_ip_discovery ^
+   --lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2
+```

@@ -1,914 +1,569 @@
+"""Censorliber, [08.08.2025 1:02]
+ну окей начнем с дискодра и ютуба
+
+Censorliber, [08.08.2025 1:02]
+а там добавим возможность отключения для обхода части сайтов
+
+Censorliber, [08.08.2025 1:02]
+хз как
+
+Censorliber, [08.08.2025 1:02]
+чет тту без идей
+
+Censorliber, [08.08.2025 1:02]
+или делать нулевую стратегию в качестве затычки в коде чтобы проще было или... прям кнопку добавлять
+"""
+
+"""
+------ добавить в остьальное tcp по всем портам --------------------
+--filter-tcp=4950-4955 --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=8 --dpi-desync-fooling=md5sig,badseq --new
+
+--filter-udp=443-9000 --ipset=ipset-all.txt --hostlist-domains=riotcdn.net,playvalorant.com,riotgames.com,pvp.net,rgpub.io,rdatasrv.net,riotcdn.com,riotgames.es,RiotClientServices.com,LeagueofLegends.com --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new
+
+------ ВАЖНЫЕ И НЕОБЫЧНЫЕ СТРАТЕГИИ по идее надо писать syndata в конце в порядке исключения для всех доменов--------------------
+--filter-tcp=443 --dpi-desync=fake --dpi-desync-fooling=badsum --dpi-desync-fake-tls-mod=rnd,rndsni,padencap
+--filter-tcp=443 --dpi-desync=fake --dpi-desync-ttl=4 --dpi-desync-fake-tls-mod=rnd,rndsni,padencap
+--filter-tcp=443 --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-autottl --dpi-desync-fooling=badseq --dpi-desync-repeats=8 --new
+--filter-tcp=443 --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-autottl --dpi-desync-fooling=badseq --dpi-desync-repeats=8 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
+
+--filter-tcp=443 --dpi-desync=split2 --dpi-desync-split-seqovl=681 --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq,hopbyhop2 --dpi-desync-split-seqovl-pattern=tls_clienthello_www_google_com.bin
+
+--filter-tcp=443 --dpi-desync=split2 --dpi-desync-split-seqovl=681 --dpi-desync-split-pos=1 --dpi-desync-repeats=2 --dpi-desync-fooling=badseq,hopbyhop2 --dpi-desync-split-seqovl-pattern=tls_clienthello_www_google_com.bin
+
+--filter-tcp=443 --dpi-desync=split2 --dpi-desync-repeats=2 --dpi-desync-split-seqovl=681 --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq,hopbyhop2 --dpi-desync-split-seqovl-pattern=tls_clienthello_www_google_com.bin --new
+--filter-tcp=443 --dpi-desync=fake,split2 --dpi-desync-repeats=6 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new
+--filter-tcp=443 --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_2.bin --dpi-desync-ttl=2 --new
+--filter-tcp=443 --dpi-desync=fake,split2 --dpi-desync-split-seqovl=681 --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=8 --dpi-desync-split-seqovl-pattern=tls_clienthello_www_google_com.bin --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com --new
+--filter-tcp=443 --dpi-desync=fake,multidisorder --dpi-desync-split-pos=midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new bol-van
+--filter-tcp=443 --dpi-desync=fake,multidisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --dpi-desync-fooling=md5sig,badseq --dpi-desync-fake-tls=tls_clienthello_5.bin --dpi-desync-fake-tls-mod=rnd --dpi-desync-autottl --new
+--filter-tcp=443 --dpi-desync=fake,multidisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_9.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new
+--filter-tcp=443 --dpi-desync=fake,fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fake-tls=tls_clienthello_7.bin
+--filter-tcp=443 --dpi-desync=fake,fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fake-tls=tls_clienthello_7.bin --dpi-desync-fooling=badseq --dpi-desync-autottl
+--filter-tcp=443 --dpi-desync=fake,fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fake-tls=tls_clienthello_9.bin
+--filter-tcp=443 --dpi-desync=fake,fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fake-tls=tls_clienthello_9.bin --dpi-desync-fooling=badseq --dpi-desync-autottl
+--filter-tcp=443 --dpi-desync=fake,disorder2 --dpi-desync-autottl=2 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin
+
+---------- LABEL_GAME ----------------
+--filter-tcp=443 --dpi-desync=multisplit --dpi-desync-split-seqovl=293 --dpi-desync-split-seqovl-pattern=tls_clienthello_12.bin --new
+--filter-tcp=443 --dpi-desync=multisplit --dpi-desync-split-seqovl=308 --dpi-desync-split-seqovl-pattern=tls_clienthello_15.bin --new
+--filter-tcp=443 --dpi-desync=multisplit --dpi-desync-split-seqovl=308 --dpi-desync-split-seqovl-pattern=tls_clienthello_5.bin --dup=2 --dup-cutoff=n3 --new
+--filter-tcp=443 --dpi-desync=multisplit --dpi-desync-split-seqovl=226 --dpi-desync-split-seqovl-pattern=tls_clienthello_18.bin --dup=2 --dup-cutoff=n3 --new
+
+--comment Cloudflare WARP(1.1.1.1, 1.0.0.1)
+--filter-tcp=443 --ipset-ip=162.159.36.1,162.159.46.1,2606:4700:4700::1111,2606:4700:4700::1001 --filter-l7=tls --dpi-desync=fake --dpi-desync-fake-tls=0x00 --dpi-desync-start=n2 --dpi-desync-cutoff=n3 --dpi-desync-fooling=md5sig --new
+
+--comment WireGuard
+--filter-l7=wireguard --dpi-desync=fake --dpi-desync-fake-wireguard=0x00 --dpi-desync-cutoff=n2
+
+----------------------- LABEL_WARP -------------------------------
+--filter-tcp=443 --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-fooling=md5sig,badseq 
+--filter-tcp=443 --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1 --dpi-desync-fake-tls=tls_clienthello_vk_com.bin --dpi-desync-ttl=5 --new
+--filter-tcp=443 --dpi-desync=fake,multisplit --dpi-desync-fooling=md5sig --dpi-desync-autottl --new
+--filter-tcp=443 --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1,midsld --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_9.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new
+--filter-tcp=443 --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-fooling=md5sig,badseq --dpi-desync-fake-tls=tls_clienthello_7.bin --dpi-desync-fake-tls-mod=rnd,padencap --dpi-desync-autottl --new
+
+--filter-tcp=443 --dpi-desync=fakeddisorder --dpi-desync-split-pos=2,midsld --dpi-desync-fakedsplit-pattern=tls_clienthello_1.bin --dpi-desync-fooling=badseq --new
+--filter-tcp=443 --dpi-desync=fakeddisorder --dpi-desync-split-pos=2,midsld+1 --dpi-desync-fakedsplit-pattern=tls_clienthello_4.bin --dpi-desync-fooling=badseq --new
+
+--filter-tcp=443 --dpi-desync=fakedsplit --dpi-desync-fooling=badseq --dpi-desync-split-pos=2,midsld-1 --dpi-desync-fakedsplit-pattern=tls_clienthello_4.bin --new
+--filter-tcp=443 --dpi-desync=fakedsplit --dpi-desync-split-pos=7 --dpi-desync-fakedsplit-pattern=tls_clienthello_5.bin --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new
+
+
+--filter-tcp=443 --ipcache-hostname --dpi-desync=syndata,fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-syndata=tls_clienthello_7.bin --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_9.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new
+
+--filter-tcp=443 --dpi-desync=syndata --new
+--filter-tcp=443 --dpi-desync=syndata,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-fake-syndata=tls_clienthello_16.bin --dup=2 --dup-cutoff=n3 --new
+--filter-tcp=443 --dpi-desync=syndata,multisplit --dpi-desync-split-seqovl=2 --dpi-desync-fake-syndata=tls_clienthello_16.bin --dup=2 --dup-cutoff=n3 --new
+
+--filter-tcp=2099,5222,5223,8393-8400 --ipset=ipset-cloudflare.txt --dpi-desync=syndata --new
+
+--filter-udp=5000-5500 --ipset=ipset-lol-ru.txt --dpi-desync=fake --dpi-desync-repeats=6 --new
+
+--filter-tcp=2099 --ipset=ipset-lol-ru.txt --dpi-desync=syndata --new
+--filter-tcp=5222,5223 --ipset=ipset-lol-euw.txt --dpi-desync=syndata --new
+--filter-udp=5000-5500 --ipset=ipset-lol-euw.txt --dpi-desync=fake --dpi-desync-repeats=6
+
+--filter-tcp=2000-8400 --dpi-desync=syndata
+--filter-tcp=5222 --ipset="%LISTS%ipset-cloudflare.txt" --dpi-desync=syndata --new ^
+--filter-tcp=5223 --ipset="%LISTS%ipset-cloudflare.txt" --dpi-desync=syndata --new ^
+
+--filter-udp=8886 --ipset-ip=188.114.96.0/22 --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-fake-unknown-udp=quic_4.bin --dpi-desync-cutoff=d2 --dpi-desync-autottl --new
+"""
+
 # strategy_menu/strategy_lists_separated.py
 
-from .constants import LABEL_RECOMMENDED, LABEL_CAUTION, LABEL_EXPERIMENTAL, LABEL_STABLE
-
-# Общие константы для доменов
-
-UDP_YOUTUBE2 = "--filter-udp=443,50000-65535 --hostlist-domains=youtube.com,youtu.be,ytimg.com,googlevideo.com,googleapis.com,gvt1.com,video.google.com --dpi-desync=fake --dpi-desync-repeats=2 --dpi-desync-fake-quic=fake_quic.bin --new"
-
-UDP_YOUTUBE = f"--filter-udp=443 --hostlist=youtube.txt --hostlist=list-general.txt --dpi-desync=fake --dpi-desync-repeats=11 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"
-
 """
---filter-tcp=443 --hostlist-domains=googlevideo.com --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new
---filter-tcp=443 --hostlist-domains=googlevideo.com --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-cutoff=d2 --dpi-desync-ttl=4 --new
-
---filter-tcp=443 --hostlist-domains=googlevideo.com --dpi-desync=multidisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2 --new
---filter-tcp=443 --ipset-ip=XXX.XXX.XXX.XXX/XX,XXX.XXX.XXX.XXX/XX --hostlist-domains=googlevideo.com --dpi-desync=multidisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2 --new
---filter-tcp=443 --hostlist-domains=googlevideo.com --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=2,midsld-2 --dpi-desync-split-seqovl-pattern=tls_clienthello_7.bin
-
---filter-tcp=443 --hostlist-domains=googlevideo.com --dpi-desync=fakeddisorder --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=2,midsld-2 --dpi-desync-fakedsplit-pattern=tls_clienthello_7.bin --dpi-desync-fooling=badseq --dpi-desync-autottl
+Модуль объединения стратегий в одну командную строку.
+✅ Использует новую логику: base_filter из категории + техника из стратегии
+✅ Автоматически определяет нужные фильтры портов по выбранным категориям
 """
 
-# YouTube стратегии
-YOUTUBE_STRATEGIES = {
-    "multisplit_seqovl_midsld": {
-        "name": "multisplit seqovl midsld",
-        "description": "Базовая стратегия multisplit для YouTube",
-        "author": None,
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld-1 --new"""
-    },
-    "original_bolvan_v2_badsum": {
-        "name": "Если стратегия не работает смени её!",
-        "description": "Базовая стратегия multidisorder для YouTube",
-        "author": "OrigBolvan",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com --new"""
-    },
-    "bolvan_md5sig": {
-        "name": "BolVan md5sig 11",
-        "description": "Другой метод фуллинга + большее число повторений",
-        "author": "OrigBolvan",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig --new"""
-    },
-    "bolvan_md5sig_2": {
-        "name": "BolVan md5sig 11 + TLS mod Google",
-        "description": "Другой метод фуллинга + большее число повторений + tls от гугла",
-        "author": "Уфанет",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig  --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com --new"""
-    },
-    "bolvan_fake_tls": {
-        "name": "BolVan fake TLS 4",
-        "description": "Используется фейковый Clienthello",
-        "author": "OrigBolvan",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=4 --dpi-desync-fake-tls=tls_clienthello_18.bin --dpi-desync-fooling=badseq --new"""
-    },
-    "multisplit_seqovl": {
-        "name": "multisplit и seqovl 1",
-        "description": "Используется multisplit и seqovl 1",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --new"""
-    },
-    "fake_multisplit_seqovl_md5sig": {
-        "name": "fake multisplit и seqovl 1 md5sig",
-        "description": "Используется multisplit и seqovl 1",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld-1 --dpi-desync-fooling=md5sig,badseq --dpi-desync-fake-tls=tls_clienthello_4.bin --dpi-desync-ttl=2 --new"""
-    },
-    "split_pos_md5sig": {
-        "name": "Нестандартная нарезка позиций и md5sig",
-        "description": "method+2,midsld,5 и ttl 0",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=method+2,midsld,5 --dpi-desync-ttl=0 --dpi-desync-fooling=md5sig,badsum,badseq --dpi-desync-repeats=15 --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "multisplit_1": {
-        "name": "Мультисплит и смещение +1",
-        "description": "Базовая стратегия десинхронизации multisplit",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=sld+1 --new"""
-    },
-    "multisplit_2": {
-        "name": "Мультисплит и смещение -1",
-        "description": "Базовая стратегия десинхронизации multisplit",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=sld-1 --new"""
-    },
-    "multisplit_3": {
-        "name": "Мультисплит и смещение midsld +1",
-        "description": "Базовая стратегия десинхронизации multisplit и смещение midsld",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --dpi-desync-split-seqovl-pattern=tls_clienthello_7.bin --new"""
-    },
-    "multidisorder_fake_tls_1": {
-        "name": "multidisorder 7 Fake TLS fonts и badseq",
-        "description": "Кастомная и сложная стратегия с фейком fonts",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=7,sld+1 --dpi-desync-fake-tls=0x0F0F0F0F --dpi-desync-fake-tls=tls_clienthello_4.bin --dpi-desync-fake-tls-mod=rnd,dupsid,sni=fonts.google.com --dpi-desync-fooling=badseq --dpi-desync-autottl --new"""
-    },
-    "multidisorder_fake_tls_2": {
-        "name": "multidisorder 7 Fake TLS calendar и badseq",
-        "description": "Кастомная и сложная стратегия с фейком calendar",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=7,sld+1 --dpi-desync-fake-tls=0x0F0F0F0F --dpi-desync-fake-tls=tls_clienthello_4.bin --dpi-desync-fake-tls-mod=rnd,dupsid,sni=calendar.google.com --dpi-desync-fooling=badseq --dpi-desync-autottl --new"""
-    },
-    "multidisorder_split_repeat": {
-        "name": "multidisorder split pos 15",
-        "description": "Обратная стратегия с нестандартной нарезкой и фейком clienthello",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=method+2,midsld,5 --dpi-desync-ttl=0 --dpi-desync-fooling=md5sig,badsum,badseq --dpi-desync-repeats=15 --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "multidisorder_badseq_w3": {
-        "name": "multidisorder badseq w3",
-        "description": "Обратная стратегия с фуллингом badseq и фейком w3",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-fake-tls=dtls_clienthello_w3_org.bin --dpi-desync-split-pos=1,midsld --dpi-desync-fooling=badseq,md5sig --new"""
-    },
-    "multidisorder_rnd_split": {
-        "name": "multidisorder rnd split",
-        "description": "Обратная стратегия с нестандартной стратегией и фейком TLS",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-repeats=3 --dpi-desync-split-pos=100,midsld,sniext+1,endhost-2,-10 --dpi-desync-ttl=4 --new"""
-    },
-    "multisplit_17": {
-        "name": "multisplit 17",
-        "description": "Мульти нарезка с md5sig и фейком TLS",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=2,midsld --dpi-desync-fake-tls=tls_clienthello_17.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "syndata_md5sig": {
-        "name": "multisplit и md5sig",
-        "description": "Экспериментальная стратегия multisplit и md5sig",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --ipcache-hostname --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_9.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new""" # раньше тут было syndata --dpi-desync-fake-syndata=tls_clienthello_7.bin
-    },
-    "multisplit_fake_tls_md5sig": {
-        "name": "multisplit и md5sig 1",
-        "description": "Стандартный multisplit и md5sig и фейк TLS 1",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_1.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "multisplit_fake_tls_md5sig_2": {
-        "name": "multisplit и md5sig 14",
-        "description": "Стандартный multisplit и md5sig и фейк TLS 14",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_14.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "multisplit_seqovl_pos": {
-        "name": "multisplit seqovl с split pos",
-        "description": "Базовый multisplit и seqovl с фейками и нарезкой",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multisplit --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=tls_clienthello_2.bin --dpi-desync-ttl=3 --new"""
-    },
-    "multisplit_seqovl_pos_2": {
-        "name": "multisplit seqovl с split pos и badseq",
-        "description": "Базовый multisplit и seqovl с фейками, нарезкой и  badseq",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multisplit --dpi-desync-fooling=badseq --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=2 --dpi-desync-fake-tls=tls_clienthello_2n.bin --dpi-desync-fake-tls-mod=rnd --dpi-desync-autottl --new"""
-    },
-    "multidisorder_repeats_md5sig": {
-        "name": "multidisorder с повторами и md5ig",
-        "description": "multidisorder с fake tls mod",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com --new"""
-    },
-    "multidisorder_repeats_md5sig_2": {
-        "name": "multidisorder с повторами и md5ig",
-        "description": "multidisorder с fake tls clienthello",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=11 --dpi-desync-fooling=md5sig --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "split2_seqovl_vk": {
-        "name": "Устаревший split2 с clienthello от VK",
-        "description": "split2 и 625 seqovl с sniext и vk ttl 2 от конторы пидорасов",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=625 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_vk_com.bin --dpi-desync-ttl=2 --new"""
-    },
-    "split2_seqovl_google": {
-        "name": "Устаревший split2 с clienthello от google",
-        "description": "split2 и 1 seqovl с sniext и google ttl 4",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --dpi-desync-ttl=4 --new"""
-    },
-    "split2_split": {
-        "name": "Устаревший split2 split",
-        "description": "Базовый split2 и нарезка",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --new"""
-    },
-    "split2_seqovl_652": {
-        "name": "split2 seqovl 652",
-        "description": "Устаревший split2 с seqovl 652 и паттерном 4",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=652 --dpi-desync-split-pos=3,midsld-1 --dpi-desync-split-seqovl-pattern=tls_clienthello_4.bin --new"""
-    },
-    "split2_split_google": {
-        "name": "Устаревший split2 split seqovl google",
-        "description": "Базовый split2 и нарезка с fake tls google",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --dpi-desync-ttl=3 --new"""
-    },
-    "split2_split_2": {
-        "name": "Устаревший split2 split seqovl 2",
-        "description": "Базовый split2 и нарезка с fake tls 2",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=2 --dpi-desync-split-pos=3 --dpi-desync-fake-tls=tls_clienthello_2.bin --dpi-desync-autottl=2 --new"""
-    },
-    "fake_split2": {
-        "name": "Устаревший fake split2 seqovl 1",
-        "description": "fake и split2, нарезка с fake tls 2",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_3.bin --dpi-desync-ttl=2 --new"""
-    },
-    "split_seqovl": {
-        "name": "Устаревший split и seqovl",
-        "description": "Базовый split и seqovl",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=split --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --dpi-desync-ttl=1 --new"""
-    },
-    "split_pos_badseq": {
-        "name": "Устаревший split и badseq",
-        "description": "Базовый split и badseq",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl=2 --new"""
-    },
-    "split_pos_badseq_10": {
-        "name": "split badseq 10 и cutoff",
-        "description": "split и badseq разрез и 10 повторов",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-cutoff=d2 --dpi-desync-ttl=3 --new"""
-    },
-    "split_pos_3": {
-        "name": "split pos 3 и повторы",
-        "description": "split разрез в 3 и 4 повтора",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=youtube.txt --dpi-desync=split --dpi-desync-split-pos=3 --dpi-desync-repeats=4 --dpi-desync-autottl=1 --new"""
-    },
-    "youtube_none": {
-        "name": "Не применять для YouTube",
-        "description": "Отключить обработку YouTube",
-        "author": "System",
-        "label": None,
-        "args": ""  # Пустая строка = не добавлять аргументы
-    }
-}
-
-DISCORD_STRATEGIES = {
-    "dis4": {
-        "name": "split2 seqovl 652",
-        "description": "Устаревший split2 с seqovl 652 и паттерном 4",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --dpi-desync=split --dpi-desync=split2 --dpi-desync-split-seqovl=652 --dpi-desync-split-pos=2 --dpi-desync-split-seqovl-pattern=tls_clienthello_4.bin --new"""
-    },
-    "multisplit_fake_tls_badseq": {
-        "name": "multisplit fake tls и badseq",
-        "description": "Хорошая базовая комлектация для старта",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_14.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=badseq --dpi-desync-autottl --dup=2 --dup-fooling=badseq --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "multisplit_fake_tls_md5sig": {
-        "name": "multisplit fake tls и md5sig",
-        "description": "Хорошая базовая комлектация для старта",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_14.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "multidisorder_md5sig_pos": {
-        "name": "multidisorder md5sig и сплит",
-        "description": "Дисордер стратегия с фуллингом md5sig нарезкой и повтором 6",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new"""
-    },
-    "multidisorder_ipset_syndata": {
-        "name": "Адреса discord с фуллингом syndata",
-        "description": "Использует адреса дискорда, вместо доменов",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-tcp=443 --ipset=ipset-discord.txt --dpi-desync=syndata --dpi-desync-fake-syndata=tls_clienthello_3.bin --dpi-desync-autottl --new"""
-    },
-    "multidisorder_badseq_pos": {
-        "name": "multidisorder badseq и сплит",
-        "description": "Дисордер стратегия с фуллингом badseq нарезкой и повтором 6",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --new"""
-    },
-    "multisplit_286_pattern": {
-        "name": "multisplit seqovl 286 с парттерном 11",
-        "description": "Дисордер стратегия с фуллингом badseq нарезкой и повтором 11",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=286 --dpi-desync-split-seqovl-pattern=tls_clienthello_11.bin --dup=2 --dup-cutoff=n3 --new"""
-    },
-    "multidisorder_super_split_md5sig": {
-        "name": "multidisorder super split md5sig",
-        "description": "Обратная стратегия с нестандартной нарезкой и md5sig",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=method+2,midsld,5 --dpi-desync-ttl=0 --dpi-desync-fooling=md5sig,badsum,badseq --dpi-desync-repeats=15 --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "multidisorder_super_split_badseq": {
-        "name": "multidisorder super split ",
-        "description": "Обратная стратегия с нестандартной нарезкой и badseq",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=method+2,midsld,5 --dpi-desync-ttl=0 --dpi-desync-fooling=badsum,badseq --dpi-desync-repeats=15 --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "multidisorder_w3": {
-        "name": "multidisorder с фейком w3 ",
-        "description": "Обратная стратегия с фейком tls w3 и md5sig",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multidisorder --dpi-desync-fake-tls=dtls_clienthello_w3_org.bin --dpi-desync-split-pos=1,midsld --dpi-desync-fooling=badseq,md5sig --new"""
-    },
-    "multidisorder_pos_100": {
-        "name": "multidisorder с разрезом 100",
-        "description": "Обратная стратегия с нестандартной нарезкой и фейком TLS",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multidisorder --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-repeats=3 --dpi-desync-split-pos=100,midsld,sniext+1,endhost-2,-10 --dpi-desync-ttl=4 --new"""
-    },
-    "fake_badseq_rnd": {
-        "name": "Фейк с фуулингом badseq и фейком tls rnd",
-        "description": "Базовая стратегия десинхронизации с фейком tls rnd",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_7.bin --dpi-desync-fake-tls-mod=rnd --new"""
-    },
-    "fakedsplit_badseq_4": {
-        "name": "Фейк с фуулингом badseq и фейком tls 4",
-        "description": "Десинхронизация badseq с фейком tls 4",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fakedsplit --dpi-desync-split-pos=midsld-1,1 --dpi-desync-fooling=badseq --dpi-desync-fakedsplit-pattern=tls_clienthello_4.bin --dpi-desync-autottl --new"""
-    },
-    "fake_md5sig_fake_tls": {
-        "name": "Фейк с фуулингом md5sig и фейком tls",
-        "description": "Базовая десинхронизация md5sig с фейком tls",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-fooling=md5sig --dpi-desync-fake-tls-mod=rnd,rndsni,padencap --new"""
-    },
-    "fake_autottl_faketls": {
-        "name": "Фейк с авто ttl и фейком tls",
-        "description": "Фейк с авто ttl и фейком tls (использовать с осторожностью)",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-ttl=1 --dpi-desync-autottl=4 --dpi-desync-fake-tls-mod=rnd,rndsni,padencap --new"""
-    },
-    "fake_datanoack_fake_tls": {
-        "name": "Фейк с datanoack и фейком tls",
-        "description": "Фейк с datanoack и фейком tls",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-fooling=datanoack --dpi-desync-fake-tls-mod=rnd,rndsni,padencap --new"""
-    },
-    "dis1": {
-        "name": "Фейк с datanoack и padencap",
-        "description": "Улучшенная стратегия с datanoack и padencap",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,fakeddisorder --dpi-desync-fooling=datanoack --dpi-desync-split-pos=midsld --dpi-desync-fake-tls-mod=rnd,rndsni,padencap --new"""
-    },
-    "dis2": {
-        "name": "multisplit split pos padencap",
-        "description": "Стандартный мультисплит с нарезкой и фейком padencap",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,multisplit --dpi-desync-ttl=1 --dpi-desync-split-pos=1,midsld --dpi-desync-fake-tls-mod=rnd,rndsni,padencap --new"""
-    },
-    "dis3": {
-        "name": "split badseq 10",
-        "description": "Стандартный сплит с фуллингом badseq и 10 повторами",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=4 --new"""
-    },
-    "dis5": {
-        "name": "fake split 6 google",
-        "description": "Фейковый сплит с повторением 6 и фейком google",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "dis5": {
-        "name": "fake split2 6 sberbank",
-        "description": "Фейковый сплит2 с повторением 6 и фейком от сбербанка много деняк",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split2 --dpi-desync-ttl=1 --dpi-desync-autottl=5 --dpi-desync-repeats=6 --dpi-desync-fake-tls=tls_clienthello_sberbank_ru.bin --new"""
-    },
-    "dis6": {
-        "name": "syndata (на все домены!)",
-        "description": "Стратегия работает на все домены и может ломать сайты (на свой страх и риск)",
-        "author": "hz",
-        "label": LABEL_CAUTION,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=syndata --dpi-desync-fake-syndata=tls_clienthello_3.bin --dpi-desync-ttl=5 --new"""
-    },
-    "dis7": {
-        "name": "split 6 badseq",
-        "description": "Сплит с повторением 6 и фуллингом badseq и фейком tls от Google",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split --dpi-desync-autottl=2 --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "dis8": {
-        "name": "split2 sniext 4",
-        "description": "Cплит2 с фейком tls 4 и ttl 4 (короче одни четвёрки)",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_4.bin --dpi-desync-ttl=4 --new"""
-    },
-    "dis9": {
-        "name": "split2 sniext google",
-        "description": "Cплит2 с фейком tls от Google",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split2 --dpi-desync-split-seqovl=1 --dpi-desync-split-tls=sniext --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --dpi-desync-ttl=2 --new"""
-    },
-    "dis10": {
-        "name": "disorder2 badseq tls google",
-        "description": "Cплит2 badseq с фейком tls от Google",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=syndata,disorder2 --dpi-desync-split-pos=3 --dpi-desync-repeats=11 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "dis11": {
-        "name": "split badseq 10",
-        "description": "Cплит2 с фуллингом badseq и 10 повторами",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"""
-    },
-    "dis12": {
-        "name": "split badseq 10 ttl",
-        "description": "Cплит2 с фуллингом badseq и 10 повторами и ttl 3",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=split --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-ttl=3 --new"""
-    },
-    "dis13": {
-        "name": "fakedsplit badsrq 10",
-        "description": "Фейки и сплиты с фуллингом badseq и 10 повторами",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"""
-    },
-    "dis14": {
-        "name": "multisplit и seqovl",
-        "description": "Мульти нарезка с seqovl и нестандартной позицией",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=1 --dpi-desync-split-pos=midsld+1 --new"""
-    },
-    "other6": {
-        "name": "fake split 6",
-        "description": "Потом опишу подробнее",
-        "author": "Flowseal",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split --dpi-desync-autottl=5 --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "general_alt183": {
-        "name": "general (alt) 1.8.3",
-        "description": "Потом опишу подробнее",
-        "author": "Flowseal",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,fakedsplit --dpi-desync-autottl=5 --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "discord_none": {
-        "name": "Не применять для Discord",
-        "description": "Отключить обработку Discord",
-        "author": "System",
-        "label": None,
-        "args": ""
-    }
-}
-
-DISCORD_VOICE_STRATEGIES = {
-    "ipv4_dup2_autottl_cutoff_n3": {
-        "name": "IPv4 & IPv6 DUP, AutoTTL, Cutoff n3",
-        "description": "Стратегия для IPv4 с дублированием пакетов, автоматическим TTL и обрезкой n3.",
-        "author": "Community",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-l3=ipv4 --filter-l7=discord,stun --dpi-desync=fake --dpi-desync-autottl --dup=2 --dup-autottl --dup-cutoff=n3 --new --filter-l3=ipv6 --filter-l7=discord,stun --dpi-desync=fake --dpi-desync-autottl6 --dup=2 --dup-autottl6 --dup-cutoff=n3 --new"""
-    },
-    "fake_l7": {
-        "name": "Fake L7",
-        "description": "Базовая стратегия с DPI Desync 'fake' и фильтрацией L7 для Discord и STUN.",
-        "author": "Community",
-        "label": LABEL_STABLE,
-        "args": f"""--filter-l7=discord,stun --dpi-desync=fake --new"""
-    },
-    "fake_tamper_repeats_6": {
-        "name": "Fake, Tamper, Repeats 6",
-        "description": "Стратегия с подменой и изменением пакетов, 6 повторений.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--filter-l7=discord,stun --dpi-desync=fake,tamper --dpi-desync-repeats=6 --dpi-desync-fake-discord=0x00 --new"""
-    },
-    "fake_any_proto_repeats_6_cutoff_n4": {
-        "name": "Fake, Any Proto, Repeats 6, Cutoff n4",
-        "description": "Стратегия с Fake Desync для любого протокола, 6 повторениями и обрезкой n4.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--filter-l7=discord,stun --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-any-protocol --dpi-desync-cutoff=n4 --new"""
-    },
-    "fake_tamper_any_proto_repeats_11_cutoff_d5": {
-        "name": "Fake, Tamper, Repeats 11, Cutoff d5",
-        "description": "Комбинированная стратегия с 11 повторениями и обрезкой d5 для любого протокола.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--filter-l7=discord,stun --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=d5 --dpi-desync-repeats=11 --new"""
-    },
-    "fake_any_proto_quic1_cutoff_d2": {
-        "name": "Fake, Any Proto, QUIC 1, Cutoff d2",
-        "description": "Использование поддельного QUIC-пакета (quic_1.bin) с обрезкой d2.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--filter-l7=discord,stun --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=quic_1.bin --new"""
-    },
-    "fake_repeats_6": {
-        "name": "Fake Repeats 6",
-        "description": "Простая стратегия с 6 повторениями фейкового пакета.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--filter-l7=discord,stun --dpi-desync=fake --dpi-desync-repeats=6 --new"""
-    },
-    "ipset_fake_any_proto_cutoff_d3_repeats_6": {
-        "name": "IPSet Fake, Any Proto, Cutoff d3, Repeats 6",
-        "description": "Стратегия, использующая IPSet, с 6 повторениями и обрезкой d3.",
-        "author": "Community",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --new"""
-    },
-    "ipset_fake_any_proto_cutoff_d3_repeats_8": {
-        "name": "IPSet Fake, Any Proto, Cutoff d3, Repeats 8",
-        "description": "Стратегия, использующая IPSet, с 8 повторениями и обрезкой d3.",
-        "author": "Community",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=8 --new"""
-    },
-    "ipset_fake_any_proto_cutoff_d4_repeats_8": {
-        "name": "IPSet Fake, Any Proto, Cutoff d4, Repeats 8",
-        "description": "Стратегия, использующая IPSet, с 8 повторениями и обрезкой d4.",
-        "author": "Community",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d4 --dpi-desync-repeats=8 --new"""
-    },
-    "fake_any_proto_cutoff_n3": {
-        "name": "Fake, Any Proto, Cutoff n3",
-        "description": "Минималистичная стратегия с обрезкой n3 для любого протокола.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=n3 --new"""
-    },
-    "fake_split2_quic_test_cutoff_d2": {
-        "name": "Fake, Split2, QUIC Test, Cutoff d2",
-        "description": "Разделение пакета в сочетании с поддельным тестовым QUIC-пакетом.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake,split2 --dpi-desync-any-protocol --dpi-desync-cutoff=d2 --dpi-desync-fake-quic=quic_test_00.bin --new"""
-    },
-    "fake_any_proto_google_quic_cutoff_n2": {
-        "name": "Fake, Any Proto, Google QUIC, Cutoff n2",
-        "description": "Поддельный QUIC-пакет от Google с обрезкой n2.",
-        "author": "Community",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=n2 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_any_proto_google_quic_cutoff_d3_repeats_6": {
-        "name": "Fake, Any Proto, Google QUIC, Cutoff d3, Repeats 6",
-        "description": "Поддельный QUIC от Google с 6 повторениями и обрезкой d3.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_tamper_any_proto_google_quic_cutoff_d3_repeats_6": {
-        "name": "Fake, Tamper, Google QUIC, Cutoff d3, Repeats 6",
-        "description": "Комбинация Fake и Tamper с QUIC от Google, 6 повторениями и обрезкой d3.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=d3 --dpi-desync-repeats=6 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_tamper_any_proto_google_quic_cutoff_n5_repeats_10": {
-        "name": "Fake, Tamper, Google QUIC, Cutoff n5, Repeats 10",
-        "description": "Агрессивная стратегия с 10 повторениями и обрезкой n5.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=n5 --dpi-desync-repeats=10 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_tamper_any_proto_google_quic_cutoff_n4": {
-        "name": "Fake, Tamper, Google QUIC, Cutoff n4",
-        "description": "Комбинация Fake и Tamper с QUIC от Google и обрезкой n4.",
-        "author": "Community",
-        "label": None,
-        "args": f"""--ipset=ipset-discord.txt --dpi-desync=fake,tamper --dpi-desync-any-protocol --dpi-desync-cutoff=n4 --dpi-desync-fake-quic=quic_initial_www_google_com.bin"""
-    },
-    "discord_voice_none": {
-        "name": "Не применять для Discord Voice",
-        "description": "Отключить обработку голосовых чатов Discord.",
-        "author": "System",
-        "label": None,
-        "args": ""
-    }
-}
-
-DISCORD_UPD_STRATEGIES = {
-    "fake_6_google": {
-        "name": "fake 6 google",
-        "description": "Стандартная стратегия для Discord Voice",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_6_1": {
-        "name": "fake 6 quic 1",
-        "description": "Стандартная стратегия для Discord Voice с другим Fake QUIC",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=quic_1.bin --new"""
-    },
-    "fake_6_vk_com": {
-        "name": "fake 6 quic vk.com",
-        "description": "Стандартная стратегия для Discord Voice с другим QUIC от VK",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-repeats=6 --dpi-desync-fake-quic=quic_initial_vk_com.bin --new"""
-    },
-    "fake_8_google": {
-        "name": "fake 8 google",
-        "description": "Стандартная стратегия для Discord Voice",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-repeats=8 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_10_pattern": {
-        "name": "fake 10 pattern",
-        "description": "Стандартная стратегия для Discord Voice с доп. улучшениями",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=6 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_udplen": {
-        "name": "fake udplen 7",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,udplen --dpi-desync-udplen-increment=5 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=quic_2.bin --dpi-desync-repeats=7 --dpi-desync-cutoff=n2 --new"""
-    },
-    "fake_updlen_7_quic_cutoff": {
-        "name": "fake udplen 7 quic cutoff",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=7 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=quic_test_00.bin --dpi-desync-cutoff=n2 --new"""
-    },
-    "fake_updlen_7_quic_google": {
-        "name": "fake udplen 7 quic google",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-repeats=7 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_updlen_10_pattern": {
-        "name": "fake udplen 10 pattern",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake --dpi-desync-udplen-increment=10 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=quic_2.bin --dpi-desync-repeats=8 --dpi-desync-cutoff=n2 --new"""
-    },
-    "fake_split2_repeats_6": {
-        "name": "fake split2 repeats 6",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split2 --dpi-desync-udplen-increment=10 --dpi-desync-repeats=6 --dpi-desync-udplen-pattern=0xDEADBEEF --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "fake_split2_repeats_11": {
-        "name": "fake split2 repeats 11",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-udp=443 --hostlist=discord.txt --ipset=ipset-cloudflare.txt --dpi-desync=fake,split2 --dpi-desync-repeats=11 --dpi-desync-udplen-increment=15 --dpi-desync-fake-quic=quic_initial_www_google_com.bin --new"""
-    },
-    "discord_voice_none": {
-        "name": "Не применять для Discord",
-        "description": "Отключить обработку Discord",
-        "author": "System",
-        "label": None,
-        "args": ""
-    }
-}
+import re
+import os
+from .constants import LABEL_RECOMMENDED, LABEL_GAME, LABEL_CAUTION, LABEL_EXPERIMENTAL, LABEL_STABLE
+from log import log
+from .strategies_registry import registry
+from .strategies.blobs import build_args_with_deduped_blobs
 
 
-# Стратегии для остальных сайтов
-OTHER_STRATEGIES = {
-    "other_seqovl": {
-        "name": "multisplit seqovl 211 & pattern 5",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=211 --dpi-desync-split-seqovl-pattern=tls_clienthello_5.bin --new"""
-    },
-    "multisplit_286_pattern": {
-        "name": "multisplit seqovl 286 с парттерном 11",
-        "description": "Дисордер стратегия с фуллингом badseq нарезкой и повтором 11",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=286 --dpi-desync-split-seqovl-pattern=tls_clienthello_11.bin --dup=2 --dup-cutoff=n3 --new"""
-    },
-    "multisplit_308_pattern": {
-        "name": "multisplit seqovl 308 с парттерном 9",
-        "description": "Дисордер стратегия с фуллингом badseq нарезкой и повтором 9",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=multisplit --dpi-desync-split-seqovl=308 --dpi-desync-split-seqovl-pattern=tls_clienthello_9.bin --dup=2 --dup-cutoff=n3 --new"""
-    },
-    "original_bolvan_v2_badsum": {
-        "name": "Если стратегия не работает смени её!",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_RECOMMENDED,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com --new"""
-    },
-    "other_multidisorder": {
-        "name": "multidisorder 6 md5sig",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_STABLE,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=md5sig --new"""
-    },
-    "other_multidisorder_2": {
-        "name": "multidisorder 6 badseq & md5sig",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": LABEL_STABLE,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq,md5sig --new"""
-    },
-    "other2": {
-        "name": "multidisorder 6 badseq",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multidisorder --dpi-desync-split-pos=1,midsld --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --new"""
-    },
-    "multisplit_fake_tls_badseq": {
-        "name": "multisplit 14 badseq",
-        "description": "Хорошая базовая комлектация для старта",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_14.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=badseq --dpi-desync-autottl --dup=2 --dup-fooling=badseq --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "multisplit_fake_tls_md5sig": {
-        "name": "multisplit 14 md5sig",
-        "description": "Хорошая базовая комлектация для старта",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=sld+1 --dpi-desync-fake-tls=0x0F0F0E0F --dpi-desync-fake-tls=tls_clienthello_14.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "multisplit_17": {
-        "name": "multisplit 17",
-        "description": "Мульти нарезка с md5sig и фейком TLS",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --dpi-desync=fake,multisplit --dpi-desync-split-pos=2,midsld --dpi-desync-fake-tls=tls_clienthello_17.bin --dpi-desync-fake-tls-mod=rnd,dupsid --dpi-desync-fooling=md5sig --dpi-desync-autottl --dup=2 --dup-fooling=md5sig --dup-autottl --dup-cutoff=n3 --new"""
-    },
-    "other4": {
-        "name": "fakedsplit badseq 10",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fakedsplit --dpi-desync-split-pos=1 --dpi-desync-fooling=badseq --dpi-desync-repeats=10 --dpi-desync-autottl --new"""
-    },
-    "other5": {
-        "name": "multidisorder datanoack deepseek",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,multidisorder --dpi-desync-fooling=datanoack --dpi-desync-split-pos=midsld --dpi-desync-fake-tls=tls_clienthello_chat_deepseek_com.bin --new"""
-    },
-    "other6": {
-        "name": "fake split 6",
-        "description": "Потом опишу подробнее",
-        "author": "hz",
-        "label": None,
-        "args": f"""--filter-tcp=80,443 --hostlist=other.txt --hostlist=other2.txt --hostlist=russia-blacklist.txt --ipset=ipset-all2.txt --dpi-desync=fake,split --dpi-desync-autottl=5 --dpi-desync-repeats=6 --dpi-desync-fooling=badseq --dpi-desync-fake-tls=tls_clienthello_www_google_com.bin --new"""
-    },
-    "other_none": {
-        "name": "Не применять для остальных",
-        "description": "Отключить обработку остальных сайтов",
-        "author": "System",
-        "label": None,
-        "args": ""
-    }
-}
-
-# Базовые аргументы (применяются всегда)
-BASE_ARGS = "--wf-raw=@windivert.all.txt"
-
-def combine_strategies(youtube_id: str, discord_id: str, discord_voice_id: str, other_id: str) -> dict:
+def calculate_required_filters(category_strategies: dict) -> dict:
     """
-    Объединяет выбранные стратегии в одну общую
-    
+    Автоматически вычисляет нужные фильтры портов на основе выбранных категорий.
+
+    Использует filters_config.py для определения какие фильтры нужны.
+
     Args:
-        youtube_id: ID стратегии для YouTube
-        discord_id: ID стратегии для Discord
-        discord_voice_id: ID стратегии для Discord Voice
-        other_id: ID стратегии для остальных сайтов
-        
+        category_strategies: dict {category_key: strategy_id}
+
     Returns:
-        Словарь с объединенной стратегией
+        dict с флагами фильтров
     """
-    # Собираем аргументы
-    args_parts = [BASE_ARGS]
+    from .filters_config import get_filter_for_category, FILTERS
 
-    # Добавляем стратегию для остальных сайтов
-    if other_id and other_id in OTHER_STRATEGIES:
-        other_args = OTHER_STRATEGIES[other_id]["args"]
-        if other_args:
-            args_parts.append(other_args)
+    # Инициализируем все фильтры как False
+    filters = {key: False for key in FILTERS.keys()}
 
-    # Добавляем YouTube стратегию
-    if youtube_id and youtube_id in YOUTUBE_STRATEGIES:
-        youtube_args = YOUTUBE_STRATEGIES[youtube_id]["args"]
-        if youtube_args:
-            args_parts.append(youtube_args)
+    none_strategies = registry.get_none_strategies()
+
+    for category_key, strategy_id in category_strategies.items():
+        # Пропускаем неактивные категории
+        if not strategy_id:
+            continue
+        none_id = none_strategies.get(category_key)
+        if strategy_id == none_id or strategy_id == "none":
+            continue
+
+        # Получаем информацию о категории
+        category_info = registry.get_category_info(category_key)
+        if not category_info:
+            continue
+
+        # Получаем нужные фильтры через конфиг
+        required_filters = get_filter_for_category(category_info)
+        for filter_key in required_filters:
+            filters[filter_key] = True
+
+    log(f"Автоматически определены фильтры: TCP=[80={filters.get('tcp_80')}, 443={filters.get('tcp_443')}, 6568={filters.get('tcp_6568')}, warp={filters.get('tcp_warp')}, all={filters.get('tcp_all_ports')}], "
+        f"UDP=[443={filters.get('udp_443')}, all={filters.get('udp_all_ports')}], "
+        f"raw=[discord={filters.get('raw_discord')}, stun={filters.get('raw_stun')}, wg={filters.get('raw_wireguard')}]", "DEBUG")
+
+    return filters
+
+
+def _build_base_args_from_filters(
+    lua_init: str,
+    windivert_filter_folder: str,
+    tcp_80: bool,
+    tcp_443: bool,
+    tcp_6568: bool,
+    tcp_warp: bool,
+    tcp_all_ports: bool,
+    udp_443: bool,
+    udp_all_ports: bool,
+    raw_discord_media: bool,
+    raw_stun: bool,
+    raw_wireguard: bool,
+) -> str:
+    """
+    Собирает базовые аргументы WinDivert из отдельных фильтров.
+
+    Логика:
+    - TCP порты перехватываются целиком через --wf-tcp-out
+    - UDP порты перехватываются целиком через --wf-udp-out (нагружает CPU!)
+    - Raw-part фильтры перехватывают только конкретные пакеты (экономят CPU)
+    - Для режима direct_orchestra также добавляется --wf-tcp-in с теми же портами
+    """
+    from strategy_menu import get_strategy_launch_method
+
+    parts = [lua_init]
+    launch_method = get_strategy_launch_method()
+
+    # === TCP порты ===
+    tcp_port_parts = []
+    if tcp_80:
+        tcp_port_parts.append("80")
+    if tcp_443:
+        tcp_port_parts.append("443")
+    if tcp_warp:
+        tcp_port_parts.append("853")
+    if tcp_6568:
+        tcp_port_parts.append("6568")
+    if tcp_all_ports:
+        tcp_port_parts.append("444-65535")
+
+    if tcp_port_parts:
+        tcp_ports_str = ','.join(tcp_port_parts)
+        parts.append(f"--wf-tcp-out={tcp_ports_str}")
+        # ✅ Для режима Оркестратор Zapret 2 также перехватываем входящий TCP
+        if launch_method == "direct_orchestra":
+            parts.append(f"--wf-tcp-in={tcp_ports_str}")
     
-    # Добавляем Discord стратегию
-    if discord_id and discord_id in DISCORD_STRATEGIES:
-        discord_args = DISCORD_STRATEGIES[discord_id]["args"]
-        if discord_args:
-            args_parts.append(discord_args)
+    # === UDP порты ===
+    udp_port_parts = []
+    if udp_443:
+        udp_port_parts.append("443")
+    if udp_all_ports:
+        udp_port_parts.append("444-65535")
     
-    # Добавляем Discord Voice стратегию
-    if discord_voice_id and discord_voice_id in DISCORD_VOICE_STRATEGIES:
-        discord_voice_args = DISCORD_VOICE_STRATEGIES[discord_voice_id]["args"]
-        if discord_voice_args:
-            args_parts.append(discord_voice_args)
+    if udp_port_parts:
+        parts.append(f"--wf-udp-out={','.join(udp_port_parts)}")
     
-    # Объединяем все части через пробел
+    # === Raw-part фильтры (экономят CPU) ===
+    # Эти фильтры перехватывают только конкретные пакеты по сигнатуре
+    
+    if raw_discord_media:
+        filter_path = os.path.join(windivert_filter_folder, "windivert_part.discord_media.txt")
+        parts.append(f"--wf-raw-part=@{filter_path}")
+    
+    if raw_stun:
+        filter_path = os.path.join(windivert_filter_folder, "windivert_part.stun.txt")
+        parts.append(f"--wf-raw-part=@{filter_path}")
+    
+    if raw_wireguard:
+        filter_path = os.path.join(windivert_filter_folder, "windivert_part.wireguard.txt")
+        parts.append(f"--wf-raw-part=@{filter_path}")
+    
+    result = " ".join(parts)
+    log(f"Собраны базовые аргументы: TCP=[80={tcp_80}, 443={tcp_443}, all={tcp_all_ports}], "
+        f"UDP=[443={udp_443}, all={udp_all_ports}], "
+        f"raw=[discord={raw_discord_media}, stun={raw_stun}, wg={raw_wireguard}]", "DEBUG")
+    
+    return result
+
+
+def combine_strategies(*args, **kwargs) -> dict:
+    """
+    Объединяет выбранные стратегии в одну общую с правильным порядком командной строки.
+    
+    ✅ Применяет все настройки из UI:
+    - Базовые аргументы (windivert)
+    - Debug лог (если включено)
+    - Удаление hostlist (если включено)
+    - Удаление ipset (если включено)
+    - Добавление wssize (если включено)
+    - Замена other.txt на allzone.txt (если включено)
+    """
+    
+    # Определяем источник выборов категорий
+    if kwargs and not args:
+        log("Используется новый способ вызова combine_strategies", "DEBUG")
+        category_strategies = kwargs
+    elif not args and not kwargs:
+        log("Используются значения по умолчанию", "DEBUG")
+        category_strategies = registry.get_default_selections()
+    else:
+        raise ValueError("Нельзя одновременно использовать позиционные и именованные аргументы")
+    
+    # ==================== БАЗОВЫЕ АРГУМЕНТЫ ====================
+    from strategy_menu import get_debug_log_enabled
+    from config import LUA_FOLDER, WINDIVERT_FILTER, LOGS_FOLDER
+
+    # Lua библиотеки должны загружаться первыми (обязательно для Zapret 2)
+    # Порядок загрузки важен:
+    # 1. zapret-lib.lua - базовые функции
+    # 2. zapret-antidpi.lua - функции десинхронизации
+    # 3. custom_funcs.lua - пользовательские функции
+    lua_lib_path = os.path.join(LUA_FOLDER, "zapret-lib.lua")
+    lua_antidpi_path = os.path.join(LUA_FOLDER, "zapret-antidpi.lua")
+    lua_auto_path = os.path.join(LUA_FOLDER, "zapret-auto.lua")
+    custom_funcs_path = os.path.join(LUA_FOLDER, "custom_funcs.lua")
+    # Пути БЕЗ кавычек - subprocess.Popen с списком аргументов сам правильно обрабатывает пути
+    LUA_INIT = f'--lua-init=@{lua_lib_path} --lua-init=@{lua_antidpi_path} --lua-init=@{lua_auto_path} --lua-init=@{custom_funcs_path}'
+
+    # ✅ Автоматически определяем нужные фильтры по выбранным категориям
+    filters = calculate_required_filters(category_strategies)
+
+    # Собираем базовые аргументы из автоматически определённых фильтров
+    base_args = _build_base_args_from_filters(
+        LUA_INIT,
+        WINDIVERT_FILTER,
+        filters['tcp_80'],
+        filters['tcp_443'],
+        filters['tcp_6568'],
+        filters['tcp_warp'],
+        filters['tcp_all_ports'],
+        filters['udp_443'],
+        filters['udp_all_ports'],
+        filters['raw_discord'],
+        filters['raw_stun'],
+        filters['raw_wireguard'],
+    )
+    
+    # ==================== СБОР АКТИВНЫХ КАТЕГОРИЙ ====================
+    category_keys_ordered = registry.get_all_category_keys_by_command_order()
+    none_strategies = registry.get_none_strategies()
+    
+    # Собираем активные категории с их аргументами
+    active_categories = []  # [(category_key, args, category_info), ...]
+    descriptions = []
+    
+    # Загружаем настройки out-range
+    from strategy_menu import get_out_range_discord, get_out_range_youtube
+    out_range_discord = get_out_range_discord()
+    out_range_youtube = get_out_range_youtube()
+    
+    for category_key in category_keys_ordered:
+        strategy_id = category_strategies.get(category_key)
+        
+        if not strategy_id:
+            continue
+            
+        # Пропускаем "none" стратегии
+        none_id = none_strategies.get(category_key)
+        if strategy_id == none_id:
+            continue
+            
+        # ✅ Получаем полные аргументы через registry (base_filter + техника)
+        args = registry.get_strategy_args_safe(category_key, strategy_id)
+        if args:
+            # ✅ Заменяем out-range для Discord и YouTube категорий
+            # ⚠️ НО: для direct_orchestra НЕ заменяем - стратегии уже содержат правильные out-range
+            from strategy_menu import get_strategy_launch_method
+            launch_method = get_strategy_launch_method()
+
+            if launch_method != "direct_orchestra":
+                if category_key == "discord" and out_range_discord > 0:
+                    args = _replace_out_range(args, out_range_discord)
+                elif category_key == "discord_voice" and out_range_discord > 0:
+                    args = _replace_out_range(args, out_range_discord)
+                elif category_key == "youtube" and out_range_youtube > 0:
+                    args = _replace_out_range(args, out_range_youtube)
+            
+            category_info = registry.get_category_info(category_key)
+            active_categories.append((category_key, args, category_info))
+            
+            # Добавляем в описание
+            strategy_name = registry.get_strategy_name_safe(category_key, strategy_id)
+            if category_info:
+                descriptions.append(f"{category_info.full_name}: {strategy_name}")
+    
+    # ==================== СБОРКА КОМАНДНОЙ СТРОКИ ====================
+    # Собираем аргументы категорий с разделителями --new
+    category_args_parts = []
+    
+    for i, (category_key, args, category_info) in enumerate(active_categories):
+        category_args_parts.append(args)
+        
+        # ✅ ИСПРАВЛЕНО: Добавляем --new только если:
+        # 1. Категория требует разделитель (needs_new_separator=True)
+        # 2. И это НЕ последняя активная категория
+        is_last = (i == len(active_categories) - 1)
+        if category_info and category_info.needs_new_separator and not is_last:
+            category_args_parts.append("--new")
+    
+    # ✅ Дедуплицируем блобы: извлекаем все --blob=... из категорий,
+    # убираем дубликаты и выносим в начало командной строки
+    category_args_str = " ".join(category_args_parts)
+    deduped_args = build_args_with_deduped_blobs([category_args_str])
+    
+    # Собираем финальную командную строку
+    args_parts = []
+    
+    # ==================== DEBUG LOG ====================
+    # Добавляется в начало командной строки если включено
+    if get_debug_log_enabled():
+        from datetime import datetime
+        from log.log import cleanup_old_logs
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"zapret_winws2_debug_{timestamp}.log"
+        log_path = os.path.join(LOGS_FOLDER, log_filename)
+        # Создаём папку logs если её нет
+        os.makedirs(LOGS_FOLDER, exist_ok=True)
+        # Очищаем старые логи (оставляем максимум 50)
+        cleanup_old_logs(LOGS_FOLDER)
+        args_parts.append(f"--debug=@{log_path}")
+        log(f"Debug лог включён: {log_path}", "INFO")
+    
+    if base_args:
+        args_parts.append(base_args)
+    if deduped_args:
+        args_parts.append(deduped_args)
+    
     combined_args = " ".join(args_parts)
     
-    # Формируем описание
-    descriptions = []
-    if youtube_id and youtube_id != "youtube_none":
-        descriptions.append(f"YouTube: {YOUTUBE_STRATEGIES[youtube_id]['name']}")
-    if discord_id and discord_id != "discord_none":
-        descriptions.append(f"Discord: {DISCORD_STRATEGIES[discord_id]['name']}")
-    if discord_voice_id and discord_voice_id != "discord_voice_none":
-        descriptions.append(f"Discord Voice: {DISCORD_VOICE_STRATEGIES[discord_voice_id]['name']}")
-    if other_id and other_id != "other_none":
-        descriptions.append(f"Остальные: {OTHER_STRATEGIES[other_id]['name']}")
+    # ==================== ПРИМЕНЕНИЕ НАСТРОЕК ====================
+    combined_args = _apply_settings(combined_args)
     
+    # ==================== ФИНАЛИЗАЦИЯ ====================
     combined_description = " | ".join(descriptions) if descriptions else "Пользовательская комбинация"
+    
+    log(f"Создана комбинированная стратегия: {len(combined_args)} символов, {len(active_categories)} категорий", "DEBUG")
     
     return {
         "name": "Комбинированная стратегия",
         "description": combined_description,
-        "version": "1.0",
+        "version": "1.0", 
         "provider": "universal",
         "author": "Combined",
         "updated": "2024",
-        "label": LABEL_STABLE,
         "all_sites": True,
         "args": combined_args,
         "_is_builtin": True,
-        "_youtube_id": youtube_id,
-        "_discord_id": discord_id,
-        "_discord_voice_id": discord_voice_id,
-        "_other_id": other_id
+        "_active_categories": len(active_categories),
+        **{f"_{key}_id": strategy_id for key, strategy_id in category_strategies.items()}
     }
 
-def get_default_selections():
-    """Возвращает выборы по умолчанию"""
-    return {
-        'youtube': 'multisplit_seqovl_midsld',
-        'discord': 'dis4',
-        'discord_voice': 'ipv4_dup2_autottl_cutoff_n3',
-        'other': 'other_seqovl'
-    }
+
+def _apply_settings(args: str) -> str:
+    """
+    Применяет все пользовательские настройки к командной строке.
+    
+    ✅ Обрабатывает:
+    - Удаление --hostlist (применить ко всем сайтам)
+    - Удаление --ipset (применить ко всем IP)
+    - Добавление --wssize 1:6
+    - Замена other.txt на allzone.txt
+    """
+    from strategy_menu import (
+        get_remove_hostlists_enabled,
+        get_remove_ipsets_enabled,
+        get_wssize_enabled,
+        get_allzone_hostlist_enabled
+    )
+    
+    result = args
+    
+    # ==================== ЗАМЕНА ALLZONE ====================
+    # Делаем ДО удаления hostlist, чтобы замена сработала
+    if get_allzone_hostlist_enabled():
+        result = result.replace("--hostlist=other.txt", "--hostlist=allzone.txt")
+        result = result.replace("--hostlist=other2.txt", "--hostlist=allzone.txt")
+        log("Применена замена other.txt -> allzone.txt", "DEBUG")
+    
+    # ==================== УДАЛЕНИЕ HOSTLIST ====================
+    if get_remove_hostlists_enabled():
+        # Удаляем все варианты hostlist
+        patterns = [
+            r'--hostlist-domains=[^\s]+',
+            r'--hostlist-exclude=[^\s]+',
+            r'--hostlist=[^\s]+',
+        ]
+        for pattern in patterns:
+            result = re.sub(pattern, '', result)
+        
+        # Очищаем лишние пробелы
+        result = _clean_spaces(result)
+        log("Удалены все --hostlist параметры", "DEBUG")
+    
+    # ==================== УДАЛЕНИЕ IPSET ====================
+    if get_remove_ipsets_enabled():
+        # Удаляем все варианты ipset
+        patterns = [
+            r'--ipset-ip=[^\s]+',
+            r'--ipset-exclude=[^\s]+',
+            r'--ipset=[^\s]+',
+        ]
+        for pattern in patterns:
+            result = re.sub(pattern, '', result)
+        
+        # Очищаем лишние пробелы
+        result = _clean_spaces(result)
+        log("Удалены все --ipset параметры", "DEBUG")
+    
+    # ==================== ДОБАВЛЕНИЕ WSSIZE ====================
+    if get_wssize_enabled():
+        # Добавляем --wssize 1:6 для TCP 443
+        # Ищем место после базовых аргументов
+        if "--wssize" not in result:
+            # Вставляем после --wf-* аргументов
+            if "--wf-" in result:
+                # Находим конец wf аргументов
+                wf_end = 0
+                for match in re.finditer(r'--wf-[^\s]+=[^\s]+', result):
+                    wf_end = max(wf_end, match.end())
+                
+                if wf_end > 0:
+                    result = result[:wf_end] + " --wssize 1:6" + result[wf_end:]
+                else:
+                    result = "--wssize 1:6 " + result
+            else:
+                result = "--wssize 1:6 " + result
+            
+            log("Добавлен параметр --wssize 1:6", "DEBUG")
+    
+    # ==================== ФИНАЛЬНАЯ ОЧИСТКА ====================
+    result = _clean_spaces(result)
+    
+    # Удаляем пустые --new (если после удаления hostlist/ipset остались)
+    result = re.sub(r'--new\s+--new', '--new', result)
+    result = re.sub(r'\s+--new\s*$', '', result)  # Trailing --new
+    result = re.sub(r'^--new\s+', '', result)  # Leading --new
+    
+    return result.strip()
+
+
+def _replace_out_range(args: str, value: int) -> str:
+    """
+    Заменяет --out-range в аргументах стратегии.
+    Удаляет существующий --out-range и вставляет новый после --filter-tcp/--filter-udp.
+    """
+    # Удаляем существующий --out-range=...
+    args = re.sub(r'--out-range=[^\s]+\s*', '', args)
+    args = args.strip()
+    
+    # Вставляем новый --out-range после --filter-tcp=... или --filter-udp=...
+    # Ищем паттерн --filter-tcp=... или --filter-udp=...
+    match = re.search(r'(--filter-(?:tcp|udp|l7)=[^\s]+)', args)
+    if match:
+        insert_pos = match.end()
+        args = args[:insert_pos] + f" --out-range=-d{value}" + args[insert_pos:]
+    else:
+        # Если нет filter, добавляем в начало
+        args = f"--out-range=-d{value} {args}"
+    
+    return _clean_spaces(args)
+
+
+def _clean_spaces(text: str) -> str:
+    """Очищает множественные пробелы"""
+    return ' '.join(text.split())
+
+
+# ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+
+def get_strategy_display_name(category_key: str, strategy_id: str) -> str:
+    """Получает отображаемое имя стратегии"""
+    if strategy_id == "none":
+        return "⛔ Отключено"
+    
+    return registry.get_strategy_name_safe(category_key, strategy_id)
+
+
+def get_active_categories_count(category_strategies: dict) -> int:
+    """Подсчитывает количество активных категорий"""
+    none_strategies = registry.get_none_strategies()
+    count = 0
+    
+    for category_key, strategy_id in category_strategies.items():
+        if strategy_id and strategy_id != none_strategies.get(category_key):
+            count += 1
+    
+    return count
+
+
+def validate_category_strategies(category_strategies: dict) -> list:
+    """
+    Проверяет корректность выбранных стратегий.
+    Возвращает список ошибок (пустой если всё ок).
+    """
+    errors = []
+    
+    for category_key, strategy_id in category_strategies.items():
+        if not strategy_id:
+            continue
+            
+        if strategy_id == "none":
+            continue
+            
+        # Проверяем существование категории
+        category_info = registry.get_category_info(category_key)
+        if not category_info:
+            errors.append(f"Неизвестная категория: {category_key}")
+            continue
+        
+        # Проверяем существование стратегии
+        args = registry.get_strategy_args_safe(category_key, strategy_id)
+        if args is None:
+            errors.append(f"Стратегия '{strategy_id}' не найдена в категории '{category_key}'")
+    
+    return errors
