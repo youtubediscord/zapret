@@ -1,32 +1,55 @@
 # config/__init__.py
-from .config import BIN_FOLDER, EXE_FOLDER, THEME_FOLDER, BAT_FOLDER, LISTS_FOLDER, LOGS_FOLDER, WINWS_EXE, ICON_PATH, ICON_TEST_PATH, OTHER_PATH, OTHER2_PATH, NETROGAT_PATH, NETROGAT2_PATH, STRATEGIES_FOLDER, WIDTH, HEIGHT, INDEXJSON_FOLDER, DEFAULT_STRAT, REG_LATEST_STRATEGY, WINDIVERT_FILTER, MAX_LOG_FILES
+from .config import (
+    BIN_FOLDER, EXE_FOLDER, LUA_FOLDER, THEME_FOLDER, BAT_FOLDER, LISTS_FOLDER,
+    LOGS_FOLDER, WINWS_EXE, WINWS2_EXE, ICON_PATH, ICON_TEST_PATH, OTHER_PATH,
+    OTHER2_PATH, NETROGAT_PATH, NETROGAT2_PATH, STRATEGIES_FOLDER, WIDTH, HEIGHT,
+    INDEXJSON_FOLDER, DEFAULT_STRAT, REG_LATEST_STRATEGY, WINDIVERT_FILTER,
+    MAX_LOG_FILES, MAX_DEBUG_LOG_FILES, MAIN_DIRECTORY, HELP_FOLDER, PROGRAMDATA_PATH,
+    # Пути реестра
+    REGISTRY_PATH, REGISTRY_PATH_AUTOSTART, REGISTRY_PATH_GUI,
+    REGISTRY_PATH_DIRECT, REGISTRY_PATH_STRATEGIES, REGISTRY_PATH_WINDOW,
+    # Функции окна
+    get_window_position, set_window_position, get_window_size, set_window_size,
+    # Функции настроек анимации
+    get_wall_animation_enabled, set_wall_animation_enabled,
+    # Функции определения exe по методу
+    ZAPRET2_MODES, get_winws_exe_for_method, is_zapret2_mode
+)
 from .build_info import APP_VERSION, CHANNEL
-from .reg import reg, HKCU, get_last_strategy, set_last_strategy, get_dpi_autostart, set_dpi_autostart, get_remove_windows_terminal, set_remove_windows_terminal, get_subscription_check_interval, get_remove_github_api, set_direct_strategy_youtube, get_direct_strategy_discord, set_direct_strategy_discord, get_direct_strategy_discord_voice, set_direct_strategy_discord_voice, get_direct_strategy_other, set_direct_strategy_other, get_direct_strategy_selections, set_direct_strategy_selections
-from .tokens import TOKEN_GITHUB, UPDATE_GITHUB
-
-import winreg
-from log import log
-
-REGISTRY_PATH = r"Software\Zapret"
+from .reg import reg, HKCU, get_last_strategy, set_last_strategy, get_last_bat_strategy, set_last_bat_strategy, get_dpi_autostart, set_dpi_autostart, get_subscription_check_interval, get_remove_github_api, get_active_hosts_domains, set_active_hosts_domains, get_auto_update_enabled, set_auto_update_enabled, get_tray_hint_shown, set_tray_hint_shown
 
 __all__ = [
     # build_info.py
     'APP_VERSION',
     'CHANNEL',
-    'TOKEN_GITHUB',
-    'UPDATE_GITHUB',
-    # config.py
+    # config.py - папки
     'THEME_FOLDER',
     'EXE_FOLDER',
     'BIN_FOLDER',
-    'REG_LATEST_STRATEGY',
+    'LUA_FOLDER',
     'BAT_FOLDER',
     'LISTS_FOLDER',
     'LOGS_FOLDER',
     'INDEXJSON_FOLDER',
     'WINDIVERT_FILTER',
+    'MAIN_DIRECTORY',
+    'HELP_FOLDER',
+    'PROGRAMDATA_PATH',
+    # config.py - пути реестра
+    'REGISTRY_PATH',
+    'REGISTRY_PATH_AUTOSTART',
+    'REGISTRY_PATH_GUI',
+    'REGISTRY_PATH_DIRECT',
+    'REGISTRY_PATH_STRATEGIES',
+    'REGISTRY_PATH_WINDOW',
+    # config.py - остальное
+    'REG_LATEST_STRATEGY',
     'DEFAULT_STRAT',
     'WINWS_EXE',
+    'WINWS2_EXE',
+    'ZAPRET2_MODES',
+    'get_winws_exe_for_method',
+    'is_zapret2_mode',
     'ICON_PATH',
     'ICON_TEST_PATH',
     'OTHER_PATH',
@@ -35,137 +58,30 @@ __all__ = [
     'NETROGAT2_PATH',
     'STRATEGIES_FOLDER',
     'MAX_LOG_FILES',
+    'MAX_DEBUG_LOG_FILES',
     'WIDTH',
     'HEIGHT',
     # reg.py
-    'get_last_strategy',
-    'set_last_strategy',
+    'get_last_strategy',  # УСТАРЕВШАЯ - используйте get_last_bat_strategy
+    'set_last_strategy',  # УСТАРЕВШАЯ - используйте set_last_bat_strategy
+    'get_last_bat_strategy',
+    'set_last_bat_strategy',
     'get_dpi_autostart',
     'set_dpi_autostart',
-    'get_remove_windows_terminal',
-    'set_remove_windows_terminal',
     'get_subscription_check_interval',
     'get_remove_github_api',
-    'get_strategy_launch_method',
-    'set_strategy_launch_method',
-    'get_wssize_enabled',
-    'set_wssize_enabled',
-    'get_game_filter_enabled',
-    'set_game_filter_enabled',
-    'get_ipset_lists_enabled',
-    'set_ipset_lists_enabled',
-    'set_direct_strategy_youtube',
-    'get_direct_strategy_discord',
-    'set_direct_strategy_discord',
-    'set_direct_strategy_discord_voice',
-    'get_direct_strategy_discord_voice',
-    'get_direct_strategy_other',
-    'set_direct_strategy_other',
-    'get_direct_strategy_selections',
-    'set_direct_strategy_selections',
-    'get_allzone_hostlist_enabled',
-    'set_allzone_hostlist_enabled',
+    'get_active_hosts_domains',
+    'set_active_hosts_domains',
+    'get_auto_update_enabled',
+    'set_auto_update_enabled',
+    'get_tray_hint_shown',
+    'set_tray_hint_shown',
+    'get_window_position',
+    'set_window_position',
+    'get_window_size',
+    'set_window_size',
+    'get_wall_animation_enabled',
+    'set_wall_animation_enabled',
     'reg',
     'HKCU'
 ]
-
-def get_strategy_launch_method():
-    """Получает метод запуска стратегий из реестра"""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            value, _ = winreg.QueryValueEx(key, "StrategyLaunchMethod")
-            return value
-    except:
-        return "bat"  # По умолчанию классический метод
-
-def set_strategy_launch_method(method: str):
-    """Сохраняет метод запуска стратегий в реестр"""
-    try:
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            winreg.SetValueEx(key, "StrategyLaunchMethod", 0, winreg.REG_SZ, method)
-            log(f"Метод запуска стратегий изменен на: {method}", "INFO")
-            return True
-    except Exception as e:
-        log(f"Ошибка сохранения метода запуска: {e}", "❌ ERROR")
-        return False
-
-def get_wssize_enabled():
-    """Получает настройку включения параметра --wssize из реестра"""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            value, _ = winreg.QueryValueEx(key, "WSSizeEnabled")
-            return bool(value)
-    except:
-        return False  # По умолчанию выключено
-
-def set_wssize_enabled(enabled: bool):
-    """Сохраняет настройку включения параметра --wssize в реестр"""
-    try:
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            winreg.SetValueEx(key, "WSSizeEnabled", 0, winreg.REG_DWORD, int(enabled))
-            log(f"Настройка wssize_enabled сохранена: {enabled}", "INFO")
-            return True
-    except Exception as e:
-        log(f"Ошибка сохранения настройки wssize_enabled: {e}", "❌ ERROR")
-        return False
-    
-def get_game_filter_enabled() -> bool:
-    """Получает состояние настройки Game Filter (расширение портов)"""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            value, _ = winreg.QueryValueEx(key, "IpsetAllEnabled")
-            return bool(value)
-    except:
-        return False  # По умолчанию выключено
-
-def set_game_filter_enabled(enabled: bool):
-    """Сохраняет состояние настройки Game Filter (расширение портов)"""
-    try:
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            winreg.SetValueEx(key, "IpsetAllEnabled", 0, winreg.REG_DWORD, int(enabled))
-            log(f"Настройка Game Filter сохранена: {enabled}", "INFO")
-            return True
-    except Exception as e:
-        log(f"Ошибка сохранения настройки Game Filter: {e}", "❌ ERROR")
-        return False
-
-def get_ipset_lists_enabled() -> bool:
-    """Получает состояние настройки добавления ipset-base.txt к хостлистам"""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            value, _ = winreg.QueryValueEx(key, "IpsetListsEnabled")
-            return bool(value)
-    except:
-        return False  # По умолчанию выключено
-
-def set_ipset_lists_enabled(enabled: bool):
-    """Сохраняет состояние настройки добавления ipset-base.txt к хостлистам"""
-    try:
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            winreg.SetValueEx(key, "IpsetListsEnabled", 0, winreg.REG_DWORD, int(enabled))
-            log(f"Настройка ipset-lists сохранена: {enabled}", "INFO")
-            return True
-    except Exception as e:
-        log(f"Ошибка сохранения настройки ipset-lists: {e}", "❌ ERROR")
-        return False
-    
-
-def get_allzone_hostlist_enabled() -> bool:
-    """Получает состояние настройки замены other.txt на allzone.txt"""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            value, _ = winreg.QueryValueEx(key, "AllzoneHostlistEnabled")
-            return bool(value)
-    except:
-        return False  # По умолчанию выключено
-
-def set_allzone_hostlist_enabled(enabled: bool):
-    """Сохраняет состояние настройки замены other.txt на allzone.txt"""
-    try:
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-            winreg.SetValueEx(key, "AllzoneHostlistEnabled", 0, winreg.REG_DWORD, int(enabled))
-            log(f"Настройка allzone.txt сохранена: {enabled}", "INFO")
-            return True
-    except Exception as e:
-        log(f"Ошибка сохранения настройки allzone.txt: {e}", "❌ ERROR")
-        return False
