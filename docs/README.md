@@ -18,7 +18,7 @@
 - Возможность прописать кастомные DNS сервера (против атак провайдеров типа подмены ДНС)
 - Блокирует установку национального мессенджера `Max`
 
-<img width="452" height="762" alt="image" src="https://github.com/user-attachments/assets/738e1a9c-f0d2-4cc6-8d40-c50f4324ace4" />
+<img width="1000" height="950" alt="image" src="https://github.com/user-attachments/assets/ffd34cf2-9d45-43bd-9511-d2d0ed72797c" />
 
 
 > [!IMPORTANT]  
