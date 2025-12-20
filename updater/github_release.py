@@ -9,12 +9,69 @@ from __future__ import annotations
 from typing import Optional, List, Dict, Any, Tuple
 from packaging import version
 from datetime import datetime
+import base64
 import time
 import json
 import os
 import requests
 from log import log
-from config import TOKEN_GITHUB, LOGS_FOLDER
+from config import LOGS_FOLDER
+
+# ────────────────────────────────────────────────────────────────
+#  ОБФУСКАЦИЯ GITHUB ТОКЕНА
+# ────────────────────────────────────────────────────────────────
+_PARTS = [
+    ("PTIqBQ8VGBUuPQ==", 0x5A, 0),
+    ("aW8NWE8EbmlTWw==", 0x3D, 10),
+    ("HXpbYXVDZVl9eQ==", 0x2C, 20),
+    ("LAkkB08IDkwuKA==", 0x7E, 30),
+]
+_CHECKSUM = 942
+_CACHE = ""
+
+
+def _rebuild_token() -> str:
+    """Собирает токен из обфусцированных частей"""
+    global _CACHE
+    
+    if _CACHE:
+        return _CACHE
+    
+    try:
+        result = [''] * 40
+        
+        for encoded, xor_key, offset in _PARTS:
+            decoded = base64.b64decode(encoded)
+            for i, byte in enumerate(decoded):
+                if offset + i < len(result):
+                    result[offset + i] = chr(byte ^ xor_key)
+        
+        value = ''.join(result).rstrip('\x00')
+        
+        checksum = sum(ord(c) for c in value[:10])
+        if checksum != _CHECKSUM:
+            return ""
+        
+        _CACHE = value
+        return _CACHE
+    except:
+        return ""
+
+
+def _get_token() -> str:
+    """Получает токен (из обфускации/env)"""
+    token = _rebuild_token()
+    if token and len(token) > 20:
+        return token
+    
+    env_token = os.getenv('GITHUB_TOKEN')
+    if env_token:
+        return env_token
+    
+    return ""
+
+
+GITHUB_UPDATE_1 = _get_token()
 
 GITHUB_API_URL = "https://api.github.com/repos/youtubediscord/zapret/releases"
 TIMEOUT = 10  # сек.
@@ -96,11 +153,11 @@ def check_rate_limit() -> Dict[str, Any]:
     try:
         headers = {
             'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Zapret-Updater/1.0'
+            'User-Agent': 'Zapret-Updater/3.1'
         }
         
         # Добавляем токен если есть
-        token = TOKEN_GITHUB
+        token = GITHUB_UPDATE_1
         if token:
             headers['Authorization'] = f'token {token}'
         
@@ -148,11 +205,11 @@ def _get_cached_or_fetch(url: str, timeout: int = 10) -> Optional[Dict[str, Any]
         # Делаем запрос
         headers = {
             'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Zapret-Updater/1.0'
+            'User-Agent': 'Zapret-Updater/3.1'
         }
         
         # Добавляем GitHub token если есть (увеличивает лимит с 60 до 5000)
-        token = TOKEN_GITHUB
+        token = GITHUB_UPDATE_1
         if token:
             headers['Authorization'] = f'token {token}'
             log("🔑 Используем GitHub token для увеличения лимита", "🔄 CACHE")
@@ -237,32 +294,54 @@ def compare_versions(v1: str, v2: str) -> int:
         # Fallback на строковое сравнение
         return -1 if v1 < v2 else (1 if v1 > v2 else 0)
 
+# Кэш для полного списка релизов (отдельно от кэша запросов)
+_all_releases_cache: Tuple[List[Dict[str, Any]], float] = ([], 0)
+ALL_RELEASES_CACHE_TTL = 600  # 10 минут - не дёргаем GitHub слишком часто
+
+
 def get_all_releases_with_exe() -> List[Dict[str, Any]]:
     """
-    Получает все релизы с .exe файлами с умной обработкой rate limits
+    Получает все релизы с .exe файлами с умной обработкой rate limits.
+    
+    ✅ ОПТИМИЗИРОВАНО: 
+    - Кэширует полный результат на 10 минут
+    - НЕ делает отдельный запрос check_rate_limit()
+    - Максимум 2 страницы для dev канала (200 релизов = достаточно)
     """
-    # Загружаем кэш при первом запуске
+    global _all_releases_cache
+    
+    # ═══════════════════════════════════════════════════════════
+    # ✅ ПРОВЕРЯЕМ КЭШ ПОЛНОГО СПИСКА РЕЛИЗОВ
+    # ═══════════════════════════════════════════════════════════
+    cached_releases, cache_time = _all_releases_cache
+    if cached_releases and (time.time() - cache_time) < ALL_RELEASES_CACHE_TTL:
+        age_sec = int(time.time() - cache_time)
+        log(f"✅ Используем кэш релизов ({len(cached_releases)} шт., возраст {age_sec}с)", "🔄 CACHE")
+        return cached_releases
+    
+    # Загружаем кэш запросов при первом запуске
     if not _github_cache:
         _load_persistent_cache()
     
-    # Сначала проверяем rate limit
-    rate_info = check_rate_limit()
-    if rate_info['remaining'] < 5:
-        log(f"⚠️ Очень мало запросов осталось ({rate_info['remaining']}). Используем только кэш.", "⚠️ RATE_LIMIT")
-        # Пытаемся собрать данные из кэша
+    # ═══════════════════════════════════════════════════════════
+    # ✅ НЕ ДЕЛАЕМ ОТДЕЛЬНЫЙ check_rate_limit() - экономим запрос!
+    # Проверяем rate limit из кэшированного файла
+    # ═══════════════════════════════════════════════════════════
+    is_limited, reset_dt = is_rate_limited()
+    if is_limited:
+        log(f"⏳ Rate limit до {reset_dt}, используем кэш", "⚠️ RATE_LIMIT")
+        if cached_releases:
+            return cached_releases
         return _get_cached_releases()
     
     releases_with_exe = []
     
     page = 1
-    max_pages = 10 if rate_info['remaining'] > 20 else 3  # Ограничиваем страницы при малом лимите
+    # ✅ ОГРАНИЧЕНО: максимум 2 страницы (200 релизов - более чем достаточно)
+    max_pages = 2
     
     while page <= max_pages:
         url = f"{GITHUB_API_URL}?per_page=100&page={page}"
-        
-        # Добавляем небольшую задержку между запросами
-        if page > 1:
-            time.sleep(0.2)
         
         try:
             releases_page = _get_cached_or_fetch(url, TIMEOUT)
@@ -271,7 +350,7 @@ def get_all_releases_with_exe() -> List[Dict[str, Any]]:
                 log(f"⚠️ Не удалось получить страницу {page}", "🔁 UPDATE")
                 break
             
-            if not releases_page:  # Пустая страница = конец
+            if len(releases_page) == 0:  # Пустая страница = конец
                 break
                 
             for release in releases_page:
@@ -295,17 +374,21 @@ def get_all_releases_with_exe() -> List[Dict[str, Any]]:
                 except ValueError as e:
                     log(f"❌ Неверный формат версии {release['tag_name']}: {e}", "🔁 UPDATE")
                     continue
-                    
-            page += 1
             
-            # Если запросов мало, останавливаемся раньше
-            if rate_info['remaining'] < 10 and page > 2:
-                log("⚠️ Останавливаем поиск из-за лимита запросов", "⚠️ RATE_LIMIT")
+            # Если получили меньше 100, значит страниц больше нет
+            if len(releases_page) < 100:
                 break
+                
+            page += 1
             
         except Exception as e:
             log(f"Ошибка получения страницы {page}: {e}", "🔁 UPDATE")
             break
+    
+    # ✅ КЭШИРУЕМ ПОЛНЫЙ РЕЗУЛЬТАТ
+    if releases_with_exe:
+        _all_releases_cache = (releases_with_exe, time.time())
+        log(f"💾 Закэшировано {len(releases_with_exe)} релизов на {ALL_RELEASES_CACHE_TTL}с", "🔄 CACHE")
     
     return releases_with_exe
 

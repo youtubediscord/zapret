@@ -1,10 +1,26 @@
-# updater/__init__.py
-from .update import run_update_async
+"""
+updater/__init__.py
+────────────────────────────────────────────────────────────────
+Модуль обновления программы
+
+ПРИМЕЧАНИЕ: Автообновление при запуске ОТКЛЮЧЕНО.
+Обновления проверяются и устанавливаются только через вкладку "Серверы" (ui/pages/servers_page.py)
+"""
+
+from .release_manager import (
+    get_latest_release,
+    invalidate_cache,
+    get_cache_info,
+    get_release_manager,
+    get_vps_block_info
+)
+from .rate_limiter import UpdateRateLimiter
 
 __all__ = [
-    'run_update_async'
+    'get_latest_release',
+    'invalidate_cache',
+    'get_cache_info',
+    'get_release_manager',
+    'get_vps_block_info',
+    'UpdateRateLimiter'
 ]
-
-# Version info for the updater module
-__version__ = "1.0.0"
-__author__ = "Zapret GUI Team"

@@ -6,6 +6,58 @@ run_hidden – единый «тихий» запуск процессов (бе
 from __future__ import annotations
 import os, subprocess, sys, shlex, tempfile
 from typing import Sequence, Union
+from functools import lru_cache
+
+
+import ctypes
+
+# WinAPI функции для получения системных путей
+_kernel32 = ctypes.windll.kernel32
+
+
+@lru_cache(maxsize=1)
+def get_system32_path() -> str:
+    """
+    Возвращает путь к System32 через WinAPI GetSystemDirectoryW.
+    Работает на любом диске (C:, D:, и т.д.).
+    """
+    buf = ctypes.create_unicode_buffer(260)
+    length = _kernel32.GetSystemDirectoryW(buf, 260)
+    if length > 0:
+        return buf.value
+    # Fallback через переменные окружения
+    system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
+    if system_root:
+        return os.path.join(system_root, "System32")
+    return r"C:\Windows\System32"
+
+
+@lru_cache(maxsize=1)
+def get_windows_path() -> str:
+    """
+    Возвращает путь к Windows через WinAPI GetWindowsDirectoryW.
+    """
+    buf = ctypes.create_unicode_buffer(260)
+    length = _kernel32.GetWindowsDirectoryW(buf, 260)
+    if length > 0:
+        return buf.value
+    return os.environ.get("SystemRoot") or os.environ.get("WINDIR") or r"C:\Windows"
+
+
+@lru_cache(maxsize=1)
+def get_syswow64_path() -> str:
+    """
+    Возвращает путь к SysWOW64 (32-битные программы на 64-битной Windows).
+    """
+    return os.path.join(get_windows_path(), "SysWOW64")
+
+
+def get_system_exe(exe_name: str) -> str:
+    """
+    Возвращает полный путь к системному исполняемому файлу.
+    Пример: get_system_exe("tasklist.exe") -> "D:\\Windows\\System32\\tasklist.exe"
+    """
+    return os.path.join(get_system32_path(), exe_name)
 
 # Максимальный набор флагов для полного скрытия окон
 WIN_FLAGS = (subprocess.CREATE_NO_WINDOW | 
@@ -40,14 +92,16 @@ def _prepare_cmd(cmd, use_shell: bool):
     if sys.platform != "win32":
         return cmd, use_shell      # на *nix не меняем
 
+    cmd_exe = get_system_exe("cmd.exe")
+
     if use_shell:
         if isinstance(cmd, str):
-            return ['C:\\Windows\\System32\\cmd.exe', '/Q', '/C', cmd], False
+            return [cmd_exe, '/Q', '/C', cmd], False
         else:               # список + shell=True
-            return ['C:\\Windows\\System32\\cmd.exe', '/Q', '/C', *cmd], False
+            return [cmd_exe, '/Q', '/C', *cmd], False
 
     if isinstance(cmd, str):       # shell=False, но строка → тоже оборачиваем
-        return ['C:\\Windows\\System32\\cmd.exe', '/Q', '/C', cmd], False
+        return [cmd_exe, '/Q', '/C', cmd], False
 
     return cmd, use_shell
 
@@ -154,7 +208,7 @@ def run_hidden(cmd: Union[str, Sequence[str]],
             '__COMPAT_LAYER': 'RunAsInvoker',
             'PYTHONWINDOWMODE': 'hide',
             'PROMPT': '$G',  # Минимальный prompt
-            'COMSPEC': 'cmd',  # Принудительно используем cmd
+            'COMSPEC': get_system_exe("cmd.exe"),  # Полный путь к cmd.exe
         })
         kw['env'] = env
 

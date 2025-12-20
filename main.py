@@ -237,7 +237,16 @@ class LupiDPIApp(QWidget, MainWindowUI, ThemeSubscriptionManager, FramelessWindo
         # ✅ Очищаем потоки через контроллер
         if hasattr(self, 'dpi_controller'):
             self.dpi_controller.cleanup_threads()
-        
+
+        # ✅ ОСТАНАВЛИВАЕМ ПРОЦЕССЫ winws.exe ПРИ ЗАКРЫТИИ
+        # Это нужно чтобы при следующем запуске не было WinError 5
+        try:
+            from utils.process_killer import kill_winws_force
+            kill_winws_force()
+            log("Процессы winws завершены при закрытии приложения", "DEBUG")
+        except Exception as e:
+            log(f"Ошибка остановки winws при закрытии: {e}", "DEBUG")
+
         # Останавливаем все асинхронные операции без уведомлений
         try:
             if hasattr(self, '_dpi_start_thread') and self._dpi_start_thread:
@@ -385,12 +394,12 @@ class LupiDPIApp(QWidget, MainWindowUI, ThemeSubscriptionManager, FramelessWindo
             from strategy_menu import get_strategy_launch_method
             launch_method = get_strategy_launch_method()
             
-            if strategy_id == "DIRECT_MODE" or launch_method == "direct":
-                display_name = "Прямой запуск"
+            if strategy_id == "DIRECT_MODE" or launch_method in ("direct", "direct_orchestra"):
+                display_name = "Прямой запуск" if launch_method == "direct" else "Оркестратор Z2"
                 self.current_strategy_name = display_name
                 strategy_name = display_name
                 # Для Direct режима selections сохраняются отдельно, не нужно сохранять через set_last_strategy
-                log(f"Установлено простое название для Direct режима: {display_name}", "DEBUG")
+                log(f"Установлено простое название для режима {launch_method}: {display_name}", "DEBUG")
             else:
                 # Для BAT режима сохраняем последнюю стратегию (отдельный ключ реестра)
                 from config.reg import set_last_bat_strategy
@@ -406,8 +415,8 @@ class LupiDPIApp(QWidget, MainWindowUI, ThemeSubscriptionManager, FramelessWindo
             # Записываем время изменения стратегии
             self.last_strategy_change_time = time.time()
             
-            # ✅ ИСПРАВЛЕННАЯ ЛОГИКА для обработки Direct режима
-            if launch_method == "direct":
+            # ✅ ИСПРАВЛЕННАЯ ЛОГИКА для обработки Direct режимов
+            if launch_method in ("direct", "direct_orchestra"):
                 if strategy_id == "DIRECT_MODE" or strategy_id == "combined":
                     # Получаем стратегию из сохранённых настроек
                     from strategy_menu.strategy_lists_separated import combine_strategies

@@ -1,667 +1,776 @@
 # ui/main_window.py
+"""
+Главное окно приложения в стиле Windows 11 Settings
+"""
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QComboBox, QSpacerItem, QSizePolicy, QFrame, QStackedWidget
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+    QComboBox, QFrame, QStackedWidget, QSizePolicy
 )
 from PyQt6.QtGui import QIcon, QFont
-from PyQt6.QtCore import QSize
 
-from ui.theme import (THEMES, BUTTON_STYLE, COMMON_STYLE, BUTTON_HEIGHT,
-                      STYLE_SHEET, RippleButton)
+from ui.theme import THEMES, BUTTON_STYLE, COMMON_STYLE, BUTTON_HEIGHT
+from ui.sidebar import SideNavBar, SettingsCard, ActionButton
+from ui.custom_titlebar import DraggableWidget
+from ui.pages import (
+    HomePage, ControlPage, StrategiesPage, HostlistPage, NetrogatPage, CustomDomainsPage, IpsetPage, BlobsPage, CustomIpSetPage, EditorPage, DpiSettingsPage,
+    AutostartPage, NetworkPage, HostsPage, BlockcheckPage, AppearancePage, AboutPage, LogsPage, PremiumPage,
+    ServersPage, ConnectionTestPage, DNSCheckPage, OrchestraPage, OrchestraLockedPage, OrchestraBlockedPage, OrchestraWhitelistPage, OrchestraRatingsPage
+)
 
 import qtawesome as qta
-from typing import Optional
-from pathlib import Path
-from log import log
-from config import APP_VERSION, CHANNEL # build_info moved to config/__init__.py
+import sys, os
+from config import APP_VERSION, CHANNEL
 
 class MainWindowUI:
     """
-    Миксин-класс: создаёт интерфейс, ничего не знает о логике.
+    Миксин-класс для создания UI главного окна в стиле Windows 11 Settings.
     """
 
     def build_ui(self: QWidget, width: int, height: int):
-        self.setStyleSheet(STYLE_SHEET)
-        self.setMinimumSize(width, height)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(15, 15, 15, 15)
-        root.setSpacing(10)
-
-        # ---------- Заголовок ------------------------------------------
-        title = f"Zapret GUI {APP_VERSION} ({CHANNEL})"     # итоговая подпись
-        self.title_label = QLabel(title)
-        self.title_label.setStyleSheet(f"{COMMON_STYLE} font-size: 20pt; font-weight: bold;")
-        root.addWidget(self.title_label, alignment=Qt.AlignmentFlag.AlignCenter)
-
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("QFrame { color: #e0e0e0; }")
-        root.addWidget(line)
-
-        # ---------- Статус программы -----------------------------------
-        proc_lbl = QLabel("Статус программы:")
-        proc_lbl.setStyleSheet("font-weight: bold; font-size: 10pt;")
-        self.process_status_value = QLabel("проверка…")
-        self.process_status_value.setStyleSheet("font-size: 10pt;")
-
-        proc_lay = QHBoxLayout()
-        proc_lay.addWidget(proc_lbl)
-        proc_lay.addWidget(self.process_status_value)
-        proc_lay.addStretch()
-        root.addLayout(proc_lay)
-
-        # ---------- Текущая стратегия ----------------------------------
-        cur_hdr = QLabel("Текущая стратегия:")
-        cur_hdr.setStyleSheet(f"{COMMON_STYLE} font-weight: bold; font-size: 11pt;")
-        cur_hdr.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(cur_hdr)
-
-        self.current_strategy_label = QLabel("Автостарт DPI отключен")
-        self.current_strategy_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.current_strategy_label.setWordWrap(True)
-        self.current_strategy_label.setMinimumHeight(40)
-        self.current_strategy_label.setStyleSheet(
-            f"{COMMON_STYLE} font-weight: bold; font-size: 12pt;")
-        root.addWidget(self.current_strategy_label)
-
-        self.themed_buttons = []
-        # Добавляем метку стратегии в список тематических элементов
-        self.themed_labels = [self.current_strategy_label]
-
-        # ---------- Текущая стратегия ----------------------------------
-        self.select_strategy_btn = RippleButton(" Сменить стратегию обхода блокировок", self, "0, 119, 255")
-        self.select_strategy_btn.setIcon(qta.icon('fa5s.cog', color='white'))
-        self.select_strategy_btn.setIconSize(QSize(16, 16))
-        self.select_strategy_btn.setStyleSheet(BUTTON_STYLE.format("0, 119, 255"))
-        self.themed_buttons.append(self.select_strategy_btn)
-        root.addWidget(self.select_strategy_btn)
-
-        # ---------- Grid-кнопки ----------------------------------------
-        grid = QGridLayout()
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        grid.setSpacing(10)
-        self.button_grid = grid
-
-        # ---------- Grid-кнопки ----------------------------------------
-        self.start_btn = RippleButton(" Запустить Zapret", self, "54, 153, 70")
-        self.start_btn.setIcon(qta.icon('fa5s.play', color='white'))
-        self.start_btn.setIconSize(QSize(16, 16))
+        """Строит UI с боковой навигацией и страницами контента"""
         
-        self.stop_btn = RippleButton(" Остановить Zapret", self, "255, 93, 174")
-        self.stop_btn.setIcon(qta.icon('fa5s.stop', color='white'))
-        self.stop_btn.setIconSize(QSize(16, 16))
+        # Определяем целевой виджет
+        target_widget = self
+        if hasattr(self, 'main_widget'):
+            target_widget = self.main_widget
         
-        self.autostart_enable_btn = RippleButton(" Вкл. автозапуск", self, "54, 153, 70")
-        self.autostart_enable_btn.setIcon(qta.icon('fa5s.check', color='white'))
-        self.autostart_enable_btn.setIconSize(QSize(16, 16))
+        # Удаляем старый layout если есть
+        old_layout = target_widget.layout()
+        if old_layout is not None:
+            while old_layout.count():
+                item = old_layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            # ✅ Удаляем layout напрямую (НЕ через QWidget() - это создаёт призрачное окно!)
+            old_layout.deleteLater()
         
-        self.autostart_disable_btn = RippleButton(" Выкл. автозапуск", self, "255, 93, 174")
-        self.autostart_disable_btn.setIcon(qta.icon('fa5s.times', color='white'))
-        self.autostart_disable_btn.setIconSize(QSize(16, 16))
-
-
-        for b, c in ((self.start_btn, "54, 153, 70"),
-                     (self.stop_btn, "255, 93, 174"),
-                     (self.autostart_enable_btn, "54, 153, 70"),
-                     (self.autostart_disable_btn, "255, 93, 174")):
-            b.setStyleSheet(BUTTON_STYLE.format(c))
-
-        # ✅ НОВОЕ: Создаем стеки для переключения кнопок
-        # Стек для кнопок запуска/остановки (левая колонка)
-        self.start_stop_stack = QStackedWidget()
-        self.start_stop_stack.addWidget(self.start_btn)      # индекс 0
-        self.start_stop_stack.addWidget(self.stop_btn)       # индекс 1
-        self.start_stop_stack.setCurrentIndex(0)  # По умолчанию показываем кнопку запуска
-
-        # Стек для кнопок автозапуска (правая колонка)
-        self.autostart_stack = QStackedWidget()
-        self.autostart_stack.addWidget(self.autostart_enable_btn)   # индекс 0
-        self.autostart_stack.addWidget(self.autostart_disable_btn)  # индекс 1
-        self.autostart_stack.setCurrentIndex(0)  # По умолчанию показываем кнопку включения
-
-        # ✅ НОВОЕ: Добавляем стеки в сетку вместо отдельных кнопок
-        grid.addWidget(self.start_stop_stack, 0, 0)    # Левая колонка
-        grid.addWidget(self.autostart_stack, 0, 1)     # Правая колонка
-
-        # Остальные кнопки добавляем как обычно
-        self.open_folder_btn = RippleButton(" Папка Zapret", self, "0, 119, 255")
-        self.open_folder_btn.setIcon(qta.icon('fa5s.folder-open', color='white'))
-        self.open_folder_btn.setIconSize(QSize(16, 16))
+        # ⚠️ НЕ применяем inline стили - они будут из темы QApplication
+        target_widget.setMinimumWidth(width)
         
-        self.test_connection_btn = RippleButton(" Тест соединения", self, "0, 119, 255")
-        self.test_connection_btn.setIcon(qta.icon('fa5s.wifi', color='white'))
-        self.test_connection_btn.setIconSize(QSize(16, 16))
-
-        self.subscription_btn = RippleButton(' Premium и VPN', self, "224, 132, 0")
-        self.subscription_btn.setIcon(qta.icon('fa5s.user-check', color='white'))
-        self.subscription_btn.setIconSize(QSize(16, 16))
-
-        self.dns_settings_btn = RippleButton(" Настройка DNS", self, "0, 119, 255")
-        self.dns_settings_btn.setIcon(qta.icon('fa5s.network-wired', color='white'))
-        self.dns_settings_btn.setIconSize(QSize(16, 16))
+        # Главный горизонтальный layout
+        root = QHBoxLayout(target_widget)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
         
-        self.proxy_button = RippleButton(" Разблокировать популярные сервисы", self, "218, 165, 32")
-        self.proxy_button.setIcon(qta.icon('fa5s.unlock', color='white'))
-        self.proxy_button.setIconSize(QSize(16, 16))
+        # ────────────────────────────────────────────────────────────
+        # БОКОВАЯ ПАНЕЛЬ НАВИГАЦИИ
+        # ────────────────────────────────────────────────────────────
+        self.side_nav = SideNavBar(self)
+        self.side_nav.section_changed.connect(self._on_section_changed)
+        self.side_nav.pin_state_changed.connect(self._on_sidebar_pin_changed)
+        root.addWidget(self.side_nav)
         
-        self.update_check_btn = RippleButton(" Проверить обновления", self, "38, 38, 38")
-        self.update_check_btn.setIcon(qta.icon('fa5s.sync-alt', color='white'))
-        self.update_check_btn.setIconSize(QSize(16, 16))
-
-
-        self.themed_buttons.append(self.open_folder_btn)
-        self.themed_buttons.append(self.test_connection_btn)
-        self.themed_buttons.append(self.dns_settings_btn)
-
-        self.open_folder_btn.setStyleSheet(BUTTON_STYLE.format("0, 119, 255"))
-        self.test_connection_btn.setStyleSheet(BUTTON_STYLE.format("0, 119, 255"))
-        self.subscription_btn.setStyleSheet(BUTTON_STYLE.format("224, 132, 0"))
-        self.dns_settings_btn.setStyleSheet(BUTTON_STYLE.format("0, 119, 255"))
-        self.proxy_button.setStyleSheet(BUTTON_STYLE.format("218, 165, 32"))
-        self.update_check_btn.setStyleSheet(BUTTON_STYLE.format("38, 38, 38"))
-
-        grid.addWidget(self.open_folder_btn, 2, 0)
-        grid.addWidget(self.test_connection_btn, 2, 1)
-        grid.addWidget(self.subscription_btn, 3, 0)
-        grid.addWidget(self.dns_settings_btn, 3, 1)
-        grid.addWidget(self.proxy_button, 4, 0, 1, 2)
-        grid.addWidget(self.update_check_btn, 5, 0, 1, 2)
+        # Сохраняем ссылку на layout для управления плавающим режимом
+        self._root_layout = root
         
+        # ────────────────────────────────────────────────────────────
+        # ОБЛАСТЬ КОНТЕНТА (с поддержкой перетаскивания окна)
+        # ────────────────────────────────────────────────────────────
+        content_area = DraggableWidget(target_widget)  # ✅ Позволяет перетаскивать окно за пустые области
+        content_area.setObjectName("contentArea")
+        # ⚠️ НЕ применяем inline стили - они будут из темы QApplication
+        
+        content_layout = QVBoxLayout(content_area)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        
+        # Стек страниц
+        self.pages_stack = QStackedWidget()
+        # ⚠️ НЕ применяем inline стили - они будут из темы QApplication
+        
+        # Создаем страницы
+        self._create_pages()
+        
+        content_layout.addWidget(self.pages_stack)
+        root.addWidget(content_area, 1)  # stretch=1 для растягивания
+        
+        # ────────────────────────────────────────────────────────────
+        # СОВМЕСТИМОСТЬ СО СТАРЫМ КОДОМ
+        # ────────────────────────────────────────────────────────────
+        self._setup_compatibility_attrs()
+        
+        # Подключаем сигналы
+        self._connect_page_signals()
+        
+    def _create_pages(self):
+        """Создает все страницы контента"""
+        
+        # Главная страница (индекс 0)
+        self.home_page = HomePage(self)
+        self.pages_stack.addWidget(self.home_page)
+        
+        # Управление (индекс 1)
+        self.control_page = ControlPage(self)
+        self.pages_stack.addWidget(self.control_page)
+        
+        # Стратегии (индекс 2)
+        self.strategies_page = StrategiesPage(self)
+        self.pages_stack.addWidget(self.strategies_page)
 
-        root.addLayout(grid)
+        # Hostlist (индекс 3)
+        self.hostlist_page = HostlistPage(self)
+        self.pages_stack.addWidget(self.hostlist_page)
 
-        # ---------- Тема оформления -----------------------------------
-        theme_lbl = QLabel("Тема оформления:")
-        theme_lbl.setStyleSheet(f"{COMMON_STYLE} font-size: 10pt;")
-        root.addWidget(theme_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
+        # IPset (индекс 4)
+        self.ipset_page = IpsetPage(self)
+        self.pages_stack.addWidget(self.ipset_page)
 
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItems(THEMES.keys())
-        self.theme_combo.setStyleSheet(f"{COMMON_STYLE} text-align: center; font-size: 10pt;")
-        root.addWidget(self.theme_combo)
+        # Блобы - управление бинарными данными для Zapret 2 (индекс 5)
+        self.blobs_page = BlobsPage(self)
+        self.pages_stack.addWidget(self.blobs_page)
 
-        # ---------- Статус-строка -------------------------------------
-        self.status_label = QLabel("")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("font-size: 9pt; color: #666;")
-        root.addWidget(self.status_label)
+        # Редактор стратегий (индекс 6)
+        self.editor_page = EditorPage(self)
+        self.pages_stack.addWidget(self.editor_page)
 
-        root.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        # Настройки DPI (индекс 7)
+        self.dpi_settings_page = DpiSettingsPage(self)
+        self.pages_stack.addWidget(self.dpi_settings_page)
 
-        # ---------- сигналы-прокси (для main.py) ----------------------
-        self.select_strategy_clicked = self.select_strategy_btn.clicked
-        self.start_clicked = self.start_btn.clicked
-        self.stop_clicked = self.stop_btn.clicked
-        self.autostart_enable_clicked = self.autostart_enable_btn.clicked
-        self.autostart_disable_clicked = self.autostart_disable_btn.clicked
-        self.theme_changed = self.theme_combo.currentTextChanged
+        # === МОИ СПИСКИ ===
+        # Исключения netrogat.txt (индекс 8)
+        self.netrogat_page = NetrogatPage(self)
+        self.pages_stack.addWidget(self.netrogat_page)
 
-    def update_proxy_button_state(self, is_active: bool = None):
-        """
-        Обновляет состояние кнопки разблокировки в зависимости от наличия записей в hosts.
-        🆕 Теперь учитывает полностью черную тему.
-        """
-        if not hasattr(self, 'proxy_button'):
-            return
+        # Мои домены - управление other2.txt (индекс 9)
+        self.custom_domains_page = CustomDomainsPage(self)
+        self.pages_stack.addWidget(self.custom_domains_page)
+
+        # Мои IP - управление my-ipset.txt (индекс 10)
+        self.custom_ipset_page = CustomIpSetPage(self)
+        self.pages_stack.addWidget(self.custom_ipset_page)
+        # === КОНЕЦ МОИ СПИСКИ ===
+
+        # Автозапуск (индекс 11)
+        self.autostart_page = AutostartPage(self)
+        self.pages_stack.addWidget(self.autostart_page)
+
+        # Сеть (индекс 12)
+        self.network_page = NetworkPage(self)
+        self.pages_stack.addWidget(self.network_page)
+
+        # Диагностика соединения (индекс 13)
+        self.connection_page = ConnectionTestPage(self)
+        self.pages_stack.addWidget(self.connection_page)
+
+        # DNS подмена - подпункт диагностики (индекс 14)
+        self.dns_check_page = DNSCheckPage(self)
+        self.pages_stack.addWidget(self.dns_check_page)
+
+        # Hosts - разблокировка сервисов (индекс 15)
+        self.hosts_page = HostsPage(self)
+        self.pages_stack.addWidget(self.hosts_page)
+
+        # BlockCheck (индекс 16)
+        self.blockcheck_page = BlockcheckPage(self)
+        self.pages_stack.addWidget(self.blockcheck_page)
+
+        # Оформление (индекс 17)
+        self.appearance_page = AppearancePage(self)
+        self.pages_stack.addWidget(self.appearance_page)
+
+        # Premium (индекс 18)
+        self.premium_page = PremiumPage(self)
+        self.pages_stack.addWidget(self.premium_page)
+
+        # Логи (индекс 19)
+        self.logs_page = LogsPage(self)
+        self.pages_stack.addWidget(self.logs_page)
+
+        # Серверы обновлений (индекс 20)
+        self.servers_page = ServersPage(self)
+        self.pages_stack.addWidget(self.servers_page)
+
+        # О программе (индекс 21)
+        self.about_page = AboutPage(self)
+        self.pages_stack.addWidget(self.about_page)
+
+        # Оркестр - автообучение (индекс 22, скрытая вкладка)
+        self.orchestra_page = OrchestraPage(self)
+        self.pages_stack.addWidget(self.orchestra_page)
+
+        # Залоченные стратегии оркестратора (индекс 23, вместо Hostlist при оркестраторе)
+        self.orchestra_locked_page = OrchestraLockedPage(self)
+        self.pages_stack.addWidget(self.orchestra_locked_page)
+
+        # Заблокированные стратегии оркестратора (индекс 24, вместо IPset при оркестраторе)
+        self.orchestra_blocked_page = OrchestraBlockedPage(self)
+        self.pages_stack.addWidget(self.orchestra_blocked_page)
+
+        # Белый список оркестратора (индекс 25, вместо Исключений при оркестраторе)
+        self.orchestra_whitelist_page = OrchestraWhitelistPage(self)
+        self.pages_stack.addWidget(self.orchestra_whitelist_page)
+
+        # История стратегий с рейтингами (индекс 26)
+        self.orchestra_ratings_page = OrchestraRatingsPage(self)
+        self.pages_stack.addWidget(self.orchestra_ratings_page)
+
+    def _setup_compatibility_attrs(self):
+        """Создает атрибуты для совместимости со старым кодом"""
+        
+        # Основные кнопки - ссылки на реальные кнопки в страницах
+        self.start_btn = self.home_page.start_btn
+        self.stop_btn = self.home_page.stop_btn
+        
+        # Кнопки управления
+        # select_strategy_btn теперь скрытая заглушка (стратегии выбираются на странице)
+        self.select_strategy_btn = self.strategies_page.select_strategy_btn
+        self.test_connection_btn = self.home_page.test_btn
+        self.open_folder_btn = self.home_page.folder_btn
+        
+        # Кнопки о программе
+        self.server_status_btn = self.about_page.update_btn
+        self.subscription_btn = self.about_page.premium_btn
+        
+        # Метка текущей стратегии
+        self.current_strategy_label = self.strategies_page.current_strategy_label
+        
+    def _connect_page_signals(self):
+        """Подключает сигналы от страниц"""
+        
+        # Сигналы-прокси для основного класса
+        # select_strategy_clicked теперь не нужен - стратегии выбираются на странице
+        self.start_clicked = self.home_page.start_btn.clicked
+        self.stop_clicked = self.home_page.stop_btn.clicked
+        self.theme_changed = self.appearance_page.theme_changed
+        
+        # Подключаем сигнал выбора стратегии из новой страницы
+        if hasattr(self.strategies_page, 'strategy_selected'):
+            self.strategies_page.strategy_selected.connect(self._on_strategy_selected_from_page)
+        
+        # Сигналы от страницы автозапуска
+        self.autostart_page.autostart_enabled.connect(self._on_autostart_enabled)
+        self.autostart_page.autostart_disabled.connect(self._on_autostart_disabled)
+        self.autostart_page.navigate_to_dpi_settings.connect(self._navigate_to_dpi_settings)
+
+        # Подключаем обновление темы для страницы автозапуска
+        self.appearance_page.theme_changed.connect(self.autostart_page.on_theme_changed)
+
+        # Дублируем кнопки на страницу управления
+        self.control_page.start_btn.clicked.connect(self._proxy_start_click)
+        self.control_page.stop_winws_btn.clicked.connect(self._proxy_stop_click)
+        self.control_page.stop_and_exit_btn.clicked.connect(self._proxy_stop_and_exit)
+        self.control_page.test_btn.clicked.connect(self._proxy_test_click)
+        self.control_page.folder_btn.clicked.connect(self._proxy_folder_click)
+        
+        # Подключаем кнопку Premium на главной странице
+        if hasattr(self.home_page, 'premium_link_btn'):
+            self.home_page.premium_link_btn.clicked.connect(self._open_subscription_dialog)
+
+        # Подключаем навигацию по карточкам на главной странице
+        self.home_page.navigate_to_control.connect(self._navigate_to_control)
+        self.home_page.navigate_to_strategies.connect(self._navigate_to_strategies)
+        self.home_page.navigate_to_autostart.connect(self.show_autostart_page)
+        self.home_page.navigate_to_premium.connect(self._open_subscription_dialog)
+
+        # Подключаем кнопку "Управление подпиской" на странице оформления
+        if hasattr(self.appearance_page, 'subscription_btn'):
+            self.appearance_page.subscription_btn.clicked.connect(self._open_subscription_dialog)
+        
+        # Подключаем кнопку Premium на странице "О программе"
+        if hasattr(self.about_page, 'premium_btn'):
+            self.about_page.premium_btn.clicked.connect(self._open_subscription_dialog)
+        
+        # Подключаем сигнал обновления подписки от PremiumPage
+        if hasattr(self.premium_page, 'subscription_updated'):
+            self.premium_page.subscription_updated.connect(self._on_subscription_updated)
+        
+        # Подключаем смену метода запуска стратегий (от страницы настроек DPI)
+        self.dpi_settings_page.launch_method_changed.connect(self._on_launch_method_changed)
+
+        # Подключаем отключение фильтров → отключение категорий
+        self.dpi_settings_page.filter_disabled.connect(self.strategies_page.disable_categories_for_filter)
+
+        # Для совместимости - если strategies_page также имеет сигнал
+        if hasattr(self.strategies_page, 'launch_method_changed'):
+            self.strategies_page.launch_method_changed.connect(self._on_launch_method_changed)
+
+        # Подключаем сигналы от OrchestraPage
+        if hasattr(self, 'orchestra_page'):
+            self.orchestra_page.clear_learned_requested.connect(self._on_clear_learned_requested)
+
+    def _on_clear_learned_requested(self):
+        """Обработчик очистки данных обучения"""
+        from log import log
+        log("Запрошена очистка данных обучения", "INFO")
+        if hasattr(self, 'orchestra_runner') and self.orchestra_runner:
+            self.orchestra_runner.clear_learned_data()
+            log("Данные обучения очищены", "INFO")
+
+    def _on_launch_method_changed(self, method: str):
+        """Обработчик смены метода запуска стратегий"""
+        from log import log
+        from config import WINWS_EXE, WINWS2_EXE
+        
+        log(f"🔄 Метод запуска изменён на: {method}", "INFO")
+        
+        # ⚠️ СНАЧАЛА ОСТАНАВЛИВАЕМ ВСЕ ПРОЦЕССЫ winws*.exe через Win API
+        if hasattr(self, 'dpi_starter') and self.dpi_starter.check_process_running_wmi(silent=True):
+            log("🛑 Останавливаем все процессы winws*.exe перед переключением режима...", "INFO")
             
-        # Если состояние не передано, пытаемся определить его через hosts_manager
-        if is_active is None and hasattr(self, 'hosts_manager'):
-            is_active = self.hosts_manager.is_proxy_domains_active()
-        elif is_active is None:
-            is_active = False
-        
-        # 🆕 Проверяем, используется ли полностью черная тема
-        is_pure_black = False
-        if (hasattr(self, 'theme_manager') and 
-            hasattr(self.theme_manager, '_is_pure_black_theme')):
-            current_theme = getattr(self.theme_manager, 'current_theme', '')
-            is_pure_black = self.theme_manager._is_pure_black_theme(current_theme)
-        
-        if is_pure_black:
-            # Для полностью черной темы используем темно-серые цвета
-            button_states = {
-                True: {  # Когда proxy активен (нужно отключить)
-                    'text': 'Отключить доступ к ChatGPT, Spotify, Twitch',
-                    'color': "64, 64, 64",  # Темно-серый
-                    'icon': 'fa5s.lock'
-                },
-                False: {  # Когда proxy неактивен (нужно включить)
-                    'text': 'Разблокировать ChatGPT, Spotify, Twitch и др.',
-                    'color': "96, 96, 96",  # Чуть светлее серый
-                    'icon': 'fa5s.unlock'
-                }
-            }
-            
-            # Специальный стиль для полностью черной темы
-            from ui.theme import BUTTON_STYLE
-            pure_black_style = """
-            QPushButton {{
-                border: 1px solid #444444;
-                background-color: rgb({0});
-                color: #ffffff;
-                border-radius: 6px;
-                padding: 10px;
-                font-weight: bold;
-                font-size: 10pt;
-                min-height: 35px;
-            }}
-            QPushButton:hover {{
-                background-color: rgb(128, 128, 128);
-                border: 1px solid #666666;
-            }}
-            QPushButton:pressed {{
-                background-color: rgb(32, 32, 32);
-                border: 1px solid #888888;
-            }}
-            """
-            
-            state = button_states[is_active]
-            self.proxy_button.setText(f" {state['text']}")
-            self.proxy_button.setStyleSheet(pure_black_style.format(state['color']))
-            
-        else:
-            # Обычная логика для всех остальных тем
-            button_states = {
-                True: {
-                    'text': 'Отключить доступ к ChatGPT, Spotify, Twitch',
-                    'color': "255, 93, 174",
-                    'icon': 'fa5s.lock'
-                },
-                False: {
-                    'text': 'Разблокировать ChatGPT, Spotify, Twitch и др.',
-                    'color': "218, 165, 32",
-                    'icon': 'fa5s.unlock'
-                }
-            }
-            
-            state = button_states[is_active]
-            self.proxy_button.setText(f" {state['text']}")
-            
-            from ui.theme import BUTTON_STYLE
-            self.proxy_button.setStyleSheet(BUTTON_STYLE.format(state['color']))
-        
-        # Общая логика для иконки
-        import qtawesome as qta
-        from PyQt6.QtCore import QSize
-        state = button_states[is_active]
-        self.proxy_button.setIcon(qta.icon(state['icon'], color='white'))
-        self.proxy_button.setIconSize(QSize(16, 16))
-        
-        # Логируем изменение состояния
-        try:
-            status = "активна" if is_active else "неактивна"
-            theme_info = " (полностью черная тема)" if is_pure_black else ""
-            log(f"Состояние кнопки proxy обновлено: разблокировка {status}{theme_info}", "DEBUG")
-        except ImportError:
-            pass
-        
-    def get_proxy_button_config(self):
-        """
-        Возвращает конфигурацию для различных состояний кнопки proxy.
-        Полезно для других частей приложения.
-        
-        Returns:
-            dict: Конфигурация состояний кнопки
-        """
-        return {
-            'enabled_state': {
-                'full_text': 'Отключить доступ к ChatGPT, Spotify, Twitch',
-                'short_text': 'Отключить разблокировку',
-                'color': "255, 93, 174",
-                'icon': 'fa5s.lock',
-                'tooltip': 'Нажмите чтобы отключить разблокировку сервисов через hosts-файл'
-            },
-            'disabled_state': {
-                'full_text': 'Разблокировать ChatGPT, Spotify, Twitch и др.',
-                'short_text': 'Разблокировать сервисы',
-                'color': "218, 165, 32",
-                'icon': 'fa5s.unlock',
-                'tooltip': 'Нажмите чтобы разблокировать популярные сервисы через hosts-файл'
-            }
-        }
-
-    def set_proxy_button_loading(self, is_loading: bool, text: str = ""):
-        """
-        Устанавливает состояние загрузки для кнопки proxy.
-        
-        Args:
-            is_loading: True если идет процесс загрузки/обработки
-            text: Текст для отображения во время загрузки
-        """
-        if not hasattr(self, 'proxy_button'):
-            return
-            
-        if is_loading:
-            loading_text = text if text else "Обработка..."
-            self.proxy_button.setText(f" {loading_text}")
-            self.proxy_button.setEnabled(False)
-            self.proxy_button.setIcon(qta.icon('fa5s.spinner', color='white'))
-            # Можно добавить анимацию вращения иконки
-        else:
-            self.proxy_button.setEnabled(True)
-            # Восстанавливаем нормальное состояние
-            self.update_proxy_button_state()
-
-    def update_theme_combo(self, available_themes):
-        """
-        Обновляет список доступных тем в комбо-боксе с учетом подписки.
-        Теперь делегирует в ThemeHandler если он доступен.
-        """
-        # Если theme_handler доступен, используем его
-        if hasattr(self, 'theme_handler') and self.theme_handler is not None:
-            self.theme_handler.update_available_themes()
-            return
-        
-        # Fallback - старая логика
-        current_theme = self.theme_combo.currentText()
-        
-        # Временно отключаем сигналы чтобы избежать лишних срабатываний
-        self.theme_combo.blockSignals(True)
-        
-        # Очищаем и заполняем заново
-        self.theme_combo.clear()
-        self.theme_combo.addItems(available_themes)
-        
-        # Применяем стили для заблокированных элементов
-        self._apply_theme_combo_styles()
-        
-        # Восстанавливаем выбор, если тема доступна
-        clean_current = current_theme
-        if hasattr(self, 'theme_manager'):
-            clean_current = self.theme_manager.get_clean_theme_name(current_theme)
-        
-        for theme in available_themes:
-            clean_theme = theme
-            if hasattr(self, 'theme_manager'):
-                clean_theme = self.theme_manager.get_clean_theme_name(theme)
-            if clean_theme == clean_current:
-                self.theme_combo.setCurrentText(theme)
-                break
-        else:
-            # Если текущая тема недоступна, выбираем первую доступную
-            if available_themes:
-                # Ищем первую незаблокированную тему
-                for theme in available_themes:
-                    if "(заблокировано)" not in theme and "(Premium)" not in theme:
-                        self.theme_combo.setCurrentText(theme)
-                        break
-                else:
-                    # Если все темы заблокированы (не должно происходить), выбираем первую
-                    self.theme_combo.setCurrentText(available_themes[0])
-        
-        # Включаем сигналы обратно
-        self.theme_combo.blockSignals(False)
-        
-        # Если произошло изменение темы, сигнализируем об этом
-        new_theme = self.theme_combo.currentText()
-        if new_theme != current_theme:
-            self.theme_changed.emit(new_theme)
-
-    def _apply_theme_combo_styles(self):
-        """Применяет стили к комбо-боксу тем для выделения заблокированных элементов"""
-        # Проверяем, что theme_handler инициализирован
-        if hasattr(self, 'theme_handler') and self.theme_handler is not None:
-            self.theme_handler.update_theme_combo_styles()
-        else:
-            # Fallback для случаев когда theme_handler еще не инициализирован
-            log("theme_handler не инициализирован, используем fallback стили", "DEBUG")
             try:
-                from ui.theme import COMMON_STYLE
-                style = f"""
-                QComboBox {{
-                    {COMMON_STYLE}
-                    text-align: center;
-                    font-size: 10pt;
-                    padding: 5px;
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
-                }}
-                """
-                if hasattr(self, 'theme_combo'):
-                    self.theme_combo.setStyleSheet(style)
+                from utils.process_killer import kill_winws_all
+                
+                # Принудительно завершаем все процессы через Win API
+                killed = kill_winws_all()
+                
+                if killed:
+                    log("✅ Все процессы winws*.exe остановлены через Win API", "INFO")
+                else:
+                    log("Процессы winws*.exe не найдены", "DEBUG")
+                
+                # Очищаем службу WinDivert
+                if hasattr(self, 'dpi_starter'):
+                    self.dpi_starter.cleanup_windivert_service()
+                
+                # Обновляем UI после остановки
+                if hasattr(self, 'ui_manager'):
+                    self.ui_manager.update_ui_state(running=False)
+                if hasattr(self, 'process_monitor_manager'):
+                    self.process_monitor_manager.on_process_status_changed(False)
+                
+                # Небольшая пауза для гарантии остановки
+                import time
+                time.sleep(0.2)
+                
             except Exception as e:
-                log(f"Ошибка применения fallback стилей: {e}", "❌ ERROR")
+                log(f"Ошибка остановки через Win API: {e}", "WARNING")
+        
+        # Сразу переключаемся без ожидания
+        self._complete_method_switch(method)
+    
+    def _complete_method_switch(self, method: str):
+        """Завершает переключение метода после остановки процесса"""
+        from log import log
+        from config import get_winws_exe_for_method, is_zapret2_mode
 
-    def update_title_with_subscription_status(self, is_premium: bool = False, current_theme: str = None, 
-                                            days_remaining: Optional[int] = None, is_auto_renewal: bool = False):
-        """
-        🆕 ОБНОВЛЕННАЯ ВЕРСИЯ: Обновляет заголовок окна с информацией о подписке и автопродлении.
-        
-        Args:
-            is_premium: True если пользователь имеет премиум подписку
-            current_theme: Текущая тема интерфейса
-            days_remaining: Количество дней до окончания подписки (None для автопродления)
-            is_auto_renewal: True если подписка автопродлевается
-        """
-        # Обновляем системный заголовок окна с информацией о подписке
-        base_title = f'Zapret v{APP_VERSION}'
-        
-        if is_premium:
-            # Формируем текст премиум статуса для заголовка окна
-            if is_auto_renewal:
-                premium_text = " [PREMIUM ∞]"
-                log("Отображаем автопродление в заголовке окна", "DEBUG")
-            elif days_remaining is not None:
-                if days_remaining > 0:
-                    premium_text = f" [PREMIUM - {days_remaining} дн.]"
-                elif days_remaining == 0:
-                    premium_text = " [PREMIUM - истекает сегодня]"
-                else:
-                    premium_text = " [PREMIUM - истекла]"
-            else:
-                premium_text = " [PREMIUM]"
-                
-            full_title = f"{base_title}{premium_text}"
-            self.setWindowTitle(full_title)
-            log(f"Заголовок окна обновлен: {full_title}", "DEBUG")
-        else:
-            # Для бесплатной версии просто показываем базовый заголовок
-            self.setWindowTitle(base_title)
-        
-        # Обновляем title_label с цветным статусом (без дней)
-        base_label_title = "Zapret GUI"
-        
-        # Правильно определяем текущую тему
-        actual_current_theme = current_theme
-        if not actual_current_theme and hasattr(self, 'theme_manager'):
-            actual_current_theme = getattr(self.theme_manager, 'current_theme', None)
-        
-        if is_premium:
-            # Получаем цвет индикатора с учетом темы и автопродления
-            premium_color = self._get_premium_indicator_color(actual_current_theme, is_auto_renewal)
-            
-            # Формируем индикатор с учетом автопродления
-            if is_auto_renewal:
-                premium_indicator = f'<span style="color: {premium_color}; font-weight: bold;"> [PREMIUM ∞]</span>'
-                log("Отображаем символ автопродления в title_label", "DEBUG")
-            else:
-                premium_indicator = f'<span style="color: {premium_color}; font-weight: bold;"> [PREMIUM]</span>'
-            
-            full_label_title = f"{base_label_title}{premium_indicator}"
-            self.title_label.setText(full_label_title)
-            self.title_label.setStyleSheet(f"{COMMON_STYLE} font-size: 20pt; font-weight: bold;")
-        else:
-            # Для бесплатной версии показываем [FREE] с цветом адаптированным под тему
-            free_color = self._get_free_indicator_color(actual_current_theme)
-            free_indicator = f'<span style="color: {free_color}; font-weight: bold;"> [FREE]</span>'
-            full_free_label_title = f"{base_label_title}{free_indicator}"
-            self.title_label.setText(full_free_label_title)
-            self.title_label.setStyleSheet(f"{COMMON_STYLE} font-size: 20pt; font-weight: bold;")
-
-    def _get_free_indicator_color(self, current_theme: str = None):
-        """
-        🆕 ИСПРАВЛЕННАЯ версия: Возвращает цвет для индикатора [FREE] на основе текущей темы.
-        """
+        # ✅ Очищаем службы WinDivert через Win API
         try:
-            # Получаем текущую тему
-            theme_name = current_theme
-            if not theme_name and hasattr(self, 'theme_manager'):
-                theme_name = getattr(self.theme_manager, 'current_theme', None)
-            
-            if not theme_name:
-                return "#000000"
-            
-            # 🆕 Специальная обработка для полностью черной темы
-            if theme_name == "Полностью черная":
-                return "#ffffff"  # Белый цвет для полностью черной темы
-            
-            # Определяем цвет на основе названия темы
-            if (theme_name.startswith("Темная") or 
-                theme_name == "РКН Тян" or 
-                theme_name.startswith("AMOLED")):
-                return "#BBBBBB"
-            elif theme_name.startswith("Светлая"):
-                return "#000000"
+            from utils.service_manager import cleanup_windivert_services
+            cleanup_windivert_services()
+            log("🧹 Службы WinDivert очищены", "DEBUG")
+        except Exception as e:
+            log(f"Ошибка очистки служб: {e}", "DEBUG")
+
+        # ✅ Обновляем путь к exe в dpi_starter
+        if hasattr(self, 'dpi_starter'):
+            self.dpi_starter.winws_exe = get_winws_exe_for_method(method)
+            if is_zapret2_mode(method):
+                log(f"Переключение на winws2.exe ({method} режим)", "DEBUG")
             else:
-                return "#000000"
+                log("Переключение на winws.exe (BAT режим)", "DEBUG")
+        
+        # ✅ Помечаем StrategyRunner для пересоздания
+        try:
+            from strategy_menu.strategy_runner import invalidate_strategy_runner
+            invalidate_strategy_runner()
+        except Exception as e:
+            log(f"Ошибка инвалидации StrategyRunner: {e}", "WARNING")
+        
+        # ✅ Перезагружаем страницу стратегий для нового режима
+        if hasattr(self, 'strategies_page') and hasattr(self.strategies_page, 'reload_for_mode_change'):
+            self.strategies_page.reload_for_mode_change()
+        
+        # ✅ Обновляем видимость вкладки "Блобы" в сайдбаре
+        if hasattr(self, 'side_nav') and hasattr(self.side_nav, 'update_blobs_visibility'):
+            self.side_nav.update_blobs_visibility()
+
+        # ✅ Обновляем видимость вкладок оркестратора (Залоченные/Заблокированные vs Hostlist/IPset/Редактор)
+        if hasattr(self, 'side_nav') and hasattr(self.side_nav, 'update_orchestra_visibility'):
+            self.side_nav.update_orchestra_visibility()
+
+        log(f"✅ Переключение на режим '{method}' завершено", "INFO")
+        
+        # ✅ Автоматически запускаем DPI с выбранными стратегиями
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(500, lambda: self._auto_start_after_method_switch(method))
+    
+    def _auto_start_after_method_switch(self, method: str):
+        """Автоматически запускает DPI после переключения метода"""
+        from log import log
+        
+        try:
+            if not hasattr(self, 'dpi_controller') or not self.dpi_controller:
+                log("DPI контроллер не найден для автозапуска", "WARNING")
+                return
+            
+            # Показываем спиннер на странице стратегий
+            if hasattr(self, 'strategies_page'):
+                self.strategies_page.show_loading()
+            
+            if method == "orchestra":
+                # Оркестр - автоматическое обучение
+                log(f"🚀 Автозапуск Оркестр после переключения режима", "INFO")
+                self.dpi_controller.start_dpi_async(selected_mode=None, launch_method="orchestra")
+
+                # Обновляем GUI
+                if hasattr(self, 'current_strategy_label'):
+                    self.current_strategy_label.setText("Оркестр")
+                if hasattr(self, 'current_strategy_name'):
+                    self.current_strategy_name = "Оркестр"
+
+                # Запускаем мониторинг на странице оркестра
+                if hasattr(self, 'orchestra_page'):
+                    self.orchestra_page.start_monitoring()
+
+            elif method in ("direct", "direct_orchestra"):
+                # Zapret 2 - Direct режим или Оркестратор Zapret 2
+                from strategy_menu import get_direct_strategy_selections
+                from strategy_menu.strategy_lists_separated import combine_strategies
+
+                selections = get_direct_strategy_selections()
+                combined = combine_strategies(**selections)
+
+                mode_name = "Прямой запуск" if method == "direct" else "Оркестратор Z2"
+
+                # Формируем данные для запуска
+                selected_mode = {
+                    'is_combined': True,
+                    'name': mode_name,
+                    'args': combined.get('args', ''),
+                    'category_strategies': combined.get('category_strategies', {})
+                }
+
+                log(f"🚀 Автозапуск Zapret 2 ({method}) после переключения режима", "INFO")
+                self.dpi_controller.start_dpi_async(selected_mode=selected_mode, launch_method=method)
+
+                # Обновляем GUI
+                if hasattr(self, 'current_strategy_label'):
+                    self.current_strategy_label.setText("Прямой запуск")
+                if hasattr(self, 'current_strategy_name'):
+                    self.current_strategy_name = "Прямой запуск"
+
+                # Обновляем отображение на странице стратегий
+                if hasattr(self, 'strategies_page'):
+                    self.strategies_page._update_current_strategies_display()
+
+            else:
+                # Zapret 1 - BAT режим (отдельный ключ реестра)
+                from config.reg import get_last_bat_strategy
+
+                last_strategy = get_last_bat_strategy()
+
+                if last_strategy and last_strategy != "Автостарт DPI отключен":
+                    log(f"🚀 Автозапуск Zapret 1 (BAT): {last_strategy}", "INFO")
+                    self.dpi_controller.start_dpi_async(selected_mode=last_strategy, launch_method="bat")
+                    
+                    # Обновляем GUI
+                    if hasattr(self, 'current_strategy_label'):
+                        self.current_strategy_label.setText(last_strategy)
+                    if hasattr(self, 'current_strategy_name'):
+                        self.current_strategy_name = last_strategy
+                    
+                    # Обновляем отображение на странице стратегий
+                    if hasattr(self, 'strategies_page'):
+                        self.strategies_page.current_strategy_label.setText(f"🎯 {last_strategy}")
+                else:
+                    log("⏸️ BAT режим: нет сохранённой стратегии для автозапуска", "INFO")
+                    if hasattr(self, 'strategies_page'):
+                        self.strategies_page.show_success()
+                        self.strategies_page.current_strategy_label.setText("Не выбрана")
+            
+            # Запускаем мониторинг процесса
+            if hasattr(self, 'strategies_page'):
+                self.strategies_page._start_process_monitoring()
                 
         except Exception as e:
-            log(f"Ошибка определения цвета FREE индикатора: {e}", "❌ ERROR")
-            return "#000000"
-
-    def _get_premium_indicator_color(self, current_theme: str = None, is_auto_renewal: bool = False):
-        """
-        🆕 ОБНОВЛЕННАЯ версия: Возвращает цвет для индикатора премиум статуса с учетом автопродления.
+            log(f"Ошибка автозапуска после переключения режима: {e}", "ERROR")
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
+            if hasattr(self, 'strategies_page'):
+                self.strategies_page.show_success()
         
-        Args:
-            current_theme: Текущая тема интерфейса
-            is_auto_renewal: True если подписка автопродлевается
-        """
-        try:
-            # Получаем текущую тему
-            theme_name = current_theme
-            if not theme_name and hasattr(self, 'theme_manager'):
-                theme_name = getattr(self.theme_manager, 'current_theme', None)
-            
-            if not theme_name:
-                # Для автопродления используем золотой цвет, для обычного - зеленый
-                return "#FFD700" if is_auto_renewal else "#4CAF50"
-            
-            # 🆕 Специальная обработка для полностью черной темы
-            if theme_name == "Полностью черная":
-                if is_auto_renewal:
-                    log("Применяем золотой цвет для автопродления в полностью черной теме", "DEBUG")
-                    return "#FFD700"  # Золотой для автопродления
-                else:
-                    log("Применяем белый цвет для обычного PREMIUM в полностью черной теме", "DEBUG")
-                    return "#ffffff"  # Белый цвет для обычного премиума
-            
-            # Для остальных тем определяем цвет на основе button_color
+    def _proxy_start_click(self):
+        """Прокси для сигнала start от control_page"""
+        self.home_page.start_btn.click()
+        
+    def _proxy_stop_click(self):
+        """Прокси для сигнала stop от control_page"""
+        self.home_page.stop_btn.click()
+    
+    def _proxy_stop_and_exit(self):
+        """Остановка winws и закрытие программы"""
+        from log import log
+        log("Остановка winws и закрытие программы...", "INFO")
+        
+        # Используем dpi_controller для корректной остановки и выхода
+        if hasattr(self, 'dpi_controller') and self.dpi_controller:
+            self._closing_completely = True
+            self.dpi_controller.stop_and_exit_async()
+        else:
+            # Fallback - просто останавливаем и выходим
+            self.home_page.stop_btn.click()
+            from PyQt6.QtWidgets import QApplication
+            QApplication.quit()
+        
+    def _proxy_test_click(self):
+        """Прокси для теста соединения"""
+        self.home_page.test_btn.click()
+        
+    def _proxy_folder_click(self):
+        """Прокси для открытия папки"""
+        self.home_page.folder_btn.click()
+    
+    def _open_subscription_dialog(self):
+        """Переключается на страницу Premium (донат)"""
+        index = self.pages_stack.indexOf(self.premium_page)
+        if index >= 0:
+            self.side_nav.set_page(index)
+        
+    def _on_section_changed(self, index: int):
+        """Обработчик смены раздела в навигации"""
+        # Если переключаемся на страницу стратегий (индекс 2) и выбран режим оркестра,
+        # показываем страницу оркестра вместо страницы стратегий
+        strategies_page_index = self.pages_stack.indexOf(self.strategies_page)
+        if index == strategies_page_index:
             try:
-                from ui.theme import THEMES
-                if theme_name in THEMES:
-                    theme_info = THEMES[theme_name]
-                    button_color = theme_info.get("button_color", "0, 119, 255")
-                    
-                    # Для автопродления всегда используем золотой независимо от темы
-                    if is_auto_renewal:
-                        log(f"Цвет автопродления для темы {theme_name}: #FFD700", "DEBUG")
-                        return "#FFD700"
-                    
-                    # Преобразуем RGB в hex для обычного премиума
-                    if ',' in button_color:
-                        try:
-                            rgb_values = [int(x.strip()) for x in button_color.split(',')]
-                            hex_color = f"#{rgb_values[0]:02x}{rgb_values[1]:02x}{rgb_values[2]:02x}"
-                            log(f"Цвет PREMIUM индикатора для темы {theme_name}: {hex_color}", "DEBUG")
-                            return hex_color
-                        except (ValueError, IndexError):
-                            return "#FFD700" if is_auto_renewal else "#4CAF50"
-            except ImportError:
+                from strategy_menu import get_strategy_launch_method
+                if get_strategy_launch_method() == "orchestra":
+                    orchestra_index = self.pages_stack.indexOf(self.orchestra_page)
+                    if orchestra_index >= 0:
+                        self.pages_stack.setCurrentIndex(orchestra_index)
+                        return
+            except Exception:
                 pass
+        self.pages_stack.setCurrentIndex(index)
+    
+    def _on_sidebar_pin_changed(self, is_pinned: bool):
+        """Обработчик смены режима закрепления сайдбара"""
+        from log import log
+        
+        if is_pinned:
+            # Закреплённый режим - сайдбар часть layout (фиксированная ширина)
+            log("Сайдбар закреплён", "DEBUG")
+            self.side_nav.setMinimumWidth(self.side_nav.EXPANDED_WIDTH)
+            self.side_nav.setMaximumWidth(self.side_nav.EXPANDED_WIDTH)
+        else:
+            # Плавающий режим - снимаем ограничения для анимации
+            log("Сайдбар откреплён (плавающий режим)", "DEBUG")
+            self.side_nav.setMinimumWidth(0)
+            self.side_nav.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX
+        
+    def _show_instruction(self):
+        """Открывает PDF инструкцию по использованию Zapret"""
+        try:
+            from config import HELP_FOLDER
+            from log import log
             
-            # Fallback цвета
-            return "#FFD700" if is_auto_renewal else "#4CAF50"
+            pdf_path = os.path.join(HELP_FOLDER, "Как пользоваться Zapret.pdf")
+            
+            if not os.path.exists(pdf_path):
+                log(f"PDF инструкция не найдена: {pdf_path}", "❌ ERROR")
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "Файл не найден",
+                    f"Инструкция не найдена:\n{pdf_path}"
+                )
+                return
+            
+            log(f"Открываем PDF инструкцию: {pdf_path}", "INFO")
+            os.startfile(pdf_path)
             
         except Exception as e:
-            log(f"Ошибка определения цвета PREMIUM индикатора: {e}", "❌ ERROR")
-            return "#FFD700" if is_auto_renewal else "#4CAF50"
+            from log import log
+            log(f"Ошибка при открытии PDF инструкции: {e}", "❌ ERROR")
 
-    def update_subscription_button_text(self, is_premium: bool = False, is_auto_renewal: bool = False, 
-                                      days_remaining: Optional[int] = None):
-        """
-        🆕 НОВАЯ ФУНКЦИЯ: Обновляет текст кнопки подписки с учетом статуса автопродления.
-        
-        Args:
-            is_premium: True если пользователь имеет премиум подписку
-            is_auto_renewal: True если подписка автопродлевается
-            days_remaining: Количество дней до окончания подписки
-        """
-        if not hasattr(self, 'subscription_btn'):
-            return
-        
-        if is_premium:
-            if is_auto_renewal:
-                button_text = " Premium и VPN"
-                log("Кнопка подписки: отображаем автопродление", "DEBUG")
-            elif days_remaining is not None:
-                if days_remaining > 0:
-                    button_text = f" Premium ({days_remaining} дн.)"
-                elif days_remaining == 0:
-                    button_text = " Истекает сегодня!"
-                else:
-                    button_text = " Premium истёк"
-            else:
-                button_text = " Premium активен"
-        else:
-            button_text = " Premium и VPN"
-        
-        self.subscription_btn.setText(button_text)
-        log(f"Текст кнопки подписки обновлен: {button_text.strip()}", "DEBUG")
-
-    def get_subscription_status_text(self, is_premium: bool = False, is_auto_renewal: bool = False, 
-                                   days_remaining: Optional[int] = None) -> str:
-        """
-        🆕 НОВАЯ ФУНКЦИЯ: Возвращает форматированный текст статуса подписки.
-        
-        Args:
-            is_premium: True если пользователь имеет премиум подписку
-            is_auto_renewal: True если подписка автопродлевается
-            days_remaining: Количество дней до окончания подписки
+    def _show_premium_info(self):
+        """Открывает PDF с информацией о Premium функциях"""
+        try:
+            from config import HELP_FOLDER
+            from log import log
             
-        Returns:
-            str: Форматированный текст статуса
-        """
-        if not is_premium:
-            return "Подписка: Бесплатная версия"
-        
-        if is_auto_renewal:
-            return "Подписка: Premium (автопродление)"
-        elif days_remaining is not None:
-            if days_remaining > 0:
-                return f"Подписка: Premium (осталось {days_remaining} дн.)"
-            elif days_remaining == 0:
-                return "Подписка: Premium (истекает сегодня)"
+            pdf_path = os.path.join(HELP_FOLDER, "Всё о Zapret Premium и Zapret VPN (подробная инструкция).pdf")
+            
+            if not os.path.exists(pdf_path):
+                log(f"PDF с тарифами не найден: {pdf_path}", "❌ ERROR")
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "Файл не найден",
+                    f"Информация о тарифах не найдена:\n{pdf_path}"
+                )
+                return
+            
+            log(f"Открываем PDF с тарифами: {pdf_path}", "INFO")
+            
+            if sys.platform == 'win32':
+                os.startfile(pdf_path)
             else:
-                return "Подписка: Premium (истекла)"
-        else:
-            return "Подписка: Premium"
+                from PyQt6.QtCore import QUrl
+                from PyQt6.QtGui import QDesktopServices
+                QDesktopServices.openUrl(QUrl.fromLocalFile(pdf_path))
+            
+        except Exception as e:
+            from log import log
+            log(f"Ошибка при открытии PDF с тарифами: {e}", "❌ ERROR")
 
-    def get_hosts_path() -> Path:
-        """
-        Возвращает абсолютный путь к файлу hosts на той букве диска,
-        где реально установлена Windows.
-        """
-        import os
-        import ctypes
-        from ctypes import wintypes
+    def _show_download_instruction(self):
+        """Открывает PDF инструкцию по скачиванию"""
+        try:
+            from config import HELP_FOLDER
+            from log import log
+            
+            pdf_path = os.path.join(HELP_FOLDER, "Как скачать Zapret.pdf")
+            
+            if not os.path.exists(pdf_path):
+                log(f"PDF инструкция не найдена: {pdf_path}", "❌ ERROR")
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.warning(
+                    self,
+                    "Файл не найден",
+                    f"Инструкция не найдена:\n{pdf_path}"
+                )
+                return
+            
+            log(f"Открываем PDF инструкцию по скачиванию: {pdf_path}", "INFO")
+            os.startfile(pdf_path)
+            
+        except Exception as e:
+            from log import log
+            log(f"Ошибка при открытии PDF инструкции: {e}", "❌ ERROR")
 
-        # 1. Пробуем переменную среды — самый простой и быстрый способ
-        sys_root = os.getenv("SystemRoot")
-        if sys_root and Path(sys_root).exists():
-            return Path(sys_root, "System32", "drivers", "etc", "hosts")
+    # ────────────────────────────────────────────────────────────
+    # МЕТОДЫ ОБНОВЛЕНИЯ UI (для совместимости со старым кодом)
+    # ────────────────────────────────────────────────────────────
+    
+    def update_process_status(self, is_running: bool, strategy_name: str = None):
+        """Обновляет статус процесса на всех страницах"""
+        # Обновляем главную страницу
+        self.home_page.update_dpi_status(is_running, strategy_name)
+        
+        # Обновляем страницу управления
+        self.control_page.update_status(is_running)
+        if strategy_name:
+            self.control_page.update_strategy(strategy_name)
+            
+    def update_current_strategy_display(self, strategy_name: str):
+        """Обновляет отображение текущей стратегии"""
+        self.current_strategy_label.setText(strategy_name)
+        self.strategies_page.update_current_strategy(strategy_name)
+        self.control_page.update_strategy(strategy_name)
+        
+        # Для главной страницы обрезаем длинное название
+        display_name = strategy_name if strategy_name != "Автостарт DPI отключен" else "Не выбрана"
+        if hasattr(self.home_page, '_truncate_strategy_name'):
+            display_name = self.home_page._truncate_strategy_name(display_name)
+        self.home_page.strategy_card.set_value(display_name)
+        
+    def update_autostart_display(self, enabled: bool, strategy_name: str = None):
+        """Обновляет отображение статуса автозапуска"""
+        self.home_page.update_autostart_status(enabled)
+        self.autostart_page.update_status(enabled, strategy_name)
+        
+    def update_subscription_display(self, is_premium: bool, days: int = None):
+        """Обновляет отображение статуса подписки"""
+        self.home_page.update_subscription_status(is_premium, days)
+        self.about_page.update_subscription_status(is_premium, days)
+        
+            
+    def set_status_text(self, text: str, status: str = "neutral"):
+        """Устанавливает текст статусной строки"""
+        self.home_page.set_status(text, status)
+    
+    def _on_autostart_enabled(self):
+        """Обработчик включения автозапуска"""
+        from log import log
+        log("Автозапуск включён через страницу настроек", "INFO")
+        self.update_autostart_display(True)
+        
+    def _on_autostart_disabled(self):
+        """Обработчик отключения автозапуска"""
+        from log import log
+        log("Автозапуск отключён через страницу настроек", "INFO")
+        self.update_autostart_display(False)
+    
+    def _on_subscription_updated(self, is_premium: bool, days_remaining: int):
+        """Обработчик обновления статуса подписки"""
+        from log import log
+        log(f"Статус подписки обновлён: premium={is_premium}, days={days_remaining}", "INFO")
+        self.update_subscription_display(is_premium, days_remaining if days_remaining > 0 else None)
+        
+        # ✅ Обновляем премиум функции в галерее тем
+        if hasattr(self, 'appearance_page') and self.appearance_page:
+            self.appearance_page.set_premium_status(is_premium)
+            log(f"Галерея тем обновлена: premium={is_premium}", "DEBUG")
+        
+        # ✅ Управляем гирляндой и снежинками
+        if hasattr(self, 'garland'):
+            from config.reg import get_garland_enabled
+            should_show = is_premium and get_garland_enabled()
+            self.garland.set_enabled(should_show)
+            if not is_premium:
+                self.garland.set_enabled(False)
+            log(f"Гирлянда: visible={should_show}", "DEBUG")
+        
+        if hasattr(self, 'snowflakes'):
+            from config.reg import get_snowflakes_enabled
+            should_show = is_premium and get_snowflakes_enabled()
+            self.snowflakes.set_enabled(should_show)
+            if not is_premium:
+                self.snowflakes.set_enabled(False)
+            log(f"Снежинки: visible={should_show}", "DEBUG")
+    
+    def _on_strategy_selected_from_page(self, strategy_id: str, strategy_name: str):
+        """Обработчик выбора стратегии из новой страницы"""
+        from log import log
+        log(f"Стратегия выбрана из страницы: {strategy_id} - {strategy_name}", "INFO")
+        
+        # Обновляем отображение
+        self.update_current_strategy_display(strategy_name)
+        
+        # Вызываем обработчик в главном приложении если есть
+        if hasattr(self, 'parent_app') and hasattr(self.parent_app, 'on_strategy_selected_from_dialog'):
+            self.parent_app.on_strategy_selected_from_dialog(strategy_id, strategy_name)
+    
+    def init_autostart_page(self, app_instance, bat_folder: str, json_folder: str, strategy_name: str = None):
+        """Инициализирует страницу автозапуска с необходимыми параметрами"""
+        self.autostart_page.set_app_instance(app_instance)
+        self.autostart_page.set_folders(bat_folder, json_folder)
+        if strategy_name:
+            self.autostart_page.set_strategy_name(strategy_name)
+    
+    def show_autostart_page(self):
+        """Переключается на страницу автозапуска"""
+        index = self.pages_stack.indexOf(self.autostart_page)
+        if index >= 0:
+            self.side_nav.set_page(index)
+        
+    def show_hosts_page(self):
+        """Переключается на страницу Hosts"""
+        index = self.pages_stack.indexOf(self.hosts_page)
+        if index >= 0:
+            self.side_nav.set_page(index)
+        
+    def show_servers_page(self):
+        """Переключается на страницу серверов обновлений"""
+        index = self.pages_stack.indexOf(self.servers_page)
+        if index >= 0:
+            self.side_nav.set_page(index)
 
-        # 2. Если почему-то переменной нет — берём через WinAPI
-        GetSystemWindowsDirectoryW = ctypes.windll.kernel32.GetSystemWindowsDirectoryW
-        GetSystemWindowsDirectoryW.argtypes = [wintypes.LPWSTR, wintypes.UINT]
-        GetSystemWindowsDirectoryW.restype  = wintypes.UINT
+    def _navigate_to_control(self):
+        """Переключается на страницу управления"""
+        index = self.pages_stack.indexOf(self.control_page)
+        if index >= 0:
+            self.side_nav.set_page(index)
 
-        buf = ctypes.create_unicode_buffer(260)
-        if GetSystemWindowsDirectoryW(buf, len(buf)):
-            return Path(buf.value, "System32", "drivers", "etc", "hosts")
+    def _navigate_to_strategies(self):
+        """Переключается на страницу стратегий (или оркестра если выбран режим оркестра)"""
+        # Всегда переходим на индекс стратегий в sidebar,
+        # _on_section_changed сделает редирект на оркестр если нужно
+        index = self.pages_stack.indexOf(self.strategies_page)
+        if index >= 0:
+            self.side_nav.set_page(index)
 
-        # 3. Фолбэк на C:\Windows (маловероятно, но пусть будет)
-        return Path(r"C:\Windows\System32\drivers\etc\hosts")
+    def _navigate_to_dpi_settings(self):
+        """Переключается на страницу настроек DPI"""
+        from log import log
+        log("_navigate_to_dpi_settings called!", "DEBUG")
+        index = self.pages_stack.indexOf(self.dpi_settings_page)
+        log(f"DPI settings page index: {index}", "DEBUG")
+        if index >= 0:
+            # Сначала переключаем страницу напрямую
+            self.pages_stack.setCurrentIndex(index)
+            # Затем обновляем sidebar для синхронизации выделения
+            self.side_nav.set_page(index)
