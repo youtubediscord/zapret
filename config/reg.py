@@ -3,8 +3,14 @@ import winreg
 
 HKCU = winreg.HKEY_CURRENT_USER
 HKLM = winreg.HKEY_LOCAL_MACHINE
-REGISTRY_KEY = r"SOFTWARE\Zapret"
-from log import log
+
+def _log(msg, level="INFO"):
+    """Отложенный импорт log для избежания циклических зависимостей"""
+    try:
+        from log import log
+        log(msg, level)
+    except ImportError:
+        print(f"[{level}] {msg}")
 
 # Специальная константа для обозначения отсутствующего значения
 class _UnsetType:
@@ -13,19 +19,6 @@ class _UnsetType:
         return "<UNSET>"
 
 _UNSET = _UnsetType()
-
-# ───────────── Удаление Windows Terminal ─────────────
-_WT_KEY  = r"Software\Zapret"
-_WT_NAME = "RemoveWindowsTerminal"     # REG_DWORD (1/0)
-
-def get_remove_windows_terminal() -> bool:
-    """True – удалять Windows Terminal при запуске, False – не удалять."""
-    val = reg(_WT_KEY, _WT_NAME)
-    return bool(val) if val is not None else True   # дефолт = True (удалять)
-
-def set_remove_windows_terminal(enabled: bool) -> bool:
-    """Включает/выключает удаление Windows Terminal при запуске."""
-    return reg(_WT_KEY, _WT_NAME, 1 if enabled else 0)
 
 def _detect_reg_type(value):
     """Определяет подходящий winreg тип по питоновскому value."""
@@ -86,43 +79,70 @@ def reg(subkey: str,
         return True
 
     except FileNotFoundError:
+        # Ключ не найден - нормальная ситуация при первом запуске
         return None if value is _UNSET else False
     except Exception as e:
-        # при желании можете залогировать здесь
-        # from log import log; log(f"reg error: {e}", "❌ ERROR")
+        # Логируем неожиданные ошибки
+        try:
+            from log import log
+            log(f"❌ reg() error [{subkey}\\{name}]: {e}", "ERROR")
+        except:
+            print(f"[ERROR] reg error: {e}")
         return None if value is _UNSET else False
 
 
 # ------------------------------------------------------------------
-# Шорткаты вашей программы
+# Шорткаты вашей программы - ОТДЕЛЬНЫЕ КЛЮЧИ ДЛЯ РАЗНЫХ РЕЖИМОВ
 # ------------------------------------------------------------------
+
+# ───────────── BAT режим (Запрет 1) ─────────────
+def get_last_bat_strategy():
+    """Получает последнюю BAT-стратегию из реестра"""
+    from config import DEFAULT_STRAT, REGISTRY_PATH
+    return reg(REGISTRY_PATH, "LastBatStrategy") or DEFAULT_STRAT
+
+
+def set_last_bat_strategy(name: str) -> bool:
+    """Сохраняет последнюю BAT-стратегию в реестр"""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, "LastBatStrategy", name)
+
+
+# ───────────── Direct режим (Запрет 2) ─────────────
+# Для Direct режима selections сохраняются отдельно через get/set_direct_mode_selections
+# Отдельный ключ LastDirectStrategy не нужен, т.к. selections и есть состояние
+
+
+# ───────────── LEGACY - для обратной совместимости ─────────────
 def get_last_strategy():
-    from config import DEFAULT_STRAT, REG_LATEST_STRATEGY
-    return reg(r"Software\Zapret", REG_LATEST_STRATEGY) or DEFAULT_STRAT
+    """УСТАРЕВШАЯ функция - используйте get_last_bat_strategy()"""
+    return get_last_bat_strategy()
 
 
 def set_last_strategy(name: str) -> bool:
-    from config import REG_LATEST_STRATEGY
-    return reg(r"Software\Zapret", REG_LATEST_STRATEGY, name)
+    """УСТАРЕВШАЯ функция - используйте set_last_bat_strategy()"""
+    return set_last_bat_strategy(name)
 
 # ───────────── DPI-автозапуск ─────────────
-_DPI_KEY   = r"Software\Zapret"
 _DPI_NAME  = "DPIAutoStart"          # REG_DWORD (0/1)
 
 def get_dpi_autostart() -> bool:
     """True – запускать DPI автоматически; False – не запускать."""
-    val = reg(_DPI_KEY, _DPI_NAME)
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _DPI_NAME)
     return bool(val) if val is not None else True  # Default to True if not set
 
 def set_dpi_autostart(state: bool) -> bool:
     """Сохраняет флаг автозапуска DPI в реестре."""
-    return reg(_DPI_KEY, _DPI_NAME, 1 if state else 0)
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _DPI_NAME, 1 if state else 0)
 
 
 def get_subscription_check_interval() -> int:
     """Возвращает интервал проверки подписки в минутах (по умолчанию 10)"""
+    from config import REGISTRY_PATH
     try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY) as key:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
             value, _ = winreg.QueryValueEx(key, "SubscriptionCheckInterval")
             return max(1, int(value))  # Минимум 1 минута
     except FileNotFoundError:
@@ -132,141 +152,265 @@ def get_subscription_check_interval() -> int:
 
 def set_subscription_check_interval(minutes: int):
     """Устанавливает интервал проверки подписки в минутах"""
+    from config import REGISTRY_PATH
     try:
-        winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY)
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, winreg.KEY_SET_VALUE) as key:
+        winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, "SubscriptionCheckInterval", 0, winreg.REG_DWORD, int(minutes))
     except Exception as e:
-        log(f"Ошибка записи интервала проверки подписки: {e}", "❌ ERROR")
+        _log(f"Ошибка записи интервала проверки подписки: {e}", "❌ ERROR")
 
 # ───────────── Удаление GitHub API из hosts ─────────────
-_GITHUB_API_KEY  = r"Software\Zapret"
 _GITHUB_API_NAME = "RemoveGitHubAPI"     # REG_DWORD (1/0)
 
 def get_remove_github_api() -> bool:
     """True – удалять api.github.com из hosts при запуске, False – не удалять."""
-    val = reg(_GITHUB_API_KEY, _GITHUB_API_NAME)
-    return bool(val) if val is not None else True
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _GITHUB_API_NAME)
+    return bool(val) if val is not None else True # По умолчанию True
 
 def set_remove_github_api(enabled: bool) -> bool:
     """Включает/выключает удаление api.github.com из hosts при запуске."""
-    return reg(_GITHUB_API_KEY, _GITHUB_API_NAME, 1 if enabled else 0)
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _GITHUB_API_NAME, 1 if enabled else 0)
 
-# ───────────── Выбранные стратегии для прямого запуска ─────────────
-_DIRECT_STRATEGY_KEY = r"Software\Zapret"
-_DIRECT_YOUTUBE_NAME = "DirectStrategyYoutube"
-_DIRECT_DISCORD_NAME = "DirectStrategyDiscord"
-_DIRECT_DISCORD_VOICE_NAME = "DirectStrategyDiscordVoice"
-_DIRECT_OTHER_NAME = "DirectStrategyOther"
+# ───────────── Активные домены hosts ─────────────
+_HOSTS_DOMAINS_NAME = "ActiveHostsDomains"  # REG_SZ (JSON строка)
 
-def get_direct_strategy_selections() -> dict:
-    """Возвращает сохраненные выборы стратегий для прямого запуска"""
+def get_active_hosts_domains() -> set:
+    """Возвращает множество активных доменов из реестра"""
+    from config import REGISTRY_PATH
+    import json
     try:
-        youtube = reg(_DIRECT_STRATEGY_KEY, _DIRECT_YOUTUBE_NAME)
-        discord = reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_NAME)
-        discord_voice = reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_VOICE_NAME)
-        other = reg(_DIRECT_STRATEGY_KEY, _DIRECT_OTHER_NAME)
-        
-        # Возвращаем значения по умолчанию если что-то не найдено
-        from strategy_menu.strategy_lists_separated import get_default_selections
-        default_selections = get_default_selections()
-        
-        selections = {
-            'youtube': youtube if youtube else default_selections.get('youtube'),
-            'discord': discord if discord else default_selections.get('discord'),
-            'discord_voice': discord_voice if discord_voice else default_selections.get('discord_voice'),
-            'other': other if other else default_selections.get('other')
-        }
-        
-        log(f"Загружены выборы стратегий из реестра: {selections}", "DEBUG")
-        return selections
-        
+        val = reg(REGISTRY_PATH, _HOSTS_DOMAINS_NAME)
+        if val:
+            domains_list = json.loads(val)
+            return set(domains_list)
     except Exception as e:
-        log(f"Ошибка загрузки выборов стратегий: {e}", "❌ ERROR")
-        # Возвращаем значения по умолчанию
-        from strategy_menu.strategy_lists_separated import get_default_selections
-        return get_default_selections()
+        _log(f"Ошибка чтения активных доменов: {e}", "DEBUG")
+    return set()
 
-def set_direct_strategy_selections(selections: dict) -> bool:
-    """Сохраняет выборы стратегий для прямого запуска в реестр"""
+def set_active_hosts_domains(domains: set) -> bool:
+    """Сохраняет множество активных доменов в реестр"""
+    from config import REGISTRY_PATH
+    import json
     try:
-        success = True
-        
-        if 'youtube' in selections:
-            success &= reg(_DIRECT_STRATEGY_KEY, _DIRECT_YOUTUBE_NAME, selections['youtube'])
-        
-        if 'discord' in selections:
-            success &= reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_NAME, selections['discord'])
-        
-        if 'discord_voice' in selections:
-            success &= reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_VOICE_NAME, selections['discord_voice'])
-            
-        if 'other' in selections:
-            success &= reg(_DIRECT_STRATEGY_KEY, _DIRECT_OTHER_NAME, selections['other'])
-        
-        if success:
-            log(f"Сохранены выборы стратегий в реестр: {selections}", "DEBUG")
-        else:
-            log("Ошибка при сохранении некоторых выборов стратегий", "⚠ WARNING")
-            
-        return success
-        
+        domains_json = json.dumps(list(domains))
+        return reg(REGISTRY_PATH, _HOSTS_DOMAINS_NAME, domains_json)
     except Exception as e:
-        log(f"Ошибка сохранения выборов стратегий: {e}", "❌ ERROR")
+        _log(f"Ошибка записи активных доменов: {e}", "❌ ERROR")
         return False
 
-def get_direct_strategy_youtube() -> str:
-    """Возвращает сохраненную YouTube стратегию"""
-    result = reg(_DIRECT_STRATEGY_KEY, _DIRECT_YOUTUBE_NAME)
-    if result:
-        return result
-    
-    # Значение по умолчанию
-    from strategy_menu.strategy_lists_separated import get_default_selections
-    return get_default_selections().get('youtube', 'multisplit_seqovl_midsld')
+def add_active_hosts_domain(domain: str) -> bool:
+    """Добавляет домен в список активных"""
+    domains = get_active_hosts_domains()
+    domains.add(domain)
+    return set_active_hosts_domains(domains)
 
-def set_direct_strategy_youtube(strategy_id: str) -> bool:
-    """Сохраняет выбранную YouTube стратегию"""
-    return reg(_DIRECT_STRATEGY_KEY, _DIRECT_YOUTUBE_NAME, strategy_id)
+def remove_active_hosts_domain(domain: str) -> bool:
+    """Удаляет домен из списка активных"""
+    domains = get_active_hosts_domains()
+    domains.discard(domain)
+    return set_active_hosts_domains(domains)
 
-def get_direct_strategy_discord() -> str:
-    """Возвращает сохраненную Discord стратегию"""
-    result = reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_NAME)
-    if result:
-        return result
-    
-    # Значение по умолчанию
-    from strategy_menu.strategy_lists_separated import get_default_selections
-    return get_default_selections().get('discord', 'dis4')
+def clear_active_hosts_domains() -> bool:
+    """Очищает список активных доменов"""
+    return set_active_hosts_domains(set())
 
-def set_direct_strategy_discord(strategy_id: str) -> bool:
-    """Сохраняет выбранную Discord стратегию"""
-    return reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_NAME, strategy_id)
+# ───────────── Автообновления при старте ─────────────
+_AUTO_UPDATE_NAME = "AutoUpdateEnabled"  # REG_DWORD (1/0)
 
-def get_direct_strategy_discord_voice() -> str:
-    """Возвращает сохраненную Discord Voice стратегию"""
-    result = reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_VOICE_NAME)
-    if result:
-        return result
-    
-    # Значение по умолчанию
-    from strategy_menu.strategy_lists_separated import get_default_selections
-    return get_default_selections().get('discord_voice', 'ipv4_dup2_autottl_cutoff_n3')
+def get_auto_update_enabled() -> bool:
+    """True – проверять обновления при старте, False – не проверять."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _AUTO_UPDATE_NAME)
+    return bool(val) if val is not None else True  # По умолчанию включено
 
-def set_direct_strategy_discord_voice(strategy_id: str) -> bool:
-    """Сохраняет выбранную Discord Voice стратегию"""
-    return reg(_DIRECT_STRATEGY_KEY, _DIRECT_DISCORD_VOICE_NAME, strategy_id)
+def set_auto_update_enabled(enabled: bool) -> bool:
+    """Включает/выключает автоматическую проверку обновлений при старте."""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _AUTO_UPDATE_NAME, 1 if enabled else 0)
 
-def get_direct_strategy_other() -> str:
-    """Возвращает сохраненную стратегию для остальных сайтов"""
-    result = reg(_DIRECT_STRATEGY_KEY, _DIRECT_OTHER_NAME)
-    if result:
-        return result
-    
-    # Значение по умолчанию
-    from strategy_menu.strategy_lists_separated import get_default_selections
-    return get_default_selections().get('other', 'other_seqovl')
+# ───────────── Новогодняя гирлянда ─────────────
+_GARLAND_NAME = "GarlandEnabled"  # REG_DWORD (1/0)
 
-def set_direct_strategy_other(strategy_id: str) -> bool:
-    """Сохраняет выбранную стратегию для остальных сайтов"""
-    return reg(_DIRECT_STRATEGY_KEY, _DIRECT_OTHER_NAME, strategy_id)
+def get_garland_enabled() -> bool:
+    """True – показывать новогоднюю гирлянду, False – не показывать."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _GARLAND_NAME)
+    return bool(val) if val is not None else False  # По умолчанию выключено
+
+def set_garland_enabled(enabled: bool) -> bool:
+    """Включает/выключает новогоднюю гирлянду."""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _GARLAND_NAME, 1 if enabled else 0)
+
+
+# ───────────── Снежинки ─────────────
+_SNOWFLAKES_NAME = "SnowflakesEnabled"  # REG_DWORD (1/0)
+
+def get_snowflakes_enabled() -> bool:
+    """True – показывать снежинки, False – не показывать."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _SNOWFLAKES_NAME)
+    return bool(val) if val is not None else False  # По умолчанию выключено
+
+def set_snowflakes_enabled(enabled: bool) -> bool:
+    """Включает/выключает снежинки."""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _SNOWFLAKES_NAME, 1 if enabled else 0)
+
+
+# ───────────── Эффект размытия (Acrylic/Mica) ─────────────
+_BLUR_EFFECT_NAME = "BlurEffectEnabled"  # REG_DWORD (1/0)
+
+def get_blur_effect_enabled() -> bool:
+    """True – включён эффект размытия окна, False – выключен."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _BLUR_EFFECT_NAME)
+    return bool(val) if val is not None else False  # По умолчанию выключено
+
+def set_blur_effect_enabled(enabled: bool) -> bool:
+    """Включает/выключает эффект размытия окна."""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _BLUR_EFFECT_NAME, 1 if enabled else 0)
+
+
+# ───────────── Уведомление о сворачивании в трей ─────────────
+_TRAY_HINT_SHOWN_NAME = "TrayHintShown"  # REG_DWORD (1/0)
+
+def get_tray_hint_shown() -> bool:
+    """True – уведомление о трее уже показывалось, False – ещё не показывалось."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _TRAY_HINT_SHOWN_NAME)
+    return bool(val) if val is not None else False  # По умолчанию не показывалось
+
+def set_tray_hint_shown(shown: bool = True) -> bool:
+    """Отмечает что уведомление о трее было показано."""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _TRAY_HINT_SHOWN_NAME, 1 if shown else 0)
+
+
+# ───────────── Прозрачность окна ─────────────
+_WINDOW_OPACITY_NAME = "WindowOpacity"  # REG_DWORD (0-100)
+
+def get_window_opacity() -> int:
+    """Возвращает прозрачность окна (0-100%). По умолчанию 100 (непрозрачное)."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _WINDOW_OPACITY_NAME)
+    if val is None:
+        return 95  # По умолчанию 95% прозрачности
+    # Ограничиваем значение диапазоном 0-100
+    return max(0, min(100, int(val)))
+
+def set_window_opacity(opacity: int) -> bool:
+    """Устанавливает прозрачность окна (0-100%)."""
+    from config import REGISTRY_PATH
+    # Ограничиваем значение диапазоном 0-100
+    opacity = max(0, min(100, int(opacity)))
+    return reg(REGISTRY_PATH, _WINDOW_OPACITY_NAME, opacity)
+
+
+# ───────────── Registry Subkey Helpers ─────────────
+
+def reg_enumerate_values(subkey: str, *, root=HKCU) -> dict:
+    """
+    Перечисляет все значения в ключе реестра.
+
+    Returns:
+        {name: value, ...} или {} если ключ не существует
+    """
+    result = {}
+    try:
+        with winreg.OpenKey(root, subkey, 0, winreg.KEY_READ) as k:
+            i = 0
+            while True:
+                try:
+                    name, value, _ = winreg.EnumValue(k, i)
+                    result[name] = value
+                    i += 1
+                except OSError:
+                    break  # Больше значений нет
+    except FileNotFoundError:
+        pass  # Ключ не существует
+    except Exception as e:
+        _log(f"reg_enumerate_values error [{subkey}]: {e}", "DEBUG")
+    return result
+
+
+def reg_delete_value(subkey: str, name: str, *, root=HKCU) -> bool:
+    """
+    Удаляет одно значение из ключа реестра.
+
+    Args:
+        subkey: путь к ключу
+        name: имя значения для удаления
+
+    Returns:
+        True если успешно, False при ошибке
+    """
+    try:
+        with winreg.OpenKey(root, subkey, 0, winreg.KEY_ALL_ACCESS) as k:
+            winreg.DeleteValue(k, name)
+        return True
+    except FileNotFoundError:
+        return True  # Значение не существует - считаем успехом
+    except Exception as e:
+        _log(f"reg_delete_value error [{subkey}\\{name}]: {e}", "DEBUG")
+        return False
+
+
+def reg_delete_all_values(subkey: str, *, root=HKCU) -> bool:
+    """
+    Удаляет все значения в ключе реестра (сам ключ остаётся).
+
+    Returns:
+        True если успешно, False при ошибке
+    """
+    try:
+        with winreg.OpenKey(root, subkey, 0, winreg.KEY_ALL_ACCESS) as k:
+            # Сначала получаем список имён
+            names = []
+            i = 0
+            while True:
+                try:
+                    name, _, _ = winreg.EnumValue(k, i)
+                    names.append(name)
+                    i += 1
+                except OSError:
+                    break
+            # Удаляем каждое значение
+            for name in names:
+                try:
+                    winreg.DeleteValue(k, name)
+                except Exception:
+                    pass
+        return True
+    except FileNotFoundError:
+        return True  # Ключ не существует - считаем успехом
+    except Exception as e:
+        _log(f"reg_delete_all_values error [{subkey}]: {e}", "ERROR")
+        return False
+
+
+def reg_set_values(subkey: str, values: dict, *, root=HKCU) -> bool:
+    """
+    Записывает несколько значений в ключ реестра.
+
+    Args:
+        subkey: путь к ключу
+        values: {name: value, ...}
+
+    Returns:
+        True если все записаны успешно
+    """
+    try:
+        k = winreg.CreateKeyEx(root, subkey, 0, winreg.KEY_SET_VALUE)
+        for name, value in values.items():
+            reg_type = _detect_reg_type(value)
+            winreg.SetValueEx(k, name, 0, reg_type, value)
+        winreg.CloseKey(k)
+        return True
+    except Exception as e:
+        _log(f"reg_set_values error [{subkey}]: {e}", "ERROR")
+        return False

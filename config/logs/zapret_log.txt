@@ -1,0 +1,12 @@
+﻿[20:19:24] Exception in Tkinter callback[20:19:24] 
+[20:19:24] Traceback (most recent call last):
+[20:19:24] [20:19:24]   File "C:\Program Files\Python312\Lib\tkinter\__init__.py", line 1968, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+[20:19:24] [20:19:24]   File "C:\Program Files\Python312\Lib\tkinter\__init__.py", line 862, in callit
+    func(*args)
+[20:19:24] [20:19:24]   File "H:\Privacy\zapretgui\build_zapret\build_release_gui.py", line 903, in <lambda>
+    self.root.after(0, lambda: self.build_error(str(e)))
+                                                    ^
+[20:19:24] [20:19:24] NameError: cannot access free variable 'e' where it is not associated with a value in enclosing scope
+[20:19:24] 

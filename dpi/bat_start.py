@@ -2,14 +2,24 @@
 import os
 import time
 import subprocess
+import psutil
 from typing import Optional, Callable, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from strategy_menu.manager import StrategyManager
+    from strategy_menu.bat_zapret1_manager import BatZapret1Manager
     from main import LupiDPIApp
 
 from log import log
-from utils import run_hidden
+from utils import run_hidden, get_system_exe, get_system32_path
+
+from dpi.process_health_check import (
+    check_process_health,
+    get_last_crash_info,
+    check_common_crash_causes,
+    check_conflicting_processes,
+    get_conflicting_processes_report,
+    diagnose_startup_error
+)
 
 class BatDPIStart:
     """Класс для запуска DPI. Отвечает только за BAT режим"""
@@ -30,7 +40,6 @@ class BatDPIStart:
         self.status_callback = status_callback
         self.ui_callback = ui_callback
         self.app_instance = app_instance
-        self._idx: Optional[Dict[str, Any]] = None  # Кэш для index.json
 
     def _set_status(self, text: str) -> None:
         """Внутренний метод для установки статуса"""
@@ -49,37 +58,43 @@ class BatDPIStart:
         else:
             print(text)
 
-    def check_process_running_wmi(self, silent: bool = False) -> bool:
-        """Проверка через WMI - без окон консоли"""
-        try:
-            import win32com.client
-            wmi = win32com.client.GetObject("winmgmts:")
-            processes = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'winws.exe'")
-            found = len(list(processes)) > 0
-            if not silent:
-                log(f"winws.exe state → {found}", "DEBUG")
-            return found
-        except Exception:
-            # Fallback на tasklist если WMI недоступен
-            return self.check_process_running(silent)
-    
-    def check_process_running(self, silent: bool = False) -> bool:
+    def check_process_running_fast(self, silent: bool = False) -> bool:
         """
-        Мини-версия: только tasklist (хватает в 99% случаев).
-        Никаких дополнительных окон не появляется.
+        ⚡ БЫСТРАЯ проверка через psutil (~1-10ms вместо 100-2000ms у WMI)
+        Основной метод проверки — используйте его везде!
         """
-        cmd = ['C:\\Windows\\System32\\tasklist.exe', '/FI', 'IMAGENAME eq winws.exe', '/FO', 'CSV', '/NH']
         try:
-            res = run_hidden(cmd, wait=True, capture_output=True,
-                             text=True, encoding='cp866')
-            found = 'winws.exe' in res.stdout
+            for proc in psutil.process_iter(['name']):
+                try:
+                    proc_name = proc.info['name']
+                    if proc_name and proc_name.lower() in ('winws.exe', 'winws2.exe'):
+                        if not silent:
+                            log(f"winws/winws2 state → True (psutil)", "DEBUG")
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    continue
             if not silent:
-                log(f"winws.exe state → {found}", "DEBUG")
-            return found
+                log(f"winws/winws2 state → False (psutil)", "DEBUG")
+            return False
         except Exception as e:
             if not silent:
-                log(f"tasklist error: {e}", "⚠ WARNING")
+                log(f"psutil check error: {e}", "DEBUG")
+            # psutil не работает - возвращаем False (процесс не найден)
             return False
+
+    def check_process_running_wmi(self, silent: bool = False) -> bool:
+        """
+        Проверка процесса (теперь использует psutil, WMI как резерв)
+        ✅ Оставлен для обратной совместимости — внутри вызывает check_process_running_fast()
+        """
+        return self.check_process_running_fast(silent)
+
+    def check_process_running(self, silent: bool = False) -> bool:
+        """
+        Проверка процесса (теперь использует psutil)
+        ✅ Оставлен для обратной совместимости — внутри вызывает check_process_running_fast()
+        """
+        return self.check_process_running_fast(silent)
 
     def cleanup_windivert_service(self) -> bool:
         """Очистка службы через PowerShell - без окон"""
@@ -89,13 +104,16 @@ class BatDPIStart:
             Stop-Service -Name windivert -Force -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 2
             sc.exe delete windivert | Out-Null
+            Stop-Service -Name Monkey -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            sc.exe delete Monkey | Out-Null
         }
         """
         
         try:
+            ps_exe = os.path.join(get_system32_path(), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
             run_hidden(
-                ['C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', 
-                 '-WindowStyle', 'Hidden', '-NoProfile', '-Command', ps_script],
+                [ps_exe, '-WindowStyle', 'Hidden', '-NoProfile', '-Command', ps_script],
                 wait=True
             )
             return True
@@ -104,35 +122,22 @@ class BatDPIStart:
             return True
 
     def stop_all_processes(self) -> bool:
-        """Останавливает все процессы DPI"""
-        stop_bat = os.path.join(os.path.dirname(self.winws_exe), 'stop.bat')
-        if not os.path.isfile(stop_bat):
-            log(f"stop.bat not found: {stop_bat}", "⚠ WARNING")
-            return True
-
-        log("Запускаем stop.bat …", "INFO")
+        """Останавливает все процессы DPI через Win API"""
+        log("Останавливаем все процессы winws через Win API...", "INFO")
+        
         try:
-            run_hidden(['C:\\Windows\\System32\\cmd.exe', '/Q', '/C', stop_bat], wait=True)
+            from utils.process_killer import kill_winws_all
+            kill_winws_all()
         except Exception as e:
-            log(f"Ошибка stop.bat: {e}", "⚠ WARNING")
+            log(f"Ошибка остановки через Win API: {e}", "⚠ WARNING")
 
-        time.sleep(0.5)
+        time.sleep(0.3)
         ok = not self.check_process_running_wmi(silent=True)
-        log("Все процессы остановлены" if ok else "winws.exe ещё работает",
+        log("Все процессы остановлены" if ok else "winws/winws2 ещё работает",
             "✅ SUCCESS" if ok else "⚠ WARNING")
         return ok
 
-    def _load_index(self, idx_path: str) -> Dict[str, Any]:
-        """Загружает index.json с кэшированием"""
-        if self._idx:
-            return self._idx
-
-        with open(idx_path, 'r', encoding='utf-8-sig') as f:
-            import json
-            self._idx = json.load(f)
-        return self._idx
-
-    def _get_strategy_manager(self) -> Optional['StrategyManager']:
+    def _get_strategy_manager(self) -> Optional['BatZapret1Manager']:
         """Получает strategy_manager с правильной типизацией"""
         if not self.app_instance:
             return None
@@ -164,7 +169,7 @@ class BatDPIStart:
             return False
     
     def _start_dpi_bat(self, selected_mode: Optional[Any]) -> bool:
-        """Старый метод запуска через .bat файлы"""
+        """Запуск через .bat файлы"""
         try:
             log("======================== Start DPI (BAT) ========================", level="START")
             # Диагностика: выводим что передано в selected_mode
@@ -184,7 +189,7 @@ class BatDPIStart:
             
             # Проверяем, запущен ли уже процесс
             if self.check_process_running_wmi(silent=True):
-                log("Процесс winws.exe уже запущен, перезапускаем...", level="⚠ WARNING")
+                log("Процесс winws/winws2 уже запущен, перезапускаем...", level="⚠ WARNING")
                 if self.app_instance:
                     from dpi.stop import stop_dpi
                     stop_dpi(self.app_instance)
@@ -196,7 +201,7 @@ class BatDPIStart:
             
             if selected_mode:
                 if isinstance(selected_mode, dict):
-                    # Передан словарь с информацией о стратегии из index.json
+                    # Передан словарь с информацией о стратегии
                     file_path = selected_mode.get('file_path')
                     strategy_name = selected_mode.get('name', 'Неизвестная стратегия')
                     
@@ -209,38 +214,35 @@ class BatDPIStart:
                         return False
                         
                 elif isinstance(selected_mode, str):
-                    # Передано имя стратегии - нужно найти file_path в index.json
+                    # Передано имя стратегии - ищем в strategy_manager
                     strategy_name = selected_mode
-                    log(f"Поиск file_path для стратегии: {strategy_name}", "DEBUG")
+                    log(f"Поиск стратегии по имени: {strategy_name}", "DEBUG")
                     
-                    # Получаем strategy_manager с правильной типизацией
                     strategy_manager = self._get_strategy_manager()
-                    
                     if strategy_manager:
-                        try:
-                            strategies: Dict[str, Dict[str, Any]] = strategy_manager.get_strategies_list()
+                        # Ищем стратегию по имени
+                        strategy = strategy_manager.get_strategy_by_name(strategy_name)
+                        if strategy:
+                            file_path = strategy.get('file_path')
+                            if file_path:
+                                bat_file = os.path.join(BAT_FOLDER, file_path)
+                                log(f"Найден file_path для '{strategy_name}': {file_path}", "SUCCESS")
+                        
+                        # Если не нашли по имени, пробуем как имя файла
+                        if not bat_file:
+                            # Проверяем, может это имя файла напрямую
+                            if strategy_name.endswith('.bat'):
+                                potential_path = os.path.join(BAT_FOLDER, strategy_name)
+                            else:
+                                potential_path = os.path.join(BAT_FOLDER, f"{strategy_name}.bat")
                             
-                            # Ищем стратегию по имени
-                            for sid, sinfo in strategies.items():
-                                if sinfo.get('name') == strategy_name:
-                                    file_path = sinfo.get('file_path')
-                                    if file_path:
-                                        bat_file = os.path.join(BAT_FOLDER, file_path)
-                                        log(f"Найден file_path для '{strategy_name}': {file_path}", "DEBUG")
-                                        break
-                            
-                            if not bat_file:
-                                log(f"Не найден file_path для стратегии '{strategy_name}' в index.json", "❌ ERROR")
-                                self.set_status(f"Стратегия '{strategy_name}' не найдена в списке")
-                                return False
-                                
-                        except Exception as e:
-                            log(f"Ошибка при получении списка стратегий: {e}", "❌ ERROR")
-                            self.set_status("Ошибка доступа к списку стратегий")
-                            return False
-                    else:
-                        log("strategy_manager недоступен", "❌ ERROR")
-                        self.set_status("Ошибка: менеджер стратегий недоступен")
+                            if os.path.exists(potential_path):
+                                bat_file = potential_path
+                                log(f"Найден .bat файл напрямую: {bat_file}", "DEBUG")
+                    
+                    if not bat_file:
+                        log(f"Стратегия '{strategy_name}' не найдена", "ERROR")
+                        self.set_status(f"Стратегия '{strategy_name}' не найдена")
                         return False
             else:
                 # Используем стратегию по умолчанию
@@ -250,36 +252,22 @@ class BatDPIStart:
                 strategy_manager = self._get_strategy_manager()
                 
                 if strategy_manager:
-                    try:
-                        strategies: Dict[str, Dict[str, Any]] = strategy_manager.get_strategies_list()
-                        
-                        # Ищем первую рекомендуемую стратегию
-                        for sid, sinfo in strategies.items():
-                            if sinfo.get('label') == 'recommended':
-                                file_path = sinfo.get('file_path')
-                                strategy_name = sinfo.get('name', 'Рекомендуемая стратегия')
-                                if file_path:
-                                    bat_file = os.path.join(BAT_FOLDER, file_path)
-                                    log(f"Используем рекомендуемую стратегию: {strategy_name}", "INFO")
-                                    break
-                        
-                        # Если не нашли рекомендуемую, берем первую доступную
-                        if not bat_file and strategies:
-                            first_strategy = next(iter(strategies.values()))
-                            file_path = first_strategy.get('file_path')
-                            strategy_name = first_strategy.get('name', 'Первая доступная')
-                            if file_path:
-                                bat_file = os.path.join(BAT_FOLDER, file_path)
-                                log(f"Используем первую доступную стратегию: {strategy_name}", "INFO")
-                    
-                    except Exception as e:
-                        log(f"Ошибка при поиске дефолтной стратегии: {e}", "❌ ERROR")
+                    # Ищем рекомендуемую стратегию
+                    recommended = strategy_manager.get_recommended_strategy()
+                    if recommended:
+                        file_path = recommended.get('file_path')
+                        strategy_name = recommended.get('name', 'Рекомендуемая стратегия')
+                        if file_path:
+                            bat_file = os.path.join(BAT_FOLDER, file_path)
+                            log(f"Используем рекомендуемую стратегию: {strategy_name}", "INFO")
                 
-                # Fallback на хардкод
-                if not bat_file:
-                    bat_file = os.path.join(BAT_FOLDER, "original_bolvan_v2_badsum.bat")
-                    strategy_name = "Fallback стратегия"
-                    log(f"Используем fallback: {bat_file}", "⚠ WARNING")
+                # Fallback - ищем любой .bat файл
+                if not bat_file and os.path.exists(bat_dir):
+                    bat_files = [f for f in os.listdir(bat_dir) if f.endswith('.bat')]
+                    if bat_files:
+                        bat_file = os.path.join(bat_dir, bat_files[0])
+                        strategy_name = bat_files[0].replace('.bat', '').replace('_', ' ').title()
+                        log(f"Используем первый доступный .bat: {bat_files[0]}", "⚠ WARNING")
             
             if not bat_file:
                 log("Не удалось определить BAT файл для запуска", "❌ ERROR")
@@ -291,17 +279,6 @@ class BatDPIStart:
             if not os.path.exists(bat_file):
                 log(f"BAT файл не найден: {bat_file}", level="❌ ERROR")
                 self.set_status(f"Файл стратегии не найден: {os.path.basename(bat_file)}")
-                
-                # Пробуем скачать стратегию
-                if self._try_download_strategy(bat_file, strategy_name):
-                    log(f"Стратегия успешно скачана: {bat_file}", "✅ SUCCESS")
-                else:
-                    return False
-            
-            # Финальная проверка существования файла
-            if not os.path.exists(bat_file):
-                log(f"BAT файл все еще не существует: {bat_file}", "❌ ERROR")
-                self.set_status("Критическая ошибка: файл стратегии недоступен")
                 return False
             
             # Запускаем .bat файл
@@ -312,53 +289,151 @@ class BatDPIStart:
             self.set_status(f"Критическая ошибка: {e}")
             return False
 
-    def _try_download_strategy(self, bat_file: str, strategy_name: str) -> bool:
-        """Пытается скачать отсутствующую стратегию"""
-        strategy_manager = self._get_strategy_manager()
-        
-        if not strategy_manager:
-            log("strategy_manager недоступен для скачивания", "❌ ERROR")
-            self.set_status("Не удалось получить доступ к менеджеру стратегий")
-            return False
-        
+    def _execute_bat_file(self, bat_file: str, strategy_name: str) -> bool:
+        """
+        Запуск стратегии.
+
+        Логика по расширению файла:
+        - .txt → парсинг аргументов, запуск через StrategyRunner
+        - .bat → запуск напрямую как BAT скрипт (fallback)
+        """
+        self.set_status(f"Запуск стратегии: {strategy_name}")
+        file_ext = os.path.splitext(bat_file)[1].lower()
+        log(f"Запуск файла: {bat_file} (формат: {file_ext})", level="INFO")
+
+        conflicting = check_conflicting_processes()
+        if conflicting:
+            warning_report = get_conflicting_processes_report()
+            log(warning_report, "⚠ WARNING")
+
+        # Агрессивная очистка служб WinDivert перед запуском
         try:
-            self.set_status("Попытка скачать отсутствующую стратегию...")
-            log("Пытаемся скачать отсутствующий BAT файл", "INFO")
-            
-            strategies: Dict[str, Dict[str, Any]] = strategy_manager.get_strategies_list()
-            strategy_id: Optional[str] = None
-            
-            # Находим ID стратегии по file_path или имени
-            target_filename = os.path.basename(bat_file)
-            for sid, sinfo in strategies.items():
-                if (sinfo.get('file_path') == target_filename or 
-                    sinfo.get('name') == strategy_name):
-                    strategy_id = sid
-                    break
-            
-            if strategy_id:
-                log(f"Найден ID стратегии для скачивания: {strategy_id}", "DEBUG")
-                downloaded_path = strategy_manager.download_strategy(strategy_id)
-                if downloaded_path and os.path.exists(downloaded_path):
-                    return True
-                else:
-                    log("Скачивание стратегии не удалось", "❌ ERROR")
-                    self.set_status("Не удалось скачать стратегию")
-                    return False
-            else:
-                log(f"ID стратегии не найден для файла: {target_filename}", "❌ ERROR")
-                self.set_status("Стратегия не найдена в списке для скачивания")
-                return False
-                
+            from utils.service_manager import cleanup_windivert_services
+            import time
+
+            if cleanup_windivert_services():
+                log("🧹 Очистка служб WinDivert выполнена", "DEBUG")
+                time.sleep(0.3)  # Даём Windows время удалить службы
         except Exception as e:
-            log(f"Ошибка при попытке скачать стратегию: {e}", "❌ ERROR")
-            self.set_status(f"Ошибка скачивания: {e}")
+            log(f"Ошибка очистки служб: {e}", "DEBUG")
+
+        # .BAT файлы запускаем напрямую как скрипты (старый формат)
+        if file_ext == '.bat':
+            log("Формат BAT - запуск как скрипт", "INFO")
+            return self._execute_bat_file_fallback(bat_file, strategy_name)
+
+        # .TXT файлы парсим и запускаем через StrategyRunner (новый формат)
+        try:
+            from utils.bat_parser import parse_bat_file, create_process_direct
+
+            parsed = parse_bat_file(bat_file)
+            if not parsed:
+                log("Не удалось распарсить файл стратегии", "WARNING")
+                return False
+
+            exe_path, args = parsed
+
+            # Новый формат TXT: exe_path = None, используем StrategyRunner
+            if exe_path is None:
+                log(f"Используем StrategyRunner ({len(args)} аргументов)", "INFO")
+                return self._execute_with_strategy_runner(args, strategy_name)
+
+            # Если парсер вернул exe_path - это смешанный формат, запускаем напрямую
+            log(f"Извлечена команда: {os.path.basename(exe_path)} с {len(args)} аргументами", "DEBUG")
+
+            # Запускаем напрямую через CreateProcess (быстрее чем ShellExecuteEx + bat)
+            working_dir = os.path.dirname(exe_path)
+            result = create_process_direct(exe_path, args, working_dir)
+            
+            if not result:
+                log("❌ Ошибка CreateProcess, используем fallback", "WARNING")
+                return self._execute_bat_file_fallback(bat_file, strategy_name)
+            
+            log("✅ winws запущен напрямую через CreateProcess (быстрый метод)", "SUCCESS")
+            
+            # ⚡ ПРОВЕРКА ЗАПУСКА с несколькими попытками
+            max_attempts = 5
+            for attempt in range(max_attempts):
+                time.sleep(0.5)  # Уменьшенная пауза - прямой запуск быстрее
+                
+                if self.check_process_running_fast(silent=True):
+                    log(f"✅ DPI успешно запущен: {strategy_name}", level="SUCCESS")
+                    self.set_status(f"✅ DPI запущен: {strategy_name}")
+                    self._update_ui(True)
+                    return True
+                    
+                # Логируем только на последней попытке
+                if attempt == max_attempts - 1:
+                    log(f"⚠️ DPI не запустился после {max_attempts} проверок", level="WARNING")
+            
+            # Процесс упал - добавляем диагностику
+            log("💡 Процесс winws запустился но сразу упал. Диагностика...", level="WARNING")
+            
+            # Проверяем возможные причины
+            from dpi.process_health_check import check_common_crash_causes
+            causes = check_common_crash_causes()
+            if causes:
+                log(f"💡 Возможные причины падения:\n{causes}", "INFO")
+            
+            # Не показываем ошибку сразу — ProcessMonitorThread продолжит следить
+            log("DPI ещё не запущен, продолжаем мониторинг...", level="INFO")
+            self.set_status("⏳ Ожидание запуска DPI...")
+
+            # Возвращаем True чтобы ProcessMonitorThread продолжил работать
+            return True
+
+        except Exception as e:
+            # Диагностируем ошибку и выводим понятное сообщение
+            diagnosis = diagnose_startup_error(e, self.winws_exe)
+            for line in diagnosis.split('\n'):
+                log(line, "❌ ERROR")
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
+            # Последняя попытка - fallback
+            return self._execute_bat_file_fallback(bat_file, strategy_name)
+
+    def _execute_with_strategy_runner(self, args: list, strategy_name: str) -> bool:
+        """
+        Запуск через StrategyRunner для НОВОГО формата BAT файлов.
+
+        StrategyRunner автоматически:
+        - Находит winws.exe
+        - Подставляет пути к --hostlist=, --ipset=, --dpi-desync-fake-*=
+        - Запускает процесс
+        """
+        try:
+            from strategy_menu.strategy_runner import get_strategy_runner
+
+            # Получаем runner с путём к winws.exe
+            runner = get_strategy_runner(self.winws_exe)
+
+            log(f"Запуск через StrategyRunner: {strategy_name}", "INFO")
+
+            # Запускаем стратегию
+            success = runner.start_strategy_custom(args, strategy_name)
+
+            if success:
+                log(f"✅ DPI успешно запущен через StrategyRunner: {strategy_name}", "SUCCESS")
+                self.set_status(f"✅ DPI запущен: {strategy_name}")
+                self._update_ui(True)
+                return True
+            else:
+                log(f"❌ Ошибка запуска через StrategyRunner", "ERROR")
+                self.set_status("❌ Ошибка запуска DPI")
+                return False
+
+        except Exception as e:
+            # Диагностируем ошибку и выводим понятное сообщение
+            diagnosis = diagnose_startup_error(e, self.winws_exe)
+            for line in diagnosis.split('\n'):
+                log(line, "❌ ERROR")
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
             return False
 
-    def _execute_bat_file(self, bat_file: str, strategy_name: str) -> bool:
-        """Запуск через ShellExecuteEx"""
-        self.set_status(f"Запуск стратегии: {strategy_name}")
-        log(f"Запускаем BAT файл: {bat_file}", level="INFO")
+    def _execute_bat_file_fallback(self, bat_file: str, strategy_name: str) -> bool:
+        """Fallback: запуск через ShellExecuteEx (медленно, но надёжно)"""
+        log("Используем fallback метод (ShellExecuteEx)", "WARNING")
         
         try:
             import ctypes
@@ -407,25 +482,33 @@ class BatDPIStart:
             result = shell32.ShellExecuteExW(byref(sei))
             
             if result:
-                # Закрываем хэндл процесса
                 if sei.hProcess:
                     ctypes.windll.kernel32.CloseHandle(sei.hProcess)
-                log("BAT запущен через ShellExecuteEx", "DEBUG")
+                log("BAT запущен через ShellExecuteEx (fallback)", "INFO")
             else:
-                log("Ошибка ShellExecuteEx", "ERROR")
+                log("Ошибка ShellExecuteEx (fallback)", "ERROR")
                 return False
             
-            time.sleep(3)
-            
-            if self.check_process_running_wmi():
-                log("DPI успешно запущен", level="✅ SUCCESS")
-                self.set_status(f"DPI запущен: {strategy_name}")
-                self._update_ui(True)
-                return True
-            else:
-                log("Процесс winws.exe не запустился", level="❌ ERROR")
-                return False
+            # Проверка запуска
+            max_attempts = 8  # Больше попыток для медленного метода
+            for attempt in range(max_attempts):
+                time.sleep(1)
                 
+                if self.check_process_running_fast(silent=True):
+                    log(f"✅ DPI успешно запущен через fallback: {strategy_name}", "SUCCESS")
+                    self.set_status(f"✅ DPI запущен: {strategy_name}")
+                    self._update_ui(True)
+                    return True
+                    
+                if attempt == max_attempts - 1:
+                    log(f"⚠️ DPI не запустился после {max_attempts} проверок (fallback)", "WARNING")
+            
+            log("DPI ещё не запущен, продолжаем мониторинг...", "INFO")
+            self.set_status("⏳ Ожидание запуска DPI...")
+            return True
+            
         except Exception as e:
-            log(f"Ошибка при запуске: {e}", level="❌ ERROR")
+            log(f"Критическая ошибка fallback: {e}", "ERROR")
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
             return False

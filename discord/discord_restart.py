@@ -11,7 +11,7 @@ def get_discord_restart_setting(default: bool = True) -> bool:
     Возвращает текущее значение AutoRestartDiscord.
     Если параметра нет – отдаёт default (по-умолчанию True).
     """
-    val = reg(r"Software\Zapret", "AutoRestartDiscord")
+    val = reg(r"Software\ZapretReg2", "AutoRestartDiscord")
     return bool(val) if val is not None else default
 
 
@@ -20,7 +20,7 @@ def set_discord_restart_setting(enabled: bool) -> bool:
     Записывает AutoRestartDiscord = 1/0.
     Возвращает True при успехе.
     """
-    return reg(r"Software\Zapret", "AutoRestartDiscord", int(enabled))
+    return reg(r"Software\ZapretReg2", "AutoRestartDiscord", int(enabled))
 
 
 # ----------------------------------------------------------------------

@@ -1,0 +1,5 @@
+﻿=== Zapret GUI Log - Started 2025-08-29 22:17:43 ===
+Log file: zapret_log_2025-08-29_22-17-43.txt
+Total log files in folder: 51
+============================================================
+

@@ -1,17 +1,254 @@
 import ctypes
 import stat
 import os
+import subprocess
 from pathlib import Path
 from PyQt6.QtWidgets import QMessageBox
 from .proxy_domains import PROXY_DOMAINS
-from .menu import HostsSelectorDialog
+from .adobe_domains import ADOBE_DOMAINS
 from log import log
 
 HOSTS_PATH = Path(r"C:\Windows\System32\drivers\etc\hosts")
 
+
+def _run_cmd(args, description):
+    """Выполняет команду и логирует результат"""
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            log(f"✅ {description}: успешно")
+            return True
+        else:
+            # Проверяем stderr или stdout на наличие ошибки
+            error = result.stderr.strip() or result.stdout.strip()
+            log(f"⚠ {description}: {error}", "⚠ WARNING")
+            return False
+    except Exception as e:
+        log(f"❌ {description}: {e}", "❌ ERROR")
+        return False
+
+
+def _get_current_username():
+    """Получает имя текущего пользователя"""
+    try:
+        import getpass
+        return getpass.getuser()
+    except:
+        return None
+
+
+def restore_hosts_permissions():
+    """
+    Агрессивно восстанавливает права доступа к файлу hosts.
+    Использует множество методов для обхода блокировок антивирусов.
+
+    Returns:
+        tuple: (success: bool, message: str)
+    """
+    hosts_path = str(HOSTS_PATH)
+
+    log("🔧 Начинаем АГРЕССИВНОЕ восстановление прав доступа к файлу hosts...")
+
+    # Well-known SIDs (работают на любой локализации Windows)
+    # S-1-5-32-544 = Administrators / Администраторы
+    # S-1-5-32-545 = Users / Пользователи
+    # S-1-5-18 = SYSTEM
+    # S-1-1-0 = Everyone / Все
+    SID_ADMINISTRATORS = "*S-1-5-32-544"
+    SID_USERS = "*S-1-5-32-545"
+    SID_SYSTEM = "*S-1-5-18"
+    SID_EVERYONE = "*S-1-1-0"
+
+    current_user = _get_current_username()
+
+    try:
+        # ========== ЭТАП 1: Снимаем атрибуты файла ==========
+        log("Этап 1: Снимаем системные атрибуты файла...")
+        _run_cmd(['attrib', '-R', '-S', '-H', hosts_path], "attrib -R -S -H")
+
+        # ========== ЭТАП 2: Забираем владение файлом ==========
+        log("Этап 2: Забираем владение файлом...")
+
+        # Способ 1: takeown для администраторов
+        _run_cmd(['takeown', '/F', hosts_path, '/A'], "takeown /A (для группы администраторов)")
+
+        # Способ 2: takeown для текущего пользователя
+        if current_user:
+            _run_cmd(['takeown', '/F', hosts_path], "takeown (для текущего пользователя)")
+
+        # ========== ЭТАП 3: Сбрасываем ACL ==========
+        log("Этап 3: Сбрасываем ACL...")
+        _run_cmd(['icacls', hosts_path, '/reset'], "icacls /reset")
+
+        # ========== ЭТАП 4: Выдаём права через SID (работает на любой локализации) ==========
+        log("Этап 4: Выдаём права через SID...")
+
+        # Полный доступ для Administrators через SID
+        _run_cmd(['icacls', hosts_path, '/grant', f'{SID_ADMINISTRATORS}:F'],
+                 "icacls /grant Administrators (SID)")
+
+        # Полный доступ для SYSTEM через SID
+        _run_cmd(['icacls', hosts_path, '/grant', f'{SID_SYSTEM}:F'],
+                 "icacls /grant SYSTEM (SID)")
+
+        # Чтение для Users через SID
+        _run_cmd(['icacls', hosts_path, '/grant', f'{SID_USERS}:R'],
+                 "icacls /grant Users (SID)")
+
+        # Полный доступ для Everyone через SID (агрессивно!)
+        _run_cmd(['icacls', hosts_path, '/grant', f'{SID_EVERYONE}:F'],
+                 "icacls /grant Everyone (SID)")
+
+        # ========== ЭТАП 5: Пробуем с английскими именами (для английской Windows) ==========
+        log("Этап 5: Пробуем с английскими именами групп...")
+        _run_cmd(['icacls', hosts_path, '/grant', 'Administrators:F'], "icacls Administrators:F")
+        _run_cmd(['icacls', hosts_path, '/grant', 'SYSTEM:F'], "icacls SYSTEM:F")
+        _run_cmd(['icacls', hosts_path, '/grant', 'Users:R'], "icacls Users:R")
+        _run_cmd(['icacls', hosts_path, '/grant', 'Everyone:F'], "icacls Everyone:F")
+
+        # ========== ЭТАП 6: Пробуем с русскими именами (для русской Windows) ==========
+        log("Этап 6: Пробуем с русскими именами групп...")
+        _run_cmd(['icacls', hosts_path, '/grant', 'Администраторы:F'], "icacls Администраторы:F")
+        _run_cmd(['icacls', hosts_path, '/grant', 'Пользователи:R'], "icacls Пользователи:R")
+        _run_cmd(['icacls', hosts_path, '/grant', 'Все:F'], "icacls Все:F")
+
+        # ========== ЭТАП 7: Права для текущего пользователя ==========
+        if current_user:
+            log(f"Этап 7: Выдаём права текущему пользователю ({current_user})...")
+            _run_cmd(['icacls', hosts_path, '/grant', f'{current_user}:F'],
+                     f"icacls /grant {current_user}:F")
+
+        # ========== ЭТАП 8: PowerShell для обхода некоторых блокировок ==========
+        log("Этап 8: Пробуем через PowerShell...")
+        ps_script = f'''
+$acl = Get-Acl "{hosts_path}"
+$rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","Allow")
+$acl.SetAccessRule($rule)
+Set-Acl "{hosts_path}" $acl
+'''
+        _run_cmd(['powershell', '-Command', ps_script], "PowerShell Set-Acl")
+
+        # ========== ЭТАП 9: Наследование от родительской папки ==========
+        log("Этап 9: Включаем наследование прав от родительской папки...")
+        _run_cmd(['icacls', hosts_path, '/inheritance:e'], "icacls /inheritance:e")
+
+        # ========== ЭТАП 10: Финальная проверка ==========
+        log("Этап 10: Проверяем результат...")
+
+        # Пробуем прочитать файл
+        try:
+            content = HOSTS_PATH.read_text(encoding='utf-8')
+            log("✅ Права восстановлены! Файл hosts доступен для ЧТЕНИЯ")
+
+            # Пробуем записать (проверка прав на запись)
+            try:
+                with HOSTS_PATH.open('a', encoding='utf-8') as f:
+                    pass  # Просто открываем на запись
+                log("✅ Файл hosts доступен для ЗАПИСИ")
+                return True, "Права доступа к файлу hosts успешно восстановлены"
+            except PermissionError:
+                log("⚠ Файл доступен для чтения, но НЕ для записи", "⚠ WARNING")
+                return True, "Файл hosts доступен для чтения. Запись может быть заблокирована антивирусом."
+
+        except PermissionError:
+            log("❌ После всех попыток файл все еще недоступен", "❌ ERROR")
+
+            # Последняя попытка - копирование через temp
+            log("Этап 11: Последняя попытка - копирование через временный файл...")
+            success = _try_copy_workaround(hosts_path)
+            if success:
+                return True, "Права восстановлены через копирование"
+
+            return False, "Не удалось восстановить права. Возможно, антивирус блокирует доступ. Попробуйте:\n1. Временно отключить антивирус\n2. Добавить исключение для файла hosts\n3. Запустить программу от имени администратора"
+
+        except Exception as e:
+            log(f"Ошибка при проверке: {e}", "❌ ERROR")
+            return False, f"Ошибка при проверке прав: {e}"
+
+    except FileNotFoundError as e:
+        log(f"Команда не найдена: {e}", "❌ ERROR")
+        return False, f"Системная команда не найдена: {e}"
+    except Exception as e:
+        log(f"Ошибка при восстановлении прав: {e}", "❌ ERROR")
+        return False, f"Ошибка: {e}"
+
+
+def _try_copy_workaround(hosts_path):
+    """
+    Последняя попытка - копируем hosts через временный файл.
+    Иногда помогает обойти блокировку антивируса.
+    """
+    import tempfile
+    import shutil
+
+    try:
+        # Создаём временный файл
+        temp_dir = tempfile.gettempdir()
+        temp_hosts = os.path.join(temp_dir, "hosts_temp_copy")
+
+        # Копируем hosts во временный файл через cmd (обход блокировок)
+        result = subprocess.run(
+            ['cmd', '/c', 'copy', '/Y', hosts_path, temp_hosts],
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+
+        if result.returncode == 0:
+            log("✅ Hosts скопирован во временный файл")
+
+            # Удаляем оригинал
+            subprocess.run(
+                ['cmd', '/c', 'del', '/F', '/Q', hosts_path],
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+
+            # Копируем обратно
+            result = subprocess.run(
+                ['cmd', '/c', 'copy', '/Y', temp_hosts, hosts_path],
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+
+            if result.returncode == 0:
+                log("✅ Hosts восстановлен из временного файла")
+
+                # Удаляем временный файл
+                try:
+                    os.remove(temp_hosts)
+                except:
+                    pass
+
+                # Проверяем доступ
+                try:
+                    HOSTS_PATH.read_text(encoding='utf-8')
+                    return True
+                except:
+                    return False
+
+        return False
+
+    except Exception as e:
+        log(f"Ошибка при копировании через temp: {e}", "❌ ERROR")
+        return False
+
 def check_hosts_file_name():
     """Проверяет правильность написания имени файла hosts"""
     hosts_dir = Path(r"C:\Windows\System32\drivers\etc")
+    
+    # ✅ НОВОЕ: Создаем директорию если её нет
+    if not hosts_dir.exists():
+        try:
+            hosts_dir.mkdir(parents=True, exist_ok=True)
+            log(f"Создана директория: {hosts_dir}")
+        except Exception as e:
+            log(f"Не удалось создать директорию: {e}", "❌ ERROR")
+            return False, f"Не удалось создать директорию etc: {e}"
     
     # Сначала проверяем правильный файл hosts
     hosts_lower = hosts_dir / "hosts"
@@ -31,8 +268,8 @@ def check_hosts_file_name():
         log("Обнаружен файл HOSTS (с большими буквами) - это неправильно!", level="⚠ WARNING")
         return False, "Файл должен называться 'hosts' (с маленькими буквами), а не 'HOSTS'"
     
-    # Если ни того, ни другого нет
-    return False, "Файл hosts не найден"
+    # ✅ НОВОЕ: Если файла нет вообще - это нормально, мы его создадим
+    return True, None  # Изменено с False на True
 
 def is_file_readonly(filepath):
     """Проверяет, установлен ли атрибут 'только для чтения' у файла"""
@@ -60,9 +297,49 @@ def safe_read_hosts_file():
     """Безопасно читает файл hosts с обработкой различных кодировок"""
     hosts_path = HOSTS_PATH
     
-    # Список кодировок для попытки чтения
-    encodings = ['utf-8', 'cp1251', 'cp866', 'latin1']
+    # ✅ НОВОЕ: Проверяем существование файла
+    if not hosts_path.exists():
+        log(f"Файл hosts не существует, создаем новый: {hosts_path}")
+        try:
+            # Создаем директорию если её нет
+            hosts_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Создаем пустой файл hosts с базовым содержимым
+            default_content = """# Copyright (c) 1993-2009 Microsoft Corp.
+#
+# This is a sample HOSTS file used by Microsoft TCP/IP for Windows.
+#
+# This file contains the mappings of IP addresses to host names. Each
+# entry should be kept on an individual line. The IP address should
+# be placed in the first column followed by the corresponding host name.
+# The IP address and the host name should be separated by at least one
+# space.
+#
+# Additionally, comments (such as these) may be inserted on individual
+# lines or following the machine name denoted by a '#' symbol.
+#
+# For example:
+#
+#      102.54.94.97     rhino.acme.com          # source server
+#       38.25.63.10     x.acme.com              # x client host
+
+# localhost name resolution is handled within DNS itself.
+#	127.0.0.1       localhost
+#	::1             localhost
+"""
+            hosts_path.write_text(default_content, encoding='utf-8-sig')
+            log("Файл hosts успешно создан с базовым содержимым")
+            return default_content
+            
+        except Exception as e:
+            log(f"Ошибка при создании файла hosts: {e}", "❌ ERROR")
+            return None
     
+    # Если файл существует, пробуем прочитать с разными кодировками
+    encodings = ['utf-8', 'utf-8-sig', 'cp1251', 'cp866', 'latin1']
+
+    permission_error_occurred = False
+
     for encoding in encodings:
         try:
             content = hosts_path.read_text(encoding=encoding)
@@ -70,17 +347,40 @@ def safe_read_hosts_file():
             return content
         except UnicodeDecodeError:
             continue
+        except PermissionError as e:
+            log(f"Ошибка при чтении файла hosts с кодировкой {encoding}: {e}")
+            permission_error_occurred = True
+            continue
         except Exception as e:
             log(f"Ошибка при чтении файла hosts с кодировкой {encoding}: {e}")
             continue
-    
+
+    # Если была ошибка доступа, пробуем восстановить права
+    if permission_error_occurred:
+        log("🔧 Обнаружена проблема с правами доступа, пытаемся восстановить...")
+        success, message = restore_hosts_permissions()
+        if success:
+            # Пробуем прочитать снова после восстановления прав
+            for encoding in encodings:
+                try:
+                    content = hosts_path.read_text(encoding=encoding)
+                    log(f"Файл hosts успешно прочитан после восстановления прав с кодировкой: {encoding}")
+                    return content
+                except UnicodeDecodeError:
+                    continue
+                except Exception as e:
+                    log(f"Ошибка при повторном чтении с кодировкой {encoding}: {e}")
+                    continue
+        else:
+            log(f"Не удалось восстановить права: {message}", "❌ ERROR")
+
     # Если ни одна кодировка не подошла, пробуем с игнорированием ошибок
     try:
         content = hosts_path.read_text(encoding='utf-8', errors='ignore')
         log("Файл hosts прочитан с игнорированием ошибок кодировки", level="⚠ WARNING")
         return content
     except Exception as e:
-        log(f"Критическая ошибка при чтении файла hosts: {e}")
+        log(f"Критическая ошибка при чтении файла hosts: {e}", "❌ ERROR")
         return None
 
 def safe_write_hosts_file(content):
@@ -92,12 +392,24 @@ def safe_write_hosts_file(content):
             if not remove_readonly_attribute(HOSTS_PATH):
                 log("Не удалось снять атрибут 'только для чтения'")
                 return False
-        
+
         HOSTS_PATH.write_text(content, encoding="utf-8-sig", newline='\n')
         return True
     except PermissionError:
-        log("Ошибка доступа при записи файла hosts (возможно, нет прав администратора)")
-        return False
+        log("Ошибка доступа при записи файла hosts, пытаемся восстановить права...")
+        # Пробуем восстановить права и записать снова
+        success, message = restore_hosts_permissions()
+        if success:
+            try:
+                HOSTS_PATH.write_text(content, encoding="utf-8-sig", newline='\n')
+                log("✅ Файл hosts успешно записан после восстановления прав")
+                return True
+            except Exception as e:
+                log(f"Ошибка при повторной записи после восстановления прав: {e}", "❌ ERROR")
+                return False
+        else:
+            log(f"Не удалось восстановить права: {message}", "❌ ERROR")
+            return False
     except Exception as e:
         log(f"Ошибка при записи файла hosts: {e}")
         return False
@@ -107,6 +419,12 @@ class HostsManager:
         self.status_callback = status_callback
         # 🆕 При инициализации проверяем и удаляем api.github.com
         self.check_and_remove_github_api()
+
+    def restore_permissions(self):
+        """Восстанавливает права доступа к файлу hosts"""
+        success, message = restore_hosts_permissions()
+        self.set_status(message)
+        return success
 
     # 🆕 НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С api.github.com
     def check_github_api_in_hosts(self):
@@ -219,74 +537,49 @@ class HostsManager:
         except Exception as e:
             log(f"Ошибка при проверке/удалении api.github.com: {e}")
 
-    # ------------------------- HostsSelectorDialog -------------------------
-    def show_hosts_selector_dialog(self, parent=None):
-        """Показывает диалог выбора доменов для hosts"""
-        from PyQt6.QtWidgets import QDialog
-
-        current_active = set()
-        if self.is_proxy_domains_active():
-            # Получаем текущие активные домены из hosts файла
-            try:
-                content = HOSTS_PATH.read_text(encoding="utf-8-sig")
-                for domain in PROXY_DOMAINS.keys():
-                    if domain in content:
-                        current_active.add(domain)
-            except Exception as e:
-                log(f"Ошибка при чтении hosts: {e}")
-        
-        dialog = HostsSelectorDialog(parent, current_active)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            selected_domains = dialog.get_selected_domains()
-            return self.apply_selected_domains(selected_domains)
-        return False
-    
     # ------------------------- сервис -------------------------
+    def get_active_domains(self):
+        """Возвращает множество активных доменов из hosts файла с ПРАВИЛЬНЫМИ IP адресами"""
+        current_active = set()
+        try:
+            from .proxy_domains import PROXY_DOMAINS
+            content = safe_read_hosts_file()
+            if content is None:
+                return current_active
+                
+            lines = content.splitlines()
+            
+            for line in lines:
+                line = line.strip()
+                # Пропускаем пустые строки и комментарии
+                if not line or line.startswith('#'):
+                    continue
+                    
+                # Разбиваем строку на части (IP домен)
+                parts = line.split()
+                if len(parts) >= 2:
+                    ip = parts[0]
+                    domain = parts[1]
+                    
+                    # Проверяем что домен есть в наших PROXY_DOMAINS И IP совпадает
+                    if domain in PROXY_DOMAINS:
+                        expected_ip = PROXY_DOMAINS[domain]
+                        if ip == expected_ip:
+                            current_active.add(domain)
+                        else:
+                            # Домен есть но с другим IP - не считаем его активным
+                            log(f"Домен {domain} найден с другим IP: {ip} (ожидается {expected_ip})", "DEBUG")
+                            
+            log(f"Найдено активных доменов с правильными IP: {len(current_active)}", "DEBUG")
+        except Exception as e:
+            log(f"Ошибка при чтении hosts: {e}", "ERROR")
+        return current_active
 
     def set_status(self, message: str):
         if self.status_callback:
             self.status_callback(message)
         else:
             print(message)
-
-    def show_popup_message(self, title, message, icon_type="information"):
-        """
-        Показывает красиво оформленное сообщение с иконкой и стилизацией.
-        
-        Args:
-            title: Заголовок окна
-            message: Текст сообщения  
-            icon_type: Тип иконки ("information", "warning", "critical", "question")
-        """
-        try:
-            msg_box = QMessageBox()
-            
-            # Устанавливаем иконку в зависимости от типа
-            icon_map = {
-                "information": QMessageBox.Icon.Information,
-                "warning": QMessageBox.Icon.Warning,
-                "critical": QMessageBox.Icon.Critical,
-                "question": QMessageBox.Icon.Question
-            }
-            msg_box.setIcon(icon_map.get(icon_type, QMessageBox.Icon.Information))
-            
-            msg_box.setWindowTitle(title)
-            msg_box.setText(message)
-            msg_box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            
-            msg_box.exec()
-            
-        except Exception:
-            # резервный вариант – системное окно
-            # Определяем тип иконки для системного MessageBox
-            system_icon_map = {
-                "information": 0x40,  # MB_ICONINFORMATION
-                "warning": 0x30,      # MB_ICONWARNING  
-                "critical": 0x10,     # MB_ICONERROR
-                "question": 0x20      # MB_ICONQUESTION
-            }
-            icon_flag = system_icon_map.get(icon_type, 0x40)
-            ctypes.windll.user32.MessageBoxW(0, message, title, icon_flag)
 
     # ------------------------- проверки -------------------------
 
@@ -319,56 +612,63 @@ class HostsManager:
             log(f"Ошибка при проверке hosts: {e}")
             return False
 
+    def is_adobe_domains_active(self) -> bool:
+        """Проверяет, есть ли активные записи Adobe в hosts"""
+        try:
+            content = safe_read_hosts_file()
+            if content is None:
+                return False
+                
+            lines = content.splitlines()
+            domains = set(ADOBE_DOMAINS.keys())
+            
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                    
+                parts = line.split()
+                if len(parts) >= 2:
+                    domain = parts[1]
+                    if domain in domains:
+                        return True
+                        
+            return False
+        except Exception as e:
+            log(f"Ошибка при проверке Adobe в hosts: {e}")
+            return False
+
     def is_hosts_file_accessible(self) -> bool:
         """Проверяет, доступен ли файл hosts для чтения и записи."""
         try:
-            # Сначала проверяем правильность написания имени файла
+            # Проверяем правильность написания имени файла
             is_correct, error_msg = check_hosts_file_name()
             if not is_correct:
-                if "HOSTS" in error_msg:
-                    # Специальное сообщение для неправильного написания
-                    full_error_msg = (
-                        f"Обнаружен файл с неправильным названием!\n\n"
-                        f"Файл должен называться 'hosts' (с маленькими буквами),\n"
-                        f"а не 'HOSTS' (с большими буквами).\n\n"
-                        f"Переименуйте файл 'HOSTS' в 'hosts' и попробуйте снова."
-                    )
-                    self.show_popup_message("Неправильное название файла", full_error_msg, "⚠ WARNING")
-                elif "некорректные символы" in error_msg:
-                    # Специальное сообщение для проблем с кодировкой
-                    full_error_msg = (
-                        f"Файл hosts содержит некорректные символы!\n\n"
-                        f"Возможные причины:\n"
-                        f"• Файл поврежден\n"
-                        f"• Файл содержит символы в неподдерживаемой кодировке\n"
-                        f"• Файл создан другой программой с неправильной кодировкой\n\n"
-                        f"Рекомендуется пересоздать файл hosts или очистить его содержимое."
-                    )
-                    self.show_popup_message("Проблема с кодировкой файла", full_error_msg, "⚠ WARNING")
-                else:
-                    # Файл не найден
-                    self.show_popup_message("Ошибка", error_msg, "critical")
                 log(error_msg)
                 return False
+            
+            # ✅ НОВОЕ: Если файла нет, создаем его
+            if not HOSTS_PATH.exists():
+                log("Файл hosts не существует, будет создан при первой записи")
+                # Проверяем, можем ли мы создать файл
+                try:
+                    # Пробуем создать временный файл в той же директории
+                    test_file = HOSTS_PATH.parent / "test_write_permission.tmp"
+                    test_file.write_text("test", encoding="utf-8")
+                    test_file.unlink()  # Удаляем тестовый файл
+                    return True
+                except PermissionError:
+                    log("Нет прав для создания файла hosts. Требуются права администратора.")
+                    return False
             
             # Проверяем возможность чтения с безопасной функцией
             content = safe_read_hosts_file()
             if content is None:
                 return False
-            
+                    
             # Проверяем атрибут "только для чтения"
             if is_file_readonly(HOSTS_PATH):
                 log("Файл hosts имеет атрибут 'только для чтения'")
-                # Показываем предупреждение пользователю
-                warning_msg = (
-                    f"Файл hosts имеет атрибут 'только для чтения'.\n\n"
-                    f"Программа попытается автоматически снять этот атрибут\n"
-                    f"при сохранении изменений.\n\n"
-                    f"Если это не поможет, снимите атрибут вручную:\n"
-                    f"1. Откройте свойства файла hosts\n"
-                    f"2. Снимите галочку 'Только для чтения'"
-                )
-                self.show_popup_message("Файл только для чтения", warning_msg, "warning")
             
             # Проверяем возможность записи (пробуем открыть в режиме добавления)
             try:
@@ -385,98 +685,137 @@ class HostsManager:
             return True
             
         except PermissionError:
-            error_msg = f"Нет прав доступа к файлу hosts.\nТребуются права администратора для изменения файла:\n{HOSTS_PATH}"
             log(f"Нет прав доступа к файлу hosts: {HOSTS_PATH}")
-            self.show_popup_message("Ошибка доступа", error_msg, "⚠ WARNING")
             return False
         except FileNotFoundError:
-            error_msg = f"Файл hosts не найден:\n{HOSTS_PATH}"
             log(f"Файл hosts не найден: {HOSTS_PATH}")
-            self.show_popup_message("Файл не найден", error_msg, "critical")
             return False
         except Exception as e:
-            error_msg = f"Ошибка при проверке доступности файла hosts:\n{e}"
             log(f"Ошибка при проверке доступности hosts: {e}")
-            self.show_popup_message("Ошибка", error_msg, "critical")
             return False
 
     def _no_perm(self):
         """Обработка ошибки прав доступа"""
-        error_msg = (
-            f"Нет прав для изменения файла hosts.\n\n"
-            f"Возможные причины:\n"
-            f"• Программа запущена без прав администратора\n"
-            f"• Файл hosts имеет атрибут 'только для чтения'\n"
-            f"• Антивирус блокирует доступ к файлу\n\n"
-            f"Решения:\n"
-            f"1. Запустите программу от имени администратора\n"
-            f"2. Проверьте свойства файла hosts и снимите галочку 'Только для чтения'\n"
-            f"3. Временно отключите антивирус"
-        )
         self.set_status("Нет прав для изменения файла hosts")
-        self.show_popup_message("Ошибка доступа", error_msg, "warning")
         log("Нет прав для изменения файла hosts")
 
     def add_proxy_domains(self) -> bool:
-        """
-        1. Удаляем старые записи (если были).
-        2. Проверяем и удаляем api.github.com (если есть).
-        3. Добавляем свежие в конец hosts.
-        """
-        # Проверяем доступность файла hosts перед операцией
+        """Добавляет домены в hosts файл"""
+        log("🟡 add_proxy_domains начат", "DEBUG")
+        
         if not self.is_hosts_file_accessible():
             self.set_status("Файл hosts недоступен для изменения")
             return False
         
-        # 🆕 Проверяем и удаляем api.github.com перед добавлением доменов
+        # ✅ Вызываем check_and_remove_github_api только один раз в начале
         self.check_and_remove_github_api()
-            
-        if not self.remove_proxy_domains():     # не смогли удалить → дальше смысла нет
-            return False
-
+        
         try:
-            # Читаем текущее содержимое
+            # Сначала удаляем старые записи
             content = safe_read_hosts_file()
             if content is None:
-                self.set_status("Не удалось прочитать файл hosts")
                 return False
             
-            # Добавляем наши домены
-            new_content = content.rstrip()  # убираем лишние пробелы в конце
-            if new_content:  # если файл не пустой
-                new_content += '\n\n'  # добавляем разделитель
+            # Удаляем старые записи вручную
+            lines = content.splitlines(keepends=True)
+            domains_to_remove = set(PROXY_DOMAINS.keys())
+            
+            new_lines = []
+            for line in lines:
+                if (line.strip() and 
+                    not line.lstrip().startswith("#") and 
+                    len(line.split()) >= 2 and 
+                    line.split()[1] in domains_to_remove):
+                    continue
+                new_lines.append(line)
+            
+            # Убираем лишние пустые строки
+            while new_lines and new_lines[-1].strip() == "":
+                new_lines.pop()
+            
+            # Добавляем новые домены
+            if new_lines and not new_lines[-1].endswith('\n'):
+                new_lines.append('\n')
+            new_lines.append('\n')
             
             for domain, ip in PROXY_DOMAINS.items():
-                new_content += f"{ip} {domain}\n"
-
-            if not safe_write_hosts_file(new_content):
-                self.set_status("Не удалось записать файл hosts")
+                new_lines.append(f"{ip} {domain}\n")
+            
+            # Записываем
+            if not safe_write_hosts_file("".join(new_lines)):
                 return False
-
+            
             self.set_status(f"Файл hosts обновлён: добавлено {len(PROXY_DOMAINS)} записей")
-            log(f"Добавлены домены: {PROXY_DOMAINS}")
-            
-            # Выводим содержимое файла hosts в лог после добавления
-            self._log_hosts_content("после добавления всех доменов")
-            
+            log(f"✅ Добавлены домены: {list(PROXY_DOMAINS.keys())[:5]}...", "DEBUG")
             return True
-
+            
         except PermissionError:
+            log("Ошибка прав доступа в add_proxy_domains", "ERROR")
             self._no_perm()
             return False
         except Exception as e:
-            self.set_status(f"Ошибка при обновлении hosts: {e}")
-            log(f"Ошибка при обновлении hosts: {e}")
+            log(f"Ошибка в add_proxy_domains: {e}", "ERROR")
             return False
 
-    def apply_selected_domains(self, selected_domains):
-        """Применяет выбранные домены к файлу hosts"""
+    def remove_proxy_domains(self) -> bool:
+        """Удаляет домены из hosts файла"""
+        log("🟡 remove_proxy_domains начат", "DEBUG")
+        
         if not self.is_hosts_file_accessible():
             self.set_status("Файл hosts недоступен для изменения")
             return False
         
-        # 🆕 Проверяем и удаляем api.github.com перед применением доменов
-        self.check_and_remove_github_api()
+        # ✅ НЕ вызываем check_and_remove_github_api здесь
+        
+        try:
+            content = safe_read_hosts_file()
+            if content is None:
+                return False
+            
+            lines = content.splitlines(keepends=True)
+            domains = set(PROXY_DOMAINS.keys())
+            
+            new_lines = []
+            removed_count = 0
+            
+            for line in lines:
+                if (line.strip() and 
+                    not line.lstrip().startswith("#") and 
+                    len(line.split()) >= 2 and 
+                    line.split()[1] in domains):
+                    removed_count += 1
+                    continue
+                new_lines.append(line)
+            
+            # Убираем лишние пустые строки
+            while new_lines and new_lines[-1].strip() == "":
+                new_lines.pop()
+            
+            if new_lines and not new_lines[-1].endswith('\n'):
+                new_lines.append('\n')
+            
+            if not safe_write_hosts_file("".join(new_lines)):
+                return False
+            
+            self.set_status(f"Файл hosts обновлён: удалено {removed_count} записей")
+            log(f"✅ Удалено {removed_count} доменов", "DEBUG")
+            return True
+            
+        except PermissionError:
+            log("Ошибка прав доступа в remove_proxy_domains", "ERROR")
+            self._no_perm()
+            return False
+        except Exception as e:
+            log(f"Ошибка в remove_proxy_domains: {e}", "ERROR")
+            return False
+    
+    def apply_selected_domains(self, selected_domains):
+        """Применяет выбранные домены к файлу hosts"""
+        log(f"🟡 apply_selected_domains начат: {len(selected_domains)} доменов", "DEBUG")
+        
+        if not self.is_hosts_file_accessible():
+            self.set_status("Файл hosts недоступен для изменения")
+            return False
         
         # Создаем временный словарь только с выбранными доменами
         selected_proxy_domains = {
@@ -485,147 +824,237 @@ class HostsManager:
         }
         
         if not selected_proxy_domains:
-            # Если ничего не выбрано, просто удаляем все домены
+            log("Нет выбранных доменов, удаляем все", "DEBUG")
             return self.remove_proxy_domains()
         
         try:
-            # Удаляем все старые записи
-            if not self.remove_proxy_domains():
-                return False
-            
             # Читаем текущее содержимое
             content = safe_read_hosts_file()
             if content is None:
                 self.set_status("Не удалось прочитать файл hosts")
                 return False
             
-            # Добавляем только выбранные домены
-            new_content = content.rstrip()  # убираем лишние пробелы в конце
-            if new_content:  # если файл не пустой
-                new_content += '\n\n'  # добавляем разделитель
-
+            # Удаляем старые записи ВРУЧНУЮ
+            lines = content.splitlines(keepends=True)
+            domains_to_remove = set(PROXY_DOMAINS.keys())
+            
+            new_lines = []
+            for line in lines:
+                if (line.strip() and 
+                    not line.lstrip().startswith("#") and 
+                    len(line.split()) >= 2 and 
+                    line.split()[1] in domains_to_remove):
+                    continue
+                new_lines.append(line)
+            
+            # Убираем лишние пустые строки в конце
+            while new_lines and new_lines[-1].strip() == "":
+                new_lines.pop()
+            
+            # Добавляем выбранные домены
+            if new_lines and not new_lines[-1].endswith('\n'):
+                new_lines.append('\n')
+            
+            new_lines.append('\n')  # Разделитель
+            
             for domain, ip in selected_proxy_domains.items():
-                new_content += f"{ip} {domain}\n"
-
-            if not safe_write_hosts_file(new_content):
+                new_lines.append(f"{ip} {domain}\n")
+            
+            # Записываем результат
+            final_content = "".join(new_lines)
+            
+            if not safe_write_hosts_file(final_content):
                 self.set_status("Не удалось записать файл hosts")
                 return False
             
             count = len(selected_proxy_domains)
             self.set_status(f"Файл hosts обновлён: добавлено {count} записей")
-            log(f"Добавлены выбранные домены: {selected_proxy_domains}")
+            log(f"✅ Добавлены выбранные домены: {list(selected_proxy_domains.keys())}", "DEBUG")
             
-            # Выводим содержимое файла hosts в лог после добавления выбранных доменов
-            self._log_hosts_content(f"после добавления выбранных доменов ({count} записей)")
-            
-            # Показываем сообщение об успехе
-            self.show_popup_message(
-                "Успех", 
-                f"Файл hosts успешно обновлён.\nДобавлено доменов: {count}", 
-                "information"
-            )
+            log(f"🟡 apply_selected_domains завершен успешно", "DEBUG")
             return True
             
         except PermissionError:
+            log("🟡 Ошибка прав доступа", "DEBUG") 
             self._no_perm()
             return False
         except Exception as e:
             error_msg = f"Ошибка при обновлении hosts: {e}"
             self.set_status(error_msg)
-            log(error_msg)
-            self.show_popup_message("Ошибка", error_msg, "critical")
+            log(error_msg, "ERROR")
             return False
-    
-    def remove_proxy_domains(self) -> bool:
-        """Убираем старые записи и лишние пустые строки."""
-        # Проверяем доступность файла hosts перед операцией
+
+    # НОВЫЕ МЕТОДЫ ДЛЯ ADOBE
+    def add_adobe_domains(self) -> bool:
+        """Добавляет домены Adobe для блокировки активации"""
+        log("🔒 Добавление доменов Adobe для блокировки активации", "DEBUG")
+        
         if not self.is_hosts_file_accessible():
             self.set_status("Файл hosts недоступен для изменения")
             return False
         
-        # 🆕 Проверяем и удаляем api.github.com перед удалением доменов
-        self.check_and_remove_github_api()
-            
         try:
             content = safe_read_hosts_file()
             if content is None:
-                self.set_status("Не удалось прочитать файл hosts")
                 return False
-                
+            
+            # Удаляем старые записи Adobe
             lines = content.splitlines(keepends=True)
-            domains = set(PROXY_DOMAINS.keys())
-
+            domains_to_remove = set(ADOBE_DOMAINS.keys())
+            
             new_lines = []
+            skip_adobe_comment = False
             for line in lines:
-                # Пропускаем наши записи доменов
+                # Пропускаем старый комментарий Adobe
+                if "# Adobe Activation Block" in line or "# Adobe Block" in line:
+                    skip_adobe_comment = True
+                    continue
+                if skip_adobe_comment and "# Generated by" in line:
+                    skip_adobe_comment = False
+                    continue
+                    
+                if (line.strip() and 
+                    not line.lstrip().startswith("#") and 
+                    len(line.split()) >= 2 and 
+                    line.split()[1] in domains_to_remove):
+                    continue
+                new_lines.append(line)
+            
+            # Убираем лишние пустые строки
+            while new_lines and new_lines[-1].strip() == "":
+                new_lines.pop()
+            
+            # Добавляем новые домены Adobe
+            if new_lines and not new_lines[-1].endswith('\n'):
+                new_lines.append('\n')
+            new_lines.append('\n')
+            new_lines.append('# Adobe Activation Block\n')
+            new_lines.append('# Generated by Zapret-WinGUI\n')
+            
+            for domain, ip in ADOBE_DOMAINS.items():
+                new_lines.append(f"{ip} {domain}\n")
+            
+            # Записываем
+            if not safe_write_hosts_file("".join(new_lines)):
+                return False
+            
+            self.set_status(f"Блокировка Adobe активирована: добавлено {len(ADOBE_DOMAINS)} записей")
+            log(f"✅ Добавлены домены Adobe для блокировки", "DEBUG")
+            return True
+            
+        except PermissionError:
+            log("Ошибка прав доступа при добавлении Adobe доменов", "ERROR")
+            self._no_perm()
+            return False
+        except Exception as e:
+            log(f"Ошибка при добавлении Adobe доменов: {e}", "ERROR")
+            return False
+
+    def clear_hosts_file(self) -> bool:
+        """Полностью очищает файл hosts, оставляя только базовое содержимое Windows"""
+        log("🗑️ Полная очистка файла hosts", "DEBUG")
+        
+        if not self.is_hosts_file_accessible():
+            self.set_status("Файл hosts недоступен для изменения")
+            return False
+        
+        try:
+            # Базовое содержимое hosts файла Windows
+            default_content = """# Copyright (c) 1993-2009 Microsoft Corp.
+    #
+    # This is a sample HOSTS file used by Microsoft TCP/IP for Windows.
+    #
+    # This file contains the mappings of IP addresses to host names. Each
+    # entry should be kept on an individual line. The IP address should
+    # be placed in the first column followed by the corresponding host name.
+    # The IP address and the host name should be separated by at least one
+    # space.
+    #
+    # Additionally, comments (such as these) may be inserted on individual
+    # lines or following the machine name denoted by a '#' symbol.
+    #
+    # For example:
+    #
+    #      102.54.94.97     rhino.acme.com          # source server
+    #       38.25.63.10     x.acme.com              # x client host
+
+    # localhost name resolution is handled within DNS itself.
+    #	127.0.0.1       localhost
+    #	::1             localhost
+    """
+            
+            if not safe_write_hosts_file(default_content):
+                log("Не удалось записать файл hosts после очистки")
+                return False
+            
+            self.set_status("Файл hosts полностью очищен")
+            log("✅ Файл hosts успешно очищен (восстановлено базовое содержимое)", "DEBUG")
+            return True
+            
+        except PermissionError:
+            log("Ошибка прав доступа при очистке hosts файла", "ERROR")
+            self._no_perm()
+            return False
+        except Exception as e:
+            log(f"Ошибка при очистке hosts файла: {e}", "ERROR")
+            return False
+        
+    def remove_adobe_domains(self) -> bool:
+        """Удаляет домены Adobe из hosts файла"""
+        log("🔓 Удаление доменов Adobe", "DEBUG")
+        
+        if not self.is_hosts_file_accessible():
+            self.set_status("Файл hosts недоступен для изменения")
+            return False
+        
+        try:
+            content = safe_read_hosts_file()
+            if content is None:
+                return False
+            
+            lines = content.splitlines(keepends=True)
+            domains = set(ADOBE_DOMAINS.keys())
+            
+            new_lines = []
+            removed_count = 0
+            skip_next = False
+            
+            for line in lines:
+                # Удаляем комментарии Adobe
+                if "# Adobe Activation Block" in line or "# Adobe Block" in line:
+                    skip_next = True
+                    continue
+                if skip_next and "# Generated by" in line:
+                    skip_next = False
+                    continue
+                    
                 if (line.strip() and 
                     not line.lstrip().startswith("#") and 
                     len(line.split()) >= 2 and 
                     line.split()[1] in domains):
+                    removed_count += 1
                     continue
-                
-                # Добавляем строку
+                    
                 new_lines.append(line)
-
-            # Убираем лишние пустые строки в конце файла
+            
+            # Убираем лишние пустые строки
             while new_lines and new_lines[-1].strip() == "":
                 new_lines.pop()
             
-            # Оставляем одну пустую строку в конце, если файл не пустой
             if new_lines and not new_lines[-1].endswith('\n'):
-                new_lines[-1] += '\n'
-            elif new_lines:
                 new_lines.append('\n')
-
+            
             if not safe_write_hosts_file("".join(new_lines)):
-                self.set_status("Не удалось записать файл hosts")
                 return False
-                
-            self.set_status("Файл hosts обновлён: прокси-домены удалены")
-            log("Прокси-домены удалены из hosts")
             
-            # Выводим содержимое файла hosts в лог после удаления
-            self._log_hosts_content("после удаления доменов")
-            
+            self.set_status(f"Блокировка Adobe отключена: удалено {removed_count} записей")
+            log(f"✅ Удалено {removed_count} доменов Adobe", "DEBUG")
             return True
-
+            
         except PermissionError:
+            log("Ошибка прав доступа при удалении Adobe доменов", "ERROR")
             self._no_perm()
             return False
         except Exception as e:
-            self.set_status(f"Ошибка при обновлении hosts: {e}")
-            log(f"Ошибка при обновлении hosts: {e}")
+            log(f"Ошибка при удалении Adobe доменов: {e}", "ERROR")
             return False
-
-    def _log_hosts_content(self, operation_description):
-        """Выводит содержимое файла hosts в лог"""
-        try:
-            content = safe_read_hosts_file()
-            if content is None:
-                log(f"Не удалось прочитать файл hosts для вывода в лог {operation_description}")
-                return
-                
-            log(f"Содержимое файла hosts {operation_description}:")
-            log("=" * 50)
-            
-            # Выводим содержимое с нумерацией строк для удобства
-            lines = content.splitlines()
-            for i, line in enumerate(lines, 1):
-                log(f"{i:3d}: {line}")
-            
-            log("=" * 50)
-            log(f"Всего строк в файле hosts: {len(lines)}")
-            
-            # Подсчитываем количество наших доменов
-            our_domains_count = 0
-            for line in lines:
-                line = line.strip()
-                if (line and not line.startswith("#") and 
-                    len(line.split()) >= 2 and 
-                    line.split()[1] in PROXY_DOMAINS):
-                    our_domains_count += 1
-            
-            log(f"Количество наших прокси-доменов в файле: {our_domains_count}")
-            
-        except Exception as e:
-            log(f"Ошибка при чтении файла hosts для вывода в лог: {e}")

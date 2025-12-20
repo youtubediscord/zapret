@@ -1,0 +1,7 @@
+﻿=== Zapret GUI Log - Started 2025-08-30 20:55:04 ===
+Log file: zapret_log_2025-08-30_20-55-04.txt
+Total log files in folder: 51
+============================================================
+
+[20:55:05] H:\Privacy\zapretgui\dns\dns_force.py:505: SyntaxWarning: invalid escape sequence '\S'
+  Создаёт ключ HKCU\Software\ZapretReg2\ForceDNS = 1,
