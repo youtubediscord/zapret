@@ -25,7 +25,7 @@
 
 
 > [!IMPORTANT]  
-> Есть вопросы? Задай их здесь: https://github.com/youtubediscord/zapret/issues/new или же в группе https://t.me/youtubenotwork или https://discord.gg/kkcBDG2uws
+> Есть вопросы? Задай их здесь на нашем форуме https://t.me/nozapretinrussia_bot или же в группе https://t.me/youtubenotwork или https://discord.gg/kkcBDG2uws
 
 > [!CAUTION]  
 > Совсем никак не работает Запрет?
