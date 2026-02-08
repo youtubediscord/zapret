@@ -37,7 +37,7 @@
 **Для неопытных пользователей рекомендуем: https://t.me/bypassblock/399** ([зеркало](https://github.com/youtubediscord/zapret/releases/latest/download/ZapretSetup.exe))
 
 ### Собрать Zapret самостоятельно
-https://github.com/youtubediscord/zapret/blob/main/docs/build.md
+Скопируйте из `Actions`
 
 <h2 align="center">Хочу узнать подробнее </h2>
 
