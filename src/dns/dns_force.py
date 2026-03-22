@@ -24,9 +24,9 @@ class DNSForceManager:
     
     # DNS серверы
     DNS_PRIMARY = "8.8.8.8"
-    DNS_SECONDARY = "8.8.4.4"
+    DNS_SECONDARY = "208.67.222.222"
     DNS_PRIMARY_V6 = "2001:4860:4860::8888"
-    DNS_SECONDARY_V6 = "2001:4860:4860::8844"
+    DNS_SECONDARY_V6 = "2620:119:35::35"
     
     def __init__(self, status_callback=None):
         self.status_callback = status_callback
@@ -257,7 +257,7 @@ class DNSForceManager:
             if success > 0:
                 msg = (
                     f"DNS успешно установлен на {success} из {total} адаптеров.\n\n"
-                    f"IPv4: {self.DNS_PRIMARY}\n"
+                    f"IPv4: {self.DNS_PRIMARY} (Google) + {self.DNS_SECONDARY} (OpenDNS)\n"
                     f"IPv6: {self.DNS_PRIMARY_V6 if self.ipv6_available else 'не применён'}\n\n"
                     "Изменения вступили в силу немедленно."
                 )

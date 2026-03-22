@@ -1,47 +1,61 @@
-# .github/workflows/windows-build.yml
-name: Build zapret.exe on push to main
+name: Build Zapret.exe
 
 on:
   push:
-    branches: [ main ]   # собираем только main
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  build-win:
+  build:
     runs-on: windows-2022
     env:
-      CI: "true" # чтобы build.bat не спрашивал UAC/pause
-      PYTHONUTF8: "1"          # ← новая строка
+      PYTHONUTF8: "1"
       PYTHONIOENCODING: "utf-8"
 
     steps:
-      # 1. Клонируем исходники
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2. Ставим Python 3.12 ×64
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          architecture: "x64"
+          architecture: x64
 
-      # 3. Ставим все зависимости из requirements.txt
       - name: Install dependencies
-        shell: cmd
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller PyQt6 PyQt6-Qt6 PyQt6-sip pywin32 psutil requests urllib3 PySocks cryptography qtawesome pytz PyQt6-Fluent-Widgets wmi websockets httpx aiohttp packaging
 
-      # 4. Сборка exe через ваш бат-скрипт
-      - name: Build EXE
-        shell: cmd
+      - name: Generate build files
+        shell: python
         run: |
-          call build.bat --ci
+          import os, pathlib
+          cfg = pathlib.Path("src/config")
+          cfg.mkdir(exist_ok=True)
+          # build_info.py
+          (cfg / "build_info.py").write_text(
+              "CHANNEL='stable'\nAPP_VERSION='0.0.0.0'\n",
+              encoding="utf-8-sig")
+          # _build_secrets.py (empty — no secrets in public CI)
+          (cfg / "_build_secrets.py").write_text(
+              "TG_UPDATE_BOT_TOKEN=''\n"
+              "GITHUB_UPDATE_TOKEN=''\n"
+              "TG_LOG_BOT_TOKEN_PROD=''\n"
+              "TG_LOG_BOT_TOKEN_DEV=''\n"
+              "TG_LOG_CHAT_ID=0\n"
+              "UPDATE_SERVERS=[]\n"
+              "PREMIUM_API_BASE_URL=''\n",
+              encoding="utf-8-sig")
 
-      # 5. Публикуем zapret.exe как артефакт
+      - name: Build EXE
+        run: |
+          cd src
+          python -m PyInstaller --noconfirm --name Zapret --console --uac-admin --onedir --paths . main.py
+          echo "Build complete"
+          dir dist\Zapret\Zapret.exe
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zapret-${{ github.sha }}   # <имя_артефакта>
-          path: '**/zapret.exe'         # путь к файлу
-          retention-days: 30               # хранить 30 дней
+          name: Zapret-${{ github.sha }}
+          path: src/dist/Zapret/
+          retention-days: 30
