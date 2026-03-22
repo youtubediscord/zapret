@@ -773,7 +773,7 @@ def infer_category_key_from_args(args: str) -> Tuple[str, Optional[str]]:
                 for key in sorted(filters.keys()):
                     for mode, base_tokens in filters[key]:
                         if base_tokens and base_tokens.issubset(tokens):
-                            matches.append((len(base_tokens), mode_priority.get(mode, -1), key, mode))
+                            matches.append((len(base_tokens), mode_priority.get(mode, -1), _user_rank(key), key, mode))
         if not matches:
             return ("unknown", None)
 
@@ -1205,8 +1205,14 @@ def parse_preset_content(content: str) -> PresetData:
     for block_lines_list in blocks_raw:
         block_args = '\n'.join(block_lines_list)
 
+        # Skip blocks without any selectors or port filters (empty/junk blocks)
+        has_selectors = bool(re.search(r'--(hostlist|ipset|hostlist-domains|ipset-ip)=', block_args))
+        has_filter = bool(re.search(r'--filter-(tcp|udp|l7)=', block_args))
+        if not has_selectors and not has_filter:
+            continue
+
         base_protocol, base_port = extract_protocol_and_port(block_args)
-        has_port_filter = bool(re.search(r'--filter-(tcp|udp)=', block_args))
+        has_port_filter = has_filter
 
         # Extract category info
         categories_from_lists = extract_categories_from_args(block_args)
@@ -1225,6 +1231,17 @@ def parse_preset_content(content: str) -> PresetData:
                     block_args=block_args,
                 )
                 category_entries.append((canonical_key, mode, list_file))
+
+            # Filter out unknown categories (not in categories.txt)
+            # Skip filtering if categories catalog is unavailable (e.g., in tests)
+            categories_info = _load_category_info() or {}
+            if categories_info:
+                category_entries = [
+                    (key, mode, file) for key, mode, file in category_entries
+                    if key in categories_info
+                ]
+                if not category_entries:
+                    continue
         else:
             if inferred_category != "unknown":
                 category = inferred_category

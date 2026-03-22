@@ -281,9 +281,13 @@ class PresetManager:
                     preset._raw_blocks.append(({cat_name}, block.protocol, raw_text))
 
                 if cat_name not in preset.categories:
+                    raw_filter_file = getattr(block, "filter_file", "") or ""
+                    if raw_filter_file and "/" not in raw_filter_file and "\\" not in raw_filter_file:
+                        raw_filter_file = f"lists/{raw_filter_file}"
                     preset.categories[cat_name] = CategoryConfig(
                         name=cat_name,
                         filter_mode=block.filter_mode,
+                        filter_file=raw_filter_file,
                     )
 
                 cat = preset.categories[cat_name]
@@ -1087,10 +1091,7 @@ class PresetManager:
 
         if not args_lines:
             # Fallback: build filter lines manually
-            if protocol == "tcp":
-                filter_file_relative = cat.get_hostlist_file() if cat.filter_mode == "hostlist" else cat.get_ipset_file()
-            else:
-                filter_file_relative = cat.get_ipset_file() if cat.filter_mode == "ipset" else cat.get_hostlist_file()
+            filter_file_relative = cat.get_filter_file()
             try:
                 from config import MAIN_DIRECTORY
                 filter_file = os.path.normpath(os.path.join(MAIN_DIRECTORY, filter_file_relative))
@@ -1853,9 +1854,13 @@ class PresetManager:
             for block in data.categories:
                 cat_name = block.category
                 if cat_name not in preset.categories:
+                    raw_filter_file = getattr(block, "filter_file", "") or ""
+                    if raw_filter_file and "/" not in raw_filter_file and "\\" not in raw_filter_file:
+                        raw_filter_file = f"lists/{raw_filter_file}"
                     preset.categories[cat_name] = CategoryConfig(
                         name=cat_name,
                         filter_mode=block.filter_mode or "hostlist",
+                        filter_file=raw_filter_file,
                         syndata_tcp=SyndataSettings.get_defaults(),
                         syndata_udp=SyndataSettings.get_defaults_udp(),
                     )

@@ -279,9 +279,14 @@ def load_preset(name: str) -> Optional[Preset]:
 
             # Get or create category config
             if cat_name not in preset.categories:
+                # Normalize filter_file: ensure it has a relative path prefix
+                raw_filter_file = getattr(block, "filter_file", "") or ""
+                if raw_filter_file and "/" not in raw_filter_file and "\\" not in raw_filter_file:
+                    raw_filter_file = f"lists/{raw_filter_file}"
                 preset.categories[cat_name] = CategoryConfig(
                     name=cat_name,
                     filter_mode=block.filter_mode,
+                    filter_file=raw_filter_file,
                 )
 
             cat = preset.categories[cat_name]
@@ -494,7 +499,7 @@ def save_preset(preset: Preset) -> bool:
 
                 args_lines = list(base_filter_lines)
                 if not args_lines:
-                    filter_file_relative = cat.get_hostlist_file() if cat.filter_mode == "hostlist" else cat.get_ipset_file()
+                    filter_file_relative = cat.get_filter_file()
                     filter_file = os.path.normpath(os.path.join(_get_main_directory(), filter_file_relative))
                     args_lines = [f"--filter-tcp={cat.tcp_port}"]
                     if cat.filter_mode in ("hostlist", "ipset"):
@@ -523,7 +528,7 @@ def save_preset(preset: Preset) -> bool:
 
                 args_lines = list(base_filter_lines)
                 if not args_lines:
-                    filter_file_relative = cat.get_ipset_file() if cat.filter_mode == "ipset" else cat.get_hostlist_file()
+                    filter_file_relative = cat.get_filter_file()
                     filter_file = os.path.normpath(os.path.join(_get_main_directory(), filter_file_relative))
                     args_lines = [f"--filter-udp={cat.udp_port}"]
                     if cat.filter_mode in ("hostlist", "ipset"):

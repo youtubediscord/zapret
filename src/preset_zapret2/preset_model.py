@@ -139,6 +139,7 @@ class CategoryConfig:
     tcp_enabled: bool = True
     udp_enabled: bool = True
     filter_mode: str = "hostlist"  # "hostlist" or "ipset"
+    filter_file: str = ""  # Original filter file path from preset (e.g., "lists/russia-youtube-rtmps.txt")
     tcp_port: str = "443"
     udp_port: str = "443"
     syndata_tcp: SyndataSettings = field(default_factory=SyndataSettings)
@@ -146,18 +147,36 @@ class CategoryConfig:
     sort_order: str = "default"  # "default", "name_asc", "name_desc"
 
     def get_hostlist_file(self) -> str:
-        """Returns hostlist filename for this category with relative path."""
+        """Returns hostlist filename for this category with relative path.
+
+        If filter_file is set and filter_mode is hostlist, returns the original
+        filter_file path. Otherwise falls back to generated path.
+        """
+        if self.filter_file and self.filter_mode == "hostlist":
+            return self.filter_file
         return f"lists/{self.name}.txt"
 
     def get_ipset_file(self) -> str:
-        """Returns ipset filename for this category with relative path (with ipset- prefix)."""
+        """Returns ipset filename for this category with relative path.
+
+        If filter_file is set and filter_mode is ipset, returns the original
+        filter_file path. Otherwise falls back to generated path with ipset- prefix.
+        """
+        if self.filter_file and self.filter_mode == "ipset":
+            return self.filter_file
         return f"lists/ipset-{self.name}.txt"
 
     def get_filter_file(self) -> str:
-        """Returns filter file based on filter_mode."""
+        """Returns filter file based on filter_mode.
+
+        Uses original filter_file if available, otherwise falls back
+        to generated paths.
+        """
+        if self.filter_file:
+            return self.filter_file
         if self.filter_mode == "ipset":
-            return self.get_ipset_file()
-        return self.get_hostlist_file()
+            return f"lists/ipset-{self.name}.txt"
+        return f"lists/{self.name}.txt"
 
     def has_tcp(self) -> bool:
         """Returns True if TCP strategy is configured."""
@@ -275,7 +294,7 @@ class CategoryConfig:
 
     def to_dict(self) -> Dict:
         """Converts to dictionary for serialization."""
-        return {
+        d = {
             "name": self.name,
             "strategy_id": self.strategy_id,
             "tcp_args": self.tcp_args,
@@ -290,6 +309,9 @@ class CategoryConfig:
             "syndata_udp": self.syndata_udp.to_dict(),
             "sort_order": self.sort_order,
         }
+        if self.filter_file:
+            d["filter_file"] = self.filter_file
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict) -> "CategoryConfig":
@@ -313,6 +335,7 @@ class CategoryConfig:
             tcp_enabled=data.get("tcp_enabled", True),
             udp_enabled=data.get("udp_enabled", True),
             filter_mode=data.get("filter_mode", "hostlist"),
+            filter_file=data.get("filter_file", ""),
             tcp_port=data.get("tcp_port", "443"),
             udp_port=data.get("udp_port", "443"),
             syndata_tcp=syndata_tcp,

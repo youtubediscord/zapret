@@ -929,7 +929,7 @@ class PresetManager:
                     # Fallback: keep old behavior only if base_filter is missing.
                     args_lines = list(base_filter_lines)
                     if not args_lines:
-                        filter_file_relative = cat.get_hostlist_file() if cat.filter_mode == "hostlist" else cat.get_ipset_file()
+                        filter_file_relative = cat.get_filter_file()
                         from config import MAIN_DIRECTORY
                         filter_file = os.path.normpath(os.path.join(MAIN_DIRECTORY, filter_file_relative))
                         args_lines = [f"--filter-tcp={cat.tcp_port}"]
@@ -1001,7 +1001,7 @@ class PresetManager:
 
                     args_lines = list(base_filter_lines)
                     if not args_lines:
-                        filter_file_relative = cat.get_ipset_file() if cat.filter_mode == "ipset" else cat.get_hostlist_file()
+                        filter_file_relative = cat.get_filter_file()
                         from config import MAIN_DIRECTORY
                         filter_file = os.path.normpath(os.path.join(MAIN_DIRECTORY, filter_file_relative))
                         args_lines = [f"--filter-udp={cat.udp_port}"]
