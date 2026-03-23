@@ -383,6 +383,7 @@ class ServerCheckWorker(QThread):
 
     server_checked = pyqtSignal(str, dict)
     all_complete = pyqtSignal()
+    dpi_restart_needed = pyqtSignal()
 
     def __init__(self, update_pool_stats: bool = False, telegram_only: bool = False, *, language: str = "ru"):
         super().__init__()
@@ -523,6 +524,22 @@ class ServerCheckWorker(QThread):
             self.all_complete.emit()
             return
 
+        # ── Проверяем, не блокирует ли DPI доступ к VPS серверам ──
+        dpi_was_stopped = False
+        if pool.servers:
+            first = pool.servers[0]
+            test_url = f"https://{first['host']}:{first['https_port']}/api/all_versions.json"
+            data, error, _ = self._request_versions_json(
+                test_url, timeout=(5, 5), verify_ssl=should_verify_ssl()
+            )
+            if data is None:
+                from utils.process_killer import is_process_running, kill_winws_force
+                if is_process_running("winws.exe") or is_process_running("winws2.exe"):
+                    log("⚠️ DPI мешает проверке серверов — временно останавливаем", "🔄 UPDATE")
+                    kill_winws_force()
+                    _time.sleep(0.5)
+                    dpi_was_stopped = True
+
         # 2. VPS серверы
         for server in pool.servers:
             server_id = server['id']
@@ -632,6 +649,10 @@ class ServerCheckWorker(QThread):
             }
 
         self.server_checked.emit('GitHub API', github_status)
+
+        if dpi_was_stopped:
+            self.dpi_restart_needed.emit()
+
         self.all_complete.emit()
 
 
@@ -1570,6 +1591,7 @@ class ServersPage(BasePage):
         )
         self.server_worker.server_checked.connect(self._on_server_checked)
         self.server_worker.all_complete.connect(self._on_servers_complete)
+        self.server_worker.dpi_restart_needed.connect(self._restart_dpi_after_update)
         self.server_worker.start()
 
     def _get_candidate_version_and_notes(self, status: dict) -> tuple[str | None, str]:
