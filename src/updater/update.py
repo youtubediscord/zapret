@@ -23,16 +23,9 @@ from .rate_limiter import UpdateRateLimiter
 from .network_hints import maybe_log_disable_dpi_for_update
 
 
-TIMEOUT = 15  # Увеличен с 10 до 15 сек для медленных соединений
-
-# Автопереключение на другой источник, если текущий сервер слишком медленный.
-# Порог достаточно консервативный, чтобы не ломать нормальные медленные сети,
-# но уходить с явно «зажатых» зеркал.
-SLOW_MIRROR_THRESHOLD_MBPS = 0.35
-SLOW_MIRROR_GRACE_SECONDS = 15.0
-SLOW_MIRROR_WINDOW_SECONDS = 4.0
-SLOW_MIRROR_MAX_SECONDS = 18.0
-SLOW_MIRROR_MIN_BYTES = 8 * 1024 * 1024
+TIMEOUT = 15
+NUM_SEGMENTS = 4        # параллельные сегменты для скачивания
+CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 # ──────────────────────────── Запуск установщика с UAC ─────────────────────────
 # ВАЖНО ДЛЯ БУДУЩИХ РАЗРАБОТЧИКОВ:
@@ -117,214 +110,188 @@ def _safe_set_status(parent, msg: str):
     else:
         print(msg)
 
+def _make_session(verify_ssl: bool = True) -> requests.Session:
+    """Создаёт сессию без системного прокси."""
+    import urllib3
+    s = requests.Session()
+    s.trust_env = False
+    s.proxies = {"http": None, "https": None}
+    s.headers.update({
+        'User-Agent': 'Zapret-Updater/4.0',
+        'Accept': 'application/octet-stream',
+        'Accept-Encoding': 'identity',
+    })
+    if not verify_ssl:
+        s.verify = False
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    return s
+
+
+def _supports_range(url: str, verify_ssl: bool) -> tuple[bool, int]:
+    """HEAD-запрос: поддерживает ли сервер Range и какой размер файла."""
+    s = _make_session(verify_ssl)
+    try:
+        resp = s.head(url, timeout=(10, 15), verify=verify_ssl, allow_redirects=True)
+        accepts = resp.headers.get("Accept-Ranges", "").lower()
+        length = int(resp.headers.get("Content-Length", 0))
+        return accepts == "bytes" and length > 0, length
+    finally:
+        s.close()
+
+
+def _download_segment(
+    url: str, verify_ssl: bool,
+    start: int, end: int, seg_path: str,
+    seg_index: int, lock: threading.Lock,
+    progress_arr: list, total: int,
+    on_progress: Callable[[int, int], None] | None,
+):
+    """Скачивает один сегмент файла через Range."""
+    s = _make_session(verify_ssl)
+    s.headers['Range'] = f'bytes={start}-{end}'
+    try:
+        with s.get(url, stream=True, timeout=(10, 90), verify=verify_ssl) as resp:
+            resp.raise_for_status()
+            with open(seg_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+                    if chunk:
+                        f.write(chunk)
+                        with lock:
+                            progress_arr[seg_index] += len(chunk)
+                            if on_progress and total > 0:
+                                done = sum(progress_arr)
+                                on_progress(done, total)
+    finally:
+        s.close()
+
+
+def _download_single(url: str, dest: str, verify_ssl: bool,
+                     on_progress: Callable[[int, int], None] | None):
+    """Однопоточное скачивание (fallback)."""
+    s = _make_session(verify_ssl)
+    try:
+        with s.get(url, stream=True, timeout=(10, 90), verify=verify_ssl) as resp:
+            resp.raise_for_status()
+            total = int(resp.headers.get("Content-Length", 0))
+            done = 0
+            if total > 0:
+                log(f"📦 Размер: {total / (1024 * 1024):.1f} MB", "🔄 DOWNLOAD")
+            with open(dest, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+                    if chunk:
+                        f.write(chunk)
+                        done += len(chunk)
+                        if on_progress and total > 0:
+                            on_progress(done, total)
+    finally:
+        s.close()
+
+
 def _download_with_retry(url: str, dest: str, on_progress: Callable[[int, int], None] | None,
                          verify_ssl: bool = True, max_retries: int = 2,
                          enable_slow_mirror_switch: bool = True):
     """
-    ОПТИМИЗИРОВАННОЕ скачивание с защитой от повторных загрузок
+    Многопоточное скачивание (4 сегмента параллельно).
+    Если сервер не поддерживает Range — fallback на один поток.
     """
-    import requests
-    from time import sleep, time
-    import os
-    
-    # ═══════════════════════════════════════════════════════════
-    # ✅ ЗАЩИТА ОТ ПОВТОРНОГО СКАЧИВАНИЯ (в течение 30 секунд)
-    # ═══════════════════════════════════════════════════════════
+    from concurrent.futures import ThreadPoolExecutor
+    from time import time as now
+
+    # Защита от повторного скачивания
     if os.path.exists(dest):
-        file_age = time() - os.path.getmtime(dest)
+        file_age = now() - os.path.getmtime(dest)
         file_size = os.path.getsize(dest)
-        
-        # Если файл скачан недавно И имеет правильный размер (>60MB)
-        if file_age < 30 and file_size > 60000000:
-            log(
-                f"⏭️ Файл уже скачан {int(file_age)}с назад "
-                f"({file_size/1024/1024:.1f}MB), повторное скачивание пропущено",
-                "🔄 DOWNLOAD"
-            )
-            return  # НЕ СКАЧИВАЕМ ПОВТОРНО!
-    
-    last_error = None
-    effective_retries = max_retries
-    attempt = 0
-    
-    while attempt < effective_retries:
-        try:
-            session = requests.Session()
-            session.trust_env = False
-            session.proxies = {"http": None, "https": None}
-            
-            session.headers.update({
-                'User-Agent': 'Zapret-Updater/3.1',  # ✅ Обновлена версия
-                'Accept': 'application/octet-stream',
-                'Accept-Encoding': 'identity',
-                'Connection': 'keep-alive'
-            })
-            
-            # ✅ УМЕНЬШЕН пул соединений
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections=2,
-                pool_maxsize=2,
-                max_retries=requests.adapters.Retry(
-                    total=0,
-                    backoff_factor=0,
-                    status_forcelist=None
-                )
-            )
-            session.mount('https://', adapter)
-            session.mount('http://', adapter)
-            
-            if not verify_ssl:
-                session.verify = False
-                import urllib3
-                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-            
-            log(f"Попытка {attempt + 1}/{max_retries} скачивания", "🔄 DOWNLOAD")
-            
-            chunk_size = 65536  # 64KB — при 15 КБ/с callback каждые ~4с, не 133с
-            timeout = (10, 90)
-            
-            # ✅ Resume для любой попытки, если уже есть значимый partial-файл.
-            # Это позволяет переключаться на более быстрые зеркала без потери прогресса.
-            resume_from = 0
-            if os.path.exists(dest):
-                resume_from = os.path.getsize(dest)
-                if resume_from > 1048576:  # > 1MB
-                    log(f"📥 Возобновление с {resume_from/1024/1024:.1f} МБ", "🔄 DOWNLOAD")
-                    session.headers['Range'] = f'bytes={resume_from}-'
-                    # При resume уже скачано достаточно — снижаем порог slow mirror
-                    # чтобы быстрее переключиться если и этот сервер медленный
-                    if resume_from >= SLOW_MIRROR_MIN_BYTES:
-                        log(f"⚡ Resume >= {SLOW_MIRROR_MIN_BYTES/1024/1024:.0f} МБ — порог slow mirror снижен до 1 МБ", "🔄 DOWNLOAD")
-                else:
-                    resume_from = 0
-            
-            with session.get(url, stream=True, timeout=timeout, verify=verify_ssl) as resp:
-                resp.raise_for_status()
-                
-                if resp.status_code == 206:
-                    content_range = resp.headers.get('Content-Range', '')
-                    if content_range:
-                        total = int(content_range.split('/')[-1])
-                    else:
-                        total = resume_from + int(resp.headers.get("content-length", 0))
-                else:
-                    total = int(resp.headers.get("content-length", 0))
-                    resume_from = 0
-                
-                done = resume_from
-                
-                if total > 0:
-                    log(f"📦 Размер: {total/(1024*1024):.1f} MB", "🔄 DOWNLOAD")
-                
-                last_update_time = 0
-                update_interval = 2.0
-                
-                mode = "ab" if resume_from > 0 else "wb"
-                
-                with open(dest, mode, buffering=4194304) as fp:
-                    start_time = time()
-                    slow_window_started = start_time
-                    slow_window_bytes = 0
-                    slow_seconds_accum = 0.0
-                    last_slow_log_time = 0.0
-                    # При resume снижаем порог — уже достаточно данных для оценки
-                    effective_min_bytes = (1 * 1024 * 1024) if (resume_from >= SLOW_MIRROR_MIN_BYTES) else SLOW_MIRROR_MIN_BYTES
-                    
-                    try:
-                        for chunk in resp.iter_content(chunk_size=chunk_size):
-                            if chunk:
-                                fp.write(chunk)
-                                done += len(chunk)
-                                slow_window_bytes += len(chunk)
-                                
-                                current_time = time()
-                                if on_progress and total:
-                                    if (current_time - last_update_time) >= update_interval:
-                                        on_progress(done, total)
-                                        last_update_time = current_time
-
-                                if enable_slow_mirror_switch:
-                                    window_elapsed = current_time - slow_window_started
-                                    if window_elapsed >= SLOW_MIRROR_WINDOW_SECONDS:
-                                        window_speed_bps = slow_window_bytes / max(window_elapsed, 1e-6)
-                                        downloaded_now = done - resume_from
-                                        remaining = (total - done) if total > 0 else None
-                                        too_slow = window_speed_bps < (SLOW_MIRROR_THRESHOLD_MBPS * 1024 * 1024)
-                                        enough_data = downloaded_now >= effective_min_bytes
-                                        after_grace = (current_time - start_time) >= SLOW_MIRROR_GRACE_SECONDS
-                                        not_finishing = (remaining is None) or (remaining > (8 * 1024 * 1024))
-
-                                        if too_slow and enough_data and after_grace and not_finishing:
-                                            slow_seconds_accum += window_elapsed
-                                            if (current_time - last_slow_log_time) >= 6.0:
-                                                log(
-                                                    f"🐢 Низкая скорость {window_speed_bps / 1024 / 1024:.2f} MB/s, "
-                                                    f"возможен переход на другое зеркало",
-                                                    "🔄 DOWNLOAD",
-                                                )
-                                                last_slow_log_time = current_time
-                                        else:
-                                            slow_seconds_accum = 0.0
-
-                                        if slow_seconds_accum >= SLOW_MIRROR_MAX_SECONDS:
-                                            raise requests.exceptions.ConnectionError(
-                                                "Slow download: mirror is too slow, switching source"
-                                            )
-
-                                        slow_window_started = current_time
-                                        slow_window_bytes = 0
-                        
-                        if on_progress and total:
-                            on_progress(total, total)
-                        
-                        elapsed = time() - start_time
-                        if elapsed > 0 and total > 0:
-                            avg_speed = ((done - resume_from) / elapsed) / (1024 * 1024)
-                            log(f"✅ Скачано {total/(1024*1024):.1f} MB за {elapsed:.1f}с ({avg_speed:.2f} MB/s)", "🔄 DOWNLOAD")
-                        
-                    except requests.exceptions.ChunkedEncodingError as e:
-                        raise requests.exceptions.ConnectionError(f"Incomplete download: {e}")
-            
-            # ✅ Проверяем размер файла
-            if os.path.exists(dest):
-                actual_size = os.path.getsize(dest)
-                if total > 0 and actual_size != total:
-                    raise Exception(f"Размер не совпадает: {actual_size} != {total}")
-                
-                # ✅ Устанавливаем время модификации файла для защиты
-                os.utime(dest, None)  # Обновляем mtime
-            
-            log(f"✅ Файл скачан с попытки {attempt + 1}", "🔄 DOWNLOAD")
+        if file_age < 30 and file_size > 60_000_000:
+            log(f"⏭️ Файл уже скачан {int(file_age)}с назад ({file_size / 1024 / 1024:.1f}MB)", "🔄 DOWNLOAD")
             return
-            
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            log(f"Попытка {attempt + 1}/{max_retries} скачивания {url}", "🔄 DOWNLOAD")
+
+            # Проверяем поддержку Range
+            supports_range, total = False, 0
+            try:
+                supports_range, total = _supports_range(url, verify_ssl)
+            except Exception:
+                pass
+
+            start_time = now()
+
+            if supports_range and total > NUM_SEGMENTS * CHUNK_SIZE:
+                # === МНОГОПОТОЧНОЕ СКАЧИВАНИЕ ===
+                log(f"⚡ Многопоток: {NUM_SEGMENTS} сегментов, {total / (1024 * 1024):.1f} MB", "🔄 DOWNLOAD")
+
+                seg_size = total // NUM_SEGMENTS
+                segments = []
+                for i in range(NUM_SEGMENTS):
+                    s_start = i * seg_size
+                    s_end = total - 1 if i == NUM_SEGMENTS - 1 else (i + 1) * seg_size - 1
+                    segments.append((s_start, s_end))
+
+                seg_dir = dest + "_segments"
+                os.makedirs(seg_dir, exist_ok=True)
+                seg_paths = [os.path.join(seg_dir, f"seg_{i}") for i in range(NUM_SEGMENTS)]
+
+                lock = threading.Lock()
+                progress_arr = [0] * NUM_SEGMENTS
+
+                try:
+                    with ThreadPoolExecutor(max_workers=NUM_SEGMENTS) as pool:
+                        futures = []
+                        for i, (s_start, s_end) in enumerate(segments):
+                            fut = pool.submit(
+                                _download_segment,
+                                url, verify_ssl, s_start, s_end,
+                                seg_paths[i], i, lock, progress_arr, total,
+                                on_progress,
+                            )
+                            futures.append(fut)
+                        for fut in futures:
+                            fut.result()
+
+                    # Склеиваем сегменты
+                    with open(dest, "wb") as out:
+                        for sp in seg_paths:
+                            with open(sp, "rb") as seg_f:
+                                shutil.copyfileobj(seg_f, out)
+                finally:
+                    shutil.rmtree(seg_dir, ignore_errors=True)
+            else:
+                # === ОДНОПОТОЧНОЕ СКАЧИВАНИЕ ===
+                log("📥 Однопоток (Range не поддерживается или файл мал)", "🔄 DOWNLOAD")
+                _download_single(url, dest, verify_ssl, on_progress)
+
+            # Проверяем размер
+            if os.path.exists(dest):
+                actual = os.path.getsize(dest)
+                if total > 0 and actual != total:
+                    raise Exception(f"Размер не совпадает: {actual} != {total}")
+
+            elapsed = now() - start_time
+            size_mb = os.path.getsize(dest) / (1024 * 1024)
+            speed = size_mb / max(elapsed, 0.01)
+            log(f"✅ Скачано {size_mb:.1f} MB за {elapsed:.1f}с ({speed:.1f} MB/s)", "🔄 DOWNLOAD")
+
+            if on_progress and total > 0:
+                on_progress(total, total)
+            return
+
         except Exception as e:
             last_error = str(e)
             log(f"❌ Попытка {attempt + 1} не удалась: {last_error}", "🔄 DOWNLOAD")
             maybe_log_disable_dpi_for_update(e, scope="download", level="🔄 DOWNLOAD")
-        
-        # Удаляем файл если ошибка не resume-able.
-        # Для медленного зеркала partial сохраняем, чтобы следующий источник
-        # продолжил скачивание через Range.
-        keep_partial = False
-        try:
-            err_text = str(last_error)
-            keep_partial = ("Incomplete download" in err_text) or ("Slow download" in err_text)
-        except Exception:
-            keep_partial = False
 
-        if os.path.exists(dest) and not keep_partial:
-            try:
-                os.remove(dest)
-            except:
-                pass
-        
-        attempt += 1
-        
-        if attempt < effective_retries:
-            wait_time = min(2 ** attempt, 30)
-            log(f"⏳ Ожидание {wait_time}с перед повтором...", "🔄 DOWNLOAD")
-            sleep(wait_time)
-    
+            if os.path.exists(dest):
+                try:
+                    os.remove(dest)
+                except Exception:
+                    pass
+
+            if attempt < max_retries - 1:
+                sleep(min(2 ** (attempt + 1), 10))
+
     raise Exception(f"Не удалось скачать после {max_retries} попыток. Ошибка: {last_error}")
 
 def compare_versions(v1: str, v2: str) -> int:
