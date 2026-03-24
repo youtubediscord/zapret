@@ -1415,48 +1415,134 @@ class TelegramProxyPage(BasePage):
             self._check_relay_after_start()
 
     def _check_relay_after_start(self):
-        """Check relay reachability after proxy starts. Runs check in background."""
+        """Check relay reachability after proxy starts. Runs check in background.
+
+        Logic:
+        1. TLS check (port 443) — if OK → update status "Relay OK"
+        2. If TLS fails → check TCP port 80 (HTTP) to distinguish:
+           - Port 80 works + TLS fails = something breaks TLS (likely zapret desync)
+           - Port 80 also fails = ISP blocks the IP entirely
+        3. Update status label + show InfoBar warning if needed
+        """
+        # Show "checking..." in status
+        mgr = _get_proxy_manager()
+        if mgr.is_running:
+            self._status_label.setText(
+                f"Работает на {mgr.host}:{mgr.port} — проверка relay..."
+            )
+
         def _do_check():
             try:
                 from telegram_proxy.wss_proxy import check_relay_reachable
                 result = check_relay_reachable(timeout=5.0)
-                if not result["reachable"]:
-                    from PyQt6.QtCore import QMetaObject, Qt as QtNS
-                    QMetaObject.invokeMethod(
-                        self, "_show_relay_warning",
-                        QtNS.ConnectionType.QueuedConnection,
-                    )
+
+                if result["reachable"]:
+                    self._relay_diag = {"status": "ok", "ms": result["ms"]}
+                else:
+                    # TLS failed — check port 80 to determine cause
+                    http_ok = self._check_relay_http()
+
+                    # Determine if zapret is running
+                    zapret_running = False
+                    try:
+                        app = self.window()
+                        if hasattr(app, 'app') and hasattr(app.app, 'dpi_starter'):
+                            zapret_running = app.app.dpi_starter.check_process_running_wmi(silent=True)
+                    except Exception:
+                        pass
+
+                    self._relay_diag = {
+                        "status": "fail",
+                        "http_ok": http_ok,
+                        "zapret_running": zapret_running,
+                    }
+
+                from PyQt6.QtCore import QMetaObject, Qt as QtNS
+                QMetaObject.invokeMethod(
+                    self, "_apply_relay_result",
+                    QtNS.ConnectionType.QueuedConnection,
+                )
             except Exception as e:
                 log(f"Relay check error: {e}", "WARNING")
         threading.Thread(target=_do_check, daemon=True).start()
 
-    @pyqtSlot()
-    def _show_relay_warning(self):
-        """Show InfoBar warning that WSS relay is unreachable. Must run on GUI thread."""
-        # Determine if zapret (winws2) is running to tailor the message
-        zapret_running = False
+    @staticmethod
+    def _check_relay_http(relay_ip: str = "149.154.167.220", timeout: float = 5.0) -> bool:
+        """Quick TCP check to relay on port 80 (HTTP). Returns True if port 80 responds."""
+        import socket
         try:
-            app = self.window()
-            if hasattr(app, 'app') and hasattr(app.app, 'dpi_starter'):
-                zapret_running = app.app.dpi_starter.check_process_running_wmi(silent=True)
+            sock = socket.create_connection((relay_ip, 80), timeout=timeout)
+            sock.close()
+            return True
         except Exception:
-            pass
+            return False
 
-        if zapret_running:
-            title = "WSS Relay недоступен"
+    @pyqtSlot()
+    def _apply_relay_result(self):
+        """Update status label and show warning based on relay check. GUI thread only."""
+        diag = getattr(self, "_relay_diag", {})
+        mgr = _get_proxy_manager()
+
+        if not mgr.is_running:
+            return
+
+        base = f"Работает на {mgr.host}:{mgr.port}"
+
+        if diag.get("status") == "ok":
+            ms = diag.get("ms", 0)
+            self._status_label.setText(f"{base} — Relay OK ({ms:.0f}ms)")
+            return
+
+        # Relay check failed — update status + show warning
+        http_ok = diag.get("http_ok", False)
+        zapret_running = diag.get("zapret_running", False)
+
+        if http_ok and zapret_running:
+            # Сценарий 1: IP доступен, TLS ломается, Zapret запущен
+            self._status_label.setText(f"{base} — Relay: стратегия Zapret ломает TLS")
+            title = "Стратегия Zapret ломает Telegram прокси"
             content = (
-                "web.telegram.org (149.154.167.220) не отвечает.\n"
-                "Telegram прокси не сможет работать.\n"
-                "Попробуйте выключить Zapret и перезапустить прокси — "
-                "он может мешать подключению к relay."
+                "Что происходит: IP relay (149.154.167.220) доступен, "
+                "но текущая стратегия Zapret применяет desync к TLS "
+                "и ломает подключение прокси.\n"
+                "Что делать: смените стратегию Zapret на другую, "
+                "или выключите Zapret и перезапустите прокси."
+            )
+        elif http_ok and not zapret_running:
+            # Сценарий 2: IP доступен, TLS не проходит, Zapret выключен
+            self._status_label.setText(f"{base} — Relay: TLS не проходит")
+            title = "TLS к relay не проходит"
+            content = (
+                "Что происходит: IP relay (149.154.167.220) доступен по HTTP, "
+                "но TLS (порт 443) не проходит.\n"
+                "Что делать: если Zapret только что выключен — "
+                "перезапустите прокси (нажмите Остановить → Запустить).\n"
+                "Если после перезапуска проблема осталась — "
+                "ваш провайдер блокирует TLS к Telegram. "
+                "Настройте 'Внешний прокси' ниже."
+            )
+        elif zapret_running:
+            # Сценарий 3: IP недоступен, Zapret запущен
+            self._status_label.setText(f"{base} — Relay: недоступен, Zapret запущен")
+            title = "Relay недоступен — возможно мешает Zapret"
+            content = (
+                "Что происходит: relay (149.154.167.220) не отвечает "
+                "ни по HTTP, ни по TLS. Zapret запущен.\n"
+                "Что делать: выключите Zapret и перезапустите прокси.\n"
+                "Если без Zapret relay тоже недоступен — "
+                "ваш провайдер блокирует IP Telegram. "
+                "Настройте 'Внешний прокси' ниже."
             )
         else:
-            title = "WSS Relay недоступен"
+            # Сценарий 4: IP недоступен, Zapret выключен = провайдер блокирует
+            self._status_label.setText(f"{base} — Relay: заблокирован провайдером")
+            title = "Провайдер блокирует Telegram"
             content = (
-                "web.telegram.org (149.154.167.220) не отвечает.\n"
-                "Ваш провайдер блокирует IP Telegram.\n"
-                "Прокси не сможет работать без внешнего прокси (VPN).\n"
-                "Настройте 'Внешний прокси' в настройках ниже."
+                "Что происходит: relay (149.154.167.220) полностью недоступен — "
+                "ваш провайдер блокирует IP Telegram.\n"
+                "Прокси не сможет работать напрямую.\n"
+                "Что делать: включите 'Внешний прокси' в настройках ниже "
+                "и выберите один из доступных прокси-серверов."
             )
 
         if InfoBar is not None:
