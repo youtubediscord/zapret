@@ -156,8 +156,14 @@ class ProxyController:
                 loop.run_until_complete(proxy.start())
             self._started.set()
             loop.run_forever()
-        except Exception:
-            pass
+        except Exception as e:
+            # Log bind errors so they aren't silently swallowed
+            if self._on_log:
+                try:
+                    self._on_log(f"Proxy start failed: {type(e).__name__}: {e}")
+                except Exception:
+                    pass
+            # _started.set() is called in finally block below
         finally:
             # All cleanup in individual try/except to never crash
             if loop is not None and not loop.is_closed():

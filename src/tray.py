@@ -199,10 +199,29 @@ class SystemTrayManager:
                 except Exception:
                     pass
             else:
-                from config.reg import get_tg_proxy_port, get_tg_proxy_mode
+                from config.reg import (get_tg_proxy_port, get_tg_proxy_host,
+                                         get_tg_proxy_upstream_enabled, get_tg_proxy_upstream_host,
+                                         get_tg_proxy_upstream_port, get_tg_proxy_upstream_mode,
+                                         get_tg_proxy_upstream_user, get_tg_proxy_upstream_pass)
                 port = get_tg_proxy_port()
-                mode = get_tg_proxy_mode()
-                mgr.start_proxy(port=port, mode=mode)
+                host = get_tg_proxy_host()
+                upstream_config = None
+                try:
+                    if get_tg_proxy_upstream_enabled():
+                        up_host = get_tg_proxy_upstream_host()
+                        up_port = get_tg_proxy_upstream_port()
+                        if up_host and up_port > 0:
+                            from telegram_proxy.wss_proxy import UpstreamProxyConfig
+                            upstream_config = UpstreamProxyConfig(
+                                enabled=True, host=up_host, port=up_port,
+                                mode=get_tg_proxy_upstream_mode(),
+                                username=get_tg_proxy_upstream_user(),
+                                password=get_tg_proxy_upstream_pass(),
+                            )
+                except Exception:
+                    pass
+                mgr.start_proxy(port=port, mode="socks5", host=host,
+                                upstream_config=upstream_config)
                 self._tg_proxy_act.setText(f"Telegram Proxy: вкл ({port})")
                 try:
                     from config.reg import set_tg_proxy_enabled

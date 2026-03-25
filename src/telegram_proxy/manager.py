@@ -87,6 +87,17 @@ class TelegramProxyManager(QThread):
         self._controller = None
         self.status_changed.emit(False)
 
+    def _stop_controller_only(self) -> None:
+        """Stop only the ProxyController (blocking, pure-Python, no Qt).
+        Safe to call from any thread. Qt cleanup (timer, signal) must be
+        done separately on the GUI thread."""
+        controller = self._controller
+        if controller:
+            controller.stop()
+            # Only clear if no new controller was created during stop
+            if self._controller is controller:
+                self._controller = None
+
     def restart_proxy(self, port: int = 1353, mode: str = "socks5", host: str = "127.0.0.1",
                       upstream_config: Optional[UpstreamProxyConfig] = None) -> bool:
         """Restart with new config."""

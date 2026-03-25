@@ -63,6 +63,9 @@ _WS_POOL_MAX_AGE = 120.0  # seconds before evicting idle connections
 # DC fail cooldown (seconds)
 DC_FAIL_COOLDOWN = 10.0
 
+# How long to wait for first server response before declaring DC blocked
+_RECV_ZERO_TIMEOUT = 8.0
+
 # Max concurrent WSS handshakes — prevents TLS flood that kills the network
 _MAX_CONCURRENT_WSS = 4
 _wss_semaphore: Optional[asyncio.Semaphore] = None
@@ -771,7 +774,6 @@ class TelegramWSProxy:
         if self._running:
             return
 
-        self._running = True
         self.stats = ProxyStats()
         self._ws_pool = _WsPool(self.stats)
         # Reset semaphore for fresh event loop
@@ -787,10 +789,13 @@ class TelegramWSProxy:
             self._port,
         )
         self._servers.append(server)
-        self._log(f"SOCKS5 proxy started on {self._host}:{self._port}")
 
         for srv in self._servers:
             await srv.start_serving()
+
+        # Mark running AFTER server is successfully bound and listening
+        self._running = True
+        self._log(f"SOCKS5 proxy started on {self._host}:{self._port}")
 
         # Pre-fill WebSocket connection pool (non-blocking)
         asyncio.create_task(self._ws_pool.warmup())
@@ -911,18 +916,21 @@ class TelegramWSProxy:
             media_tag = " media" if is_media else ""
             self._log(f"[{label}] DC{dc}{media_tag} ({target_host}:{target_port})")
 
+            # "always" mode: route ALL Telegram traffic through upstream,
+            # skip WSS entirely. This is the "Весь трафик через прокси" toggle.
+            if (self._upstream.enabled
+                    and self._upstream.mode == "always"):
+                self._log(f"[{label}] DC{dc} -> upstream (always mode)")
+                await self._upstream_proxy_connect(
+                    reader, writer, target_host, target_port,
+                    init, label, dc, is_media,
+                )
+                return
+
             # Only DC2 and DC4 have proven working WSS relays.
             # Cross-DC routing via kws2 does NOT work (recv=0, server rejects).
             # Port 80 fallback tested: DC1 partial, DC5 dead. Not reliable.
             if dc not in WSS_DOMAINS:
-                if (self._upstream.enabled
-                        and self._upstream.mode == "always"):
-                    self._log(f"[{label}] DC{dc} -> upstream (always mode)")
-                    await self._upstream_proxy_connect(
-                        reader, writer, target_host, target_port,
-                        init, label, dc, is_media,
-                    )
-                    return
                 self._log(f"[{label}] DC{dc} -> TCP (no WSS relay for this DC)")
                 await self._tcp_fallback(
                     reader, writer, target_host, target_port,
@@ -1100,10 +1108,13 @@ class TelegramWSProxy:
                 and self._upstream.enabled
                 and self._upstream.mode == "fallback"):
             self._log(f"[{label}] DC{dc}{media_tag} learned-blocked -> upstream proxy")
-            await self._upstream_proxy_connect(
+            ok = await self._upstream_proxy_connect(
                 client_reader, client_writer,
                 target_host, target_port, init, label, dc, is_media,
             )
+            if not ok:
+                self._dc_upstream_required.discard(dc)
+                self._log(f"[{label}] DC{dc} upstream failed, unmarked for re-probe")
             return
 
         self._log(f"[{label}] DC{dc}{media_tag} TCP fallback -> {target_host}:{target_port}")
@@ -1119,6 +1130,7 @@ class TelegramWSProxy:
             self._log(f"[{label}] TCP fallback failed ({elapsed:.1f}s): {type(exc).__name__}")
             # TCP connect failed — try upstream if available
             if self._upstream.enabled:
+                self._dc_upstream_required.add(dc)
                 self._log(f"[{label}] DC{dc}{media_tag} TCP failed -> trying upstream")
                 await self._upstream_proxy_connect(
                     client_reader, client_writer,
@@ -1132,12 +1144,16 @@ class TelegramWSProxy:
         # Forward the buffered init packet
         rw.write(init)
         await rw.drain()
-        recv_total = await self._relay_tcp(client_reader, client_writer, rr, rw, label)
+        recv_total, watchdog_fired = await self._relay_tcp(
+            client_reader, client_writer, rr, rw, label,
+            recv_zero_timeout=_RECV_ZERO_TIMEOUT,
+        )
 
-        # Learn from recv=0: mark DC for upstream routing on future connections
-        if recv_total == 0 and self._upstream.enabled:
+        # Learn from watchdog timeout: server silence = DC is blocked by DPI.
+        # Only mark on watchdog — client disconnect with recv=0 is NOT blocking evidence.
+        if watchdog_fired and recv_total == 0 and self._upstream.enabled:
             self._dc_upstream_required.add(dc)
-            self._log(f"[{label}] DC{dc} recv=0 -> marked for upstream routing")
+            self._log(f"[{label}] DC{dc} recv=0 (watchdog) -> marked for upstream routing")
 
     async def _upstream_proxy_connect(
         self,
@@ -1149,10 +1165,11 @@ class TelegramWSProxy:
         label: str,
         dc: int,
         is_media: bool,
-    ) -> None:
-        """Route through upstream SOCKS5 proxy as last-resort fallback."""
+    ) -> bool:
+        """Route through upstream SOCKS5 proxy as last-resort fallback.
+        Returns True if upstream connected, False on failure."""
         if not self._upstream.enabled:
-            return
+            return False
 
         media_tag = " media" if is_media else ""
         self._log(
@@ -1177,7 +1194,7 @@ class TelegramWSProxy:
                 f"[{label}] DC{dc}{media_tag} upstream connect failed "
                 f"({elapsed:.1f}s): {type(exc).__name__}: {exc}"
             )
-            return
+            return False
 
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] DC{dc}{media_tag} upstream connected ({elapsed:.1f}s)")
@@ -1186,6 +1203,7 @@ class TelegramWSProxy:
         rw.write(init)
         await rw.drain()
         await self._relay_tcp(client_reader, client_writer, rr, rw, label)
+        return True
 
     async def _relay_wss(
         self,
@@ -1272,11 +1290,18 @@ class TelegramWSProxy:
         remote_reader: asyncio.StreamReader,
         remote_writer: asyncio.StreamWriter,
         label: str = "",
-    ) -> int:
-        """Bidirectional TCP relay (fallback or passthrough). Returns recv_total."""
+        recv_zero_timeout: float = 0,
+    ) -> tuple[int, bool]:
+        """Bidirectional TCP relay (fallback or passthrough).
+
+        Returns (recv_total, watchdog_fired):
+            recv_total: bytes received from remote
+            watchdog_fired: True if relay ended due to recv=0 watchdog timeout
+        """
         t0 = time.monotonic()
         sent_total = 0
         recv_total = 0
+        watchdog_fired = False
 
         async def forward(src: asyncio.StreamReader, dst: asyncio.StreamWriter, is_upload: bool):
             nonlocal sent_total, recv_total
@@ -1298,15 +1323,34 @@ class TelegramWSProxy:
 
         task_c2r = asyncio.create_task(forward(client_reader, remote_writer, True))
         task_r2c = asyncio.create_task(forward(remote_reader, client_writer, False))
+        all_tasks = {task_c2r, task_r2c}
+        watchdog_task = None
+
+        if recv_zero_timeout > 0:
+            async def _recv_watchdog():
+                await asyncio.sleep(recv_zero_timeout)
+                if recv_total == 0:
+                    return  # Completes task -> triggers FIRST_COMPLETED
+                # Data flowing — wait until relay ends naturally
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    pass
+            watchdog_task = asyncio.create_task(_recv_watchdog())
+            all_tasks.add(watchdog_task)
+
         try:
-            await asyncio.wait(
-                {task_c2r, task_r2c},
+            done, _pending = await asyncio.wait(
+                all_tasks,
                 return_when=asyncio.FIRST_COMPLETED,
             )
+            # Check if watchdog was the task that completed (= server silence)
+            if watchdog_task is not None and watchdog_task in done:
+                watchdog_fired = True
         finally:
-            for t in (task_c2r, task_r2c):
+            for t in all_tasks:
                 t.cancel()
-            for t in (task_c2r, task_r2c):
+            for t in all_tasks:
                 try:
                     await t
                 except BaseException:
@@ -1320,8 +1364,9 @@ class TelegramWSProxy:
                 elapsed = time.monotonic() - t0
                 if recv_total == 0 and sent_total > 0:
                     self.stats.recv_zero_count += 1
-                self._log(f"[{label}] tcp relay done: sent={sent_total} recv={recv_total} ({elapsed:.1f}s)")
-        return recv_total
+                tag = " [watchdog]" if watchdog_fired else ""
+                self._log(f"[{label}] tcp relay done: sent={sent_total} recv={recv_total} ({elapsed:.1f}s){tag}")
+        return recv_total, watchdog_fired
 
 
 def _is_domain(host: str) -> bool:
