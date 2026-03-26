@@ -8,7 +8,7 @@ Each preset contains:
 - Base arguments (lua-init, wf-*, blobs)
 - Category configurations (youtube, discord, etc.)
 
-Switching presets = copying preset file to preset-zapret2.txt + DPI reload.
+Switching presets = selecting a source preset + regenerating runtime config + DPI reload.
 
 Usage:
     from presets import PresetManager, Preset
@@ -314,8 +314,7 @@ def ensure_default_preset_exists() -> bool:
     """
     Ensures that a default preset exists for direct_zapret2 mode.
 
-    Checks if preset-zapret2.txt exists. If not:
-    1. Generates active preset from the default template.
+    Ensures a selected preset exists and runtime config can be generated.
 
     This function should be called during application startup
     when running in direct_zapret2 mode.
@@ -324,43 +323,15 @@ def ensure_default_preset_exists() -> bool:
         True if preset exists or was created successfully
     """
     from log import log
-    from .preset_defaults import get_default_template_content, get_default_template_name
-
-    active_path = get_active_preset_path()
-
-    # Ensure templates exist and are copied to presets/.
-    ensure_builtin_presets_exist()
-
-    # Ensure Basic strategies catalog exists (stable path in Roaming AppData).
-    ensure_basic_strategies_exist()
-
-    # Ensure Advanced strategies catalog exists (stable path in Roaming AppData).
-    ensure_advanced_strategies_exist()
-
-    # Check if active preset file already exists
-    if active_path.exists():
-        log("Active preset file already exists", "DEBUG")
-        return True
-
-    log("Active preset file not found, creating from default template...", "INFO")
 
     try:
-        template_name = get_default_template_name() or "Default"
-        template = get_default_template_content()
-        if not template:
-            log(
-                "Cannot create preset-zapret2.txt: no preset templates found. "
-                "Expected at least one file in: %APPDATA%/zapret/presets_v2_template/*.txt",
-                "ERROR",
-            )
-            return False
-        _atomic_write_text(active_path, template, encoding="utf-8")
-        log(f"Created active preset from template at {active_path}", "DEBUG")
+        from core.services import get_direct_flow_coordinator
 
-        # Persist active preset name
-        set_active_preset_name(template_name)
-
-        log("Active preset created from template successfully", "INFO")
+        profile = get_direct_flow_coordinator().ensure_launch_profile(
+            "direct_zapret2",
+            require_filters=False,
+        )
+        log(f"Selected winws2 preset ensured and launch config regenerated: {profile.launch_config_path}", "INFO")
         return True
 
     except Exception as e:
@@ -375,7 +346,7 @@ def restore_builtin_preset(preset_name: str) -> bool:
     Restores a preset from the template in presets_v2_template/.
 
     Overwrites the preset in presets/ with the template content.
-    If the preset is currently active, also updates preset-zapret2.txt.
+    If the preset is currently selected, also updates the runtime config.
 
     Returns:
         True if restore was successful, False otherwise
@@ -396,7 +367,7 @@ def restore_builtin_preset(preset_name: str) -> bool:
         _atomic_write_text(preset_path, content, encoding="utf-8")
         log(f"Restored preset '{canonical}' from template to {preset_path}", "INFO")
 
-        # If this preset is currently active, update preset-zapret2.txt
+        # If this preset is currently selected, update runtime config
         active_name = (get_active_preset_name() or "").strip()
         if active_name and active_name.lower() == canonical.lower():
             active_path = get_active_preset_path()

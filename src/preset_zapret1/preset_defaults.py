@@ -32,6 +32,7 @@ _DEFAULT_TEMPLATE_CONTENT = """\
 _TEMPLATES_CACHE_V1: Optional[dict[str, str]] = None
 _TEMPLATE_BY_KEY_V1: Optional[dict[str, str]] = None
 _CANONICAL_NAME_BY_KEY_V1: Optional[dict[str, str]] = None
+_DELETED_SECTION_V1 = "deleted"
 
 
 def _get_v1_templates_dir() -> Path:
@@ -44,6 +45,86 @@ def _get_v1_templates_dir() -> Path:
         if appdata:
             return Path(appdata) / "zapret" / "presets_v1_template"
         return Path.home() / "AppData" / "Roaming" / "zapret" / "presets_v1_template"
+
+
+def _get_deleted_presets_ini_path_v1() -> Path:
+    try:
+        from config import get_zapret_userdata_dir
+
+        return Path(get_zapret_userdata_dir()) / "presets_v1" / "deleted_presets.ini"
+    except Exception:
+        return Path("")
+
+
+def get_deleted_preset_names_v1() -> set[str]:
+    import configparser
+
+    path = _get_deleted_presets_ini_path_v1()
+    try:
+        if not path.exists():
+            return set()
+        cfg = configparser.ConfigParser()
+        cfg.read(path, encoding="utf-8")
+        if not cfg.has_section(_DELETED_SECTION_V1):
+            return set()
+        return {k for k, v in cfg.items(_DELETED_SECTION_V1) if v.strip() == "1"}
+    except Exception:
+        return set()
+
+
+def mark_preset_deleted_v1(name: str) -> bool:
+    import configparser
+
+    path = _get_deleted_presets_ini_path_v1()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cfg = configparser.ConfigParser()
+        if path.exists():
+            cfg.read(path, encoding="utf-8")
+        if not cfg.has_section(_DELETED_SECTION_V1):
+            cfg.add_section(_DELETED_SECTION_V1)
+        cfg.set(_DELETED_SECTION_V1, name, "1")
+        with path.open("w", encoding="utf-8") as f:
+            cfg.write(f)
+        return True
+    except Exception:
+        return False
+
+
+def unmark_preset_deleted_v1(name: str) -> bool:
+    import configparser
+
+    path = _get_deleted_presets_ini_path_v1()
+    try:
+        if not path.exists():
+            return True
+        cfg = configparser.ConfigParser()
+        cfg.read(path, encoding="utf-8")
+        if cfg.has_section(_DELETED_SECTION_V1):
+            cfg.remove_option(_DELETED_SECTION_V1, name)
+        with path.open("w", encoding="utf-8") as f:
+            cfg.write(f)
+        return True
+    except Exception:
+        return False
+
+
+def clear_all_deleted_presets_v1() -> bool:
+    import configparser
+
+    path = _get_deleted_presets_ini_path_v1()
+    try:
+        if not path.exists():
+            return True
+        cfg = configparser.ConfigParser()
+        cfg.read(path, encoding="utf-8")
+        if cfg.has_section(_DELETED_SECTION_V1):
+            cfg.remove_section(_DELETED_SECTION_V1)
+        with path.open("w", encoding="utf-8") as f:
+            cfg.write(f)
+        return True
+    except Exception:
+        return False
 
 
 def _load_v1_templates_from_disk() -> dict[str, Path]:
@@ -61,7 +142,7 @@ def _load_v1_templates_from_disk() -> dict[str, Path]:
 
 
 def _normalize_template_header_v1(content: str, preset_name: str) -> str:
-    """Ensures # Preset / # ActivePreset correspond to template filename."""
+    """Ensures # Preset corresponds to template filename."""
     name = str(preset_name or "").strip()
     text = (content or "").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
@@ -80,24 +161,24 @@ def _normalize_template_header_v1(content: str, preset_name: str) -> str:
 
     out_header: list[str] = []
     saw_preset = False
-    saw_active = False
     for raw in header:
         stripped = raw.strip().lower()
         if stripped.startswith("# preset:"):
             out_header.append(f"# Preset: {name}")
             saw_preset = True
             continue
-        if stripped.startswith("# activepreset:"):
-            out_header.append(f"# ActivePreset: {name}")
-            saw_active = True
+        if stripped.startswith("# builtinversion:"):
+            out_header.append(raw.rstrip("\n"))
+            continue
+        if stripped.startswith("# created:") or stripped.startswith("# modified:") or stripped.startswith("# iconcolor:") or stripped.startswith("# description:"):
+            out_header.append(raw.rstrip("\n"))
+            continue
+        if stripped.startswith("#"):
             continue
         out_header.append(raw.rstrip("\n"))
 
     if not saw_preset:
         out_header.insert(0, f"# Preset: {name}")
-    if not saw_active:
-        insert_idx = 1 if out_header and out_header[0].strip().lower().startswith("# preset:") else 0
-        out_header.insert(insert_idx, f"# ActivePreset: {name}")
 
     return "\n".join(out_header + body).rstrip("\n") + "\n"
 
@@ -218,13 +299,20 @@ def ensure_v1_templates_copied_to_presets() -> int:
         return 0
 
     presets_dir = get_presets_dir_v1()
+    deleted_lower = {name.lower() for name in get_deleted_preset_names_v1()}
     copied = 0
     for name, src_path in templates.items():
+        if name.lower() in deleted_lower:
+            continue
         dest = presets_dir / f"{name}.txt"
         if not dest.exists():
             try:
                 shutil.copy2(str(src_path), str(dest))
                 copied += 1
+                try:
+                    unmark_preset_deleted_v1(name)
+                except Exception:
+                    pass
             except Exception as e:
                 log(f"Failed to copy V1 template '{name}' to presets: {e}", "DEBUG")
 
@@ -343,6 +431,10 @@ def overwrite_v1_templates_to_presets() -> tuple[int, int, list[str]]:
         try:
             shutil.copy2(str(src_path), str(dest))
             copied += 1
+            try:
+                unmark_preset_deleted_v1(name)
+            except Exception:
+                pass
         except Exception as e:
             failed.append(name)
             log(f"Failed to overwrite V1 preset '{name}' from template: {e}", "DEBUG")
@@ -392,31 +484,14 @@ def ensure_default_preset_exists_v1() -> bool:
 
     Returns True if Default preset exists or was created successfully.
     """
-    # Ensure direct_zapret1 strategy catalogs exist in canonical AppData location.
     try:
-        from .strategies_loader import ensure_v1_strategies_exist
+        from core.services import get_direct_flow_coordinator
 
-        ensure_v1_strategies_exist()
-    except Exception as e:
-        log(f"Error ensuring V1 strategies catalog: {e}", "DEBUG")
-
-    # Step 1a: update existing presets where builtin template changed
-    update_changed_v1_templates_in_presets()
-
-    # Step 1b: copy any missing templates to user presets
-    ensure_v1_templates_copied_to_presets()
-
-    # Step 2: check Default exists
-    from .preset_storage import preset_exists_v1
-    from .preset_manager import PresetManagerV1
-
-    if preset_exists_v1("Default"):
+        get_direct_flow_coordinator().ensure_launch_profile(
+            "direct_zapret1",
+            require_filters=False,
+        )
         return True
-
-    # Fallback: create Default from embedded content
-    try:
-        manager = PresetManagerV1()
-        preset = manager.create_default_preset("Default")
-        return preset is not None
-    except Exception:
+    except Exception as e:
+        log(f"Error ensuring direct_zapret1 launch config: {e}", "DEBUG")
         return False

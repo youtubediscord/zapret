@@ -1,6 +1,5 @@
 # Preset: Ростелеком
-# ActivePreset: Ростелеком
-# BuiltinVersion: 2.13
+# BuiltinVersion: 2.14
 # Created: 2026-02-06T14:19:01.572248
 # Modified: 2026-02-06T14:19:01.572930
 # Description: 

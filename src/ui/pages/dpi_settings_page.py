@@ -1543,35 +1543,44 @@ class DpiSettingsPage(BasePage):
             launch_method = get_strategy_launch_method()
             
             if launch_method == "direct_zapret1":
-                # Zapret1: берём из preset-zapret1.txt
-                from preset_zapret1 import get_active_preset_path_v1, get_active_preset_name_v1
-                preset_path = get_active_preset_path_v1()
-                if not preset_path.exists():
-                    log("Перезапуск Zapret1 пропущен: preset-zapret1.txt не найден", "WARNING")
+                try:
+                    from core.services import get_direct_flow_coordinator
+
+                    selected_mode = get_direct_flow_coordinator().build_selected_mode(
+                        "direct_zapret1",
+                        require_filters=False,
+                    )
+                except Exception as e:
+                    log(f"Перезапуск Zapret1 пропущен: {e}", "WARNING")
                     return
-                preset_name = get_active_preset_name_v1() or "Default"
+                app.dpi_controller.start_dpi_async(selected_mode=selected_mode, launch_method=launch_method)
+            elif launch_method == "direct_zapret2":
+                try:
+                    from core.services import get_direct_flow_coordinator
+
+                    selected_mode = get_direct_flow_coordinator().build_selected_mode(
+                        "direct_zapret2",
+                        require_filters=False,
+                    )
+                except Exception as e:
+                    log(f"Перезапуск direct_zapret2 пропущен: {e}", "WARNING")
+                    return
+                app.dpi_controller.start_dpi_async(selected_mode=selected_mode, launch_method=launch_method)
+            elif launch_method == "direct_zapret2_orchestra":
+                # Orchestra direct остаётся на своём runtime-file workflow.
+                from preset_orchestra_zapret2 import get_active_preset_path, get_active_preset_name
+
+                preset_path = get_active_preset_path()
+                if not preset_path.exists():
+                    log("Перезапуск direct_zapret2_orchestra пропущен: runtime config не найден", "WARNING")
+                    return
+                preset_name = get_active_preset_name() or "Default"
                 selected_mode = {
-                    'is_preset_file': True,
-                    'name': f"Пресет: {preset_name}",
-                    'preset_path': str(preset_path),
+                    "is_preset_file": True,
+                    "name": f"Пресет оркестра: {preset_name}",
+                    "preset_path": str(preset_path),
                 }
                 app.dpi_controller.start_dpi_async(selected_mode=selected_mode, launch_method=launch_method)
-            elif launch_method in ("direct_zapret2", "direct_zapret2_orchestra"):
-                # Прямой запуск - берём текущие настройки
-                from strategy_menu import get_direct_strategy_selections
-                from launcher_common import combine_strategies
-
-                selections = get_direct_strategy_selections()
-                combined = combine_strategies(**selections)
-
-                # Формируем данные в правильном формате
-                selected_mode = {
-                    'is_combined': True,
-                    'name': combined.get('description', 'Перезапуск'),
-                    'args': combined.get('args', ''),
-                    'category_strategies': combined.get('category_strategies', {})
-                }
-                app.dpi_controller.start_dpi_async(selected_mode=selected_mode)
             else:
                 # BAT режим
                 app.dpi_controller.start_dpi_async()
@@ -1616,26 +1625,17 @@ class DpiSettingsPage(BasePage):
         """Обработчик изменения фильтра"""
         setter_func(value)
 
-        # Для direct_zapret2 физически пишем --debug в preset-zapret2.txt,
+        # Для direct_zapret2 физически пишем --debug в runtime config выбранного пресета,
         # чтобы winws2 получал его из @file (а не только из CLI).
         try:
             if getattr(setter_func, "__name__", "") == "set_debug_log_enabled":
                 from strategy_menu import get_strategy_launch_method
                 if get_strategy_launch_method() == "direct_zapret2":
-                    from preset_zapret2 import PresetManager, ensure_default_preset_exists
+                    from core.services import get_direct_flow_coordinator
 
-                    if not ensure_default_preset_exists():
-                        log(
-                            "Не удалось обновить preset-zapret2.txt для --debug: отсутствует %APPDATA%/zapret/presets_v2_template/Default.txt",
-                            "ERROR",
-                        )
-                        return
-                    manager = PresetManager()
-                    preset = manager.get_active_preset()
-                    if preset:
-                        manager.sync_preset_to_active_file(preset)
+                    get_direct_flow_coordinator().refresh_selected_runtime("direct_zapret2")
         except Exception as e:
-            log(f"Ошибка обновления preset-zapret2.txt для --debug: {e}", "DEBUG")
+            log(f"Ошибка обновления runtime config для --debug: {e}", "DEBUG")
 
         self.filters_changed.emit()
         

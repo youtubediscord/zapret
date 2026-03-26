@@ -11,7 +11,7 @@ Rules
 
 Format
   - Same as a normal preset file.
-  - '# Preset:' / '# ActivePreset:' header is optional; if present, it will be normalized to the file name.
+  - '# Preset:' header is optional; if present, it will be normalized to the file name.
   - Must contain at least one '--lua-init=' line and at least one '--filter-' line, otherwise it may be skipped.
 
 Notes

@@ -21,15 +21,19 @@ from .preset_storage import (
 )
 from .preset_store import PresetStoreV1, get_preset_store_v1
 from .preset_defaults import (
+    clear_all_deleted_presets_v1,
     get_builtin_preset_content_v1,
+    get_deleted_preset_names_v1,
     get_default_builtin_preset_name_v1,
     get_all_builtin_preset_names_v1,
     get_template_content_v1,
     get_default_template_content_v1,
     get_builtin_base_from_copy_name_v1,
     invalidate_templates_cache_v1,
+    mark_preset_deleted_v1,
     ensure_default_preset_exists_v1,
     ensure_v1_templates_copied_to_presets,
+    unmark_preset_deleted_v1,
     update_changed_v1_templates_in_presets,
 )
 from .strategies_loader import (
@@ -58,14 +62,18 @@ __all__ = [
     "PresetStoreV1",
     "get_preset_store_v1",
     "get_builtin_preset_content_v1",
+    "get_deleted_preset_names_v1",
     "get_default_builtin_preset_name_v1",
     "get_all_builtin_preset_names_v1",
     "get_template_content_v1",
     "get_default_template_content_v1",
     "get_builtin_base_from_copy_name_v1",
     "invalidate_templates_cache_v1",
+    "mark_preset_deleted_v1",
+    "clear_all_deleted_presets_v1",
     "ensure_default_preset_exists_v1",
     "ensure_v1_templates_copied_to_presets",
+    "unmark_preset_deleted_v1",
     "update_changed_v1_templates_in_presets",
     "load_v1_strategies",
     "ensure_v1_strategies_exist",

@@ -1,6 +1,5 @@
-# Preset: Gaming
-# ActivePreset: Gaming
-# BuiltinVersion: 2.13
+# Preset: Gaming (game filter)
+# BuiltinVersion: 2.14
 # IconColor: #f07575ff
 
 --lua-init=@lua/zapret-lib.lua

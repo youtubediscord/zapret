@@ -43,14 +43,14 @@ class AutostartDetectorWorker(QThread):
 
     # Маппинг методов из реестра в UI типы
     METHOD_TO_TYPE = {
-        "exe": "gui",              # GUI автозапуск
-        "direct_task": "logon",    # Direct режим - при входе
-        "direct_boot": "boot",     # Direct режим - при загрузке
-        "direct_service": "service",  # Direct служба Windows
-        "service": "service",      # BAT служба Windows
-        "task": "logon",           # BAT задача при входе
-        "direct_task_bat": "logon",
-        "direct_boot_bat": "boot",
+        "exe": "gui",
+        "direct_task": "gui",
+        "direct_boot": "gui",
+        "direct_service": "gui",
+        "service": "gui",
+        "task": "gui",
+        "direct_task_bat": "gui",
+        "direct_boot_bat": "gui",
     }
 
     def run(self):
@@ -576,7 +576,7 @@ class AutostartPage(BasePage):
 
         self.add_spacing(12)
 
-        # Контейнер для опций стратегий
+        # Legacy стратегические варианты автозапуска больше не используются в UI.
         self.strategies_container = QWidget()
         self.strategies_layout = QVBoxLayout(self.strategies_container)
         self.strategies_layout.setContentsMargins(0, 0, 0, 0)
@@ -627,6 +627,7 @@ class AutostartPage(BasePage):
         self.boot_option.hide()  # Временно скрыто
 
         self.add_widget(self.strategies_container)
+        self.strategies_container.hide()
 
         self.add_spacing(20)
 
@@ -651,9 +652,8 @@ class AutostartPage(BasePage):
         self._tip_text_label = CaptionLabel(
             self._tr(
                 "page.autostart.tip.recommendation",
-                "Рекомендация: Для максимальной надежности используйте "
-                "«Служба Windows» — она запускается раньше всех программ и автоматически "
-                "перезапускается при сбоях.",
+                "Рекомендация: оставьте только GUI-автозапуск. "
+                "Zapret стартует в трее и сам запускает выбранный пресет по текущим настройкам.",
             )
         )
         self._tip_text_label.setWordWrap(True)
@@ -676,9 +676,6 @@ class AutostartPage(BasePage):
             method = get_strategy_launch_method()
             self._current_mode_method = method or ""
 
-            # Режим оркестратора - только автозапуск программы
-            is_orchestra = method in ("orchestra", "direct_zapret2_orchestra")
-
             if method == "direct_zapret2":
                 self.mode_label.setText(
                     self._tr("page.autostart.mode.direct_zapret2", "Прямой запуск (Zapret 2)")
@@ -696,11 +693,8 @@ class AutostartPage(BasePage):
                     self._tr("page.autostart.mode.classic_bat", "Классический (BAT файлы)")
                 )
 
-            # Опции службы/задач:
-            # - orchestra/direct_zapret2_orchestra: оставляем только GUI автозапуск
-            # - остальные режимы: показываем службу и задачу при входе
-            self.service_option.setVisible(not is_orchestra)
-            self.logon_option.setVisible(not is_orchestra)
+            self.service_option.setVisible(False)
+            self.logon_option.setVisible(False)
             self.boot_option.setVisible(False)
 
         except Exception as e:
@@ -833,9 +827,6 @@ class AutostartPage(BasePage):
             type_desc = ""
             if autostart_type:
                 type_map = {
-                    "service": self._tr("page.autostart.status.type.service", "как служба Windows"),
-                    "logon": self._tr("page.autostart.status.type.logon", "при входе пользователя"),
-                    "boot": self._tr("page.autostart.status.type.boot", "при загрузке системы"),
                     "gui": self._tr("page.autostart.status.type.gui", "программа Zapret"),
                 }
                 type_desc = type_map.get(autostart_type, "")
@@ -885,12 +876,7 @@ class AutostartPage(BasePage):
         log(f"_update_options_state: enabled={autostart_enabled}, type={active_type}", "DEBUG")
 
         # Карта типов автозапуска к карточкам
-        type_to_card = {
-            "gui": self.gui_option,
-            "service": self.service_option,
-            "logon": self.logon_option,
-            "boot": self.boot_option
-        }
+        type_to_card = {"gui": self.gui_option}
 
         if autostart_enabled:
             if active_type:

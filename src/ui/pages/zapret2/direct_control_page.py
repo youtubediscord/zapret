@@ -624,16 +624,11 @@ class Zapret2DirectControlPage(BasePage):
         except Exception:
             pass
 
-        # direct_zapret2: keep preset-zapret2.txt in sync with runtime --debug setting
+        # direct_zapret2: keep generated launch config in sync with runtime --debug setting
         try:
-            from preset_zapret2 import PresetManager, ensure_default_preset_exists
+            from core.services import get_direct_flow_coordinator
 
-            if not ensure_default_preset_exists():
-                return
-            manager = PresetManager()
-            preset = manager.get_active_preset()
-            if preset:
-                manager.sync_preset_to_active_file(preset)
+            get_direct_flow_coordinator().refresh_selected_runtime("direct_zapret2")
         except Exception:
             pass
 
@@ -701,32 +696,36 @@ class Zapret2DirectControlPage(BasePage):
         except Exception:
             pass
 
-        # Rebuild preset-zapret2.txt from the currently selected strategy IDs
+        # Rebuild the generated launch config from the currently selected strategy IDs
         # using the newly selected strategies catalog (basic vs default).
         try:
             from dpi.zapret2_core_restart import trigger_dpi_reload
-            from preset_zapret2 import PresetManager, ensure_default_preset_exists
+            from preset_zapret2 import PresetManager
 
-            if ensure_default_preset_exists():
-                pm = PresetManager(
-                    on_dpi_reload_needed=lambda: trigger_dpi_reload(
-                        self.parent_app,
-                        reason="direct_launch_mode_changed",
-                    )
+            pm = PresetManager(
+                on_dpi_reload_needed=lambda: trigger_dpi_reload(
+                    self.parent_app,
+                    reason="direct_launch_mode_changed",
                 )
-                preset = pm.get_active_preset()
-                if preset:
-                    try:
-                        selections = pm.get_strategy_selections() or {}
-                        pm.set_strategy_selections(selections, save_and_sync=False)
-                    except Exception:
-                        pass
+            )
+            preset = pm.get_active_preset()
+            if preset:
+                try:
+                    selections = pm.get_strategy_selections() or {}
+                    pm.set_strategy_selections(selections, save_and_sync=False)
+                except Exception:
+                    pass
 
-                    try:
-                        pm.save_preset(preset)
-                    except Exception:
-                        pass
+                try:
+                    pm.save_preset(preset)
+                except Exception:
+                    pass
 
+                try:
+                    from core.services import get_direct_flow_coordinator
+
+                    get_direct_flow_coordinator().refresh_selected_runtime("direct_zapret2")
+                except Exception:
                     pm.sync_preset_to_active_file(preset)
         except Exception:
             pass
@@ -1030,13 +1029,11 @@ class Zapret2DirectControlPage(BasePage):
         active_preset_name = ""
 
         try:
-            from preset_zapret2 import PresetManager
+            from core.services import get_direct_flow_coordinator
 
-            preset_manager = PresetManager()
-            active_preset_name = (preset_manager.get_active_preset_name() or "").strip()
-            if not active_preset_name:
-                preset = preset_manager.get_active_preset()
-                active_preset_name = (getattr(preset, "name", "") or "").strip()
+            active_preset_name = (
+                get_direct_flow_coordinator().get_selected_preset_name("direct_zapret2") or ""
+            ).strip()
         except Exception:
             active_preset_name = ""
 

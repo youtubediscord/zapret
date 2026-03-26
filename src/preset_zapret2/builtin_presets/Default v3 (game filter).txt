@@ -1,6 +1,5 @@
-# Preset: Default v3
-# ActivePreset: Default v3
-# BuiltinVersion: 2.13
+# Preset: Default v3 (game filter)
+# BuiltinVersion: 2.14
 # Created: 2026-02-04T21:46:04.398349
 # Modified: 2026-02-04T21:46:04.400216
 # Description: 

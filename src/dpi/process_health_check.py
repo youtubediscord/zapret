@@ -5,7 +5,32 @@
 
 import time
 import subprocess
-import psutil  # ✅ ДОБАВИТЬ: pip install psutil
+try:
+    import psutil  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - local test environments may not ship psutil
+    class _PsutilStub:
+        class NoSuchProcess(Exception):
+            pass
+
+        class AccessDenied(Exception):
+            pass
+
+        class TimeoutExpired(Exception):
+            pass
+
+        @staticmethod
+        def process_iter(*_args, **_kwargs):
+            return []
+
+        class Process:
+            def __init__(self, *_args, **_kwargs):
+                raise _PsutilStub.NoSuchProcess()
+
+        @staticmethod
+        def net_if_stats():
+            return {}
+
+    psutil = _PsutilStub()
 from dataclasses import dataclass, field
 from typing import Tuple, Optional, List, Dict
 from log import log

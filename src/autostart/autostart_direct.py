@@ -513,57 +513,50 @@ def collect_direct_strategy_args(app_instance) -> tuple[List[str], str, str]:
 
         launch_method = get_strategy_launch_method()
 
-        # direct_zapret2: аргументы берём из активного preset файла (preset-zapret2.txt),
-        # а не из legacy combine_strategies(), иначе будут не те настройки.
+        # direct_zapret2/direct_zapret1: аргументы берём из generated launch config
+        # выбранного пресета, а не из legacy combine_strategies().
         if launch_method == "direct_zapret2":
-            from preset_zapret2 import (
-                ensure_default_preset_exists,
-                get_active_preset_path,
-                get_active_preset_name,
-            )
+            try:
+                from core.services import get_direct_flow_coordinator
 
-            if not ensure_default_preset_exists():
-                log(
-                    "DirectZ2 autostart: preset-zapret2.txt not created (missing %APPDATA%/zapret/presets_v2_template/Default.txt)",
-                    "ERROR",
+                profile = get_direct_flow_coordinator().ensure_launch_profile(
+                    "direct_zapret2",
+                    require_filters=False,
                 )
+            except Exception as e:
+                log(f"DirectZ2 autostart: {e}", "ERROR")
                 return [], "direct_zapret2", winws_exe
 
-            preset_path = get_active_preset_path()
-            preset_name = get_active_preset_name() or "Default"
-
-            if not preset_path.exists():
-                log(f"Preset файл не найден: {preset_path}", "❌ ERROR")
-                return [], f"Пресет: {preset_name}", winws_exe
+            if not profile.launch_config_path.exists():
+                log(f"Generated launch config не найден: {profile.launch_config_path}", "❌ ERROR")
+                return [], profile.display_name, winws_exe
 
             # winws2.exe поддерживает загрузку аргументов из файла через формат @file.
             # Это сильно сокращает командную строку для задач/служб.
-            args = [f"@{preset_path}"]
-            log(f"DirectZ2 autostart: используем preset файл как @config: {preset_path}", "INFO")
-            return args, f"Пресет: {preset_name}", winws_exe
+            args = [f"@{profile.launch_config_path}"]
+            log(f"DirectZ2 autostart: используем generated launch config как @config: {profile.launch_config_path}", "INFO")
+            return args, profile.display_name, winws_exe
 
-        # direct_zapret1: аргументы берём из preset-zapret1.txt через @file (winws.exe поддерживает @config)
+        # direct_zapret1: winws.exe загружается из generated launch config через @file
         if launch_method == "direct_zapret1":
-            from preset_zapret1 import (
-                ensure_default_preset_exists_v1,
-                get_active_preset_path_v1,
-                get_active_preset_name_v1,
-            )
+            try:
+                from core.services import get_direct_flow_coordinator
 
-            if not ensure_default_preset_exists_v1():
-                log("DirectZ1 autostart: не удалось создать preset-zapret1.txt", "ERROR")
+                profile = get_direct_flow_coordinator().ensure_launch_profile(
+                    "direct_zapret1",
+                    require_filters=False,
+                )
+            except Exception as e:
+                log(f"DirectZ1 autostart: {e}", "ERROR")
                 return [], "direct_zapret1", winws_exe
 
-            preset_path_v1 = get_active_preset_path_v1()
-            preset_name_v1 = get_active_preset_name_v1() or "Default"
+            if not profile.launch_config_path.exists():
+                log(f"DirectZ1 autostart: generated launch config не найден: {profile.launch_config_path}", "ERROR")
+                return [], profile.display_name, winws_exe
 
-            if not preset_path_v1.exists():
-                log(f"DirectZ1 autostart: preset-zapret1.txt не найден: {preset_path_v1}", "ERROR")
-                return [], f"Пресет: {preset_name_v1}", winws_exe
-
-            args_v1 = [f"@{preset_path_v1}"]
-            log(f"DirectZ1 autostart: используем preset файл как @config: {preset_path_v1}", "INFO")
-            return args_v1, f"Пресет: {preset_name_v1}", winws_exe
+            args_v1 = [f"@{profile.launch_config_path}"]
+            log(f"DirectZ1 autostart: используем generated launch config как @config: {profile.launch_config_path}", "INFO")
+            return args_v1, profile.display_name, winws_exe
 
         # Получаем выборы стратегий
         selections = get_direct_strategy_selections()

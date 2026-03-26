@@ -330,12 +330,11 @@ class Zapret1DirectControlPage(BasePage):
 
     def _refresh_preset_name(self) -> None:
         try:
-            from preset_zapret1 import PresetManagerV1
-            manager = PresetManagerV1()
-            active_name = (manager.get_active_preset_name() or "").strip()
-            if not active_name:
-                preset = manager.get_active_preset()
-                active_name = (getattr(preset, "name", "") or "").strip()
+            from core.services import get_direct_flow_coordinator
+
+            active_name = (
+                get_direct_flow_coordinator().get_selected_preset_name("direct_zapret1") or ""
+            ).strip()
             if active_name:
                 self.preset_name_label.setText(active_name)
                 set_tooltip(self.preset_name_label, active_name)

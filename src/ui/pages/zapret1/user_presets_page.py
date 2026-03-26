@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
 )
+from PyQt6.QtGui import QCursor
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
@@ -50,6 +51,7 @@ try:
         BodyLabel, CaptionLabel, StrongBodyLabel, SubtitleLabel,
         PushButton as FluentPushButton, PrimaryPushButton, ToolButton, PrimaryToolButton,
         MessageBox, InfoBar, MessageBoxBase, TransparentToolButton, TransparentPushButton, FluentIcon,
+        RoundMenu, Action,
     )
     _HAS_FLUENT_LABELS = True
 except ImportError:
@@ -67,6 +69,8 @@ except ImportError:
     MessageBoxBase = object
     TransparentToolButton = None
     FluentIcon = None
+    RoundMenu = None
+    Action = None
     _HAS_FLUENT_LABELS = False
 
 
@@ -93,6 +97,12 @@ def _tr_text(key: str, language: str, default: str, **kwargs) -> str:
         except Exception:
             return text
     return text
+
+
+def _fluent_icon(name: str):
+    if FluentIcon is None:
+        return None
+    return getattr(FluentIcon, name, None)
 
 
 def _accent_fg_for_tokens(tokens) -> str:
@@ -289,6 +299,8 @@ class _PresetListModel(QAbstractListModel):
 
 
 class _LinkedWheelListView(QListView):
+    preset_activated = pyqtSignal(str)
+
     def wheelEvent(self, e):
         scrollbar = self.verticalScrollBar()
         if scrollbar is None:
@@ -307,6 +319,26 @@ class _LinkedWheelListView(QListView):
         super().wheelEvent(e)
         e.accept()
 
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        if not self.currentIndex().isValid() and self.model() is not None:
+            for row in range(self.model().rowCount()):
+                index = self.model().index(row, 0)
+                if str(index.data(_PresetListModel.KindRole) or "") == "preset":
+                    self.setCurrentIndex(index)
+                    break
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            index = self.currentIndex()
+            if index.isValid() and str(index.data(_PresetListModel.KindRole) or "") == "preset":
+                name = str(index.data(_PresetListModel.NameRole) or "")
+                if name:
+                    self.preset_activated.emit(name)
+                    event.accept()
+                    return
+        super().keyPressEvent(event)
+
 
 class _PresetListDelegate(QStyledItemDelegate):
     action_triggered = pyqtSignal(str, str)
@@ -318,11 +350,7 @@ class _PresetListDelegate(QStyledItemDelegate):
     _ACTION_SPACING = 6
 
     _ACTION_ICONS = {
-        "rename": "fa5s.edit",
-        "duplicate": "fa5s.copy",
-        "reset": "fa5s.broom",
-        "delete": "fa5s.trash",
-        "export": "fa5s.file-export",
+        "edit": "fa5s.bars",
     }
 
     _PENDING_SHAKE_ROTATIONS = (0, -8, 8, -6, 6, -4, 4, -2, 0)
@@ -349,11 +377,7 @@ class _PresetListDelegate(QStyledItemDelegate):
     def set_ui_language(self, language: str) -> None:
         self._ui_language = language
         self._action_tooltips = {
-            "rename": self._tr("page.z1_user_presets.delegate.tooltip.rename", "Переименовать"),
-            "duplicate": self._tr("page.z1_user_presets.delegate.tooltip.duplicate", "Дублировать"),
-            "reset": "",
-            "delete": "",
-            "export": self._tr("page.z1_user_presets.delegate.tooltip.export", "Экспорт"),
+            "edit": self._tr("page.z1_user_presets.delegate.tooltip.edit", "Меню пресета"),
         }
 
     def reset_interaction_state(self):
@@ -395,6 +419,7 @@ class _PresetListDelegate(QStyledItemDelegate):
         if not name:
             return False
 
+        self._view.setCurrentIndex(index)
         is_active = bool(index.data(_PresetListModel.ActiveRole))
         action = self._action_at(option.rect, is_active, event.position().toPoint())
 
@@ -402,13 +427,9 @@ class _PresetListDelegate(QStyledItemDelegate):
             self._handle_action_click(name, action, event)
             return True
 
-        if not is_active:
-            self._clear_pending_destructive(update=False)
-            self.action_triggered.emit("activate", name)
-            return True
-
         self._clear_pending_destructive(update=False)
-        return False
+        self.action_triggered.emit("open", name)
+        return True
 
     def helpEvent(self, event: QHelpEvent, view, option: QStyleOptionViewItem, index: QModelIndex) -> bool:
         if index.data(_PresetListModel.KindRole) != "preset":
@@ -484,11 +505,8 @@ class _PresetListDelegate(QStyledItemDelegate):
         self._view.viewport().update()
 
     def _visible_actions(self, is_active: bool) -> list[str]:
-        actions = ["rename", "duplicate", "reset"]
-        if not is_active:
-            actions.append("delete")
-        actions.append("export")
-        return actions
+        _ = is_active
+        return ["edit"]
 
     def _action_rects(self, row_rect: QRect, is_active: bool) -> list[tuple[str, QRect]]:
         actions = self._visible_actions(is_active)
@@ -919,6 +937,7 @@ class _ResetAllPresetsDialog(MessageBoxBase):
 
 
 class Zapret1UserPresetsPage(BasePage):
+    preset_open_requested = pyqtSignal(str)
     preset_switched = pyqtSignal(str)
     preset_created = pyqtSignal(str)
     preset_deleted = pyqtSignal(str)
@@ -958,7 +977,6 @@ class Zapret1UserPresetsPage(BasePage):
 
         self._presets_model: Optional[_PresetListModel] = None
         self._presets_delegate: Optional[_PresetListDelegate] = None
-        self._manager = None
         self._ui_dirty = True  # needs rebuild on next show
         self._page_theme_refresh_scheduled = False
         self._last_page_theme_key: tuple[str, str, str] | None = None
@@ -992,6 +1010,7 @@ class Zapret1UserPresetsPage(BasePage):
             store = PresetStoreV1.instance()
             store.presets_changed.connect(self._on_store_changed)
             store.preset_switched.connect(self._on_store_switched)
+            store.preset_updated.connect(lambda _name: self._on_store_changed())
         except Exception:
             pass
 
@@ -1007,20 +1026,17 @@ class Zapret1UserPresetsPage(BasePage):
             self._load_presets()
 
     def _on_store_switched(self, _name: str):
-        """Central store says the active preset switched."""
+        """Central store says the selected preset switched."""
         self._ui_dirty = True
         if self._bulk_reset_running:
             return
         if self.isVisible():
             self._load_presets()
 
-    def _get_manager(self):
-        if self._manager is None:
-            from preset_zapret1 import PresetManagerV1
+    def _get_direct_facade(self):
+        from core.presets.direct_facade import DirectPresetFacade
 
-            # UI: do not restart DPI here; MainWindow handles restart via preset_switched.
-            self._manager = PresetManagerV1()
-        return self._manager
+        return DirectPresetFacade.from_launch_method("direct_zapret1")
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -1329,16 +1345,17 @@ class Zapret1UserPresetsPage(BasePage):
         self.presets_list = _LinkedWheelListView(self)
         self.presets_list.setObjectName("userPresetsList")
         self.presets_list.setMouseTracking(True)
-        self.presets_list.setSelectionMode(QListView.SelectionMode.NoSelection)
+        self.presets_list.setSelectionMode(QListView.SelectionMode.SingleSelection)
         self.presets_list.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
         self.presets_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.presets_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.presets_list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         self.presets_list.setUniformItemSizes(False)
-        self.presets_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.presets_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.presets_list.setProperty("uiList", True)
         self.presets_list.setProperty("noDrag", True)
         self.presets_list.viewport().setProperty("noDrag", True)
+        self.presets_list.preset_activated.connect(self._open_preset_subpage)
 
         self._presets_model = _PresetListModel(self.presets_list)
         self._presets_delegate = _PresetListDelegate(self.presets_list)
@@ -1526,8 +1543,7 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _show_inline_action_create(self):
         try:
-            manager = self._get_manager()
-            existing = manager.list_presets()
+            existing = self._get_direct_facade().list_names()
         except Exception:
             existing = []
 
@@ -1539,15 +1555,10 @@ class Zapret1UserPresetsPage(BasePage):
         from_current = getattr(dlg, "_source", "current") == "current"
 
         try:
-            manager = self._get_manager()
-            preset = manager.create_preset(name, from_current=from_current)
-            if not preset:
-                InfoBar.error(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr("page.z1_user_presets.error.create_failed", "Не удалось создать пресет."),
-                    parent=self.window(),
-                )
-                return
+            self._get_direct_facade().create(name, from_current=from_current)
+            from preset_zapret1.preset_store import PresetStoreV1
+
+            PresetStoreV1.instance().notify_presets_changed()
             log(f"Создан пресет '{name}'", "INFO")
             self.preset_created.emit(name)
             self._load_presets()
@@ -1561,8 +1572,7 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _show_inline_action_rename(self, current_name: str):
         try:
-            manager = self._get_manager()
-            existing = manager.list_presets()
+            existing = self._get_direct_facade().list_names()
         except Exception:
             existing = []
 
@@ -1575,14 +1585,13 @@ class Zapret1UserPresetsPage(BasePage):
             return
 
         try:
-            manager = self._get_manager()
-            if not manager.rename_preset(current_name, new_name):
-                InfoBar.error(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr("page.z1_user_presets.error.rename_failed", "Не удалось переименовать пресет."),
-                    parent=self.window(),
-                )
-                return
+            facade = self._get_direct_facade()
+            facade.rename(current_name, new_name)
+            from preset_zapret1.preset_store import PresetStoreV1
+
+            PresetStoreV1.instance().notify_presets_changed()
+            if facade.is_selected(new_name):
+                PresetStoreV1.instance().notify_preset_switched(new_name)
             log(f"Пресет '{current_name}' переименован в '{new_name}'", "INFO")
             self._load_presets()
         except Exception as e:
@@ -1608,10 +1617,10 @@ class Zapret1UserPresetsPage(BasePage):
             return
 
         try:
-            manager = self._get_manager()
             name = Path(file_path).stem
+            facade = self._get_direct_facade()
 
-            if manager.preset_exists(name):
+            if facade.exists(name):
                 box = MessageBox(
                     self._tr("page.z1_user_presets.dialog.import_exists.title", "Пресет существует"),
                     self._tr(
@@ -1623,22 +1632,19 @@ class Zapret1UserPresetsPage(BasePage):
                 )
                 if box.exec():
                     counter = 1
-                    while manager.preset_exists(f"{name}_{counter}"):
+                    while facade.exists(f"{name}_{counter}"):
                         counter += 1
                     name = f"{name}_{counter}"
                 else:
                     return
 
-            if manager.import_preset(Path(file_path), name):
-                log(f"Импортирован пресет '{name}'", "INFO")
-                self.preset_created.emit(name)
-                self._load_presets()
-            else:
-                InfoBar.warning(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr("page.z1_user_presets.error.import_failed", "Не удалось импортировать пресет"),
-                    parent=self.window(),
-                )
+            facade.import_from_file(Path(file_path), name)
+            from preset_zapret1.preset_store import PresetStoreV1
+
+            PresetStoreV1.instance().notify_presets_changed()
+            log(f"Импортирован пресет '{name}'", "INFO")
+            self.preset_created.emit(name)
+            self._load_presets()
 
         except Exception as e:
             log(f"Ошибка импорта пресета: {e}", "ERROR")
@@ -1655,9 +1661,14 @@ class Zapret1UserPresetsPage(BasePage):
 
         self._bulk_reset_running = True
         try:
-            manager = self._get_manager()
+            facade = self._get_direct_facade()
+            success_count, total, failed = facade.reset_all_to_templates()
+            from preset_zapret1.preset_store import PresetStoreV1
 
-            success_count, total, failed = manager.reset_all_presets_to_default_templates()
+            PresetStoreV1.instance().notify_presets_changed()
+            selected_name = facade.get_selected_name()
+            if selected_name:
+                PresetStoreV1.instance().notify_preset_switched(selected_name)
 
             self._load_presets()
             if failed:
@@ -1810,11 +1821,12 @@ class Zapret1UserPresetsPage(BasePage):
                 self._presets_delegate.reset_interaction_state()
             if self._presets_model:
                 self._presets_model.set_rows(rows)
+            self._ensure_preset_list_current_index()
 
             # Update restore-deleted button visibility
             try:
-                from preset_zapret1.preset_storage import get_deleted_preset_names
-                has_deleted = bool(get_deleted_preset_names())
+                from preset_zapret1.preset_defaults import get_deleted_preset_names_v1
+                has_deleted = bool(get_deleted_preset_names_v1())
                 self._restore_deleted_btn.setVisible(has_deleted)
             except Exception:
                 self._restore_deleted_btn.setVisible(False)
@@ -1828,6 +1840,8 @@ class Zapret1UserPresetsPage(BasePage):
     def _on_preset_list_action(self, action: str, name: str):
         handlers = {
             "activate": self._on_activate_preset,
+            "open": self._open_preset_subpage,
+            "edit": self._on_edit_preset,
             "rename": self._on_rename_preset,
             "duplicate": self._on_duplicate_preset,
             "reset": self._on_reset_preset,
@@ -1838,56 +1852,125 @@ class Zapret1UserPresetsPage(BasePage):
         if handler:
             handler(name)
 
+    def _open_preset_subpage(self, name: str):
+        self.preset_open_requested.emit(name)
+
     def _on_activate_preset(self, name: str):
         try:
-            manager = self._get_manager()
+            from core.services import get_direct_flow_coordinator
+            from preset_zapret1.preset_store import PresetStoreV1
 
-            if manager.switch_preset(name, reload_dpi=False):
-                log(f"Активирован пресет '{name}'", "INFO")
-                self.preset_switched.emit(name)
-                self._load_presets()
-            else:
-                InfoBar.warning(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr(
-                        "page.z1_user_presets.error.activate_failed",
-                        "Не удалось активировать пресет '{name}'",
-                        name=name,
-                    ),
-                    parent=self.window(),
-                )
-
+            get_direct_flow_coordinator().select_preset("direct_zapret1", name)
+            PresetStoreV1.instance().notify_preset_switched(name)
+            log(f"Активирован пресет '{name}'", "INFO")
+            self.preset_switched.emit(name)
+            self._load_presets()
         except Exception as e:
             log(f"Ошибка активации пресета: {e}", "ERROR")
-            InfoBar.error(
+            InfoBar.warning(
                 title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
+                content=self._tr(
+                    "page.z1_user_presets.error.activate_failed",
+                    "Не удалось активировать пресет '{name}'",
+                    name=name,
+                ),
                 parent=self.window(),
             )
+
+    def _on_edit_preset(self, name: str):
+        if RoundMenu is not None and Action is not None:
+            menu = RoundMenu(parent=self)
+            rename_action = Action(
+                _fluent_icon("RENAME"),
+                self._tr("page.z1_user_presets.menu.rename", "Переименовать"),
+                menu,
+            )
+            duplicate_action = Action(
+                _fluent_icon("COPY"),
+                self._tr("page.z1_user_presets.menu.duplicate", "Дублировать"),
+                menu,
+            )
+            export_action = Action(
+                _fluent_icon("SHARE"),
+                self._tr("page.z1_user_presets.menu.export", "Экспорт"),
+                menu,
+            )
+            reset_action = Action(
+                _fluent_icon("SYNC"),
+                self._tr("page.z1_user_presets.menu.reset", "Сбросить"),
+                menu,
+            )
+            delete_action = Action(
+                _fluent_icon("DELETE"),
+                self._tr("page.z1_user_presets.menu.delete", "Удалить"),
+                menu,
+            )
+
+            rename_action.triggered.connect(lambda: self._on_rename_preset(name))
+            duplicate_action.triggered.connect(lambda: self._on_duplicate_preset(name))
+            export_action.triggered.connect(lambda: self._on_export_preset(name))
+            reset_action.triggered.connect(lambda: self._on_reset_preset(name))
+            delete_action.triggered.connect(lambda: self._on_delete_preset(name))
+
+            menu.addAction(rename_action)
+            menu.addAction(duplicate_action)
+            menu.addAction(export_action)
+            menu.addAction(reset_action)
+            menu.addAction(delete_action)
+            menu.exec(QCursor.pos())
+            return
+
+        from PyQt6.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        rename_action = menu.addAction(self._tr("page.z1_user_presets.menu.rename", "Переименовать"))
+        duplicate_action = menu.addAction(self._tr("page.z1_user_presets.menu.duplicate", "Дублировать"))
+        export_action = menu.addAction(self._tr("page.z1_user_presets.menu.export", "Экспорт"))
+        reset_action = menu.addAction(self._tr("page.z1_user_presets.menu.reset", "Сбросить"))
+        delete_action = menu.addAction(self._tr("page.z1_user_presets.menu.delete", "Удалить"))
+        chosen = menu.exec(QCursor.pos())
+        if chosen == rename_action:
+            self._on_rename_preset(name)
+        elif chosen == duplicate_action:
+            self._on_duplicate_preset(name)
+        elif chosen == export_action:
+            self._on_export_preset(name)
+        elif chosen == reset_action:
+            self._on_reset_preset(name)
+        elif chosen == delete_action:
+            self._on_delete_preset(name)
+
+    def _ensure_preset_list_current_index(self) -> None:
+        if self._presets_model is None:
+            return
+        current = self.presets_list.currentIndex()
+        if current.isValid() and str(current.data(_PresetListModel.KindRole) or "") == "preset":
+            return
+        for row in range(self._presets_model.rowCount()):
+            index = self._presets_model.index(row, 0)
+            if str(index.data(_PresetListModel.KindRole) or "") == "preset":
+                self.presets_list.setCurrentIndex(index)
+                break
 
     def _on_rename_preset(self, name: str):
         self._show_inline_action_rename(name)
 
     def _on_duplicate_preset(self, name: str):
         try:
-            manager = self._get_manager()
-
             counter = 1
             new_name = f"{name} (копия)"
-            while manager.preset_exists(new_name):
+            facade = self._get_direct_facade()
+            while facade.exists(new_name):
                 counter += 1
                 new_name = f"{name} (копия {counter})"
 
-            if manager.duplicate_preset(name, new_name):
-                log(f"Пресет '{name}' дублирован как '{new_name}'", "INFO")
-                self.preset_created.emit(new_name)
-                self._load_presets()
-            else:
-                InfoBar.warning(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr("page.z1_user_presets.error.duplicate_failed", "Не удалось дублировать пресет"),
-                    parent=self.window(),
-                )
+            facade.duplicate(name, new_name)
+            from preset_zapret1.preset_store import PresetStoreV1
+
+            PresetStoreV1.instance().notify_presets_changed()
+            log(f"Пресет '{name}' дублирован как '{new_name}'", "INFO")
+            self.preset_created.emit(new_name)
+            self._load_presets()
 
         except Exception as e:
             log(f"Ошибка дублирования пресета: {e}", "ERROR")
@@ -1920,18 +2003,13 @@ class Zapret1UserPresetsPage(BasePage):
                 if not box.exec():
                     return
 
-            manager = self._get_manager()
+            facade = self._get_direct_facade()
+            facade.reset_to_template(name)
+            from preset_zapret1.preset_store import PresetStoreV1
 
-            if not manager.reset_preset_to_default_template(name):
-                InfoBar.warning(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr(
-                        "page.z1_user_presets.error.reset_failed",
-                        "Не удалось сбросить пресет к настройкам шаблона",
-                    ),
-                    parent=self.window(),
-                )
-                return
+            PresetStoreV1.instance().notify_preset_saved(name)
+            if facade.is_selected(name):
+                PresetStoreV1.instance().notify_preset_switched(name)
 
             log(f"Сброшен пресет '{name}' к шаблону", "INFO")
             self.preset_switched.emit(name)
@@ -1968,24 +2046,20 @@ class Zapret1UserPresetsPage(BasePage):
                 if not box.exec():
                     return
 
-            manager = self._get_manager()
+            facade = self._get_direct_facade()
+            facade.delete(name)
+            from preset_zapret1.preset_store import PresetStoreV1
 
-            if manager.delete_preset(name):
-                log(f"Удалён пресет '{name}'", "INFO")
-                # Mark as deleted so it can be restored later (if it has a matching template)
-                try:
-                    from preset_zapret1.preset_defaults import mark_preset_deleted
-                    mark_preset_deleted(name)
-                except Exception:
-                    pass
-                self.preset_deleted.emit(name)
-                self._load_presets()
-            else:
-                InfoBar.warning(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr("page.z1_user_presets.error.delete_failed", "Не удалось удалить пресет"),
-                    parent=self.window(),
-                )
+            PresetStoreV1.instance().notify_presets_changed()
+            log(f"Удалён пресет '{name}'", "INFO")
+            # Mark as deleted so it can be restored later (if it has a matching template)
+            try:
+                from preset_zapret1.preset_defaults import mark_preset_deleted_v1
+                mark_preset_deleted_v1(name)
+            except Exception:
+                pass
+            self.preset_deleted.emit(name)
+            self._load_presets()
 
         except Exception as e:
             log(f"Ошибка удаления пресета: {e}", "ERROR")
@@ -2007,25 +2081,17 @@ class Zapret1UserPresetsPage(BasePage):
             return
 
         try:
-            manager = self._get_manager()
-
-            if manager.export_preset(name, Path(file_path)):
-                log(f"Экспортирован пресет '{name}' в {file_path}", "INFO")
-                InfoBar.success(
-                    title=self._tr("page.z1_user_presets.infobar.success", "Успех"),
-                    content=self._tr(
-                        "page.z1_user_presets.info.exported",
-                        "Пресет экспортирован: {path}",
-                        path=file_path,
-                    ),
-                    parent=self.window(),
-                )
-            else:
-                InfoBar.warning(
-                    title=self._tr("common.error.title", "Ошибка"),
-                    content=self._tr("page.z1_user_presets.error.export_failed", "Не удалось экспортировать пресет"),
-                    parent=self.window(),
-                )
+            self._get_direct_facade().export_plain_text(name, Path(file_path))
+            log(f"Экспортирован пресет '{name}' в {file_path}", "INFO")
+            InfoBar.success(
+                title=self._tr("page.z1_user_presets.infobar.success", "Успех"),
+                content=self._tr(
+                    "page.z1_user_presets.info.exported",
+                    "Пресет экспортирован: {path}",
+                    path=file_path,
+                ),
+                parent=self.window(),
+            )
 
         except Exception as e:
             log(f"Ошибка экспорта пресета: {e}", "ERROR")
@@ -2038,9 +2104,14 @@ class Zapret1UserPresetsPage(BasePage):
     def _on_restore_deleted(self):
         """Restore all previously deleted presets that have matching templates."""
         try:
-            from preset_zapret1.preset_defaults import clear_all_deleted_presets, ensure_templates_copied_to_presets
-            clear_all_deleted_presets()
-            ensure_v1_templates_copied_to_presets()
+            facade = self._get_direct_facade()
+            facade.restore_deleted()
+            from preset_zapret1.preset_store import PresetStoreV1
+
+            PresetStoreV1.instance().notify_presets_changed()
+            selected_name = facade.get_selected_name()
+            if selected_name:
+                PresetStoreV1.instance().notify_preset_switched(selected_name)
             log("Восстановлены удалённые пресеты", "INFO")
             self._load_presets()
         except Exception as e:

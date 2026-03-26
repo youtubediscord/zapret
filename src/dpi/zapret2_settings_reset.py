@@ -126,13 +126,13 @@ def reset_category_settings(category_key: str) -> bool:
         True если успешно, False при ошибке
     """
     try:
-        from preset_zapret2 import PresetManager
+        from core.presets.direct_facade import DirectPresetFacade
 
-        manager = PresetManager()
+        manager = DirectPresetFacade.from_launch_method("direct_zapret2")
         success = manager.reset_category_settings(category_key)
 
         if success:
-            log(f"Настройки категории {category_key} сброшены через PresetManager", "INFO")
+            log(f"Настройки категории {category_key} сброшены через DirectPresetFacade", "INFO")
         else:
             log(f"Не удалось сбросить настройки категории {category_key}", "WARNING")
 
@@ -155,9 +155,9 @@ def reset_all_categories_settings() -> bool:
         True если все категории успешно сброшены, False при ошибке
     """
     try:
-        from preset_zapret2 import PresetManager
+        from core.presets.direct_facade import DirectPresetFacade
 
-        manager = PresetManager()
+        manager = DirectPresetFacade.from_launch_method("direct_zapret2")
         preset = manager.get_active_preset()
 
         if not preset:

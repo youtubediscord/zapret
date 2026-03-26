@@ -1,6 +1,5 @@
-# Preset: general ALT9
-# ActivePreset: general ALT9
-# BuiltinVersion: 2.13
+# Preset: general ALT9 1.9.4
+# BuiltinVersion: 2.14
 # IconColor: #e6c300ff
 
 --lua-init=@lua/zapret-lib.lua

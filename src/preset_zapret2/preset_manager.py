@@ -3,9 +3,9 @@
 High-level preset manager for direct_zapret2 mode.
 
 Provides a unified API for:
-- Switching presets (copy to preset-zapret2.txt + DPI reload)
+- Selecting source presets and regenerating the launch config
 - Creating/editing/deleting presets
-- Managing active preset
+- Managing the selected preset
 
 Usage:
     manager = PresetManager()
@@ -13,7 +13,7 @@ Usage:
     # List available presets
     presets = manager.list_presets()
 
-    # Switch to a preset (copies to preset-zapret2.txt)
+    # Select a preset and regenerate the launch config
     manager.switch_preset("Gaming")
 
     # Get current preset
@@ -42,20 +42,12 @@ from .preset_model import (
 )
 from .ports import subtract_port_specs, union_port_specs
 from .preset_storage import (
-    delete_preset,
-    duplicate_preset,
-    export_preset,
     get_active_preset_name,
     get_active_preset_path,
     get_preset_path,
     get_presets_dir,
-    import_preset,
-    list_presets,
-    load_preset,
     preset_exists,
-    rename_preset,
     save_preset,
-    set_active_preset_name,
 )
 
 
@@ -88,9 +80,10 @@ class PresetManager:
         self.on_preset_switched = on_preset_switched
         self.on_dpi_reload_needed = on_dpi_reload_needed
 
-        # Cache for active preset to avoid repeated file parsing
+        # Cache for the selected source preset to avoid repeated file parsing
         self._active_preset_cache: Optional[Preset] = None
         self._active_preset_mtime: float = 0.0
+        self._sync_layer = None
 
     # ========================================================================
     # LIST OPERATIONS
@@ -101,6 +94,23 @@ class PresetManager:
         """Returns the global PresetStore singleton."""
         from .preset_store import get_preset_store
         return get_preset_store()
+
+    def _get_sync_layer(self):
+        if self._sync_layer is None:
+            from .sync_layer import Zapret2PresetSyncLayer
+
+            self._sync_layer = Zapret2PresetSyncLayer(
+                on_dpi_reload_needed=self.on_dpi_reload_needed,
+                invalidate_cache=self._invalidate_active_preset_cache,
+                inject_debug_into_base_args=self._maybe_inject_debug_into_base_args,
+                update_wf_out_ports_in_base_args=self._update_wf_out_ports_in_base_args,
+            )
+        return self._sync_layer
+
+    def _get_facade(self):
+        from core.presets.direct_facade import DirectPresetFacade
+
+        return DirectPresetFacade.from_launch_method("direct_zapret2")
 
     def list_presets(self) -> List[str]:
         """
@@ -186,22 +196,24 @@ class PresetManager:
 
     def get_active_preset_name(self) -> Optional[str]:
         """
-        Gets name of currently active preset.
+        Gets name of the currently selected source preset.
 
         Returns:
             Active preset name or None
         """
         try:
-            return self._get_store().get_active_preset_name()
+            from core.services import get_direct_flow_coordinator
+
+            return get_direct_flow_coordinator().get_selected_preset_name("direct_zapret2")
         except Exception:
-            return get_active_preset_name()
+            try:
+                return self._get_store().get_active_preset_name()
+            except Exception:
+                return get_active_preset_name()
 
     def get_active_preset(self) -> Optional[Preset]:
         """
-        Loads the currently active preset with caching.
-
-        First checks cache validity (file mtime).
-        If cache is invalid, loads from presets/ folder or parses preset-zapret2.txt.
+        Loads the currently selected source preset with caching.
 
         Returns:
             Active Preset or None
@@ -213,14 +225,10 @@ class PresetManager:
                 # Cache is valid
                 return self._active_preset_cache
 
-        # Source of truth for active state is preset-zapret2.txt.
-        preset = self._load_from_active_file()
-
-        if not preset:
-            # Fallback: load from presets/ folder if active file is missing/corrupted
-            name = get_active_preset_name()
-            if name and preset_exists(name):
-                preset = load_preset(name)
+        name = self.get_active_preset_name()
+        preset = None
+        if name:
+            preset = self.load_preset(name)
 
         # Update cache
         if preset:
@@ -228,144 +236,6 @@ class PresetManager:
             self._active_preset_mtime = self._get_active_file_mtime()
 
         return preset
-
-    def _load_from_active_file(self) -> Optional[Preset]:
-        """
-        Loads preset directly from preset-zapret2.txt.
-
-        Used as fallback when active preset name is not available.
-
-        Returns:
-            Preset parsed from active file
-        """
-        from .txt_preset_parser import parse_preset_file
-
-        active_path = get_active_preset_path()
-
-        if not active_path.exists():
-            log("Active preset file not found", "WARNING")
-            return None
-
-        try:
-            data = parse_preset_file(active_path)
-
-            # Determine name
-            name = data.active_preset or data.name
-            if name == "Unnamed":
-                name = "Current"
-
-            # Convert to Preset.
-            # NOTE: --debug is a global runtime option; keep it in preset-zapret2.txt,
-            # but don't persist it inside the preset model to avoid leaking it into
-            # presets/ files.
-            preset = Preset(
-                name=name,
-                base_args=self._strip_debug_from_base_args(data.base_args),
-            )
-            preset.icon_color = self._extract_icon_color_from_header(data.raw_header)
-
-            for block in data.categories:
-                cat_name = block.category
-
-                # Store raw block text for lossless round-trip save.
-                # Deduplicate: shared blocks (multiple hostlists in one --new block)
-                # create multiple CategoryBlocks but we store raw_text only once.
-                raw_text = getattr(block, "raw_args", "") or getattr(block, "args", "")
-                already_stored = any(rt == raw_text for _, _, rt in preset._raw_blocks)
-                if already_stored:
-                    for idx, (cats, proto, rt) in enumerate(preset._raw_blocks):
-                        if rt == raw_text:
-                            cats.add(cat_name)
-                            break
-                else:
-                    preset._raw_blocks.append(({cat_name}, block.protocol, raw_text))
-
-                if cat_name not in preset.categories:
-                    raw_filter_file = getattr(block, "filter_file", "") or ""
-                    if raw_filter_file and "/" not in raw_filter_file and "\\" not in raw_filter_file:
-                        raw_filter_file = f"lists/{raw_filter_file}"
-                    preset.categories[cat_name] = CategoryConfig(
-                        name=cat_name,
-                        filter_mode=block.filter_mode,
-                        filter_file=raw_filter_file,
-                    )
-
-                cat = preset.categories[cat_name]
-
-                # Restore per-protocol advanced settings from parsed dict (if present).
-                if getattr(block, "syndata_dict", None):
-                    if block.protocol == "tcp":
-                        base = cat.syndata_tcp.to_dict()
-                        base.update(block.syndata_dict or {})  # type: ignore[arg-type]
-                        cat.syndata_tcp = SyndataSettings.from_dict(base)
-                    elif block.protocol == "udp":
-                        base = cat.syndata_udp.to_dict()
-                        base.update(block.syndata_dict or {})  # type: ignore[arg-type]
-                        cat.syndata_udp = SyndataSettings.from_dict(base)
-                else:
-                    # No syndata_dict = block had no --out-range/--lua-desync=send/syndata.
-                    # Reset out_range to 0 so _get_out_range_args() returns "" (don't inject
-                    # a default --out-range=-n8 into blocks that never had one).
-                    if block.protocol == "tcp":
-                        cat.syndata_tcp.out_range = 0
-                    elif block.protocol == "udp":
-                        cat.syndata_udp.out_range = 0
-
-                if block.protocol == "tcp":
-                    cat.tcp_args = block.strategy_args
-                    cat.tcp_port = block.port
-                    cat.tcp_enabled = True
-                    # TCP filter_mode has priority over UDP
-                    cat.filter_mode = block.filter_mode
-                elif block.protocol == "udp":
-                    cat.udp_args = block.strategy_args
-                    cat.udp_port = block.port
-                    cat.udp_enabled = True
-                    # UDP sets filter_mode only if TCP didn't set it
-                    if not cat.filter_mode:
-                        cat.filter_mode = block.filter_mode
-
-            # ✅ INFERENCE: Determine strategy_id from args for all categories
-            # This is needed because preset files store args but not strategy_id
-            from .strategy_inference import infer_strategy_id_from_args
-
-            # Keep inference aligned with the currently selected strategies catalog
-            # (direct_zapret2 Basic/Advanced and other launch-method based sets).
-            try:
-                from strategy_menu.strategies_registry import get_current_strategy_set
-                current_strategy_set = get_current_strategy_set()
-            except Exception:
-                current_strategy_set = None
-
-            for cat_name, cat in preset.categories.items():
-                # Try TCP first (most common)
-                if cat.tcp_args and cat.tcp_args.strip():
-                    inferred_id = infer_strategy_id_from_args(
-                        category_key=cat_name,
-                        args=cat.tcp_args,
-                        protocol="tcp",
-                        strategy_set=current_strategy_set,
-                    )
-                    if inferred_id != "none":
-                        cat.strategy_id = inferred_id
-                        continue
-
-                # Try UDP if TCP didn't work
-                if cat.udp_args and cat.udp_args.strip():
-                    inferred_id = infer_strategy_id_from_args(
-                        category_key=cat_name,
-                        args=cat.udp_args,
-                        protocol="udp",
-                        strategy_set=current_strategy_set,
-                    )
-                    if inferred_id != "none":
-                        cat.strategy_id = inferred_id
-
-            return preset
-
-        except Exception as e:
-            log(f"Error loading from active file: {e}", "ERROR")
-            return None
 
     @staticmethod
     def _extract_icon_color_from_header(header: str) -> str:
@@ -449,28 +319,44 @@ class PresetManager:
 
     def _get_active_file_mtime(self) -> float:
         """
-        Gets modification time of active preset file.
+        Gets modification time of the selected source preset file.
 
         Returns:
             mtime as float timestamp, 0.0 if file does not exist
         """
         try:
+            from core.services import get_direct_flow_coordinator
+
+            preset_path = get_direct_flow_coordinator().get_selected_source_path("direct_zapret2")
+            if preset_path.exists():
+                return os.path.getmtime(str(preset_path))
             active_path = get_active_preset_path()
             if active_path.exists():
                 return os.path.getmtime(str(active_path))
             return 0.0
         except Exception as e:
-            log(f"Error getting active file mtime: {e}", "WARNING")
+            log(f"Error getting selected preset mtime: {e}", "WARNING")
             return 0.0
 
     def _invalidate_active_preset_cache(self) -> None:
         """
-        Invalidates the active preset cache.
+        Invalidates the selected preset cache.
 
-        Should be called after any modification to the active preset.
+        Should be called after any modification to the selected source preset.
         """
         self._active_preset_cache = None
         self._active_preset_mtime = 0.0
+
+    def _select_source_preset(self, name: str) -> bool:
+        try:
+            from core.services import get_selection_service
+
+            get_selection_service().select_preset_by_name("winws2", name)
+            self._invalidate_active_preset_cache()
+            return True
+        except Exception as e:
+            log(f"Error selecting source preset '{name}': {e}", "ERROR")
+            return False
 
     def invalidate_preset_cache(self, name: Optional[str] = None) -> None:
         """
@@ -498,9 +384,10 @@ class PresetManager:
 
     def switch_preset(self, name: str, reload_dpi: bool = True) -> bool:
         """
-        Switches to a preset.
+        Selects a preset.
 
-        Copies preset file to preset-zapret2.txt and optionally reloads DPI.
+        Updates the selected source preset, regenerates the launch config and
+        optionally triggers a DPI reload callback.
 
         Args:
             name: Preset name to switch to
@@ -509,116 +396,35 @@ class PresetManager:
         Returns:
             True if switched successfully
         """
-        preset_path = get_preset_path(name)
-        active_path = get_active_preset_path()
-
-        if not preset_path.exists():
+        if not preset_exists(name):
             log(f"Cannot switch: preset '{name}' not found", "ERROR")
             return False
 
         try:
-            # Atomic copy: copy to temp, then rename
-            temp_path = active_path.with_suffix('.tmp')
-            shutil.copy2(preset_path, temp_path)
+            from core.services import get_direct_flow_coordinator
 
-            # Add ActivePreset marker to file
-            self._add_active_preset_marker(temp_path, name)
-
-            # Atomic replace (works even if target exists)
-            import os
-            import time
-            try:
-                os.replace(str(temp_path), str(active_path))
-            except PermissionError as e:
-                # Windows: destination may be locked briefly (winws2 / watcher).
-                # Retry a bit, then fall back to non-atomic overwrite.
-                if os.name != "nt":
-                    raise
-
-                last_exc = e
-                delay = 0.03
-                for _attempt in range(15):
-                    time.sleep(delay)
-                    try:
-                        os.replace(str(temp_path), str(active_path))
-                        last_exc = None
-                        break
-                    except PermissionError as e2:
-                        last_exc = e2
-                        delay = min(delay * 1.6, 0.2)
-
-                if last_exc is not None:
-                    shutil.copyfile(temp_path, active_path)
-                    try:
-                        temp_path.unlink()
-                    except Exception:
-                        pass
-                    log(f"Atomic replace blocked; wrote active preset file in-place: {active_path}", "DEBUG")
-
-            # Persist active preset name
-            set_active_preset_name(name)
+            profile = get_direct_flow_coordinator().select_preset("direct_zapret2", name)
 
             # Invalidate cache after switch
             self._invalidate_active_preset_cache()
 
             # Notify central store
-            self._get_store().notify_preset_switched(name)
-
-            log(f"Switched to preset '{name}'", "INFO")
-
-            # Callbacks (legacy, for callers that pass on_preset_switched)
-            if self.on_preset_switched:
-                self.on_preset_switched(name)
+            self._get_store().notify_preset_switched(profile.preset_name)
 
             if reload_dpi and self.on_dpi_reload_needed:
                 self.on_dpi_reload_needed()
+
+            log(f"Switched to preset '{profile.preset_name}'", "INFO")
+
+            # Callbacks (legacy, for callers that pass on_preset_switched)
+            if self.on_preset_switched:
+                self.on_preset_switched(profile.preset_name)
 
             return True
 
         except Exception as e:
             log(f"Error switching preset: {e}", "ERROR")
-            # Cleanup temp file
-            temp_path = active_path.with_suffix('.tmp')
-            if temp_path.exists():
-                temp_path.unlink()
             return False
-
-    def _add_active_preset_marker(self, file_path: Path, preset_name: str) -> None:
-        """
-        Adds ActivePreset comment to preset file.
-
-        Args:
-            file_path: Path to preset file
-            preset_name: Name of active preset
-        """
-        try:
-            content = file_path.read_text(encoding='utf-8')
-            lines = content.split('\n')
-
-            # Find if # ActivePreset: already exists
-            active_idx = None
-            for i, line in enumerate(lines):
-                if line.strip().lower().startswith('# activepreset:'):
-                    active_idx = i
-                    break
-
-            if active_idx is not None:
-                # Update existing
-                lines[active_idx] = f"# ActivePreset: {preset_name}"
-            else:
-                # Add after # Preset: line or at start
-                insert_idx = 0
-                for i, line in enumerate(lines):
-                    if line.strip().lower().startswith('# preset:'):
-                        insert_idx = i + 1
-                        break
-
-                lines.insert(insert_idx, f"# ActivePreset: {preset_name}")
-
-            file_path.write_text('\n'.join(lines), encoding='utf-8')
-
-        except Exception as e:
-            log(f"Error adding active preset marker: {e}", "WARNING")
 
     # ========================================================================
     # CREATE OPERATIONS
@@ -630,35 +436,21 @@ class PresetManager:
 
         Args:
             name: Name for new preset
-            from_current: If True, copy current preset-zapret2.txt.
+            from_current: If True, copy the selected source preset.
                          If False, create empty preset.
 
         Returns:
             Created Preset or None on error
         """
-        if preset_exists(name):
+        if self.preset_exists(name):
             log(f"Cannot create: preset '{name}' already exists", "WARNING")
             return None
 
         try:
-            if from_current:
-                # Copy from current active preset
-                current = self._load_from_active_file()
-                if current:
-                    current.name = name
-                    current.created = datetime.now().isoformat()
-                    current.modified = datetime.now().isoformat()
-                    if save_preset(current):
-                        self._notify_list_changed()
-                        log(f"Created preset '{name}' from current", "INFO")
-                        return current
-                    return None
-                else:
-                    # No current, create default
-                    return self.create_default_preset(name)
-            else:
-                return self.create_default_preset(name)
-
+            self._get_facade().create(name, from_current=from_current)
+            self._notify_list_changed()
+            log(f"Created preset '{name}'", "INFO")
+            return self.load_preset(name)
         except Exception as e:
             log(f"Error creating preset: {e}", "ERROR")
             return None
@@ -673,46 +465,15 @@ class PresetManager:
         Returns:
             Created Preset or None
         """
-        if preset_exists(name):
+        if self.preset_exists(name):
             log(f"Cannot create: preset '{name}' already exists", "WARNING")
             return None
 
         try:
-            from .preset_defaults import get_builtin_preset_content, get_default_builtin_preset_name
-            from .txt_preset_parser import parse_preset_content, generate_preset_file
-
-            template_name = get_default_builtin_preset_name() or "Default"
-            template = get_builtin_preset_content(template_name)
-            if not template:
-                log(
-                    "Cannot create preset: no built-in preset templates found. "
-                    "Expected at least one file in: %APPDATA%/zapret/presets_v2_template/*.txt",
-                    "ERROR",
-                )
-                return None
-            data = parse_preset_content(template)
-            data.name = name
-            data.active_preset = None
-            # generate_preset_content() preserves raw_header when present, so it must be updated
-            # when we create a new preset from the Default template.
-            now = datetime.now().isoformat()
-            icon_color = self._extract_icon_color_from_header(data.raw_header)
-            data.raw_header = f"""# Preset: {name}
-# Created: {now}
-# Modified: {now}
-# IconColor: {icon_color}
-# Description: """
-
-            dest_path = get_preset_path(name)
-            if not generate_preset_file(data, dest_path, atomic=True):
-                return None
-
+            self._get_facade().create(name, from_current=False)
             self._notify_list_changed()
             log(f"Created preset '{name}' from default template", "INFO")
-
-            # Load and return the created preset (from store)
             return self.load_preset(name)
-
         except Exception as e:
             log(f"Error creating default preset: {e}", "ERROR")
             return None
@@ -739,7 +500,7 @@ class PresetManager:
         """
         Deletes preset.
 
-        Cannot delete currently active preset.
+        Cannot delete the currently selected preset.
 
         Args:
             name: Preset name
@@ -748,21 +509,24 @@ class PresetManager:
             True if deleted
         """
         # Check if active
-        active_name = get_active_preset_name()
+        active_name = self.get_active_preset_name()
         if active_name == name:
-            log(f"Cannot delete active preset '{name}'", "WARNING")
+            log(f"Cannot delete selected preset '{name}'", "WARNING")
             return False
 
-        result = delete_preset(name)
-        if result:
+        try:
+            self._get_facade().delete(name)
             self._notify_list_changed()
-        return result
+            return True
+        except Exception as e:
+            log(f"Error deleting preset '{name}': {e}", "ERROR")
+            return False
 
     def rename_preset(self, old_name: str, new_name: str) -> bool:
         """
         Renames preset.
 
-        Updates active preset name if renamed preset is active.
+        Updates the selected preset if the renamed preset was selected.
 
         Args:
             old_name: Current name
@@ -771,13 +535,16 @@ class PresetManager:
         Returns:
             True if renamed
         """
-        if rename_preset(old_name, new_name):
-            # Update active preset name if this was active
-            if get_active_preset_name() == old_name:
-                set_active_preset_name(new_name)
+        try:
+            was_selected = self.get_active_preset_name() == old_name
+            self._get_facade().rename(old_name, new_name)
+            if was_selected:
+                self._get_store().notify_preset_switched(new_name)
             self._notify_list_changed()
             return True
-        return False
+        except Exception as e:
+            log(f"Error renaming preset '{old_name}' -> '{new_name}': {e}", "ERROR")
+            return False
 
     def duplicate_preset(self, name: str, new_name: str) -> bool:
         """
@@ -790,10 +557,13 @@ class PresetManager:
         Returns:
             True if duplicated
         """
-        result = duplicate_preset(name, new_name)
-        if result:
+        try:
+            self._get_facade().duplicate(name, new_name)
             self._notify_list_changed()
-        return result
+            return True
+        except Exception as e:
+            log(f"Error duplicating preset '{name}' -> '{new_name}': {e}", "ERROR")
+            return False
 
     # ========================================================================
     # IMPORT/EXPORT OPERATIONS
@@ -810,7 +580,12 @@ class PresetManager:
         Returns:
             True if exported
         """
-        return export_preset(name, dest_path)
+        try:
+            self._get_facade().export_plain_text(name, dest_path)
+            return True
+        except Exception as e:
+            log(f"Error exporting preset '{name}' to '{dest_path}': {e}", "ERROR")
+            return False
 
     def import_preset(self, src_path: Path, name: Optional[str] = None) -> bool:
         """
@@ -826,31 +601,14 @@ class PresetManager:
         Returns:
             True if imported
         """
-        import shutil
-
-        actual_name = name if name else Path(src_path).stem
-
-        # Copy to presets_v2_template/ as well (so reset works for imported presets)
         try:
-            from config import get_zapret_presets_v2_template_dir
-            template_dir = Path(get_zapret_presets_v2_template_dir())
-            template_dir.mkdir(parents=True, exist_ok=True)
-            template_dest = template_dir / f"{actual_name}.txt"
-            shutil.copy2(str(src_path), str(template_dest))
-        except Exception as e:
-            log(f"Warning: could not copy imported preset to templates: {e}", "DEBUG")
-
-        # Remove from deleted list if it was there
-        try:
-            from .preset_defaults import unmark_preset_deleted
-            unmark_preset_deleted(actual_name)
-        except Exception:
-            pass
-
-        result = import_preset(src_path, name)
-        if result:
+            actual_name = name if name else Path(src_path).stem
+            self._get_facade().import_from_file(src_path, actual_name)
             self._notify_list_changed()
-        return result
+            return True
+        except Exception as e:
+            log(f"Error importing preset '{src_path}' as '{name}': {e}", "ERROR")
+            return False
 
     # ========================================================================
     # UTILITY METHODS
@@ -867,17 +625,17 @@ class PresetManager:
 
     def get_active_preset_path(self) -> Path:
         """
-        Gets path to active preset file.
+        Gets path to the generated launch config.
 
         Returns:
-            Path to preset-zapret2.txt
+            Path to the generated launch config for Zapret 2
         """
         return get_active_preset_path()
 
     def load_current_from_registry(self) -> Optional[Preset]:
         """
         Legacy method for compatibility.
-        Now just returns active preset.
+        Now just returns the selected source preset.
 
         Returns:
             Active Preset
@@ -886,9 +644,9 @@ class PresetManager:
 
     def sync_preset_to_active_file(self, preset: Preset, changed_category: str = None) -> bool:
         """
-        Writes preset directly to preset-zapret2.txt.
+        Regenerates the generated launch config from a source preset.
 
-        Use this when editing the active preset without switching.
+        Use this when editing the selected source preset without re-selecting it.
         Triggers DPI reload.
 
         When changed_category is provided and preset has raw blocks from file,
@@ -902,336 +660,7 @@ class PresetManager:
         Returns:
             True if successful
         """
-        from .txt_preset_parser import CategoryBlock, PresetData, generate_preset_file
-
-        active_path = get_active_preset_path()
-
-        # direct_zapret2 Basic mode:
-        # - do NOT apply send/syndata settings from the preset (no UI for them)
-        # - but allow strategies to embed --lua-desync=send/--lua-desync=syndata
-        #   directly in their args.
-        is_basic_direct = False
-        try:
-            from strategy_menu import get_strategy_launch_method, get_direct_zapret2_ui_mode
-            is_basic_direct = (
-                (get_strategy_launch_method() or "").strip().lower() == "direct_zapret2"
-                and (get_direct_zapret2_ui_mode() or "").strip().lower() == "basic"
-            )
-        except Exception:
-            is_basic_direct = False
-
-        try:
-            # Keep wf-*-out in sync with enabled category port filters.
-            preset.base_args = self._update_wf_out_ports_in_base_args(preset)
-
-            # ── RAW BLOCK PRESERVATION MODE ──
-            # When a single category was changed and we have raw blocks from the
-            # original file, only regenerate the changed category's block(s) and
-            # keep everything else exactly as it was in the file.
-            raw_blocks = getattr(preset, "_raw_blocks", None) or []
-            if changed_category and raw_blocks:
-                return self._sync_with_raw_block_preservation(
-                    preset, active_path, changed_category, raw_blocks, is_basic_direct,
-                )
-
-            # ── FULL REGENERATION (fallback) ──
-            return self._sync_full_regeneration(preset, active_path, is_basic_direct)
-
-        except PermissionError as e:
-            log(f"Cannot write preset file (locked by winws2?): {e}", "ERROR")
-            raise
-        except Exception as e:
-            log(f"Error syncing to active file: {e}", "ERROR")
-            return False
-
-    def _sync_with_raw_block_preservation(
-        self,
-        preset: Preset,
-        active_path: str,
-        changed_category: str,
-        raw_blocks: list,
-        is_basic_direct: bool,
-    ) -> bool:
-        """
-        Lossless save: only regenerate the changed category's block(s),
-        keep all other blocks as raw text from the original file.
-        """
-        from .txt_preset_parser import generate_preset_file, PresetData, CategoryBlock
-        from .txt_preset_parser import _normalize_known_path_line
-
-        cat = preset.categories.get(changed_category)
-        cat_disabled = (not cat) or (cat.strategy_id == "none")
-
-        # _raw_blocks format: [(set_of_cat_keys, protocol, raw_text), ...]
-        # Each entry represents one --new block from the original file.
-        # A block can contain multiple categories (e.g., multiple --hostlist= lines).
-
-        # If the changed category is in a SHARED block (multiple hostlists),
-        # we cannot surgically modify just one category — fall back to full regeneration.
-        for cat_keys, _, _ in raw_blocks:
-            if changed_category in cat_keys and len(cat_keys) > 1:
-                log(
-                    f"Changed category '{changed_category}' is in a shared block "
-                    f"with {cat_keys}. Falling back to full regeneration.",
-                    "DEBUG",
-                )
-                return self._sync_full_regeneration(preset, active_path, is_basic_direct)
-
-        changed_cat_in_raw = any(
-            changed_category in cat_keys for cat_keys, _, _ in raw_blocks
-        )
-
-        result_block_texts: list[str] = []
-
-        for cat_keys, raw_protocol, raw_text in raw_blocks:
-            if changed_category in cat_keys:
-                    # Single-category block — safe to regenerate or skip.
-                    if cat_disabled:
-                        continue  # Category disabled — remove block from file
-                    new_block_text = self._build_category_block_text(
-                        preset, changed_category, raw_protocol, is_basic_direct,
-                    )
-                    if new_block_text:
-                        result_block_texts.append(new_block_text)
-            else:
-                # PASSTHROUGH: keep original raw text exactly as-is
-                result_block_texts.append(raw_text)
-
-        # If the changed category is NEW (wasn't in raw_blocks), append it
-        if not changed_cat_in_raw and not cat_disabled:
-            for proto in ("tcp", "udp"):
-                new_block_text = self._build_category_block_text(
-                    preset, changed_category, proto, is_basic_direct,
-                )
-                if new_block_text:
-                    result_block_texts.append(new_block_text)
-
-        # Assemble the file content
-        icon_color = normalize_preset_icon_color(getattr(preset, "icon_color", DEFAULT_PRESET_ICON_COLOR))
-        preset.icon_color = icon_color
-
-        lines: list[str] = []
-        # Header
-        lines.append(f"# Preset: {preset.name}")
-        lines.append(f"# ActivePreset: {preset.name}")
-        lines.append(f"# Modified: {datetime.now().isoformat()}")
-        lines.append(f"# IconColor: {icon_color}")
-        lines.append("")
-
-        # Base args
-        base_args_text = self._maybe_inject_debug_into_base_args(preset.base_args)
-        if base_args_text:
-            for line in base_args_text.split('\n'):
-                if line.strip():
-                    lines.append(_normalize_known_path_line(line.strip()))
-            lines.append("")
-
-        # Category blocks joined by --new
-        for i, block_text in enumerate(result_block_texts):
-            for line in block_text.split('\n'):
-                if line.strip():
-                    lines.append(line.strip())
-            if i < len(result_block_texts) - 1:
-                lines.append("")
-                lines.append("--new")
-                lines.append("")
-
-        content = '\n'.join(lines)
-
-        try:
-            with open(active_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            success = True
-        except Exception as e:
-            log(f"Error writing preset file: {e}", "ERROR")
-            success = False
-
-        if success:
-            self._invalidate_active_preset_cache()
-            log(f"Synced preset to active file (raw block preservation, changed: {changed_category})", "DEBUG")
-            if self.on_dpi_reload_needed:
-                self.on_dpi_reload_needed()
-
-        return success
-
-    def _build_category_block_text(
-        self,
-        preset: Preset,
-        cat_key: str,
-        protocol: str,
-        is_basic_direct: bool,
-    ) -> str:
-        """
-        Build the text for a single category block from CategoryConfig.
-
-        Returns empty string if the category/protocol is not enabled or has no args.
-        """
-        cat = preset.categories.get(cat_key)
-        if not cat:
-            return ""
-
-        from .base_filter import build_category_base_filter_lines
-
-        if protocol == "tcp":
-            if not (cat.tcp_enabled and cat.has_tcp()):
-                return ""
-            strategy_text = str(getattr(cat, "tcp_args", "") or "")
-            port = cat.tcp_port
-        elif protocol == "udp":
-            if not (cat.udp_enabled and cat.has_udp()):
-                return ""
-            strategy_text = str(getattr(cat, "udp_args", "") or "")
-            port = cat.udp_port
-        else:
-            return ""
-
-        # Base filter lines from categories.txt
-        base_filter_lines = build_category_base_filter_lines(cat_key, cat.filter_mode)
-        args_lines = list(base_filter_lines)
-
-        if not args_lines:
-            # Fallback: build filter lines manually
-            filter_file_relative = cat.get_filter_file()
-            try:
-                from config import MAIN_DIRECTORY
-                filter_file = os.path.normpath(os.path.join(MAIN_DIRECTORY, filter_file_relative))
-            except Exception:
-                filter_file = filter_file_relative
-            args_lines = [f"--filter-{protocol}={port}"]
-            if cat.filter_mode in ("hostlist", "ipset"):
-                args_lines.append(f"--{cat.filter_mode}={filter_file}")
-
-        # Strategy args — in basic mode, use as-is from strategy catalog
-        strat_lines = [ln.strip() for ln in strategy_text.splitlines() if ln.strip()]
-
-        if is_basic_direct:
-            # Basic mode: strategy args as-is, but preserve out-range from syndata
-            # (strategy_args from parser strips --out-range, so we restore it from
-            # syndata settings which were populated from syndata_dict during load)
-            syndata_settings = cat.syndata_tcp if protocol == "tcp" else cat.syndata_udp
-            try:
-                out_range_arg = cat._get_out_range_args(syndata_settings)
-            except Exception:
-                out_range_arg = ""
-            if out_range_arg:
-                args_lines.append(str(out_range_arg).strip())
-            for line in strat_lines:
-                args_lines.append(line)
-        else:
-            # Advanced mode: out-range + send/syndata + strategy args
-            send_present = any(ln.lower().startswith("--lua-desync=send") for ln in strat_lines)
-            syndata_present = any(ln.lower().startswith("--lua-desync=syndata") for ln in strat_lines)
-
-            strat_lines_no_out = [ln for ln in strat_lines if not ln.lower().startswith("--out-range=")]
-            strategy_text_clean = "\n".join(strat_lines_no_out).strip()
-
-            parts: list[str] = []
-
-            syndata_settings = cat.syndata_tcp if protocol == "tcp" else cat.syndata_udp
-
-            try:
-                out_range_arg = cat._get_out_range_args(syndata_settings)
-            except Exception:
-                out_range_arg = ""
-            if out_range_arg:
-                parts.append(str(out_range_arg).strip())
-
-            if protocol == "tcp":
-                try:
-                    if bool(getattr(syndata_settings, "send_enabled", False)) and not send_present:
-                        send_arg = cat._get_send_args(syndata_settings)
-                        if send_arg:
-                            parts.append(str(send_arg).strip())
-                except Exception:
-                    pass
-
-                try:
-                    if bool(getattr(syndata_settings, "enabled", False)) and not syndata_present:
-                        syndata_arg = cat._get_syndata_args(syndata_settings)
-                        if syndata_arg:
-                            parts.append(str(syndata_arg).strip())
-                except Exception:
-                    pass
-
-            if strategy_text_clean:
-                parts.append(strategy_text_clean)
-
-            full_args = "\n".join([p for p in parts if p]).strip()
-            for raw_line in full_args.splitlines():
-                line = (raw_line or "").strip()
-                if line:
-                    args_lines.append(line)
-
-        return "\n".join(args_lines)
-
-    def _sync_full_regeneration(self, preset: Preset, active_path: str, is_basic_direct: bool) -> bool:
-        """
-        Full file regeneration (original behavior, used as fallback).
-        """
-        from .txt_preset_parser import CategoryBlock, PresetData, generate_preset_file
-
-        # Convert to PresetData
-        data = PresetData(
-            name=preset.name,
-            active_preset=preset.name,
-            base_args=self._maybe_inject_debug_into_base_args(preset.base_args),
-        )
-
-        # Build header
-        icon_color = normalize_preset_icon_color(getattr(preset, "icon_color", DEFAULT_PRESET_ICON_COLOR))
-        preset.icon_color = icon_color
-        data.raw_header = f"""# Preset: {preset.name}
-# ActivePreset: {preset.name}
-# Modified: {datetime.now().isoformat()}
-# IconColor: {icon_color}"""
-
-        # Convert categories
-        for cat_name, cat in preset.categories.items():
-            if cat.tcp_enabled and cat.has_tcp():
-                block_text = self._build_category_block_text(preset, cat_name, "tcp", is_basic_direct)
-                if block_text:
-                    block = CategoryBlock(
-                        category=cat_name,
-                        protocol="tcp",
-                        filter_mode=cat.filter_mode if cat.filter_mode in ("hostlist", "ipset") else "",
-                        filter_file="",
-                        port=cat.tcp_port,
-                        args=block_text,
-                        strategy_args=cat.tcp_args,
-                    )
-                    data.categories.append(block)
-
-            if cat.udp_enabled and cat.has_udp():
-                block_text = self._build_category_block_text(preset, cat_name, "udp", is_basic_direct)
-                if block_text:
-                    block = CategoryBlock(
-                        category=cat_name,
-                        protocol="udp",
-                        filter_mode=cat.filter_mode if cat.filter_mode in ("hostlist", "ipset") else "",
-                        filter_file="",
-                        port=cat.udp_port,
-                        args=block_text,
-                        strategy_args=cat.udp_args,
-                    )
-                    data.categories.append(block)
-
-        # Deduplicate categories before writing
-        data.deduplicate_categories()
-
-        # Write
-        success = generate_preset_file(data, active_path, atomic=True)
-
-        if success:
-            # Invalidate cache after sync
-            self._invalidate_active_preset_cache()
-
-            log(f"Synced preset to active file", "DEBUG")
-
-            # Trigger DPI reload
-            if self.on_dpi_reload_needed:
-                self.on_dpi_reload_needed()
-
-        return success
+        return self._get_sync_layer().sync_preset(preset, changed_category=changed_category)
 
     def _update_wf_out_ports_in_base_args(self, preset: Preset) -> str:
         """
@@ -1445,7 +874,7 @@ class PresetManager:
 
     def get_category_syndata(self, category_key: str, protocol: str = "tcp") -> SyndataSettings:
         """
-        Gets syndata settings for a category from active preset.
+        Gets syndata settings for a category from the selected source preset.
 
         Args:
             category_key: Category name (e.g., "youtube", "discord")
@@ -1477,7 +906,7 @@ class PresetManager:
         Args:
             category_key: Category name
             syndata: New syndata settings
-            save_and_sync: If True, save preset and sync to active file
+            save_and_sync: If True, save preset and sync the generated launch config
             protocol: "tcp" or "udp" (udp also covers QUIC/L7)
 
         Returns:
@@ -1485,7 +914,7 @@ class PresetManager:
         """
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot update syndata: no active preset", "WARNING")
+            log(f"Cannot update syndata: no selected preset", "WARNING")
             return False
 
         # Create category if not exists
@@ -1538,7 +967,7 @@ class PresetManager:
         Args:
             category_key: Category name
             filter_mode: "hostlist" or "ipset"
-            save_and_sync: If True, save preset and sync to active file
+            save_and_sync: If True, save preset and sync the generated launch config
 
         Returns:
             True if successful
@@ -1549,7 +978,7 @@ class PresetManager:
 
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot update filter_mode: no active preset", "WARNING")
+            log(f"Cannot update filter_mode: no selected preset", "WARNING")
             return False
 
         # Create category if not exists
@@ -1596,7 +1025,7 @@ class PresetManager:
         Args:
             category_key: Category name
             sort_order: "default", "name_asc", or "name_desc"
-            save_and_sync: If True, save preset and sync to active file
+            save_and_sync: If True, save preset and sync the generated launch config
 
         Returns:
             True if successful
@@ -1607,7 +1036,7 @@ class PresetManager:
 
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot update sort_order: no active preset", "WARNING")
+            log(f"Cannot update sort_order: no selected preset", "WARNING")
             return False
 
         # Create category if not exists
@@ -1624,7 +1053,7 @@ class PresetManager:
 
     def reset_category_settings(self, category_key: str) -> bool:
         """
-        Resets category settings to defaults from the active preset template.
+        Resets category settings to defaults from the selected preset template.
 
         Args:
             category_key: Category name
@@ -1663,7 +1092,7 @@ class PresetManager:
         default_filter_mode = get_category_default_filter_mode(category_key)
         default_settings = get_default_category_settings().get(category_key) or {}
 
-        # Prefer defaults from the active preset's matching template.
+        # Prefer defaults from the selected preset's matching template.
         active_preset_name = (self.get_active_preset_name() or preset.name or "").strip()
         category_key_l = str(category_key or "").strip().lower()
         try:
@@ -1794,7 +1223,7 @@ class PresetManager:
 
     def reset_active_preset_to_default_template(self) -> bool:
         """
-        Global reset: replace active preset-zapret2.txt content with a built-in template.
+        Global reset: replace the selected preset content with a built-in template and regenerate the launch config.
 
         Does not depend on preset_zapret2/default.txt existing on disk.
         """
@@ -1813,7 +1242,7 @@ class PresetManager:
         except Exception:
             current_strategy_set = None
 
-        preset_name = get_active_preset_name() or "Current"
+        preset_name = self.get_active_preset_name() or "Current"
 
         try:
             try:
@@ -1832,7 +1261,7 @@ class PresetManager:
                 template_content = get_default_template_content()
             if not template_content:
                 log(
-                    "Cannot reset active preset: no preset templates found. "
+                    "Cannot reset selected preset: no preset templates found. "
                     "Expected at least one file in presets_v2_template/.",
                     "ERROR",
                 )
@@ -1840,7 +1269,7 @@ class PresetManager:
 
             data = parse_preset_content(template_content)
 
-            # Build Preset model, then reuse sync logic to generate a proper active file
+            # Build Preset model, then reuse sync logic to generate a proper launch config
             # (including absolute list paths and normalized base filters).
             preset = Preset(name=preset_name, base_args=data.base_args)
             existing = self.load_preset(preset_name) if preset_exists(preset_name) else None
@@ -1913,7 +1342,7 @@ class PresetManager:
 
             return self.sync_preset_to_active_file(preset)
         except Exception as e:
-            log(f"Error resetting active preset to built-in template: {e}", "ERROR")
+            log(f"Error resetting selected preset to built-in template: {e}", "ERROR")
             return False
 
     def reset_all_presets_to_default_templates(self) -> tuple[int, int, list[str]]:
@@ -1947,7 +1376,7 @@ class PresetManager:
                 active_name = name_by_key.get("default", "") or names[0]
 
             if active_name and not self.switch_preset(active_name, reload_dpi=False):
-                log(f"Bulk reset: failed to re-apply active preset '{active_name}'", "WARNING")
+                log(f"Bulk reset: failed to re-apply selected preset '{active_name}'", "WARNING")
 
             return (success_count, total_count, failed)
         except Exception as e:
@@ -1966,14 +1395,14 @@ class PresetManager:
         """
         Resets a preset by force-copying its matching template content.
 
-        By default, also activates it and rewrites preset-zapret2.txt.
+        By default, also selects it and regenerates the launch config.
 
         First tries to find a template matching the preset name in presets_v2_template/,
         then falls back to the default template.
 
         Overwrites:
         - presets/{preset_name}.txt
-        - preset-zapret2.txt (if sync_active_file=True)
+        - generated launch config (if sync_active_file=True)
         """
         from .preset_defaults import (
             get_template_content,
@@ -2004,25 +1433,24 @@ class PresetManager:
 
             out_header: list[str] = []
             saw_preset = False
-            saw_active = False
-
             for raw in header:
                 stripped = raw.strip().lower()
                 if stripped.startswith("# preset:"):
                     out_header.append(f"# Preset: {target_name}")
                     saw_preset = True
                     continue
-                if stripped.startswith("# activepreset:"):
-                    out_header.append(f"# ActivePreset: {target_name}")
-                    saw_active = True
+                if stripped.startswith("# builtinversion:"):
+                    out_header.append(raw.rstrip("\n"))
+                    continue
+                if stripped.startswith("# created:") or stripped.startswith("# modified:") or stripped.startswith("# iconcolor:") or stripped.startswith("# description:"):
+                    out_header.append(raw.rstrip("\n"))
+                    continue
+                if stripped.startswith("#"):
                     continue
                 out_header.append(raw.rstrip("\n"))
 
             if not saw_preset:
                 out_header.insert(0, f"# Preset: {target_name}")
-            if not saw_active:
-                insert_idx = 1 if out_header and out_header[0].strip().lower().startswith("# preset:") else 0
-                out_header.insert(insert_idx, f"# ActivePreset: {target_name}")
 
             return "\n".join(out_header + body).rstrip("\n") + "\n"
 
@@ -2069,34 +1497,34 @@ class PresetManager:
 
             self.invalidate_preset_cache(name)
 
-            # Avoid producing a mismatched active file header.
+            # Avoid producing a mismatched selected-preset launch config.
             do_sync = bool(sync_active_file)
             if do_sync and not make_active:
                 try:
-                    current_active = (get_active_preset_name() or "").strip().lower()
+                    current_active = (self.get_active_preset_name() or "").strip().lower()
                 except Exception:
                     current_active = ""
                 if current_active != name.lower():
                     do_sync = False
 
             if make_active:
-                set_active_preset_name(name)
-                self._invalidate_active_preset_cache()
+                if not self._select_source_preset(name):
+                    return False
 
-            # Sync runtime file before emitting preset_switched (DPI reload expects new file).
+            # Sync generated launch config through the regular preset sync path.
             if do_sync:
                 try:
-                    active_path = get_active_preset_path()
-                    active_path.parent.mkdir(parents=True, exist_ok=True)
-                    active_path.write_text(rendered_content, encoding="utf-8")
-                    self._invalidate_active_preset_cache()
-                    if self.on_dpi_reload_needed:
-                        self.on_dpi_reload_needed()
+                    preset = self.load_preset(name)
+                    if preset is None:
+                        log(f"Cannot sync reset preset '{name}': failed to reload source preset", "ERROR")
+                        return False
+                    if not self.sync_preset_to_active_file(preset):
+                        return False
                 except PermissionError as e:
-                    log(f"Cannot write active preset file (locked by winws2?): {e}", "ERROR")
+                    log(f"Cannot write generated launch config (locked by winws2?): {e}", "ERROR")
                     raise
                 except Exception as e:
-                    log(f"Error syncing reset preset '{name}' to active file: {e}", "ERROR")
+                    log(f"Error syncing reset preset '{name}' to generated launch config: {e}", "ERROR")
                     return False
 
             if make_active:
@@ -2122,7 +1550,7 @@ class PresetManager:
 
     def _save_and_sync_preset(self, preset: Preset, changed_category: str = None) -> bool:
         """
-        Saves preset to file and syncs to active file.
+        Saves preset to file and syncs the generated launch config.
 
         Args:
             preset: Preset to save
@@ -2139,7 +1567,7 @@ class PresetManager:
             save_preset(preset)
             self.invalidate_preset_cache(preset.name)
 
-        # Then sync to active file (triggers DPI reload via callback)
+        # Then sync the generated launch config (triggers DPI reload via callback)
         # Note: sync_preset_to_active_file() already invalidates active cache
         return self.sync_preset_to_active_file(preset, changed_category=changed_category)
 
@@ -2181,7 +1609,7 @@ class PresetManager:
 
     def get_strategy_selections(self) -> dict:
         """
-        Gets strategy selections from active preset.
+        Gets strategy selections from the selected source preset.
 
         Returns:
             Dict of category_key -> strategy_id
@@ -2207,7 +1635,7 @@ class PresetManager:
         Args:
             category_key: Category name (e.g., "youtube")
             strategy_id: Strategy ID (e.g., "youtube_tcp_split") or "none"
-            save_and_sync: If True, save preset and sync to active file
+            save_and_sync: If True, save preset and sync the generated launch config
 
         Returns:
             True if successful
@@ -2215,7 +1643,7 @@ class PresetManager:
         category_key = str(category_key or "").strip().lower()
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot set strategy: no active preset", "WARNING")
+            log(f"Cannot set strategy: no selected preset", "WARNING")
             return False
 
         # Create category if not exists
@@ -2374,14 +1802,14 @@ class PresetManager:
 
         Args:
             selections: Dict of category_key -> strategy_id
-            save_and_sync: If True, save preset and sync to active file
+            save_and_sync: If True, save preset and sync the generated launch config
 
         Returns:
             True if successful
         """
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot set strategies: no active preset", "WARNING")
+            log(f"Cannot set strategies: no selected preset", "WARNING")
             return False
 
         for cat_key, strategy_id in (selections or {}).items():
@@ -2412,7 +1840,7 @@ class PresetManager:
 
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot reset strategies: no active preset", "WARNING")
+            log(f"Cannot reset strategies: no selected preset", "WARNING")
             return False
 
         categories = load_categories()
@@ -2446,7 +1874,7 @@ class PresetManager:
 
         preset = self.get_active_preset()
         if not preset:
-            log(f"Cannot clear strategies: no active preset", "WARNING")
+            log(f"Cannot clear strategies: no selected preset", "WARNING")
             return False
 
         for cat_key in load_categories().keys():

@@ -37,7 +37,8 @@ class PageName(Enum):
     ZAPRET1_USER_PRESETS = auto()    # Zapret 1 Direct: пользовательские пресеты
     ZAPRET1_STRATEGY_DETAIL = auto() # Zapret 1 Direct: детали стратегии для категории
     ZAPRET2_STRATEGY_DETAIL = auto()         # Детальный просмотр стратегии
-    PRESET_CONFIG = auto()           # Конфиг preset-zapret2.txt
+    ZAPRET2_PRESET_DETAIL = auto()   # Zapret 2 Direct: подстраница пресета
+    ZAPRET1_PRESET_DETAIL = auto()   # Zapret 1 Direct: подстраница пресета
     HOSTLIST = auto()                # Листы (Hostlist + IPset)
     IPSET = auto()                   # Legacy alias -> Листы
     BLOBS = auto()                   # Блобы
@@ -90,7 +91,6 @@ class SectionName(Enum):
 
     # === Стратегии (collapsible группа) ===
     STRATEGIES = auto()              # Заголовок группы (collapsible)
-    PRESET_CONFIG = auto()           # - Конфиг
     HOSTLIST = auto()                # - Листы
     IPSET = auto()                   # - Legacy alias (скрыт в UI)
     BLOBS = auto()                   # - Блобы
@@ -130,7 +130,6 @@ SECTION_TO_PAGE: dict[SectionName, Optional[PageName]] = {
     SectionName.HOME: PageName.HOME,
     SectionName.CONTROL: PageName.CONTROL,
     SectionName.STRATEGIES: None,  # Collapsible группа, целевая страница определяется по методу запуска
-    SectionName.PRESET_CONFIG: PageName.PRESET_CONFIG,
     SectionName.HOSTLIST: PageName.HOSTLIST,
     SectionName.IPSET: PageName.HOSTLIST,
     SectionName.BLOBS: PageName.BLOBS,
@@ -169,7 +168,6 @@ COLLAPSIBLE_SECTIONS: set[SectionName] = {
 # Подсекции для каждой collapsible группы
 SECTION_CHILDREN: dict[SectionName, list[SectionName]] = {
     SectionName.STRATEGIES: [
-        SectionName.PRESET_CONFIG,
         SectionName.DIRECT_RUN,
         SectionName.HOSTLIST,
         SectionName.BLOBS,
@@ -205,10 +203,12 @@ STRATEGY_PAGES: set[PageName] = {
     PageName.ZAPRET2_ORCHESTRA,
     PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
     PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
+    PageName.ZAPRET2_PRESET_DETAIL,
 
     PageName.ZAPRET1_DIRECT_CONTROL,
     PageName.ZAPRET1_DIRECT,
     PageName.ZAPRET1_USER_PRESETS,
     PageName.ZAPRET1_STRATEGY_DETAIL,
+    PageName.ZAPRET1_PRESET_DETAIL,
     PageName.ORCHESTRA,
 }

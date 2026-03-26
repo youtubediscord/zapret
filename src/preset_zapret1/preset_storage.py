@@ -4,23 +4,18 @@ from __future__ import annotations
 """Storage layer for Zapret 1 preset system.
 
 Presets stored in: %APPDATA%/zapret/presets_v1/
-Active preset INI: %APPDATA%/zapret/zapret1_active_preset.ini
-Active preset file: {APP_CORE_PATH}/preset-zapret1.txt
+Selected preset state is managed by the core selection service.
+Generated runtime config lives under the core runtime directory.
 """
-
-import configparser
 import os
 import re
 import shutil
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 from log import log
 from .preset_model import DEFAULT_PRESET_ICON_COLOR, normalize_preset_icon_color_v1
-
-from safe_construct import safe_construct
 
 if TYPE_CHECKING:
     from .preset_model import PresetV1
@@ -29,9 +24,20 @@ _APP_CORE_PATH: Optional[str] = None
 _PRESETS_ROOT_PATH: Optional[str] = None
 _MAIN_DIRECTORY: Optional[str] = None
 
-_ACTIVE_PRESET_SECTION = "direct_zapret1"
-_ACTIVE_PRESET_KEY = "ActivePreset"
-_ACTIVE_PRESET_INI_NAME = "zapret1_active_preset.ini"
+def _core_engine_id() -> str:
+    return "winws1"
+
+
+def _core_paths():
+    from core.services import get_app_paths
+
+    return get_app_paths().engine_paths(_core_engine_id()).ensure_directories()
+
+
+def _core_selection_service():
+    from core.services import get_selection_service
+
+    return get_selection_service()
 
 
 def _get_app_core_path() -> str:
@@ -72,21 +78,6 @@ def _get_main_directory() -> str:
         _MAIN_DIRECTORY = MAIN_DIRECTORY
     return _MAIN_DIRECTORY
 
-
-def get_active_preset_state_path() -> Path:
-    try:
-        from config import get_zapret_userdata_dir
-        base = (get_zapret_userdata_dir() or "").strip()
-        if base:
-            return Path(base) / _ACTIVE_PRESET_INI_NAME
-    except Exception:
-        pass
-    appdata = (os.environ.get("APPDATA") or "").strip()
-    if appdata:
-        return Path(appdata) / "zapret" / _ACTIVE_PRESET_INI_NAME
-    return Path(_get_app_core_path()) / _ACTIVE_PRESET_INI_NAME
-
-
 def get_presets_dir_v1() -> Path:
     presets_dir = Path(_get_presets_root_path())
     presets_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +90,7 @@ def get_preset_path_v1(name: str) -> Path:
 
 
 def get_active_preset_path_v1() -> Path:
-    return Path(_get_app_core_path()) / "preset-zapret1.txt"
+    return _core_paths().effective_config_path
 
 
 def _sanitize_filename(name: str) -> str:
@@ -127,61 +118,26 @@ def preset_exists_v1(name: str) -> bool:
 
 
 def get_active_preset_name_v1() -> Optional[str]:
-    path = get_active_preset_state_path()
     try:
-        if not path.exists():
-            return None
-        cfg = safe_construct(configparser.ConfigParser)
-        cfg.read(path, encoding="utf-8")
-        value = cfg.get(_ACTIVE_PRESET_SECTION, _ACTIVE_PRESET_KEY, fallback="").strip()
-        return value or None
+        selected = _core_selection_service().ensure_selected_preset(_core_engine_id(), "Default")
+        if selected is not None:
+            return selected.manifest.name
     except Exception as e:
-        log(f"Error reading active V1 preset from ini: {e}", "DEBUG")
-        return None
+        log(f"Error reading selected V1 preset from core state: {e}", "DEBUG")
+    return None
 
 
 def set_active_preset_name_v1(name: str) -> bool:
-    path = get_active_preset_state_path()
     value = (name or "").strip()
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        cfg = safe_construct(configparser.ConfigParser)
-        if path.exists():
-            cfg.read(path, encoding="utf-8")
-        if _ACTIVE_PRESET_SECTION not in cfg:
-            cfg[_ACTIVE_PRESET_SECTION] = {}
         if value:
-            cfg[_ACTIVE_PRESET_SECTION][_ACTIVE_PRESET_KEY] = value
+            _core_selection_service().select_preset_by_name(_core_engine_id(), value)
         else:
-            try:
-                cfg.remove_option(_ACTIVE_PRESET_SECTION, _ACTIVE_PRESET_KEY)
-            except Exception:
-                pass
-
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f"{path.stem}_",
-            suffix=".tmp",
-            dir=str(path.parent),
-        )
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-                cfg.write(f)
-                f.flush()
-                try:
-                    os.fsync(f.fileno())
-                except Exception:
-                    pass
-            os.replace(tmp_name, str(path))
-        finally:
-            try:
-                if os.path.exists(tmp_name):
-                    os.unlink(tmp_name)
-            except Exception:
-                pass
-        log(f"Set active V1 preset to '{value}'", "DEBUG")
+            _core_selection_service().clear_selection(_core_engine_id())
+        log(f"Set selected V1 preset to '{value}'", "DEBUG")
         return True
     except Exception as e:
-        log(f"Error saving active V1 preset to ini: {e}", "ERROR")
+        log(f"Error saving selected V1 preset to core state: {e}", "ERROR")
         return False
 
 

@@ -70,6 +70,32 @@ def extract_payload(args: str) -> tuple[str, str]:
 
 # ===================== SYNDATA =====================
 
+
+def _get_active_zapret2_preset():
+    try:
+        from preset_zapret2.preset_store import get_preset_store
+
+        store = get_preset_store()
+        active_name = (store.get_active_preset_name() or "").strip()
+        if not active_name:
+            return None
+        return store.get_preset(active_name)
+    except Exception:
+        return None
+
+
+def _get_tcp_syndata(category_key: str):
+    from preset_zapret2.preset_model import SyndataSettings
+
+    preset = _get_active_zapret2_preset()
+    if not preset:
+        return SyndataSettings.get_defaults()
+    category = (preset.categories or {}).get(category_key)
+    if not category:
+        return SyndataSettings.get_defaults()
+    return category.syndata_tcp
+
+
 def build_syndata_args(category_key: str, protocol: str = "tcp") -> str:
     """
     Собирает --lua-desync=syndata:... из настроек активного пресета.
@@ -82,9 +108,7 @@ def build_syndata_args(category_key: str, protocol: str = "tcp") -> str:
         if proto in ("udp", "quic", "l7", "raw"):
             return ""
 
-        from preset_zapret2 import PresetManager
-        preset_manager = PresetManager()
-        syndata = preset_manager.get_category_syndata(category_key, protocol="tcp")
+        syndata = _get_tcp_syndata(category_key)
 
         if not syndata.enabled:
             return ""
@@ -143,9 +167,7 @@ def get_out_range_args(category_key: str, protocol: str = "tcp") -> str:
     DEFAULT_OUT_RANGE = 8
     DEFAULT_MODE = "n"
     try:
-        from preset_zapret2 import PresetManager
-        preset_manager = PresetManager()
-        syndata = preset_manager.get_category_syndata(category_key, protocol=protocol)
+        syndata = _get_tcp_syndata(category_key)
 
         out_range = syndata.out_range
         if out_range is None or out_range == 0:
@@ -185,9 +207,7 @@ def build_send_args(category_key: str, protocol: str = "tcp") -> str:
         if proto in ("udp", "quic", "l7", "raw"):
             return ""
 
-        from preset_zapret2 import PresetManager
-        preset_manager = PresetManager()
-        syndata = preset_manager.get_category_syndata(category_key, protocol="tcp")
+        syndata = _get_tcp_syndata(category_key)
 
         # Проверяем, включен ли send
         if not syndata.send_enabled:
@@ -293,9 +313,13 @@ def get_filter_mode(category_key: str) -> str:
         "hostlist" или "ipset"
     """
     try:
-        from preset_zapret2 import PresetManager
-        preset_manager = PresetManager()
-        filter_mode = preset_manager.get_category_filter_mode(category_key)
+        preset = _get_active_zapret2_preset()
+        if not preset:
+            return "hostlist"
+        category = (preset.categories or {}).get(category_key)
+        if not category:
+            return "hostlist"
+        filter_mode = category.filter_mode
         if filter_mode in ("hostlist", "ipset"):
             return filter_mode
         return "hostlist"

@@ -5,7 +5,28 @@
 
 import ctypes
 from ctypes import wintypes
-import psutil
+try:
+    import psutil  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - local test environments may not ship psutil
+    class _PsutilStub:
+        class NoSuchProcess(Exception):
+            pass
+
+        class AccessDenied(Exception):
+            pass
+
+        class TimeoutExpired(Exception):
+            pass
+
+        @staticmethod
+        def process_iter(*_args, **_kwargs):
+            return []
+
+        class Process:
+            def __init__(self, *_args, **_kwargs):
+                raise _PsutilStub.NoSuchProcess()
+
+    psutil = _PsutilStub()
 from log import log
 from typing import List, Optional
 
@@ -21,24 +42,30 @@ WAIT_TIMEOUT = 0x00000102
 WAIT_FAILED = 0xFFFFFFFF
 INFINITE = 0xFFFFFFFF
 
-# Загрузка Windows API функций
-kernel32 = ctypes.windll.kernel32
+if hasattr(ctypes, "windll"):
+    kernel32 = ctypes.windll.kernel32
 
-OpenProcess = kernel32.OpenProcess
-OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-OpenProcess.restype = wintypes.HANDLE
+    OpenProcess = kernel32.OpenProcess
+    OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    OpenProcess.restype = wintypes.HANDLE
 
-TerminateProcess = kernel32.TerminateProcess
-TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
-TerminateProcess.restype = wintypes.BOOL
+    TerminateProcess = kernel32.TerminateProcess
+    TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    TerminateProcess.restype = wintypes.BOOL
 
-WaitForSingleObject = kernel32.WaitForSingleObject
-WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
-WaitForSingleObject.restype = wintypes.DWORD
+    WaitForSingleObject = kernel32.WaitForSingleObject
+    WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    WaitForSingleObject.restype = wintypes.DWORD
 
-CloseHandle = kernel32.CloseHandle
-CloseHandle.argtypes = [wintypes.HANDLE]
-CloseHandle.restype = wintypes.BOOL
+    CloseHandle = kernel32.CloseHandle
+    CloseHandle.argtypes = [wintypes.HANDLE]
+    CloseHandle.restype = wintypes.BOOL
+else:  # pragma: no cover - import safety for non-Windows environments
+    kernel32 = None
+    OpenProcess = None
+    TerminateProcess = None
+    WaitForSingleObject = None
+    CloseHandle = None
 
 
 def kill_process_by_pid(pid: int, force: bool = True, wait_timeout_ms: int = 3000) -> bool:
@@ -56,6 +83,8 @@ def kill_process_by_pid(pid: int, force: bool = True, wait_timeout_ms: int = 300
     """
     # Сначала пробуем через Win API с расширенными правами
     try:
+        if OpenProcess is None or TerminateProcess is None or WaitForSingleObject is None or CloseHandle is None:
+            raise RuntimeError("WinAPI unavailable")
         # Открываем процесс с максимальными правами
         h_process = OpenProcess(
             PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION | SYNCHRONIZE,
@@ -488,4 +517,3 @@ def kill_winws_force() -> bool:
 
     log("✅ Процессы winws завершены через WMI", "INFO")
     return True
-

@@ -28,35 +28,42 @@ SERVICE_STOPPED = 0x00000001
 SERVICE_STOP_PENDING = 0x00000003
 SERVICE_RUNNING = 0x00000004
 
-# Загрузка Win API
-advapi32 = ctypes.windll.advapi32
+if hasattr(ctypes, "windll"):
+    advapi32 = ctypes.windll.advapi32
 
-OpenSCManager = advapi32.OpenSCManagerW
-OpenSCManager.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
-OpenSCManager.restype = wintypes.HANDLE
+    OpenSCManager = advapi32.OpenSCManagerW
+    OpenSCManager.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+    OpenSCManager.restype = wintypes.HANDLE
 
-OpenService = advapi32.OpenServiceW
-OpenService.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.DWORD]
-OpenService.restype = wintypes.HANDLE
+    OpenService = advapi32.OpenServiceW
+    OpenService.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.DWORD]
+    OpenService.restype = wintypes.HANDLE
 
-CloseServiceHandle = advapi32.CloseServiceHandle
+    CloseServiceHandle = advapi32.CloseServiceHandle
 
+    # ВАЖНО: `ControlService`/`QueryServiceStatus` — это функции из одного общего `advapi32` на процесс.
+    # Если в разных местах объявлять разные `SERVICE_STATUS` и выставлять `argtypes` через POINTER(...),
+    # ctypes начнёт падать из-за несовместимых типов. Используем единый `SERVICE_STATUS` из
+    # `utils.winapi_service_types`.
+    ControlService = advapi32.ControlService
+    ControlService.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(SERVICE_STATUS)]
+    ControlService.restype = wintypes.BOOL
 
-# ВАЖНО: `ControlService`/`QueryServiceStatus` — это функции из одного общего `advapi32` на процесс.
-# Если в разных местах объявлять разные `SERVICE_STATUS` и выставлять `argtypes` через POINTER(...),
-# ctypes начнёт падать из-за несовместимых типов. Используем единый `SERVICE_STATUS` из
-# `utils.winapi_service_types`.
-ControlService = advapi32.ControlService
-ControlService.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(SERVICE_STATUS)]
-ControlService.restype = wintypes.BOOL
+    QueryServiceStatus = advapi32.QueryServiceStatus
+    QueryServiceStatus.argtypes = [wintypes.HANDLE, ctypes.POINTER(SERVICE_STATUS)]
+    QueryServiceStatus.restype = wintypes.BOOL
 
-QueryServiceStatus = advapi32.QueryServiceStatus
-QueryServiceStatus.argtypes = [wintypes.HANDLE, ctypes.POINTER(SERVICE_STATUS)]
-QueryServiceStatus.restype = wintypes.BOOL
-
-DeleteService = advapi32.DeleteService
-DeleteService.argtypes = [wintypes.HANDLE]
-DeleteService.restype = wintypes.BOOL
+    DeleteService = advapi32.DeleteService
+    DeleteService.argtypes = [wintypes.HANDLE]
+    DeleteService.restype = wintypes.BOOL
+else:  # pragma: no cover - import safety for non-Windows environments
+    advapi32 = None
+    OpenSCManager = None
+    OpenService = None
+    CloseServiceHandle = None
+    ControlService = None
+    QueryServiceStatus = None
+    DeleteService = None
 
 
 def stop_service(service_name: str) -> bool:
@@ -69,6 +76,8 @@ def stop_service(service_name: str) -> bool:
     Returns:
         True если служба остановлена
     """
+    if advapi32 is None or OpenSCManager is None or OpenService is None or ControlService is None:
+        return False
     try:
         # Открываем Service Control Manager
         sc_manager = OpenSCManager(None, None, SC_MANAGER_ALL_ACCESS)
@@ -121,6 +130,8 @@ def delete_service(service_name: str) -> bool:
     Returns:
         True если служба удалена
     """
+    if advapi32 is None or OpenSCManager is None or OpenService is None or DeleteService is None:
+        return False
     try:
         # Открываем Service Control Manager
         sc_manager = OpenSCManager(None, None, SC_MANAGER_ALL_ACCESS)
@@ -294,4 +305,3 @@ def fast_cleanup_all() -> None:
                 
     except Exception as e:
         log(f"Ошибка быстрой очистки: {e}", "DEBUG")
-

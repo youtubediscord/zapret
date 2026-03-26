@@ -582,9 +582,12 @@ class StrategyDetailPage(BasePage):
         self._page_scroll_by_category: dict[str, int] = {}
         self._tree_scroll_by_category: dict[str, int] = {}
 
-        # PresetManager for category settings storage
-        self._preset_manager = PresetManager(
-            on_dpi_reload_needed=self._on_dpi_reload_needed
+        # Direct preset facade for category settings storage
+        from core.presets.direct_facade import DirectPresetFacade
+
+        self._preset_manager = DirectPresetFacade.from_launch_method(
+            "direct_zapret2",
+            on_dpi_reload_needed=self._on_dpi_reload_needed,
         )
         self._marks_store = DirectZapret2MarksStore.default()
         self._favorites_store = DirectZapret2FavoritesStore.default()
@@ -2370,8 +2373,11 @@ class StrategyDetailPage(BasePage):
     def _on_create_preset_clicked(self):
         """Открывает WinUI-диалог создания нового пресета."""
         try:
-            from preset_zapret2 import PresetManager as _PM
-            manager = _PM()
+            from core.presets.direct_facade import DirectPresetFacade
+            from preset_zapret2.preset_store import get_preset_store
+
+            facade = DirectPresetFacade.from_launch_method("direct_zapret2")
+            store = get_preset_store()
         except Exception as e:
             if InfoBar:
                 InfoBar.error(
@@ -2388,7 +2394,7 @@ class StrategyDetailPage(BasePage):
         if not name:
             return
         try:
-            if manager.preset_exists(name):
+            if facade.exists(name):
                 if InfoBar:
                     InfoBar.warning(
                         title=self._tr("page.z2_strategy_detail.infobar.preset.exists.title", "Уже существует"),
@@ -2400,29 +2406,19 @@ class StrategyDetailPage(BasePage):
                         parent=self.window(),
                     )
                 return
-            preset = manager.create_preset(name, from_current=True)
-            if preset:
-                log(f"Создан пресет '{name}'", "INFO")
-                if InfoBar:
-                    InfoBar.success(
-                        title=self._tr("page.z2_strategy_detail.infobar.preset.created.title", "Пресет создан"),
-                        content=self._tr(
-                            "page.z2_strategy_detail.infobar.preset.created.content",
-                            "Пресет '{name}' создан на основе текущих настроек.",
-                            name=name,
-                        ),
-                        parent=self.window(),
-                    )
-            else:
-                if InfoBar:
-                    InfoBar.warning(
-                        title=self._tr("common.error.title", "Ошибка"),
-                        content=self._tr(
-                            "page.z2_strategy_detail.infobar.preset.create_failed",
-                            "Не удалось создать пресет.",
-                        ),
-                        parent=self.window(),
-                    )
+            facade.create(name, from_current=True)
+            store.notify_presets_changed()
+            log(f"Создан пресет '{name}'", "INFO")
+            if InfoBar:
+                InfoBar.success(
+                    title=self._tr("page.z2_strategy_detail.infobar.preset.created.title", "Пресет создан"),
+                    content=self._tr(
+                        "page.z2_strategy_detail.infobar.preset.created.content",
+                        "Пресет '{name}' создан на основе текущих настроек.",
+                        name=name,
+                    ),
+                    parent=self.window(),
+                )
         except Exception as e:
             log(f"Ошибка создания пресета: {e}", "ERROR")
             if InfoBar:
@@ -2435,9 +2431,16 @@ class StrategyDetailPage(BasePage):
     def _on_rename_preset_clicked(self):
         """Открывает WinUI-диалог переименования текущего активного пресета."""
         try:
-            from preset_zapret2 import PresetManager as _PM
-            manager = _PM()
-            old_name = (manager.get_active_preset_name() or "").strip()
+            from core.presets.direct_facade import DirectPresetFacade
+            from core.services import get_direct_flow_coordinator
+            from preset_zapret2.preset_store import get_preset_store
+
+            facade = DirectPresetFacade.from_launch_method("direct_zapret2")
+            store = get_preset_store()
+
+            old_name = (
+                get_direct_flow_coordinator().get_selected_preset_name("direct_zapret2") or ""
+            ).strip()
         except Exception as e:
             if InfoBar:
                 InfoBar.error(
@@ -2466,7 +2469,7 @@ class StrategyDetailPage(BasePage):
         if not new_name or new_name == old_name:
             return
         try:
-            if manager.preset_exists(new_name):
+            if facade.exists(new_name):
                 if InfoBar:
                     InfoBar.warning(
                         title=self._tr("page.z2_strategy_detail.infobar.preset.exists.title", "Уже существует"),
@@ -2478,29 +2481,22 @@ class StrategyDetailPage(BasePage):
                         parent=self.window(),
                     )
                 return
-            if manager.rename_preset(old_name, new_name):
-                log(f"Пресет '{old_name}' переименован в '{new_name}'", "INFO")
-                if InfoBar:
-                    InfoBar.success(
-                        title=self._tr("page.z2_strategy_detail.infobar.preset.renamed.title", "Переименован"),
-                        content=self._tr(
-                            "page.z2_strategy_detail.infobar.preset.renamed.content",
-                            "Пресет переименован: '{old}' -> '{new}'.",
-                            old=old_name,
-                            new=new_name,
-                        ),
-                        parent=self.window(),
-                    )
-            else:
-                if InfoBar:
-                    InfoBar.warning(
-                        title=self._tr("common.error.title", "Ошибка"),
-                        content=self._tr(
-                            "page.z2_strategy_detail.infobar.preset.rename_failed",
-                            "Не удалось переименовать пресет.",
-                        ),
-                        parent=self.window(),
-                    )
+            facade.rename(old_name, new_name)
+            store.notify_presets_changed()
+            if facade.is_selected(new_name):
+                store.notify_preset_switched(new_name)
+            log(f"Пресет '{old_name}' переименован в '{new_name}'", "INFO")
+            if InfoBar:
+                InfoBar.success(
+                    title=self._tr("page.z2_strategy_detail.infobar.preset.renamed.title", "Переименован"),
+                    content=self._tr(
+                        "page.z2_strategy_detail.infobar.preset.renamed.content",
+                        "Пресет переименован: '{old}' -> '{new}'.",
+                        old=old_name,
+                        new=new_name,
+                    ),
+                    parent=self.window(),
+                )
         except Exception as e:
             log(f"Ошибка переименования пресета: {e}", "ERROR")
             if InfoBar:
@@ -3052,13 +3048,13 @@ class StrategyDetailPage(BasePage):
                 return
 
             if self._category_key not in preset.categories:
-                preset.categories[self._category_key] = self._preset_manager._create_category_with_defaults(self._category_key)
+                self._preset_manager.ensure_category(preset, self._category_key)
 
             cat = preset.categories[self._category_key]
             cat.tcp_args = new_args
             cat.strategy_id = self._infer_strategy_id_from_args_exact(new_args)
             preset.touch()
-            self._preset_manager._save_and_sync_preset(preset)
+            self._preset_manager.save_preset_model(preset)
 
             # Update local state for UI.
             self._selected_strategy_id = cat.strategy_id or "none"
@@ -3623,7 +3619,7 @@ class StrategyDetailPage(BasePage):
                 return
 
             if self._category_key not in preset.categories:
-                preset.categories[self._category_key] = self._preset_manager._create_category_with_defaults(self._category_key)
+                self._preset_manager.ensure_category(preset, self._category_key)
 
             cat = preset.categories[self._category_key]
 
@@ -3633,7 +3629,7 @@ class StrategyDetailPage(BasePage):
                 cat.tcp_args = normalized
 
             preset.touch()
-            self._preset_manager._save_and_sync_preset(preset)
+            self._preset_manager.save_preset_model(preset)
 
             self._args_editor_dirty = False
             self.show_loading()

@@ -72,15 +72,19 @@ class PresetStoreV1(QObject):
         self.preset_switched.emit(name)
 
     def notify_active_name_changed(self) -> None:
-        from .preset_storage import get_active_preset_name_v1
-        self._active_name = get_active_preset_name_v1()
+        try:
+            from core.services import get_direct_flow_coordinator
+
+            self._active_name = get_direct_flow_coordinator().get_selected_preset_name("direct_zapret1")
+        except Exception:
+            self._active_name = None
 
     def _ensure_loaded(self) -> None:
         if not self._loaded:
             self._do_full_load()
 
     def _do_full_load(self) -> None:
-        from .preset_storage import list_presets_v1, load_preset_v1, get_active_preset_name_v1, get_preset_path_v1
+        from .preset_storage import list_presets_v1, load_preset_v1, get_preset_path_v1
         self._presets.clear()
         self._preset_mtimes.clear()
         names = list_presets_v1()
@@ -97,7 +101,12 @@ class PresetStoreV1(QObject):
                         pass
             except Exception as e:
                 log(f"PresetStoreV1: error loading preset '{name}': {e}", "DEBUG")
-        self._active_name = get_active_preset_name_v1()
+        try:
+            from core.services import get_direct_flow_coordinator
+
+            self._active_name = get_direct_flow_coordinator().get_selected_preset_name("direct_zapret1")
+        except Exception:
+            self._active_name = None
         self._loaded = True
         log(f"PresetStoreV1: loaded {len(self._presets)} presets", "DEBUG")
 

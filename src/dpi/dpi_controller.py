@@ -3,6 +3,7 @@
 """
 
 from PyQt6.QtCore import QThread, QObject, pyqtSignal, QMetaObject, Qt, Q_ARG
+from pathlib import Path
 from strategy_menu import get_strategy_launch_method
 from log import log
 from dpi.process_health_check import (
@@ -60,7 +61,7 @@ class DPIStartWorker(QObject):
             # Проверяем, не запущен ли уже процесс
             process_running = self.dpi_starter.check_process_running_wmi(silent=True)
             if process_running:
-                # direct_zapret2: если запущен ТОТ ЖЕ preset (@preset-zapret2.txt),
+                # direct_zapret2: если запущен ТОТ ЖЕ generated launch config (@file),
                 # не останавливаем и не перезапускаем — просто "подключаемся".
                 try:
                     if (
@@ -226,18 +227,15 @@ class DPIStartWorker(QObject):
 
                 import os
                 if not os.path.exists(preset_path):
-                    # Try to auto-create for direct_zapret1
-                    if self.launch_method == "direct_zapret1":
-                        try:
-                            from preset_zapret1 import ensure_default_preset_exists_v1, PresetManagerV1
-                            ensure_default_preset_exists_v1()
-                            if not os.path.exists(preset_path):
-                                mgr = PresetManagerV1()
-                                mgr.switch_preset("Default", reload_dpi=False)
-                            if os.path.exists(preset_path):
-                                log(f"Auto-created missing preset: {preset_path}", "INFO")
-                        except Exception as e:
-                            log(f"Failed to auto-create V1 preset: {e}", "WARNING")
+                    try:
+                        from core.services import get_direct_flow_coordinator
+
+                        regenerated_path = get_direct_flow_coordinator().ensure_runtime(self.launch_method)
+                        if regenerated_path.exists():
+                            preset_path = str(regenerated_path)
+                            log(f"Auto-regenerated missing launch config: {preset_path}", "INFO")
+                    except Exception as e:
+                        log(f"Failed to auto-regenerate launch config: {e}", "WARNING")
 
                 if not os.path.exists(preset_path):
                     log(f"Preset файл не найден: {preset_path}", "❌ ERROR")
@@ -701,17 +699,9 @@ class DPIController:
         elif selected_mode is None or selected_mode == 'default':
             if launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
                 # Для Direct режимов используем готовый preset файл.
-                # direct_zapret2: управляется PresetManager (active preset)
-                # direct_zapret2_orchestra/direct_zapret1: один файл в MAIN_DIRECTORY
-                from pathlib import Path
-                from config import MAIN_DIRECTORY
-
-                preset_name = "Default"
-                if launch_method == "direct_zapret2":
-                    from preset_zapret2 import get_active_preset_path, get_active_preset_name
-                    preset_path = get_active_preset_path()
-                    preset_name = get_active_preset_name() or "Default"
-                elif launch_method == "direct_zapret2_orchestra":
+                # direct_zapret2/direct_zapret1: generated launch config from the selected preset
+                # direct_zapret2_orchestra: legacy orchestra-specific flow
+                if launch_method == "direct_zapret2_orchestra":
                     from preset_orchestra_zapret2 import (
                         ensure_default_preset_exists,
                         get_active_preset_path,
@@ -721,22 +711,26 @@ class DPIController:
                     ensure_default_preset_exists()
                     preset_path = get_active_preset_path()
                     preset_name = get_active_preset_name() or "Default"
-                else:  # direct_zapret1
-                    preset_path = Path(MAIN_DIRECTORY) / "preset-zapret1.txt"
-                    preset_name = "Zapret 1"
-                    # Auto-create default preset if missing
-                    if not preset_path.exists():
-                        try:
-                            from preset_zapret1 import ensure_default_preset_exists_v1, PresetManagerV1
-                            ensure_default_preset_exists_v1()
-                            if not preset_path.exists():
-                                # Switch default preset to active file
-                                mgr = PresetManagerV1()
-                                mgr.switch_preset("Default", reload_dpi=False)
-                            if preset_path.exists():
-                                log("Auto-created preset-zapret1.txt from default", "INFO")
-                        except Exception as e:
-                            log(f"Failed to auto-create V1 preset: {e}", "WARNING")
+                else:
+                    try:
+                        from core.services import get_direct_flow_coordinator
+
+                        profile = get_direct_flow_coordinator().ensure_launch_profile(
+                            launch_method,
+                            require_filters=True,
+                        )
+                        selected_mode = profile.to_selected_mode()
+                        log(f"Используется generated launch config: {profile.launch_config_path}", "INFO")
+                    except Exception as e:
+                        log(f"Ошибка подготовки direct запуска: {e}", "❌ ERROR")
+                        self.app.set_status(f"❌ {e}")
+                        self._show_launch_error_top(str(e))
+                        if hasattr(self.app, 'ui_manager'):
+                            self.app.ui_manager.update_ui_state(running=False)
+                        return
+
+                    preset_path = Path(str(selected_mode["preset_path"]))
+                    preset_name = str(profile.preset_name or "Default")
 
                 if not preset_path.exists():
                     log(f"Preset файл не найден: {preset_path}", "❌ ERROR")
@@ -795,12 +789,19 @@ class DPIController:
                         self.app.ui_manager.update_ui_state(running=False)
                     return
 
-                selected_mode = {
-                    'is_preset_file': True,
-                    'name': f"Пресет: {preset_name}",
-                    'preset_path': str(preset_path)
-                }
-                log(f"Используется preset файл: {preset_path}", "INFO")
+                if launch_method == "direct_zapret2_orchestra":
+                    selected_mode = {
+                        'is_preset_file': True,
+                        'name': f"Пресет оркестра: {preset_name}",
+                        'preset_path': str(preset_path)
+                    }
+                else:
+                    selected_mode = {
+                        'is_preset_file': True,
+                        'name': f"Пресет: {preset_name}",
+                        'preset_path': str(preset_path)
+                    }
+                log(f"Используется launch config: {preset_path}", "INFO")
                 
             else:
                 log(f"Неизвестный метод запуска '{launch_method}': стратегия не выбрана", "❌ ERROR")

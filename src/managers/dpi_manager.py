@@ -87,34 +87,20 @@ class DPIManager(QObject):
         self._update_ui(running=True)
 
     def _start_direct_zapret1_mode(self):
-        """⚡ Запускает Direct Zapret1 режим через preset файл"""
-        from preset_zapret1 import (
-            get_active_preset_path_v1,
-            get_active_preset_name_v1,
-            ensure_default_preset_exists_v1,
-        )
+        """⚡ Запускает режим Zapret1 через generated launch config выбранного пресета"""
+        try:
+            from core.services import get_direct_flow_coordinator
 
-        if not ensure_default_preset_exists_v1():
-            log("Автозапуск Zapret1 пропущен: не удалось создать preset-zapret1.txt", "WARNING")
+            profile = get_direct_flow_coordinator().ensure_launch_profile("direct_zapret1", require_filters=False)
+            strategy_data = profile.to_selected_mode()
+        except Exception as e:
+            log(f"Автозапуск Zapret1 пропущен: {e}", "WARNING")
+            self.app.set_status("⚠️ Не удалось подготовить пресет для запуска")
             self._update_ui(running=False)
             return
 
-        preset_path = get_active_preset_path_v1()
-        if not preset_path.exists():
-            log("Автозапуск Zapret1 пропущен: preset-zapret1.txt не найден", "INFO")
-            self.app.set_status("⚠️ Выберите стратегию в разделе Zapret1")
-            self._update_ui(running=False)
-            return
-
-        preset_name = get_active_preset_name_v1() or "Default"
-        strategy_data = {
-            'is_preset_file': True,
-            'name': f"Пресет: {preset_name}",
-            'preset_path': str(preset_path),
-        }
-
-        log(f"Автозапуск Zapret1 из preset файла: {preset_path}", "INFO")
-        self.app.current_strategy_name = f"Пресет: {preset_name}"
+        log(f"Автозапуск Zapret1 из generated launch config: {profile.launch_config_path}", "INFO")
+        self.app.current_strategy_name = profile.display_name
         self.app.dpi_controller.start_dpi_async(selected_mode=strategy_data, launch_method="direct_zapret1")
         self._update_ui(running=True)
 

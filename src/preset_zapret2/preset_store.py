@@ -143,9 +143,13 @@ class PresetStore(QObject):
         self.preset_switched.emit(name)
 
     def notify_active_name_changed(self) -> None:
-        """Re-reads the active preset name from the INI file."""
-        from .preset_storage import get_active_preset_name
-        self._active_name = get_active_preset_name()
+        """Re-reads the selected preset name from core state."""
+        try:
+            from core.services import get_direct_flow_coordinator
+
+            self._active_name = get_direct_flow_coordinator().get_selected_preset_name("direct_zapret2")
+        except Exception:
+            self._active_name = None
 
     # ── Internal ─────────────────────────────────────────────────────────
 
@@ -156,7 +160,7 @@ class PresetStore(QObject):
 
     def _do_full_load(self) -> None:
         """Reads all presets from disk into memory."""
-        from .preset_storage import list_presets, load_preset, get_active_preset_name, get_preset_path
+        from .preset_storage import list_presets, load_preset, get_preset_path
 
         self._presets.clear()
         self._preset_mtimes.clear()
@@ -176,7 +180,12 @@ class PresetStore(QObject):
             except Exception as e:
                 log(f"PresetStore: error loading preset '{name}': {e}", "DEBUG")
 
-        self._active_name = get_active_preset_name()
+        try:
+            from core.services import get_direct_flow_coordinator
+
+            self._active_name = get_direct_flow_coordinator().get_selected_preset_name("direct_zapret2")
+        except Exception:
+            self._active_name = None
         self._loaded = True
 
         log(f"PresetStore: loaded {len(self._presets)} presets", "DEBUG")

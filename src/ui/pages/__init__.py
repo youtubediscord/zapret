@@ -7,12 +7,14 @@ from .strategies_page_base import StrategiesPageBase
 from .zapret2_orchestra_strategies_page import Zapret2OrchestraStrategiesPage
 from .zapret2 import (
     Zapret2DirectControlPage,
+    Zapret2PresetDetailPage,
     Zapret2StrategiesPageNew,
     Zapret2UserPresetsPage,
     StrategyDetailPage,
 )
 from .zapret1 import (
     Zapret1DirectControlPage,
+    Zapret1PresetDetailPage,
     Zapret1StrategiesPage,
     Zapret1UserPresetsPage,
 )
@@ -43,7 +45,6 @@ from .orchestra import (
     OrchestraWhitelistPage,
     OrchestraRatingsPage,
 )
-from .preset_config_page import PresetConfigPage
 __all__ = [
     'HomePage',
     'ControlPage',
@@ -51,9 +52,11 @@ __all__ = [
     'StrategiesPageBase',
     'Zapret2StrategiesPageNew',  # Новая страница Zapret2 из zapret2/
     'Zapret2DirectControlPage',  # Управление для direct_zapret2 (вкладка внутри "Стратегии")
+    'Zapret2PresetDetailPage',  # Подстраница конкретного пресета Z2
     'Zapret2UserPresetsPage',  # Пользовательские пресеты (direct_zapret2)
     'StrategyDetailPage',  # Страница детального просмотра стратегии
     'Zapret1DirectControlPage',  # Управление для direct_zapret1
+    'Zapret1PresetDetailPage',  # Подстраница конкретного пресета Z1
     'Zapret1StrategiesPage',  # Стратегии для direct_zapret1
     'Zapret1UserPresetsPage',  # Пользовательские пресеты для direct_zapret1
     'HostlistPage',
@@ -81,5 +84,4 @@ __all__ = [
     'OrchestraBlockedPage',  # Страница заблокированных стратегий оркестратора
     'OrchestraWhitelistPage',  # Страница белого списка оркестратора
     'OrchestraRatingsPage',  # Страница истории стратегий с рейтингами
-    'PresetConfigPage',  # Страница редактора preset-zapret2.txt
 ]

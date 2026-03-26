@@ -59,62 +59,53 @@ class SERVICE_DESCRIPTION(ctypes.Structure):
 # Загрузка DLL
 # ============================================================================
 
-advapi32 = ctypes.windll.advapi32
-kernel32 = ctypes.windll.kernel32
+if hasattr(ctypes, "windll"):
+    advapi32 = ctypes.windll.advapi32
+    kernel32 = ctypes.windll.kernel32
 
-# OpenSCManagerW
-advapi32.OpenSCManagerW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
-advapi32.OpenSCManagerW.restype = wintypes.HANDLE
+    # OpenSCManagerW
+    advapi32.OpenSCManagerW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+    advapi32.OpenSCManagerW.restype = wintypes.HANDLE
 
-# CloseServiceHandle
-advapi32.CloseServiceHandle.argtypes = [wintypes.HANDLE]
-advapi32.CloseServiceHandle.restype = wintypes.BOOL
+    # CloseServiceHandle
+    advapi32.CloseServiceHandle.argtypes = [wintypes.HANDLE]
+    advapi32.CloseServiceHandle.restype = wintypes.BOOL
 
-# CreateServiceW
-advapi32.CreateServiceW.argtypes = [
-    wintypes.HANDLE,      # hSCManager
-    wintypes.LPCWSTR,     # lpServiceName
-    wintypes.LPCWSTR,     # lpDisplayName
-    wintypes.DWORD,       # dwDesiredAccess
-    wintypes.DWORD,       # dwServiceType
-    wintypes.DWORD,       # dwStartType
-    wintypes.DWORD,       # dwErrorControl
-    wintypes.LPCWSTR,     # lpBinaryPathName (до 32767 символов!)
-    wintypes.LPCWSTR,     # lpLoadOrderGroup
-    wintypes.LPDWORD,     # lpdwTagId
-    wintypes.LPCWSTR,     # lpDependencies
-    wintypes.LPCWSTR,     # lpServiceStartName
-    wintypes.LPCWSTR,     # lpPassword
-]
-advapi32.CreateServiceW.restype = wintypes.HANDLE
+    # CreateServiceW
+    advapi32.CreateServiceW.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPDWORD,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+    ]
+    advapi32.CreateServiceW.restype = wintypes.HANDLE
 
-# OpenServiceW
-advapi32.OpenServiceW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.DWORD]
-advapi32.OpenServiceW.restype = wintypes.HANDLE
-
-# DeleteService
-advapi32.DeleteService.argtypes = [wintypes.HANDLE]
-advapi32.DeleteService.restype = wintypes.BOOL
-
-# StartServiceW
-advapi32.StartServiceW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.LPCWSTR)]
-advapi32.StartServiceW.restype = wintypes.BOOL
-
-# ControlService
-advapi32.ControlService.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(SERVICE_STATUS)]
-advapi32.ControlService.restype = wintypes.BOOL
-
-# QueryServiceStatus
-advapi32.QueryServiceStatus.argtypes = [wintypes.HANDLE, ctypes.POINTER(SERVICE_STATUS)]
-advapi32.QueryServiceStatus.restype = wintypes.BOOL
-
-# ChangeServiceConfig2W
-advapi32.ChangeServiceConfig2W.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p]
-advapi32.ChangeServiceConfig2W.restype = wintypes.BOOL
-
-# GetLastError
-kernel32.GetLastError.argtypes = []
-kernel32.GetLastError.restype = wintypes.DWORD
+    advapi32.OpenServiceW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.DWORD]
+    advapi32.OpenServiceW.restype = wintypes.HANDLE
+    advapi32.DeleteService.argtypes = [wintypes.HANDLE]
+    advapi32.DeleteService.restype = wintypes.BOOL
+    advapi32.StartServiceW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.LPCWSTR)]
+    advapi32.StartServiceW.restype = wintypes.BOOL
+    advapi32.ControlService.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(SERVICE_STATUS)]
+    advapi32.ControlService.restype = wintypes.BOOL
+    advapi32.QueryServiceStatus.argtypes = [wintypes.HANDLE, ctypes.POINTER(SERVICE_STATUS)]
+    advapi32.QueryServiceStatus.restype = wintypes.BOOL
+    advapi32.ChangeServiceConfig2W.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p]
+    advapi32.ChangeServiceConfig2W.restype = wintypes.BOOL
+    kernel32.GetLastError.argtypes = []
+    kernel32.GetLastError.restype = wintypes.DWORD
+else:  # pragma: no cover - Linux/macOS import safety
+    advapi32 = None
+    kernel32 = None
 
 
 # ============================================================================
@@ -123,6 +114,8 @@ kernel32.GetLastError.restype = wintypes.DWORD
 
 def get_last_error() -> Tuple[int, str]:
     """Получает код и описание последней ошибки Windows"""
+    if kernel32 is None:
+        return 0, "WinAPI unavailable"
     error_code = kernel32.GetLastError()
     
     # Получаем описание ошибки
@@ -141,6 +134,8 @@ def get_last_error() -> Tuple[int, str]:
 
 def open_sc_manager(access: int = SC_MANAGER_ALL_ACCESS) -> Optional[int]:
     """Открывает Service Control Manager"""
+    if advapi32 is None:
+        return None
     handle = advapi32.OpenSCManagerW(None, None, access)
     if handle == 0:
         code, msg = get_last_error()
@@ -151,7 +146,7 @@ def open_sc_manager(access: int = SC_MANAGER_ALL_ACCESS) -> Optional[int]:
 
 def close_handle(handle: int) -> None:
     """Закрывает handle службы или SCM"""
-    if handle:
+    if handle and advapi32 is not None:
         advapi32.CloseServiceHandle(handle)
 
 
@@ -514,4 +509,3 @@ def create_bat_service(
         description=description,
         start_type=start_type
     )
-

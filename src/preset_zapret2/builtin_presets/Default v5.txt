@@ -1,6 +1,5 @@
-# Preset: CrazyMaxs
-# Preset: CrazyMaxs
-# BuiltinVersion: 2.13
+# Preset: Default v5
+# BuiltinVersion: 2.14
 # Created: 2026-02-07T07:20:56.595477
 # Modified: 2026-02-07T07:20:56.597914
 # Description: 

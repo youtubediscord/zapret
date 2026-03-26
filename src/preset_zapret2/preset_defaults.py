@@ -86,7 +86,7 @@ def _template_sanity_ok(text: str) -> bool:
 
 
 def _normalize_template_header(content: str, preset_name: str) -> str:
-    """Ensure # Preset / # ActivePreset match the filename-derived name."""
+    """Ensure # Preset matches the filename-derived name."""
     name = str(preset_name or "").strip()
     text = (content or "").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
@@ -105,7 +105,6 @@ def _normalize_template_header(content: str, preset_name: str) -> str:
 
     out_header: list[str] = []
     saw_preset = False
-    saw_active = False
     for raw in header:
         stripped = raw.strip()
         low = stripped.lower()
@@ -113,17 +112,18 @@ def _normalize_template_header(content: str, preset_name: str) -> str:
             out_header.append(f"# Preset: {name}")
             saw_preset = True
             continue
-        if low.startswith("# activepreset:"):
-            out_header.append(f"# ActivePreset: {name}")
-            saw_active = True
+        if low.startswith("# builtinversion:"):
+            out_header.append(raw.rstrip("\n"))
+            continue
+        if low.startswith("# created:") or low.startswith("# modified:") or low.startswith("# iconcolor:") or low.startswith("# description:"):
+            out_header.append(raw.rstrip("\n"))
+            continue
+        if stripped.startswith("#"):
             continue
         out_header.append(raw.rstrip("\n"))
 
     if not saw_preset:
         out_header.insert(0, f"# Preset: {name}")
-    if not saw_active:
-        insert_idx = 1 if out_header and out_header[0].strip().lower().startswith("# preset:") else 0
-        out_header.insert(insert_idx, f"# ActivePreset: {name}")
 
     return "\n".join(out_header + body).rstrip("\n") + "\n"
 

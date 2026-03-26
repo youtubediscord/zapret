@@ -599,11 +599,11 @@ class StrategyRunnerV1:
             # Self-healing: try to create default preset
             log(f"Preset file not found: {preset_path}, attempting auto-create...", "WARNING")
             try:
-                from preset_zapret1 import ensure_default_preset_exists_v1, PresetManagerV1
-                ensure_default_preset_exists_v1()
+                from core.services import get_direct_flow_coordinator
+
+                get_direct_flow_coordinator().ensure_runtime("direct_zapret1")
                 if not os.path.exists(preset_path):
-                    mgr = PresetManagerV1()
-                    mgr.switch_preset("Default", reload_dpi=False)
+                    get_direct_flow_coordinator().select_preset("direct_zapret1", "Default")
                 if os.path.exists(preset_path):
                     log(f"Auto-created preset file: {preset_path}", "INFO")
             except Exception as e:

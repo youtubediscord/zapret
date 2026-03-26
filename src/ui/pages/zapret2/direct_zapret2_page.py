@@ -170,12 +170,14 @@ class Zapret2StrategiesPageNew(BasePage):
                 return
 
             from strategy_menu.strategies_registry import registry
-            from preset_zapret2 import PresetManager
+            from strategy_menu import get_direct_strategy_selections
+            from preset_zapret2.preset_store import get_preset_store
 
-            # Загружаем выборы из preset файла
-            preset_manager = PresetManager()
-            self.category_selections = preset_manager.get_strategy_selections()
-            preset = preset_manager.get_active_preset()
+            # Загружаем выборы из selected source preset
+            self.category_selections = get_direct_strategy_selections() or {}
+            store = get_preset_store()
+            active_name = store.get_active_preset_name() or ""
+            preset = store.get_preset(active_name) if active_name else None
             filter_modes = {}
             if preset:
                 filter_modes = {k: v.filter_mode for k, v in preset.categories.items()}
@@ -297,8 +299,8 @@ class Zapret2StrategiesPageNew(BasePage):
     def apply_strategy_selection(self, category_key: str, strategy_id: str):
         """Применяет выбор стратегии (вызывается из StrategyDetailPage)"""
         try:
+            from core.presets.direct_facade import DirectPresetFacade
             from dpi.zapret2_core_restart import trigger_dpi_reload
-            from preset_zapret2 import PresetManager
 
             # Multi-phase TCP UI persists args directly (strategy_detail_page.py).
             # Avoid clobbering preset args by re-applying a non-existent single strategy.
@@ -309,7 +311,8 @@ class Zapret2StrategiesPageNew(BasePage):
                 return
 
             # Сохраняем в preset файл
-            preset_manager = PresetManager(
+            preset_manager = DirectPresetFacade.from_launch_method(
+                "direct_zapret2",
                 on_dpi_reload_needed=lambda: trigger_dpi_reload(
                     self.parent_app,
                     reason="strategy_changed"
@@ -400,13 +403,14 @@ class Zapret2StrategiesPageNew(BasePage):
         Вызывается асинхронно из MainWindow после активации пресета.
         """
         try:
-            from preset_zapret2 import PresetManager
+            from strategy_menu import get_direct_strategy_selections
             from strategy_menu.strategies_registry import registry
+            from preset_zapret2.preset_store import get_preset_store
 
-            preset_manager = PresetManager()
-            self.category_selections = preset_manager.get_strategy_selections() or {}
-
-            preset = preset_manager.get_active_preset()
+            self.category_selections = get_direct_strategy_selections() or {}
+            store = get_preset_store()
+            active_name = store.get_active_preset_name() or ""
+            preset = store.get_preset(active_name) if active_name else None
             filter_modes = {}
             if preset:
                 try:
@@ -462,10 +466,9 @@ class Zapret2StrategiesPageNew(BasePage):
     def _update_current_strategies_display(self):
         """Совместимость: обновляет отображение текущих стратегий"""
         try:
-            from preset_zapret2 import PresetManager
+            from strategy_menu import get_direct_strategy_selections
 
-            preset_manager = PresetManager()
-            selections = preset_manager.get_strategy_selections()
+            selections = get_direct_strategy_selections() or {}
             active_count = sum(1 for s in selections.values() if s and s != 'none')
 
             if active_count > 0:

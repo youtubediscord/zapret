@@ -58,6 +58,11 @@ _PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {
         "ui.pages.zapret2.strategy_detail_page",
         "StrategyDetailPage",
     ),
+    PageName.ZAPRET2_PRESET_DETAIL: (
+        "zapret2_preset_detail_page",
+        "ui.pages.zapret2.preset_detail_page",
+        "Zapret2PresetDetailPage",
+    ),
     PageName.ZAPRET2_ORCHESTRA: (
         "zapret2_orchestra_strategies_page",
         "ui.pages.zapret2_orchestra_strategies_page",
@@ -98,7 +103,11 @@ _PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {
         "ui.pages.zapret1.strategy_detail_page_v1",
         "Zapret1StrategyDetailPage",
     ),
-    PageName.PRESET_CONFIG: ("preset_config_page", "ui.pages.preset_config_page", "PresetConfigPage"),
+    PageName.ZAPRET1_PRESET_DETAIL: (
+        "zapret1_preset_detail_page",
+        "ui.pages.zapret1.preset_detail_page",
+        "Zapret1PresetDetailPage",
+    ),
     PageName.HOSTLIST: ("hostlist_page", "ui.pages.hostlist_page", "HostlistPage"),
     PageName.BLOBS: ("blobs_page", "ui.pages.blobs_page", "BlobsPage"),
     PageName.DPI_SETTINGS: ("dpi_settings_page", "ui.pages.dpi_settings_page", "DpiSettingsPage"),
@@ -144,7 +153,6 @@ _PAGE_ALIASES: dict[PageName, PageName] = {
 _EAGER_PAGE_NAMES_BASE: tuple[PageName, ...] = (
     PageName.AUTOSTART,
     PageName.DPI_SETTINGS,
-    PageName.PRESET_CONFIG,
     PageName.APPEARANCE,
     PageName.ABOUT,
     PageName.PREMIUM,
@@ -174,7 +182,6 @@ _NAV_ICONS = {
     PageName.LOGS: FluentIcon.HISTORY if HAS_FLUENT else None,
     PageName.ABOUT: FluentIcon.INFO if HAS_FLUENT else None,
     PageName.DPI_SETTINGS: FluentIcon.SETTING if HAS_FLUENT else None,
-    PageName.PRESET_CONFIG: FluentIcon.EDIT if HAS_FLUENT else None,
     PageName.HOSTLIST: FluentIcon.BOOK_SHELF if HAS_FLUENT else None,
     PageName.BLOBS: FluentIcon.CLOUD if HAS_FLUENT else None,
     PageName.NETROGAT: FluentIcon.REMOVE_FROM if HAS_FLUENT else None,
@@ -209,7 +216,6 @@ _NAV_LABELS = {
     PageName.LOGS: "Логи",
     PageName.ABOUT: "О программе",
     PageName.DPI_SETTINGS: "Сменить режим DPI",
-    PageName.PRESET_CONFIG: "Конфиг пресета",
     PageName.HOSTLIST: "Листы",
     PageName.BLOBS: "Блобы",
     PageName.NETROGAT: "Исключения",
@@ -481,7 +487,6 @@ class MainWindowUI:
         settings_header_key = "nav.header.settings"
         settings_header = nav.addItemHeader(tr_catalog(settings_header_key, language=self._ui_language), POS_SCROLL)
         settings_pages = (
-            PageName.PRESET_CONFIG,
             PageName.HOSTLIST,
             PageName.ORCHESTRA_SETTINGS,
             PageName.DPI_SETTINGS,
@@ -531,11 +536,13 @@ class MainWindowUI:
             PageName.ZAPRET2_USER_PRESETS,
             PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
             PageName.ZAPRET2_STRATEGY_DETAIL,
+            PageName.ZAPRET2_PRESET_DETAIL,
             PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
             PageName.BLOBS,
             PageName.ZAPRET1_DIRECT,
             PageName.ZAPRET1_USER_PRESETS,
             PageName.ZAPRET1_STRATEGY_DETAIL,
+            PageName.ZAPRET1_PRESET_DETAIL,
         ):
             page = self.pages.get(hidden)
             if page is not None:
@@ -1011,6 +1018,34 @@ class MainWindowUI:
                 lambda: self.show_page(PageName.ZAPRET1_DIRECT_CONTROL),
             )
 
+        if page_name in (PageName.ZAPRET2_USER_PRESETS, PageName.ZAPRET2_ORCHESTRA_USER_PRESETS) and hasattr(page, "preset_open_requested"):
+            self._connect_signal_once(
+                f"{page_name.name}.preset_open_requested",
+                page.preset_open_requested,
+                self._open_zapret2_preset_detail,
+            )
+
+        if page_name == PageName.ZAPRET1_USER_PRESETS and hasattr(page, "preset_open_requested"):
+            self._connect_signal_once(
+                "z1_user_presets.preset_open_requested",
+                page.preset_open_requested,
+                self._open_zapret1_preset_detail,
+            )
+
+        if page_name == PageName.ZAPRET2_PRESET_DETAIL and hasattr(page, "back_clicked"):
+            self._connect_signal_once(
+                "z2_preset_detail.back_clicked",
+                page.back_clicked,
+                self._show_active_zapret2_user_presets_page,
+            )
+
+        if page_name == PageName.ZAPRET1_PRESET_DETAIL and hasattr(page, "back_clicked"):
+            self._connect_signal_once(
+                "z1_preset_detail.back_clicked",
+                page.back_clicked,
+                lambda: self.show_page(PageName.ZAPRET1_USER_PRESETS),
+            )
+
         if page_name in (PageName.ZAPRET2_DIRECT_CONTROL, PageName.ZAPRET2_ORCHESTRA_CONTROL):
             presets_target = (
                 PageName.ZAPRET2_ORCHESTRA_USER_PRESETS
@@ -1335,6 +1370,35 @@ class MainWindowUI:
         if PageName.HOSTS in self.pages:
             self.hosts_page = self.pages[PageName.HOSTS]
 
+    def _show_active_zapret2_user_presets_page(self) -> None:
+        try:
+            from strategy_menu import get_strategy_launch_method
+
+            method = (get_strategy_launch_method() or "").strip().lower()
+        except Exception:
+            method = ""
+
+        if method == "direct_zapret2_orchestra":
+            self.show_page(PageName.ZAPRET2_ORCHESTRA_USER_PRESETS)
+        else:
+            self.show_page(PageName.ZAPRET2_USER_PRESETS)
+
+    def _open_zapret2_preset_detail(self, preset_name: str) -> None:
+        page = self._ensure_page(PageName.ZAPRET2_PRESET_DETAIL)
+        if page is None:
+            return
+        if hasattr(page, "set_preset_name"):
+            page.set_preset_name(preset_name)
+        self.show_page(PageName.ZAPRET2_PRESET_DETAIL)
+
+    def _open_zapret1_preset_detail(self, preset_name: str) -> None:
+        page = self._ensure_page(PageName.ZAPRET1_PRESET_DETAIL)
+        if page is None:
+            return
+        if hasattr(page, "set_preset_name"):
+            page.set_preset_name(preset_name)
+        self.show_page(PageName.ZAPRET1_PRESET_DETAIL)
+
 
     # ------------------------------------------------------------------
     # Signal connections — UNCHANGED from original
@@ -1523,8 +1587,6 @@ class MainWindowUI:
             self.premium_page.subscription_updated.connect(self._on_subscription_updated)
 
         self.dpi_settings_page.launch_method_changed.connect(self._on_launch_method_changed)
-        self.dpi_settings_page.launch_method_changed.connect(self.preset_config_page.refresh_for_current_mode)
-
         if hasattr(self, 'orchestra_page'):
             self.orchestra_page.clear_learned_requested.connect(self._on_clear_learned_requested)
 
@@ -1723,13 +1785,17 @@ class MainWindowUI:
             if method == "direct_zapret2_orchestra":
                 from preset_orchestra_zapret2 import get_active_preset_path
             elif method == "direct_zapret2":
-                from preset_zapret2 import get_active_preset_path
+                from core.services import get_direct_flow_coordinator
+                watched_path = os.fspath(get_direct_flow_coordinator().ensure_runtime("direct_zapret2"))
+                if not watched_path:
+                    return
             else:
                 return
 
-            watched_path = os.fspath(get_active_preset_path())
-            if not watched_path:
-                return
+            if method == "direct_zapret2_orchestra":
+                watched_path = os.fspath(get_active_preset_path())
+                if not watched_path:
+                    return
 
             watcher = getattr(self, "_active_preset_file_watcher", None)
             if watcher is None:
@@ -2053,19 +2119,17 @@ class MainWindowUI:
                 if not get_dpi_autostart():
                     return
 
-                from preset_zapret2 import get_active_preset_path, get_active_preset_name
+                from core.services import get_direct_flow_coordinator
 
-                preset_path = get_active_preset_path()
-                preset_name = get_active_preset_name() or "Default"
-
-                if not preset_path.exists():
+                try:
+                    profile = get_direct_flow_coordinator().ensure_launch_profile(
+                        "direct_zapret2",
+                        require_filters=False,
+                    )
+                except Exception:
                     return
 
-                selected_mode = {
-                    'is_preset_file': True,
-                    'name': f"Пресет: {preset_name}",
-                    'preset_path': str(preset_path)
-                }
+                selected_mode = profile.to_selected_mode()
                 self.dpi_controller.start_dpi_async(selected_mode=selected_mode, launch_method=method)
 
             elif method == "direct_zapret2_orchestra":
@@ -2100,19 +2164,17 @@ class MainWindowUI:
                 if not get_dpi_autostart():
                     return
 
-                from preset_zapret1 import get_active_preset_path_v1, get_active_preset_name_v1
+                from core.services import get_direct_flow_coordinator
 
-                preset_path = get_active_preset_path_v1()
-                preset_name = get_active_preset_name_v1() or "Default"
-
-                if not preset_path.exists():
+                try:
+                    profile = get_direct_flow_coordinator().ensure_launch_profile(
+                        "direct_zapret1",
+                        require_filters=False,
+                    )
+                except Exception:
                     return
 
-                selected_mode = {
-                    'is_preset_file': True,
-                    'name': f"Пресет Z1: {preset_name}",
-                    'preset_path': str(preset_path)
-                }
+                selected_mode = profile.to_selected_mode()
                 self.dpi_controller.start_dpi_async(selected_mode=selected_mode, launch_method=method)
 
         except Exception as e:
@@ -2318,7 +2380,7 @@ class MainWindowUI:
                 log("ZAPRET1_STRATEGY_DETAIL page not found", "ERROR")
                 return
 
-            from preset_zapret1 import PresetManagerV1
+            from core.presets.direct_facade import DirectPresetFacade
 
             def _reload_dpi():
                 try:
@@ -2328,7 +2390,10 @@ class MainWindowUI:
                 except Exception:
                     pass
 
-            manager = PresetManagerV1(on_dpi_reload_needed=_reload_dpi)
+            manager = DirectPresetFacade.from_launch_method(
+                "direct_zapret1",
+                on_dpi_reload_needed=_reload_dpi,
+            )
             detail_page.set_category(category_key, category_info, manager)
             self.show_page(PageName.ZAPRET1_STRATEGY_DETAIL)
         except Exception as e:
@@ -2404,9 +2469,9 @@ class MainWindowUI:
                         detail_page = self._ensure_page(PageName.ZAPRET2_STRATEGY_DETAIL)
                         if category_info and detail_page and hasattr(detail_page, "show_category"):
                             try:
-                                from preset_zapret2 import PresetManager
-                                preset_manager = PresetManager()
-                                selections = preset_manager.get_strategy_selections() or {}
+                                from core.presets.direct_facade import DirectPresetFacade
+
+                                selections = DirectPresetFacade.from_launch_method("direct_zapret2").get_strategy_selections() or {}
                                 current_strategy_id = selections.get(last_key, "none")
                             except Exception:
                                 current_strategy_id = "none"

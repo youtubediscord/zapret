@@ -815,8 +815,9 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
             if launch_method == "direct_zapret2":
                 # direct_zapret2 is preset-based; do not show a phantom single-strategy name.
                 try:
-                    from preset_zapret2 import get_active_preset_name
-                    preset_name = get_active_preset_name() or "Default"
+                    from core.services import get_direct_flow_coordinator
+
+                    preset_name = get_direct_flow_coordinator().get_selected_preset_name("direct_zapret2")
                     display_name = f"Пресет: {preset_name}"
                 except Exception:
                     display_name = "Пресет"
@@ -831,8 +832,16 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
                         display_name = f"Пресет оркестра: {preset_name}"
                     except Exception:
                         display_name = "Оркестратор Z2"
+                elif launch_method == "direct_zapret1":
+                    try:
+                        from core.services import get_direct_flow_coordinator
+
+                        preset_name = get_direct_flow_coordinator().get_selected_preset_name("direct_zapret1")
+                        display_name = f"Пресет: {preset_name}"
+                    except Exception:
+                        display_name = "Пресет"
                 else:
-                    display_name = "Прямой Z1"
+                    display_name = "Пресет"
                 self.current_strategy_name = display_name
                 strategy_name = display_name
                 log(f"Установлено простое название для режима {launch_method}: {display_name}", "DEBUG")
@@ -845,69 +854,36 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
             if launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
                 if strategy_id == "DIRECT_MODE" or strategy_id == "combined":
                     
-                    # ✅ ДЛЯ direct_zapret2 - ИСПОЛЬЗУЕМ PRESET ФАЙЛ
+                    # ✅ ДЛЯ direct_zapret2 - используем runtime config выбранного пресета
                     if launch_method == "direct_zapret2":
-                        from preset_zapret2 import get_active_preset_path, get_active_preset_name, ensure_default_preset_exists
-
-                        # Создаем файл если не существует (первый запуск)
-                        if not ensure_default_preset_exists():
-                            log(
-                                "Не удалось создать preset-zapret2.txt: отсутствует %APPDATA%/zapret/presets_v2_template/Default.txt",
-                                "ERROR",
-                            )
-                            self.set_status("Ошибка: отсутствует Default.txt (built-in пресет)")
-                            return
-
-                        preset_path = get_active_preset_path()
-                        preset_name = get_active_preset_name() or "Default"
-
-                        # Проверяем что файл не пустой и содержит фильтры
                         try:
-                            content = preset_path.read_text(encoding='utf-8').strip()
-                            has_filters = any(f in content for f in ['--wf-tcp-out', '--wf-udp-out', '--wf-raw-part'])
-                            if not has_filters:
-                                log("Preset файл не содержит активных фильтров", "WARNING")
-                                self.set_status("Выберите хотя бы одну категорию для запуска")
-                                return
+                            from core.services import get_direct_flow_coordinator
+
+                            coordinator = get_direct_flow_coordinator()
+                            profile = coordinator.ensure_launch_profile("direct_zapret2", require_filters=True)
+                            combined_data = profile.to_selected_mode()
                         except Exception as e:
-                            log(f"Ошибка чтения preset файла: {e}", "ERROR")
-                            self.set_status(f"Ошибка чтения preset: {e}")
+                            log(f"Не удалось подготовить запуск direct_zapret2: {e}", "ERROR")
+                            self.set_status(str(e))
                             return
 
-                        # ✅ ИСПОЛЬЗУЕМ СУЩЕСТВУЮЩИЙ ФАЙЛ БЕЗ ИЗМЕНЕНИЙ!
-                        combined_data = {
-                            'is_preset_file': True,
-                            'name': f"Пресет: {preset_name}",
-                            'preset_path': str(preset_path)
-                        }
-
-                        log(f"Запуск из preset файла: {preset_path}", "INFO")
+                        log(f"Запуск direct_zapret2 из generated launch config: {profile.launch_config_path}", "INFO")
                         self.dpi_controller.start_dpi_async(selected_mode=combined_data, launch_method=launch_method)
                     
-                    # ✅ ДЛЯ direct_zapret1 - используем preset-zapret1.txt
+                    # ✅ ДЛЯ direct_zapret1 - используем runtime config выбранного пресета
                     elif launch_method == "direct_zapret1":
-                        from preset_zapret1 import get_active_preset_path_v1, get_active_preset_name_v1, ensure_default_preset_exists_v1
+                        try:
+                            from core.services import get_direct_flow_coordinator
 
-                        if not ensure_default_preset_exists_v1():
-                            log("Не удалось создать preset-zapret1.txt", "ERROR")
-                            self.set_status("Ошибка: не удалось создать preset-zapret1.txt")
+                            coordinator = get_direct_flow_coordinator()
+                            profile = coordinator.ensure_launch_profile("direct_zapret1", require_filters=True)
+                            combined_data = profile.to_selected_mode()
+                        except Exception as e:
+                            log(f"Не удалось подготовить запуск direct_zapret1: {e}", "ERROR")
+                            self.set_status(str(e))
                             return
 
-                        preset_path = get_active_preset_path_v1()
-                        preset_name = get_active_preset_name_v1() or "Default"
-
-                        if not preset_path.exists():
-                            log(f"preset-zapret1.txt не найден: {preset_path}", "ERROR")
-                            self.set_status("Выберите стратегию в разделе Zapret1")
-                            return
-
-                        combined_data = {
-                            'is_preset_file': True,
-                            'name': f"Пресет: {preset_name}",
-                            'preset_path': str(preset_path),
-                        }
-
-                        log(f"Запуск Zapret1 из preset файла: {preset_path}", "INFO")
+                        log(f"Запуск Zapret1 из generated launch config: {profile.launch_config_path}", "INFO")
                         self.dpi_controller.start_dpi_async(selected_mode=combined_data, launch_method=launch_method)
 
                     # ✅ ДЛЯ direct_zapret2_orchestra - используем preset-zapret2-orchestra.txt

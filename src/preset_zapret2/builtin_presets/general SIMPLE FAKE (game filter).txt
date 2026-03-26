@@ -1,6 +1,5 @@
 # Preset: general SIMPLE FAKE (game filter)
-# ActivePreset: general SIMPLE FAKE (game filter)
-# BuiltinVersion: 2.13
+# BuiltinVersion: 2.14
 
 --lua-init=@lua/zapret-lib.lua
 --lua-init=@lua/zapret-antidpi.lua

@@ -1,5 +1,5 @@
 # Preset: Preset X v2 (game filter)
-# BuiltinVersion: 2.13
+# BuiltinVersion: 2.14
 # Created: 2026-02-15T15:36:04.305281
 # Modified: 2026-02-15T15:36:04.307055
 # IconColor: #60cdff

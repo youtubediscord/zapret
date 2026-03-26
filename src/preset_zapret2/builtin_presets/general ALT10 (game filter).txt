@@ -1,6 +1,5 @@
 # Preset: general ALT10 (game filter)
-# ActivePreset: general ALT10 (game filter)
-# BuiltinVersion: 2.13
+# BuiltinVersion: 2.14
 # IconColor: #e6c300ff
 
 --lua-init=@lua/zapret-lib.lua

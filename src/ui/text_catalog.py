@@ -63,10 +63,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Оркестратор",
         "en": "Orchestrator",
     },
-    "nav.page.preset_config": {
-        "ru": "Конфиг пресета",
-        "en": "Preset Config",
-    },
     "nav.page.hostlist": {
         "ru": "Листы",
         "en": "Lists",
@@ -530,10 +526,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.orchestra.log": {
         "ru": "Лог обучения",
         "en": "Training Log",
-    },
-    "page.preset_config.title": {
-        "ru": "Активный пресет",
-        "en": "Active Preset",
     },
     "page.hostlist.title": {
         "ru": "Листы",
@@ -3567,10 +3559,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Не удалось открыть Telegram: {error}",
         "en": "Failed to open Telegram: {error}",
     },
-    "page.preset_config.subtitle_template": {
-        "ru": "Пресет - это txt файл с настройками программы, вместо использования GUI Вы можете обмениваться напрямую этими пресетами, чтобы быстро изменить настройки программы. GUI подхватывает настройки отсюда. В данном окне представлен редактор основного txt файла — {preset_name}",
-        "en": "A preset is a txt file with program settings. Instead of GUI you can share these presets directly for quick reconfiguration. GUI reads settings from here. This window edits the main txt file - {preset_name}",
-    },
     "page.servers.title": {
         "ru": "Серверы",
         "en": "Servers",
@@ -5797,10 +5785,6 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "ru": "🧹 Ошибки очищены",
         "en": "🧹 Errors cleared",
     },
-    "page.preset_config.button.open_notepad": {
-        "ru": "Открыть в блокноте",
-        "en": "Open in Notepad",
-    },
     "page.strategies_base.title": {
         "ru": "Выбор активных стратегий (и их настройка) Zapret 2",
         "en": "Select Active Strategies (and tune them) for Zapret 2",
@@ -6005,7 +5989,6 @@ NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.ZAPRET2_ORCHESTRA_CONTROL: "nav.page.zapret2_orchestra_control",
     PageName.ZAPRET1_DIRECT_CONTROL: "nav.page.zapret1_direct_control",
     PageName.ORCHESTRA: "nav.page.orchestra",
-    PageName.PRESET_CONFIG: "nav.page.preset_config",
     PageName.HOSTLIST: "nav.page.hostlist",
     PageName.NETROGAT: "page.netrogat.title",
     PageName.CUSTOM_DOMAINS: "page.custom_domains.title",
@@ -6081,7 +6064,6 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
     SearchEntry("orchestra.title", PageName.ORCHESTRA, "page.orchestra.title"),
     SearchEntry("orchestra.training", PageName.ORCHESTRA, "page.orchestra.training_status", section_key="page.orchestra.training_status"),
     SearchEntry("orchestra.log", PageName.ORCHESTRA, "page.orchestra.log", section_key="page.orchestra.log"),
-    SearchEntry("preset_config.title", PageName.PRESET_CONFIG, "page.preset_config.title"),
     SearchEntry("hostlist.title", PageName.HOSTLIST, "page.hostlist.title"),
     SearchEntry("netrogat.title", PageName.NETROGAT, "page.netrogat.title"),
     SearchEntry("custom_domains.title", PageName.CUSTOM_DOMAINS, "page.custom_domains.title"),

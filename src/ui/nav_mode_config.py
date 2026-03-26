@@ -44,9 +44,6 @@ def get_nav_visibility(method: str) -> dict[PageName, bool]:
         PageName.ORCHESTRA:                is_pure_orchestra,
         PageName.ZAPRET1_DIRECT_CONTROL:   is_direct_zapret1,
 
-        # ── Zapret2 sub-section ──────────────────────────────────────────────
-        PageName.PRESET_CONFIG:            is_zapret2_family or is_direct_zapret1,
-
         # ── Orchestra settings (tabbed page) ─────────────────────────────────
         PageName.ORCHESTRA_SETTINGS:       is_pure_orchestra,
     }

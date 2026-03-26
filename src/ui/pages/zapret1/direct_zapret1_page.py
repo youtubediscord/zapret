@@ -250,19 +250,20 @@ class Zapret1StrategiesPage(BasePage):
     @staticmethod
     def _load_current_selections() -> dict[str, str]:
         try:
-            from preset_zapret1 import PresetManagerV1
+            from strategy_menu import get_direct_strategy_selections
 
-            return PresetManagerV1().get_strategy_selections() or {}
+            return get_direct_strategy_selections() or {}
         except Exception:
             return {}
 
     @staticmethod
     def _load_filter_modes() -> dict[str, str]:
         try:
-            from preset_zapret1 import PresetManagerV1
+            from preset_zapret1.preset_store import get_preset_store_v1
 
-            manager = PresetManagerV1()
-            preset = manager.get_active_preset()
+            store = get_preset_store_v1()
+            active_name = store.get_active_preset_name() or ""
+            preset = store.get_preset(active_name) if active_name else None
             if not preset:
                 return {}
             return {

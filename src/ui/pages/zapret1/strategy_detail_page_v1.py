@@ -950,9 +950,9 @@ class Zapret1StrategyDetailPage(BasePage):
             preset.touch()
 
             if hasattr(self._preset_manager, "_save_and_sync_category"):
-                self._preset_manager._save_and_sync_category(preset, self._category_key)
+                self._preset_manager.save_category_preserving_layout(preset, self._category_key)
             else:
-                self._preset_manager._save_and_sync_preset(preset)
+                self._preset_manager.save_preset_model(preset)
 
             self._current_strategy_id = cat.strategy_id
             if self._current_strategy_id != "none":

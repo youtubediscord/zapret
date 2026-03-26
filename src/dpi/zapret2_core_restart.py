@@ -69,9 +69,9 @@ def _has_active_strategies() -> bool:
         True если есть хотя бы один активный фильтр
     """
     try:
-        from preset_zapret2 import get_active_preset_path
+        from core.services import get_direct_flow_coordinator
 
-        preset_path = get_active_preset_path()
+        preset_path = get_direct_flow_coordinator().ensure_runtime("direct_zapret2")
         if not preset_path.exists():
             return False
 
@@ -128,8 +128,8 @@ def trigger_dpi_reload(
 
     # 4. Проверяем наличие preset файла с активными фильтрами
     try:
-        from preset_zapret2 import get_active_preset_path
-        preset_path = get_active_preset_path()
+        from core.services import get_direct_flow_coordinator
+        preset_path = get_direct_flow_coordinator().ensure_runtime("direct_zapret2")
 
         if not preset_path.exists():
             log("Preset файл не найден - останавливаем DPI", "WARNING")

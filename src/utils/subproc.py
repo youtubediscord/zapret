@@ -12,7 +12,10 @@ from functools import lru_cache
 import ctypes
 
 # WinAPI функции для получения системных путей
-_kernel32 = ctypes.windll.kernel32
+if hasattr(ctypes, "windll"):
+    _kernel32 = ctypes.windll.kernel32
+else:
+    _kernel32 = None
 
 
 @lru_cache(maxsize=1)
@@ -21,14 +24,17 @@ def get_system32_path() -> str:
     Возвращает путь к System32 через WinAPI GetSystemDirectoryW.
     Работает на любом диске (C:, D:, и т.д.).
     """
-    buf = ctypes.create_unicode_buffer(260)
-    length = _kernel32.GetSystemDirectoryW(buf, 260)
-    if length > 0:
-        return buf.value
+    if _kernel32 is not None:
+        buf = ctypes.create_unicode_buffer(260)
+        length = _kernel32.GetSystemDirectoryW(buf, 260)
+        if length > 0:
+            return buf.value
     # Fallback через переменные окружения
     system_root = os.environ.get("SystemRoot") or os.environ.get("WINDIR")
     if system_root:
         return os.path.join(system_root, "System32")
+    if os.name != "nt":
+        return "/usr/bin"
     return r"C:\Windows\System32"
 
 
@@ -37,10 +43,13 @@ def get_windows_path() -> str:
     """
     Возвращает путь к Windows через WinAPI GetWindowsDirectoryW.
     """
-    buf = ctypes.create_unicode_buffer(260)
-    length = _kernel32.GetWindowsDirectoryW(buf, 260)
-    if length > 0:
-        return buf.value
+    if _kernel32 is not None:
+        buf = ctypes.create_unicode_buffer(260)
+        length = _kernel32.GetWindowsDirectoryW(buf, 260)
+        if length > 0:
+            return buf.value
+    if os.name != "nt":
+        return "/"
     return os.environ.get("SystemRoot") or os.environ.get("WINDIR") or r"C:\Windows"
 
 
@@ -64,10 +73,12 @@ def get_system_exe(exe_name: str) -> str:
 # on some systems when combined with translucency/frameless Qt windows.
 # We keep `CREATE_NO_WINDOW` + `DETACHED_PROCESS` for reliably hidden execution.
 WIN_FLAGS = (
-    subprocess.CREATE_NO_WINDOW
-    | subprocess.DETACHED_PROCESS
-    | subprocess.CREATE_NEW_PROCESS_GROUP
-    | 0x00000008  # CREATE_BREAKAWAY_FROM_JOB
+    (
+        getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        | getattr(subprocess, "DETACHED_PROCESS", 0)
+        | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        | 0x00000008  # CREATE_BREAKAWAY_FROM_JOB
+    )
 )
 
 WIN_OEM   = "cp866"
@@ -79,6 +90,8 @@ def _default_encoding() -> str:
 
 
 def _hidden_startupinfo() -> subprocess.STARTUPINFO:
+    if not hasattr(subprocess, "STARTUPINFO"):
+        return None  # type: ignore[return-value]
     si = subprocess.STARTUPINFO()
     # Используем только существующие константы из subprocess
     si.dwFlags |= (subprocess.STARTF_USESHOWWINDOW | 

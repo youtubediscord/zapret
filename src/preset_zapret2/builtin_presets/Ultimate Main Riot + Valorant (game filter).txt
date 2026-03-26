@@ -1,6 +1,5 @@
-# Preset: Ultimate Main YT Discord ValFix
-# ActivePreset: Ultimate Main YT Discord ValFix
-# BuiltinVersion: 2.13
+# Preset: Ultimate Main Riot + Valorant (game filter)
+# BuiltinVersion: 2.14
 # Description: YouTube + Discord (as MAIN) + Valorant/Riot
 # Created: 2026-02-10
 # IconColor: #60cdff

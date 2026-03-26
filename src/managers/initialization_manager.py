@@ -137,12 +137,14 @@ class InitializationManager:
             try:
                 method = get_strategy_launch_method()
 
-                # Убедимся, что preset файлы существуют до расчёта summary.
+                # Убедимся, что выбранные пресеты и runtime configs подготовлены до расчёта summary.
                 if method == "direct_zapret2":
-                    from preset_zapret2 import ensure_default_preset_exists
-                    if not ensure_default_preset_exists():
+                    from core.services import get_direct_flow_coordinator
+                    try:
+                        get_direct_flow_coordinator().ensure_runtime("direct_zapret2")
+                    except Exception as e:
                         log(
-                            "direct_zapret2: не удалось подготовить preset-zapret2.txt (нет %APPDATA%/zapret/presets_v2_template/Default.txt)",
+                            f"direct_zapret2: не удалось подготовить runtime config: {e}",
                             "ERROR",
                         )
                 elif method == "direct_zapret2_orchestra":
@@ -153,9 +155,11 @@ class InitializationManager:
                             "ERROR",
                         )
                 elif method == "direct_zapret1":
-                    from preset_zapret1 import ensure_default_preset_exists_v1
-                    if not ensure_default_preset_exists_v1():
-                        log("direct_zapret1: не удалось подготовить preset-zapret1.txt", "ERROR")
+                    from core.services import get_direct_flow_coordinator
+                    try:
+                        get_direct_flow_coordinator().ensure_runtime("direct_zapret1")
+                    except Exception:
+                        log("direct_zapret1: не удалось подготовить runtime config", "ERROR")
 
                 if method == "orchestra":
                     initial_name = getattr(self.app, "current_strategy_name", None) or "Оркестр"
@@ -184,14 +188,16 @@ class InitializationManager:
                 log(f"Используется winws2.exe для режима {launch_method} (Zapret 2)", "INFO")
                 # Ensure default preset exists for direct_zapret2 mode
                 if launch_method == "direct_zapret2":
-                    from preset_zapret2 import ensure_default_preset_exists
-                    if not ensure_default_preset_exists():
+                    from core.services import get_direct_flow_coordinator
+                    try:
+                        get_direct_flow_coordinator().ensure_runtime("direct_zapret2")
+                    except Exception as e:
                         log(
-                            "direct_zapret2: не удалось подготовить preset-zapret2.txt (нет %APPDATA%/zapret/presets_v2_template/Default.txt)",
+                            f"direct_zapret2: не удалось подготовить runtime config: {e}",
                             "ERROR",
                         )
                         try:
-                            self.app.set_status("Ошибка: отсутствует Default.txt (built-in пресет)")
+                            self.app.set_status(f"Ошибка: не удалось подготовить runtime config: {e}")
                         except Exception:
                             pass
                 elif launch_method == "direct_zapret2_orchestra":
@@ -209,11 +215,13 @@ class InitializationManager:
                 log(f"Используется winws.exe для режима {launch_method}", "INFO")
                 # Ensure default preset exists for direct_zapret1 mode
                 if launch_method == "direct_zapret1":
-                    from preset_zapret1 import ensure_default_preset_exists_v1
-                    if not ensure_default_preset_exists_v1():
-                        log("direct_zapret1: не удалось подготовить preset-zapret1.txt", "ERROR")
+                    from core.services import get_direct_flow_coordinator
+                    try:
+                        get_direct_flow_coordinator().ensure_runtime("direct_zapret1")
+                    except Exception:
+                        log("direct_zapret1: не удалось подготовить runtime config", "ERROR")
                         try:
-                            self.app.set_status("Ошибка: не удалось создать preset-zapret1.txt")
+                            self.app.set_status("Ошибка: не удалось подготовить runtime config")
                         except Exception:
                             pass
 
@@ -354,11 +362,12 @@ class InitializationManager:
                 self.app.set_status("⚠️ Выберите стратегию для запуска")
                 return
 
-        # Для direct_zapret1 проверяем наличие preset-zapret1.txt
+        # Для direct_zapret1 проверяем наличие runtime config выбранного пресета
         elif launch_method == "direct_zapret1":
-            from preset_zapret1 import get_active_preset_path_v1, ensure_default_preset_exists_v1
-            ensure_default_preset_exists_v1()
-            if not get_active_preset_path_v1().exists():
+            from core.services import get_direct_flow_coordinator
+            try:
+                get_direct_flow_coordinator().ensure_runtime("direct_zapret1")
+            except Exception:
                 self._show_strategy_required_warning(for_bat=False)
                 self.app.set_status("⚠️ Выберите стратегию для запуска")
                 return
@@ -834,22 +843,15 @@ class InitializationManager:
             return
 
         # 2. Проверяем наличие preset файла
-        from preset_zapret2 import (
-            get_active_preset_path,
-            get_active_preset_name,
-            ensure_default_preset_exists,
-        )
-
         try:
-            if not ensure_default_preset_exists():
-                log(
-                    "Автозапуск direct_zapret2 пропущен: не удалось подготовить preset-zapret2.txt (нет %APPDATA%/zapret/presets_v2_template/Default.txt)",
-                    "ERROR",
-                )
-                self.app.set_status("Ошибка: отсутствует Default.txt (built-in пресет)")
-                return
-            preset_path = get_active_preset_path()
-            preset_name = get_active_preset_name() or "Default"
+            from core.services import get_direct_flow_coordinator
+
+            profile = get_direct_flow_coordinator().ensure_launch_profile(
+                "direct_zapret2",
+                require_filters=False,
+            )
+            preset_path = profile.launch_config_path
+            preset_name = profile.preset_name
 
             if not preset_path.exists():
                 log(f"Preset файл не найден: {preset_path}", "ERROR")
@@ -857,16 +859,12 @@ class InitializationManager:
                 return
 
             # 3. Формируем selected_mode для запуска из preset файла
-            selected_mode = {
-                "is_preset_file": True,
-                "name": f"Пресет: {preset_name}",
-                "preset_path": str(preset_path),
-            }
+            selected_mode = profile.to_selected_mode()
 
-            log(f"Автозапуск direct_zapret2 из preset файла: {preset_path}", "INFO")
+            log(f"Автозапуск direct_zapret2 из generated launch config: {preset_path}", "INFO")
 
             # 4. Запускаем через dpi_controller
-            self.app.current_strategy_name = f"Пресет: {preset_name}"
+            self.app.current_strategy_name = profile.display_name
             self.app.dpi_controller.start_dpi_async(
                 selected_mode=selected_mode, launch_method="direct_zapret2"
             )

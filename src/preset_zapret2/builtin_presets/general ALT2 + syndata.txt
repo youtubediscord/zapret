@@ -1,6 +1,5 @@
-# Preset: Alt2_NoGameFilter
-# ActivePreset: Alt2_NoGameFilter
-# BuiltinVersion: 2.13
+# Preset: general ALT2 + syndata
+# BuiltinVersion: 2.14
 # IconColor: #b475f0ff
 
 --lua-init=@lua/zapret-lib.lua
