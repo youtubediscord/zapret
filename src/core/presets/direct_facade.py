@@ -331,6 +331,25 @@ class DirectPresetFacade:
     def get_document(self, name: str) -> PresetDocument | None:
         return get_preset_repository().find_preset_by_name(self.engine, name)
 
+    def is_builtin_name(self, name: str) -> bool:
+        candidate = str(name or "").strip()
+        if not candidate:
+            return False
+
+        if self.launch_method == "direct_zapret2":
+            from preset_zapret2.preset_defaults import get_template_canonical_name
+
+            canonical = get_template_canonical_name(candidate)
+            return bool(canonical and canonical.casefold() == candidate.casefold())
+
+        if self.launch_method == "direct_zapret1":
+            from preset_zapret1.preset_defaults import get_template_canonical_name_v1
+
+            canonical = get_template_canonical_name_v1(candidate)
+            return bool(canonical and canonical.casefold() == candidate.casefold())
+
+        return False
+
     def get_source_path(self, name: str) -> Path:
         document = self.get_document(name)
         if document is None:
@@ -346,6 +365,24 @@ class DirectPresetFacade:
         if self.is_selected(updated.manifest.name):
             get_direct_flow_coordinator().refresh_selected_runtime(self.launch_method)
         return updated
+
+    def _refresh_selected_runtime_from_source(self) -> None:
+        selected_name = self.get_selected_name()
+        if not selected_name or self.get_document(selected_name) is None:
+            return
+
+        if self.launch_method == "direct_zapret2":
+            from preset_zapret2 import load_preset
+            from preset_zapret2.sync_layer import sync_preset_to_runtime
+
+            preset = load_preset(selected_name)
+            if preset is None:
+                raise RuntimeError(f"Failed to reload selected preset after reset: {selected_name}")
+            if not sync_preset_to_runtime(preset, on_dpi_reload_needed=self.on_dpi_reload_needed):
+                raise RuntimeError(f"Failed to sync selected runtime after reset: {selected_name}")
+            return
+
+        get_direct_flow_coordinator().refresh_selected_runtime(self.launch_method)
 
     def select(self, name: str):
         return get_direct_flow_coordinator().select_preset(self.launch_method, name)
@@ -452,7 +489,7 @@ class DirectPresetFacade:
         rewritten = _rewrite_preset_headers(template_content, name)
         updated = get_preset_repository().update_preset(self.engine, document.manifest.id, rewritten, None)
         if self.is_selected(name):
-            get_direct_flow_coordinator().refresh_selected_runtime(self.launch_method)
+            self._refresh_selected_runtime_from_source()
         return updated
 
     def reset_all_to_templates(self) -> tuple[int, int, list[str]]:
@@ -467,10 +504,7 @@ class DirectPresetFacade:
 
         selected_name = self.get_selected_name()
         if selected_name and self.get_document(selected_name) is not None:
-            try:
-                get_direct_flow_coordinator().refresh_selected_runtime(self.launch_method)
-            except Exception:
-                pass
+            self._refresh_selected_runtime_from_source()
         return result
 
     def restore_deleted(self) -> None:
@@ -487,15 +521,14 @@ class DirectPresetFacade:
 
         selected_name = self.get_selected_name()
         if selected_name and self.get_document(selected_name) is not None:
-            try:
-                get_direct_flow_coordinator().refresh_selected_runtime(self.launch_method)
-            except Exception:
-                pass
+            self._refresh_selected_runtime_from_source()
 
     def delete(self, name: str) -> None:
         document = self.get_document(name)
         if document is None:
             raise ValueError(f"Preset not found: {name}")
+        if self.is_builtin_name(name):
+            raise ValueError(f"Built-in preset cannot be deleted: {name}")
         get_selection_service().ensure_can_delete(self.engine, document.manifest.id)
         get_preset_repository().delete_preset(self.engine, document.manifest.id)
 

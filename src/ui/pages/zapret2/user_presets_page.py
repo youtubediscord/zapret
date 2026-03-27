@@ -254,6 +254,7 @@ class _PresetListModel(QAbstractListModel):
     ActiveRole = Qt.ItemDataRole.UserRole + 5
     TextRole = Qt.ItemDataRole.UserRole + 6
     IconColorRole = Qt.ItemDataRole.UserRole + 7
+    BuiltinRole = Qt.ItemDataRole.UserRole + 8
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -295,6 +296,8 @@ class _PresetListModel(QAbstractListModel):
             return row.get("text", "")
         if role == self.IconColorRole:
             return row.get("icon_color", _DEFAULT_PRESET_ICON_COLOR)
+        if role == self.BuiltinRole:
+            return bool(row.get("is_builtin", False))
 
         return None
 
@@ -351,7 +354,10 @@ class _PresetListDelegate(QStyledItemDelegate):
     _ACTION_SPACING = 6
 
     _ACTION_ICONS = {
-        "edit": "fa5s.bars",
+        "rename": "fa5s.i-cursor",
+        "duplicate": "fa5s.copy",
+        "reset": "fa5s.undo",
+        "delete": "fa5s.trash-alt",
     }
 
     _PENDING_SHAKE_ROTATIONS = (0, -8, 8, -6, 6, -4, 4, -2, 0)
@@ -378,7 +384,10 @@ class _PresetListDelegate(QStyledItemDelegate):
     def set_ui_language(self, language: str) -> None:
         self._ui_language = language
         self._action_tooltips = {
-            "edit": self._tr("page.z2_user_presets.delegate.tooltip.edit", "Меню пресета"),
+            "rename": self._tr("page.z2_user_presets.delegate.tooltip.rename", "Переименовать"),
+            "duplicate": self._tr("page.z2_user_presets.delegate.tooltip.duplicate", "Дублировать"),
+            "reset": self._tr("page.z2_user_presets.delegate.tooltip.reset", "Сбросить по шаблону"),
+            "delete": self._tr("page.z2_user_presets.delegate.tooltip.delete", "Удалить пользовательский пресет"),
         }
 
     def reset_interaction_state(self):
@@ -422,7 +431,8 @@ class _PresetListDelegate(QStyledItemDelegate):
 
         self._view.setCurrentIndex(index)
         is_active = bool(index.data(_PresetListModel.ActiveRole))
-        action = self._action_at(option.rect, is_active, event.position().toPoint())
+        is_builtin = bool(index.data(_PresetListModel.BuiltinRole))
+        action = self._action_at(option.rect, is_active, is_builtin, event.position().toPoint())
 
         if action:
             self._handle_action_click(name, action, event)
@@ -438,7 +448,8 @@ class _PresetListDelegate(QStyledItemDelegate):
 
         name = str(index.data(_PresetListModel.NameRole) or "")
         is_active = bool(index.data(_PresetListModel.ActiveRole))
-        action = self._action_at(option.rect, is_active, event.pos())
+        is_builtin = bool(index.data(_PresetListModel.BuiltinRole))
+        action = self._action_at(option.rect, is_active, is_builtin, event.pos())
         if not action:
             return super().helpEvent(event, view, option, index)
 
@@ -505,12 +516,15 @@ class _PresetListDelegate(QStyledItemDelegate):
         self._pending_shake_rotation = int(self._PENDING_SHAKE_ROTATIONS[self._pending_shake_step])
         self._view.viewport().update()
 
-    def _visible_actions(self, is_active: bool) -> list[str]:
+    def _visible_actions(self, is_active: bool, is_builtin: bool) -> list[str]:
         _ = is_active
-        return ["edit"]
+        actions = ["rename", "duplicate", "reset"]
+        if not is_builtin:
+            actions.append("delete")
+        return actions
 
-    def _action_rects(self, row_rect: QRect, is_active: bool) -> list[tuple[str, QRect]]:
-        actions = self._visible_actions(is_active)
+    def _action_rects(self, row_rect: QRect, is_active: bool, is_builtin: bool) -> list[tuple[str, QRect]]:
+        actions = self._visible_actions(is_active, is_builtin)
         if not actions:
             return []
 
@@ -524,8 +538,8 @@ class _PresetListDelegate(QStyledItemDelegate):
             x += self._ACTION_SIZE + self._ACTION_SPACING
         return rects
 
-    def _action_at(self, option_rect: QRect, is_active: bool, pos) -> Optional[str]:
-        for action, rect in self._action_rects(option_rect, is_active):
+    def _action_at(self, option_rect: QRect, is_active: bool, is_builtin: bool, pos) -> Optional[str]:
+        for action, rect in self._action_rects(option_rect, is_active, is_builtin):
             if rect.contains(pos):
                 return action
         return None
@@ -588,6 +602,7 @@ class _PresetListDelegate(QStyledItemDelegate):
         name = str(index.data(_PresetListModel.NameRole) or "")
         date_text = str(index.data(_PresetListModel.DateRole) or "")
         is_active = bool(index.data(_PresetListModel.ActiveRole))
+        is_builtin = bool(index.data(_PresetListModel.BuiltinRole))
 
         row_rect = option.rect
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
@@ -614,7 +629,7 @@ class _PresetListDelegate(QStyledItemDelegate):
         )
         _cached_icon(icon_name, icon_color).paint(painter, icon_rect)
 
-        action_rects = self._action_rects(row_rect, is_active)
+        action_rects = self._action_rects(row_rect, is_active, is_builtin)
         right_cursor = action_rects[0][1].left() - 10 if action_rects else row_rect.right() - 12
 
         if is_active:
@@ -1093,6 +1108,25 @@ class Zapret2UserPresetsPage(BasePage):
         from core.presets.direct_facade import DirectPresetFacade
 
         return DirectPresetFacade.from_launch_method("direct_zapret2")
+
+    def _is_builtin_preset_name(self, name: str) -> bool:
+        candidate = str(name or "").strip()
+        if not candidate:
+            return False
+
+        facade = self._get_direct_facade()
+        if facade is not None:
+            try:
+                return bool(facade.is_builtin_name(candidate))
+            except Exception:
+                pass
+
+        try:
+            get_template_canonical_name = self._import_preset_attr("preset_defaults", "get_template_canonical_name")
+            canonical = get_template_canonical_name(candidate)
+            return bool(canonical and canonical.casefold() == candidate.casefold())
+        except Exception:
+            return False
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -1868,6 +1902,7 @@ class Zapret2UserPresetsPage(BasePage):
                         "description": preset.description or "",
                         "date": self._format_modified_timestamp(preset.modified or ""),
                         "is_active": name == active_name,
+                        "is_builtin": self._is_builtin_preset_name(name),
                         "icon_color": _normalize_preset_icon_color(getattr(preset, "icon_color", None)),
                     }
                 )
@@ -2166,6 +2201,17 @@ class Zapret2UserPresetsPage(BasePage):
 
     def _on_delete_preset(self, name: str):
         try:
+            if self._is_builtin_preset_name(name):
+                InfoBar.warning(
+                    title=self._tr("common.error.title", "Ошибка"),
+                    content=self._tr(
+                        "page.z2_user_presets.error.delete_builtin_blocked",
+                        "Встроенные пресеты удалять нельзя. Можно удалить только пользовательские пресеты.",
+                    ),
+                    parent=self.window(),
+                )
+                return
+
             if MessageBox:
                 box = MessageBox(
                     self._tr("page.z2_user_presets.dialog.delete_single.title", "Удалить пресет?"),
