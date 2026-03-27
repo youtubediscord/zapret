@@ -438,17 +438,49 @@ class Zapret2PresetSyncLayer:
 
         strat_lines = [ln.strip() for ln in strategy_text.splitlines() if ln.strip()]
 
+        from .block_semantics import SEMANTIC_STATUS_STRUCTURED_SUPPORTED, analyze_block_semantics
+
+        send_present = any(ln.lower().startswith("--lua-desync=send") for ln in strat_lines)
+        syndata_present = any(ln.lower().startswith("--lua-desync=syndata") for ln in strat_lines)
+        strategy_semantics = analyze_block_semantics(strategy_text)
+        syndata_settings = cat.syndata_tcp if protocol == "tcp" else cat.syndata_udp
+
         if is_basic_direct:
-            # In basic direct mode the strategy args are the source of truth.
-            # Do not inject structured out-range/send/syndata settings on top,
-            # otherwise mixed state can produce duplicate --out-range lines.
+            # In basic direct mode strategy text stays authoritative, but source
+            # preset parsing may already have lifted structured out-range/send/
+            # syndata into category settings. Restore only the missing helper
+            # lines so effective.txt preserves the source preset behaviour
+            # without duplicating raw tokens that are still present in args.
+            helper_lines: list[str] = []
+
+            try:
+                if not strategy_semantics.has_explicit_out_range:
+                    out_range_arg = cat._get_out_range_args(syndata_settings)
+                    if out_range_arg:
+                        helper_lines.append(str(out_range_arg).strip())
+            except Exception:
+                pass
+
+            if protocol == "tcp":
+                try:
+                    if bool(getattr(syndata_settings, "send_enabled", False)) and not send_present:
+                        send_arg = cat._get_send_args(syndata_settings)
+                        if send_arg:
+                            helper_lines.append(str(send_arg).strip())
+                except Exception:
+                    pass
+
+                try:
+                    if bool(getattr(syndata_settings, "enabled", False)) and not syndata_present:
+                        syndata_arg = cat._get_syndata_args(syndata_settings)
+                        if syndata_arg:
+                            helper_lines.append(str(syndata_arg).strip())
+                except Exception:
+                    pass
+
+            args_lines.extend(helper_lines)
             args_lines.extend(strat_lines)
         else:
-            from .block_semantics import SEMANTIC_STATUS_STRUCTURED_SUPPORTED, analyze_block_semantics
-
-            send_present = any(ln.lower().startswith("--lua-desync=send") for ln in strat_lines)
-            syndata_present = any(ln.lower().startswith("--lua-desync=syndata") for ln in strat_lines)
-            strategy_semantics = analyze_block_semantics(strategy_text)
             strat_lines_no_out = []
             for ln in strat_lines:
                 semantics = analyze_block_semantics(ln)
@@ -461,8 +493,6 @@ class Zapret2PresetSyncLayer:
                 strat_lines_no_out.append(ln)
             strategy_text_clean = "\n".join(strat_lines_no_out).strip()
             parts: list[str] = []
-
-            syndata_settings = cat.syndata_tcp if protocol == "tcp" else cat.syndata_udp
 
             try:
                 out_range_arg = cat._get_out_range_args(syndata_settings)
