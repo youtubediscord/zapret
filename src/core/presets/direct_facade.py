@@ -8,6 +8,10 @@ from typing import Callable, Optional
 from core.services import get_app_paths, get_direct_flow_coordinator, get_preset_repository, get_selection_service
 
 from .models import PresetDocument
+from preset_zapret2.mode_projection import (
+    normalize_direct_zapret2_ui_mode,
+    project_preset_for_direct_ui_mode,
+)
 
 
 def _rewrite_preset_header_name(source_text: str, target_name: str) -> str:
@@ -119,6 +123,8 @@ def _apply_zapret2_strategy_args(preset, category_key: str, strategy_id: str) ->
     if strategy_id == "none":
         category.tcp_args = ""
         category.udp_args = ""
+        category.tcp_args_raw = ""
+        category.udp_args_raw = ""
         return
 
     categories = load_categories()
@@ -154,21 +160,29 @@ def _apply_zapret2_strategy_args(preset, category_key: str, strategy_id: str) ->
 
         if is_udp:
             category.udp_args = pure_strategy_args
+            category.udp_args_raw = args
             category.tcp_args = ""
+            category.tcp_args_raw = ""
             apply_structured_block_overrides_to_category(category, args, protocol="udp")
             return
 
         category.tcp_args = pure_strategy_args
+        category.tcp_args_raw = args
         category.udp_args = ""
+        category.udp_args_raw = ""
         apply_structured_block_overrides_to_category(category, args, protocol="tcp")
         return
 
     if is_udp:
         category.udp_args = args
+        category.udp_args_raw = args
         category.tcp_args = ""
+        category.tcp_args_raw = ""
     else:
         category.tcp_args = args
+        category.tcp_args_raw = args
         category.udp_args = ""
+        category.udp_args_raw = ""
 
     reset_structured_advanced_state(category)
 
@@ -279,8 +293,17 @@ class DirectPresetFacade:
 
         if self.launch_method == "direct_zapret2":
             from preset_zapret2 import load_preset
+            try:
+                from strategy_menu import get_direct_zapret2_ui_mode
 
-            return load_preset(selected_name)
+                ui_mode = normalize_direct_zapret2_ui_mode(get_direct_zapret2_ui_mode())
+            except Exception:
+                ui_mode = "basic"
+
+            preset = load_preset(selected_name)
+            if preset is None:
+                return None
+            return project_preset_for_direct_ui_mode(preset, ui_mode)
 
         from preset_zapret1 import load_preset_v1
 

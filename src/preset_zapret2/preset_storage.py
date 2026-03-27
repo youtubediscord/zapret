@@ -216,7 +216,11 @@ def load_preset(name: str) -> Optional[Preset]:
         extract_structured_syndata,
     )
     from .preset_model import Preset, CategoryConfig, SyndataSettings
-    from .txt_preset_parser import PresetData, parse_preset_file
+    from .txt_preset_parser import (
+        PresetData,
+        extract_strategy_args_preserving_helpers,
+        parse_preset_file,
+    )
 
     preset_path = get_preset_path(name)
 
@@ -275,6 +279,11 @@ def load_preset(name: str) -> Optional[Preset]:
                 )
 
             cat = preset.categories[cat_name]
+            raw_strategy_args = extract_strategy_args_preserving_helpers(
+                block.args or "",
+                category_key=cat_name,
+                filter_mode=block.filter_mode,
+            )
 
             # Restore structured advanced settings only when the semantic layer says
             # the block is structurally editable. Raw-only and invalid tokens stay
@@ -307,6 +316,7 @@ def load_preset(name: str) -> Optional[Preset]:
             # Set args based on protocol
             if block.protocol == "tcp":
                 cat.tcp_args = block.strategy_args
+                cat.tcp_args_raw = raw_strategy_args
                 cat.tcp_port = block.port
                 cat.tcp_enabled = True
                 # TCP filter_mode takes priority over UDP
@@ -325,6 +335,7 @@ def load_preset(name: str) -> Optional[Preset]:
                     pass
             elif block.protocol == "udp":
                 cat.udp_args = block.strategy_args
+                cat.udp_args_raw = raw_strategy_args
                 cat.udp_port = block.port
                 cat.udp_enabled = True
                 # UDP sets filter_mode only if TCP didn't set it

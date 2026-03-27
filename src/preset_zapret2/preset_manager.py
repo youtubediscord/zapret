@@ -17,6 +17,7 @@ from .preset_model import (
     normalize_preset_icon_color,
     validate_preset,
 )
+from .mode_projection import normalize_direct_zapret2_ui_mode, project_preset_for_direct_ui_mode
 from .preset_storage import (
     get_preset_path,
     preset_exists,
@@ -45,6 +46,7 @@ class PresetManager:
         # Cache for the selected source preset to avoid repeated file parsing
         self._active_preset_cache: Optional[Preset] = None
         self._active_preset_mtime: float = 0.0
+        self._active_preset_mode: str = ""
         self._sync_layer = None
 
     # ========================================================================
@@ -175,22 +177,30 @@ class PresetManager:
         Returns:
             Selected source Preset or None
         """
+        current_mode = self._get_direct_ui_mode()
         # Check cache validity
         if self._active_preset_cache is not None:
             current_mtime = self._get_active_file_mtime()
-            if current_mtime == self._active_preset_mtime and current_mtime > 0:
+            if (
+                current_mtime == self._active_preset_mtime
+                and current_mtime > 0
+                and current_mode == self._active_preset_mode
+            ):
                 # Cache is valid
                 return self._active_preset_cache
 
         name = self.get_selected_source_preset_name()
         preset = None
         if name:
-            preset = self.load_preset(name)
+            base_preset = self.load_preset(name)
+            if base_preset is not None:
+                preset = project_preset_for_direct_ui_mode(base_preset, current_mode)
 
         # Update cache
         if preset:
             self._active_preset_cache = preset
             self._active_preset_mtime = self._get_active_file_mtime()
+            self._active_preset_mode = current_mode
 
         return preset
 
@@ -232,6 +242,16 @@ class PresetManager:
         """
         self._active_preset_cache = None
         self._active_preset_mtime = 0.0
+        self._active_preset_mode = ""
+
+    @staticmethod
+    def _get_direct_ui_mode() -> str:
+        try:
+            from strategy_menu import get_direct_zapret2_ui_mode
+
+            return normalize_direct_zapret2_ui_mode(get_direct_zapret2_ui_mode())
+        except Exception:
+            return "basic"
 
     def _select_source_preset(self, name: str) -> bool:
         try:
@@ -1265,6 +1285,8 @@ class PresetManager:
             # Clear args when strategy is disabled
             cat.tcp_args = ""
             cat.udp_args = ""
+            cat.tcp_args_raw = ""
+            cat.udp_args_raw = ""
             return
 
         from .catalog import load_categories, load_strategies
@@ -1313,20 +1335,28 @@ class PresetManager:
                 
                 if is_udp:
                     cat.udp_args = pure_strategy_args
+                    cat.udp_args_raw = args
                     cat.tcp_args = ""
+                    cat.tcp_args_raw = ""
                     apply_structured_block_overrides_to_category(cat, args, protocol="udp")
                 else:
                     cat.tcp_args = pure_strategy_args
+                    cat.tcp_args_raw = args
                     cat.udp_args = ""
+                    cat.udp_args_raw = ""
                     apply_structured_block_overrides_to_category(cat, args, protocol="tcp")
             else:
                 # Basic mode: keep the strategy exact strings as they are in the file.
                 if is_udp:
                     cat.udp_args = args
+                    cat.udp_args_raw = args
                     cat.tcp_args = ""
+                    cat.tcp_args_raw = ""
                 else:
                     cat.tcp_args = args
+                    cat.tcp_args_raw = args
                     cat.udp_args = ""
+                    cat.udp_args_raw = ""
 
                 # Keep raw strategy text authoritative in basic mode.
                 reset_structured_advanced_state(cat)

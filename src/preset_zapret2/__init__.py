@@ -26,6 +26,7 @@ from .preset_storage import (
 
 # High-level manager
 from .preset_manager import PresetManager
+from .mode_projection import project_preset_for_direct_ui_mode
 
 # Central in-memory store (singleton)
 from .preset_store import PresetStore, get_preset_store
@@ -51,6 +52,7 @@ from .txt_preset_parser import (
     extract_category_from_args,
     extract_protocol_and_port,
     extract_strategy_args,
+    extract_strategy_args_preserving_helpers,
     invalidate_category_inference_cache,
     generate_preset_content,
     generate_preset_file,
@@ -401,6 +403,7 @@ __all__ = [
     "PresetManager",
     # Central store
     "PresetStore",
+    "project_preset_for_direct_ui_mode",
     "get_preset_store",
     # Utility functions
     "ensure_builtin_presets_exist",
@@ -440,6 +443,7 @@ __all__ = [
     "extract_category_from_args",
     "extract_protocol_and_port",
     "extract_strategy_args",
+    "extract_strategy_args_preserving_helpers",
     "update_category_in_preset",
     # Strategy inference
     "infer_strategy_id_from_args",

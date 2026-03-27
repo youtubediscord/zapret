@@ -136,6 +136,8 @@ class CategoryConfig:
     strategy_id: str = "none"  # ID of selected strategy
     tcp_args: str = ""
     udp_args: str = ""
+    tcp_args_raw: str = ""
+    udp_args_raw: str = ""
     tcp_enabled: bool = True
     udp_enabled: bool = True
     filter_mode: str = "hostlist"  # "hostlist" or "ipset"
@@ -309,6 +311,10 @@ class CategoryConfig:
             "syndata_udp": self.syndata_udp.to_dict(),
             "sort_order": self.sort_order,
         }
+        if self.tcp_args_raw:
+            d["tcp_args_raw"] = self.tcp_args_raw
+        if self.udp_args_raw:
+            d["udp_args_raw"] = self.udp_args_raw
         if self.filter_file:
             d["filter_file"] = self.filter_file
         return d
@@ -332,6 +338,8 @@ class CategoryConfig:
             strategy_id=data.get("strategy_id", "none"),
             tcp_args=data.get("tcp_args", ""),
             udp_args=data.get("udp_args", ""),
+            tcp_args_raw=data.get("tcp_args_raw", data.get("tcp_args", "")),
+            udp_args_raw=data.get("udp_args_raw", data.get("udp_args", "")),
             tcp_enabled=data.get("tcp_enabled", True),
             udp_enabled=data.get("udp_enabled", True),
             filter_mode=data.get("filter_mode", "hostlist"),

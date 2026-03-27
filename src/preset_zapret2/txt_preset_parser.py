@@ -996,6 +996,63 @@ def extract_strategy_args_incl_syndata(
     return '\n'.join(strategy_tokens)
 
 
+def extract_strategy_args_preserving_helpers(
+    args: str,
+    *,
+    category_key: Optional[str] = None,
+    filter_mode: Optional[str] = None,
+) -> str:
+    """
+    Like extract_strategy_args(), but preserves structured helper tokens.
+
+    This keeps explicit --out-range and --lua-desync=send/--lua-desync=syndata
+    lines while still removing category base-filter selectors.
+    """
+    base_filter_tokens: Set[str] = set()
+    try:
+        category_key_n = (category_key or "").strip().lower()
+        if category_key_n and category_key_n != "unknown":
+            filters = _load_category_filters()
+            variants = filters.get(category_key_n) if filters else None
+            if variants:
+                want = (filter_mode or "").strip().lower()
+                for mode, token_set in variants:
+                    if want and mode == want:
+                        base_filter_tokens = set(token_set)
+                        break
+                if not base_filter_tokens:
+                    base_filter_tokens = set(variants[0][1])
+    except Exception:
+        base_filter_tokens = set()
+
+    tokens = re.findall(r"--[^\s]+", args or "")
+    strategy_tokens = []
+    block_semantics = analyze_block_semantics(args)
+
+    for token in tokens:
+        token = token.strip()
+        if not token:
+            continue
+
+        if block_semantics.out_range.status == SEMANTIC_STATUS_STRUCTURED_SUPPORTED:
+            token = _strip_inline_out_range_if_supported(token)
+
+        try:
+            normalized = _normalize_filter_token(token)
+        except Exception:
+            normalized = ""
+        if base_filter_tokens and normalized and normalized in base_filter_tokens:
+            continue
+
+        token_l = token.lower()
+        if token_l.startswith(_FILTER_SELECTOR_PREFIXES):
+            continue
+
+        strategy_tokens.append(token)
+
+    return "\n".join(strategy_tokens)
+
+
 def extract_syndata_from_args(args: str) -> Dict:
     """
     Extracts syndata parameters from format: --lua-desync=syndata:blob=value:ip_autottl=-2,3-20
