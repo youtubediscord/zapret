@@ -169,6 +169,22 @@ class PresetSubpageBase(BasePage):
     def _direct_launch_method(self) -> str | None:
         return None
 
+    def _preset_hierarchy_scope_key(self) -> str | None:
+        method = self._direct_launch_method()
+        if method == "direct_zapret2":
+            return "preset_zapret2"
+        if method == "direct_zapret1":
+            return "preset_zapret1"
+        return None
+
+    def _get_hierarchy_store(self):
+        scope_key = self._preset_hierarchy_scope_key()
+        if not scope_key:
+            return None
+        from core.presets.library_hierarchy import PresetHierarchyStore
+
+        return PresetHierarchyStore(scope_key)
+
     def _get_direct_facade(self):
         method = self._direct_launch_method()
         if not method:
@@ -286,13 +302,24 @@ class PresetSubpageBase(BasePage):
         self.title_label.setText(self._preset_name or self._default_title())
         active_name = self._current_selected_name()
         is_active = active_name.lower() == self._preset_name.lower() if self._preset_name else False
-        is_builtin = self._is_current_builtin()
-        if is_active and is_builtin:
+        facade = self._get_direct_facade()
+        origin = "builtin" if self._is_current_builtin() else "user"
+        if facade is not None and self._preset_name:
+            try:
+                origin = facade.get_preset_origin(self._preset_name)
+            except Exception:
+                pass
+
+        if is_active and origin == "builtin":
             status = "Активный встроенный пресет"
+        elif is_active and origin == "imported":
+            status = "Активный импортированный пресет"
         elif is_active:
             status = "Активный пресет"
-        elif is_builtin:
+        elif origin == "builtin":
             status = "Встроенный пресет"
+        elif origin == "imported":
+            status = "Импортированный пресет"
         else:
             status = "Пользовательский пресет"
         self.statusLabel.setText(status)
@@ -417,6 +444,9 @@ class PresetSubpageBase(BasePage):
                     self._notify_preset_switched()
                 self._show_success(f"Пресет переименован: {new_name}")
             elif self._get_manager_obj().rename_preset(self._preset_name, new_name):
+                hierarchy = self._get_hierarchy_store()
+                if hierarchy is not None:
+                    hierarchy.rename_preset_meta(self._preset_name, new_name)
                 self.set_preset_name(new_name)
                 self._show_success(f"Пресет переименован: {new_name}")
             else:
@@ -439,6 +469,9 @@ class PresetSubpageBase(BasePage):
                 self.set_preset_name(new_name)
                 self._show_success(f"Создан дубликат: {new_name}")
             elif self._get_manager_obj().duplicate_preset(self._preset_name, new_name):
+                hierarchy = self._get_hierarchy_store()
+                if hierarchy is not None:
+                    hierarchy.copy_preset_meta_to_new(self._preset_name, new_name)
                 self.set_preset_name(new_name)
                 self._show_success(f"Создан дубликат: {new_name}")
             else:
@@ -523,6 +556,9 @@ class PresetSubpageBase(BasePage):
                 self.back_clicked.emit()
                 self._show_success(f"Пресет «{name}» удалён")
             elif self._get_manager_obj().delete_preset(name):
+                hierarchy = self._get_hierarchy_store()
+                if hierarchy is not None:
+                    hierarchy.delete_preset_meta(name)
                 self.back_clicked.emit()
                 self._show_success(f"Пресет «{name}» удалён")
             else:

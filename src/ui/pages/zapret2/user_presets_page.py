@@ -2296,7 +2296,6 @@ class Zapret2UserPresetsPage(BasePage):
             facade = self._get_direct_facade()
             if facade is not None:
                 facade.rename(current_name, new_name)
-                self._get_hierarchy_store().rename_preset_meta(current_name, new_name)
                 self._get_preset_store().notify_presets_changed()
                 if facade.is_selected(new_name):
                     self._get_preset_store().notify_preset_switched(new_name)
@@ -2322,6 +2321,19 @@ class Zapret2UserPresetsPage(BasePage):
 
     def _on_create_clicked(self):
         self._show_inline_action_create()
+
+    def _reserve_import_name(self, requested_name: str, exists) -> str:
+        candidate = str(requested_name or "").strip() or "Imported"
+        if not self._is_builtin_preset_name(candidate):
+            return candidate
+
+        base_name = f"{candidate} (импорт)"
+        reserved = base_name
+        counter = 2
+        while exists(reserved) or self._is_builtin_preset_name(reserved):
+            reserved = f"{base_name} {counter}"
+            counter += 1
+        return reserved
 
     def _on_import_clicked(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -2362,13 +2374,20 @@ class Zapret2UserPresetsPage(BasePage):
                 else:
                     return
 
+            name = self._reserve_import_name(name, exists)
+
             if facade is not None:
-                facade.import_from_file(Path(file_path), name)
+                imported = facade.import_from_file(Path(file_path), name)
+                actual_name = imported.manifest.name
                 self._get_preset_store().notify_presets_changed()
-                log(f"Импортирован пресет '{name}'", "INFO")
-                self.preset_created.emit(name)
+                log(f"Импортирован пресет '{actual_name}'", "INFO")
+                self.preset_created.emit(actual_name)
                 self._load_presets()
             elif manager.import_preset(Path(file_path), name):
+                try:
+                    self._get_hierarchy_store().delete_preset_meta(name)
+                except Exception:
+                    pass
                 log(f"Импортирован пресет '{name}'", "INFO")
                 self.preset_created.emit(name)
                 self._load_presets()
@@ -2910,10 +2929,6 @@ class Zapret2UserPresetsPage(BasePage):
 
             if facade is not None:
                 facade.duplicate(name, new_name)
-                try:
-                    self._get_hierarchy_store().copy_preset_meta_to_new(name, new_name)
-                except Exception:
-                    pass
                 self._get_preset_store().notify_presets_changed()
                 log(f"Пресет '{name}' дублирован как '{new_name}'", "INFO")
                 self.preset_created.emit(new_name)
@@ -3039,6 +3054,10 @@ class Zapret2UserPresetsPage(BasePage):
             else:
                 manager = self._get_manager()
                 if manager.delete_preset(name):
+                    try:
+                        self._get_hierarchy_store().delete_preset_meta(name)
+                    except Exception:
+                        pass
                     deleted = True
 
             if deleted:

@@ -68,19 +68,28 @@ class PresetRepository:
                 return self._load_document(engine, manifest)
         return None
 
-    def create_preset(self, engine: str, name: str, source_text: str) -> PresetDocument:
+    def create_preset(
+        self,
+        engine: str,
+        name: str,
+        source_text: str,
+        *,
+        kind: str = "user",
+    ) -> PresetDocument:
         engine_paths = self._engine_paths(engine)
         manifests = self._load_index(engine)
         normalized_name = self._validate_new_name(manifests, name)
         created_at = _now_iso()
         preset_id = self._unique_id(manifests)
         file_name = self._unique_file_name(engine_paths.presets_dir, normalized_name)
+        normalized_kind = str(kind or "user").strip() or "user"
         manifest = PresetManifest(
             id=preset_id,
             name=normalized_name,
             file_name=file_name,
             created_at=created_at,
             updated_at=created_at,
+            kind=normalized_kind,
         )
         self._write_source(engine_paths.presets_dir / file_name, source_text)
         manifests.append(manifest)
@@ -167,7 +176,7 @@ class PresetRepository:
 
         requested_name = str(manifest_data.get("name") or "Imported").strip() or "Imported"
         unique_name = self._unique_name(engine, requested_name)
-        return self.create_preset(engine, unique_name, source_text)
+        return self.create_preset(engine, unique_name, source_text, kind="imported")
 
     def _engine_paths(self, engine: str):
         return self._paths.engine_paths(engine).ensure_directories()

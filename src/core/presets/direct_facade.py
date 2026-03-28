@@ -331,10 +331,63 @@ class DirectPresetFacade:
     def get_document(self, name: str) -> PresetDocument | None:
         return get_preset_repository().find_preset_by_name(self.engine, name)
 
+    def get_preset_origin(self, name: str) -> str:
+        document = self.get_document(name)
+        if document is not None:
+            kind = str(document.manifest.kind or "").strip().lower()
+            if kind in {"builtin", "imported", "user"}:
+                if kind == "builtin":
+                    return "builtin"
+                if kind == "imported":
+                    return "imported"
+                return "user"
+
+        if self.is_builtin_name(name):
+            return "builtin"
+        return "user"
+
+    def _hierarchy_scope_key(self) -> str:
+        if self.launch_method == "direct_zapret2":
+            return "preset_zapret2"
+        if self.launch_method == "direct_zapret1":
+            return "preset_zapret1"
+        raise ValueError(f"Unsupported launch method for preset hierarchy: {self.launch_method}")
+
+    def _get_hierarchy_store(self):
+        from .library_hierarchy import PresetHierarchyStore
+
+        return PresetHierarchyStore(self._hierarchy_scope_key())
+
+    def _rename_library_meta(self, old_name: str, new_name: str) -> None:
+        try:
+            self._get_hierarchy_store().rename_preset_meta(old_name, new_name)
+        except Exception:
+            pass
+
+    def _copy_library_meta(self, source_name: str, new_name: str) -> None:
+        try:
+            self._get_hierarchy_store().copy_preset_meta_to_new(source_name, new_name)
+        except Exception:
+            pass
+
+    def _delete_library_meta(self, preset_name: str) -> None:
+        try:
+            self._get_hierarchy_store().delete_preset_meta(preset_name)
+        except Exception:
+            pass
+
     def is_builtin_name(self, name: str) -> bool:
         candidate = str(name or "").strip()
         if not candidate:
             return False
+
+        document = self.get_document(candidate)
+        if document is not None:
+            kind = str(document.manifest.kind or "").strip().lower()
+            if kind == "builtin":
+                return True
+            if kind == "imported":
+                return False
 
         if self.launch_method == "direct_zapret2":
             from preset_zapret2.preset_defaults import get_template_canonical_name
@@ -402,6 +455,7 @@ class DirectPresetFacade:
             modified=datetime.now().isoformat(),
         )
         updated = get_preset_repository().update_preset(self.engine, renamed.manifest.id, rewritten, None)
+        self._rename_library_meta(old_name, updated.manifest.name)
 
         if was_selected:
             get_direct_flow_coordinator().refresh_selected_runtime(self.launch_method)
@@ -418,7 +472,9 @@ class DirectPresetFacade:
             created=now,
             modified=now,
         )
-        return get_preset_repository().create_preset(self.engine, new_name, rewritten)
+        duplicated = get_preset_repository().create_preset(self.engine, new_name, rewritten)
+        self._copy_library_meta(name, duplicated.manifest.name)
+        return duplicated
 
     def create(self, name: str, *, from_current: bool = True) -> PresetDocument:
         source_text = ""
@@ -441,33 +497,23 @@ class DirectPresetFacade:
         if not src.exists():
             raise ValueError(f"Import source not found: {src}")
         target_name = str(name or src.stem or "Imported").strip() or "Imported"
+        if self.is_builtin_name(target_name):
+            base_name = f"{target_name} (импорт)"
+            target_name = base_name
+            counter = 2
+            while self.exists(target_name) or self.is_builtin_name(target_name):
+                target_name = f"{base_name} {counter}"
+                counter += 1
         source_text = src.read_text(encoding="utf-8", errors="replace")
         rewritten = _rewrite_preset_headers(source_text, target_name)
-
-        if self.launch_method == "direct_zapret2":
-            from config import get_zapret_presets_v2_template_dir
-            from preset_zapret2.preset_defaults import unmark_preset_deleted
-
-            template_dir = Path(get_zapret_presets_v2_template_dir())
-            template_dir.mkdir(parents=True, exist_ok=True)
-            (template_dir / f"{target_name}.txt").write_text(rewritten, encoding="utf-8")
-            try:
-                unmark_preset_deleted(target_name)
-            except Exception:
-                pass
-        else:
-            from config import get_zapret_presets_v1_template_dir
-            from preset_zapret1.preset_defaults import unmark_preset_deleted_v1
-
-            template_dir = Path(get_zapret_presets_v1_template_dir())
-            template_dir.mkdir(parents=True, exist_ok=True)
-            (template_dir / f"{target_name}.txt").write_text(rewritten, encoding="utf-8")
-            try:
-                unmark_preset_deleted_v1(target_name)
-            except Exception:
-                pass
-
-        return get_preset_repository().create_preset(self.engine, target_name, rewritten)
+        imported = get_preset_repository().create_preset(
+            self.engine,
+            target_name,
+            rewritten,
+            kind="imported",
+        )
+        self._delete_library_meta(imported.manifest.name)
+        return imported
 
     def export_plain_text(self, name: str, dest_path: Path) -> Path:
         document = self.get_document(name)
@@ -533,6 +579,7 @@ class DirectPresetFacade:
             raise ValueError(f"Built-in preset cannot be deleted: {name}")
         get_selection_service().ensure_can_delete(self.engine, document.manifest.id)
         get_preset_repository().delete_preset(self.engine, document.manifest.id)
+        self._delete_library_meta(name)
 
     def get_strategy_selections(self) -> dict:
         if self.launch_method == "direct_zapret2":

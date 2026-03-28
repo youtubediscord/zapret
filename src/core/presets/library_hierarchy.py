@@ -333,6 +333,15 @@ class PresetHierarchyStore:
         copied["order"] = None
         self._set_preset_meta(new_name, copied)
 
+    def delete_preset_meta(self, preset_name: str) -> None:
+        self._ensure_loaded()
+        assert self._state is not None
+        key = str(preset_name or "").strip()
+        if not key:
+            return
+        if self._state["presets"].pop(key, None) is not None:
+            self._save()
+
     def toggle_preset_pin(self, preset_name: str) -> bool:
         meta = self.get_preset_meta(preset_name)
         next_value = not bool(meta.get("pinned", False))
