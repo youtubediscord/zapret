@@ -2042,8 +2042,22 @@ class Zapret1UserPresetsPage(BasePage):
         margins = self.layout.contentsMargins()
         return max(0, self.viewport().width() - margins.left() - margins.right())
 
+    def _visible_toolbar_buttons(self) -> list[QPushButton]:
+        buttons: list[QPushButton] = []
+        restore_deleted_btn = getattr(self, "_restore_deleted_btn", None)
+        for button in getattr(self, "_toolbar_buttons", []):
+            if button is None:
+                continue
+            # Most toolbar buttons are always available. Filtering via isHidden()
+            # is unreliable here because unparented Qt widgets report as hidden
+            # before the first layout pass, which made the whole toolbar collapse.
+            if button is restore_deleted_btn and restore_deleted_btn is not None and not restore_deleted_btn.isVisible():
+                continue
+            buttons.append(button)
+        return buttons
+
     def _compute_toolbar_rows(self, available_width: int) -> list[list[QPushButton]]:
-        buttons = [button for button in getattr(self, "_toolbar_buttons", []) if not button.isHidden()]
+        buttons = self._visible_toolbar_buttons()
         if not buttons:
             return []
 
