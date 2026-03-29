@@ -987,7 +987,7 @@ class MainWindowUI:
     def _on_z1_strategy_detail_selected(self, target_key: str, strategy_id: str) -> None:
         from log import log
         log(f"V1 strategy detail selected: {target_key} = {strategy_id}", "INFO")
-        # Обновить субтитры карточек на странице списка категорий
+        # Обновить подписи на странице списка target'ов
         page = getattr(self, "zapret1_strategies_page", None)
         if page and hasattr(page, "_refresh_subtitles"):
             from PyQt6.QtCore import QTimer

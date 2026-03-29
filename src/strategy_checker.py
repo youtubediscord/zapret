@@ -283,7 +283,7 @@ class StrategyChecker:
         
         details = info.get('details', {})
         
-        active_targets = details.get('active_targets') or details.get('active_categories') or []
+        active_targets = details.get('active_targets') or []
         if active_targets:
             lines.append(f"   Активные target'ы ({len(active_targets)}):")
             for target_name in active_targets:
@@ -374,7 +374,7 @@ def get_strategy_summary() -> str:
     info = checker.check_current_strategy()
     
     if info['type'] == 'combined':
-        active_count = len(info['details'].get('active_targets', []) or info['details'].get('active_categories', []))
+        active_count = len(info['details'].get('active_targets', []))
         return f"🔀 Комбинированная ({active_count} target'ов)"
     if info['type'] == 'preset':
         active_count = len(info['details'].get('active_targets', []))

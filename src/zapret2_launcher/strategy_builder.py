@@ -10,6 +10,10 @@ Full version WITH:
 
 This module is designed specifically for Zapret 2 (winws2.exe) and does NOT
 support Zapret 1 (winws.exe). For V1 compatibility, use strategy_lists_v1.py.
+
+Important:
+- direct_zapret2 now launches from the selected source preset via direct_preset_core;
+- this builder remains a legacy combiner for orchestra and other registry-driven flows.
 """
 
 import re
@@ -335,7 +339,7 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
     # Paths WITHOUT quotes - subprocess.Popen with list of args handles paths correctly
     LUA_INIT = f'--lua-init=@{lua_lib_path} --lua-init=@{lua_antidpi_path} --lua-init=@{lua_auto_path} --lua-init=@{custom_funcs_path} --lua-init=@{zapret_multishake_path}'
 
-    # Auto-detect required filters based on selected categories
+    # Auto-detect required filters based on selected targets from legacy registry flow
     filters = calculate_required_filters(target_strategies)
 
     # Build base arguments from auto-detected filters (V2 syntax)
@@ -355,12 +359,12 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
         is_orchestra,
     )
 
-    # ==================== COLLECT ACTIVE CATEGORIES ====================
+    # ==================== COLLECT ACTIVE TARGETS ====================
     target_keys_ordered = registry.get_all_target_keys_by_command_order()
     none_strategies = registry.get_none_strategies()
 
-    # Collect active categories with their arguments
-    active_categories = []  # [(target_key, args, target_info), ...]
+    # Collect active targets with their arguments
+    active_targets = []  # [(target_key, args, target_info), ...]
     descriptions = []
 
     for target_key in target_keys_ordered:
@@ -428,7 +432,7 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
 
                 args = " ".join(result_parts)
 
-            active_categories.append((target_key, args, target_info))
+            active_targets.append((target_key, args, target_info))
 
             # Add to description
             strategy_name = registry.get_strategy_name_safe(target_key, strategy_id)
@@ -436,31 +440,31 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
                 descriptions.append(f"{target_info.full_name}: {strategy_name}")
 
     # ==================== BUILD COMMAND LINE ====================
-    # Collect category arguments with --new separators
-    category_args_parts = []
+    # Collect target arguments with --new separators
+    target_args_parts = []
 
-    for i, (target_key, args, target_info) in enumerate(active_categories):
-        category_args_parts.append(args)
+    for i, (target_key, args, target_info) in enumerate(active_targets):
+        target_args_parts.append(args)
 
         # Add --new only if:
-        # 1. Category requires separator (needs_new_separator=True)
-        # 2. And this is NOT the last active category
-        is_last = (i == len(active_categories) - 1)
+        # 1. Target requires separator (needs_new_separator=True)
+        # 2. And this is NOT the last active target
+        is_last = (i == len(active_targets) - 1)
         if target_info and target_info.needs_new_separator and not is_last:
-            category_args_parts.append("--new")
+            target_args_parts.append("--new")
 
-    # ==================== БЛОБЫ И АРГУМЕНТЫ КАТЕГОРИЙ ====================
+    # ==================== БЛОБЫ И АРГУМЕНТЫ TARGET'ОВ ====================
     # Системные блобы захардкожены в HARDCODED_BLOBS
     # Пользовательские блобы загружаются динамически
-    # Из аргументов категорий удаляются дублирующиеся блобы
-    category_args_str = " ".join(category_args_parts)
+    # Из аргументов target'ов удаляются дублирующиеся блобы
+    target_args_str = " ".join(target_args_parts)
 
     # Извлекаем только пользовательские блобы (если есть)
     user_blobs = get_user_blobs_args()
 
-    # Удаляем дублирующиеся --blob=... из аргументов категорий,
+    # Удаляем дублирующиеся --blob=... из аргументов target'ов,
     # т.к. все системные блобы уже есть в HARDCODED_BLOBS
-    _, cleaned_category_args = extract_and_dedupe_blobs([category_args_str])
+    _, cleaned_target_args = extract_and_dedupe_blobs([target_args_str])
 
     # Build final command line
     args_parts = []
@@ -483,14 +487,14 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
         args_parts.append(f"--debug=@{log_path}")
         log(f"[V2] Debug log enabled: {log_path}", "INFO")
 
-    # Порядок: base_args → захардкоженные блобы → пользовательские блобы → аргументы категорий
+    # Порядок: base_args → захардкоженные блобы → пользовательские блобы → аргументы target'ов
     if base_args:
         args_parts.append(base_args)
     args_parts.append(HARDCODED_BLOBS)
     if user_blobs:
         args_parts.append(user_blobs)
-    if cleaned_category_args:
-        args_parts.append(cleaned_category_args)
+    if cleaned_target_args:
+        args_parts.append(cleaned_target_args)
 
     combined_args = " ".join(args_parts)
 
@@ -500,7 +504,7 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
     # ==================== FINALIZE ====================
     combined_description = " | ".join(descriptions) if descriptions else "Custom combination"
 
-    log(f"[V2] Created combined strategy: {len(combined_args)} chars, {len(active_categories)} categories, "
+    log(f"[V2] Created combined strategy: {len(combined_args)} chars, {len(active_targets)} targets, "
         f"orchestra={is_orchestra}", "DEBUG")
 
     return {
@@ -515,7 +519,7 @@ def combine_strategies_v2(is_orchestra: bool = False, **kwargs) -> dict:
         "_is_builtin": True,
         "_is_v2": True,
         "_is_orchestra": is_orchestra,
-        "_active_categories": len(active_categories),
+        "_active_targets": len(active_targets),
         **{f"_{key}_id": strategy_id for key, strategy_id in target_strategies.items()}
     }
 
@@ -531,7 +535,7 @@ def get_strategy_display_name(target_key: str, strategy_id: str) -> str:
 
 
 def get_active_targets_count(target_strategies: dict) -> int:
-    """Counts the number of active categories"""
+    """Counts the number of active targets in legacy registry flow."""
     none_strategies = registry.get_none_strategies()
     count = 0
 
@@ -556,16 +560,16 @@ def validate_target_strategies(target_strategies: dict) -> list:
         if strategy_id == "none":
             continue
 
-        # Check category exists
+        # Check target exists
         target_info = registry.get_target_info(target_key)
         if not target_info:
-            errors.append(f"Unknown category: {target_key}")
+            errors.append(f"Unknown target: {target_key}")
             continue
 
         # Check strategy exists
         args = registry.get_strategy_args_safe(target_key, strategy_id)
         if args is None:
-            errors.append(f"Strategy '{strategy_id}' not found in category '{target_key}'")
+            errors.append(f"Strategy '{strategy_id}' not found for target '{target_key}'")
 
     return errors
 

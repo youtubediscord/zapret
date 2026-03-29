@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout
 from ui.pages.base_page import BasePage
 from ui.compat_widgets import ActionButton, RefreshButton, SettingsCard
 from ui.text_catalog import tr as tr_catalog
-from ui.widgets import UnifiedStrategiesList
+from ui.widgets import PresetTargetsList
 from log import log
 
 try:
@@ -58,7 +58,7 @@ class Zapret1StrategiesPage(BasePage):
         self._build_scheduled = False
         self._breadcrumb = None
         self._back_btn = None
-        self._unified_list: UnifiedStrategiesList | None = None
+        self._targets_list: PresetTargetsList | None = None
         self.target_selections: dict[str, str] = {}
         self._targets: dict[str, Any] = {}
         self._expand_btn = None
@@ -152,6 +152,7 @@ class Zapret1StrategiesPage(BasePage):
         self._build_toolbar()
 
         self._targets = self._load_targets()
+        target_views = self._load_target_views()
         if not self._targets:
             self._empty_state_label = BodyLabel(
                 tr_catalog(
@@ -171,15 +172,16 @@ class Zapret1StrategiesPage(BasePage):
 
         filter_modes = self._load_filter_modes()
 
-        self._unified_list = UnifiedStrategiesList(self, strategy_name_resolver=self._strategy_name_for_list)
-        self._unified_list.strategy_selected.connect(self._on_target_clicked)
-        self._unified_list.selections_changed.connect(self._on_selections_changed)
-        self._unified_list.build_list(
-            self._targets,
-            self.target_selections,
+        self._targets_list = PresetTargetsList(self, strategy_name_resolver=self._strategy_name_for_list)
+        self._targets_list.strategy_selected.connect(self._on_target_clicked)
+        self._targets_list.selections_changed.connect(self._on_selections_changed)
+        self._targets_list.build_from_target_views(
+            target_views,
+            metadata=self._targets,
+            selections=self.target_selections,
             filter_modes=filter_modes,
         )
-        self.add_widget(self._unified_list, 1)
+        self.add_widget(self._targets_list, 1)
 
     def _build_toolbar(self) -> None:
         actions_card = SettingsCard()
@@ -235,11 +237,20 @@ class Zapret1StrategiesPage(BasePage):
     @staticmethod
     def _load_current_selections() -> dict[str, str]:
         try:
-            from strategy_menu import get_direct_strategy_selections
+            from core.presets.direct_facade import DirectPresetFacade
 
-            return get_direct_strategy_selections() or {}
+            return DirectPresetFacade.from_launch_method("direct_zapret1").get_strategy_selections() or {}
         except Exception:
             return {}
+
+    @staticmethod
+    def _load_target_views():
+        try:
+            from core.presets.direct_facade import DirectPresetFacade
+
+            return DirectPresetFacade.from_launch_method("direct_zapret1").list_target_views() or []
+        except Exception:
+            return []
 
     @staticmethod
     def _load_filter_modes() -> dict[str, str]:
@@ -325,7 +336,7 @@ class Zapret1StrategiesPage(BasePage):
         self.target_selections = dict(selections or {})
 
     def _refresh_subtitles(self) -> None:
-        if not self._unified_list:
+        if not self._targets_list:
             return
 
         self.target_selections = self._load_current_selections()
@@ -333,12 +344,12 @@ class Zapret1StrategiesPage(BasePage):
             key: self.target_selections.get(key, "none")
             for key in (self._targets or {}).keys()
         }
-        self._unified_list.set_selections(self.target_selections)
+        self._targets_list.set_selections(self.target_selections)
 
         filter_modes = self._load_filter_modes()
         for target_key in (self._targets or {}).keys():
             try:
-                self._unified_list.update_filter_mode(target_key, filter_modes.get(target_key) or "")
+                self._targets_list.update_filter_mode(target_key, filter_modes.get(target_key) or "")
             except Exception:
                 continue
 
@@ -347,19 +358,19 @@ class Zapret1StrategiesPage(BasePage):
             self._reload_btn.set_loading(True)
         try:
             self._built = False
-            self._unified_list = None
+            self._targets_list = None
             self._schedule_build()
         finally:
             if hasattr(self, "_reload_btn"):
                 self._reload_btn.set_loading(False)
 
     def _expand_all(self, *_args) -> None:
-        if self._unified_list:
-            self._unified_list.expand_all()
+        if self._targets_list:
+            self._targets_list.expand_all()
 
     def _collapse_all(self, *_args) -> None:
-        if self._unified_list:
-            self._unified_list.collapse_all()
+        if self._targets_list:
+            self._targets_list.collapse_all()
 
     def _show_info(self, *_args) -> None:
         if _HAS_FLUENT and MessageBox is not None:
@@ -399,12 +410,12 @@ class Zapret1StrategiesPage(BasePage):
 
     def reload_for_mode_change(self) -> None:
         self._built = False
-        self._unified_list = None
+        self._targets_list = None
         if self.isVisible():
             self._schedule_build()
 
     def update_current_strategy(self, name: str) -> None:
-        # Direct Z1 categories page does not show a separate current-strategy label,
+        # Direct Z1 target list page does not show a separate current-strategy label,
         # but MainWindow still calls this hook on all strategy pages.
         _ = name
 

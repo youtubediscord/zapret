@@ -105,7 +105,7 @@ class _ArgsEditorDialog(MessageBoxBase):  # type: ignore[misc, valid-type]
         hint = CaptionLabel(
             self._tr(
                 "page.z1_strategy_detail.args_dialog.hint",
-                "Один аргумент на строку. Изменяет только выбранную категорию.",
+                "Один аргумент на строку. Изменяет только выбранный target.",
             )
         )
         self.viewLayout.addWidget(hint)
@@ -167,10 +167,10 @@ class _ArgsEditorDialog(MessageBoxBase):  # type: ignore[misc, valid-type]
 
 
 class Zapret1StrategyDetailPage(BasePage):
-    """Страница выбора стратегии для одной категории Zapret 1."""
+    """Страница выбора стратегии для одного target'а Zapret 1."""
 
     strategy_selected = pyqtSignal(str, str)  # target_key, strategy_id
-    back_clicked = pyqtSignal()  # go to categories list
+    back_clicked = pyqtSignal()  # go to target list
     navigate_to_control = pyqtSignal()  # go to control page
 
     def __init__(self, parent=None):
@@ -179,7 +179,7 @@ class Zapret1StrategyDetailPage(BasePage):
 
         self._target_key: str = ""
         self._target_info: dict[str, Any] = {}
-        self._preset_manager = None
+        self._direct_facade = None
 
         self._strategies: dict[str, dict] = {}
         self._current_strategy_id: str = "none"
@@ -260,7 +260,7 @@ class Zapret1StrategyDetailPage(BasePage):
             header_layout.addWidget(self._breadcrumb)
 
         self._title_label = TitleLabel(
-            self._tr("page.z1_strategy_detail.header.category_fallback", "Категория")
+            self._tr("page.z1_strategy_detail.header.category_fallback", "Target")
         )
         header_layout.addWidget(self._title_label)
 
@@ -306,7 +306,7 @@ class Zapret1StrategyDetailPage(BasePage):
         state_row.setSpacing(8)
 
         state_label = BodyLabel(
-            self._tr("page.z1_strategy_detail.state.category_bypass", "Обход для категории")
+            self._tr("page.z1_strategy_detail.state.category_bypass", "Обход для target'а")
         )
         self._state_label = state_label
         state_row.addWidget(state_label)
@@ -451,7 +451,7 @@ class Zapret1StrategyDetailPage(BasePage):
         if self._breadcrumb is None:
             return
 
-        cat_name = self._target_info.get("full_name", self._target_key) if self._target_key else "Категория"
+        cat_name = self._target_info.get("full_name", self._target_key) if self._target_key else "Target"
         self._breadcrumb.blockSignals(True)
         try:
             self._breadcrumb.clear()
@@ -478,12 +478,12 @@ class Zapret1StrategyDetailPage(BasePage):
     # Public API
     # ------------------------------------------------------------------
 
-    def show_target(self, target_key: str, preset_manager) -> None:
+    def show_target(self, target_key: str, direct_facade) -> None:
         self._target_key = str(target_key or "").strip().lower()
-        self._preset_manager = preset_manager
+        self._direct_facade = direct_facade
         target_info = None
         try:
-            target_info = preset_manager.get_target_ui_item(self._target_key)
+            target_info = direct_facade.get_target_ui_item(self._target_key)
         except Exception:
             target_info = None
         self._target_info = self._normalize_target_info(target_key, target_info)
@@ -531,23 +531,23 @@ class Zapret1StrategyDetailPage(BasePage):
         }
 
     def _load_current_strategy_id(self) -> str:
-        if not self._preset_manager or not self._target_key:
+        if not self._direct_facade or not self._target_key:
             return "none"
         try:
             details = self._get_target_details(self._target_key)
             if details is not None:
                 return (str(details.current_strategy or "none").strip() or "none")
-            selections = self._preset_manager.get_strategy_selections() or {}
+            selections = self._direct_facade.get_strategy_selections() or {}
             return (selections.get(self._target_key) or "none").strip() or "none"
         except Exception:
             return "none"
 
     def _get_target_details(self, target_key: str | None = None):
         key = str(target_key or self._target_key or "").strip().lower()
-        if not key or not getattr(self, "_preset_manager", None):
+        if not key or not getattr(self, "_direct_facade", None):
             return None
         try:
-            return self._preset_manager.get_target_details(key)
+            return self._direct_facade.get_target_details(key)
         except Exception:
             return None
 
@@ -559,7 +559,7 @@ class Zapret1StrategyDetailPage(BasePage):
 
         self.show_loading()
         try:
-            self._strategies = self._preset_manager.get_target_strategies(self._target_key) or {}
+            self._strategies = self._direct_facade.get_target_strategies(self._target_key) or {}
             self._current_strategy_id = self._load_current_strategy_id()
             if self._current_strategy_id and self._current_strategy_id != "none":
                 self._last_enabled_strategy_id = self._current_strategy_id
@@ -609,7 +609,7 @@ class Zapret1StrategyDetailPage(BasePage):
                 args=[
                     self._tr(
                         "page.z1_strategy_detail.tree.disabled.args",
-                        "Отключить обход DPI для этой категории",
+                        "Отключить обход DPI для этого target'а",
                     )
                 ],
             )
@@ -753,21 +753,21 @@ class Zapret1StrategyDetailPage(BasePage):
                 self._filter_mode_selector.blockSignals(False)
 
     def _load_target_filter_mode(self, target_key: str) -> str:
-        if not self._preset_manager:
+        if not self._direct_facade:
             return "hostlist"
         try:
             details = self._get_target_details(target_key)
             if details is not None:
                 return str(details.filter_mode or "hostlist")
-            return self._preset_manager.get_target_filter_mode(target_key)
+            return self._direct_facade.get_target_filter_mode(target_key)
         except Exception:
             return "hostlist"
 
     def _on_filter_mode_changed(self, new_mode: str) -> None:
-        if not self._preset_manager or not self._target_key:
+        if not self._direct_facade or not self._target_key:
             return
         try:
-            ok = self._preset_manager.update_target_filter_mode(
+            ok = self._direct_facade.update_target_filter_mode(
                 self._target_key,
                 new_mode,
                 save_and_sync=True,
@@ -807,7 +807,7 @@ class Zapret1StrategyDetailPage(BasePage):
         return "none"
 
     def _on_enable_toggled(self, enabled: bool) -> None:
-        if not self._preset_manager or not self._target_key:
+        if not self._direct_facade or not self._target_key:
             return
 
         if enabled:
@@ -833,13 +833,13 @@ class Zapret1StrategyDetailPage(BasePage):
     # ------------------------------------------------------------------
 
     def _on_strategy_selected(self, strategy_id: str) -> None:
-        if not self._preset_manager or not self._target_key:
+        if not self._direct_facade or not self._target_key:
             return
 
         sid = (strategy_id or "none").strip() or "none"
         self.show_loading()
         try:
-            ok = self._preset_manager.set_strategy_selection(
+            ok = self._direct_facade.set_strategy_selection(
                 self._target_key,
                 sid,
                 save_and_sync=True,
@@ -911,10 +911,10 @@ class Zapret1StrategyDetailPage(BasePage):
         self._args_preview_label.setText(preview)
 
     def _get_current_args(self) -> str:
-        if not self._preset_manager or not self._target_key:
+        if not self._direct_facade or not self._target_key:
             return ""
         try:
-            return (self._preset_manager.get_target_raw_args_text(self._target_key) or "").strip()
+            return (self._direct_facade.get_target_raw_args_text(self._target_key) or "").strip()
         except Exception:
             return ""
 
@@ -933,18 +933,18 @@ class Zapret1StrategyDetailPage(BasePage):
             log(f"Zapret1StrategyDetailPage: args editor error: {e}", "ERROR")
 
     def _save_custom_args(self, args_text: str) -> None:
-        if not self._preset_manager or not self._target_key:
+        if not self._direct_facade or not self._target_key:
             return
 
         try:
-            if not self._preset_manager.update_target_raw_args_text(
+            if not self._direct_facade.update_target_raw_args_text(
                 self._target_key,
                 args_text,
                 save_and_sync=True,
             ):
                 return
             self._current_strategy_id = (
-                self._preset_manager.get_strategy_selections().get(self._target_key, "none") or "none"
+                self._direct_facade.get_strategy_selections().get(self._target_key, "none") or "none"
             )
             if self._current_strategy_id != "none":
                 self._last_enabled_strategy_id = self._current_strategy_id
@@ -967,7 +967,7 @@ class Zapret1StrategyDetailPage(BasePage):
                         title=self._tr("page.z1_strategy_detail.infobar.args_cleared.title", "Аргументы очищены"),
                         content=self._tr(
                             "page.z1_strategy_detail.infobar.args_cleared.content",
-                            "Категория возвращена в режим 'Выключено'",
+                            "Target возвращён в режим 'Выключено'",
                         ),
                         parent=self.window(),
                         duration=1800,
@@ -1033,12 +1033,12 @@ class Zapret1StrategyDetailPage(BasePage):
 
         if self._title_label is not None and not self._target_key:
             self._title_label.setText(
-                self._tr("page.z1_strategy_detail.header.category_fallback", "Категория")
+                self._tr("page.z1_strategy_detail.header.category_fallback", "Target")
             )
 
         if self._state_label is not None:
             self._state_label.setText(
-                self._tr("page.z1_strategy_detail.state.category_bypass", "Обход для категории")
+                self._tr("page.z1_strategy_detail.state.category_bypass", "Обход для target'а")
             )
 
         if self._enable_toggle is not None:

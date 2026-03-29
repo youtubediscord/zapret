@@ -158,7 +158,7 @@ class Zapret2DirectControlPage(BasePage):
         super().__init__(
             "Управление",
             "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги (как раньше .bat), "
-            "а при необходимости выполните тонкую настройку для каждой категории в разделе «Прямой запуск».",
+            "а при необходимости выполните тонкую настройку для каждого target'а в разделе «Прямой запуск».",
             parent,
             title_key="page.z2_control.title",
             subtitle_key="page.z2_control.subtitle",
@@ -675,16 +675,9 @@ class Zapret2DirectControlPage(BasePage):
         except Exception:
             pass
 
-        # Reload strategy catalogs for the selected set.
-        try:
-            from strategy_menu.strategies_registry import registry
-
-            registry.reload_strategies()
-        except Exception:
-            pass
-
-        # Re-save the selected source preset using the newly selected
-        # strategies catalog (basic vs default).
+        # Re-save the selected source preset through the new direct core,
+        # so strategy ids are reinterpreted against the currently selected
+        # basic/advanced catalogs without going through legacy registry reloads.
         try:
             from dpi.zapret2_core_restart import trigger_dpi_reload
             from core.presets.direct_facade import DirectPresetFacade
@@ -1013,34 +1006,59 @@ class Zapret2DirectControlPage(BasePage):
             method = get_strategy_launch_method()
             if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
                 show_filter_lists = True
-                from strategy_menu.direct_selection_store import get_direct_strategy_selections
-                from strategy_menu.strategies_registry import registry
-
-                selections = get_direct_strategy_selections() or {}
                 active_lists: list[str] = []
                 seen_lists: set[str] = set()
 
-                for cat_key in registry.get_all_target_keys_by_command_order():
-                    sid = selections.get(cat_key, "none") or "none"
-                    if sid == "none":
-                        continue
+                if method in ("direct_zapret2", "direct_zapret1"):
+                    from core.presets.direct_facade import DirectPresetFacade
 
-                    args = registry.get_strategy_args_safe(cat_key, sid) or ""
-                    for value in _HOSTLIST_DISPLAY_RE.findall(args):
-                        list_path = value.strip().strip('"').strip("'")
-                        if not list_path:
+                    facade = DirectPresetFacade.from_launch_method(method)
+                    source_text = facade.read_selected_source_text()
+                    for raw in str(source_text or "").splitlines():
+                        stripped = raw.strip()
+                        if not stripped or stripped.startswith("#"):
+                            continue
+                        for value in _HOSTLIST_DISPLAY_RE.findall(stripped):
+                            list_path = value.strip().strip('"').strip("'")
+                            if not list_path:
+                                continue
+
+                            normalized = list_path.replace("\\", "/")
+                            list_name = normalized.rsplit("/", 1)[-1]
+                            if not list_name:
+                                continue
+
+                            dedupe_key = list_name.lower()
+                            if dedupe_key in seen_lists:
+                                continue
+                            seen_lists.add(dedupe_key)
+                            active_lists.append(list_name)
+                else:
+                    from strategy_menu.legacy_selection_store import get_direct_strategy_selections
+                    from strategy_menu.strategies_registry import registry
+
+                    selections = get_direct_strategy_selections() or {}
+                    for target_key in registry.get_all_target_keys_by_command_order():
+                        sid = selections.get(target_key, "none") or "none"
+                        if sid == "none":
                             continue
 
-                        normalized = list_path.replace("\\", "/")
-                        list_name = normalized.rsplit("/", 1)[-1]
-                        if not list_name:
-                            continue
+                        args = registry.get_strategy_args_safe(target_key, sid) or ""
+                        for value in _HOSTLIST_DISPLAY_RE.findall(args):
+                            list_path = value.strip().strip('"').strip("'")
+                            if not list_path:
+                                continue
 
-                        dedupe_key = list_name.lower()
-                        if dedupe_key in seen_lists:
-                            continue
-                        seen_lists.add(dedupe_key)
-                        active_lists.append(list_name)
+                            normalized = list_path.replace("\\", "/")
+                            list_name = normalized.rsplit("/", 1)[-1]
+                            if not list_name:
+                                continue
+
+                            dedupe_key = list_name.lower()
+                            if dedupe_key in seen_lists:
+                                continue
+                            seen_lists.add(dedupe_key)
+                            active_lists.append(list_name)
 
                 if not active_lists:
                     name = tr_catalog("page.z2_control.preset.not_selected", language=self._ui_language, default="Не выбрана")

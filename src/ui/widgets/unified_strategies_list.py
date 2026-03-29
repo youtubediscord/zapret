@@ -1,8 +1,13 @@
 # ui/widgets/unified_strategies_list.py
 """
 Единый список direct-target'ов с группировкой и фильтрацией.
+
+Legacy note:
+- new direct_zapret1/direct_zapret2 pages use `PresetTargetsList`;
+- this widget remains mainly for orchestra / registry-driven list pages.
 """
 
+from types import SimpleNamespace
 from typing import Callable, Dict, Optional, Set
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtCore import pyqtSignal
@@ -100,6 +105,59 @@ class UnifiedStrategiesList(QWidget):
         self._content_layout.addStretch()
 
         layout.addWidget(self._content)
+
+    def _build_targets_from_views(self, target_views, metadata: Optional[Dict[str, object]] = None) -> Dict[str, object]:
+        """Build metadata-enriched target items from PresetTargetView[].
+
+        The list composition must come from the source preset itself.
+        Metadata is applied only to enrich UI labels, icons and grouping.
+        """
+        meta_map = metadata or {}
+        built_targets: Dict[str, object] = {}
+        fallback_order = 0
+
+        for view in target_views or []:
+            target_key = str(getattr(view, "target_key", "") or "").strip()
+            if not target_key:
+                continue
+
+            display_name = str(getattr(view, "display_name", "") or target_key).strip() or target_key
+            raw_meta = meta_map.get(target_key)
+            if raw_meta is None:
+                raw_meta = SimpleNamespace()
+
+            built_targets[target_key] = SimpleNamespace(
+                key=target_key,
+                full_name=str(getattr(raw_meta, "full_name", "") or display_name).strip() or display_name,
+                description=str(getattr(raw_meta, "description", "") or "").strip(),
+                tooltip=str(getattr(raw_meta, "tooltip", "") or "").strip(),
+                protocol=str(getattr(raw_meta, "protocol", "") or "").strip(),
+                ports=str(getattr(raw_meta, "ports", "") or "").strip(),
+                order=int(getattr(raw_meta, "order", fallback_order) or fallback_order),
+                command_order=int(getattr(raw_meta, "command_order", fallback_order) or fallback_order),
+                command_group=str(getattr(raw_meta, "command_group", "default") or "default").strip() or "default",
+                icon_name=getattr(raw_meta, "icon_name", None),
+                icon_color=str(getattr(raw_meta, "icon_color", "#2196F3") or "#2196F3"),
+                base_filter=str(getattr(raw_meta, "base_filter", "") or "").strip(),
+                base_filter_hostlist=str(getattr(raw_meta, "base_filter_hostlist", "") or "").strip(),
+                base_filter_ipset=str(getattr(raw_meta, "base_filter_ipset", "") or "").strip(),
+                strategy_type=str(getattr(raw_meta, "strategy_type", "tcp") or "tcp").strip() or "tcp",
+                requires_all_ports=bool(getattr(raw_meta, "requires_all_ports", False)),
+            )
+            fallback_order += 1
+
+        return built_targets
+
+    def build_from_target_views(
+        self,
+        target_views,
+        metadata: Optional[Dict[str, object]] = None,
+        selections: Optional[Dict[str, str]] = None,
+        filter_modes: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """Build the direct list from PresetTargetView[] plus optional metadata."""
+        targets = self._build_targets_from_views(target_views, metadata)
+        self.build_list(targets, selections=selections, filter_modes=filter_modes)
 
     def build_list(
         self,

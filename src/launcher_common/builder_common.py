@@ -1,7 +1,12 @@
 # launcher_common/builder_common.py
 
 """
-Common utilities for strategy lists - shared between V1 and V2.
+Common utilities for legacy strategy combiners shared between V1 and V2.
+
+Important:
+- direct_zapret1/direct_zapret2 no longer build launch args from registry selections;
+- those modes launch from the selected source preset via direct_preset_core;
+- this module remains relevant only for legacy combiners such as orchestra/non-direct flows.
 """
 
 import re
@@ -23,9 +28,9 @@ def _is_direct_source_preset_launch() -> bool:
 
 def calculate_required_filters(target_strategies: dict) -> dict:
     """
-    Автоматически вычисляет нужные фильтры портов на основе выбранных категорий.
+    Автоматически вычисляет нужные фильтры портов на основе выбранных target'ов.
 
-    Использует filters_config.py для определения какие фильтры нужны.
+    Используется legacy builder-слоем, который всё ещё работает через registry metadata.
 
     Args:
         target_strategies: dict {target_key: strategy_id}
@@ -41,14 +46,14 @@ def calculate_required_filters(target_strategies: dict) -> dict:
     none_strategies = registry.get_none_strategies()
 
     for target_key, strategy_id in target_strategies.items():
-        # Пропускаем неактивные категории
+        # Пропускаем неактивные target'ы
         if not strategy_id:
             continue
         none_id = none_strategies.get(target_key)
         if strategy_id == none_id or strategy_id == "none":
             continue
 
-        # Получаем информацию о категории
+        # Получаем metadata target'а из legacy registry
         target_info = registry.get_target_info(target_key)
         if not target_info:
             continue
@@ -124,7 +129,7 @@ def get_strategy_display_name(target_key: str, strategy_id: str) -> str:
 
 
 def get_active_targets_count(target_strategies: dict) -> int:
-    """Подсчитывает количество активных категорий"""
+    """Подсчитывает количество активных target'ов в legacy registry flow."""
     none_strategies = registry.get_none_strategies()
     count = 0
 
@@ -149,15 +154,15 @@ def validate_target_strategies(target_strategies: dict) -> list:
         if strategy_id == "none":
             continue
 
-        # Проверяем существование категории
+        # Проверяем существование target'а
         target_info = registry.get_target_info(target_key)
         if not target_info:
-            errors.append(f"Неизвестная категория: {target_key}")
+            errors.append(f"Неизвестный target: {target_key}")
             continue
 
         # Проверяем существование стратегии
         args = registry.get_strategy_args_safe(target_key, strategy_id)
         if args is None:
-            errors.append(f"Стратегия '{strategy_id}' не найдена в категории '{target_key}'")
+            errors.append(f"Стратегия '{strategy_id}' не найдена для target '{target_key}'")
 
     return errors

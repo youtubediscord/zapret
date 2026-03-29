@@ -120,23 +120,29 @@ class InitializationManager:
     def _init_strategy_cache(self):
         """Прогрев кэша стратегий для быстрого открытия вкладок"""
         try:
-            from strategy_menu import get_direct_strategy_selections
             from strategy_menu.strategies_registry import registry
             from strategy_menu import get_strategy_launch_method
 
             # Прогреваем кэш отсортированных ключей
             registry.get_all_target_keys_sorted()
 
-            # Прогреваем кэш выборов стратегий
-            get_direct_strategy_selections()
+            method = get_strategy_launch_method()
+
+            # Прогреваем кэш выборов/source preset для текущего режима.
+            if method in ("direct_zapret1", "direct_zapret2"):
+                from core.presets.direct_facade import DirectPresetFacade
+
+                DirectPresetFacade.from_launch_method(method).get_strategy_selections()
+            else:
+                from strategy_menu import get_direct_strategy_selections
+
+                get_direct_strategy_selections()
 
             log("Кэш стратегий прогрет", "DEBUG")
 
             # ✅ Важно для direct_zapret2: обновить отображение текущей стратегии на старте.
             # Иначе на главной/управлении может остаться "Не выбрана" до первого клика в стратегиях.
             try:
-                method = get_strategy_launch_method()
-
                 # Убедимся, что выбранные source-пресеты подготовлены до расчёта summary.
                 if method == "direct_zapret2":
                     from core.services import get_direct_flow_coordinator
@@ -347,27 +353,28 @@ class InitializationManager:
 
     def _on_start_clicked(self):
         """Обработчик нажатия кнопки запуска с проверкой выбранной стратегии"""
-        from strategy_menu import get_strategy_launch_method, get_direct_strategy_selections
+        from strategy_menu import get_strategy_launch_method
 
         launch_method = get_strategy_launch_method()
 
-        # Для режимов direct/direct_zapret2_orchestra проверяем выбранные категории
-        if launch_method in ("direct_zapret2", "direct_zapret2_orchestra"):
-            selections = get_direct_strategy_selections()
-            # Проверяем есть ли хотя бы одна категория не равная 'none'
-            has_any = any(v and v != 'none' for v in selections.values())
-            if not has_any:
-                # Нет выбранных стратегий: остаёмся на текущей странице и показываем предупреждение.
+        # Для новых direct режимов проверяем сам source preset, а не legacy selections dict.
+        if launch_method in ("direct_zapret2", "direct_zapret1"):
+            from core.services import get_direct_flow_coordinator
+
+            try:
+                get_direct_flow_coordinator().ensure_launch_profile(launch_method, require_filters=True)
+            except Exception:
                 self._show_strategy_required_warning(for_bat=False)
                 self.app.set_status("⚠️ Выберите стратегию для запуска")
                 return
 
-        # Для direct_zapret1 проверяем наличие выбранного source-пресета
-        elif launch_method == "direct_zapret1":
-            from core.services import get_direct_flow_coordinator
-            try:
-                get_direct_flow_coordinator().ensure_selected_source_path("direct_zapret1")
-            except Exception:
+        # Для orchestra direct-режима пока остаётся legacy selections path.
+        elif launch_method == "direct_zapret2_orchestra":
+            from strategy_menu import get_direct_strategy_selections
+
+            selections = get_direct_strategy_selections()
+            has_any = any(v and v != 'none' for v in selections.values())
+            if not has_any:
                 self._show_strategy_required_warning(for_bat=False)
                 self.app.set_status("⚠️ Выберите стратегию для запуска")
                 return

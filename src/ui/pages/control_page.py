@@ -708,38 +708,34 @@ class ControlPage(BasePage):
     def update_strategy(self, name: str):
         """Обновляет отображение текущей стратегии"""
         self._update_stop_winws_button_text()
-        # Direct modes: show summary of active categories (top-2 + +N ещё).
+        # Direct modes: show summary of active target'ов from the selected source preset.
         try:
             from strategy_menu import get_strategy_launch_method
 
             method = get_strategy_launch_method()
             if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
-                from strategy_menu import get_direct_strategy_selections
-                from strategy_menu.strategies_registry import registry
+                from ui.main_window_display import get_direct_strategy_summary
 
-                selections = get_direct_strategy_selections() or {}
-                active_names: list[str] = []
-                for cat_key in registry.get_all_target_keys_by_command_order():
-                    sid = selections.get(cat_key, "none") or "none"
-                    if sid == "none":
-                        continue
-                    info = registry.get_target_info(cat_key)
-                    active_names.append(getattr(info, "full_name", None) or cat_key)
+                summary = get_direct_strategy_summary(self.window() or self, max_items=2)
+                name = summary or tr_catalog(
+                    "page.control.strategy.not_selected",
+                    language=self._ui_language,
+                    default="Не выбрана",
+                )
 
-                if not active_names:
-                    name = tr_catalog("page.control.strategy.not_selected", language=self._ui_language, default="Не выбрана")
-                    set_tooltip(self.strategy_label, "")
+                if method in ("direct_zapret2", "direct_zapret1"):
+                    from core.presets.direct_facade import DirectPresetFacade
+
+                    selections = DirectPresetFacade.from_launch_method(method).get_strategy_selections() or {}
                 else:
-                    if len(active_names) <= 2:
-                        name = " • ".join(active_names)
-                    else:
-                        more_template = tr_catalog(
-                            "page.control.strategy.more_template",
-                            language=self._ui_language,
-                            default="+{count} ещё",
-                        )
-                        name = " • ".join(active_names[:2]) + " " + more_template.format(count=len(active_names) - 2)
-                    set_tooltip(self.strategy_label, "\n".join(active_names))
+                    from strategy_menu import get_direct_strategy_selections
+
+                    selections = get_direct_strategy_selections() or {}
+                active_count = sum(1 for strategy_id in selections.values() if (strategy_id or "none") != "none")
+                if active_count > 0:
+                    set_tooltip(self.strategy_label, summary.replace(" • ", "\n").replace(" +", "\n+"))
+                else:
+                    set_tooltip(self.strategy_label, "")
         except Exception:
             pass
 

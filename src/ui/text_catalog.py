@@ -372,8 +372,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Strategy arguments",
     },
     "page.z1_strategy_detail.args_dialog.hint": {
-        "ru": "Один аргумент на строку. Изменяет только выбранную категорию.",
-        "en": "One argument per line. Changes only the selected category.",
+        "ru": "Один аргумент на строку. Изменяет только выбранный target.",
+        "en": "One argument per line. Changes only the selected target.",
     },
     "page.z1_strategy_detail.args_dialog.placeholder": {
         "ru": "Например:\n--dpi-desync=multisplit\n--dpi-desync-split-pos=1",
@@ -388,8 +388,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Cancel",
     },
     "page.z1_strategy_detail.header.category_fallback": {
-        "ru": "Категория",
-        "en": "Category",
+        "ru": "Target",
+        "en": "Target",
     },
     "page.z1_strategy_detail.back.strategies": {
         "ru": "← Стратегии Zapret 1",
@@ -404,8 +404,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Zapret 1 Direct",
     },
     "page.z1_strategy_detail.state.category_bypass": {
-        "ru": "Обход для категории",
-        "en": "Bypass for category",
+        "ru": "Обход для target'а",
+        "en": "Bypass for target",
     },
     "page.z1_strategy_detail.toggle.on": {
         "ru": "Включено",
@@ -468,8 +468,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Disabled",
     },
     "page.z1_strategy_detail.tree.disabled.args": {
-        "ru": "Отключить обход DPI для этой категории",
-        "en": "Disable DPI bypass for this category",
+        "ru": "Отключить обход DPI для этого target'а",
+        "en": "Disable DPI bypass for this target",
     },
     "page.z1_strategy_detail.tree.custom.name": {
         "ru": "Свой набор",
@@ -512,8 +512,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Arguments cleared",
     },
     "page.z1_strategy_detail.infobar.args_cleared.content": {
-        "ru": "Категория возвращена в режим 'Выключено'",
-        "en": "Category returned to 'Disabled' mode",
+        "ru": "Target возвращён в режим 'Выключено'",
+        "en": "Target returned to 'Disabled' mode",
     },
     "page.orchestra.title": {
         "ru": "Оркестратор",
@@ -4760,8 +4760,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Strategy arguments",
     },
     "page.z2_strategy_detail.args_dialog.hint": {
-        "ru": "Один аргумент на строку. Изменяет только выбранную категорию.",
-        "en": "One argument per line. Applies to the selected category only.",
+        "ru": "Один аргумент на строку. Изменяет только выбранный target.",
+        "en": "One argument per line. Applies only to the selected target.",
     },
     "page.z2_strategy_detail.args_dialog.hint.short": {
         "ru": "Один аргумент на строку.",
@@ -4824,12 +4824,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "DPI strategies",
     },
     "page.z2_strategy_detail.header.category_fallback": {
-        "ru": "Категория",
-        "en": "Category",
+        "ru": "Target",
+        "en": "Target",
     },
     "page.z2_strategy_detail.header.select_category": {
-        "ru": "Выберите категорию",
-        "en": "Select a category",
+        "ru": "Выберите target",
+        "en": "Select a target",
     },
     "page.z2_strategy_detail.back.strategies": {
         "ru": "Стратегии DPI",
@@ -4840,8 +4840,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Enable bypass",
     },
     "page.z2_strategy_detail.toggle.enable.description": {
-        "ru": "Активировать DPI-обход для этой категории",
-        "en": "Enable DPI bypass for this category",
+        "ru": "Активировать DPI-обход для этого target'а",
+        "en": "Enable DPI bypass for this target",
     },
     "page.z2_strategy_detail.filter_mode.title": {
         "ru": "Режим фильтрации",
@@ -4904,8 +4904,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "All techniques",
     },
     "page.z2_strategy_detail.args.tooltip": {
-        "ru": "Аргументы стратегии (по выбранной категории)",
-        "en": "Strategy arguments (for selected category)",
+        "ru": "Аргументы стратегии для выбранного target'а",
+        "en": "Strategy arguments for the selected target",
     },
     "page.z2_strategy_detail.subtitle.ports": {
         "ru": "порты: {ports}",
@@ -4940,8 +4940,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "No strategies",
     },
     "page.z2_strategy_detail.infobar.no_strategies.content": {
-        "ru": "Для категории '{category}' не найдено стратегий.",
-        "en": "No strategies found for category '{category}'.",
+        "ru": "Для target'а '{category}' не найдено стратегий.",
+        "en": "No strategies found for target '{category}'.",
     },
     "page.z2_strategy_detail.infobar.preset.exists.title": {
         "ru": "Уже существует",
@@ -5572,8 +5572,8 @@ TEXTS_EXTRA: dict[str, dict[str, str]] = {
         "en": "{count} active",
     },
     "page.z2_direct.info.body": {
-        "ru": "Здесь Вы можете ТОНКО изменить стратегию для каждой категории. Всего существует несколько фаз дурения (send, syndata, fake, multisplit и т.д.). Последовательность сама определяется программой.\n\nВы можете писать свои пресеты ручками через txt файл или выбирать готовые стратегии в этом меню. Каждая стратегия — это всего лишь набор аргументов, то есть техник (дурения или фуллинга) для того чтобы изменить содержимое пакетов по модели TCP/IP, которое отправляет Ваше устройство. Чтобы алгоритмы ТСПУ провайдера сбились и не заметили (или пропустили) запрещённый контент.",
-        "en": "Here you can finely tune the strategy for each category. There are several obfuscation phases (send, syndata, fake, multisplit, etc.). Their sequence is determined by the app.\n\nYou can write presets manually in a txt file or choose ready-made strategies in this menu. Each strategy is just a set of arguments, i.e. packet manipulation techniques used to alter TCP/IP traffic sent by your device. This helps confuse provider TSPU algorithms so they do not detect (or let through) restricted content.",
+        "ru": "Здесь Вы можете тонко изменить стратегию для каждого target'а, который найден в выбранном source preset. Всего существует несколько фаз дурения (send, syndata, fake, multisplit и т.д.). Последовательность сама определяется программой.\n\nВы можете править пресет вручную через txt-файл или выбирать готовые стратегии в этом меню. Каждая стратегия — это набор аргументов, то есть техник дурения или фуллинга, которые меняют содержимое пакетов по модели TCP/IP, отправляемых вашим устройством. Это помогает сбить алгоритмы ТСПУ провайдера, чтобы они не заметили или пропустили запрещённый контент.",
+        "en": "Here you can finely tune the strategy for each target found in the selected source preset. There are several obfuscation phases (send, syndata, fake, multisplit, etc.). Their sequence is determined by the app.\n\nYou can edit the preset manually in a txt file or choose ready-made strategies in this menu. Each strategy is a set of arguments, i.e. packet manipulation techniques used to alter TCP/IP traffic sent by your device. This helps confuse provider TSPU algorithms so they do not detect or block restricted content.",
     },
 }
 

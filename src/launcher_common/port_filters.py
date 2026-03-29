@@ -1,11 +1,11 @@
 # launcher_common/port_filters.py
 """
-Конфигурация фильтров портов и их связь с категориями.
+Конфигурация фильтров портов и их связь с target'ами legacy registry-слоя.
 
 Этот модуль определяет:
 - Какие фильтры доступны (TCP 80, TCP 443, UDP 443 и т.д.)
-- Какие категории требуют какие фильтры
-- Функции для управления фильтрами и категориями
+- Какие target'ы требуют какие фильтры
+- Функции для управления фильтрами и target'ами
 """
 
 from typing import Dict, List, Set
@@ -126,7 +126,7 @@ FILTERS = {
 
 def get_filter_for_target(target_info) -> Set[str]:
     """
-    Определяет какие фильтры нужны для данной категории.
+    Определяет какие фильтры нужны для данного target'а.
 
     Args:
         target_info: TargetInfo объект с полями protocol, ports, strategy_type, requires_all_ports
@@ -152,12 +152,12 @@ def get_filter_for_target(target_info) -> Set[str]:
         required_filters.add('raw_wireguard')
         return required_filters
 
-    # === HTTP80 категории ===
+    # === HTTP80 target'ы ===
     if strategy_type == "http80":
         required_filters.add('tcp_80')
         return required_filters
 
-    # === WARP категории (TCP 443, 853) ===
+    # === WARP target'ы (TCP 443, 853) ===
     is_warp = "warp" in target_key.lower() or strategy_type == "warp"
     if is_warp and "TCP" in protocol:
         required_filters.add('tcp_warp')
@@ -196,13 +196,13 @@ def get_filter_for_target(target_info) -> Set[str]:
 
 def get_targets_for_filter(filter_key: str) -> List[str]:
     """
-    Возвращает список категорий, которые требуют данный фильтр.
+    Возвращает список target'ов, которые требуют данный фильтр.
 
     Args:
         filter_key: Ключ фильтра (например 'tcp_443')
 
     Returns:
-        List[str] - список ключей категорий
+        List[str] - список ключей target'ов
     """
     from strategy_menu.strategies_registry import registry
 
@@ -214,14 +214,14 @@ def get_targets_for_filter(filter_key: str) -> List[str]:
         if target_info:
             required_filters = get_filter_for_target(target_info)
             if filter_key in required_filters:
-                categories.append(target_key)
+                targets.append(target_key)
 
-    return categories
+    return targets
 
 
 def build_filter_to_targets_map() -> Dict[str, List[str]]:
     """
-    Строит полный маппинг: фильтр → список категорий.
+    Строит полный маппинг: фильтр → список target'ов.
 
     Returns:
         Dict[str, List[str]] - {filter_key: [target_key, ...]}
@@ -244,12 +244,12 @@ def build_filter_to_targets_map() -> Dict[str, List[str]]:
 
 def build_target_to_filters_map() -> Dict[str, Set[str]]:
     """
-    Строит полный маппинг: категория → набор фильтров.
+    Строит полный маппинг: target → набор фильтров.
 
     Returns:
         Dict[str, Set[str]] - {target_key: {filter_key, ...}}
     """
-    category_map = {}
+    target_map = {}
 
     from strategy_menu.strategies_registry import registry
     all_target_keys = registry.get_all_target_keys()
@@ -257,22 +257,22 @@ def build_target_to_filters_map() -> Dict[str, Set[str]]:
     for target_key in all_target_keys:
         target_info = registry.get_target_info(target_key)
         if target_info:
-            category_map[target_key] = get_filter_for_target(target_info)
+            target_map[target_key] = get_filter_for_target(target_info)
         else:
-            category_map[target_key] = set()
+            target_map[target_key] = set()
 
-    return category_map
+    return target_map
 
 
 def log_filter_category_map():
-    """Выводит в лог полный маппинг фильтров и категорий (для отладки)."""
+    """Выводит в лог полный маппинг фильтров и target'ов (для отладки)."""
     filter_map = build_filter_to_targets_map()
 
-    log("=== МАППИНГ ФИЛЬТРОВ → КАТЕГОРИИ ===", "DEBUG")
+    log("=== МАППИНГ ФИЛЬТРОВ → TARGET'Ы ===", "DEBUG")
     for filter_key, targets in filter_map.items():
         filter_info = FILTERS.get(filter_key, {})
         filter_name = filter_info.get('name', filter_key)
-        if categories:
-            log(f"  {filter_name}: {', '.join(categories)}", "DEBUG")
+        if targets:
+            log(f"  {filter_name}: {', '.join(targets)}", "DEBUG")
         else:
-            log(f"  {filter_name}: (нет категорий)", "DEBUG")
+            log(f"  {filter_name}: (нет target'ов)", "DEBUG")

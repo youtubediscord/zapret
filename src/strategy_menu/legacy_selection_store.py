@@ -1,29 +1,43 @@
 from __future__ import annotations
 
+"""Legacy selections store.
+
+Important:
+- direct_zapret1/direct_zapret2 should read/write selections through DirectPresetFacade;
+- this module remains only for orchestra and registry-driven legacy flows;
+- the old `direct_selection_store.py` name is intentionally retired so the new
+  direct source-preset path does not keep looking like a selections-dict system.
+"""
+
 from log import log
+
 from .launch_method_store import get_strategy_launch_method
 
-_direct_selections_cache = None
-_direct_selections_cache_time = 0
-_direct_selections_cache_method = None
-_direct_selections_cache_preset_mtime = None
-DIRECT_SELECTIONS_CACHE_TTL = 5.0
+_legacy_selections_cache = None
+_legacy_selections_cache_time = 0
+_legacy_selections_cache_method = None
+_legacy_selections_cache_preset_mtime = None
+LEGACY_SELECTIONS_CACHE_TTL = 5.0
 
 
 def invalidate_direct_selections_cache():
-    """Сбрасывает кэш выборов стратегий."""
-    global _direct_selections_cache_time, _direct_selections_cache_method, _direct_selections_cache_preset_mtime
-    _direct_selections_cache_time = 0
-    _direct_selections_cache_method = None
-    _direct_selections_cache_preset_mtime = None
+    """Сбрасывает кэш legacy-выборов стратегий."""
+    global _legacy_selections_cache_time, _legacy_selections_cache_method, _legacy_selections_cache_preset_mtime
+    _legacy_selections_cache_time = 0
+    _legacy_selections_cache_method = None
+    _legacy_selections_cache_preset_mtime = None
 
 
 def get_direct_strategy_selections() -> dict:
-    """
-    Возвращает сохраненные выборы стратегий для прямого запуска.
+    """Возвращает сохранённые выборы стратегий.
+
+    Для direct_zapret1/direct_zapret2 использует новый DirectPresetFacade.
+    Для orchestra/legacy режимов остаётся selections-dict path.
     """
     import time
-    global _direct_selections_cache, _direct_selections_cache_time, _direct_selections_cache_preset_mtime, _direct_selections_cache_method
+
+    global _legacy_selections_cache
+    global _legacy_selections_cache_time, _legacy_selections_cache_preset_mtime, _legacy_selections_cache_method
 
     method = get_strategy_launch_method()
 
@@ -47,12 +61,12 @@ def get_direct_strategy_selections() -> dict:
 
     current_time = time.time()
     if (
-        _direct_selections_cache is not None
-        and current_time - _direct_selections_cache_time < DIRECT_SELECTIONS_CACHE_TTL
-        and _direct_selections_cache_method == method
-        and _direct_selections_cache_preset_mtime == cache_mtime
+        _legacy_selections_cache is not None
+        and current_time - _legacy_selections_cache_time < LEGACY_SELECTIONS_CACHE_TTL
+        and _legacy_selections_cache_method == method
+        and _legacy_selections_cache_preset_mtime == cache_mtime
     ):
-        return _direct_selections_cache.copy()
+        return _legacy_selections_cache.copy()
 
     try:
         selections: dict[str, str] = {}
@@ -105,23 +119,25 @@ def get_direct_strategy_selections() -> dict:
                 else:
                     selections[key] = default_value
 
-        _direct_selections_cache = selections
-        _direct_selections_cache_time = current_time
-        _direct_selections_cache_method = method
-        _direct_selections_cache_preset_mtime = cache_mtime
+        _legacy_selections_cache = selections
+        _legacy_selections_cache_time = current_time
+        _legacy_selections_cache_method = method
+        _legacy_selections_cache_preset_mtime = cache_mtime
         return selections
     except Exception as e:
         log(f"Ошибка загрузки выборов стратегий: {e}", "❌ ERROR")
         import traceback
+
         log(traceback.format_exc(), "DEBUG")
         if method in ("direct_zapret1", "direct_zapret2"):
             return {}
         from .strategies_registry import registry
+
         return registry.get_default_selections()
 
 
 def set_direct_strategy_selections(selections: dict) -> bool:
-    """Сохраняет выборы стратегий для прямого запуска."""
+    """Сохраняет выборы стратегий."""
     try:
         method = get_strategy_launch_method()
         if method == "direct_zapret2":
@@ -176,7 +192,7 @@ def set_direct_strategy_selections(selections: dict) -> bool:
 
 
 def get_direct_strategy_for_target(target_key: str) -> str:
-    """Получает выбранную стратегию для конкретного target."""
+    """Получает выбранную стратегию для конкретного target'а."""
     method = get_strategy_launch_method()
     if method in ("direct_zapret2", "direct_zapret1", "direct_zapret2_orchestra"):
         selections = get_direct_strategy_selections()
@@ -191,7 +207,7 @@ def get_direct_strategy_for_target(target_key: str) -> str:
 
 
 def set_direct_strategy_for_target(target_key: str, strategy_id: str) -> bool:
-    """Сохраняет выбранную стратегию для target."""
+    """Сохраняет выбранную стратегию для target'а."""
     method = get_strategy_launch_method()
 
     if method == "direct_zapret2":

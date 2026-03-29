@@ -1,7 +1,11 @@
 # strategy_menu/__init__.py
 """
 Модуль управления стратегиями DPI-обхода.
-Предоставляет единый фасад над strategy stores, launcher glue и реестром стратегий.
+
+Важно:
+- для direct_zapret1/direct_zapret2 источник истины теперь selected source preset;
+- registry и legacy launcher helpers по-прежнему нужны для orchestra и старых registry-driven сценариев;
+- этот модуль остаётся общим фасадом приложения, но не должен считаться ядром нового direct flow.
 """
 
 from log import log
@@ -35,7 +39,7 @@ from .marks_store_bridge import (
     toggle_strategy_rating,
     clear_all_strategy_ratings,
 )
-from .direct_selection_store import (
+from .legacy_selection_store import (
     get_direct_strategy_selections,
     set_direct_strategy_selections,
     get_direct_strategy_for_target,
@@ -80,9 +84,10 @@ def clear_direct_zapret2_orchestra_strategies() -> bool:
         return False
 
 
-# ==================== НАСТРОЙКИ ПРЯМОГО РЕЖИМА ====================
+# ==================== НАСТРОЙКИ DIRECT SOURCE PRESET ====================
 
 def _get_direct_preset_facade():
+    """Возвращает фасад нового direct preset core для direct_zapret1/direct_zapret2."""
     try:
         method = (get_strategy_launch_method() or "").strip().lower()
         if method in ("direct_zapret2", "direct_zapret1"):
@@ -165,19 +170,6 @@ def get_debug_log_file() -> str:
     return ""
 
 
-# ==================== RE-EXPORTS ====================
-
-from launcher_common import (  # noqa: E402
-    get_strategy_runner,
-    reset_strategy_runner,
-    invalidate_strategy_runner,
-    get_current_runner,
-    combine_strategies,
-    calculate_required_filters,
-    apply_all_filters,
-)
-
-
 __all__ = [
     # Реестр стратегий
     "registry",
@@ -223,8 +215,8 @@ __all__ = [
     # Direct selections
     "get_direct_strategy_selections",
     "set_direct_strategy_selections",
-    "get_direct_strategy_for_category",
-    "set_direct_strategy_for_category",
+    "get_direct_strategy_for_target",
+    "set_direct_strategy_for_target",
     "invalidate_direct_selections_cache",
 
     # Direct/orchestra helpers
@@ -234,13 +226,4 @@ __all__ = [
     "get_debug_log_enabled",
     "get_debug_log_file",
     "set_debug_log_enabled",
-
-    # Launcher facade
-    "get_strategy_runner",
-    "reset_strategy_runner",
-    "invalidate_strategy_runner",
-    "get_current_runner",
-    "combine_strategies",
-    "calculate_required_filters",
-    "apply_all_filters",
 ]

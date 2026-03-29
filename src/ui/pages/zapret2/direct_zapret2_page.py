@@ -13,7 +13,7 @@ import qtawesome as qta
 
 from ui.pages.base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton, RefreshButton
-from ui.widgets import UnifiedStrategiesList
+from ui.widgets import PresetTargetsList
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
 from log import log
@@ -85,7 +85,7 @@ class Zapret2StrategiesPageNew(BasePage):
                 pass
 
         self.target_selections = {}
-        self._unified_list = None
+        self._targets_list = None
         self._built = False
         self._build_scheduled = False
         self._strategy_set_snapshot = None
@@ -169,14 +169,13 @@ class Zapret2StrategiesPageNew(BasePage):
             if self._built:
                 return
 
-            from strategy_menu.direct_selection_store import get_direct_strategy_selections
             from core.presets.direct_facade import DirectPresetFacade
 
-            # Загружаем выборы из selected source preset
-            self.target_selections = get_direct_strategy_selections() or {}
             facade = DirectPresetFacade.from_launch_method("direct_zapret2")
-            targets = facade.get_target_ui_items() or {}
-            filter_modes = {key: facade.get_target_filter_mode(key) for key in targets.keys()}
+            target_views = facade.list_target_views() or []
+            target_items = facade.get_target_ui_items() or {}
+            self.target_selections = facade.get_strategy_selections() or {}
+            filter_modes = {key: facade.get_target_filter_mode(key) for key in target_items.keys()}
 
             # Карточка с кнопкой Telegram (выделенная, акцентная)
             telegram_card = SettingsCard()
@@ -256,14 +255,19 @@ class Zapret2StrategiesPageNew(BasePage):
             # Выборы уже загружены в начале _build_content()
 
             # Список target'ов (без правой панели - теперь отдельная страница)
-            self._unified_list = UnifiedStrategiesList(self, strategy_name_resolver=self._strategy_name)
-            self._unified_list.strategy_selected.connect(self._on_target_clicked)
-            self._unified_list.selections_changed.connect(self._on_selections_changed)
+            self._targets_list = PresetTargetsList(self, strategy_name_resolver=self._strategy_name)
+            self._targets_list.strategy_selected.connect(self._on_target_clicked)
+            self._targets_list.selections_changed.connect(self._on_selections_changed)
 
-            # Строим список
-            self._unified_list.build_list(targets, self.target_selections, filter_modes=filter_modes)
+            # Строим список из PresetTargetView[]; metadata используется только для enrich UI.
+            self._targets_list.build_from_target_views(
+                target_views,
+                metadata=target_items,
+                selections=self.target_selections,
+                filter_modes=filter_modes,
+            )
 
-            self.content_layout.addWidget(self._unified_list, 1)
+            self.content_layout.addWidget(self._targets_list, 1)
 
             # Запоминаем текущий UI-режим direct_zapret2, чтобы понимать,
             # нужно ли перестраивать страницу после возврата.
@@ -302,25 +306,25 @@ class Zapret2StrategiesPageNew(BasePage):
             # Avoid clobbering preset args by re-applying a non-existent single strategy.
             if (strategy_id or "").strip().lower() == "custom":
                 self.target_selections[target_key] = "custom"
-                if self._unified_list:
-                    self._unified_list.update_selection(target_key, "custom")
+                if self._targets_list:
+                    self._targets_list.update_selection(target_key, "custom")
                 return
 
             # Сохраняем в preset файл
-            preset_manager = DirectPresetFacade.from_launch_method(
+            direct_facade = DirectPresetFacade.from_launch_method(
                 "direct_zapret2",
                 on_dpi_reload_needed=lambda: trigger_dpi_reload(
                     self.parent_app,
                     reason="strategy_changed"
                 )
             )
-            preset_manager.set_strategy_selection(target_key, strategy_id, save_and_sync=True)
+            direct_facade.set_strategy_selection(target_key, strategy_id, save_and_sync=True)
 
             self.target_selections[target_key] = strategy_id
 
             # Обновляем UI
-            if self._unified_list:
-                self._unified_list.update_selection(target_key, strategy_id)
+            if self._targets_list:
+                self._targets_list.update_selection(target_key, strategy_id)
 
             # Эмитим сигналы
             self.strategy_selected.emit(target_key, strategy_id)
@@ -334,8 +338,8 @@ class Zapret2StrategiesPageNew(BasePage):
     def apply_filter_mode_change(self, target_key: str, filter_mode: str):
         """Обновляет badge Hostlist/IPset на главной странице без перестроения списка."""
         try:
-            if self._unified_list:
-                self._unified_list.update_filter_mode(target_key, filter_mode)
+            if self._targets_list:
+                self._targets_list.update_filter_mode(target_key, filter_mode)
         except Exception as e:
             log(f"Ошибка обновления filter_mode: {e}", "DEBUG")
 
@@ -377,7 +381,7 @@ class Zapret2StrategiesPageNew(BasePage):
                 if item.widget():
                     item.widget().deleteLater()
 
-            self._unified_list = None
+            self._targets_list = None
             self._build_content()
 
             log("Стратегии перезагружены", "INFO")
@@ -394,21 +398,20 @@ class Zapret2StrategiesPageNew(BasePage):
         Вызывается асинхронно из MainWindow после активации пресета.
         """
         try:
-            from strategy_menu.direct_selection_store import get_direct_strategy_selections
             from core.presets.direct_facade import DirectPresetFacade
 
-            self.target_selections = get_direct_strategy_selections() or {}
             facade = DirectPresetFacade.from_launch_method("direct_zapret2")
-            targets = facade.get_target_ui_items() or {}
-            filter_modes = {key: facade.get_target_filter_mode(key) for key in targets.keys()}
+            target_items = facade.get_target_ui_items() or {}
+            self.target_selections = facade.get_strategy_selections() or {}
+            filter_modes = {key: facade.get_target_filter_mode(key) for key in target_items.keys()}
 
-            if self._unified_list:
-                self._unified_list.set_selections(self.target_selections)
+            if self._targets_list:
+                self._targets_list.set_selections(self.target_selections)
 
                 # Sync badges for ALL targets so stale/invalid badges disappear.
-                for target_key in targets.keys():
+                for target_key in target_items.keys():
                     try:
-                        self._unified_list.update_filter_mode(target_key, (filter_modes or {}).get(target_key))
+                        self._targets_list.update_filter_mode(target_key, (filter_modes or {}).get(target_key))
                     except Exception:
                         continue
 
@@ -435,13 +438,13 @@ class Zapret2StrategiesPageNew(BasePage):
 
     def _expand_all(self):
         """Разворачивает все группы"""
-        if self._unified_list:
-            self._unified_list.expand_all()
+        if self._targets_list:
+            self._targets_list.expand_all()
 
     def _collapse_all(self):
         """Сворачивает все группы"""
-        if self._unified_list:
-            self._unified_list.collapse_all()
+        if self._targets_list:
+            self._targets_list.collapse_all()
 
     # ==================== Совместимость со старым кодом ====================
 
@@ -465,9 +468,9 @@ class Zapret2StrategiesPageNew(BasePage):
     def _update_current_strategies_display(self):
         """Совместимость: обновляет отображение текущих стратегий"""
         try:
-            from strategy_menu.direct_selection_store import get_direct_strategy_selections
+            from core.presets.direct_facade import DirectPresetFacade
 
-            selections = get_direct_strategy_selections() or {}
+            selections = DirectPresetFacade.from_launch_method("direct_zapret2").get_strategy_selections() or {}
             active_count = sum(1 for s in selections.values() if s and s != 'none')
 
             if active_count > 0:

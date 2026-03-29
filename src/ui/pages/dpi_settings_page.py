@@ -1250,10 +1250,9 @@ class DpiSettingsPage(BasePage):
             from strategy_menu import (
                 set_strategy_launch_method, get_strategy_launch_method, invalidate_direct_selections_cache,
             )
-            from strategy_menu.strategies_registry import registry
             from preset_orchestra_zapret2 import ensure_default_preset_exists
 
-            # Запоминаем предыдущий метод для определения необходимости перезагрузки стратегий
+            # Запоминаем предыдущий метод, чтобы понять, затрагиваем ли мы legacy registry-driven ветки.
             previous_method = get_strategy_launch_method()
 
             if method == "direct_zapret2_orchestra":
@@ -1263,15 +1262,25 @@ class DpiSettingsPage(BasePage):
             self._update_method_selection(method)
             self._update_filters_visibility()
 
-            # Перезагружаем стратегии если меняется набор стратегий
-            # (например с direct на direct_zapret2_orchestra, direct_zapret1 или наоборот)
+            # Сбрасываем кэш выборов при смене direct-метода: они будут перечитаны из актуального источника.
             direct_methods = ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1")
             if previous_method in direct_methods or method in direct_methods:
                 if previous_method != method:
-                    log(f"Смена метода {previous_method} -> {method}, перезагрузка стратегий...", "INFO")
-                    # Сбрасываем кэш выборов - они будут перечитаны из реестра
+                    log(f"Смена метода {previous_method} -> {method}, сброс direct-кэша...", "INFO")
                     invalidate_direct_selections_cache()
+
+            # Legacy registry reload нужен только для orchestra/registry-driven страниц.
+            registry_driven_methods = {"direct_zapret2_orchestra", "orchestra"}
+            if (
+                previous_method != method
+                and (previous_method in registry_driven_methods or method in registry_driven_methods)
+            ):
+                try:
+                    from strategy_menu.strategies_registry import registry
+
                     registry.reload_strategies()
+                except Exception:
+                    pass
 
             self.launch_method_changed.emit(method)
         except Exception as e:

@@ -10,6 +10,10 @@ Simplified version WITHOUT:
 
 This module is designed specifically for Zapret 1 (winws.exe) and does NOT
 support Zapret 2 features. For V2 compatibility, use strategy_lists_v2.py.
+
+Important:
+- direct_zapret1 now launches from the selected source preset via direct_preset_core;
+- this builder remains a legacy combiner for registry-driven flows.
 """
 
 import re
@@ -212,9 +216,9 @@ def combine_strategies_v1(**kwargs) -> dict:
     - Wssize addition (if enabled)
     """
 
-    # Determine category selections source
+    # Determine target selections source inside legacy registry flow
     if kwargs:
-        log("[V1] Using provided category strategies", "DEBUG")
+        log("[V1] Using provided target strategies", "DEBUG")
         target_strategies = kwargs
     else:
         log("[V1] Using default selections", "DEBUG")
@@ -226,7 +230,7 @@ def combine_strategies_v1(**kwargs) -> dict:
 
     # NO Lua initialization for V1 - winws.exe doesn't support Lua
 
-    # Auto-detect required filters based on selected categories
+    # Auto-detect required filters based on selected targets
     filters = calculate_required_filters(target_strategies)
 
     # Build base arguments from auto-detected filters (V1 syntax)
@@ -242,12 +246,12 @@ def combine_strategies_v1(**kwargs) -> dict:
         # V1 ignores: raw_discord, raw_stun, raw_wireguard
     )
 
-    # ==================== COLLECT ACTIVE CATEGORIES ====================
+    # ==================== COLLECT ACTIVE TARGETS ====================
     target_keys_ordered = registry.get_all_target_keys_by_command_order()
     none_strategies = registry.get_none_strategies()
 
-    # Collect active categories with their arguments
-    active_categories = []  # [(target_key, args, target_info), ...]
+    # Collect active targets with their arguments
+    active_targets = []  # [(target_key, args, target_info), ...]
     descriptions = []
 
     for target_key in target_keys_ordered:
@@ -269,7 +273,7 @@ def combine_strategies_v1(**kwargs) -> dict:
             args = _sanitize_args_for_v1(args)
 
             target_info = registry.get_target_info(target_key)
-            active_categories.append((target_key, args, target_info))
+            active_targets.append((target_key, args, target_info))
 
             # Add to description
             strategy_name = registry.get_strategy_name_safe(target_key, strategy_id)
@@ -277,23 +281,23 @@ def combine_strategies_v1(**kwargs) -> dict:
                 descriptions.append(f"{target_info.full_name}: {strategy_name}")
 
     # ==================== BUILD COMMAND LINE ====================
-    # Collect category arguments with --new separators
-    category_args_parts = []
+    # Collect target arguments with --new separators
+    target_args_parts = []
 
-    for i, (target_key, args, target_info) in enumerate(active_categories):
-        category_args_parts.append(args)
+    for i, (target_key, args, target_info) in enumerate(active_targets):
+        target_args_parts.append(args)
 
         # Add --new only if:
-        # 1. Category requires separator (needs_new_separator=True)
-        # 2. And this is NOT the last active category
-        is_last = (i == len(active_categories) - 1)
+        # 1. Target requires separator (needs_new_separator=True)
+        # 2. And this is NOT the last active target
+        is_last = (i == len(active_targets) - 1)
         if target_info and target_info.needs_new_separator and not is_last:
-            category_args_parts.append("--new")
+            target_args_parts.append("--new")
 
-    # Deduplicate blobs: extract all --blob=... from categories,
+    # Deduplicate blobs: extract all --blob=... from target arguments,
     # remove duplicates and move to the beginning of command line
-    category_args_str = " ".join(category_args_parts)
-    deduped_args = build_args_with_deduped_blobs([category_args_str])
+    target_args_str = " ".join(target_args_parts)
+    deduped_args = build_args_with_deduped_blobs([target_args_str])
 
     # Build final command line
     args_parts = []
@@ -333,7 +337,7 @@ def combine_strategies_v1(**kwargs) -> dict:
     # ==================== FINALIZE ====================
     combined_description = " | ".join(descriptions) if descriptions else "Custom combination"
 
-    log(f"[V1] Created combined strategy: {len(combined_args)} chars, {len(active_categories)} categories", "DEBUG")
+    log(f"[V1] Created combined strategy: {len(combined_args)} chars, {len(active_targets)} targets", "DEBUG")
 
     return {
         "name": "Combined Strategy (V1)",
@@ -347,7 +351,7 @@ def combine_strategies_v1(**kwargs) -> dict:
         "_is_builtin": True,
         "_is_v1": True,
         "_is_orchestra": False,  # V1 never supports orchestra
-        "_active_categories": len(active_categories),
+        "_active_targets": len(active_targets),
         **{f"_{key}_id": strategy_id for key, strategy_id in target_strategies.items()}
     }
 
