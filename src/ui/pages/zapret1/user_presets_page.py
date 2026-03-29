@@ -1375,6 +1375,7 @@ class Zapret1UserPresetsPage(BasePage):
         self._presets_model: Optional[_PresetListModel] = None
         self._presets_delegate: Optional[_PresetListDelegate] = None
         self._ui_dirty = True  # needs rebuild on next show
+        self._cached_presets_metadata: dict[str, dict[str, object]] = {}
         self._page_theme_refresh_scheduled = False
         self._last_page_theme_key: tuple[str, str, str] | None = None
 
@@ -2239,6 +2240,19 @@ class Zapret1UserPresetsPage(BasePage):
         try:
             started_at = time.perf_counter()
             all_presets = self._load_preset_list_metadata_light()
+            self._cached_presets_metadata = dict(all_presets)
+            self._rebuild_presets_rows(all_presets, started_at=started_at)
+        except Exception as e:
+            log(f"Ошибка загрузки пресетов: {e}", "ERROR")
+
+    def _refresh_presets_view_from_cache(self) -> None:
+        if not self._cached_presets_metadata:
+            self._load_presets()
+            return
+        self._rebuild_presets_rows(self._cached_presets_metadata)
+
+    def _rebuild_presets_rows(self, all_presets: dict[str, dict[str, object]], *, started_at: float | None = None) -> None:
+        try:
             active_file_name = self._get_selected_source_preset_file_name_light()
             hierarchy = self._get_hierarchy_store()
             builtin_by_file = {
@@ -2350,8 +2364,9 @@ class Zapret1UserPresetsPage(BasePage):
 
             self._update_presets_view_height()
             self._schedule_layout_resync()
-            elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-            log(f"Z1UserPresetsPage: lightweight list reload {elapsed_ms}ms ({len(all_presets)} presets)", "DEBUG")
+            if started_at is not None:
+                elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                log(f"Z1UserPresetsPage: lightweight list reload {elapsed_ms}ms ({len(all_presets)} presets)", "DEBUG")
 
         except Exception as e:
             log(f"Ошибка загрузки пресетов: {e}", "ERROR")
@@ -2384,7 +2399,7 @@ class Zapret1UserPresetsPage(BasePage):
     def _on_toggle_folder(self, folder_id: str):
         try:
             self._get_hierarchy_store().toggle_folder_collapsed(folder_id)
-            self._load_presets()
+            self._refresh_presets_view_from_cache()
         except Exception as e:
             log(f"Ошибка сворачивания папки: {e}", "ERROR")
 
@@ -2396,7 +2411,7 @@ class Zapret1UserPresetsPage(BasePage):
             display_name = self._resolve_display_name(name)
             pinned = self._get_hierarchy_store().toggle_preset_pin(name, display_name=display_name)
             log(f"Пресет '{display_name}' {'закреплён' if pinned else 'откреплён'}", "INFO")
-            self._load_presets()
+            self._refresh_presets_view_from_cache()
         except Exception as e:
             log(f"Ошибка закрепления пресета: {e}", "ERROR")
 
@@ -2429,7 +2444,7 @@ class Zapret1UserPresetsPage(BasePage):
                 target_folder_id,
                 is_builtin_resolver=self._is_builtin_preset_file,
             )
-            self._load_presets()
+            self._refresh_presets_view_from_cache()
         except Exception as e:
             log(f"Ошибка перемещения пресета в папку: {e}", "ERROR")
 
@@ -2447,7 +2462,7 @@ class Zapret1UserPresetsPage(BasePage):
                 is_builtin_resolver=self._is_builtin_preset_file,
             )
             if moved:
-                self._load_presets()
+                self._refresh_presets_view_from_cache()
         except Exception as e:
             log(f"Ошибка перестановки пресета: {e}", "ERROR")
 
@@ -2461,7 +2476,7 @@ class Zapret1UserPresetsPage(BasePage):
                 if target_kind == "folder" and target_id:
                     moved = hierarchy.move_folder_before(source_id, target_id)
                 if moved:
-                    self._load_presets()
+                    self._refresh_presets_view_from_cache()
                 return
 
             if source_kind != "preset":
@@ -2483,7 +2498,7 @@ class Zapret1UserPresetsPage(BasePage):
                     is_builtin_resolver=self._is_builtin_preset_file,
                 )
             if moved:
-                self._load_presets()
+                self._refresh_presets_view_from_cache()
         except Exception as e:
             log(f"Ошибка перетаскивания элемента: {e}", "ERROR")
 
@@ -2649,11 +2664,11 @@ class Zapret1UserPresetsPage(BasePage):
         chosen = menu.exec(QCursor.pos())
         if chosen == clear_action:
             self._get_hierarchy_store().set_preset_rating(name, 0, display_name=display_name)
-            self._load_presets()
+            self._refresh_presets_view_from_cache()
             return
         if chosen in actions:
             self._get_hierarchy_store().set_preset_rating(name, actions[chosen], display_name=display_name)
-            self._load_presets()
+            self._refresh_presets_view_from_cache()
 
     def _ensure_preset_list_current_index(self) -> None:
         if self._presets_model is None:
