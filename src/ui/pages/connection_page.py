@@ -1,10 +1,8 @@
 """Новая вкладка диагностики соединений в стиле Windows 11."""
 
 import os
-import platform
-import time
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QObject, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -28,10 +26,11 @@ except ImportError:
 
 from .base_page import BasePage, ScrollBlockingTextEdit
 from ui.compat_widgets import SettingsCard, ActionButton
-from connection_test import ConnectionTestWorker, LogSendWorker
-from config import LOGS_FOLDER, APP_VERSION
-from tgram.tg_log_delta import get_client_id
+from connection_test import ConnectionTestWorker
+from config import LOGS_FOLDER
 from ui.text_catalog import tr as tr_catalog
+from log import global_logger, LOG_FILE
+from support_request_bundle import prepare_support_request
 
 
 if _HAS_FLUENT_WIDGETS:
@@ -68,42 +67,20 @@ class StatusBadge(CaptionLabel):
         self.setText(text)
 
 
-class SupportAuthWorker(QObject):
-    """Ожидает подтверждения кода авторизации (в фоне)."""
-
-    finished = pyqtSignal(bool, str)  # ok, error_message
-
-    def __init__(self, code: str, parent=None):
-        super().__init__(parent)
-        self._code = (code or "").strip()
-
-    def run(self):
-        try:
-            from tgram.tg_log_bot import poll_upload_code
-
-            ok, err = poll_upload_code(self._code)
-            self.finished.emit(bool(ok), str(err or ""))
-        except Exception as e:
-            self.finished.emit(False, str(e))
-
-
 class ConnectionTestPage(BasePage):
     """Страница теста соединений, заменяющая старое диалоговое окно."""
 
     def __init__(self, parent=None):
         super().__init__(
             "Диагностика соединения",
-            "Автотест Discord и YouTube, проверка DNS подмены и отправка логов в поддержку",
+            "Автотест Discord и YouTube, проверка DNS подмены и быстрая подготовка обращения в GitHub Discussions",
             parent,
             title_key="page.connection.title",
             subtitle_key="page.connection.subtitle",
         )
         self.is_testing = False
-        self.is_sending_log = False
         self.worker = None
         self.worker_thread = None
-        self.log_send_thread = None
-        self.log_send_worker = None
         self.stop_check_timer = None
 
         # Контейнер с ограниченной шириной, чтобы не расползалось за края
@@ -138,7 +115,7 @@ class ConnectionTestPage(BasePage):
             tr_catalog(
                 "page.connection.hero.subtitle",
                 language=self._ui_language,
-                default="Проверьте доступность Discord и YouTube, найдите подмену DNS и быстро отправьте лог в поддержку.",
+                default="Проверьте доступность Discord и YouTube, а затем одной кнопкой соберите ZIP с логами и откройте GitHub Discussions.",
             )
         )
         self.hero_subtitle.setWordWrap(True)
@@ -182,8 +159,11 @@ class ConnectionTestPage(BasePage):
         self.stop_btn.setEnabled(False)
         buttons_row.addWidget(self.stop_btn, 1)
 
-        self.send_log_btn = ActionButton(tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Отправить лог"), "fa5s.paper-plane")
-        self.send_log_btn.clicked.connect(self.send_log_to_telegram)
+        self.send_log_btn = ActionButton(
+            tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"),
+            "fa5b.github",
+        )
+        self.send_log_btn.clicked.connect(self.open_support_with_log)
         self.send_log_btn.setEnabled(False)
         buttons_row.addWidget(self.send_log_btn, 1)
 
@@ -312,148 +292,52 @@ class ConnectionTestPage(BasePage):
         self.progress_bar.setVisible(False)
 
         self.status_badge.set_status("Тест завершён", "success")
-        self.progress_badge.set_status("Готово к отправке лога", "muted")
+        self.progress_badge.set_status("Готово к обращению", "muted")
         self._set_status("✅ Тестирование завершено", "success")
         self._append("\n" + "=" * 50)
-        self._append("🎉 Тестирование завершено! Лог готов к отправке.")
+        self._append("🎉 Тестирование завершено! Теперь можно одной кнопкой подготовить обращение в поддержку.")
 
     # ──────────────────────────────────────────────────────────────
-    # DNS и лог
+    # DNS и поддержка
     # ──────────────────────────────────────────────────────────────
-    def send_log_to_telegram(self):
-        if self.is_sending_log:
-            self._append("ℹ️ Лог уже отправляется...")
-            return
-
+    def open_support_with_log(self):
         temp_log_path = os.path.join(LOGS_FOLDER, "connection_test_temp.log")
-        if not os.path.exists(temp_log_path):
-            self._append("❌ Лог не найден. Сначала выполните тестирование.")
-            self._set_status("Лог не найден", "error")
-            return
-
         try:
-            from tgram.tg_log_bot import get_bot_connection_info
-            bot_connected, bot_error, _bot_kind = get_bot_connection_info()
-            error_msg = None if bot_connected else (bot_error or "Не удалось подключиться к панели поддержки")
-        except Exception as exc:  # pragma: no cover - сеть/бот
-            bot_connected = False
-            error_msg = str(exc)
+            result = prepare_support_request(
+                bundle_prefix="connection_support",
+                context_label=f"Диагностика соединения: {self.test_combo.currentText()}",
+                candidate_paths=[
+                    temp_log_path,
+                    getattr(global_logger, "log_file", LOG_FILE),
+                    os.path.join(LOGS_FOLDER, "commands_full.log"),
+                    os.path.join(LOGS_FOLDER, "last_command.txt"),
+                ],
+                recent_patterns=("blockcheck_run_*.log",),
+                extra_note="В архив добавлен лог connection_test_temp.log, если он сохранился после теста.",
+            )
 
-        if not bot_connected:
-            self._append(f"⚠️ {error_msg}. Сохраните лог вручную.")
-            self.save_log_locally()
-            return
+            if result.zip_path:
+                self._append(f"📦 Подготовлен архив: {result.zip_path}")
+            else:
+                self._append("⚠️ Архив не был создан, потому что подходящие файлы логов не найдены.")
 
-        test_type = self.test_combo.currentText()
-        caption = (
-            f"📊 <b>Лог тестирования соединений</b>\n"
-            f"Тип: {test_type}\n"
-            f"Zapret2 v{APP_VERSION}\n"
-            f"ID: <code>{get_client_id()}</code>\n"
-            f"Host: {platform.node()}\n"
-            f"Time: {time.strftime('%d.%m.%Y %H:%M:%S')}"
-        )
+            if result.copied_to_clipboard:
+                self._append("📋 Шаблон обращения скопирован в буфер обмена.")
+            else:
+                self._append("⚠️ Не удалось скопировать шаблон обращения в буфер обмена.")
 
-        # 1) Запрашиваем одноразовый код для отправки (без хранения токена)
-        try:
-            from tgram.tg_log_bot import request_upload_code
+            if result.discussions_opened:
+                self._append("🌐 GitHub Discussions открыты.")
+            else:
+                self._append("⚠️ GitHub Discussions не удалось открыть автоматически.")
 
-            ok, code, bot_username, bot_link = request_upload_code()
-            if not ok or not code:
-                raise RuntimeError("Не удалось получить код авторизации")
+            if result.bundle_folder_opened:
+                self._append("📁 Папка с готовым архивом открыта.")
+
+            self._set_status("✅ Обращение подготовлено", "success")
         except Exception as exc:
-            self._append(f"❌ Не удалось запросить код авторизации: {exc}")
-            self.save_log_locally()
-            return
-
-        bot_line = f"@{bot_username}" if bot_username else "бот поддержки"
-        self._append("🔐 Для отправки лога нужно подтвердить код в Telegram:")
-        self._append(f"1) Откройте {bot_line}")
-        self._append(f"2) Отправьте ему код: {code}")
-        self._append(f"Ссылка: {bot_link}")
-
-        self.send_log_btn.setEnabled(False)
-        self.is_sending_log = True
-        self.progress_bar.setVisible(True)
-        if _HAS_FLUENT_WIDGETS:
-            self.progress_bar.start()
-        self._set_status("🔐 Ожидание подтверждения кода...", "info")
-
-        # 2) Ждём подтверждения кода, затем отправляем файл
-        self._auth_thread = QThread(self)
-        self._auth_worker = SupportAuthWorker(code)
-        self._auth_worker.moveToThread(self._auth_thread)
-        self._auth_thread.started.connect(self._auth_worker.run)
-
-        def _on_auth_done(auth_ok: bool, err: str):
-            try:
-                self._auth_worker.deleteLater()
-            except Exception:
-                pass
-
-            if not auth_ok:
-                self._on_log_sent(False, err or "Код не подтверждён")
-                return
-
-            self._set_status("📤 Отправка лога...", "info")
-
-            self.log_send_thread = QThread(self)
-            self.log_send_worker = LogSendWorker(temp_log_path, caption, auth_code=code)
-            self.log_send_worker.moveToThread(self.log_send_thread)
-            self.log_send_thread.started.connect(self.log_send_worker.run)
-            self.log_send_worker.finished.connect(self._on_log_sent)
-            self.log_send_worker.finished.connect(self.log_send_thread.quit)
-            self.log_send_worker.finished.connect(self.log_send_worker.deleteLater)
-            self.log_send_thread.finished.connect(self.log_send_thread.deleteLater)
-            self.log_send_thread.start()
-
-        self._auth_worker.finished.connect(_on_auth_done)
-        self._auth_worker.finished.connect(self._auth_thread.quit)
-        self._auth_worker.finished.connect(self._auth_worker.deleteLater)
-        self._auth_thread.finished.connect(self._auth_thread.deleteLater)
-        self._auth_thread.start()
-
-    def _on_log_sent(self, success: bool, message: str):
-        if _HAS_FLUENT_WIDGETS:
-            self.progress_bar.stop()
-        self.progress_bar.setVisible(False)
-        self.is_sending_log = False
-        self.send_log_btn.setEnabled(True)
-        self.log_send_worker = None
-        self.log_send_thread = None
-
-        if success:
-            self._set_status("✅ Лог отправлен", "success")
-            self._append("✅ Лог успешно отправлен в поддержку.")
-            try:
-                temp_log_path = os.path.join(LOGS_FOLDER, "connection_test_temp.log")
-                if os.path.exists(temp_log_path):
-                    os.remove(temp_log_path)
-            except Exception:
-                pass
-        else:
-            self._set_status("❌ Ошибка отправки", "error")
-            self._append(f"❌ Ошибка отправки: {message}")
-            self._append("💡 Сохраняем лог локально.")
-            self.save_log_locally()
-
-    def save_log_locally(self):
-        temp_log_path = os.path.join(LOGS_FOLDER, "connection_test_temp.log")
-        if not os.path.exists(temp_log_path):
-            self._append("❌ Файл лога не найден.")
-            return
-
-        try:
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            save_path = os.path.join(LOGS_FOLDER, f"connection_test_{timestamp}.log")
-            with open(temp_log_path, "r", encoding="utf-8-sig") as src, open(
-                save_path, "w", encoding="utf-8-sig"
-            ) as dest:
-                dest.write(src.read())
-            self._append(f"💾 Лог сохранён: {save_path}")
-            os.startfile(save_path) if platform.system().lower() == "windows" else None
-        except Exception as exc:
-            self._append(f"❌ Не удалось сохранить лог: {exc}")
+            self._append(f"❌ Не удалось подготовить обращение: {exc}")
+            self._set_status("Ошибка подготовки обращения", "error")
 
     # ──────────────────────────────────────────────────────────────
     # Вспомогательное
@@ -484,7 +368,7 @@ class ConnectionTestPage(BasePage):
             tr_catalog(
                 "page.connection.hero.subtitle",
                 language=self._ui_language,
-                default="Проверьте доступность Discord и YouTube, найдите подмену DNS и быстро отправьте лог в поддержку.",
+                default="Проверьте доступность Discord и YouTube, а затем одной кнопкой соберите ZIP с логами и откройте GitHub Discussions.",
             )
         )
         self.test_select_label.setText(tr_catalog("page.connection.test.select", language=self._ui_language, default="Выбор теста:"))
@@ -492,7 +376,7 @@ class ConnectionTestPage(BasePage):
 
         self.start_btn.setText(tr_catalog("page.connection.button.start", language=self._ui_language, default="Запустить тест"))
         self.stop_btn.setText(tr_catalog("page.connection.button.stop", language=self._ui_language, default="Стоп"))
-        self.send_log_btn.setText(tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Отправить лог"))
+        self.send_log_btn.setText(tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"))
     
     def cleanup(self):
         """Очистка потоков при закрытии"""
@@ -511,15 +395,5 @@ class ConnectionTestPage(BasePage):
                     except:
                         pass
             
-            if self.log_send_thread and self.log_send_thread.isRunning():
-                log("Останавливаем log send worker...", "DEBUG")
-                self.log_send_thread.quit()
-                if not self.log_send_thread.wait(2000):
-                    log("⚠ Log send worker не завершился, принудительно завершаем", "WARNING")
-                    try:
-                        self.log_send_thread.terminate()
-                        self.log_send_thread.wait(500)
-                    except:
-                        pass
         except Exception as e:
             log(f"Ошибка при очистке connection_page: {e}", "DEBUG")

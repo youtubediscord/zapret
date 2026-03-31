@@ -11,109 +11,28 @@ import os
 import subprocess
 import threading
 import time
-from typing import Optional, List, Callable
+from typing import Optional
 from log import log
 
 from launcher_common.constants import CREATE_NO_WINDOW
 from launcher_common.runner_base import StrategyRunnerBase
+from launcher_common.preset_runner_support import (
+    ConfigFileWatcher,
+    PreparedPresetArtifact,
+    PresetRunnerState,
+    PresetRunnerStateMachine,
+    is_process_alive_with_expected_name,
+    launch_args_from_preset_text,
+    notify_ui_launch_error,
+    preset_cache_key,
+    remember_cache_entry,
+    wait_for_process_exit,
+    wait_for_process_stable_start,
+)
 from dpi.process_health_check import (
     check_common_crash_causes,
     diagnose_startup_error
 )
-
-
-def _launch_args_from_preset_text(content: str) -> list[str]:
-    """Build argv directly from a source preset file.
-
-    The source preset may contain UI metadata lines like `# Preset: ...`.
-    Keep the source file human-readable, but strip metadata comments before
-    launching winws.exe.
-    """
-    args: list[str] = []
-    for raw in str(content or "").splitlines():
-        stripped = raw.strip()
-        if not stripped:
-            continue
-        if stripped.startswith("#"):
-            continue
-        args.append(stripped)
-    return args
-
-
-class ConfigFileWatcher:
-    """
-    Monitors preset file changes for hot-reload.
-
-    Watches a config file and calls callback when modification time changes.
-    Runs in a background thread with configurable polling interval.
-    """
-
-    def __init__(self, file_path: str, callback: Callable[[], None], interval: float = 1.0):
-        self._file_path = file_path
-        self._callback = callback
-        self._interval = interval
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._last_mtime: Optional[float] = None
-
-        if os.path.exists(self._file_path):
-            self._last_mtime = os.path.getmtime(self._file_path)
-
-    def start(self):
-        """Start watching the file in background thread"""
-        if self._running:
-            log("ConfigFileWatcher already running", "DEBUG")
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._watch_loop, daemon=True, name="ConfigFileWatcherV1")
-        self._thread.start()
-        log(f"ConfigFileWatcher started for: {self._file_path}", "DEBUG")
-
-    def update_file_path(self, file_path: str) -> None:
-        """Switch watched file without restarting watcher thread."""
-        self._file_path = str(file_path or "")
-        self._last_mtime = None
-        try:
-            if self._file_path and os.path.exists(self._file_path):
-                self._last_mtime = os.path.getmtime(self._file_path)
-        except Exception:
-            self._last_mtime = None
-
-    def stop(self):
-        """Stop watching the file"""
-        if not self._running:
-            return
-        self._running = False
-        watcher_thread = self._thread
-        if watcher_thread and watcher_thread.is_alive():
-            if watcher_thread is threading.current_thread():
-                log("ConfigFileWatcherV1.stop called from watcher thread; skip self-join", "DEBUG")
-            else:
-                watcher_thread.join(timeout=2.0)
-        self._thread = None
-        log("ConfigFileWatcher stopped", "DEBUG")
-
-    def _watch_loop(self):
-        """Main watch loop - polls file for changes"""
-        while self._running:
-            try:
-                if os.path.exists(self._file_path):
-                    current_mtime = os.path.getmtime(self._file_path)
-                    if self._last_mtime is not None and current_mtime != self._last_mtime:
-                        log(f"Config file changed: {self._file_path}", "INFO")
-                        self._last_mtime = current_mtime
-                        try:
-                            self._callback()
-                        except Exception as e:
-                            log(f"Error in config change callback: {e}", "ERROR")
-                    self._last_mtime = current_mtime
-            except Exception as e:
-                log(f"Error checking file modification: {e}", "DEBUG")
-
-            sleep_remaining = self._interval
-            while sleep_remaining > 0 and self._running:
-                time.sleep(min(0.1, sleep_remaining))
-                sleep_remaining -= 0.1
 
 
 class StrategyRunnerV1(StrategyRunnerBase):
@@ -130,10 +49,13 @@ class StrategyRunnerV1(StrategyRunnerBase):
         super().__init__(winws_exe_path)
         # Human-readable last start error (for UI/status).
         self.last_error: Optional[str] = None
-
-        # Config file watcher for hot-reload on preset change
         self._config_watcher: Optional[ConfigFileWatcher] = None
         self._preset_file_path: Optional[str] = None
+        self._prepared_preset_cache: dict[tuple[str, int, int], PreparedPresetArtifact] = {}
+        self._state_lock = threading.RLock()
+        self._runner_state = PresetRunnerStateMachine()
+        self._last_spawn_exit_code: Optional[int] = None
+        self._last_spawn_stderr: str = ""
 
     def _set_last_error(self, message: Optional[str]) -> None:
         try:
@@ -142,108 +64,200 @@ class StrategyRunnerV1(StrategyRunnerBase):
             text = ""
         self.last_error = text or None
         if text:
-            self._notify_ui_launch_error(text)
+            notify_ui_launch_error(text)
 
-    @staticmethod
-    def _notify_ui_launch_error(message: str) -> None:
-        """Best-effort UI notification from any thread (queued to main Qt thread)."""
-        text = str(message or "").strip()
-        if not text:
-            return
-        try:
-            from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
-            from PyQt6.QtWidgets import QApplication
+    def get_runner_state_snapshot(self):
+        with self._state_lock:
+            return self._runner_state.snapshot()
 
-            app = QApplication.instance()
-            if app is None:
-                return
-
-            target = app.activeWindow()
-            if target is None or not hasattr(target, "show_dpi_launch_error"):
-                for widget in app.topLevelWidgets():
-                    if hasattr(widget, "show_dpi_launch_error"):
-                        target = widget
-                        break
-
-            if target is not None and hasattr(target, "show_dpi_launch_error"):
-                QMetaObject.invokeMethod(
-                    target,
-                    "show_dpi_launch_error",
-                    Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(str, text),
-                )
-        except Exception:
-            pass
+    def _set_runner_state_locked(
+        self,
+        state: PresetRunnerState,
+        *,
+        preset_path: str = "",
+        strategy_name: str = "",
+        pid: int | None = None,
+        error: str = "",
+        reason: str = "",
+        allow_same: bool = False,
+    ):
+        snapshot = self._runner_state.transition(
+            state,
+            preset_path=preset_path,
+            strategy_name=strategy_name,
+            pid=pid,
+            error=error,
+            reason=reason,
+            allow_same=allow_same,
+        )
+        log(
+            f"Runner state: {snapshot.state.value} "
+            f"(gen={snapshot.generation}, reason={snapshot.reason}, preset={snapshot.preset_path})",
+            "DEBUG",
+        )
+        return snapshot
 
     def _on_config_changed(self) -> None:
         """Called when the launch preset file changes. Performs full restart."""
         log("Launch preset file changed, restarting winws.exe...", "INFO")
         try:
-            if self._preset_file_path and os.path.exists(self._preset_file_path):
-                self.switch_preset_file_fast(
-                    self._preset_file_path,
-                    strategy_name=self.current_launch_label or "Preset",
-                )
+            with self._state_lock:
+                preset_path = str(self._preset_file_path or "").strip()
+                strategy_name = str(self.current_launch_label or "Preset").strip() or "Preset"
+                if not preset_path or not os.path.exists(preset_path):
+                    return
+                artifact = self._compile_preset_artifact(preset_path)
+                if not artifact.validation_ok:
+                    self._set_runner_state_locked(
+                        PresetRunnerState.FAILED,
+                        preset_path=preset_path,
+                        strategy_name=strategy_name,
+                        error=artifact.validation_report,
+                        reason="watcher_compile_failed",
+                    )
+                    return
+                self._stop_process_only_locked()
+                self._spawn_process_locked(artifact, strategy_name)
         except Exception as e:
             log(f"Error restarting after config change: {e}", "ERROR")
 
+    def _compile_preset_artifact(self, preset_path: str) -> PreparedPresetArtifact:
+        p = str(preset_path or "").strip()
+        if not p:
+            return PreparedPresetArtifact("", None, "", tuple(), False, "Не указан путь к preset файлу")
+        if not os.path.exists(p):
+            return PreparedPresetArtifact(p, None, "", tuple(), False, f"Preset файл не найден: {p}")
+
+        for _attempt in range(2):
+            cache_key = preset_cache_key(p)
+            if cache_key is not None:
+                with self._state_lock:
+                    cached = self._prepared_preset_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+
+            try:
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    source_text = f.read()
+            except Exception as e:
+                return PreparedPresetArtifact(p, None, "", tuple(), False, f"Не удалось прочитать preset файл: {e}")
+
+            artifact = PreparedPresetArtifact(
+                preset_path=p,
+                cache_key=cache_key,
+                normalized_text=source_text,
+                launch_args=tuple(launch_args_from_preset_text(source_text)),
+                validation_ok=True,
+                validation_report="",
+            )
+
+            final_cache_key = preset_cache_key(p)
+            if cache_key is not None and final_cache_key == cache_key:
+                with self._state_lock:
+                    remember_cache_entry(self._prepared_preset_cache, cache_key, artifact)
+                return artifact
+
+        return artifact
+
     def _start_config_watcher(self, preset_file: str) -> None:
         """Starts config file watcher for hot-reload or retargets existing watcher."""
-        if self._config_watcher:
-            self._config_watcher.update_file_path(preset_file)
+        with self._state_lock:
+            watcher = self._config_watcher
+
+        if watcher:
+            watcher.update_file_path(preset_file)
             log(f"ConfigFileWatcherV1 retargeted to: {preset_file}", "DEBUG")
             return
 
-        self._config_watcher = ConfigFileWatcher(
+        watcher = ConfigFileWatcher(
             file_path=preset_file,
             callback=self._on_config_changed,
             interval=1.0,
+            thread_name="ConfigFileWatcherV1",
         )
-        self._config_watcher.start()
+        with self._state_lock:
+            self._config_watcher = watcher
+        watcher.start()
 
-    def _stop_process_only(self) -> None:
+    def _stop_config_watcher(self) -> None:
+        with self._state_lock:
+            watcher = self._config_watcher
+            self._config_watcher = None
+        if watcher:
+            watcher.stop()
+
+    def stop_background_watchers(self) -> None:
+        self._stop_config_watcher()
+
+    def _stop_process_only_locked(self) -> None:
         """Stops only the current winws.exe process without heavy driver/service cleanup."""
         try:
+            cleanup_needed = False
             if self.running_process and self.is_running():
                 pid = self.running_process.pid
                 strategy_name = self.current_launch_label or "unknown"
+                self._set_runner_state_locked(
+                    PresetRunnerState.STOPPING,
+                    preset_path=str(self._preset_file_path or ""),
+                    strategy_name=str(strategy_name),
+                    pid=pid,
+                    reason="stop_process_only",
+                )
                 log(f"Fast switch: stopping '{strategy_name}' (PID: {pid})", "INFO")
 
                 self.running_process.terminate()
-                try:
-                    self.running_process.wait(timeout=3)
-                except subprocess.TimeoutExpired:
+                if not wait_for_process_exit(self.running_process, timeout=3.0):
                     log("Fast switch: soft stop timeout, force killing", "WARNING")
                     self.running_process.kill()
-                    self.running_process.wait()
+                    cleanup_needed = not wait_for_process_exit(self.running_process, timeout=1.0)
 
                 self.running_process = None
+                self._set_runner_state_locked(
+                    PresetRunnerState.IDLE,
+                    preset_path=str(self._preset_file_path or ""),
+                    strategy_name=str(strategy_name),
+                    reason="stop_completed",
+                )
 
-            self._kill_all_winws_processes()
+                if not cleanup_needed:
+                    try:
+                        from utils.process_killer import get_process_pids
+
+                        cleanup_needed = bool(get_process_pids(os.path.basename(self.winws_exe)))
+                    except Exception:
+                        cleanup_needed = False
+
+            if cleanup_needed:
+                log("Fast switch fallback cleanup: detected lingering winws process", "DEBUG")
+                self._kill_all_winws_processes()
         except Exception as e:
             log(f"Fast switch: error stopping process: {e}", "ERROR")
 
-    def _start_from_preset(self) -> bool:
-        """Starts process from already selected preset file without heavy full cleanup."""
-        if not self._preset_file_path or not os.path.exists(self._preset_file_path):
-            self._set_last_error("Preset файл не найден для быстрого переключения")
-            return False
+    def _clear_process_state_locked(self) -> None:
+        self.running_process = None
+        self.current_launch_label = None
+        self.current_strategy_args = None
 
+    def _spawn_readiness_check_locked(self, process: subprocess.Popen) -> bool:
         try:
-            with open(self._preset_file_path, "r", encoding="utf-8", errors="replace") as f:
-                launch_args = _launch_args_from_preset_text(f.read())
-        except Exception as e:
-            log(f"Fast switch: failed to read preset file '{self._preset_file_path}': {e}", "ERROR")
-            self._set_last_error(f"Не удалось прочитать preset файл: {e}")
+            pid = int(process.pid)
+        except Exception:
             return False
+        return is_process_alive_with_expected_name(pid, self.winws_exe)
 
-        if not launch_args:
+    def _spawn_process_locked(self, artifact: PreparedPresetArtifact, strategy_name: str) -> bool:
+        if not artifact.launch_args:
             self._set_last_error("Не удалось подготовить аргументы запуска из preset файла")
             return False
 
         try:
-            cmd = [self.winws_exe, *launch_args]
-
+            cmd = [self.winws_exe, *artifact.launch_args]
+            self._set_runner_state_locked(
+                PresetRunnerState.STARTING,
+                preset_path=artifact.preset_path,
+                strategy_name=strategy_name,
+                reason="start_from_preset",
+            )
             self.running_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -254,29 +268,87 @@ class StrategyRunnerV1(StrategyRunnerBase):
                 cwd=self.work_dir
             )
 
-            self.current_strategy_args = list(launch_args)
-            time.sleep(0.2)
+            self.current_launch_label = strategy_name
+            self.current_strategy_args = list(artifact.launch_args)
+            self._last_spawn_exit_code = None
+            self._last_spawn_stderr = ""
 
-            if self.running_process.poll() is None:
+            if wait_for_process_stable_start(
+                self.running_process,
+                readiness_check=lambda: self._spawn_readiness_check_locked(self.running_process),
+            ):
+                self._set_runner_state_locked(
+                    PresetRunnerState.RUNNING,
+                    preset_path=artifact.preset_path,
+                    strategy_name=strategy_name,
+                    pid=self.running_process.pid,
+                    reason="start_confirmed",
+                )
                 log(
-                    f"Fast switch: strategy '{self.current_launch_label or 'Preset'}' started "
-                    f"(PID: {self.running_process.pid})",
+                    f"Strategy '{strategy_name}' started from preset (PID: {self.running_process.pid})",
                     "SUCCESS",
                 )
                 self._set_last_error(None)
                 return True
 
             exit_code = self.running_process.returncode
-            log(f"Fast switch failed: process exited immediately (code: {exit_code})", "ERROR")
-            self.running_process = None
-            self.current_strategy_args = None
-            self._set_last_error(f"winws завершился сразу (код {exit_code})")
+            stderr_output = ""
+            try:
+                stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
+                if stderr_output:
+                    log(f"Error: {stderr_output[:500]}", "ERROR")
+            except Exception:
+                stderr_output = ""
+
+            self._last_spawn_exit_code = int(exit_code)
+            self._last_spawn_stderr = str(stderr_output or "")
+            log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", "ERROR")
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=artifact.preset_path,
+                strategy_name=strategy_name,
+                error=str(stderr_output or ""),
+                reason="process_exited_during_start",
+            )
+
+            from dpi.process_health_check import diagnose_winws_exit
+
+            diag = diagnose_winws_exit(exit_code, stderr_output)
+            if diag:
+                prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
+                self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}")
+                log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
+            else:
+                first_line = ""
+                try:
+                    first_line = next((ln.strip() for ln in (stderr_output or "").splitlines() if ln.strip()), "")
+                except Exception:
+                    first_line = ""
+                if first_line:
+                    self._set_last_error(f"winws завершился сразу (код {exit_code}): {first_line[:200]}")
+                else:
+                    self._set_last_error(f"winws завершился сразу (код {exit_code})")
+
+            self._clear_process_state_locked()
             return False
         except Exception as e:
-            log(f"Fast switch: error starting from preset: {e}", "ERROR")
-            self.running_process = None
-            self.current_strategy_args = None
-            self._set_last_error(str(e))
+            diagnosis = diagnose_startup_error(e, self.winws_exe)
+            for line in diagnosis.split('\n'):
+                log(line, "ERROR")
+            try:
+                self._set_last_error(diagnosis.split("\n")[0].strip())
+            except Exception:
+                self._set_last_error(None)
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=artifact.preset_path,
+                strategy_name=strategy_name,
+                error=diagnosis.split("\n")[0].strip(),
+                reason="spawn_exception",
+            )
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
+            self._clear_process_state_locked()
             return False
 
     def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
@@ -287,22 +359,26 @@ class StrategyRunnerV1(StrategyRunnerBase):
             return False
 
         self._set_last_error(None)
+        self._stop_config_watcher()
 
-        try:
-            if self._config_watcher:
-                self._config_watcher.stop()
-                self._config_watcher = None
-        except Exception:
-            pass
+        with self._state_lock:
+            artifact = self._compile_preset_artifact(preset_path)
+            if not artifact.validation_ok:
+                self._set_runner_state_locked(
+                    PresetRunnerState.FAILED,
+                    preset_path=preset_path,
+                    strategy_name=strategy_name,
+                    error=artifact.validation_report,
+                    reason="manual_switch_compile_failed",
+                )
+                self._set_last_error(artifact.validation_report)
+                return False
 
-        if self.running_process and self.is_running():
-            self._stop_process_only()
-            time.sleep(0.15)
+            if self.running_process and self.is_running():
+                self._stop_process_only_locked()
 
-        self._preset_file_path = preset_path
-        self.current_launch_label = strategy_name
-
-        success = self._start_from_preset()
+            self._preset_file_path = preset_path
+            success = self._spawn_process_locked(artifact, strategy_name)
         if success:
             self._start_config_watcher(preset_path)
         return success
@@ -312,10 +388,8 @@ class StrategyRunnerV1(StrategyRunnerBase):
         Starts strategy directly from an existing preset file via @file syntax.
 
         This is the primary path for ordinary direct_zapret1 launch.
-        Unlike the old approach, does NOT re-parse/rewrite the file.
-        Preset file must already contain resolved paths (lists/X, bin/X).
         """
-        MAX_RETRIES = 2
+        max_retries = 2
 
         if not os.path.exists(preset_path):
             log(f"Preset file not found: {preset_path}, attempting selected-source refresh...", "WARNING")
@@ -334,157 +408,106 @@ class StrategyRunnerV1(StrategyRunnerBase):
             return False
 
         self._set_last_error(None)
+        self._stop_config_watcher()
 
-        try:
-            with open(preset_path, "r", encoding="utf-8", errors="replace") as f:
-                launch_args = _launch_args_from_preset_text(f.read())
-        except Exception as e:
-            log(f"Failed to read preset file '{preset_path}': {e}", "ERROR")
-            self._set_last_error(f"Не удалось прочитать preset файл: {e}")
-            return False
-
-        if not launch_args:
-            self._set_last_error("Не удалось подготовить аргументы запуска из preset файла")
-            return False
-
-        try:
-            # Stop previous process
-            if self.running_process and self.is_running():
-                log("Stopping previous process before starting new one", "INFO")
-                self.stop()
-
-            from utils.process_killer import kill_winws_force
-
-            if _retry_count > 0:
-                self._aggressive_windivert_cleanup()
-            else:
-                log("Cleaning up previous winws processes...", "DEBUG")
-                kill_winws_force()
-                self._fast_cleanup_services()
-
-                try:
-                    from utils.service_manager import unload_driver
-                    for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
-                        try:
-                            unload_driver(driver)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-                time.sleep(0.3)
-
-            # Self-healing: verify winws.exe still exists
-            if not os.path.exists(self.winws_exe):
-                log(f"winws.exe disappeared: {self.winws_exe}", "ERROR")
-                self._set_last_error(f"winws.exe не найден: {self.winws_exe}")
-                return False
-
-            # Store preset file path for hot-reload
-            self._preset_file_path = preset_path
-
-            cmd = [self.winws_exe, *launch_args]
-
-            log(f"Starting from preset file: {preset_path}", "INFO")
-            log(f"Strategy: {strategy_name}" + (f" (attempt {_retry_count + 1})" if _retry_count > 0 else ""), "INFO")
-
-            # Start process
-            self.running_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                startupinfo=self._create_startup_info(),
-                creationflags=CREATE_NO_WINDOW,
-                cwd=self.work_dir
+        with self._state_lock:
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                retry_count=int(_retry_count),
+                max_retries=int(max_retries),
             )
 
-            # Save info
-            self.current_launch_label = strategy_name
-            self.current_strategy_args = list(launch_args)
+    def _start_from_preset_file_locked(self, preset_path: str, strategy_name: str, *, retry_count: int, max_retries: int) -> bool:
+        artifact = self._compile_preset_artifact(preset_path)
+        if not artifact.validation_ok:
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=preset_path,
+                strategy_name=strategy_name,
+                error=artifact.validation_report,
+                reason="launch_compile_failed",
+            )
+            self._set_last_error(artifact.validation_report)
+            return False
 
-            # Quick startup check
-            time.sleep(0.2)
+        if self.running_process and self.is_running():
+            log("Stopping previous process before starting new one", "INFO")
+            self._stop_process_only_locked()
 
-            if self.running_process.poll() is None:
-                log(f"Strategy '{strategy_name}' started from preset (PID: {self.running_process.pid})", "SUCCESS")
-                self._start_config_watcher(preset_path)
-                self._set_last_error(None)
-                return True
-            else:
-                exit_code = self.running_process.returncode
-                log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", "ERROR")
+        from utils.process_killer import kill_winws_force
 
-                stderr_output = ""
-                try:
-                    stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
-                    if stderr_output:
-                        log(f"Error: {stderr_output[:500]}", "ERROR")
-                except Exception:
-                    pass
-
-                from dpi.process_health_check import diagnose_winws_exit
-                diag = diagnose_winws_exit(exit_code, stderr_output)
-                if diag:
-                    prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
-                    self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}")
-                    log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
-                else:
-                    first_line = ""
-                    try:
-                        first_line = next((ln.strip() for ln in (stderr_output or "").splitlines() if ln.strip()), "")
-                    except Exception:
-                        first_line = ""
-                    if first_line:
-                        self._set_last_error(f"winws завершился сразу (код {exit_code}): {first_line[:200]}")
-                    else:
-                        self._set_last_error(f"winws завершился сразу (код {exit_code})")
-
-                self.running_process = None
-                self.current_launch_label = None
-                self.current_strategy_args = None
-
-                # System-level errors — don't retry
-                if self._is_windivert_system_error(stderr_output, exit_code):
-                    log("WinDivert system error — retry will not help", "WARNING")
-                    return False
-
-                # Retryable conflict
-                if self._is_windivert_conflict_error(stderr_output, exit_code) and _retry_count < MAX_RETRIES:
-                    log(f"Detected WinDivert conflict, automatic retry ({_retry_count + 1}/{MAX_RETRIES})...", "INFO")
-                    return self.start_from_preset_file(preset_path, strategy_name, _retry_count + 1)
-
-                if not diag:
-                    causes = check_common_crash_causes()
-                    if causes:
-                        log("Possible causes:", "INFO")
-                        for line in causes.split('\n')[:5]:
-                            log(f"  {line}", "INFO")
-
-                return False
-
-        except Exception as e:
-            diagnosis = diagnose_startup_error(e, self.winws_exe)
-            for line in diagnosis.split('\n'):
-                log(line, "ERROR")
+        if retry_count > 0:
+            self._aggressive_windivert_cleanup()
+        else:
+            log("Cleaning up previous winws processes...", "DEBUG")
+            kill_winws_force()
+            self._fast_cleanup_services()
 
             try:
-                self._set_last_error(diagnosis.split("\n")[0].strip())
+                from utils.service_manager import unload_driver
+                for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
+                    try:
+                        unload_driver(driver)
+                    except Exception:
+                        pass
             except Exception:
-                self._set_last_error(None)
+                pass
 
-            import traceback
-            log(traceback.format_exc(), "DEBUG")
-            self.running_process = None
-            self.current_launch_label = None
-            self.current_strategy_args = None
+            time.sleep(0.3)
+
+        if not os.path.exists(self.winws_exe):
+            log(f"winws.exe disappeared: {self.winws_exe}", "ERROR")
+            self._set_last_error(f"winws.exe не найден: {self.winws_exe}")
             return False
+
+        self._preset_file_path = preset_path
+        success = self._spawn_process_locked(artifact, strategy_name)
+        if success:
+            self._start_config_watcher(preset_path)
+            return True
+
+        exit_code = int(self._last_spawn_exit_code or -1)
+        stderr_output = str(self._last_spawn_stderr or "")
+
+        if self._is_windivert_system_error(stderr_output, exit_code):
+            log("WinDivert system error — retry will not help", "WARNING")
+            return False
+
+        if self._is_windivert_conflict_error(stderr_output, exit_code) and retry_count < max_retries:
+            log(f"Detected WinDivert conflict, automatic retry ({retry_count + 1}/{max_retries})...", "INFO")
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                retry_count=retry_count + 1,
+                max_retries=max_retries,
+            )
+
+        causes = check_common_crash_causes()
+        if causes:
+            log("Possible causes:", "INFO")
+            for line in causes.split('\n')[:5]:
+                log(f"  {line}", "INFO")
+
+        return False
 
     def stop(self) -> bool:
         """Stops running process and hot-reload watcher."""
-        if self._config_watcher:
-            self._config_watcher.stop()
-            self._config_watcher = None
-
-        self._preset_file_path = None
-        return super().stop()
+        self._stop_config_watcher()
+        with self._state_lock:
+            if self.running_process and self.is_running():
+                self._set_runner_state_locked(
+                    PresetRunnerState.STOPPING,
+                    preset_path=str(self._preset_file_path or ""),
+                    strategy_name=str(self.current_launch_label or ""),
+                    pid=self.running_process.pid,
+                    reason="public_stop",
+                )
+            self._preset_file_path = None
+            success = super().stop()
+            self._set_runner_state_locked(
+                PresetRunnerState.IDLE,
+                reason="public_stop_completed",
+                allow_same=True,
+            )
+            return success

@@ -95,6 +95,7 @@ def setup_direct_service(
         import ctypes
         from config import MAIN_DIRECTORY, LOGS_FOLDER
         from .autostart_direct import _resolve_file_paths
+        from .autostart_remove import clear_existing_autostart
         from launcher_common import apply_all_filters
         from .service_api import create_zapret_service
         from .nssm_service import (
@@ -102,6 +103,8 @@ def setup_direct_service(
             create_service_with_nssm, 
             start_service_with_nssm
         )
+
+        clear_existing_autostart(status_cb=ui_error_cb)
         
         # Создаем папку для логов если её нет
         os.makedirs(LOGS_FOLDER, exist_ok=True)

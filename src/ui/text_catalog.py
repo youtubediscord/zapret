@@ -799,69 +799,41 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Premium и VPN",
         "en": "Premium and VPN",
     },
-    "page.about.support.section.zaphub": {
-        "ru": "ZapretHub",
-        "en": "ZapretHub",
+    "page.about.support.section.discussions": {
+        "ru": "GitHub Discussions",
+        "en": "GitHub Discussions",
     },
-    "page.about.support.section.channels": {
-        "ru": "Каналы поддержки",
-        "en": "Support Channels",
+    "page.about.support.section.community": {
+        "ru": "Каналы сообщества",
+        "en": "Community Channels",
     },
-    "page.about.support.zaphub.title": {
-        "ru": "ZapretHub",
-        "en": "ZapretHub",
+    "page.about.support.discussions.title": {
+        "ru": "GitHub Discussions",
+        "en": "GitHub Discussions",
     },
-    "page.about.support.zaphub.desc": {
-        "ru": "Центр сообщества Zapret: стратегии, пресеты и форум.",
-        "en": "Zapret community hub: strategies, presets and forum.",
+    "page.about.support.discussions.desc": {
+        "ru": "Основной канал поддержки. Здесь можно задать вопрос, описать проблему и приложить материалы вручную.",
+        "en": "Main support channel. Ask questions, describe the issue, and attach materials manually.",
     },
-    "page.about.support.zaphub.status.checking": {
-        "ru": "Статус: проверяю...",
-        "en": "Status: checking...",
-    },
-    "page.about.support.zaphub.status.installed": {
-        "ru": "Статус: установлен",
-        "en": "Status: installed",
-    },
-    "page.about.support.zaphub.status.not_installed": {
-        "ru": "Статус: не установлен",
-        "en": "Status: not installed",
-    },
-    "page.about.support.zaphub.status.installing": {
-        "ru": "Статус: установка запущена...",
-        "en": "Status: installation started...",
-    },
-    "page.about.support.zaphub.button.wait": {
-        "ru": "...",
-        "en": "...",
-    },
-    "page.about.support.zaphub.button.open": {
+    "page.about.support.discussions.button": {
         "ru": "Открыть",
         "en": "Open",
     },
-    "page.about.support.zaphub.button.install": {
-        "ru": "Установить",
-        "en": "Install",
-    },
-    "page.about.support.zaphub.button.installing": {
-        "ru": "Установка...",
-        "en": "Installing...",
-    },
     "page.about.support.telegram.title": {
-        "ru": "Telegram поддержка",
-        "en": "Telegram support",
+        "ru": "Telegram",
+        "en": "Telegram",
     },
     "page.about.support.telegram.desc": {
-        "ru": "Помощь и вопросы по использованию",
-        "en": "Help and usage questions",
+        "ru": "Быстрые вопросы и общение с сообществом",
+        "en": "Quick questions and community chat",
     },
     "page.about.support.discord.title": {
-        "ru": "Discord сервер",
-        "en": "Discord server",
+        "ru": "Discord",
+        "en": "Discord",
     },
     "page.about.support.discord.desc": {
-        "ru": "Сообщество и живое общение",
-        "en": "Community and live discussion",
+        "ru": "Обсуждение и живое общение",
+        "en": "Discussion and live chat",
     },
     "page.about.support.button.open": {
         "ru": "Открыть",
@@ -1300,16 +1272,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Connection Diagnostics",
     },
     "page.connection.subtitle": {
-        "ru": "Автотест Discord и YouTube, проверка DNS подмены и отправка логов в поддержку",
-        "en": "Auto-test Discord and YouTube, check DNS spoofing and send logs to support",
+        "ru": "Автотест Discord и YouTube, проверка DNS подмены и быстрая подготовка обращения в GitHub Discussions",
+        "en": "Auto-test Discord and YouTube, check DNS spoofing, and quickly prepare a GitHub Discussions report",
     },
     "page.connection.hero.title": {
         "ru": "Диагностика сетевых соединений",
         "en": "Network Connection Diagnostics",
     },
     "page.connection.hero.subtitle": {
-        "ru": "Проверьте доступность Discord и YouTube, найдите подмену DNS и быстро отправьте лог в поддержку.",
-        "en": "Check Discord and YouTube availability, detect DNS spoofing, and quickly send logs to support.",
+        "ru": "Проверьте доступность Discord и YouTube, а затем одной кнопкой соберите ZIP с логами и откройте GitHub Discussions.",
+        "en": "Check Discord and YouTube availability, then create a ZIP with logs and open GitHub Discussions in one click.",
     },
     "page.connection.card.testing": {
         "ru": "Тестирование",
@@ -1344,8 +1316,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Stop",
     },
     "page.connection.button.send_log": {
-        "ru": "Отправить лог",
-        "en": "Send log",
+        "ru": "Подготовить обращение",
+        "en": "Prepare report",
     },
     "page.connection.status.ready": {
         "ru": "Готово к тестированию",
@@ -2416,8 +2388,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "LOGS",
     },
     "page.logs.tab.send": {
-        "ru": "ОТПРАВКА",
-        "en": "SEND",
+        "ru": "ПОДДЕРЖКА",
+        "en": "SUPPORT",
     },
     "page.logs.card.controls": {
         "ru": "Управление логами",
@@ -2476,40 +2448,24 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Process ended with error (code: {code})",
     },
     "page.logs.send.card.title": {
-        "ru": "Отправка лога в техподдержку",
-        "en": "Send Log to Support",
+        "ru": "Поддержка через GitHub Discussions",
+        "en": "Support via GitHub Discussions",
     },
     "page.logs.send.orchestra.active": {
-        "ru": "Режим оркестратора активен — будут отправлены 2 файла",
-        "en": "Orchestrator mode is active — 2 files will be sent",
+        "ru": "В режиме оркестратора проверьте основной лог и файл orchestra_*.log",
+        "en": "In orchestrator mode, check both the main log and the orchestra_*.log file",
     },
     "page.logs.send.desc": {
-        "ru": "Опишите проблему и оставьте контакты для обратной связи (необязательно):",
-        "en": "Describe the issue and leave contact details (optional):",
-    },
-    "page.logs.send.problem.header": {
-        "ru": "Описание проблемы:",
-        "en": "Problem description:",
-    },
-    "page.logs.send.problem.placeholder": {
-        "ru": "Опишите, что не работает или какая ошибка возникает.",
-        "en": "Describe what is not working or what error appears.",
-    },
-    "page.logs.send.contact.header": {
-        "ru": "Telegram для связи (необязательно):",
-        "en": "Telegram contact (optional):",
-    },
-    "page.logs.send.contact.placeholder": {
-        "ru": "@username или ссылка на профиль",
-        "en": "@username or profile link",
+        "ru": "Нажмите кнопку, чтобы собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
+        "en": "Press the button to build a ZIP with fresh logs, copy a report template, and open GitHub Discussions.",
     },
     "page.logs.send.info": {
-        "ru": "Ваши данные будут отправлены только в канал техподдержки.\nЛог файл поможет разработчикам найти и исправить проблему.",
-        "en": "Your data will be sent only to the support channel.\nLog files help developers find and fix the issue.",
+        "ru": "Будет создан архив в папке logs/support_bundles. Шаблон обращения автоматически попадёт в буфер обмена.",
+        "en": "An archive will be created in logs/support_bundles. The report template will be copied to the clipboard automatically.",
     },
     "page.logs.send.button.send": {
-        "ru": "Отправить лог",
-        "en": "Send Log",
+        "ru": "Подготовить обращение",
+        "en": "Prepare report",
     },
     "page.netrogat.title": {
         "ru": "Исключения",
@@ -3840,88 +3796,48 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Support",
     },
     "page.support.subtitle": {
-        "ru": "ZapretHub и каналы связи",
-        "en": "ZapretHub and support channels",
+        "ru": "GitHub Discussions и каналы сообщества",
+        "en": "GitHub Discussions and community channels",
     },
-    "page.support.section.zaprethub": {
-        "ru": "ZapretHub",
-        "en": "ZapretHub",
+    "page.support.section.discussions": {
+        "ru": "GitHub Discussions",
+        "en": "GitHub Discussions",
     },
-    "page.support.section.channels": {
-        "ru": "Каналы поддержки",
-        "en": "Support Channels",
+    "page.support.section.community": {
+        "ru": "Каналы сообщества",
+        "en": "Community Channels",
     },
-    "page.support.zaphub.title": {
-        "ru": "ZapretHub",
-        "en": "ZapretHub",
+    "page.support.discussions.title": {
+        "ru": "GitHub Discussions",
+        "en": "GitHub Discussions",
     },
-    "page.support.zaphub.description": {
-        "ru": "Центр сообщества Zapret: стратегии, пресеты и форум.",
-        "en": "Zapret community hub: strategies, presets, and forum.",
+    "page.support.discussions.description": {
+        "ru": "Основной канал поддержки. Здесь можно задать вопрос, описать проблему и приложить нужные материалы вручную.",
+        "en": "Main support channel. Ask questions, describe the issue, and attach materials manually.",
     },
-    "page.support.zaphub.status.checking": {
-        "ru": "Статус: проверяю…",
-        "en": "Status: checking…",
-    },
-    "page.support.zaphub.status.installed": {
-        "ru": "Статус: установлен",
-        "en": "Status: installed",
-    },
-    "page.support.zaphub.status.not_installed": {
-        "ru": "Статус: не установлен",
-        "en": "Status: not installed",
-    },
-    "page.support.zaphub.status.install_started": {
-        "ru": "Статус: установка запущена…",
-        "en": "Status: installation started…",
-    },
-    "page.support.zaphub.action.placeholder": {
-        "ru": "…",
-        "en": "…",
-    },
-    "page.support.zaphub.action.open": {
+    "page.support.discussions.button": {
         "ru": "Открыть",
         "en": "Open",
     },
-    "page.support.zaphub.action.install": {
-        "ru": "Установить",
-        "en": "Install",
-    },
-    "page.support.zaphub.action.installing": {
-        "ru": "Установка…",
-        "en": "Installing…",
-    },
-    "page.support.zaphub.error.not_found": {
-        "ru": "ZapretHub не найден",
-        "en": "ZapretHub not found",
-    },
-    "page.support.zaphub.error.open_failed": {
-        "ru": "Не удалось открыть ZapretHub:\n{error}",
-        "en": "Failed to open ZapretHub:\n{error}",
-    },
-    "page.support.zaphub.error.installer_not_found": {
-        "ru": "Установщик ZapretHub не найден.\n\nПереустановите Zapret2 или установите ZapretHub через основной установщик.",
-        "en": "ZapretHub installer not found.\n\nReinstall Zapret2 or install ZapretHub from the main installer.",
-    },
-    "page.support.zaphub.error.install_start_failed": {
-        "ru": "Не удалось запустить установку:\n{error}",
-        "en": "Failed to start installation:\n{error}",
+    "page.support.error.open_discussions": {
+        "ru": "Не удалось открыть GitHub Discussions:\n{error}",
+        "en": "Failed to open GitHub Discussions:\n{error}",
     },
     "page.support.channel.telegram.title": {
-        "ru": "Telegram поддержка",
-        "en": "Telegram Support",
+        "ru": "Telegram",
+        "en": "Telegram",
     },
     "page.support.channel.telegram.desc": {
-        "ru": "Помощь и вопросы по использованию",
-        "en": "Help and usage questions",
+        "ru": "Быстрые вопросы и общение с сообществом",
+        "en": "Quick questions and community chat",
     },
     "page.support.channel.discord.title": {
-        "ru": "Discord сервер",
-        "en": "Discord Server",
+        "ru": "Discord",
+        "en": "Discord",
     },
     "page.support.channel.discord.desc": {
-        "ru": "Сообщество и живое общение",
-        "en": "Community and live chat",
+        "ru": "Обсуждение и живое общение",
+        "en": "Discussion and live chat",
     },
     "page.support.channel.open": {
         "ru": "Открыть",
@@ -5737,38 +5653,6 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "ru": "Отключение блокировки MAX",
         "en": "Disable MAX Blocking",
     },
-    "page.logs.send.status.wait_auth": {
-        "ru": "🔐 Ожидание подтверждения кода...",
-        "en": "🔐 Waiting for code confirmation...",
-    },
-    "page.logs.send.status.auth_failed": {
-        "ru": "❌ Код не подтверждён",
-        "en": "❌ Code not confirmed",
-    },
-    "page.logs.send.status.sending_orchestra": {
-        "ru": "📤 Отправка 2 файлов (оркестратор)...",
-        "en": "📤 Sending 2 files (orchestrator)...",
-    },
-    "page.logs.send.status.sending_single": {
-        "ru": "📤 Отправка лога...",
-        "en": "📤 Sending log...",
-    },
-    "page.logs.send.status.error": {
-        "ru": "❌ Ошибка",
-        "en": "❌ Error",
-    },
-    "page.logs.send.status.sent_single": {
-        "ru": "✅ Лог отправлен!",
-        "en": "✅ Log sent!",
-    },
-    "page.logs.send.status.sent_orchestra": {
-        "ru": "✅ 2 файла отправлены!",
-        "en": "✅ 2 files sent!",
-    },
-    "page.logs.send.status.send_error": {
-        "ru": "❌ Ошибка отправки",
-        "en": "❌ Send error",
-    },
     "page.logs.info.winws_cleared": {
         "ru": "🧹 Вывод winws очищен",
         "en": "🧹 winws output cleared",
@@ -6111,7 +5995,7 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
     SearchEntry("about.support", PageName.ABOUT, "page.about.support", section_key="page.about.support"),
     SearchEntry("about.tab.support", PageName.ABOUT, "page.about.tab.support", section_key="page.about.title", tab_key="support", text_prefixes=("page.about.support.",)),
     SearchEntry("about.tab.help", PageName.ABOUT, "page.about.tab.help", section_key="page.about.title", tab_key="help", text_prefixes=("page.about.help.",)),
-    SearchEntry("about.support.zaphub", PageName.ABOUT, "page.about.support.zaphub.title", section_key="page.about.tab.support", tab_key="support"),
+    SearchEntry("about.support.discussions", PageName.ABOUT, "page.about.support.discussions.title", section_key="page.about.tab.support", tab_key="support"),
     SearchEntry("about.support.telegram", PageName.ABOUT, "page.about.support.telegram.title", section_key="page.about.tab.support", tab_key="support"),
     SearchEntry("about.support.discord", PageName.ABOUT, "page.about.support.discord.title", section_key="page.about.tab.support", tab_key="support"),
     SearchEntry("about.help.docs.forum", PageName.ABOUT, "page.about.help.docs.forum.title", section_key="page.about.tab.help", tab_key="help"),

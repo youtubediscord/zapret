@@ -3,17 +3,12 @@
 import os
 import subprocess
 import logging
-import requests, webbrowser
 from datetime import datetime
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 from utils import run_hidden, get_system32_path, get_syswow64_path, get_system_exe  # Импортируем нашу обертку для subprocess
-from config import APP_VERSION, LOGS_FOLDER  # Добавляем импорт
+from config import LOGS_FOLDER  # Добавляем импорт
 from strategy_checker import StrategyChecker  # Добавляем импорт
 from dns_checker import DNSChecker
-
-from tgram.tg_log_bot import send_log_file, check_bot_connection
-from tgram.tg_log_delta import get_client_id
-import platform
 
 class ConnectionTestWorker(QObject):
     """Рабочий поток для выполнения тестов соединения."""
@@ -61,33 +56,6 @@ class ConnectionTestWorker(QObject):
         if not self._stop_requested:  # Не логируем после остановки
             logging.info(message)
             self.update_signal.emit(message)
-
-    def check_telegram_bot_api(self):
-        """Проверяет доступность Telegram Bot API (api.telegram.org) для отправки логов."""
-        if self.is_stop_requested():
-            return
-
-        self.log_message("")
-        self.log_message("=" * 40)
-        self.log_message("🤖 ПРОВЕРКА TELEGRAM BOT API")
-        self.log_message("=" * 40)
-
-        try:
-            from tgram.tg_log_bot import check_bot_connection_detailed
-
-            ok, err = check_bot_connection_detailed()
-            if ok:
-                self.log_message("✅ Telegram Bot API доступен (getMe OK)")
-                return
-
-            details = (err or "Неизвестная ошибка").strip()
-            self.log_message(f"❌ Telegram Bot API недоступен: {details}")
-            if "proxy" in details.lower() or "прокси" in details.lower() or "http_proxy" in details.lower():
-                self.log_message("💡 Похоже, включён прокси. Проверьте HTTP_PROXY/HTTPS_PROXY или установите PySocks.")
-            else:
-                self.log_message("💡 Если Telegram-клиент работает, а Bot API нет — возможна блокировка api.telegram.org (DPI/фаервол).")
-        except Exception as e:
-            self.log_message(f"❌ Ошибка проверки Telegram Bot API: {e}")
 
     def check_dns_poisoning(self):
         """Проверяет DNS подмену провайдером"""
@@ -1073,9 +1041,6 @@ class ConnectionTestWorker(QObject):
                 if not self.is_stop_requested():
                     self.log_message("\n" + "="*30 + "\n")
                     self.check_youtube()
-                if not self.is_stop_requested():
-                    self.log_message("\n" + "="*30 + "\n")
-                    self.check_telegram_bot_api()
             
             if self.is_stop_requested():
                 self.log_message("⚠️ Тестирование остановлено пользователем")
@@ -1089,26 +1054,3 @@ class ConnectionTestWorker(QObject):
         finally:
             # ✅ ВСЕГДА эмитируем сигнал завершения
             self.finished_signal.emit()
-
-# Топик для логов диагностики соединения
-CONNECTION_TEST_TOPIC_ID = 10852
-
-class LogSendWorker(QObject):
-    """Воркер для отправки лога в Telegram в отдельном потоке"""
-    finished = pyqtSignal(bool, str)  # success, message
-
-    def __init__(self, log_path: str, caption: str, auth_code: str | None = None):
-        super().__init__()
-        self.log_path = log_path
-        self.caption = caption
-        self.auth_code = auth_code
-
-    def run(self):
-        try:
-            success, error_msg = send_log_file(self.log_path, self.caption, topic_id=CONNECTION_TEST_TOPIC_ID, auth_code=self.auth_code)
-            if success:
-                self.finished.emit(True, "Лог успешно отправлен!")
-            else:
-                self.finished.emit(False, error_msg or "Ошибка отправки")
-        except Exception as e:
-            self.finished.emit(False, str(e))

@@ -172,3 +172,16 @@ class AutoStartCleaner:
             err = delete.stderr.strip() or delete.stdout.strip()
             log(f"Ошибка удаления службы {svc_name}: {err}", "❌ ERROR")
             return True    # Служба была, попытались удалить ⇒ считаем «что-то удалили»
+
+
+def clear_existing_autostart(
+    *,
+    status_cb: Callable[[str], None] | None = None,
+) -> bool:
+    """Удаляет старые механизмы автозапуска перед установкой нового.
+
+    Это важно, чтобы в системе не оставалось сразу несколько активных путей:
+    например, GUI-автозапуск в трей и старый direct task/service одновременно.
+    """
+    cleaner = AutoStartCleaner(status_cb=status_cb)
+    return cleaner.run()

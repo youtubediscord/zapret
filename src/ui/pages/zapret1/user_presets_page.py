@@ -46,8 +46,10 @@ from PyQt6.QtGui import QCursor
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
+from ui.pages.preset_actions_menu import show_preset_actions_menu
+from ui.pages.preset_rating_menu import show_preset_rating_menu
 from ui.compat_widgets import ActionButton, SettingsCard, LineEdit, set_tooltip
-from ui.main_window_state import AppUiState, MainWindowStateStore
+from ui.main_window_state import MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
 
 try:
@@ -55,7 +57,7 @@ try:
         BodyLabel, CaptionLabel, StrongBodyLabel, SubtitleLabel,
         PushButton as FluentPushButton, PrimaryPushButton, ToolButton, PrimaryToolButton,
         MessageBox, InfoBar, MessageBoxBase, TransparentToolButton, TransparentPushButton, FluentIcon,
-        RoundMenu, Action, IndeterminateProgressRing, ListView,
+        RoundMenu, Action, ListView,
     )
     _HAS_FLUENT_LABELS = True
 except ImportError:
@@ -75,7 +77,6 @@ except ImportError:
     FluentIcon = None
     RoundMenu = None
     Action = None
-    IndeterminateProgressRing = None
     ListView = QListView
     _HAS_FLUENT_LABELS = False
 
@@ -636,7 +637,6 @@ class _PresetListDelegate(QStyledItemDelegate):
         self._hover_row = -1
         self._pressed_row = -1
         self._selected_rows: set[int] = set()
-        self._runtime_busy = False
         self._pending_destructive: Optional[tuple[str, str]] = None
         self._pending_timer = QTimer(self)
         self._pending_timer.setSingleShot(True)
@@ -685,9 +685,6 @@ class _PresetListDelegate(QStyledItemDelegate):
         self._selected_rows = rows
         if self._pressed_row in self._selected_rows:
             self._pressed_row = -1
-
-    def set_runtime_busy(self, busy: bool) -> None:
-        self._runtime_busy = bool(busy)
 
     def _icon_rect_for_row(self, row_rect: QRect, depth: int) -> QRect:
         pin_rect = self._pin_rect(row_rect, "preset", depth)
@@ -941,8 +938,7 @@ class _PresetListDelegate(QStyledItemDelegate):
             [tokens.accent_hex, tokens.fg],
             minimum_ratio=2.6,
         )
-        if not (is_active and self._runtime_busy):
-            _cached_icon(icon_name, icon_color).paint(painter, icon_rect)
+        _cached_icon(icon_name, icon_color).paint(painter, icon_rect)
 
         action_rects = self._action_rects(row_rect, "preset", is_active, is_builtin)
         right_cursor = action_rects[0][1].left() - 10 if action_rects else row_rect.right() - 12
@@ -1325,16 +1321,9 @@ class Zapret1UserPresetsPage(BasePage):
         self._ui_initialized = False
         self._lazy_show_scheduled = False
         self._ui_state_store: Optional[MainWindowStateStore] = None
-        self._ui_state_unsubscribe = None
-        self._last_ui_state = AppUiState()
-        self._active_preset_restart_spinner = None
-        self._pending_restart_file_name = ""
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         return _tr_text(key, self._ui_language, default, **kwargs)
-
-    def _supports_runtime_restart_indicator(self, state: AppUiState) -> bool:
-        return str(state.launch_method or "").strip().lower() == "direct_zapret1"
 
     def _on_store_changed(self):
         """Central store says the preset list changed."""
@@ -1374,13 +1363,16 @@ class Zapret1UserPresetsPage(BasePage):
             self.refresh_presets_view_if_possible()
 
     def _apply_active_preset_marker(self) -> bool:
+        active_file_name = self._get_selected_source_preset_file_name_light()
+        return self._apply_active_preset_marker_for_target(active_file_name)
+
+    def _apply_active_preset_marker_for_target(self, file_name: str) -> bool:
         if self._presets_model is None:
             return False
-        active_file_name = self._get_selected_source_preset_file_name_light()
-        changed = self._presets_model.set_active_preset(active_file_name)
+        changed = self._presets_model.set_active_preset(str(file_name or "").strip())
         if changed and hasattr(self, "presets_list"):
             self.presets_list.viewport().update()
-            self._sync_runtime_restart_indicator()
+            self.presets_list.viewport().repaint()
         return changed
 
     def _list_preset_entries_light(self) -> list[dict[str, object]]:
@@ -1587,8 +1579,6 @@ class Zapret1UserPresetsPage(BasePage):
         except Exception:
             pass
 
-        self._sync_runtime_restart_indicator()
-
         self._ui_initialized = True
         elapsed_ms = int((time.perf_counter() - started_at) * 1000)
         log(f"Z1UserPresetsPage: lazy ui init {elapsed_ms}ms", "DEBUG")
@@ -1608,111 +1598,7 @@ class Zapret1UserPresetsPage(BasePage):
         self._schedule_layout_resync(include_delayed=True)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
-        if self._ui_state_store is store:
-            return
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-
         self._ui_state_store = store
-        self._ui_state_unsubscribe = store.subscribe(
-            self._on_ui_state_changed,
-            fields={"dpi_busy", "dpi_busy_text", "launch_method"},
-            emit_initial=True,
-        )
-
-    def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
-        self._last_ui_state = state
-        if not bool(state.dpi_busy):
-            self._pending_restart_file_name = ""
-        self._sync_runtime_restart_indicator()
-
-    def _sync_runtime_restart_indicator(self) -> None:
-        spinner = getattr(self, "_active_preset_restart_spinner", None)
-        delegate = getattr(self, "_presets_delegate", None)
-        list_view = getattr(self, "presets_list", None)
-        if spinner is None or list_view is None or delegate is None:
-            return
-
-        state = getattr(self, "_last_ui_state", AppUiState())
-        immediate_pending = bool(self._pending_restart_file_name) and (not self._is_orchestra_backend())
-        should_show = immediate_pending or (
-            bool(state.dpi_busy) and self._supports_runtime_restart_indicator(state)
-        )
-        try:
-            delegate.set_runtime_busy(should_show)
-        except Exception:
-            pass
-        try:
-            list_view.viewport().update()
-        except Exception:
-            pass
-
-        if should_show:
-            rect = self._get_active_preset_icon_rect(self._pending_restart_file_name or None)
-            if rect is not None and rect.isValid():
-                spinner.setGeometry(rect)
-                try:
-                    spinner.show()
-                    spinner.raise_()
-                    spinner.start()
-                except Exception:
-                    pass
-                return
-
-        try:
-            spinner.stop()
-            spinner.hide()
-        except Exception:
-            pass
-
-    def _get_active_preset_icon_rect(self, preferred_file_name: str | None = None) -> QRect | None:
-        list_view = getattr(self, "presets_list", None)
-        model = getattr(self, "_presets_model", None)
-        delegate = getattr(self, "_presets_delegate", None)
-        if list_view is None or model is None or delegate is None:
-            return None
-
-        active_index = None
-        try:
-            for row in range(model.rowCount()):
-                index = model.index(row, 0)
-                if str(index.data(_PresetListModel.KindRole) or "") != "preset":
-                    continue
-                if preferred_file_name and str(index.data(_PresetListModel.FileNameRole) or "") == preferred_file_name:
-                    active_index = index
-                    break
-                if bool(index.data(_PresetListModel.ActiveRole)):
-                    active_index = index
-                    break
-        except Exception:
-            active_index = None
-
-        if active_index is None or not active_index.isValid():
-            return None
-
-        try:
-            row_rect = list_view.visualRect(active_index)
-        except Exception:
-            return None
-        if not row_rect.isValid() or row_rect.isEmpty():
-            return None
-
-        try:
-            depth = int(active_index.data(_PresetListModel.DepthRole) or 0)
-        except Exception:
-            depth = 0
-
-        try:
-            icon_rect = delegate._icon_rect_for_row(row_rect, depth)
-        except Exception:
-            return None
-
-        return QRect(icon_rect)
 
     def _schedule_layout_resync(self, include_delayed: bool = False):
         self._layout_resync_timer.start(0)
@@ -1979,17 +1865,6 @@ class Zapret1UserPresetsPage(BasePage):
             self.set_smooth_scroll_enabled(smooth_enabled)
         except Exception:
             pass
-        if IndeterminateProgressRing is not None:
-            spinner = IndeterminateProgressRing(self.presets_list.viewport(), start=False)
-            spinner.setFixedSize(20, 20)
-            spinner.setStrokeWidth(2)
-            spinner.hide()
-            self._active_preset_restart_spinner = spinner
-            try:
-                self.presets_list.verticalScrollBar().valueChanged.connect(self._sync_runtime_restart_indicator)
-                self.presets_list.horizontalScrollBar().valueChanged.connect(self._sync_runtime_restart_indicator)
-            except Exception:
-                pass
         self.add_widget(self.presets_list)
 
         # Make outer page scrolling feel less sluggish on long lists.
@@ -2534,16 +2409,13 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _on_activate_preset(self, name: str):
         try:
-            self._pending_restart_file_name = str(name or "").strip()
             from core.services import get_direct_flow_coordinator
             get_direct_flow_coordinator().select_preset_file_name("direct_zapret1", name)
             self._get_preset_store().notify_preset_switched(name)
             display_name = self._resolve_display_name(name)
             log(f"Активирован пресет '{display_name}'", "INFO")
-            self._apply_active_preset_marker()
-            self._sync_runtime_restart_indicator()
+            self._apply_active_preset_marker_for_target(name)
         except Exception as e:
-            self._pending_restart_file_name = ""
             log(f"Ошибка активации пресета: {e}", "ERROR")
             InfoBar.warning(
                 title=self._tr("common.error.title", "Ошибка"),
@@ -2557,140 +2429,39 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _on_edit_preset(self, name: str, global_pos: QPoint | None = None):
         is_builtin = self._is_builtin_preset_file(name)
-        if RoundMenu is not None and Action is not None:
-            menu = RoundMenu(parent=self)
-            open_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.open", "Открыть"),
-                icon=_fluent_icon("VIEW"),
-                parent=menu,
-            )
-            rating_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.rating", "Рейтинг"),
-                icon=_fluent_icon("FAVORITE"),
-                parent=menu,
-            )
-            duplicate_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.duplicate", "Дублировать"),
-                icon=_fluent_icon("COPY"),
-                parent=menu,
-            )
-            export_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.export", "Экспорт"),
-                icon=_fluent_icon("SHARE"),
-                parent=menu,
-            )
-            reset_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.reset", "Сбросить"),
-                icon=_fluent_icon("SYNC"),
-                parent=menu,
-            )
-            move_up_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.move_up", "Переместить выше"),
-                icon=_fluent_icon("UP"),
-                parent=menu,
-            )
-            move_down_action = _make_menu_action(
-                self._tr("page.z1_user_presets.menu.move_down", "Переместить ниже"),
-                icon=_fluent_icon("DOWN"),
-                parent=menu,
-            )
+        chosen = show_preset_actions_menu(
+            self,
+            global_pos=global_pos,
+            is_builtin=is_builtin,
+            labels={
+                "open": self._tr("page.z1_user_presets.menu.open", "Открыть"),
+                "rating": self._tr("page.z1_user_presets.menu.rating", "Рейтинг"),
+                "move_up": self._tr("page.z1_user_presets.menu.move_up", "Переместить выше"),
+                "move_down": self._tr("page.z1_user_presets.menu.move_down", "Переместить ниже"),
+                "rename": self._tr("page.z1_user_presets.menu.rename", "Переименовать"),
+                "duplicate": self._tr("page.z1_user_presets.menu.duplicate", "Дублировать"),
+                "export": self._tr("page.z1_user_presets.menu.export", "Экспорт"),
+                "reset": self._tr("page.z1_user_presets.menu.reset", "Сбросить"),
+                "delete": self._tr("page.z1_user_presets.menu.delete", "Удалить"),
+            },
+            make_menu_action=_make_menu_action,
+            icon_resolver=_fluent_icon,
+            round_menu_cls=RoundMenu if RoundMenu is not None and Action is not None else None,
+        )
+        if chosen:
+            self._on_preset_list_action(chosen, name)
 
-            open_action.triggered.connect(lambda: self._open_preset_subpage(name))
-            rating_action.triggered.connect(lambda: self._show_rating_menu(name))
-            move_up_action.triggered.connect(lambda: self._move_preset_by_step(name, -1))
-            move_down_action.triggered.connect(lambda: self._move_preset_by_step(name, 1))
-            duplicate_action.triggered.connect(lambda: self._on_duplicate_preset(name))
-            export_action.triggered.connect(lambda: self._on_export_preset(name))
-            reset_action.triggered.connect(lambda: self._on_reset_preset(name))
-
-            menu.addAction(open_action)
-            menu.addAction(rating_action)
-            menu.addAction(move_up_action)
-            menu.addAction(move_down_action)
-            if not is_builtin:
-                rename_action = _make_menu_action(
-                    self._tr("page.z1_user_presets.menu.rename", "Переименовать"),
-                    icon=_fluent_icon("RENAME"),
-                    parent=menu,
-                )
-                delete_action = _make_menu_action(
-                    self._tr("page.z1_user_presets.menu.delete", "Удалить"),
-                    icon=_fluent_icon("DELETE"),
-                    parent=menu,
-                )
-                rename_action.triggered.connect(lambda: self._on_rename_preset(name))
-                delete_action.triggered.connect(lambda: self._on_delete_preset(name))
-                menu.addAction(rename_action)
-            menu.addAction(duplicate_action)
-            menu.addAction(export_action)
-            menu.addAction(reset_action)
-            if not is_builtin:
-                menu.addAction(delete_action)
-            menu.exec(global_pos or QCursor.pos())
-            return
-
-        from PyQt6.QtWidgets import QMenu
-
-        menu = QMenu(self)
-        open_action = menu.addAction(self._tr("page.z1_user_presets.menu.open", "Открыть"))
-        rating_action = menu.addAction(self._tr("page.z1_user_presets.menu.rating", "Рейтинг"))
-        move_up_action = menu.addAction(self._tr("page.z1_user_presets.menu.move_up", "Переместить выше"))
-        move_down_action = menu.addAction(self._tr("page.z1_user_presets.menu.move_down", "Переместить ниже"))
-        rename_action = None
-        delete_action = None
-        if not is_builtin:
-            rename_action = menu.addAction(self._tr("page.z1_user_presets.menu.rename", "Переименовать"))
-        duplicate_action = menu.addAction(self._tr("page.z1_user_presets.menu.duplicate", "Дублировать"))
-        export_action = menu.addAction(self._tr("page.z1_user_presets.menu.export", "Экспорт"))
-        reset_action = menu.addAction(self._tr("page.z1_user_presets.menu.reset", "Сбросить"))
-        if not is_builtin:
-            delete_action = menu.addAction(self._tr("page.z1_user_presets.menu.delete", "Удалить"))
-        chosen = menu.exec(global_pos or QCursor.pos())
-        if chosen == open_action:
-            self._open_preset_subpage(name)
-        elif chosen == rating_action:
-            self._show_rating_menu(name)
-        elif chosen == move_up_action:
-            self._move_preset_by_step(name, -1)
-        elif chosen == move_down_action:
-            self._move_preset_by_step(name, 1)
-        elif chosen == rename_action:
-            self._on_rename_preset(name)
-        elif chosen == duplicate_action:
-            self._on_duplicate_preset(name)
-        elif chosen == export_action:
-            self._on_export_preset(name)
-        elif chosen == reset_action:
-            self._on_reset_preset(name)
-        elif chosen == delete_action:
-            self._on_delete_preset(name)
-
-    def _show_rating_menu(self, name: str):
-        from PyQt6.QtWidgets import QMenu
-
-        menu = QMenu(self)
+    def _show_rating_menu(self, name: str, global_pos: QPoint | None = None):
         display_name = self._resolve_display_name(name)
-        current_rating = int(self._get_hierarchy_store().get_preset_meta(name, display_name=display_name).get("rating", 0) or 0)
-        clear_action = menu.addAction(self._tr("page.z1_user_presets.menu.rating_clear", "Сбросить рейтинг"))
-        clear_action.setCheckable(True)
-        clear_action.setChecked(current_rating == 0)
-        menu.addSeparator()
-
-        actions = {}
-        for value in range(1, 11):
-            action = menu.addAction(f"{value}/10")
-            action.setCheckable(True)
-            action.setChecked(current_rating == value)
-            actions[action] = value
-
-        chosen = menu.exec(QCursor.pos())
-        if chosen == clear_action:
-            self._get_hierarchy_store().set_preset_rating(name, 0, display_name=display_name)
-            self._refresh_presets_view_from_cache()
-            return
-        if chosen in actions:
-            self._get_hierarchy_store().set_preset_rating(name, actions[chosen], display_name=display_name)
-            self._refresh_presets_view_from_cache()
+        show_preset_rating_menu(
+            self,
+            preset_file_name=name,
+            display_name=display_name,
+            hierarchy_store=self._get_hierarchy_store(),
+            refresh_callback=self._refresh_presets_view_from_cache,
+            clear_label=self._tr("page.z1_user_presets.menu.rating_clear", "Сбросить рейтинг"),
+            global_pos=global_pos,
+        )
 
     def _ensure_preset_list_current_index(self) -> None:
         if self._presets_model is None:

@@ -11,6 +11,7 @@ from log import log
 from config import LOGS_FOLDER
 from .args_filters import apply_all_filters
 from .constants import SW_HIDE, CREATE_NO_WINDOW, STARTF_USESHOWWINDOW
+from .preset_runner_support import wait_for_process_exit
 from dpi.process_health_check import (
     check_process_health, get_last_crash_info, check_common_crash_causes,
     check_conflicting_processes, get_conflicting_processes_report, diagnose_startup_error
@@ -137,6 +138,20 @@ class StrategyRunnerBase(ABC):
         startupinfo.wShowWindow = SW_HIDE
         return startupinfo
 
+    def get_runner_state_snapshot(self):
+        """Optional public state snapshot hook for newer preset runners."""
+        return None
+
+    def stop_background_watchers(self) -> None:
+        """Public lifecycle hook for stopping background watchers before invalidation."""
+        return None
+
+    def _clear_process_runtime_state(self) -> None:
+        """Clear shared process-related runtime fields."""
+        self.running_process = None
+        self.current_launch_label = None
+        self.current_strategy_args = None
+
     def _resolve_file_paths(self, args: List[str]) -> List[str]:
         """Resolves relative file paths"""
         from config import WINDIVERT_FILTER
@@ -243,13 +258,12 @@ class StrategyRunnerBase(ABC):
                 # Soft stop
                 self.running_process.terminate()
 
-                try:
-                    self.running_process.wait(timeout=5)
+                if wait_for_process_exit(self.running_process, timeout=5.0):
                     log(f"Process stopped (PID: {pid})", "SUCCESS")
-                except subprocess.TimeoutExpired:
+                else:
                     log("Soft stop failed, using force kill", "WARNING")
                     self.running_process.kill()
-                    self.running_process.wait()
+                    wait_for_process_exit(self.running_process, timeout=1.0)
                     log(f"Process forcefully terminated (PID: {pid})", "SUCCESS")
             else:
                 log("No running process to stop", "INFO")
@@ -260,9 +274,7 @@ class StrategyRunnerBase(ABC):
             self._kill_all_winws_processes()
 
             # Clear state
-            self.running_process = None
-            self.current_launch_label = None
-            self.current_strategy_args = None
+            self._clear_process_runtime_state()
 
             return success
 

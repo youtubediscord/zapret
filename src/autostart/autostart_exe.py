@@ -69,18 +69,15 @@ def setup_autostart_for_exe(selected_mode: Optional[str] = None,
     
     try:
         from .registry_check import set_autostart_enabled
-        
+        from .autostart_remove import clear_existing_autostart
+
         _log("Включаем автозапуск GUI", "INFO")
         exe_path = sys.executable
-        
-        # Удаляем старые механизмы
-        _remove_old_shortcut()
-        
-        # Удаляем существующую задачу если есть
-        if is_autostart_enabled():
-            _log(f"Удалена существующая задача: {TASK_NAME}", "INFO")
-            remove_autostart()
-        
+
+        # Оставляем только один источник автозапуска.
+        # Иначе GUI в трее может запускаться параллельно со старым direct task/service.
+        clear_existing_autostart(status_cb=_status)
+
         # Создаём новую задачу
         create_args = [
             "/Create",

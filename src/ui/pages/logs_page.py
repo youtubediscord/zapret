@@ -1,7 +1,7 @@
 # ui/pages/logs_page.py
 """Страница просмотра логов в реальном времени"""
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, QObject, QSettings, QEvent
+from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, QObject, QEvent
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QApplication,
@@ -11,13 +11,12 @@ try:
     from qfluentwidgets import (
         BodyLabel, CaptionLabel, StrongBodyLabel,
         PushButton as FluentPushButton,
-        ComboBox, LineEdit, TextEdit,
+        ComboBox,
         SegmentedWidget, ToolButton, InfoBar,
     )
     _FLUENT_OK = True
 except ImportError:
     ComboBox = QComboBox
-    LineEdit = QLineEdit
     InfoBar = None
     _FLUENT_OK = False
 from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QPixmap, QPainter, QTransform, QIcon
@@ -37,6 +36,7 @@ from log import log, global_logger, LOG_FILE, cleanup_old_logs
 from log_tail import LogTailWorker
 from config import LOGS_FOLDER, MAX_LOG_FILES, MAX_DEBUG_LOG_FILES, get_winws_exe_for_method
 from launcher_common import get_current_runner
+from support_request_bundle import prepare_support_request
 
 # Паттерны для определения РЕАЛЬНЫХ ошибок (строгие)
 ERROR_PATTERNS = [
@@ -169,25 +169,6 @@ class WinwsOutputWorker(QObject):
     def stop(self):
         """Останавливает worker"""
         self._running = False
-
-
-class SupportAuthWorker(QObject):
-    """Poll ZapretHub auth code in background."""
-
-    finished = pyqtSignal(bool, str)  # ok, error_message
-
-    def __init__(self, code: str, parent=None):
-        super().__init__(parent)
-        self._code = (code or "").strip()
-
-    def run(self):
-        try:
-            from tgram.tg_log_bot import poll_upload_code
-
-            ok, err = poll_upload_code(self._code)
-            self.finished.emit(bool(ok), str(err or ""))
-        except Exception as e:
-            self.finished.emit(False, str(e))
 
 
 class LogsPage(BasePage):
@@ -406,10 +387,7 @@ class LogsPage(BasePage):
             except Exception:
                 pass
 
-        # send_status_label is now a CaptionLabel (Fluent) — styled dynamically on send result
-
-        # problem_text is now a Fluent TextEdit — no manual stylesheet needed
-        # tg_contact is a Fluent LineEdit — no manual stylesheet needed
+        # send_status_label shows the result of opening support links/folders
 
     def _update_tab_styles(self) -> None:
         """No-op — Pivot manages its own indicator."""
@@ -610,47 +588,34 @@ class LogsPage(BasePage):
         try:
             self._set_card_title(
                 self.send_card,
-                tr_catalog("page.logs.send.card.title", language=self._ui_language, default="Отправка лога в техподдержку"),
+                tr_catalog("page.logs.send.card.title", language=self._ui_language, default="Поддержка через GitHub Discussions"),
             )
             self._orchestra_text_label.setText(
                 tr_catalog(
                     "page.logs.send.orchestra.active",
                     language=self._ui_language,
-                    default="Режим оркестратора активен — будут отправлены 2 файла",
+                    default="В режиме оркестратора проверьте основной лог и файл orchestra_*.log",
                 )
             )
             self.send_desc_label.setText(
                 tr_catalog(
                     "page.logs.send.desc",
                     language=self._ui_language,
-                    default="Опишите проблему и оставьте контакты для обратной связи (необязательно):",
+                    default="Нажмите кнопку, чтобы собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
                 )
-            )
-            self.problem_header_label.setText(
-                tr_catalog("page.logs.send.problem.header", language=self._ui_language, default="Описание проблемы:")
-            )
-            self.problem_text.setPlaceholderText(
-                tr_catalog(
-                    "page.logs.send.problem.placeholder",
-                    language=self._ui_language,
-                    default="Опишите, что не работает или какая ошибка возникает.",
-                )
-            )
-            self.tg_header_label.setText(
-                tr_catalog("page.logs.send.contact.header", language=self._ui_language, default="Telegram для связи (необязательно):")
-            )
-            self.tg_contact.setPlaceholderText(
-                tr_catalog("page.logs.send.contact.placeholder", language=self._ui_language, default="@username или ссылка на профиль")
             )
             self.send_info_label.setText(
                 tr_catalog(
                     "page.logs.send.info",
                     language=self._ui_language,
-                    default="Ваши данные будут отправлены только в канал техподдержки.\nЛог файл поможет разработчикам найти и исправить проблему.",
+                    default="Будет создан архив в папке logs/support_bundles. Шаблон обращения автоматически попадёт в буфер обмена.",
                 )
             )
             self.send_log_btn.setText(
-                tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Отправить лог")
+                tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Подготовить обращение")
+            )
+            self.open_logs_folder_btn.setText(
+                tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка")
             )
         except Exception:
             pass
@@ -875,15 +840,13 @@ class LogsPage(BasePage):
         self._refresh_winws_title()
 
     def _build_send_tab(self, parent_layout):
-        """Строит вкладку отправки лога"""
-        import time
-        import platform
+        """Строит вкладку поддержки по логам."""
 
         # ═══════════════════════════════════════════════════════════
         # Форма отправки
         # ═══════════════════════════════════════════════════════════
         send_card = SettingsCard(
-            tr_catalog("page.logs.send.card.title", language=self._ui_language, default="Отправка лога в техподдержку")
+            tr_catalog("page.logs.send.card.title", language=self._ui_language, default="Поддержка через GitHub Discussions")
         )
         self.send_card = send_card
         send_layout = QVBoxLayout()
@@ -909,7 +872,7 @@ class LogsPage(BasePage):
             tr_catalog(
                 "page.logs.send.orchestra.active",
                 language=self._ui_language,
-                default="Режим оркестратора активен — будут отправлены 2 файла",
+                default="В режиме оркестратора проверьте основной лог и файл orchestra_*.log",
             )
         )
         orchestra_text.setStyleSheet(f"color: {_orch_clr_init}; font-size: 12px; font-weight: 600; background: transparent;")
@@ -932,70 +895,11 @@ class LogsPage(BasePage):
             tr_catalog(
                 "page.logs.send.desc",
                 language=self._ui_language,
-                default="Опишите проблему и оставьте контакты для обратной связи (необязательно):",
+                default="Нажмите кнопку, чтобы собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
             )
         )
         self.send_desc_label.setWordWrap(True)
         send_layout.addWidget(self.send_desc_label)
-
-        # Поле "Описание проблемы"
-        self.problem_header_label = (StrongBodyLabel if _FLUENT_OK else QLabel)(
-            tr_catalog("page.logs.send.problem.header", language=self._ui_language, default="Описание проблемы:")
-        )
-        send_layout.addWidget(self.problem_header_label)
-
-        self.problem_text = TextEdit() if _FLUENT_OK else QTextEdit()
-        try:
-            from config.reg import get_smooth_scroll_enabled
-            from qfluentwidgets.common.smooth_scroll import SmoothMode
-
-            smooth_enabled = get_smooth_scroll_enabled()
-            mode = SmoothMode.COSINE if smooth_enabled else SmoothMode.NO_SMOOTH
-            delegate = (
-                getattr(self.problem_text, "scrollDelegate", None)
-                or getattr(self.problem_text, "scrollDelagate", None)
-                or getattr(self.problem_text, "delegate", None)
-            )
-            if delegate is not None:
-                if hasattr(delegate, "useAni"):
-                    if not hasattr(delegate, "_zapret_base_use_ani"):
-                        delegate._zapret_base_use_ani = bool(delegate.useAni)
-                    delegate.useAni = bool(delegate._zapret_base_use_ani) if smooth_enabled else False
-                for smooth_attr in ("verticalSmoothScroll", "horizonSmoothScroll"):
-                    smooth = getattr(delegate, smooth_attr, None)
-                    smooth_setter = getattr(smooth, "setSmoothMode", None)
-                    if callable(smooth_setter):
-                        smooth_setter(mode)
-
-            setter = getattr(self.problem_text, "setSmoothMode", None)
-            if callable(setter):
-                try:
-                    setter(mode, Qt.Orientation.Vertical)
-                except TypeError:
-                    setter(mode)
-        except Exception:
-            pass
-        self.problem_text.setPlaceholderText(
-            tr_catalog(
-                "page.logs.send.problem.placeholder",
-                language=self._ui_language,
-                default="Опишите, что не работает или какая ошибка возникает.",
-            )
-        )
-        self.problem_text.setMaximumHeight(150)
-        send_layout.addWidget(self.problem_text)
-
-        # Поле "Telegram для связи"
-        self.tg_header_label = (StrongBodyLabel if _FLUENT_OK else QLabel)(
-            tr_catalog("page.logs.send.contact.header", language=self._ui_language, default="Telegram для связи (необязательно):")
-        )
-        send_layout.addWidget(self.tg_header_label)
-
-        self.tg_contact = LineEdit()
-        self.tg_contact.setPlaceholderText(
-            tr_catalog("page.logs.send.contact.placeholder", language=self._ui_language, default="@username или ссылка на профиль")
-        )
-        send_layout.addWidget(self.tg_contact)
 
         # Информация
         info_container = QWidget()
@@ -1010,7 +914,7 @@ class LogsPage(BasePage):
             tr_catalog(
                 "page.logs.send.info",
                 language=self._ui_language,
-                default="Ваши данные будут отправлены только в канал техподдержки.\nЛог файл поможет разработчикам найти и исправить проблему.",
+                default="Будет создан архив в папке logs/support_bundles. Шаблон обращения автоматически попадёт в буфер обмена.",
             )
         )
         self.send_info_label.setWordWrap(True)
@@ -1018,15 +922,22 @@ class LogsPage(BasePage):
 
         send_layout.addWidget(info_container)
 
-        # Кнопка отправки
+        # Кнопки поддержки
         buttons_row = QHBoxLayout()
 
         self.send_log_btn = ActionButton(
-            tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Отправить лог"),
-            "fa5s.paper-plane",
+            tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Подготовить обращение"),
+            "fa5b.github",
         )
-        self.send_log_btn.clicked.connect(self._do_send_log)
+        self.send_log_btn.clicked.connect(self._prepare_support_from_logs)
         buttons_row.addWidget(self.send_log_btn)
+
+        self.open_logs_folder_btn = ActionButton(
+            tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка"),
+            "fa5s.folder-open",
+        )
+        self.open_logs_folder_btn.clicked.connect(self._open_folder)
+        buttons_row.addWidget(self.open_logs_folder_btn)
 
         buttons_row.addStretch()
 
@@ -1221,344 +1132,65 @@ class LogsPage(BasePage):
         is_orchestra = self._is_orchestra_mode()
         self.orchestra_mode_container.setVisible(is_orchestra)
 
-    def _do_send_log(self):
-        """Отправляет лог в Telegram (из вкладки отправки)"""
-        import time
-        import platform
-
+    def _prepare_support_from_logs(self):
         try:
-            settings = QSettings("Zapret2", "GUI")
-            now = time.time()
-            interval = 1 * 60  # 1 минута
+            candidate_paths = [
+                self.current_log_file,
+                getattr(global_logger, "log_file", LOG_FILE),
+                self._get_orchestra_log_path(),
+                os.path.join(LOGS_FOLDER, "commands_full.log"),
+                os.path.join(LOGS_FOLDER, "last_command.txt"),
+            ]
 
-            # Проверяем интервал
-            last = settings.value("last_full_log_send", 0.0, type=float)
-
-            if now - last < interval:
-                remaining = int((interval - (now - last)) // 60) + 1
-                InfoBar.info(title="Отправка логов",
-                    content=f"Лог отправлялся недавно. Следующая отправка возможна через {remaining} мин.",
-                    parent=self.window(), duration=4000)
-                return
-
-            # Проверяем доступность панели поддержки и показываем реальную причину
-            from tgram.tg_log_bot import get_bot_connection_info
-
-            bot_ok, bot_error, bot_kind = get_bot_connection_info()
-            if not bot_ok:
-                details = (bot_error or "Неизвестная ошибка").strip()
-                if len(details) > 250:
-                    details = details[:250] + "…"
-                title = "Панель не настроена" if bot_kind == "config" else "Панель недоступна"
-                hint = (
-                    "Проверьте настройки ZapretHub (бот/авторизация) или обратитесь к разработчику."
-                    if bot_kind == "config"
-                    else "Если доступ к панели заблокирован — включите VPN/DPI bypass и повторите."
-                )
-                InfoBar.warning(title=title,
-                    content=f"Не удалось подключиться к панели поддержки. Причина: {details}",
-                    parent=self.window(), duration=5000)
-                return
-
-            # Получаем данные из формы
-            problem = self.problem_text.toPlainText().strip()
-            telegram = self.tg_contact.text().strip()
-
-            # Запоминаем время отправки
-            settings.setValue("last_full_log_send", now)
-
-            # Подготовка к отправке
-            from tgram.tg_log_full import TgSendWorker
-            from tgram.tg_log_delta import get_client_id
-            from config.build_info import APP_VERSION
-
-            # Используем текущий лог файл
-            LOG_PATH = global_logger.log_file if hasattr(global_logger, 'log_file') else None
-
-            if not LOG_PATH or not os.path.exists(LOG_PATH):
-                InfoBar.warning(title="Ошибка", content="Файл лога не найден",
-                    parent=self.window())
-                return
-
-            # Проверяем режим оркестратора
-            is_orchestra = self._is_orchestra_mode()
-            orchestra_log_path = self._get_orchestra_log_path() if is_orchestra else None
-
-            # Формируем подпись
-            log_filename = os.path.basename(LOG_PATH)
-
-            caption = f"📋 Ручная отправка лога\n"
-            if is_orchestra:
-                caption += f"🧠 Режим: Оркестратор\n"
-            caption += f"📁 Файл: {log_filename}\n"
-            caption += f"Zapret2 v{APP_VERSION}\n"
-            caption += f"ID: {get_client_id()}\n"
-            caption += f"Host: {platform.node()}\n"
-            caption += f"Time: {time.strftime('%d.%m.%Y %H:%M:%S')}\n"
-
-            if problem:
-                caption += f"\n🔴 Проблема:\n{problem}\n"
-
-            if telegram:
-                caption += f"\n📱 Telegram: {telegram}\n"
-
-            # Авторизация на отправку (одноразовый код, без сохранения токена)
-            try:
-                from tgram.tg_log_bot import request_upload_code
-
-                ok, code, bot_username, bot_link = request_upload_code()
-                if not ok or not code:
-                    InfoBar.warning(title="Авторизация",
-                        content="Не удалось запросить код авторизации у ZapretHub. Проверьте доступность панели и повторите.",
-                        parent=self.window())
-                    return
-
-                bot_line = f"@{bot_username}" if bot_username else "бот поддержки"
-                InfoBar.info(title="Авторизация поддержки",
-                    content=f"Откройте {bot_line} и подтвердите код для отправки логов.",
-                    parent=self.window(), duration=8000)
-
-                self.send_log_btn.setEnabled(False)
-                self.send_status_label.setText(
-                    tr_catalog(
-                        "page.logs.send.status.wait_auth",
-                        language=self._ui_language,
-                        default="🔐 Ожидание подтверждения кода...",
-                    )
-                )
-
-                self._auth_thread = QThread(self)
-                self._auth_worker = SupportAuthWorker(code)
-                self._auth_worker.moveToThread(self._auth_thread)
-                self._auth_thread.started.connect(self._auth_worker.run)
-
-                def _on_auth_done(auth_ok: bool, err_msg: str):
-                    try:
-                        self._auth_worker.deleteLater()
-                    except Exception:
-                        pass
-
-                    if not auth_ok:
-                        self.send_log_btn.setEnabled(True)
-                        self.send_status_label.setText(
-                            tr_catalog(
-                                "page.logs.send.status.auth_failed",
-                                language=self._ui_language,
-                                default="❌ Код не подтверждён",
-                            )
-                        )
-                        InfoBar.warning(title="Авторизация",
-                            content=f"Не удалось подтвердить код. Причина: {err_msg or 'Неизвестная ошибка'}",
-                            parent=self.window())
-                        return
-
-                    # Continue sending with the existing prepared payload
-                    if is_orchestra and orchestra_log_path:
-                        self.send_status_label.setText(
-                            tr_catalog(
-                                "page.logs.send.status.sending_orchestra",
-                                language=self._ui_language,
-                                default="📤 Отправка 2 файлов (оркестратор)...",
-                            )
-                        )
-                        self._send_orchestra_logs(LOG_PATH, orchestra_log_path, caption, problem, telegram, auth_code=code)
-                    else:
-                        self.send_status_label.setText(
-                            tr_catalog(
-                                "page.logs.send.status.sending_single",
-                                language=self._ui_language,
-                                default="📤 Отправка лога...",
-                            )
-                        )
-                        self._send_single_log(LOG_PATH, caption, auth_code=code)
-
-                self._auth_worker.finished.connect(_on_auth_done)
-                self._auth_worker.finished.connect(self._auth_thread.quit)
-                self._auth_worker.finished.connect(self._auth_worker.deleteLater)
-                self._auth_thread.finished.connect(self._auth_thread.deleteLater)
-                self._auth_thread.start()
-                return
-
-            except Exception as e:
-                InfoBar.warning(title="Авторизация", content=f"Ошибка авторизации: {e}",
-                    parent=self.window())
-                return
-
-            # If we ever add a dev token path (Bearer), sending could continue here.
-
-        except Exception as e:
-            log(f"Ошибка отправки лога: {e}", "ERROR")
-            self.send_log_btn.setEnabled(True)
-            self.send_status_label.setText(
-                tr_catalog(
-                    "page.logs.send.status.error",
-                    language=self._ui_language,
-                    default="❌ Ошибка",
-                )
+            result = prepare_support_request(
+                bundle_prefix="support_logs",
+                context_label="Логи приложения",
+                candidate_paths=candidate_paths,
+                recent_patterns=("zapret_winws2_debug_*.log", "blockcheck_run_*.log"),
+                extra_note="Если проблема связана с оркестратором, в архив по возможности добавлен и его свежий лог.",
             )
-            InfoBar.warning(title="Ошибка", content=f"Не удалось отправить лог: {e}",
-                parent=self.window())
 
-    def _send_single_log(self, log_path: str, caption: str, auth_code: str | None = None):
-        """Отправляет один файл лога"""
-        from tgram.tg_log_full import TgSendWorker
+            if result.zip_path:
+                log(f"Подготовлен архив поддержки: {result.zip_path}", "INFO")
 
-        self._send_thread = QThread(self)
-        self._send_worker = TgSendWorker(log_path, caption, use_log_bot=True, auth_code=auth_code)
-        self._send_worker.moveToThread(self._send_thread)
-        self._send_thread.started.connect(self._send_worker.run)
+            status_parts: list[str] = []
+            if result.zip_path:
+                status_parts.append("ZIP готов")
+            if result.copied_to_clipboard:
+                status_parts.append("шаблон скопирован")
+            if result.discussions_opened:
+                status_parts.append("GitHub открыт")
+            if result.bundle_folder_opened:
+                status_parts.append("папка открыта")
 
-        def _on_done(ok: bool, extra_wait: float, error_msg: str = ""):
-            self.send_log_btn.setEnabled(True)
-
-            if ok:
-                self.send_status_label.setText(
-                    tr_catalog(
-                        "page.logs.send.status.sent_single",
-                        language=self._ui_language,
-                        default="✅ Лог отправлен!",
-                    )
+            if status_parts:
+                self.send_status_label.setText(" • ".join(status_parts))
+                self.send_status_label.setStyleSheet(
+                    f"color: {get_theme_tokens().accent_hex}; font-size: 11px;"
                 )
-                self.send_status_label.setStyleSheet("color: #4ade80; font-size: 11px;")
-                self.problem_text.clear()
-                self.tg_contact.clear()
             else:
-                short_error = error_msg[:50] + "..." if error_msg and len(error_msg) > 50 else error_msg
-                self.send_status_label.setText(f"❌ {short_error or 'Ошибка отправки'}")
-                self.send_status_label.setStyleSheet("color: #f87171; font-size: 11px;")
-                if extra_wait > 0:
-                    InfoBar.warning(title="Слишком часто",
-                        content=f"Повторите через {int(extra_wait/60)} минут.",
-                        parent=self.window())
-                elif error_msg:
-                    InfoBar.warning(title="Ошибка отправки",
-                        content=f"Не удалось отправить лог. Причина: {error_msg}",
-                        parent=self.window())
-                else:
-                    InfoBar.warning(title="Ошибка",
-                        content="Не удалось отправить лог. Проверьте подключение к интернету.",
-                        parent=self.window())
+                self.send_status_label.setText("Подготовка завершена")
 
-            self._send_worker.deleteLater()
-            self._send_thread.quit()
-            self._send_thread.wait()
-
-        self._send_worker.finished.connect(_on_done)
-        self._send_thread.start()
-
-    def _send_orchestra_logs(self, app_log_path: str, orchestra_log_path: str, caption: str, problem: str, telegram: str, auth_code: str | None = None):
-        """Отправляет два файла: лог приложения и лог оркестратора в топик 43927"""
-        import time
-        import platform
-        from tgram.tg_log_full import TgSendWorker
-        from tgram.tg_log_delta import get_client_id
-        from config.build_info import APP_VERSION
-
-        # Топик для логов оркестратора
-        ORCHESTRA_TOPIC_ID = 43927
-
-        # Счётчик успешных отправок
-        self._orchestra_send_success = 0
-        self._orchestra_send_total = 2
-        self._orchestra_errors = []
-
-        def _check_complete():
-            """Проверяет завершение отправки всех файлов"""
-            if self._orchestra_send_success + len(self._orchestra_errors) >= self._orchestra_send_total:
-                self.send_log_btn.setEnabled(True)
-
-                if self._orchestra_send_success == self._orchestra_send_total:
-                    self.send_status_label.setText(
-                        tr_catalog(
-                            "page.logs.send.status.sent_orchestra",
-                            language=self._ui_language,
-                            default="✅ 2 файла отправлены!",
-                        )
-                    )
-                    self.send_status_label.setStyleSheet("color: #4ade80; font-size: 11px;")
-                    self.problem_text.clear()
-                    self.tg_contact.clear()
-                elif self._orchestra_send_success > 0:
-                    self.send_status_label.setText(f"⚠️ Отправлено {self._orchestra_send_success} из 2")
-                    self.send_status_label.setStyleSheet("color: #fbbf24; font-size: 11px;")
-                else:
-                    self.send_status_label.setText(
-                        tr_catalog(
-                            "page.logs.send.status.send_error",
-                            language=self._ui_language,
-                            default="❌ Ошибка отправки",
-                        )
-                    )
-                    self.send_status_label.setStyleSheet("color: #f87171; font-size: 11px;")
-                    if self._orchestra_errors:
-                        InfoBar.warning(title="Ошибка отправки",
-                            content="Не удалось отправить логи. Ошибки: " + "; ".join(self._orchestra_errors[:3]),
-                            parent=self.window())
-
-        # 1. Отправляем лог оркестратора (сырой debug) в топик 43927
-        orchestra_filename = os.path.basename(orchestra_log_path)
-        orchestra_caption = f"🧠 Лог оркестратора (debug)\n"
-        orchestra_caption += f"📁 Файл: {orchestra_filename}\n"
-        orchestra_caption += f"Zapret2 v{APP_VERSION}\n"
-        orchestra_caption += f"ID: {get_client_id()}\n"
-        orchestra_caption += f"Host: {platform.node()}\n"
-        orchestra_caption += f"Time: {time.strftime('%d.%m.%Y %H:%M:%S')}\n"
-        if problem:
-            orchestra_caption += f"\n🔴 Проблема:\n{problem}\n"
-        if telegram:
-            orchestra_caption += f"\n📱 Telegram: {telegram}\n"
-
-        self._send_thread1 = QThread(self)
-        self._send_worker1 = TgSendWorker(orchestra_log_path, orchestra_caption, use_log_bot=True, topic_id=ORCHESTRA_TOPIC_ID, auth_code=auth_code)
-        self._send_worker1.moveToThread(self._send_thread1)
-        self._send_thread1.started.connect(self._send_worker1.run)
-
-        def _on_orchestra_done(ok: bool, extra_wait: float, error_msg: str = ""):
-            if ok:
-                self._orchestra_send_success += 1
-            else:
-                self._orchestra_errors.append(f"Лог оркестратора: {error_msg or 'неизвестная ошибка'}")
-
-            self._send_worker1.deleteLater()
-            self._send_thread1.quit()
-            self._send_thread1.wait()
-            _check_complete()
-
-        self._send_worker1.finished.connect(_on_orchestra_done)
-        self._send_thread1.start()
-
-        # 2. Отправляем лог приложения в тот же топик 43927
-        app_filename = os.path.basename(app_log_path)
-        app_caption = f"📋 Лог приложения\n"
-        app_caption += f"🧠 Режим: Оркестратор (файл 2/2)\n"
-        app_caption += f"📁 Файл: {app_filename}\n"
-        app_caption += f"Zapret2 v{APP_VERSION}\n"
-        app_caption += f"ID: {get_client_id()}\n"
-        app_caption += f"Host: {platform.node()}\n"
-        app_caption += f"Time: {time.strftime('%d.%m.%Y %H:%M:%S')}\n"
-        if problem:
-            app_caption += f"\n🔴 Проблема:\n{problem}\n"
-        if telegram:
-            app_caption += f"\n📱 Telegram: {telegram}\n"
-
-        self._send_thread2 = QThread(self)
-        self._send_worker2 = TgSendWorker(app_log_path, app_caption, use_log_bot=True, topic_id=ORCHESTRA_TOPIC_ID, auth_code=auth_code)
-        self._send_worker2.moveToThread(self._send_thread2)
-        self._send_thread2.started.connect(self._send_worker2.run)
-
-        def _on_app_done(ok: bool, extra_wait: float, error_msg: str = ""):
-            if ok:
-                self._orchestra_send_success += 1
-            else:
-                self._orchestra_errors.append(f"Лог приложения: {error_msg or 'неизвестная ошибка'}")
-
-            self._send_worker2.deleteLater()
-            self._send_thread2.quit()
-            self._send_thread2.wait()
-            _check_complete()
-
-        self._send_worker2.finished.connect(_on_app_done)
-        self._send_thread2.start()
+            if InfoBar:
+                archive_name = os.path.basename(result.zip_path) if result.zip_path else "архив не создан"
+                content = f"Архив: {archive_name}\n"
+                content += "Шаблон обращения скопирован в буфер обмена." if result.copied_to_clipboard else "Шаблон не удалось скопировать в буфер обмена."
+                InfoBar.success(
+                    title="Поддержка подготовлена",
+                    content=content,
+                    parent=self.window(),
+                    duration=5000,
+                )
+        except Exception as e:
+            log(f"Ошибка подготовки обращения из логов: {e}", "ERROR")
+            self.send_status_label.setText("Ошибка подготовки")
+            self.send_status_label.setStyleSheet("color: #f87171; font-size: 11px;")
+            if InfoBar:
+                InfoBar.warning(
+                    title="Ошибка",
+                    content=f"Не удалось подготовить обращение:\n{e}",
+                    parent=self.window(),
+                )
         
     def showEvent(self, event):
         """При показе страницы запускаем мониторинг"""

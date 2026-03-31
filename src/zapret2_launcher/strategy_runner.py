@@ -14,19 +14,28 @@ import re
 import subprocess
 import time
 import threading
-from typing import Optional, List, Callable
+from typing import Optional
 
 from log import log
-from launcher_common.runner_base import StrategyRunnerBase, log_full_command
+from launcher_common.runner_base import StrategyRunnerBase
+from launcher_common.preset_runner_support import (
+    ConfigFileWatcher,
+    PreparedPresetArtifact,
+    PresetRunnerState,
+    PresetRunnerStateMachine,
+    is_process_alive_with_expected_name,
+    launch_args_from_preset_text,
+    notify_ui_launch_error,
+    preset_cache_key,
+    remember_cache_entry,
+    wait_for_process_exit,
+    wait_for_process_stable_start,
+)
 from utils.circular_strategy_numbering import (
     strip_strategy_tags,
 )
-from utils.atomic_text import atomic_write_text
 from launcher_common.constants import CREATE_NO_WINDOW
 from dpi.process_health_check import (
-    check_common_crash_causes,
-    check_conflicting_processes,
-    get_conflicting_processes_report,
     diagnose_startup_error
 )
 
@@ -117,25 +126,6 @@ def _ensure_lua_init_lines(content: str, work_dir: str) -> tuple[str, bool]:
     return "\n".join(lines), True
 
 
-def _launch_args_from_preset_text(content: str) -> list[str]:
-    """Build argv directly from a source preset file.
-
-    winws2 `@config_file` parsing uses shell-style splitting and does not
-    understand our UI metadata lines like `# Preset: ...`. Keep the source
-    preset as the single editable file, but strip those metadata lines and pass
-    the remaining options directly as process arguments.
-    """
-    args: list[str] = []
-    for raw in str(content or "").splitlines():
-        stripped = raw.strip()
-        if not stripped:
-            continue
-        if stripped.startswith("#"):
-            continue
-        args.append(stripped)
-    return args
-
-
 def _is_windows_abs(path: str) -> bool:
     try:
         return bool(_WINDOWS_ABS_RE.match(str(path or "")))
@@ -148,99 +138,6 @@ def _strip_outer_quotes(value: str) -> str:
     if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
         v = v[1:-1]
     return v.strip()
-
-
-class ConfigFileWatcher:
-    """
-    Monitors preset file changes for hot-reload.
-
-    Watches a config file and calls callback when modification time changes.
-    Runs in a background thread with configurable polling interval.
-    """
-
-    def __init__(self, file_path: str, callback: Callable[[], None], interval: float = 1.0):
-        """
-        Initialize config file watcher.
-
-        Args:
-            file_path: Path to file to monitor
-            callback: Function to call when file changes
-            interval: Polling interval in seconds (default 1.0)
-        """
-        self._file_path = file_path
-        self._callback = callback
-        self._interval = interval
-        self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._last_mtime: Optional[float] = None
-
-        # Get initial modification time
-        if os.path.exists(self._file_path):
-            self._last_mtime = os.path.getmtime(self._file_path)
-
-    def start(self):
-        """Start watching the file in background thread"""
-        if self._running:
-            log("ConfigFileWatcher already running", "DEBUG")
-            return
-
-        self._running = True
-        self._thread = threading.Thread(target=self._watch_loop, daemon=True, name="ConfigFileWatcher")
-        self._thread.start()
-        log(f"ConfigFileWatcher started for: {self._file_path}", "DEBUG")
-
-    def update_file_path(self, file_path: str) -> None:
-        """Switch watched file without restarting watcher thread."""
-        self._file_path = str(file_path or "")
-        self._last_mtime = None
-        try:
-            if self._file_path and os.path.exists(self._file_path):
-                self._last_mtime = os.path.getmtime(self._file_path)
-        except Exception:
-            self._last_mtime = None
-
-    def stop(self):
-        """Stop watching the file"""
-        if not self._running:
-            return
-
-        self._running = False
-        watcher_thread = self._thread
-        if watcher_thread and watcher_thread.is_alive():
-            if watcher_thread is threading.current_thread():
-                log("ConfigFileWatcher.stop called from watcher thread; skip self-join", "DEBUG")
-            else:
-                watcher_thread.join(timeout=2.0)
-        self._thread = None
-        log("ConfigFileWatcher stopped", "DEBUG")
-
-    def _watch_loop(self):
-        """Main watch loop - polls file for changes"""
-        while self._running:
-            try:
-                if os.path.exists(self._file_path):
-                    current_mtime = os.path.getmtime(self._file_path)
-
-                    if self._last_mtime is not None and current_mtime != self._last_mtime:
-                        log(f"Config file changed: {self._file_path}", "INFO")
-                        self._last_mtime = current_mtime
-
-                        # Call callback in try-except to prevent thread crash
-                        try:
-                            self._callback()
-                        except Exception as e:
-                            log(f"Error in config change callback: {e}", "ERROR")
-
-                    self._last_mtime = current_mtime
-
-            except Exception as e:
-                log(f"Error checking file modification: {e}", "DEBUG")
-
-            # Sleep in small intervals to allow quick stop
-            sleep_remaining = self._interval
-            while sleep_remaining > 0 and self._running:
-                time.sleep(min(0.1, sleep_remaining))
-                sleep_remaining -= 0.1
 
 
 class StrategyRunnerV2(StrategyRunnerBase):
@@ -265,7 +162,11 @@ class StrategyRunnerV2(StrategyRunnerBase):
         self._preset_file_path: Optional[str] = None
         # Human-readable last start error (for UI/status).
         self.last_error: Optional[str] = None
-        self._validation_cache: dict[tuple[str, int, int], tuple[bool, str]] = {}
+        self._prepared_preset_cache: dict[tuple[str, int, int], PreparedPresetArtifact] = {}
+        self._state_lock = threading.RLock()
+        self._runner_state = PresetRunnerStateMachine()
+        self._last_spawn_exit_code: Optional[int] = None
+        self._last_spawn_stderr: str = ""
 
         log(f"StrategyRunnerV2 initialized with hot-reload support", "INFO")
 
@@ -276,101 +177,44 @@ class StrategyRunnerV2(StrategyRunnerBase):
             text = ""
         self.last_error = text or None
         if text:
-            self._notify_ui_launch_error(text)
+            notify_ui_launch_error(text)
 
-    @staticmethod
-    def _notify_ui_launch_error(message: str) -> None:
-        """Best-effort UI notification from any thread (queued to main Qt thread)."""
-        text = str(message or "").strip()
-        if not text:
-            return
-        try:
-            from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
-            from PyQt6.QtWidgets import QApplication
+    def get_runner_state_snapshot(self):
+        with self._state_lock:
+            return self._runner_state.snapshot()
 
-            app = QApplication.instance()
-            if app is None:
-                return
-
-            target = app.activeWindow()
-            if target is None or not hasattr(target, "show_dpi_launch_error"):
-                for widget in app.topLevelWidgets():
-                    if hasattr(widget, "show_dpi_launch_error"):
-                        target = widget
-                        break
-
-            if target is not None and hasattr(target, "show_dpi_launch_error"):
-                QMetaObject.invokeMethod(
-                    target,
-                    "show_dpi_launch_error",
-                    Qt.ConnectionType.QueuedConnection,
-                    Q_ARG(str, text),
-                )
-        except Exception:
-            pass
+    def _set_runner_state_locked(
+        self,
+        state: PresetRunnerState,
+        *,
+        preset_path: str = "",
+        strategy_name: str = "",
+        pid: int | None = None,
+        error: str = "",
+        reason: str = "",
+        allow_same: bool = False,
+    ):
+        snapshot = self._runner_state.transition(
+            state,
+            preset_path=preset_path,
+            strategy_name=strategy_name,
+            pid=pid,
+            error=error,
+            reason=reason,
+            allow_same=allow_same,
+        )
+        log(
+            f"Runner state: {snapshot.state.value} "
+            f"(gen={snapshot.generation}, reason={snapshot.reason}, preset={snapshot.preset_path})",
+            "DEBUG",
+        )
+        return snapshot
 
     def validate_preset_file(self, preset_path: str) -> tuple[bool, str]:
-        """Validates that preset references point to existing files.
+        artifact = self._compile_preset_artifact(preset_path)
+        return artifact.validation_ok, artifact.validation_report
 
-        Returns:
-            (ok, message)
-              - ok=True if everything looks good
-              - message contains a human-readable report on failure
-        """
-        p = str(preset_path or "").strip()
-        if not p:
-            return False, "Не указан путь к preset файлу"
-        if not os.path.exists(p):
-            return False, f"Preset файл не найден: {p}"
-
-        cache_key = None
-        try:
-            stat = os.stat(p)
-            cache_key = (os.path.normcase(p), int(stat.st_mtime_ns), int(stat.st_size))
-            cached = self._validation_cache.get(cache_key)
-            if cached is not None:
-                return cached
-        except Exception:
-            cache_key = None
-
-        missing = self._collect_missing_preset_references(p)
-        if not missing:
-            result = (True, "")
-            if cache_key is not None:
-                self._validation_cache[cache_key] = result
-            return result
-
-        max_show = 15
-        shown = missing[:max_show]
-        hidden = len(missing) - len(shown)
-
-        example = shown[0][0] if shown else ""
-        if example:
-            header = f"Preset содержит ссылки на отсутствующие файлы ({len(missing)}), например: {example}"
-        else:
-            header = f"Preset содержит ссылки на отсутствующие файлы ({len(missing)}):"
-
-        lines: list[str] = [header]
-        for ref, expected in shown:
-            if expected:
-                lines.append(f"- {ref}  (ожидается: {expected})")
-            else:
-                lines.append(f"- {ref}")
-        if hidden > 0:
-            lines.append(f"... и еще {hidden} файл(ов)")
-
-        result = (False, "\n".join(lines))
-        if cache_key is not None:
-            self._validation_cache[cache_key] = result
-            if len(self._validation_cache) > 128:
-                try:
-                    oldest_key = next(iter(self._validation_cache))
-                    self._validation_cache.pop(oldest_key, None)
-                except Exception:
-                    pass
-        return result
-
-    def _collect_missing_preset_references(self, preset_path: str) -> list[tuple[str, str]]:
+    def _collect_missing_preset_references_from_text(self, content: str) -> list[tuple[str, str]]:
         """Returns list of (ref, expected_abs_path) for missing referenced files."""
 
         def _norm_slashes(s: str) -> str:
@@ -422,162 +266,206 @@ class StrategyRunnerV2(StrategyRunnerBase):
         filter_dir = os.path.join(self.work_dir, "windivert.filter")
 
         try:
-            with open(preset_path, "r", encoding="utf-8", errors="ignore") as f:
-                iterator = f
-                for raw in iterator:
-                    line = (raw or "").strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" not in line:
-                        continue
+            for raw in str(content or "").splitlines():
+                line = (raw or "").strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
 
-                    key, _sep, value = line.partition("=")
-                    key_l = key.strip().lower()
-                    value_s = value.strip()
+                key, _sep, value = line.partition("=")
+                key_l = key.strip().lower()
+                value_s = value.strip()
 
-                    # lists/*.txt
-                    if key_l in ("--hostlist", "--ipset", "--hostlist-exclude", "--ipset-exclude"):
-                        candidates = _resolve_candidates(value_s, default_dir=lists_dir)
-                        if candidates and (not _exists_any(candidates)):
-                            ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
-                            expected = candidates[0] if candidates else ""
-                            k = ref.lower()
-                            if k not in seen:
-                                seen.add(k)
-                                missing.append((ref, expected))
-                        continue
+                # lists/*.txt
+                if key_l in ("--hostlist", "--ipset", "--hostlist-exclude", "--ipset-exclude"):
+                    candidates = _resolve_candidates(value_s, default_dir=lists_dir)
+                    if candidates and (not _exists_any(candidates)):
+                        ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
+                        expected = candidates[0] if candidates else ""
+                        k = ref.lower()
+                        if k not in seen:
+                            seen.add(k)
+                            missing.append((ref, expected))
+                    continue
 
-                    # lua/*.lua
-                    if key_l == "--lua-init":
-                        candidates = _resolve_candidates(value_s, default_dir=lua_dir)
-                        if candidates and (not _exists_any(candidates)):
-                            ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
-                            expected = candidates[0] if candidates else ""
-                            k = ref.lower()
-                            if k not in seen:
-                                seen.add(k)
-                                missing.append((ref, expected))
-                        continue
+                # lua/*.lua
+                if key_l == "--lua-init":
+                    candidates = _resolve_candidates(value_s, default_dir=lua_dir)
+                    if candidates and (not _exists_any(candidates)):
+                        ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
+                        expected = candidates[0] if candidates else ""
+                        k = ref.lower()
+                        if k not in seen:
+                            seen.add(k)
+                            missing.append((ref, expected))
+                    continue
 
-                    # windivert.filter/*
-                    if key_l == "--wf-raw-part":
-                        candidates = _resolve_candidates(value_s, default_dir=filter_dir)
-                        if candidates and (not _exists_any(candidates)):
-                            ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
-                            expected = candidates[0] if candidates else ""
-                            k = ref.lower()
-                            if k not in seen:
-                                seen.add(k)
-                                missing.append((ref, expected))
-                        continue
+                # windivert.filter/*
+                if key_l == "--wf-raw-part":
+                    candidates = _resolve_candidates(value_s, default_dir=filter_dir)
+                    if candidates and (not _exists_any(candidates)):
+                        ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
+                        expected = candidates[0] if candidates else ""
+                        k = ref.lower()
+                        if k not in seen:
+                            seen.add(k)
+                            missing.append((ref, expected))
+                    continue
 
-                    # Various bin-backed fake payload args (winws/winws2).
-                    if key_l in (
-                        "--dpi-desync-fake-syndata",
-                        "--dpi-desync-fake-tls",
-                        "--dpi-desync-fake-quic",
-                        "--dpi-desync-fake-unknown-udp",
-                        "--dpi-desync-split-seqovl-pattern",
-                        "--dpi-desync-fake-http",
-                        "--dpi-desync-fake-unknown",
-                        "--dpi-desync-fakedsplit-pattern",
-                        "--dpi-desync-fake-discord",
-                        "--dpi-desync-fake-stun",
-                        "--dpi-desync-fake-dht",
-                        "--dpi-desync-fake-wireguard",
-                    ):
-                        special = _strip_outer_quotes(value_s.strip())
-                        if special.startswith("@"):
-                            special = special[1:].strip()
-                        special = special.lower()
-                        if special.startswith("0x") or special.startswith("!") or special.startswith("^"):
-                            continue
-
-                        # Only *.bin values are treated as file references here.
-                        if not special.endswith(".bin"):
-                            continue
-
-                        candidates = _resolve_candidates(value_s, default_dir=bin_dir)
-                        if candidates and (not _exists_any(candidates)):
-                            ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
-                            expected = candidates[0] if candidates else ""
-                            k = ref.lower()
-                            if k not in seen:
-                                seen.add(k)
-                                missing.append((ref, expected))
+                # Various bin-backed fake payload args (winws/winws2).
+                if key_l in (
+                    "--dpi-desync-fake-syndata",
+                    "--dpi-desync-fake-tls",
+                    "--dpi-desync-fake-quic",
+                    "--dpi-desync-fake-unknown-udp",
+                    "--dpi-desync-split-seqovl-pattern",
+                    "--dpi-desync-fake-http",
+                    "--dpi-desync-fake-unknown",
+                    "--dpi-desync-fakedsplit-pattern",
+                    "--dpi-desync-fake-discord",
+                    "--dpi-desync-fake-stun",
+                    "--dpi-desync-fake-dht",
+                    "--dpi-desync-fake-wireguard",
+                ):
+                    special = _strip_outer_quotes(value_s.strip())
+                    if special.startswith("@"):
+                        special = special[1:].strip()
+                    special = special.lower()
+                    if special.startswith("0x") or special.startswith("!") or special.startswith("^"):
                         continue
 
-                    # --blob=name:@path or --blob=name:+offset@path
-                    if key_l == "--blob":
-                        blob_value = _strip_outer_quotes(value_s)
-                        if not blob_value or ":" not in blob_value:
-                            continue
-
-                        _name, _colon, tail = blob_value.partition(":")
-                        tail = tail.strip()
-                        if not tail:
-                            continue
-
-                        # Hex blobs / inline values.
-                        if tail.lower().startswith("0x"):
-                            continue
-
-                        file_part = ""
-                        if tail.startswith("@"):
-                            file_part = tail[1:].strip()
-                        elif tail.startswith("+"):
-                            at_idx = tail.find("@")
-                            if at_idx > 0 and at_idx < len(tail) - 1:
-                                file_part = tail[at_idx + 1 :].strip()
-
-                        if not file_part:
-                            continue
-
-                        candidates = _resolve_candidates(file_part, default_dir=bin_dir)
-                        if candidates and (not _exists_any(candidates)):
-                            ref = f"{key.strip()}={_norm_slashes(blob_value)}"
-                            expected = candidates[0] if candidates else ""
-                            k = ref.lower()
-                            if k not in seen:
-                                seen.add(k)
-                                missing.append((ref, expected))
+                    # Only *.bin values are treated as file references here.
+                    if not special.endswith(".bin"):
                         continue
 
+                    candidates = _resolve_candidates(value_s, default_dir=bin_dir)
+                    if candidates and (not _exists_any(candidates)):
+                        ref = f"{key.strip()}={_norm_slashes(_strip_outer_quotes(value_s).lstrip('@'))}"
+                        expected = candidates[0] if candidates else ""
+                        k = ref.lower()
+                        if k not in seen:
+                            seen.add(k)
+                            missing.append((ref, expected))
+                    continue
+
+                # --blob=name:@path or --blob=name:+offset@path
+                if key_l == "--blob":
+                    blob_value = _strip_outer_quotes(value_s)
+                    if not blob_value or ":" not in blob_value:
+                        continue
+
+                    _name, _colon, tail = blob_value.partition(":")
+                    tail = tail.strip()
+                    if not tail:
+                        continue
+
+                    # Hex blobs / inline values.
+                    if tail.lower().startswith("0x"):
+                        continue
+
+                    file_part = ""
+                    if tail.startswith("@"):
+                        file_part = tail[1:].strip()
+                    elif tail.startswith("+"):
+                        at_idx = tail.find("@")
+                        if at_idx > 0 and at_idx < len(tail) - 1:
+                            file_part = tail[at_idx + 1 :].strip()
+
+                    if not file_part:
+                        continue
+
+                    candidates = _resolve_candidates(file_part, default_dir=bin_dir)
+                    if candidates and (not _exists_any(candidates)):
+                        ref = f"{key.strip()}={_norm_slashes(blob_value)}"
+                        expected = candidates[0] if candidates else ""
+                        k = ref.lower()
+                        if k not in seen:
+                            seen.add(k)
+                            missing.append((ref, expected))
+                    continue
         except Exception:
             return []
 
         return missing
 
     @staticmethod
-    def _write_text_file(path: str, content: str) -> None:
-        atomic_write_text(path, content, encoding="utf-8")
+    def _build_validation_report(missing: list[tuple[str, str]]) -> str:
+        if not missing:
+            return ""
 
-    def _prepare_launch_preset_args(self, source_preset_path: str) -> list[str]:
-        """Normalizes the selected source preset and returns direct argv items."""
+        max_show = 15
+        shown = missing[:max_show]
+        hidden = len(missing) - len(shown)
 
-        try:
-            with open(source_preset_path, "r", encoding="utf-8", errors="replace") as f:
-                source_content = f.read()
-        except Exception:
-            return []
+        example = shown[0][0] if shown else ""
+        if example:
+            header = f"Preset содержит ссылки на отсутствующие файлы ({len(missing)}), например: {example}"
+        else:
+            header = f"Preset содержит ссылки на отсутствующие файлы ({len(missing)}):"
 
-        # Auto-fix missing --lua-init lines before any other processing.
-        source_content, lua_fixed = _ensure_lua_init_lines(source_content, self.work_dir)
+        lines: list[str] = [header]
+        for ref, expected in shown:
+            if expected:
+                lines.append(f"- {ref}  (ожидается: {expected})")
+            else:
+                lines.append(f"- {ref}")
+        if hidden > 0:
+            lines.append(f"... и еще {hidden} файл(ов)")
+        return "\n".join(lines)
+
+    def _normalize_preset_text(self, source_content: str) -> str:
+        normalized, lua_fixed = _ensure_lua_init_lines(source_content, self.work_dir)
         if lua_fixed:
-            try:
-                self._write_text_file(source_preset_path, source_content)
-            except Exception as e:
-                log(f"Failed to save lua-init fix to {source_preset_path}: {e}", "DEBUG")
+            log("Applying implicit lua-init lines for launch artifact", "DEBUG")
 
-        cleaned_source = strip_strategy_tags(source_content)
-        if cleaned_source != source_content:
-            try:
-                self._write_text_file(source_preset_path, cleaned_source)
-                log(f"Removed legacy :strategy=N tags from {source_preset_path}", "DEBUG")
-            except Exception as e:
-                log(f"Failed to clean preset file {source_preset_path}: {e}", "DEBUG")
+        cleaned = strip_strategy_tags(normalized)
+        if cleaned != normalized:
+            log("Ignoring legacy :strategy=N tags in launch artifact", "DEBUG")
+        return cleaned
 
-        return _launch_args_from_preset_text(cleaned_source)
+    def _compile_preset_artifact(self, preset_path: str) -> PreparedPresetArtifact:
+        p = str(preset_path or "").strip()
+        if not p:
+            return PreparedPresetArtifact("", None, "", tuple(), False, "Не указан путь к preset файлу")
+        if not os.path.exists(p):
+            return PreparedPresetArtifact(p, None, "", tuple(), False, f"Preset файл не найден: {p}")
+
+        for _attempt in range(2):
+            cache_key = preset_cache_key(p)
+            if cache_key is not None:
+                with self._state_lock:
+                    cached = self._prepared_preset_cache.get(cache_key)
+                if cached is not None:
+                    return cached
+
+            try:
+                with open(p, "r", encoding="utf-8", errors="replace") as f:
+                    source_content = f.read()
+            except Exception:
+                return PreparedPresetArtifact(p, cache_key, "", tuple(), False, f"Preset файл не найден: {p}")
+
+            normalized_text = self._normalize_preset_text(source_content)
+            launch_args = tuple(launch_args_from_preset_text(normalized_text))
+            missing = self._collect_missing_preset_references_from_text(normalized_text)
+            validation_ok = not missing
+            validation_report = "" if validation_ok else self._build_validation_report(missing)
+            artifact = PreparedPresetArtifact(
+                preset_path=p,
+                cache_key=cache_key,
+                normalized_text=normalized_text,
+                launch_args=launch_args,
+                validation_ok=validation_ok,
+                validation_report=validation_report,
+            )
+
+            final_cache_key = preset_cache_key(p)
+            if cache_key is not None and final_cache_key == cache_key:
+                with self._state_lock:
+                    remember_cache_entry(self._prepared_preset_cache, cache_key, artifact)
+                return artifact
+
+        return artifact
 
     def _on_config_changed(self):
         """
@@ -586,70 +474,134 @@ class StrategyRunnerV2(StrategyRunnerBase):
         """
         log("Hot-reload triggered: config file changed", "INFO")
 
-        if not self._preset_file_path or not os.path.exists(self._preset_file_path):
-            log("Preset file not found, cannot hot-reload", "WARNING")
-            return
+        with self._state_lock:
+            preset_path = str(self._preset_file_path or "").strip()
+            strategy_name = str(self.current_launch_label or "Preset").strip() or "Preset"
 
-        # Stop process only (keep watcher running)
-        self._stop_process_only()
+            if not preset_path or not os.path.exists(preset_path):
+                log("Preset file not found, cannot hot-reload", "WARNING")
+                return
 
-        # Small delay to ensure clean stop
-        time.sleep(0.3)
+            artifact = self._compile_preset_artifact(preset_path)
+            if not artifact.validation_ok:
+                self._set_runner_state_locked(
+                    PresetRunnerState.FAILED,
+                    preset_path=preset_path,
+                    strategy_name=strategy_name,
+                    error=artifact.validation_report,
+                    reason="watcher_compile_failed",
+                )
+                for line in (artifact.validation_report or "").splitlines():
+                    if line.strip():
+                        log(line, "ERROR")
+                try:
+                    self._set_last_error((artifact.validation_report or "").splitlines()[0].strip())
+                except Exception:
+                    self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
+                return
 
-        # Restart from preset file
-        self._start_from_preset()
+            self._stop_process_only_locked()
+            self._spawn_process_locked(
+                artifact,
+                strategy_name,
+                hot_reload=True,
+            )
 
-    def _stop_process_only(self):
+    def _stop_process_only_locked(self) -> None:
         """
         Stops the process without stopping the config watcher.
         Used for hot-reload to keep monitoring the config file.
         """
         try:
+            cleanup_needed = False
             if self.running_process and self.is_running():
                 pid = self.running_process.pid
                 strategy_name = self.current_launch_label or "unknown"
+                self._set_runner_state_locked(
+                    PresetRunnerState.STOPPING,
+                    preset_path=str(self._preset_file_path or ""),
+                    strategy_name=str(strategy_name),
+                    pid=pid,
+                    reason="stop_process_only",
+                )
 
                 log(f"Hot-reload: stopping process '{strategy_name}' (PID: {pid})", "INFO")
 
                 # Soft stop
                 self.running_process.terminate()
 
-                try:
-                    self.running_process.wait(timeout=3)
+                if wait_for_process_exit(self.running_process, timeout=3.0):
                     log(f"Process stopped for hot-reload (PID: {pid})", "SUCCESS")
-                except subprocess.TimeoutExpired:
+                else:
                     log("Soft stop timeout, force killing for hot-reload", "WARNING")
                     self.running_process.kill()
-                    self.running_process.wait()
+                    cleanup_needed = not wait_for_process_exit(self.running_process, timeout=1.0)
 
                 self.running_process = None
+                self._set_runner_state_locked(
+                    PresetRunnerState.IDLE,
+                    preset_path=str(self._preset_file_path or ""),
+                    strategy_name=str(strategy_name),
+                    reason="stop_completed",
+                )
 
-            # Quick cleanup without full service removal
-            self._kill_all_winws_processes()
+                if not cleanup_needed:
+                    try:
+                        from utils.process_killer import get_process_pids
+
+                        cleanup_needed = bool(get_process_pids(os.path.basename(self.winws_exe)))
+                    except Exception:
+                        cleanup_needed = False
+
+            if cleanup_needed:
+                log("Hot-reload fallback cleanup: detected lingering winws process", "DEBUG")
+                self._kill_all_winws_processes()
 
         except Exception as e:
             log(f"Error stopping process for hot-reload: {e}", "ERROR")
 
-    def _start_from_preset(self):
-        """
-        Starts process from existing preset file.
-        Used for hot-reload after config change.
-        """
-        if not self._preset_file_path or not os.path.exists(self._preset_file_path):
-            log("Cannot start from preset: file not found", "ERROR")
+    def _clear_process_state_locked(self) -> None:
+        self.running_process = None
+        self.current_launch_label = None
+        self.current_strategy_args = None
+
+    def _spawn_readiness_check_locked(self, process: subprocess.Popen) -> bool:
+        try:
+            pid = int(process.pid)
+        except Exception:
+            return False
+        return is_process_alive_with_expected_name(pid, self.winws_exe)
+
+    def _spawn_process_locked(
+        self,
+        artifact: PreparedPresetArtifact,
+        strategy_name: str,
+        *,
+        hot_reload: bool,
+    ) -> bool:
+        if not artifact.launch_args:
+            message = "Не удалось подготовить аргументы запуска из preset файла"
+            self._set_last_error(message)
+            if hot_reload:
+                log("Cannot start from preset: no launch arguments produced", "ERROR")
+            else:
+                log(message, "ERROR")
             return False
 
+        cmd = [self.winws_exe, *artifact.launch_args]
+        start_label = "Hot-reload" if hot_reload else "Starting"
+
+        log(f"{start_label}: starting from preset {artifact.preset_path}", "INFO")
+        if not hot_reload:
+            log(f"Strategy: {strategy_name}", "INFO")
+
         try:
-            launch_args = self._prepare_launch_preset_args(self._preset_file_path)
-            if not launch_args:
-                log("Cannot start from preset: no launch arguments produced", "ERROR")
-                return False
-
-            cmd = [self.winws_exe, *launch_args]
-
-            log(f"Hot-reload: starting from preset {self._preset_file_path}", "INFO")
-
-            # Start process
+            self._set_runner_state_locked(
+                PresetRunnerState.STARTING,
+                preset_path=artifact.preset_path,
+                strategy_name=strategy_name,
+                reason="hot_reload_start" if hot_reload else "start_from_preset",
+            )
             self.running_process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -659,33 +611,109 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 creationflags=CREATE_NO_WINDOW,
                 cwd=self.work_dir
             )
+            self.current_launch_label = strategy_name
+            self.current_strategy_args = list(artifact.launch_args)
+            self._last_spawn_exit_code = None
+            self._last_spawn_stderr = ""
 
-            # Quick startup check
-            time.sleep(0.2)
+            stable_ok = wait_for_process_stable_start(
+                self.running_process,
+                readiness_check=lambda: self._spawn_readiness_check_locked(self.running_process),
+            )
 
-            if self.running_process.poll() is None:
-                log(f"Hot-reload successful (PID: {self.running_process.pid})", "SUCCESS")
-                self.current_strategy_args = list(launch_args)
+            if stable_ok:
+                self._set_runner_state_locked(
+                    PresetRunnerState.RUNNING,
+                    preset_path=artifact.preset_path,
+                    strategy_name=strategy_name,
+                    pid=self.running_process.pid,
+                    reason="start_confirmed",
+                )
+                if hot_reload:
+                    log(f"Hot-reload successful (PID: {self.running_process.pid})", "SUCCESS")
+                else:
+                    log(f"Strategy '{strategy_name}' started from preset (PID: {self.running_process.pid})", "SUCCESS")
                 return True
-            else:
-                exit_code = self.running_process.returncode
+
+            exit_code = self.running_process.returncode
+            if hot_reload:
                 log(f"Hot-reload failed: process exited (code: {exit_code})", "ERROR")
+            else:
+                log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", "ERROR")
 
+            stderr_output = ""
+            try:
+                stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
+                if stderr_output:
+                    log(f"Error: {stderr_output[:500]}", "ERROR")
+            except Exception:
+                stderr_output = ""
+
+            self._last_spawn_exit_code = int(exit_code)
+            self._last_spawn_stderr = str(stderr_output or "")
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=artifact.preset_path,
+                strategy_name=strategy_name,
+                error=str(stderr_output or ""),
+                reason="process_exited_during_start",
+            )
+
+            if not hot_reload:
+                from dpi.process_health_check import diagnose_winws_exit
+
+                diag = diagnose_winws_exit(exit_code, stderr_output)
+                if diag:
+                    prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
+                    self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}")
+                    log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
+                else:
+                    first_line = ""
+                    try:
+                        first_line = (stderr_output or "").strip().splitlines()[0].strip()
+                    except Exception:
+                        first_line = ""
+                    if first_line:
+                        self._set_last_error(f"winws2 завершился сразу (код {exit_code}): {first_line[:200]}")
+                    else:
+                        self._set_last_error(f"winws2 завершился сразу (код {exit_code})")
+            else:
+                first_line = ""
                 try:
-                    stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
-                    if stderr_output:
-                        log(f"Error: {stderr_output[:500]}", "ERROR")
-                except:
-                    pass
+                    first_line = (stderr_output or "").strip().splitlines()[0].strip()
+                except Exception:
+                    first_line = ""
+                if first_line:
+                    self._set_last_error(f"Hot-reload failed: {first_line[:200]}")
+                else:
+                    self._set_last_error(f"Hot-reload failed (код {exit_code})")
 
-                self.running_process = None
-                self.current_strategy_args = None
-                return False
+            self._clear_process_state_locked()
+            if artifact.preset_path:
+                self._preset_file_path = None
+            return False
 
         except Exception as e:
-            log(f"Error starting from preset: {e}", "ERROR")
-            self.running_process = None
-            self.current_strategy_args = None
+            diagnosis = diagnose_startup_error(e, self.winws_exe)
+            for line in diagnosis.split('\n'):
+                log(line, "ERROR")
+            try:
+                self._set_last_error(diagnosis.split("\n")[0].strip())
+            except Exception:
+                self._set_last_error(None)
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=artifact.preset_path,
+                strategy_name=strategy_name,
+                error=diagnosis.split("\n")[0].strip(),
+                reason="spawn_exception",
+            )
+            self._last_spawn_exit_code = None
+            self._last_spawn_stderr = ""
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
+            self._clear_process_state_locked()
+            self._preset_file_path = None
             return False
 
     def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
@@ -695,28 +723,37 @@ class StrategyRunnerV2(StrategyRunnerBase):
             self._set_last_error(f"Preset файл не найден: {preset_path}")
             return False
 
-        ok, report = self.validate_preset_file(preset_path)
-        if not ok:
-            for line in (report or "").splitlines():
-                if line.strip():
-                    log(line, "ERROR")
-            try:
-                self._set_last_error((report or "").splitlines()[0].strip())
-            except Exception:
-                self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
-            return False
-
         self._set_last_error(None)
         self._stop_config_watcher()
 
-        if self.running_process and self.is_running():
-            self._stop_process_only()
-            time.sleep(0.15)
+        with self._state_lock:
+            artifact = self._compile_preset_artifact(preset_path)
+            if not artifact.validation_ok:
+                self._set_runner_state_locked(
+                    PresetRunnerState.FAILED,
+                    preset_path=preset_path,
+                    strategy_name=strategy_name,
+                    error=artifact.validation_report,
+                    reason="manual_switch_compile_failed",
+                )
+                for line in (artifact.validation_report or "").splitlines():
+                    if line.strip():
+                        log(line, "ERROR")
+                try:
+                    self._set_last_error((artifact.validation_report or "").splitlines()[0].strip())
+                except Exception:
+                    self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
+                return False
 
-        self._preset_file_path = preset_path
-        self.current_launch_label = strategy_name
+            if self.running_process and self.is_running():
+                self._stop_process_only_locked()
 
-        success = self._start_from_preset()
+            self._preset_file_path = preset_path
+            success = self._spawn_process_locked(
+                artifact,
+                strategy_name,
+                hot_reload=True,
+            )
         if success:
             self._start_config_watcher()
         return success
@@ -754,170 +791,114 @@ class StrategyRunnerV2(StrategyRunnerBase):
             self._set_last_error(f"Preset файл не найден: {preset_path}")
             return False
 
-        try:
-            self._set_last_error(None)
-            launch_args = self._prepare_launch_preset_args(preset_path)
-            if not launch_args:
-                self._set_last_error("Не удалось подготовить аргументы запуска из preset файла")
-                return False
+        self._set_last_error(None)
+        self._stop_config_watcher()
 
-            # Preflight: validate referenced files before stopping/killing anything.
-            ok, report = self.validate_preset_file(preset_path)
-            if not ok:
-                for line in (report or "").splitlines():
-                    if line.strip():
-                        log(line, "ERROR")
-                try:
-                    self._set_last_error((report or "").splitlines()[0].strip())
-                except Exception:
-                    self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
-                return False
-
-            # Stop previous process and watcher
-            cleanup_required = bool(_force_cleanup)
-
-            if self.running_process and self.is_running():
-                log("Stopping previous process before starting new one", "INFO")
-                self.stop()
-                cleanup_required = True
-
-            # Не тратим время на полную очистку, если нет активных winws процессов.
-            try:
-                active_winws_pids = get_process_pids("winws.exe") + get_process_pids("winws2.exe")
-            except Exception:
-                active_winws_pids = []
-
-            if active_winws_pids:
-                cleanup_required = True
-
-            # Cleanup (ускоренный путь: только когда реально нужно)
-            if cleanup_required:
-                log("Cleaning up previous winws processes...", "DEBUG")
-                kill_winws_force()
-                self._fast_cleanup_services()
-
-                # Unload WinDivert drivers for complete cleanup
-                try:
-                    from utils.service_manager import unload_driver
-                    for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
-                        try:
-                            unload_driver(driver)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-                time.sleep(0.3)
-            else:
-                log("Fast start: cleanup skipped (no active winws processes)", "DEBUG")
-
-            # Store preset file path for hot-reload
-            self._preset_file_path = preset_path
-
-            cmd = [self.winws_exe, *launch_args]
-
-            log(f"Starting from preset file: {preset_path}", "INFO")
-            log(f"Strategy: {strategy_name}", "INFO")
-
-            # Start process
-            self.running_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                startupinfo=self._create_startup_info(),
-                creationflags=CREATE_NO_WINDOW,
-                cwd=self.work_dir
+        with self._state_lock:
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                force_cleanup=bool(_force_cleanup),
+                retry_count=int(_retry_count),
+                kill_winws_force=kill_winws_force,
+                get_process_pids=get_process_pids,
             )
 
-            # Save info
-            self.current_launch_label = strategy_name
-            self.current_strategy_args = list(launch_args)
+    def _start_from_preset_file_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        force_cleanup: bool,
+        retry_count: int,
+        kill_winws_force,
+        get_process_pids,
+    ) -> bool:
+        artifact = self._compile_preset_artifact(preset_path)
+        if not artifact.validation_ok:
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=preset_path,
+                strategy_name=strategy_name,
+                error=artifact.validation_report,
+                reason="launch_compile_failed",
+            )
+            for line in (artifact.validation_report or "").splitlines():
+                if line.strip():
+                    log(line, "ERROR")
+            try:
+                self._set_last_error((artifact.validation_report or "").splitlines()[0].strip())
+            except Exception:
+                self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
+            return False
 
-            # Quick startup check
-            time.sleep(0.2)
+        cleanup_required = bool(force_cleanup)
 
-            if self.running_process.poll() is None:
-                log(f"Strategy '{strategy_name}' started from preset (PID: {self.running_process.pid})", "SUCCESS")
+        if self.running_process and self.is_running():
+            log("Stopping previous process before starting new one", "INFO")
+            self._stop_process_only_locked()
+            cleanup_required = True
 
-                # Start hot-reload watcher after successful start
-                self._start_config_watcher()
+        try:
+            active_winws_pids = get_process_pids("winws.exe") + get_process_pids("winws2.exe")
+        except Exception:
+            active_winws_pids = []
 
-                return True
-            else:
-                exit_code = self.running_process.returncode
-                log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", "ERROR")
+        if active_winws_pids:
+            cleanup_required = True
 
-                stderr_output = ""
-                try:
-                    stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
-                    if stderr_output:
-                        log(f"Error: {stderr_output[:500]}", "ERROR")
-                except:
-                    pass
-
-                # Diagnose the exit code + stderr for a human-readable error
-                from dpi.process_health_check import diagnose_winws_exit
-                diag = diagnose_winws_exit(exit_code, stderr_output)
-                if diag:
-                    prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
-                    self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}")
-                    log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
-                else:
-                    first_line = ""
-                    try:
-                        first_line = (stderr_output or "").strip().splitlines()[0].strip()
-                    except Exception:
-                        first_line = ""
-                    if first_line:
-                        self._set_last_error(f"winws2 завершился сразу (код {exit_code}): {first_line[:200]}")
-                    else:
-                        self._set_last_error(f"winws2 завершился сразу (код {exit_code})")
-
-                self.running_process = None
-                self.current_launch_label = None
-                self.current_strategy_args = None
-                self._preset_file_path = None
-
-                # System-level WinDivert errors (Secure Boot, service disabled, etc.)
-                # are not fixable by cleanup/retry — skip retry.
-                if self._is_windivert_system_error(stderr_output, exit_code):
-                    log("WinDivert system error detected — retry will not help", "WARNING")
-                    return False
-
-                # Retryable WinDivert conflict (GUID collision, stale state)
-                if (
-                    (not cleanup_required)
-                    and _retry_count == 0
-                    and self._is_windivert_conflict_error(stderr_output, exit_code)
-                ):
-                    log("WinDivert conflict detected, retrying with full cleanup", "WARNING")
-                    return self.start_from_preset_file(
-                        preset_path,
-                        strategy_name,
-                        _force_cleanup=True,
-                        _retry_count=1,
-                    )
-
-                return False
-
-        except Exception as e:
-            diagnosis = diagnose_startup_error(e, self.winws_exe)
-            for line in diagnosis.split('\n'):
-                log(line, "ERROR")
+        if cleanup_required:
+            log("Cleaning up previous winws processes...", "DEBUG")
+            kill_winws_force()
+            self._fast_cleanup_services()
 
             try:
-                self._set_last_error(diagnosis.split("\n")[0].strip())
+                from utils.service_manager import unload_driver
+                for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
+                    try:
+                        unload_driver(driver)
+                    except Exception:
+                        pass
             except Exception:
-                self._set_last_error(None)
+                pass
 
-            import traceback
-            log(traceback.format_exc(), "DEBUG")
-            self.running_process = None
-            self.current_launch_label = None
-            self.current_strategy_args = None
-            self._preset_file_path = None
+            time.sleep(0.3)
+        else:
+            log("Fast start: cleanup skipped (no active winws processes)", "DEBUG")
+
+        self._preset_file_path = preset_path
+        success = self._spawn_process_locked(
+            artifact,
+            strategy_name,
+            hot_reload=False,
+        )
+        if success:
+            self._start_config_watcher()
+            return True
+
+        exit_code = int(self._last_spawn_exit_code or -1)
+        stderr_output = str(self._last_spawn_stderr or "")
+
+        if self._is_windivert_system_error(stderr_output, exit_code):
+            log("WinDivert system error detected — retry will not help", "WARNING")
             return False
+
+        if (
+            (not cleanup_required)
+            and retry_count == 0
+            and self._is_windivert_conflict_error(stderr_output, exit_code)
+        ):
+            log("WinDivert conflict detected, retrying with full cleanup", "WARNING")
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                force_cleanup=True,
+                retry_count=1,
+                kill_winws_force=kill_winws_force,
+                get_process_pids=get_process_pids,
+            )
+
+        return False
 
     def find_running_preset_pid(self, preset_path: str) -> Optional[int]:
         """Returns PID of winws2.exe running with @preset_path, if any."""
@@ -965,28 +946,39 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
     def _start_config_watcher(self):
         """Start watching the preset file for changes or retarget existing watcher."""
-        if not self._preset_file_path or not os.path.exists(self._preset_file_path):
+        with self._state_lock:
+            preset_path = str(self._preset_file_path or "").strip()
+            watcher = self._config_watcher
+
+        if not preset_path or not os.path.exists(preset_path):
             return
 
-        if self._config_watcher:
-            self._config_watcher.update_file_path(self._preset_file_path)
-            log(f"Config watcher retargeted to: {self._preset_file_path}", "DEBUG")
+        if watcher:
+            watcher.update_file_path(preset_path)
+            log(f"Config watcher retargeted to: {preset_path}", "DEBUG")
             return
 
-        self._config_watcher = ConfigFileWatcher(
-            self._preset_file_path,
+        watcher = ConfigFileWatcher(
+            preset_path,
             self._on_config_changed,
             interval=1.0
         )
-        self._config_watcher.start()
-        log(f"Config watcher started for: {self._preset_file_path}", "DEBUG")
+        with self._state_lock:
+            self._config_watcher = watcher
+        watcher.start()
+        log(f"Config watcher started for: {preset_path}", "DEBUG")
 
     def _stop_config_watcher(self):
         """Stop watching the preset file"""
-        if self._config_watcher:
-            self._config_watcher.stop()
+        with self._state_lock:
+            watcher = self._config_watcher
             self._config_watcher = None
+        if watcher:
+            watcher.stop()
             log("Config watcher stopped", "DEBUG")
+
+    def stop_background_watchers(self) -> None:
+        self._stop_config_watcher()
 
     def stop(self) -> bool:
         """
@@ -998,7 +990,20 @@ class StrategyRunnerV2(StrategyRunnerBase):
         self._stop_config_watcher()
 
         # Clear preset file path
-        self._preset_file_path = None
-
-        # Call base class stop
-        return super().stop()
+        with self._state_lock:
+            if self.running_process and self.is_running():
+                self._set_runner_state_locked(
+                    PresetRunnerState.STOPPING,
+                    preset_path=str(self._preset_file_path or ""),
+                    strategy_name=str(self.current_launch_label or ""),
+                    pid=self.running_process.pid,
+                    reason="public_stop",
+                )
+            self._preset_file_path = None
+            success = super().stop()
+            self._set_runner_state_locked(
+                PresetRunnerState.IDLE,
+                reason="public_stop_completed",
+                allow_same=True,
+            )
+            return success

@@ -46,6 +46,10 @@ def setup_service_for_strategy(
         False — ошибка (причина уже залогирована, ui_error_cb вызван)
     """
     try:
+        from .autostart_remove import clear_existing_autostart
+
+        clear_existing_autostart(status_cb=ui_error_cb)
+
         # ---------- 1. Определяем, какой .bat должен запускаться ----------
         bat_dir = _resolve_bat_folder(bat_folder)
         

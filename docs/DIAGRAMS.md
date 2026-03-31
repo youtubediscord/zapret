@@ -886,7 +886,7 @@ graph TB
     
     subgraph "Worker'ы"
         TG_SENDER[tg_sender.py]
-        BOT_SENDER[tg_log_bot.py<br/>отдельный бот для логов]
+        BOT_SENDER[GitHub Discussions<br/>ручное обращение без отдельного бота]
     end
     
     subgraph "Telegram API"

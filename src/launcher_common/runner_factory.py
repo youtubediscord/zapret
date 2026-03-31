@@ -37,8 +37,7 @@ def get_strategy_runner(winws_exe_path: str) -> StrategyRunnerBase:
 
         if exe_changed or class_changed:
             log(f"Смена runner: {type(_strategy_runner_instance).__name__} → {runner_class.__name__}", "INFO")
-            if hasattr(_strategy_runner_instance, '_stop_config_watcher'):
-                _strategy_runner_instance._stop_config_watcher()
+            _strategy_runner_instance.stop_background_watchers()
             _strategy_runner_instance = None
 
     if _strategy_runner_instance is None:
@@ -60,8 +59,7 @@ def invalidate_strategy_runner():
     """Асинхронная инвалидация runner'а"""
     global _strategy_runner_instance
     if _strategy_runner_instance:
-        if hasattr(_strategy_runner_instance, '_stop_config_watcher'):
-            _strategy_runner_instance._stop_config_watcher()
+        _strategy_runner_instance.stop_background_watchers()
         _strategy_runner_instance = None
 
 

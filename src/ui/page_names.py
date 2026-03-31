@@ -63,7 +63,7 @@ class PageName(Enum):
     LOGS = auto()                    # Логи
     SERVERS = auto()                 # Серверы обновлений
     ABOUT = auto()                   # О программе
-    SUPPORT = auto()                 # Поддержка (ZapretHub и каналы связи)
+    SUPPORT = auto()                 # Поддержка (GitHub Discussions и каналы сообщества)
 
     # === Сканер стратегий ===
     STRATEGY_SCAN = auto()           # Legacy id: standalone route removed, now embedded in BlockCheck tabs

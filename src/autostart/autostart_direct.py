@@ -71,6 +71,10 @@ def setup_direct_autostart_task(
     Создает задачу планировщика для запуска winws.exe при входе пользователя
     """
     try:
+        from .autostart_remove import clear_existing_autostart
+
+        clear_existing_autostart(status_cb=ui_error_cb)
+
         if not os.path.exists(winws_exe):
             error_msg = f"winws.exe не найден: {winws_exe}"
             log(error_msg, "❌ ERROR")
@@ -209,6 +213,10 @@ def setup_direct_autostart_service(
     Это более надежный способ для программ, не поддерживающих протокол служб Windows
     """
     try:
+        from .autostart_remove import clear_existing_autostart
+
+        clear_existing_autostart(status_cb=ui_error_cb)
+
         if not os.path.exists(winws_exe):
             error_msg = f"winws.exe не найден: {winws_exe}"
             log(error_msg, "❌ ERROR")

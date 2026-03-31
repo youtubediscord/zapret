@@ -650,10 +650,6 @@ class DPIController:
             self._direct_preset_switch_completed_generation = target_generation
             return
 
-        store = getattr(self.app, "ui_state_store", None)
-        if store is not None:
-            store.set_dpi_busy(True, "Применение пресета...")
-
         if hasattr(self.app, 'main_window') and hasattr(self.app.main_window, '_show_active_strategy_page_loading'):
             self.app.main_window._show_active_strategy_page_loading()
 
@@ -1179,10 +1175,6 @@ class DPIController:
         """Обрабатывает завершение асинхронного запуска DPI"""
         completed_restart_generation = int(self._restart_active_start_generation or 0)
         try:
-            store = getattr(self.app, "ui_state_store", None)
-            if store is not None:
-                store.set_dpi_busy(False)
-
             if hasattr(self.app, 'main_window') and hasattr(self.app.main_window, '_show_active_strategy_page_success'):
                 self.app.main_window._show_active_strategy_page_success()
             
