@@ -291,7 +291,8 @@ def load_strategies(strategy_type: str, strategy_set: Optional[str] = None) -> D
                 set_dir.mkdir(parents=True, exist_ok=True)
             except Exception:
                 pass
-            sanitize_strategy_catalog_dir(set_dir)
+            if strategy_set_key in ("basic", "advanced"):
+                sanitize_strategy_catalog_dir(set_dir)
             for basename in basenames:
                 file_path = set_dir / f"{basename}.txt"
                 if not file_path.exists():

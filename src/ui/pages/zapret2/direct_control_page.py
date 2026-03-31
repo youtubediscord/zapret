@@ -161,6 +161,59 @@ class _AdvancedSettingsLoadWorker(QThread):
         self.loaded.emit(self._request_id, state)
 
 
+class _DirectPresetSummaryLoadWorker(QThread):
+    loaded = pyqtSignal(int, dict)
+
+    def __init__(self, request_id: int, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+
+    def run(self) -> None:
+        payload: dict = {
+            "active_preset_name": "",
+            "active_lists": [],
+        }
+        try:
+            from core.services import get_direct_flow_coordinator
+            from strategy_menu.launch_method_store import get_strategy_launch_method
+
+            method = str(get_strategy_launch_method() or "").strip().lower()
+            if method == "direct_zapret2":
+                preset = get_direct_flow_coordinator().get_selected_source_manifest("direct_zapret2")
+                payload["active_preset_name"] = str(getattr(preset, "name", "") or "").strip()
+
+                from core.presets.direct_facade import DirectPresetFacade
+
+                facade = DirectPresetFacade.from_launch_method(method)
+                source_text = facade.read_selected_source_text()
+                active_lists: list[str] = []
+                seen_lists: set[str] = set()
+                for raw in str(source_text or "").splitlines():
+                    stripped = raw.strip()
+                    if not stripped or stripped.startswith("#"):
+                        continue
+                    for value in _HOSTLIST_DISPLAY_RE.findall(stripped):
+                        list_path = value.strip().strip('"').strip("'")
+                        if not list_path:
+                            continue
+
+                        normalized = list_path.replace("\\", "/")
+                        list_name = normalized.rsplit("/", 1)[-1]
+                        if not list_name:
+                            continue
+
+                        dedupe_key = list_name.lower()
+                        if dedupe_key in seen_lists:
+                            continue
+                        seen_lists.add(dedupe_key)
+                        active_lists.append(list_name)
+                payload["active_lists"] = active_lists
+        except Exception:
+            pass
+
+        self.loaded.emit(self._request_id, payload)
+
+
 class BigActionButton(PrimaryActionButton):
     """Большая кнопка запуска (акцентная, PrimaryPushButton)."""
 
@@ -202,6 +255,9 @@ class Zapret2DirectControlPage(BasePage):
         self._advanced_settings_worker = None
         self._advanced_settings_request_id = 0
         self._advanced_settings_dirty = True
+        self._preset_summary_worker = None
+        self._preset_summary_request_id = 0
+        self._preset_summary_dirty = True
         _t_build = _time.perf_counter()
         self._build_ui()
         _log_startup_z2_control_metric("__init__.build_ui", (_time.perf_counter() - _t_build) * 1000)
@@ -695,6 +751,50 @@ class Zapret2DirectControlPage(BasePage):
         self._advanced_settings_dirty = False
         self._apply_advanced_settings_state(state if isinstance(state, dict) else {})
 
+    def _schedule_preset_summary_reload(self, *, force: bool = False) -> None:
+        if not force and not self._preset_summary_dirty:
+            return
+        worker = getattr(self, "_preset_summary_worker", None)
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                pass
+
+        self._preset_summary_request_id += 1
+        request_id = self._preset_summary_request_id
+        worker = _DirectPresetSummaryLoadWorker(request_id, self)
+        self._preset_summary_worker = worker
+        worker.loaded.connect(self._on_preset_summary_loaded)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_preset_summary_loaded(self, request_id: int, payload: dict) -> None:
+        if int(request_id) != int(self._preset_summary_request_id):
+            return
+        self._preset_summary_dirty = False
+        active_preset_name = str((payload or {}).get("active_preset_name") or "").strip()
+        active_lists = list((payload or {}).get("active_lists") or [])
+
+        if active_preset_name:
+            self.preset_name_label.setText(active_preset_name)
+            set_tooltip(self.preset_name_label, active_preset_name)
+        else:
+            self.preset_name_label.setText(
+                tr_catalog("page.z2_control.preset.not_selected", language=self._ui_language, default="Не выбран")
+            )
+            set_tooltip(self.preset_name_label, "")
+
+        if active_lists:
+            self.strategy_label.setText(" • ".join(active_lists))
+            set_tooltip(self.strategy_label, "\n".join(active_lists))
+        else:
+            self.strategy_label.setText(
+                tr_catalog("page.z2_control.preset.no_active_lists", language=self._ui_language, default="Нет активных листов")
+            )
+            set_tooltip(self.strategy_label, "")
+
     def _on_discord_restart_changed(self, enabled: bool) -> None:
         self._advanced_settings_request_id += 1
         self._advanced_settings_dirty = False
@@ -1102,9 +1202,11 @@ class Zapret2DirectControlPage(BasePage):
     def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
         if "mode_revision" in changed_fields:
             self._sync_direct_launch_mode_from_settings()
-        if "preset_revision" in changed_fields:
+        if "preset_revision" in changed_fields or "launch_method" in changed_fields or not changed_fields:
             self._advanced_settings_dirty = True
             self._schedule_advanced_settings_reload(force=True)
+            self._preset_summary_dirty = True
+            self._schedule_preset_summary_reload(force=True)
         self.set_loading(state.dpi_busy, state.dpi_busy_text)
         self.update_status(state.dpi_running)
         self.update_strategy(state.current_strategy_summary or "")
@@ -1130,109 +1232,7 @@ class Zapret2DirectControlPage(BasePage):
 
     def update_strategy(self, name: str):
         self._update_stop_winws_button_text()
-
-        show_filter_lists = False
-        active_preset_name = ""
-
-        try:
-            from core.services import get_direct_flow_coordinator
-
-            preset = get_direct_flow_coordinator().get_selected_source_manifest("direct_zapret2")
-            active_preset_name = str(getattr(preset, "name", "") or "").strip()
-        except Exception:
-            active_preset_name = ""
-
-        try:
-            from strategy_menu.launch_method_store import get_strategy_launch_method
-
-            method = get_strategy_launch_method()
-            if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
-                show_filter_lists = True
-                active_lists: list[str] = []
-                seen_lists: set[str] = set()
-
-                if method in ("direct_zapret2", "direct_zapret1"):
-                    from core.presets.direct_facade import DirectPresetFacade
-
-                    facade = DirectPresetFacade.from_launch_method(method)
-                    source_text = facade.read_selected_source_text()
-                    for raw in str(source_text or "").splitlines():
-                        stripped = raw.strip()
-                        if not stripped or stripped.startswith("#"):
-                            continue
-                        for value in _HOSTLIST_DISPLAY_RE.findall(stripped):
-                            list_path = value.strip().strip('"').strip("'")
-                            if not list_path:
-                                continue
-
-                            normalized = list_path.replace("\\", "/")
-                            list_name = normalized.rsplit("/", 1)[-1]
-                            if not list_name:
-                                continue
-
-                            dedupe_key = list_name.lower()
-                            if dedupe_key in seen_lists:
-                                continue
-                            seen_lists.add(dedupe_key)
-                            active_lists.append(list_name)
-                else:
-                    from legacy_registry_launch.selection_store import get_direct_strategy_selections
-                    from legacy_registry_launch.strategies_registry import registry
-
-                    selections = get_direct_strategy_selections() or {}
-                    for target_key in registry.get_all_target_keys_by_command_order():
-                        sid = selections.get(target_key, "none") or "none"
-                        if sid == "none":
-                            continue
-
-                        args = registry.get_strategy_args_safe(target_key, sid) or ""
-                        for value in _HOSTLIST_DISPLAY_RE.findall(args):
-                            list_path = value.strip().strip('"').strip("'")
-                            if not list_path:
-                                continue
-
-                            normalized = list_path.replace("\\", "/")
-                            list_name = normalized.rsplit("/", 1)[-1]
-                            if not list_name:
-                                continue
-
-                            dedupe_key = list_name.lower()
-                            if dedupe_key in seen_lists:
-                                continue
-                            seen_lists.add(dedupe_key)
-                            active_lists.append(list_name)
-
-                if not active_lists:
-                    name = tr_catalog("page.z2_control.preset.not_selected", language=self._ui_language, default="Не выбрана")
-                    set_tooltip(self.strategy_label, "")
-                else:
-                    name = " • ".join(active_lists)
-                    set_tooltip(self.strategy_label, "\n".join(active_lists))
-        except Exception:
-            pass
-
-        if active_preset_name:
-            self.preset_name_label.setText(active_preset_name)
-            set_tooltip(self.preset_name_label, active_preset_name)
-        else:
-            self.preset_name_label.setText(tr_catalog("page.z2_control.preset.not_selected", language=self._ui_language, default="Не выбран"))
-            set_tooltip(self.preset_name_label, "")
-
-        autostart_disabled_ru = tr_catalog(
-            "page.z2_control.strategy.autostart_disabled",
-            language="ru",
-            default="Автостарт DPI отключен",
-        )
-        autostart_disabled_en = tr_catalog(
-            "page.z2_control.strategy.autostart_disabled",
-            language="en",
-            default="Autostart DPI is disabled",
-        )
-
-        if name and name not in {autostart_disabled_ru, autostart_disabled_en, "Автостарт DPI отключен"}:
-            self.strategy_label.setText(name)
-        else:
-            self.strategy_label.setText(tr_catalog("page.z2_control.preset.no_active_lists", language=self._ui_language, default="Нет активных листов"))
+        self._schedule_preset_summary_reload()
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
