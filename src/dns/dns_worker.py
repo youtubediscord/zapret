@@ -237,9 +237,6 @@ class DNSStartupManager:
             # Запускаем через 3 секунды после старта приложения
             QTimer.singleShot(3000, delayed_apply)
             
-            if status_callback:
-                status_callback("DNS будет применен через 3 сек")
-            
             return True
             
         except Exception as e:
