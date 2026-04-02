@@ -107,6 +107,31 @@ def _set_telega_warning_disabled(disabled: bool) -> None:
         pass
 
 
+def disable_telega_warning_forever() -> None:
+    """Отключает дальнейшие предупреждения о Telega Desktop."""
+    _set_telega_warning_disabled(True)
+
+
+def get_telega_warning_details(found_path: str = "") -> dict | None:
+    """Возвращает данные предупреждения для неблокирующего показа на старте."""
+    if _check_telega_warning_disabled():
+        return None
+
+    path_line = f"\nОбнаружено: {found_path}" if found_path else ""
+    content = (
+        "Обнаружена программа Telega Desktop.\n"
+        "Это неофициальная модификация Telegram, которая может читать переписку."
+        f"{path_line}\n"
+        "Рекомендуется удалить её, поставить официальный Telegram и завершить сторонние сессии."
+    )
+    return {
+        "title": "Обнаружена Telega Desktop",
+        "content": content,
+        "found_path": found_path,
+        "official_url": "https://desktop.telegram.org",
+    }
+
+
 def show_telega_warning(parent=None, found_path: str = "") -> None:
     """
     Показывает предупреждение о поддельном клиенте «Telega Desktop».

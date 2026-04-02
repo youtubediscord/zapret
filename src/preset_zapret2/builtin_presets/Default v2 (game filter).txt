@@ -1,7 +1,6 @@
 # Preset: Default v2 (game filter)
 # TemplateOrigin: Default v2 (game filter)
-# BuiltinVersion: 2.16
-# Modified: 2026-01-21T17:52:34.648239
+# BuiltinVersion: 2.17
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua

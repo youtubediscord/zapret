@@ -2,8 +2,12 @@
 
 import threading
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from log import log
+
+
+class _StrategyCacheBridge(QObject):
+    summary_ready = pyqtSignal(str, str)
 
 
 class InitializationManager:
@@ -27,6 +31,15 @@ class InitializationManager:
 
         # Для фоновой проверки ipsets, чтобы можно было корректно завершить поток
         self._ipsets_thread = None
+        self._strategy_cache_bridge = _StrategyCacheBridge()
+        self._strategy_cache_bridge.summary_ready.connect(self._apply_strategy_cache_summary)
+
+    def _log_startup_step(self, marker: str, details: str = "") -> None:
+        try:
+            if hasattr(self.app, "log_startup_metric"):
+                self.app.log_startup_metric(marker, details)
+        except Exception:
+            pass
 
     # ───────────────────────── запуск и планирование ─────────────────────────
 
@@ -121,82 +134,104 @@ class InitializationManager:
 
     def _init_strategy_cache(self):
         """Прогрев кэша стратегий для быстрого открытия вкладок"""
-        try:
-            from legacy_registry_launch.strategies_registry import registry
-            from strategy_menu import get_strategy_launch_method
-
-            # Прогреваем кэш отсортированных ключей
-            registry.get_all_target_keys_sorted()
-
-            method = get_strategy_launch_method()
-
-            # Прогреваем кэш выборов/source preset для текущего режима.
-            if method in ("direct_zapret1", "direct_zapret2"):
-                from core.presets.direct_facade import DirectPresetFacade
-
-                DirectPresetFacade.from_launch_method(method).get_strategy_selections()
-            else:
-                from legacy_registry_launch.selection_store import get_direct_strategy_selections
-
-                get_direct_strategy_selections()
-
-            log("Кэш стратегий прогрет", "DEBUG")
-
-            # ✅ Важно для direct_zapret2: обновить отображение текущей стратегии на старте.
-            # Иначе на главной/управлении может остаться "Не выбрана" до первого клика в стратегиях.
+        def _worker() -> None:
+            import time as _t
+            t0 = _t.perf_counter()
             try:
-                # Убедимся, что выбранные source-пресеты подготовлены до расчёта summary.
-                if method == "direct_zapret2":
-                    from core.services import get_direct_flow_coordinator
-                    try:
-                        get_direct_flow_coordinator().ensure_selected_source_path("direct_zapret2")
-                    except Exception as e:
-                        log(
-                            f"direct_zapret2: не удалось подготовить выбранный source-пресет: {e}",
-                            "ERROR",
-                        )
-                elif method == "direct_zapret2_orchestra":
-                    from preset_orchestra_zapret2 import ensure_default_preset_exists
-                    if not ensure_default_preset_exists():
-                        log(
-                            "direct_zapret2_orchestra: не удалось подготовить preset-zapret2-orchestra.txt (нет шаблона Default)",
-                            "ERROR",
-                        )
-                elif method == "direct_zapret1":
-                    from core.services import get_direct_flow_coordinator
-                    try:
-                        get_direct_flow_coordinator().ensure_selected_source_path("direct_zapret1")
-                    except Exception:
-                        log("direct_zapret1: не удалось подготовить выбранный source-пресет", "ERROR")
+                from legacy_registry_launch.strategies_registry import registry
+                from strategy_menu import get_strategy_launch_method
 
-                if method == "orchestra":
-                    initial_name = ""
-                    store = getattr(self.app, "ui_state_store", None)
-                    if store is not None:
-                        try:
-                            initial_name = store.snapshot().current_strategy_summary or ""
-                        except Exception:
-                            initial_name = ""
-                    if not initial_name:
-                        initial_name = "Оркестр"
+                # Прогреваем кэш отсортированных ключей
+                registry.get_all_target_keys_sorted()
+
+                method = get_strategy_launch_method()
+
+                # Прогреваем кэш выборов/source preset для текущего режима.
+                if method in ("direct_zapret1", "direct_zapret2"):
+                    from core.presets.direct_facade import DirectPresetFacade
+
+                    DirectPresetFacade.from_launch_method(method).get_strategy_selections()
                 else:
-                    initial_name = ""
-                    store = getattr(self.app, "ui_state_store", None)
-                    if store is not None:
-                        try:
-                            initial_name = store.snapshot().current_strategy_summary or ""
-                        except Exception:
-                            initial_name = ""
-                    if not initial_name:
-                        initial_name = "Прямой запуск"
+                    from legacy_registry_launch.selection_store import get_direct_strategy_selections
 
-                if hasattr(self.app, "update_current_strategy_display"):
-                    self.app.update_current_strategy_display(initial_name)
+                    get_direct_strategy_selections()
+
+                log("Кэш стратегий прогрет", "DEBUG")
+                self._log_startup_step(
+                    "StrategyCacheWarmup",
+                    f"{(_t.perf_counter() - t0) * 1000:.0f}ms",
+                )
+
+                strategy_summary = self._resolve_strategy_cache_summary(method)
+                self._strategy_cache_bridge.summary_ready.emit(str(method or ""), str(strategy_summary or ""))
             except Exception as e:
-                log(f"Ошибка обновления текущей стратегии на старте: {e}", "DEBUG")
+                log(f"Ошибка прогрева кэша стратегий: {e}", "WARNING")
 
+        threading.Thread(target=_worker, daemon=True, name="StrategyCacheWarmupWorker").start()
+
+    def _resolve_strategy_cache_summary(self, method: str) -> str:
+        """Считает итоговую строку стратегии без выполнения UI-кода в рабочем потоке."""
+        try:
+            # Убедимся, что выбранные source-пресеты подготовлены до расчёта summary.
+            if method == "direct_zapret2":
+                from core.services import get_direct_flow_coordinator
+
+                try:
+                    get_direct_flow_coordinator().ensure_selected_source_path("direct_zapret2")
+                except Exception as e:
+                    log(
+                        f"direct_zapret2: не удалось подготовить выбранный source-пресет: {e}",
+                        "ERROR",
+                    )
+            elif method == "direct_zapret2_orchestra":
+                from preset_orchestra_zapret2 import ensure_default_preset_exists
+
+                if not ensure_default_preset_exists():
+                    log(
+                        "direct_zapret2_orchestra: не удалось подготовить preset-zapret2-orchestra.txt (нет шаблона Default)",
+                        "ERROR",
+                    )
+            elif method == "direct_zapret1":
+                from core.services import get_direct_flow_coordinator
+
+                try:
+                    get_direct_flow_coordinator().ensure_selected_source_path("direct_zapret1")
+                except Exception:
+                    log("direct_zapret1: не удалось подготовить выбранный source-пресет", "ERROR")
+
+            if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+                from ui.main_window_display import get_direct_strategy_summary
+
+                return get_direct_strategy_summary(self.app)
         except Exception as e:
-            log(f"Ошибка прогрева кэша стратегий: {e}", "WARNING")
+            log(f"Ошибка расчёта стартового summary стратегии: {e}", "DEBUG")
+
+        initial_name = ""
+        store = getattr(self.app, "ui_state_store", None)
+        if store is not None:
+            try:
+                initial_name = store.snapshot().current_strategy_summary or ""
+            except Exception:
+                initial_name = ""
+
+        if initial_name:
+            return initial_name
+        if method == "orchestra":
+            return "Оркестр"
+        return "Прямой запуск"
+
+    def _apply_strategy_cache_summary(self, launch_method: str, strategy_summary: str) -> None:
+        """Возвращает результат прогрева в единый store уже в GUI-потоке."""
+        try:
+            store = getattr(self.app, "ui_state_store", None)
+            if store is None:
+                return
+
+            if launch_method:
+                store.set_launch_method(launch_method)
+            store.set_current_strategy_summary(strategy_summary)
+        except Exception as e:
+            log(f"Ошибка применения стартового summary стратегии: {e}", "DEBUG")
 
     def _init_dpi_starter(self):
         """Инициализация DPI стартера"""
@@ -482,6 +517,7 @@ class InitializationManager:
                 DNSStartupManager.apply_dns_on_startup_async(status_callback=self.app.set_status)
             
             log(f"✅ Network managers: {(_t.perf_counter() - t0)*1000:.0f}ms", "DEBUG")
+            self._log_startup_step("NetworkManagers", f"{(_t.perf_counter() - t0)*1000:.0f}ms")
             self.init_tasks_completed.add('network_managers')
         except Exception as e:
             log(f"❌ Ошибка network managers: {e}", "ERROR")
@@ -555,6 +591,7 @@ class InitializationManager:
             )
             
             log(f"✅ Service managers: {(_t.perf_counter() - t0)*1000:.0f}ms", "DEBUG")
+            self._log_startup_step("ServiceManagers", f"{(_t.perf_counter() - t0)*1000:.0f}ms")
             self.init_tasks_completed.add('service_managers')
         except Exception as e:
             log(f"❌ Ошибка service managers: {e}", "ERROR")
@@ -579,6 +616,8 @@ class InitializationManager:
     def _init_tray(self):
         """Инициализация системного трея"""
         try:
+            import time as _t
+            t0 = _t.perf_counter()
             if getattr(self.app, 'tray_manager', None):
                 self.init_tasks_completed.add('tray')
                 log("Системный трей уже инициализирован, пропускаем", "DEBUG")
@@ -605,6 +644,7 @@ class InitializationManager:
             )
 
             log("Системный трей инициализирован", "INFO")
+            self._log_startup_step("TrayInit", f"{(_t.perf_counter() - t0)*1000:.0f}ms")
             self.init_tasks_completed.add('tray')
         except Exception as e:
             log(f"Ошибка инициализации трея: {e}", "❌ ERROR")
@@ -752,11 +792,14 @@ class InitializationManager:
     def _sync_autostart_status(self):
         """Синхронизирует статус автозапуска с реальным состоянием"""
         try:
+            import time as _t
+            t0 = _t.perf_counter()
             from autostart.registry_check import verify_autostart_status
             real_status = verify_autostart_status()
             if hasattr(self.app, 'ui_manager'):
                 self.app.ui_manager.update_autostart_ui(real_status)
             log(f"Статус автозапуска синхронизирован: {real_status}", "INFO")
+            self._log_startup_step("AutostartSync", f"{(_t.perf_counter() - t0)*1000:.0f}ms")
         except Exception as e:
             log(f"Ошибка синхронизации автозапуска: {e}", "❌ ERROR")
 

@@ -947,9 +947,18 @@ description = Потом опишу подробнее
 
 [datanoack]
 name = datanoack
-author = hz
+author = loop-uh
 label = recommended
 description = Потом опишу подробнее
+--lua-desync=pktmod:tcp_flags_unset=ack
+
+[pktmod_syndata_stun]
+name = pktmod + syndata (stun)
+author = loop-uh
+label = recommended
+description = Потом опишу подробнее
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
 --lua-desync=pktmod:tcp_flags_unset=ack
 
 [pktmod_syndata]

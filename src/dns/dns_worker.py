@@ -16,9 +16,10 @@ class SafeDNSWorker(QThread):
     status_update = pyqtSignal(str)
     finished_with_result = pyqtSignal(bool)
     
-    def __init__(self, skip_on_startup=False):
+    def __init__(self, skip_on_startup=False, startup_mode=False):
         super().__init__()
         self.skip_on_startup = skip_on_startup
+        self.startup_mode = startup_mode
     
     def run(self):
         """Выполнение DNS операций"""
@@ -38,6 +39,8 @@ class SafeDNSWorker(QThread):
             
             # Проверяем, включен ли принудительный DNS
             if not manager.is_force_dns_enabled():
+                if self.startup_mode:
+                    log("Принудительный DNS отключен в настройках", "INFO")
                 self.status_update.emit("⚙️ Принудительный DNS отключен")
                 self.finished_with_result.emit(False)
                 return
@@ -52,18 +55,27 @@ class SafeDNSWorker(QThread):
             
             # Результат
             if success > 0:
-                msg = f"✅ DNS применен: {success}/{total} адаптеров"
+                if self.startup_mode:
+                    msg = f"✅ DNS применен при запуске: {success}/{total}"
+                else:
+                    msg = f"✅ DNS применен: {success}/{total} адаптеров"
                 self.status_update.emit(msg)
                 log(msg, "DNS")
                 self.finished_with_result.emit(True)
             else:
-                msg = "⚠️ DNS не применен ни к одному адаптеру"
+                if self.startup_mode:
+                    msg = "⚠️ DNS не применен при запуске"
+                else:
+                    msg = "⚠️ DNS не применен ни к одному адаптеру"
                 self.status_update.emit(msg)
                 log(msg, "WARNING")
                 self.finished_with_result.emit(False)
         
         except Exception as e:
-            error_msg = f"❌ Ошибка DNS worker: {e}"
+            if self.startup_mode:
+                error_msg = f"Ошибка применения DNS при запуске: {e}"
+            else:
+                error_msg = f"❌ Ошибка DNS worker: {e}"
             log(error_msg, "ERROR")
             self.status_update.emit("❌ Ошибка применения DNS")
             self.finished_with_result.emit(False)
@@ -165,6 +177,18 @@ class DNSStartupManager:
     
     # Флаг для временного отключения (если есть проблемы)
     DISABLE_ON_STARTUP = False
+    _startup_worker = None
+
+    @staticmethod
+    def _cleanup_startup_worker():
+        worker = DNSStartupManager._startup_worker
+        if worker is None:
+            return
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
+        DNSStartupManager._startup_worker = None
     
     @staticmethod
     def apply_dns_on_startup_async(status_callback=None):
@@ -187,42 +211,25 @@ class DNSStartupManager:
             
             log("Планирование применения DNS при запуске", "INFO")
             
-            # Отложенное применение через QTimer
+            # Отложенное применение через QTimer, а затем уже настоящий фоновой воркер.
             def delayed_apply():
                 try:
-                    from .dns_force import DNSForceManager
-                    
-                    manager = DNSForceManager()
-                    
-                    # Проверяем, включен ли принудительный DNS
-                    if not manager.is_force_dns_enabled():
-                        log("Принудительный DNS отключен в настройках", "INFO")
-                        if status_callback:
-                            status_callback("Готов к работе")
+                    existing_worker = DNSStartupManager._startup_worker
+                    if existing_worker is not None and existing_worker.isRunning():
+                        log("DNS startup worker уже запущен", "DEBUG")
                         return
-                    
+
+                    worker = SafeDNSWorker(skip_on_startup=False, startup_mode=True)
+                    DNSStartupManager._startup_worker = worker
+
                     if status_callback:
-                        status_callback("⏳ Применение DNS...")
-                    
-                    # Применяем DNS
-                    success, total = manager.force_dns_on_all_adapters(
-                        include_disconnected=False,
-                        enable_ipv6=True
-                    )
-                    
-                    if success > 0:
-                        msg = f"✅ DNS применен при запуске: {success}/{total}"
-                        log(msg, "SUCCESS")
-                        if status_callback:
-                            status_callback(msg)
-                    else:
-                        msg = "⚠️ DNS не применен при запуске"
-                        log(msg, "WARNING")
-                        if status_callback:
-                            status_callback(msg)
-                            
+                        worker.status_update.connect(status_callback)
+
+                    worker.finished.connect(DNSStartupManager._cleanup_startup_worker)
+                    worker.start()
+                    log("DNS worker при старте приложения запущен в фоне", "DEBUG")
                 except Exception as e:
-                    error_msg = f"Ошибка применения DNS при запуске: {e}"
+                    error_msg = f"Ошибка запуска DNS worker при старте: {e}"
                     log(error_msg, "ERROR")
                     if status_callback:
                         status_callback("❌ Ошибка DNS")

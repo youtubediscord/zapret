@@ -109,6 +109,7 @@ class Zapret2StrategiesPageNew(BasePage):
         self._ui_state_unsubscribe = None
         self._basic_payload_cache = None
         self._preset_refresh_pending = False
+        self._empty_state_label = None
         self._request_hint_label = None
         self._request_btn = None
         self._expand_btn = None
@@ -319,6 +320,17 @@ class Zapret2StrategiesPageNew(BasePage):
             self.content_layout.addWidget(actions_card)
             _log_startup_z2_direct_metric("_build_content.toolbar", (_time.perf_counter() - _t_toolbar) * 1000)
 
+            if not target_items:
+                self._empty_state_label = BodyLabel(self._build_empty_state_text())
+                self._empty_state_label.setWordWrap(True)
+                self.content_layout.addWidget(self._empty_state_label)
+                self._built = True
+                log("Zapret2StrategiesPageNew: target'ы не найдены, показано empty state", "INFO")
+                _log_startup_z2_direct_metric("_build_content.total", (_time.perf_counter() - _t_total) * 1000)
+                self._render_probe_build_finished_at = _time.perf_counter()
+                QTimer.singleShot(0, self._log_render_probe_idle)
+                return
+
             # Выборы уже загружены в начале _build_content()
 
             # Список target'ов (без правой панели - теперь отдельная страница)
@@ -496,6 +508,17 @@ class Zapret2StrategiesPageNew(BasePage):
             self.target_selections = payload.strategy_selections or {}
             filter_modes = payload.filter_modes or {}
 
+            # Важный случай: страница могла открыться слишком рано и построиться
+            # пустой, когда source preset ещё не был готов. Раньше после этого
+            # последующие preset_revision только обновляли уже существующий список,
+            # а если списка не было вовсе, UI так и оставался пустым до ручного
+            # нажатия «Обновить». Здесь мы явно пересобираем страницу, если данные
+            # уже появились или на экране сейчас показан empty state.
+            if self._targets_list is None:
+                if target_items or self._empty_state_label is not None:
+                    self._reload_strategies()
+                return
+
             if self._targets_list:
                 self._targets_list.set_strategy_names_by_target(payload.strategy_names_by_target or {})
                 self._targets_list.set_selections(self.target_selections)
@@ -518,6 +541,57 @@ class Zapret2StrategiesPageNew(BasePage):
         if refresh or self._basic_payload_cache is None:
             self._basic_payload_cache = self._get_direct_facade().get_basic_ui_payload(startup_scope=startup_scope)
         return self._basic_payload_cache
+
+    def _build_empty_state_text(self) -> str:
+        empty_state = None
+        try:
+            empty_state = self._get_direct_facade().get_basic_ui_empty_state()
+        except Exception as e:
+            log(f"Zapret2StrategiesPageNew: не удалось определить причину пустого списка: {e}", "DEBUG")
+
+        reason = str((empty_state or {}).get("reason") or "").strip().lower()
+        preset_name = str((empty_state or {}).get("preset_name") or "").strip()
+
+        if reason == "no_presets":
+            return tr_catalog(
+                "page.z2_direct.empty.no_presets",
+                language=self._ui_language,
+                default=(
+                    "Пресеты Zapret 2 не найдены. Обычно здесь должны быть txt-файлы в "
+                    "%APPDATA%\\zapret\\presets_v2. Если папка пустая, встроенные пресеты не были "
+                    "скопированы или были удалены."
+                ),
+            )
+
+        if reason == "no_selected_preset":
+            return tr_catalog(
+                "page.z2_direct.empty.no_selected_preset",
+                language=self._ui_language,
+                default=(
+                    "Не удалось определить выбранный source preset. "
+                    "Откройте список пресетов, выберите любой пресет заново и нажмите «Обновить»."
+                ),
+            )
+
+        if reason == "preset_read_error":
+            return tr_catalog(
+                "page.z2_direct.empty.preset_read_error",
+                language=self._ui_language,
+                default=(
+                    "Не удалось прочитать выбранный source preset «{preset_name}». "
+                    "Такое бывает, если файл пустой, повреждён или недоступен для чтения."
+                ),
+            ).format(preset_name=preset_name or "без имени")
+
+        return tr_catalog(
+            "page.z2_direct.empty.no_categories",
+            language=self._ui_language,
+            default=(
+                "В выбранном source preset «{preset_name}» не найдено ни одной категории для этой страницы. "
+                "Это значит, что после разбора файла программа не увидела ни одного target'а "
+                "с фильтрами вроде hostlist, hostlist-domains или ipset."
+            ),
+        ).format(preset_name=preset_name or "без имени")
 
     def _expand_all(self):
         """Разворачивает все группы"""

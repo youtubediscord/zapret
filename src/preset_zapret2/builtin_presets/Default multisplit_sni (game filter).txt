@@ -1,8 +1,7 @@
 # Preset: Default multisplit_sni (game filter)
 # TemplateOrigin: Default multisplit_sni (game filter)
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-02-03T17:52:52.760817
-# Modified: 2026-02-03T17:52:52.760985
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

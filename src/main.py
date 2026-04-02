@@ -1,6 +1,7 @@
 # main.py
 import sys, os
 import time as _startup_clock
+from collections import deque
 from ui.page_names import PageName
 
 
@@ -356,6 +357,9 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
     subscription_manager: 'SubscriptionManager'
     initialization_manager: 'InitializationManager'
     theme_handler: 'ThemeHandler'
+
+    def log_startup_metric(self, marker: str, details: str = "") -> None:
+        _log_startup_metric(marker, details)
 
     def closeEvent(self, event):
         """Обрабатывает событие закрытия окна"""
@@ -787,6 +791,103 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         except Exception as e:
             log(f"Ошибка показа warning InfoBar запуска DPI: {e}", "DEBUG")
 
+    def _copy_to_clipboard_with_feedback(self, text: str, *, label: str = "Текст") -> None:
+        try:
+            clipboard = QApplication.clipboard()
+            if clipboard is None:
+                raise RuntimeError("Буфер обмена недоступен")
+            clipboard.setText(str(text or ""))
+            self.show_dpi_launch_warning(f"{label} скопирован в буфер обмена")
+        except Exception as e:
+            log(f"Не удалось скопировать в буфер обмена: {e}", "DEBUG")
+            self.show_dpi_launch_warning(f"Не удалось скопировать {label.lower()}")
+
+    def _enqueue_startup_notification(self, payload: dict | None) -> None:
+        if not payload:
+            return
+        queue = getattr(self, "_startup_notification_queue", None)
+        if queue is None:
+            return
+        queue.append(dict(payload))
+        self._schedule_startup_notification_queue()
+
+    def _schedule_startup_notification_queue(self, delay_ms: int = 0) -> None:
+        timer = getattr(self, "_startup_notification_timer", None)
+        if timer is None:
+            return
+        if timer.isActive():
+            return
+        timer.start(max(0, int(delay_ms)))
+
+    def _show_startup_notification(self, payload: dict) -> None:
+        try:
+            from qfluentwidgets import InfoBar as _InfoBar, InfoBarPosition as _IBPos, PushButton
+
+            level = str(payload.get("level") or "warning").strip().lower()
+            title = str(payload.get("title") or "Предупреждение").strip()
+            content = str(payload.get("content") or "").strip()
+            duration = int(payload.get("duration", 12000) or 12000)
+            orient = Qt.Orientation.Vertical if len(content) > 120 or "\n" in content else Qt.Orientation.Horizontal
+
+            factory = {
+                "success": _InfoBar.success,
+                "info": _InfoBar.info,
+                "error": _InfoBar.error,
+                "warning": _InfoBar.warning,
+            }.get(level, _InfoBar.warning)
+
+            bar = factory(
+                title=title,
+                content=content,
+                orient=orient,
+                isClosable=True,
+                position=_IBPos.TOP_RIGHT,
+                duration=duration,
+                parent=self,
+            )
+
+            for button_info in payload.get("buttons") or []:
+                button_text = str(button_info.get("text") or "").strip()
+                callback = button_info.get("callback")
+                if not button_text or not callable(callback) or bar is None:
+                    continue
+
+                btn = PushButton(button_text)
+                btn.setAutoDefault(False)
+                btn.setDefault(False)
+
+                def _wrap(_checked=False, _btn=btn, _callback=callback):
+                    try:
+                        _btn.setEnabled(False)
+                        _callback()
+                    finally:
+                        _btn.setEnabled(True)
+
+                btn.clicked.connect(_wrap)
+                bar.addWidget(btn)
+        except Exception as e:
+            log(f"Не удалось показать startup InfoBar: {e}", "DEBUG")
+
+    def _flush_startup_notification_queue(self) -> None:
+        if not bool(getattr(self, "_startup_post_init_ready", False)):
+            self._schedule_startup_notification_queue(300)
+            return
+        if not bool(getattr(self, "_startup_background_init_started", False)):
+            self._schedule_startup_notification_queue(300)
+            return
+        if not self.isVisible():
+            return
+
+        queue = getattr(self, "_startup_notification_queue", None)
+        if not queue:
+            return
+
+        payload = queue.popleft()
+        self._show_startup_notification(payload)
+
+        if queue:
+            self._schedule_startup_notification_queue(900)
+
     def _add_autofix_button(self, bar, action: str) -> None:
         """Add a 'Fix' button to an InfoBar that runs the auto-fix action."""
         try:
@@ -1029,6 +1130,10 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         self._startup_post_init_ready = False
         self._startup_subscription_ready = False
         self._startup_background_init_started = False
+        self._startup_notification_queue = deque()
+        self._startup_notification_timer = QTimer(self)
+        self._startup_notification_timer.setSingleShot(True)
+        self._startup_notification_timer.timeout.connect(self._flush_startup_notification_queue)
 
         # Window geometry persistence (debounce)
         self._geometry_restore_in_progress = False
@@ -1283,6 +1388,8 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         except Exception:
             pass
 
+        self._schedule_startup_notification_queue(0)
+
     def _deferred_init(self) -> None:
         """Heavy initialization — runs after first frame is shown."""
         if self._deferred_init_started:
@@ -1390,6 +1497,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         _log_startup_metric("PostInitDone", details)
         self._startup_post_init_ready = True
         self._try_finish_startup_splash("post_init_done")
+        self._schedule_startup_notification_queue(0)
 
     def setWindowTitle(self, title: str):
         """Override to update FluentWindow's built-in titlebar."""
@@ -1985,6 +2093,8 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         except Exception:
             pass
 
+        self._schedule_startup_notification_queue(0)
+
     def _init_garland_from_registry(self) -> None:
         """Загружает состояние гирлянды и снежинок из реестра при старте"""
         try:
@@ -2236,9 +2346,12 @@ def main():
         try:
             fatal_error = payload.get("fatal_error")
             warnings = payload.get("warnings") or []
-            ok = bool(payload.get("ok", True))
             proxy_prompt = payload.get("proxy_prompt") or None
             kaspersky_detected = bool(payload.get("kaspersky_detected", False))
+            duration_ms = int(payload.get("duration_ms") or 0)
+
+            if duration_ms > 0:
+                window.log_startup_metric("StartupChecksFinished", f"{duration_ms}ms")
 
             if fatal_error:
                 try:
@@ -2249,70 +2362,93 @@ def main():
                 return
 
             if warnings:
-                full_message = "\n\n".join([str(w) for w in warnings if w]) + "\n\nПродолжить работу?"
-                try:
-                    result = QMessageBox.warning(
-                        window,
-                        "Предупреждение",
-                        full_message,
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.No,
+                for warning_text in [str(w).strip() for w in warnings if str(w).strip()]:
+                    window._enqueue_startup_notification(
+                        {
+                            "level": "warning",
+                            "title": "Проверка при запуске",
+                            "content": warning_text,
+                            "duration": 15000,
+                        }
                     )
-                    ok = (result == QMessageBox.StandardButton.Yes)
-                except Exception:
-                    btn = _native_message_safe("Предупреждение", full_message, 0x34)  # MB_ICONWARNING | MB_YESNO
-                    ok = (btn == 6)  # IDYES
 
             if kaspersky_detected:
                 log("Обнаружен антивирус Kaspersky", "⚠️ KASPERSKY")
                 try:
-                    from startup.kaspersky import show_kaspersky_warning
-                    show_kaspersky_warning(window)
+                    from startup.kaspersky import (
+                        disable_kaspersky_warning_forever,
+                        get_kaspersky_warning_details,
+                    )
+
+                    kaspersky_details = get_kaspersky_warning_details()
+                    if kaspersky_details:
+                        window._enqueue_startup_notification(
+                            {
+                                "level": "warning",
+                                "title": str(kaspersky_details.get("title") or "Обнаружен Kaspersky"),
+                                "content": str(kaspersky_details.get("content") or ""),
+                                "duration": 20000,
+                                "buttons": [
+                                    {
+                                        "text": "Копировать папку",
+                                        "callback": lambda details=kaspersky_details: window._copy_to_clipboard_with_feedback(
+                                            str(details.get("base_dir") or ""),
+                                            label="Путь к папке",
+                                        ),
+                                    },
+                                    {
+                                        "text": "Копировать exe",
+                                        "callback": lambda details=kaspersky_details: window._copy_to_clipboard_with_feedback(
+                                            str(details.get("exe_path") or ""),
+                                            label="Путь к exe",
+                                        ),
+                                    },
+                                    {
+                                        "text": "Не напоминать",
+                                        "callback": lambda: disable_kaspersky_warning_forever(),
+                                    },
+                                ],
+                            }
+                        )
                 except Exception as e:
                     log(f"Не удалось показать предупреждение Kaspersky: {e}", "⚠️ KASPERSKY")
 
-            if proxy_prompt and not start_in_tray:
+            if proxy_prompt:
                 try:
-                    from qfluentwidgets import MessageBox as _MsgBox
                     from startup.check_start import _disable_proxy
 
-                    title = str(proxy_prompt.get("title") or "Включен системный прокси")
+                    title = str(proxy_prompt.get("title") or "Включен системный прокси").strip()
                     message = str(proxy_prompt.get("message") or "").strip()
-                    box = _MsgBox(title, message, window)
-                    box.yesButton.setText("Отключить прокси")
-                    box.cancelButton.setText("Оставить как есть")
-                    try:
-                        box.cancelButton.setFocus()
-                    except Exception:
-                        pass
-
-                    if box.exec():
-                        success, disable_error = _disable_proxy()
-                        try:
-                            from qfluentwidgets import InfoBar as _InfoBar, InfoBarPosition as _IBPos
-                            if success:
-                                _InfoBar.success(
-                                    title="Прокси отключен",
-                                    content="Ручной системный прокси был отключен по вашему запросу.",
-                                    parent=window,
-                                    duration=5000,
-                                    position=_IBPos.TOP_RIGHT,
-                                )
-                            else:
-                                _InfoBar.warning(
-                                    title="Не удалось отключить прокси",
-                                    content=str(disable_error or "Настройки прокси не были изменены."),
-                                    parent=window,
-                                    duration=7000,
-                                    position=_IBPos.TOP_RIGHT,
-                                )
-                        except Exception:
-                            pass
+                    window._enqueue_startup_notification(
+                        {
+                            "level": "warning",
+                            "title": title,
+                            "content": message,
+                            "duration": 18000,
+                            "buttons": [
+                                {
+                                    "text": "Отключить прокси",
+                                    "callback": lambda: (
+                                        (lambda success, disable_error: (
+                                            window._enqueue_startup_notification(
+                                                {
+                                                    "level": "success" if success else "warning",
+                                                    "title": "Прокси отключен" if success else "Не удалось отключить прокси",
+                                                    "content": (
+                                                        "Ручной системный прокси был отключен."
+                                                        if success else str(disable_error or "Настройки прокси не были изменены.")
+                                                    ),
+                                                    "duration": 7000 if success else 10000,
+                                                }
+                                            )
+                                        ))(*_disable_proxy())
+                                    ),
+                                }
+                            ],
+                        }
+                    )
                 except Exception as e:
                     log(f"Не удалось показать Fluent-диалог прокси: {e}", "WARNING")
-
-            if not ok and not start_in_tray:
-                log("Некритические проверки не пройдены, продолжаем работу после предупреждения", "⚠ WARNING")
 
             log("✅ Все проверки пройдены", "🔹 main")
         except Exception as e:
@@ -2322,6 +2458,10 @@ def main():
 
     def _on_deferred_maintenance_finished(payload: dict) -> None:
         try:
+            duration_ms = int(payload.get("duration_ms") or 0)
+            if duration_ms > 0:
+                window.log_startup_metric("DeferredMaintenanceFinished", f"{duration_ms}ms")
+
             if bool(payload.get("association_ok")):
                 log("Ассоциация успешно установлена", level="INFO")
 
@@ -2329,8 +2469,33 @@ def main():
             if telega_found_path:
                 log(f"Обнаружена Telega Desktop: {telega_found_path}", "🚨 TELEGA")
                 try:
-                    from startup.telega_check import show_telega_warning
-                    show_telega_warning(window, found_path=str(telega_found_path))
+                    from startup.telega_check import (
+                        disable_telega_warning_forever,
+                        get_telega_warning_details,
+                    )
+
+                    telega_details = get_telega_warning_details(found_path=str(telega_found_path))
+                    if telega_details:
+                        window._enqueue_startup_notification(
+                            {
+                                "level": "error",
+                                "title": str(telega_details.get("title") or "Обнаружена Telega Desktop"),
+                                "content": str(telega_details.get("content") or ""),
+                                "duration": 20000,
+                                "buttons": [
+                                    {
+                                        "text": "Открыть сайт Telegram",
+                                        "callback": lambda details=telega_details: __import__("webbrowser").open(
+                                            str(details.get("official_url") or "https://desktop.telegram.org")
+                                        ),
+                                    },
+                                    {
+                                        "text": "Не напоминать",
+                                        "callback": lambda: disable_telega_warning_forever(),
+                                    },
+                                ],
+                            }
+                        )
                 except Exception as e:
                     log(f"Не удалось показать предупреждение Telega: {e}", "🚨 TELEGA")
         except Exception as e:
@@ -2370,6 +2535,7 @@ def main():
         QTimer.singleShot(0, _try_start)
 
     def _startup_checks_worker():
+        started_at = time.perf_counter()
         try:
             from startup.bfe_util import preload_service_status, ensure_bfe_running, cleanup as bfe_cleanup
             from startup.check_start import collect_startup_warnings, check_goodbyedpi, check_mitmproxy
@@ -2414,6 +2580,7 @@ def main():
                     "fatal_error": fatal_error,
                     "proxy_prompt": proxy_prompt,
                     "kaspersky_detected": kaspersky_detected,
+                    "duration_ms": int((time.perf_counter() - started_at) * 1000),
                 }
             )
         except Exception as e:
@@ -2423,12 +2590,21 @@ def main():
                     window.set_status(f"Ошибка проверок: {e}")
                 except Exception:
                     pass
-            _startup_bridge.finished.emit({"ok": True, "warnings": [], "fatal_error": None, "proxy_prompt": None})
+            _startup_bridge.finished.emit(
+                {
+                    "ok": True,
+                    "warnings": [],
+                    "fatal_error": None,
+                    "proxy_prompt": None,
+                    "duration_ms": int((time.perf_counter() - started_at) * 1000),
+                }
+            )
 
     # Запускаем проверки только после interactive-фазы,
     # чтобы не конкурировать с heavy build_ui на старте.
     def _start_startup_checks():
         import threading
+        window.log_startup_metric("StartupChecksStarted", "startup_checks_worker")
         threading.Thread(target=_startup_checks_worker, daemon=True).start()
 
     _run_after_startup_flag(
@@ -2440,6 +2616,7 @@ def main():
     )
 
     def _deferred_maintenance_worker():
+        started_at = time.perf_counter()
         try:
             telega_found_path = None
             try:
@@ -2454,14 +2631,18 @@ def main():
                 {
                     "association_ok": association_ok,
                     "telega_found_path": telega_found_path,
+                    "duration_ms": int((time.perf_counter() - started_at) * 1000),
                 }
             )
         except Exception as e:
             log(f"Ошибка поздних служебных проверок: {e}", "❌ ERROR")
-            _deferred_maintenance_bridge.finished.emit({})
+            _deferred_maintenance_bridge.finished.emit(
+                {"duration_ms": int((time.perf_counter() - started_at) * 1000)}
+            )
 
     def _start_deferred_maintenance():
         import threading
+        window.log_startup_metric("DeferredMaintenanceStarted", "telega_association_worker")
         threading.Thread(target=_deferred_maintenance_worker, daemon=True).start()
 
     def _schedule_deferred_maintenance() -> None:

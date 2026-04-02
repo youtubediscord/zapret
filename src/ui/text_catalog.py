@@ -5487,6 +5487,22 @@ TEXTS_EXTRA: dict[str, dict[str, str]] = {
         "ru": "Хотите добавить новый сайт или сервис в Zapret 2? Откройте готовую форму на GitHub и опишите, что нужно добавить в hostlist или ipset.",
         "en": "Want to add a new site or service to Zapret 2? Open the GitHub form and describe what should be added to the hostlist or ipset.",
     },
+    "page.z2_direct.empty.no_presets": {
+        "ru": "Пресеты Zapret 2 не найдены. Обычно здесь должны быть txt-файлы в %APPDATA%\\zapret\\presets_v2. Если папка пустая, встроенные пресеты не были скопированы или были удалены.",
+        "en": "Zapret 2 presets were not found. Normally txt files should exist in %APPDATA%\\zapret\\presets_v2. If the folder is empty, built-in presets were not copied or were removed.",
+    },
+    "page.z2_direct.empty.no_selected_preset": {
+        "ru": "Не удалось определить выбранный source preset. Откройте список пресетов, выберите любой пресет заново и нажмите «Обновить».",
+        "en": "Could not determine the selected source preset. Open the preset list, choose any preset again, and click Refresh.",
+    },
+    "page.z2_direct.empty.preset_read_error": {
+        "ru": "Не удалось прочитать выбранный source preset «{preset_name}». Такое бывает, если файл пустой, повреждён или недоступен для чтения.",
+        "en": "Could not read the selected source preset \"{preset_name}\". This may happen if the file is empty, corrupted, or unavailable for reading.",
+    },
+    "page.z2_direct.empty.no_categories": {
+        "ru": "В выбранном source preset «{preset_name}» не найдено ни одной категории для этой страницы. Это значит, что после разбора файла программа не увидела ни одного target'а с фильтрами вроде hostlist, hostlist-domains или ipset.",
+        "en": "No categories were found for this page in the selected source preset \"{preset_name}\". This means that after parsing the file, the app did not find any target with filters such as hostlist, hostlist-domains, or ipset.",
+    },
     "page.z2_direct.current.active_count": {
         "ru": "{count} активных",
         "en": "{count} active",

@@ -1,8 +1,7 @@
 # Preset: ALL TCP & UDP v1
 # TemplateOrigin: ALL TCP & UDP v1
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-02-06T11:11:11.444444
-# Modified: 2026-02-06T11:11:11.444444
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

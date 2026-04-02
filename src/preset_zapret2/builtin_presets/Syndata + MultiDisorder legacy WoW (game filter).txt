@@ -1,7 +1,6 @@
 # Preset: Syndata + MultiDisorder legacy WoW (game filter)
 # TemplateOrigin: Syndata + MultiDisorder legacy WoW (game filter)
-# BuiltinVersion: 2.16
-# Modified: 2026-02-14T21:15:21.132234
+# BuiltinVersion: 2.17
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua

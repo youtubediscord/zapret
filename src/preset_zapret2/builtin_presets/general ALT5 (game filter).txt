@@ -1,6 +1,6 @@
 # Preset: general ALT5 (game filter)
 # TemplateOrigin: general ALT5 (game filter)
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # IconColor: #b475f0ff
 
 --lua-init=@lua/zapret-lib.lua

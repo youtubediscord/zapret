@@ -65,8 +65,6 @@ def update_current_strategy_display(window, strategy_name: str) -> None:
     try:
         from strategy_menu import get_strategy_launch_method
         launch_method = get_strategy_launch_method()
-        if launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
-            strategy_name = get_direct_strategy_summary(window)
     except Exception:
         pass
 

@@ -8,6 +8,19 @@ def _open_url(url: str):
     from PyQt6.QtGui import QDesktopServices
     QDesktopServices.openUrl(QUrl(url))
 
+
+def _resolve_kaspersky_paths() -> tuple[str, str]:
+    """Возвращает путь к exe и рабочую папку приложения."""
+    if getattr(sys, "frozen", False):
+        exe_path = os.path.abspath(sys.executable)
+        base_dir = os.path.dirname(exe_path)
+    else:
+        exe_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "zapret.pyw")
+        )
+        base_dir = os.path.dirname(exe_path)
+    return exe_path, base_dir
+
 def _check_kaspersky_antivirus(self):
     """
     Проверяет наличие антивируса Касперского в системе.
@@ -120,6 +133,32 @@ def _set_kaspersky_warning_disabled(disabled: bool):
         # Если winreg недоступен (не Windows), ничего не делаем
         pass
 
+
+def disable_kaspersky_warning_forever() -> None:
+    """Отключает дальнейшие предупреждения о Kaspersky."""
+    _set_kaspersky_warning_disabled(True)
+
+
+def get_kaspersky_warning_details() -> dict | None:
+    """Возвращает данные предупреждения для неблокирующего показа на старте."""
+    if _check_kaspersky_warning_disabled():
+        return None
+
+    exe_path, base_dir = _resolve_kaspersky_paths()
+    content = (
+        "Обнаружен антивирус Kaspersky.\n"
+        "Чтобы Zapret работал стабильно, добавьте программу в исключения.\n"
+        f"Папка: {base_dir}\n"
+        f"Файл: {exe_path}\n"
+        "Без исключения антивирус может мешать запуску и работе программы."
+    )
+    return {
+        "title": "Обнаружен Kaspersky",
+        "content": content,
+        "base_dir": base_dir,
+        "exe_path": exe_path,
+    }
+
 def show_kaspersky_warning(parent=None) -> None:
     """
     Показывает Qt-диалог с предупреждением, «кликабельными» путями и
@@ -128,16 +167,8 @@ def show_kaspersky_warning(parent=None) -> None:
     # Проверяем, не отключено ли предупреждение
     if _check_kaspersky_warning_disabled():
         return
-    
-    # -- корректно определяем пути -------------------------------------------------
-    if getattr(sys, "frozen", False):          # .exe, собранный PyInstaller-ом
-        exe_path = os.path.abspath(sys.executable)
-        base_dir = os.path.dirname(exe_path)
-    else:                                      # запуск из исходников
-        exe_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "zapret.pyw")
-        )
-        base_dir = os.path.dirname(exe_path)
+
+    exe_path, base_dir = _resolve_kaspersky_paths()
 
     # -- сам QMessageBox -----------------------------------------------------------
     from PyQt6.QtWidgets import QMessageBox, QPushButton, QApplication, QCheckBox

@@ -1,8 +1,7 @@
 # Preset: Preset X (game filter)
 # TemplateOrigin: Preset X (game filter)
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-02-07T10:02:40.762406
-# Modified: 2026-02-07T10:02:40.763682
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

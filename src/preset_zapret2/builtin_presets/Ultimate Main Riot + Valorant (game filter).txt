@@ -1,6 +1,6 @@
 # Preset: Ultimate Main Riot + Valorant (game filter)
 # TemplateOrigin: Ultimate Main Riot + Valorant (game filter)
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Description: YouTube + Discord (as MAIN) + Valorant/Riot
 # Created: 2026-02-10
 # IconColor: #60cdff

@@ -1,8 +1,7 @@
 # Preset: Default v3 (game filter)
 # TemplateOrigin: Default v3 (game filter)
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-02-04T21:46:04.398349
-# Modified: 2026-02-04T21:46:04.400216
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

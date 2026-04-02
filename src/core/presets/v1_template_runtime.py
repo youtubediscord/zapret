@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import os
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -136,7 +135,8 @@ def ensure_v1_templates_copied_to_presets() -> int:
         if dest.exists():
             continue
         try:
-            shutil.copy2(str(src_path), str(dest))
+            content = _normalize_template_header_v1(src_path.read_text(encoding="utf-8", errors="replace"), name)
+            dest.write_text(content, encoding="utf-8")
             copied += 1
             unmark_preset_deleted_v1(name)
         except Exception as exc:
@@ -179,7 +179,7 @@ def update_changed_v1_templates_in_presets() -> int:
             except Exception:
                 pass
 
-            shutil.copy2(str(src_path), str(dest))
+            dest.write_text(_normalize_template_header_v1(template_content, name), encoding="utf-8")
             updated += 1
         except Exception as exc:
             log(f"Failed to update V1 preset '{name}' from template: {exc}", "DEBUG")
@@ -200,7 +200,8 @@ def overwrite_v1_templates_to_presets() -> tuple[int, int, list[str]]:
         src_path = templates[name]
         dest = presets_dir / f"{name}.txt"
         try:
-            shutil.copy2(str(src_path), str(dest))
+            content = _normalize_template_header_v1(src_path.read_text(encoding="utf-8", errors="replace"), name)
+            dest.write_text(content, encoding="utf-8")
             copied += 1
             unmark_preset_deleted_v1(name)
         except Exception as exc:
@@ -338,7 +339,9 @@ def _normalize_template_header_v1(content: str, preset_name: str) -> str:
         if stripped.startswith("# builtinversion:"):
             out_header.append(raw.rstrip("\n"))
             continue
-        if stripped.startswith("# created:") or stripped.startswith("# modified:") or stripped.startswith("# iconcolor:") or stripped.startswith("# description:"):
+        if stripped.startswith("# modified:"):
+            continue
+        if stripped.startswith("# created:") or stripped.startswith("# iconcolor:") or stripped.startswith("# description:"):
             out_header.append(raw.rstrip("\n"))
             continue
         if stripped.startswith("#"):

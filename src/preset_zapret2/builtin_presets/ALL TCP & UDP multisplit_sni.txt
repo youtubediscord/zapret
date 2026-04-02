@@ -1,8 +1,7 @@
 # Preset: ALL TCP & UDP multisplit_sni
 # TemplateOrigin: ALL TCP & UDP multisplit_sni
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-01-30T14:17:56.182141
-# Modified: 2026-01-30T14:47:35.144031
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

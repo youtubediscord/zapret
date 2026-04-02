@@ -1,8 +1,7 @@
 # Preset: Default v5
 # TemplateOrigin: Default v5
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-02-07T07:20:56.595477
-# Modified: 2026-02-07T07:20:56.597914
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

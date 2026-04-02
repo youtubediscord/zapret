@@ -1,6 +1,6 @@
 # Preset: general ALT9 1.9.4
 # TemplateOrigin: general ALT9 1.9.4
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # IconColor: #e6c300ff
 
 --lua-init=@lua/zapret-lib.lua

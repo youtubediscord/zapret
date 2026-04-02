@@ -1,6 +1,6 @@
 # Preset: general SIMPLE FAKE
 # TemplateOrigin: general SIMPLE FAKE
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 
 --lua-init=@lua/zapret-lib.lua
 --lua-init=@lua/zapret-antidpi.lua

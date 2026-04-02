@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import importlib
 import json
 import time
@@ -87,6 +86,7 @@ from ui.theme import get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
 from log import log
 from core.presets.library_hierarchy import PresetHierarchyStore
+from core.presets.list_metadata import read_preset_list_metadata
 
 
 _icon_cache: dict[str, object] = {}
@@ -97,9 +97,6 @@ _CSS_RGBA_COLOR_RE = re.compile(
     r"^\s*rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*(?:,\s*([0-9]*\.?[0-9]+)\s*)?\)\s*$",
     re.IGNORECASE,
 )
-_PRESET_LIST_METADATA_CACHE: dict[tuple[str, int, int], dict[str, str]] = {}
-
-
 def _tr_text(key: str, language: str, default: str, **kwargs) -> str:
     text = tr_catalog(key, language=language, default=default)
     if kwargs:
@@ -166,60 +163,6 @@ def _normalize_preset_icon_color(value: Optional[str]) -> str:
         return get_theme_tokens().accent_hex
     except Exception:
         return _DEFAULT_PRESET_ICON_COLOR
-
-
-def _read_preset_list_metadata(path: Path) -> dict[str, str]:
-    """
-    Reads only lightweight header metadata for list rendering.
-
-    Important: this must stay cheap even when there are many presets.
-    We intentionally stop at the first non-comment content line and do not
-    parse category blocks here.
-    """
-    result = {
-        "description": "",
-        "modified": "",
-        "icon_color": "",
-    }
-
-    try:
-        stat = path.stat()
-        cache_key = (str(path), int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))), int(stat.st_size))
-        cached = _PRESET_LIST_METADATA_CACHE.get(cache_key)
-        if cached is not None:
-            return dict(cached)
-
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-            for raw in handle:
-                stripped = raw.strip()
-                if not stripped:
-                    continue
-                if not stripped.startswith("#"):
-                    break
-
-                modified_match = re.match(r"#\s*Modified:\s*(.+)", stripped, re.IGNORECASE)
-                if modified_match:
-                    result["modified"] = modified_match.group(1).strip()
-                    continue
-
-                desc_match = re.match(r"#\s*Description:\s*(.*)", stripped, re.IGNORECASE)
-                if desc_match:
-                    result["description"] = desc_match.group(1).strip()
-                    continue
-
-                icon_color_match = re.match(r"#\s*IconColor:\s*(.+)", stripped, re.IGNORECASE)
-                if icon_color_match:
-                    result["icon_color"] = icon_color_match.group(1).strip()
-                    continue
-    except Exception:
-        pass
-
-    try:
-        _PRESET_LIST_METADATA_CACHE[cache_key] = dict(result)
-    except Exception:
-        pass
-
-    return result
 
 
 def _cached_icon(name: str, color: str):
@@ -1458,7 +1401,7 @@ class Zapret2UserPresetsPage(BasePage):
             try:
                 path = presets_dir / file_name
                 metadata[file_name] = {
-                    **_read_preset_list_metadata(path),
+                    **read_preset_list_metadata(path),
                     "display_name": display_name,
                     "kind": kind,
                     "is_builtin": is_builtin,
@@ -1466,7 +1409,7 @@ class Zapret2UserPresetsPage(BasePage):
             except Exception:
                 metadata[file_name] = {
                     "description": "",
-                    "modified": "",
+                    "modified_display": "",
                     "icon_color": "",
                     "display_name": display_name,
                     "kind": kind,
@@ -1509,7 +1452,7 @@ class Zapret2UserPresetsPage(BasePage):
 
         try:
             metadata = {
-                **_read_preset_list_metadata(path),
+                **read_preset_list_metadata(path),
                 "display_name": display_name,
                 "kind": kind,
                 "is_builtin": is_builtin,
@@ -1517,7 +1460,7 @@ class Zapret2UserPresetsPage(BasePage):
         except Exception:
             metadata = {
                 "description": "",
-                "modified": "",
+                "modified_display": "",
                 "icon_color": "",
                 "display_name": display_name,
                 "kind": kind,
@@ -2073,15 +2016,6 @@ class Zapret2UserPresetsPage(BasePage):
         except Exception as e:
             log(f"Ошибка применения темы на странице пресетов: {e}", "DEBUG")
 
-    def _format_modified_timestamp(self, modified: str) -> str:
-        if not modified:
-            return ""
-        try:
-            dt = datetime.fromisoformat(modified.replace("Z", "+00:00"))
-            return dt.strftime("%d.%m.%Y %H:%M")
-        except Exception:
-            return modified
-
     def _on_preset_search_text_changed(self, _text: str) -> None:
         # Debounce to avoid reloading on every keystroke.
         try:
@@ -2407,7 +2341,7 @@ class Zapret2UserPresetsPage(BasePage):
                         "name": display_name,
                         "file_name": file_name,
                         "description": str(preset.get("description") or ""),
-                        "date": self._format_modified_timestamp(str(preset.get("modified") or "")),
+                        "date": str(preset.get("modified_display") or ""),
                         "is_active": bool(file_name and file_name == active_file_name) or (
                             use_name_fallback and display_name == active_name
                         ),
@@ -2611,7 +2545,7 @@ class Zapret2UserPresetsPage(BasePage):
             preset_file_name=name,
             display_name=display_name,
             hierarchy_store=self._get_hierarchy_store(),
-            refresh_callback=self._refresh_presets_view_from_cache,
+            refresh_callback=lambda: self._refresh_presets_view_from_cache(),
             clear_label=self._tr("page.z2_user_presets.menu.rating_clear", "Сбросить рейтинг"),
             global_pos=global_pos,
         )

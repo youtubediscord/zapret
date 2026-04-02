@@ -1,8 +1,7 @@
 # Preset: complex multidisorder (game filter)
 # TemplateOrigin: complex multidisorder (game filter)
-# BuiltinVersion: 2.16
+# BuiltinVersion: 2.17
 # Created: 2026-01-30T00:20:29.599857
-# Modified: 2026-01-30T00:21:12.569186
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

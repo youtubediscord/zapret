@@ -18,7 +18,7 @@ from .models import PresetManifest
 from log import log
 
 
-_BASIC_UI_PAYLOAD_CACHE: dict[tuple[str, str, str, int, int], BasicUiPayload] = {}
+_BASIC_UI_PAYLOAD_CACHE: dict[tuple[str, str, str, str, int, int], BasicUiPayload] = {}
 
 
 def _log_startup_payload_metric(scope: str | None, section: str, elapsed_ms: float, *, extra: str | None = None) -> None:
@@ -60,7 +60,6 @@ def _rewrite_preset_headers(
     *,
     template_origin: str | None = None,
     created: str | None = None,
-    modified: str | None = None,
 ) -> str:
     text = (source_text or "").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.splitlines()
@@ -80,7 +79,6 @@ def _rewrite_preset_headers(
     saw_preset = False
     saw_template_origin = False
     saw_created = False
-    saw_modified = False
 
     for raw in header:
         stripped = raw.strip()
@@ -106,12 +104,6 @@ def _rewrite_preset_headers(
                 saw_created = True
             continue
         if lowered.startswith("# modified:"):
-            if modified is not None:
-                out_header.append(f"# Modified: {modified}")
-                saw_modified = True
-            else:
-                out_header.append(raw.rstrip("\n"))
-                saw_modified = True
             continue
         if lowered.startswith("# activepreset:"):
             continue
@@ -127,17 +119,19 @@ def _rewrite_preset_headers(
 
     if created is not None and not saw_created:
         out_header.insert(insert_idx, f"# Created: {created}")
-        insert_idx += 1
-    if modified is not None and not saw_modified:
-        out_header.insert(insert_idx, f"# Modified: {modified}")
 
     rewritten = "\n".join(out_header + body).rstrip("\n")
     return rewritten + "\n"
 
 
-def _drop_active_preset_headers(source_text: str) -> str:
+def _normalize_direct_preset_source_text(source_text: str) -> str:
     text = (source_text or "").replace("\r\n", "\n").replace("\r", "\n")
-    lines = [line for line in text.splitlines() if not line.strip().lower().startswith("# activepreset:")]
+    lines = [
+        line
+        for line in text.splitlines()
+        if not line.strip().lower().startswith("# activepreset:")
+        and not line.strip().lower().startswith("# modified:")
+    ]
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
@@ -353,6 +347,19 @@ class DirectPresetFacadeBackend:
     def _service(self) -> DirectPresetService:
         return DirectPresetService(get_app_paths(), self.engine)
 
+    def _current_direct_strategy_set(self) -> str:
+        if self.launch_method != "direct_zapret2":
+            return ""
+        try:
+            from strategy_menu.ui_prefs_store import get_direct_zapret2_ui_mode
+
+            value = str(get_direct_zapret2_ui_mode() or "").strip().lower()
+            if value in ("basic", "advanced"):
+                return value
+        except Exception:
+            pass
+        return "basic"
+
     def _invalidate_basic_ui_payload_cache(self) -> None:
         global _BASIC_UI_PAYLOAD_CACHE
         prefix = (self.engine, self.launch_method)
@@ -362,7 +369,7 @@ class DirectPresetFacadeBackend:
             if key[:2] != prefix
         }
 
-    def _basic_ui_payload_cache_key(self) -> tuple[str, str, str, int, int] | None:
+    def _basic_ui_payload_cache_key(self) -> tuple[str, str, str, str, int, int] | None:
         selected_manifest = self.get_selected_manifest()
         if selected_manifest is None:
             return None
@@ -377,6 +384,7 @@ class DirectPresetFacadeBackend:
         return (
             self.engine,
             self.launch_method,
+            self._current_direct_strategy_set(),
             selected_file_name,
             int(getattr(stat, "st_mtime_ns", 0) or 0),
             int(getattr(stat, "st_size", 0) or 0),
@@ -436,7 +444,11 @@ class DirectPresetFacadeBackend:
                 filter_modes={},
             )
         _t_service = _time.perf_counter()
-        payload = self._service().build_basic_ui_payload(preset, startup_scope=startup_scope)
+        payload = self._service().build_basic_ui_payload(
+            preset,
+            startup_scope=startup_scope,
+            strategy_set=self._current_direct_strategy_set(),
+        )
         if cache_key is not None:
             _BASIC_UI_PAYLOAD_CACHE[cache_key] = payload
         _log_startup_payload_metric(
@@ -453,11 +465,70 @@ class DirectPresetFacadeBackend:
         )
         return payload
 
+    def get_basic_ui_empty_state(self) -> dict[str, str] | None:
+        """Explains why the direct categories page is empty, if it is empty."""
+        presets_dir = get_app_paths().engine_paths(self.engine).ensure_directories().presets_dir
+        preset_paths = sorted(path for path in presets_dir.glob("*.txt") if path.is_file())
+        if not preset_paths:
+            return {
+                "reason": "no_presets",
+                "preset_name": "",
+            }
+
+        selected_manifest = self.get_selected_manifest()
+        if selected_manifest is None:
+            return {
+                "reason": "no_selected_preset",
+                "preset_name": "",
+            }
+
+        preset_name = str(selected_manifest.name or Path(selected_manifest.file_name).stem or "Preset").strip() or "Preset"
+
+        try:
+            preset = self.get_selected_source_preset_model()
+        except Exception as exc:
+            log(f"DirectPresetFacadeBackend[{self.launch_method}]: failed to read selected preset for empty-state: {exc}", "DEBUG")
+            return {
+                "reason": "preset_read_error",
+                "preset_name": preset_name,
+            }
+
+        if not preset:
+            return {
+                "reason": "preset_read_error",
+                "preset_name": preset_name,
+            }
+
+        try:
+            contexts = self._service().collect_target_contexts(preset)
+        except Exception as exc:
+            log(f"DirectPresetFacadeBackend[{self.launch_method}]: failed to parse selected preset for empty-state: {exc}", "DEBUG")
+            return {
+                "reason": "preset_read_error",
+                "preset_name": preset_name,
+            }
+
+        has_basic_targets = any(
+            self._service()._target_metadata.should_include_in_basic_ui(target_key)
+            for target_key in contexts.keys()
+        )
+        if has_basic_targets:
+            return None
+
+        return {
+            "reason": "no_categories",
+            "preset_name": preset_name,
+        }
+
     def get_target_detail_payload(self, target_key: str) -> TargetDetailPayload | None:
         preset = self.get_selected_source_preset_model()
         if not preset:
             return None
-        return self._service().build_target_detail_payload(preset, str(target_key or "").strip().lower())
+        return self._service().build_target_detail_payload(
+            preset,
+            str(target_key or "").strip().lower(),
+            strategy_set=self._current_direct_strategy_set(),
+        )
 
     def list_file_names(self) -> list[str]:
         return [item.file_name for item in self.list_manifests()]
@@ -557,7 +628,7 @@ class DirectPresetFacadeBackend:
         manifest = self.get_manifest_by_file_name(file_name)
         if manifest is None:
             raise ValueError(f"Preset not found: {file_name}")
-        normalized = _drop_active_preset_headers(source_text)
+        normalized = _normalize_direct_preset_source_text(source_text)
         updated = get_preset_repository().update_preset(self.engine, manifest.file_name, normalized, None)
         if self.is_selected_file_name(updated.file_name):
             get_direct_flow_coordinator().refresh_selected_launch_profile(self.launch_method)
@@ -721,7 +792,6 @@ class DirectPresetFacadeBackend:
             source_text,
             new_name,
             template_origin=manifest.template_origin,
-            modified=datetime.now().isoformat(),
         )
         updated = get_preset_repository().update_preset(self.engine, renamed.file_name, rewritten, None)
         self._rename_library_meta(
@@ -746,7 +816,6 @@ class DirectPresetFacadeBackend:
             new_name,
             template_origin=manifest.template_origin,
             created=now,
-            modified=now,
         )
         duplicated = get_preset_repository().create_preset(self.engine, new_name, rewritten)
         self._copy_library_meta(
@@ -760,7 +829,7 @@ class DirectPresetFacadeBackend:
     def create(self, name: str, *, from_current: bool = True) -> PresetManifest:
         source_text = self.read_selected_source_text() if from_current else _resolve_reset_template(self.launch_method, "Default")
         now = datetime.now().isoformat()
-        rewritten = _rewrite_preset_headers(source_text, name, created=now, modified=now)
+        rewritten = _rewrite_preset_headers(source_text, name, created=now)
         return get_preset_repository().create_preset(self.engine, name, rewritten)
 
     def import_from_file(self, src_path: Path, name: str | None = None) -> PresetManifest:
@@ -953,7 +1022,7 @@ class DirectPresetFacadeBackend:
         selected_manifest = self.get_selected_manifest()
         if selected_manifest is None:
             return False
-        source_text = self._service()._serializer().serialize(preset)
+        source_text = _normalize_direct_preset_source_text(self._service()._serializer().serialize(preset))
         get_preset_repository().update_preset(self.engine, selected_manifest.file_name, source_text, selected_manifest.name)
         self._invalidate_basic_ui_payload_cache()
         self._refresh_selected_launch_profile_from_source()

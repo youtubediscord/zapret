@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import configparser
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -198,37 +197,31 @@ def ensure_templates_copied_to_presets() -> bool:
 
 def overwrite_templates_to_presets() -> tuple[int, int, list[str]]:
     try:
-        from config import get_zapret_presets_v2_dir, get_zapret_presets_v2_template_dir
+        from config import get_zapret_presets_v2_dir
     except Exception:
         return (0, 0, [])
 
-    templates_dir = Path(get_zapret_presets_v2_template_dir())
     presets_dir = Path(get_zapret_presets_v2_dir())
     try:
         presets_dir.mkdir(parents=True, exist_ok=True)
     except Exception:
         return (0, 0, [])
 
-    try:
-        sources = [
-            src for src in sorted(templates_dir.glob("*.txt"), key=lambda path: path.name.lower())
-            if src.is_file() and not src.name.startswith("_")
-        ]
-    except Exception:
+    templates = _load_template_contents()
+    if not templates:
         return (0, 0, [])
 
     copied = 0
     failed: list[str] = []
-    for src in sources:
-        name = src.stem
-        dest = presets_dir / src.name
+    for name in sorted(templates.keys(), key=lambda value: value.lower()):
+        dest = presets_dir / f"{name}.txt"
         try:
-            shutil.copy2(str(src), str(dest))
+            dest.write_text(templates[name], encoding="utf-8")
             copied += 1
             unmark_preset_deleted(name)
         except Exception:
             failed.append(name)
-    return (copied, len(sources), failed)
+    return (copied, len(templates), failed)
 
 
 def get_default_category_settings() -> dict:
@@ -428,8 +421,51 @@ def _load_template_contents() -> dict[str, str]:
             content = path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
-        contents[name] = content
+        contents[name] = _normalize_template_header_v2(content, name)
     return contents
+
+
+def _normalize_template_header_v2(content: str, preset_name: str) -> str:
+    name = str(preset_name or "").strip()
+    text = (content or "").replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.split("\n")
+
+    header_end = 0
+    for index, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped and not stripped.startswith("#"):
+            header_end = index
+            break
+    else:
+        header_end = len(lines)
+
+    header = lines[:header_end]
+    body = lines[header_end:]
+    out_header: list[str] = []
+    saw_preset = False
+    saw_template_origin = False
+
+    for raw in header:
+        stripped = raw.strip().lower()
+        if stripped.startswith("# preset:"):
+            out_header.append(f"# Preset: {name}")
+            saw_preset = True
+            continue
+        if stripped.startswith("# templateorigin:"):
+            out_header.append(f"# TemplateOrigin: {name}")
+            saw_template_origin = True
+            continue
+        if stripped.startswith("# modified:") or stripped.startswith("# activepreset:"):
+            continue
+        out_header.append(raw.rstrip("\n"))
+
+    if not saw_preset:
+        out_header.insert(0, f"# Preset: {name}")
+    if not saw_template_origin:
+        insert_at = 1 if out_header and out_header[0].startswith("# Preset:") else 0
+        out_header.insert(insert_at, f"# TemplateOrigin: {name}")
+
+    return "\n".join(out_header + body).rstrip("\n") + "\n"
 
 
 def _template_paths() -> list[Path]:
