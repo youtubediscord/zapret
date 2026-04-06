@@ -61,17 +61,7 @@ def get_direct_strategy_summary(window, max_items: int = 2) -> str:
 
 
 def update_current_strategy_display(window, strategy_name: str) -> None:
-    launch_method = None
-    try:
-        from strategy_menu import get_strategy_launch_method
-        launch_method = get_strategy_launch_method()
-    except Exception:
-        pass
-
-    app_runtime_state = getattr(window, "app_runtime_state", None)
     store = getattr(window, "ui_state_store", None)
-    if app_runtime_state is not None and launch_method is not None:
-        app_runtime_state.set_launch_method(launch_method)
     if store is not None:
         store.set_current_strategy_summary(strategy_name)
 

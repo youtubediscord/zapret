@@ -14,7 +14,6 @@ class BatDPIStart:
     """Управляет процессом DPI: проверка состояния, остановка, очистка WinDivert"""
 
     def __init__(self, winws_exe: str, status_callback: Optional[Callable[[str], None]] = None,
-                 ui_callback: Optional[Callable[[bool], None]] = None,
                  app_instance: Optional['LupiDPIApp'] = None):
         """
         Инициализирует BatDPIStart.
@@ -22,23 +21,16 @@ class BatDPIStart:
         Args:
             winws_exe: Путь к исполняемому файлу winws.exe
             status_callback: Функция обратного вызова для отображения статуса
-            ui_callback: Функция обратного вызова для обновления UI
             app_instance: Ссылка на главное приложение
         """
         self.winws_exe = winws_exe
         self.status_callback = status_callback
-        self.ui_callback = ui_callback
         self.app_instance = app_instance
 
     def _set_status(self, text: str) -> None:
         """Внутренний метод для установки статуса"""
         if self.status_callback:
             self.status_callback(text)
-
-    def _update_ui(self, running: bool) -> None:
-        """Внутренний метод для обновления UI"""
-        if self.ui_callback:
-            self.ui_callback(running)
 
     def set_status(self, text: str) -> None:
         """Отображает статусное сообщение."""

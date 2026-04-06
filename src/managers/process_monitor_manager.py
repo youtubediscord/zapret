@@ -22,8 +22,6 @@ class ProcessMonitorManager(QObject):
         self.process_monitor = ProcessMonitorThread(self.app.dpi_starter, interval_ms=2000)
         self.app.process_monitor = self.process_monitor  # Сохраняем ссылку в app
         
-        # Подключаем сигнал изменения статуса
-        self.process_monitor.processStatusChanged.connect(self._on_process_status_changed)
         if hasattr(self.process_monitor, "processDetailsChanged"):
             self.process_monitor.processDetailsChanged.connect(self._on_process_details_changed)
         self.process_monitor.start()
@@ -35,17 +33,11 @@ class ProcessMonitorManager(QObject):
         try:
             self._process_details = details or {}
             self.app.process_details = self._process_details
+            runtime_service = getattr(self.app, "dpi_runtime_service", None)
+            if runtime_service is not None:
+                runtime_service.observe_process_details(self._process_details)
         except Exception as e:
             log(f"Ошибка в _on_process_details_changed: {e}", level="❌ ERROR")
-
-    def _on_process_status_changed(self, is_running):
-        """Обрабатывает сигнал изменения статуса процесса"""
-        try:
-            app_runtime_state = getattr(self.app, "app_runtime_state", None)
-            if app_runtime_state is not None:
-                app_runtime_state.set_dpi_running(bool(is_running))
-        except Exception as e:
-            log(f"Ошибка в _on_process_status_changed: {e}", level="❌ ERROR")
 
     def stop_monitoring(self):
         """Останавливает мониторинг процесса"""

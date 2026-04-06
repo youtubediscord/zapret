@@ -685,24 +685,26 @@ class ControlPage(BasePage):
         self._ui_state_store = store
         self._ui_state_unsubscribe = store.subscribe(
             self._on_ui_state_changed,
-            fields={"dpi_running", "dpi_busy", "dpi_busy_text", "current_strategy_summary"},
+            fields={"dpi_phase", "dpi_running", "dpi_busy", "dpi_busy_text", "dpi_last_error", "current_strategy_summary"},
             emit_initial=True,
         )
 
     def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
         self.set_loading(state.dpi_busy, state.dpi_busy_text)
-        self.update_status(state.dpi_running)
+        self.update_status(state.dpi_phase or ("running" if state.dpi_running else "stopped"), state.dpi_last_error)
         self.update_strategy(state.current_strategy_summary or "")
 
-    def _get_current_dpi_running_state(self) -> bool:
-        """Возвращает последний подтверждённый статус DPI из общего store."""
+    def _get_current_dpi_runtime_state(self) -> tuple[str, str]:
+        """Возвращает текущую фазу DPI и последнюю известную ошибку."""
         store = self._ui_state_store
         if store is not None:
             try:
-                return bool(store.snapshot().dpi_running)
+                snapshot = store.snapshot()
+                phase = str(snapshot.dpi_phase or "").strip().lower() or ("running" if snapshot.dpi_running else "stopped")
+                return phase, str(snapshot.dpi_last_error or "").strip()
             except Exception:
                 pass
-        return bool(getattr(self, "_last_known_dpi_running", False))
+        return ("running" if bool(getattr(self, "_last_known_dpi_running", False)) else "stopped"), ""
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -738,13 +740,28 @@ class ControlPage(BasePage):
             tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
         )
         self._update_stop_winws_button_text()
-        self.update_status(self._get_current_dpi_running_state())
+        phase, last_error = self._get_current_dpi_runtime_state()
+        self.update_status(phase, last_error)
         self.update_strategy(self.strategy_label.text())
         
-    def update_status(self, is_running: bool):
+    @staticmethod
+    def _short_dpi_error(last_error: str) -> str:
+        text = str(last_error or "").strip()
+        if not text:
+            return ""
+        first_line = text.splitlines()[0].strip()
+        if len(first_line) <= 160:
+            return first_line
+        return first_line[:157] + "..."
+
+    def update_status(self, state: str | bool, last_error: str = ""):
         """Обновляет отображение статуса"""
-        self._last_known_dpi_running = bool(is_running)
-        if is_running:
+        phase = str(state or "").strip().lower()
+        if phase not in {"starting", "running", "stopping", "failed", "stopped"}:
+            phase = "running" if bool(state) else "stopped"
+
+        self._last_known_dpi_running = phase == "running"
+        if phase == "running":
             self.status_title.setText(
                 tr_catalog("page.control.status.running", language=self._ui_language, default="Zapret работает")
             )
@@ -757,6 +774,30 @@ class ControlPage(BasePage):
             self._update_stop_winws_button_text()
             self.stop_winws_btn.setVisible(True)
             self.stop_and_exit_btn.setVisible(True)
+        elif phase == "starting":
+            self.status_title.setText("Zapret запускается")
+            self.status_desc.setText("Ждём подтверждение процесса winws")
+            self.status_dot.set_color('#f5a623')
+            self.status_dot.start_pulse()
+            self.start_btn.setVisible(False)
+            self.stop_winws_btn.setVisible(False)
+            self.stop_and_exit_btn.setVisible(False)
+        elif phase == "stopping":
+            self.status_title.setText("Zapret останавливается")
+            self.status_desc.setText("Завершаем процесс и освобождаем WinDivert")
+            self.status_dot.set_color('#f5a623')
+            self.status_dot.start_pulse()
+            self.start_btn.setVisible(False)
+            self.stop_winws_btn.setVisible(False)
+            self.stop_and_exit_btn.setVisible(False)
+        elif phase == "failed":
+            self.status_title.setText("Ошибка запуска Zapret")
+            self.status_desc.setText(self._short_dpi_error(last_error) or "Процесс не подтвердился или завершился сразу")
+            self.status_dot.set_color('#ff6b6b')
+            self.status_dot.stop_pulse()
+            self.start_btn.setVisible(True)
+            self.stop_winws_btn.setVisible(False)
+            self.stop_and_exit_btn.setVisible(False)
         else:
             self.status_title.setText(
                 tr_catalog("page.control.status.stopped", language=self._ui_language, default="Zapret остановлен")

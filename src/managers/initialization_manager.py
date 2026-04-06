@@ -237,9 +237,6 @@ class InitializationManager:
             if store is None:
                 return
 
-            app_runtime_state = getattr(self.app, "app_runtime_state", None)
-            if app_runtime_state is not None and launch_method:
-                app_runtime_state.set_launch_method(launch_method)
             store.set_current_strategy_summary(strategy_summary)
         except Exception as e:
             log(f"Ошибка применения стартового summary стратегии: {e}", "DEBUG")
@@ -298,7 +295,6 @@ class InitializationManager:
             self.app.dpi_starter = BatDPIStart(
                 winws_exe=winws_exe,
                 status_callback=self.app.set_status,
-                ui_callback=self._safe_ui_update,  # безопасный вызов в UI
                 app_instance=self.app
             )
             log("DPI Starter инициализирован", "INFO")
@@ -306,16 +302,6 @@ class InitializationManager:
         except Exception as e:
             log(f"Ошибка инициализации DPI Starter: {e}", "❌ ERROR")
             self.app.set_status(f"Ошибка DPI: {e}")
-
-    def _safe_ui_update(self, running: bool):
-        """Безопасно синхронизирует подтверждённый статус DPI в общем store."""
-        app_runtime_state = getattr(self.app, "app_runtime_state", None)
-        if app_runtime_state is None:
-            return
-        try:
-            app_runtime_state.set_dpi_running(bool(running))
-        except Exception as e:
-            log(f"Ошибка при синхронизации runtime state: {e}", "❌ ERROR")
 
     def _handle_startup_dns_status(self, message: str) -> None:
         """Фильтрует служебные DNS-статусы, чтобы они не выглядели как главный статус приложения."""
@@ -509,6 +495,26 @@ class InitializationManager:
             if hasattr(self.app, 'process_monitor_manager'):
                 self.app.process_monitor_manager.initialize_process_monitor()
 
+            try:
+                runtime_service = getattr(self.app, "dpi_runtime_service", None)
+                dpi_starter = getattr(self.app, "dpi_starter", None)
+                if runtime_service is not None and dpi_starter is not None:
+                    from config import get_winws_exe_for_method
+                    from strategy_menu import get_strategy_launch_method
+                    import os
+
+                    launch_method = str(get_strategy_launch_method() or "").strip().lower()
+                    expected_process = ""
+                    if launch_method != "orchestra":
+                        expected_process = os.path.basename(get_winws_exe_for_method(launch_method)).strip().lower()
+                    runtime_service.bootstrap_probe(
+                        bool(dpi_starter.check_process_running_wmi(silent=True)),
+                        launch_method=launch_method,
+                        expected_process=expected_process,
+                    )
+            except Exception:
+                pass
+
             log(f"✅ Process monitor: {(_t.perf_counter() - t0)*1000:.0f}ms", "DEBUG")
             self.init_tasks_completed.add('process_monitor')
         except Exception as e:
@@ -612,8 +618,7 @@ class InitializationManager:
             
             self.app.service_manager = CheckerManager(
                 winws_exe=WINWS_EXE,
-                status_callback=self.app.set_status,
-                ui_callback=self._safe_ui_update
+                status_callback=self.app.set_status
             )
             
             log(f"✅ Service managers: {(_t.perf_counter() - t0)*1000:.0f}ms", "DEBUG")
@@ -633,7 +638,6 @@ class InitializationManager:
             if app_runtime_state is not None:
                 app_runtime_state.apply_runtime_state(
                     autostart_enabled=bool(autostart_exists),
-                    dpi_running=False,
                 )
 
             self.init_tasks_completed.add('managers')

@@ -280,6 +280,7 @@ from ui.window_geometry_controller import WindowGeometryController
 from ui.window_notification_controller import WindowNotificationController
 from ui.main_window_state import MainWindowStateStore
 from managers.app_runtime_state import AppRuntimeState
+from managers.dpi_runtime_service import DpiRuntimeService
 
 
 from startup.admin_check import is_admin
@@ -870,7 +871,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         self.ui_state_store = MainWindowStateStore()
         try:
             self.app_runtime_state = AppRuntimeState(self)
-            self.app_runtime_state.set_launch_method(self._get_launch_method())
+            self.dpi_runtime_service = DpiRuntimeService(self)
         except Exception:
             pass
 

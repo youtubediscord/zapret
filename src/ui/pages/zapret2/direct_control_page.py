@@ -1237,11 +1237,12 @@ class Zapret2DirectControlPage(BasePage):
         self._ui_state_unsubscribe = store.subscribe(
             self._on_ui_state_changed,
             fields={
+                "dpi_phase",
                 "dpi_running",
                 "dpi_busy",
                 "dpi_busy_text",
+                "dpi_last_error",
                 "current_strategy_summary",
-                "launch_method",
                 "preset_revision",
                 "mode_revision",
             },
@@ -1251,7 +1252,7 @@ class Zapret2DirectControlPage(BasePage):
     def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
         if "mode_revision" in changed_fields:
             self._sync_direct_launch_mode_from_settings()
-        if "preset_revision" in changed_fields or "launch_method" in changed_fields or not changed_fields:
+        if "preset_revision" in changed_fields or not changed_fields:
             self._advanced_settings_dirty = True
             self._preset_summary_dirty = True
             self._refresh_selected_preset_name_fast()
@@ -1259,11 +1260,25 @@ class Zapret2DirectControlPage(BasePage):
                 self._schedule_advanced_settings_reload(force=True)
                 self._schedule_preset_summary_reload(force=True)
         self.set_loading(state.dpi_busy, state.dpi_busy_text)
-        self.update_status(state.dpi_running)
+        self.update_status(state.dpi_phase or ("running" if state.dpi_running else "stopped"), state.dpi_last_error)
         self.update_strategy(state.current_strategy_summary or "")
 
-    def update_status(self, is_running: bool):
-        if is_running:
+    @staticmethod
+    def _short_dpi_error(last_error: str) -> str:
+        text = str(last_error or "").strip()
+        if not text:
+            return ""
+        first_line = text.splitlines()[0].strip()
+        if len(first_line) <= 160:
+            return first_line
+        return first_line[:157] + "..."
+
+    def update_status(self, state: str | bool, last_error: str = ""):
+        phase = str(state or "").strip().lower()
+        if phase not in {"starting", "running", "stopping", "failed", "stopped"}:
+            phase = "running" if bool(state) else "stopped"
+
+        if phase == "running":
             self.status_title.setText(tr_catalog("page.z2_control.status.running", language=self._ui_language, default="Zapret работает"))
             self.status_desc.setText(tr_catalog("page.z2_control.status.bypass_active", language=self._ui_language, default="Обход блокировок активен"))
             self.status_dot.set_color("#6ccb5f")
@@ -1272,6 +1287,30 @@ class Zapret2DirectControlPage(BasePage):
             self._update_stop_winws_button_text()
             self.stop_winws_btn.setVisible(True)
             self.stop_and_exit_btn.setVisible(True)
+        elif phase == "starting":
+            self.status_title.setText("Zapret запускается")
+            self.status_desc.setText("Ждём подтверждение процесса winws")
+            self.status_dot.set_color("#f5a623")
+            self.status_dot.start_pulse()
+            self.start_btn.setVisible(False)
+            self.stop_winws_btn.setVisible(False)
+            self.stop_and_exit_btn.setVisible(False)
+        elif phase == "stopping":
+            self.status_title.setText("Zapret останавливается")
+            self.status_desc.setText("Завершаем процесс и освобождаем WinDivert")
+            self.status_dot.set_color("#f5a623")
+            self.status_dot.start_pulse()
+            self.start_btn.setVisible(False)
+            self.stop_winws_btn.setVisible(False)
+            self.stop_and_exit_btn.setVisible(False)
+        elif phase == "failed":
+            self.status_title.setText("Ошибка запуска Zapret")
+            self.status_desc.setText(self._short_dpi_error(last_error) or "Процесс не подтвердился или завершился сразу")
+            self.status_dot.set_color("#ff6b6b")
+            self.status_dot.stop_pulse()
+            self.start_btn.setVisible(True)
+            self.stop_winws_btn.setVisible(False)
+            self.stop_and_exit_btn.setVisible(False)
         else:
             self.status_title.setText(tr_catalog("page.z2_control.status.stopped", language=self._ui_language, default="Zapret остановлен"))
             self.status_desc.setText(tr_catalog("page.z2_control.status.press_start", language=self._ui_language, default="Нажмите «Запустить» для активации"))

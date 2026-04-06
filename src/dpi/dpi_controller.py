@@ -2,6 +2,9 @@
 Контроллер для управления DPI - содержит всю логику запуска и остановки
 """
 
+import os
+import time
+
 from PyQt6.QtCore import QThread, QObject, pyqtSignal, QMetaObject, Qt, QTimer
 from pathlib import Path
 from strategy_menu import get_strategy_launch_method
@@ -13,7 +16,6 @@ from dpi.process_health_check import (
     try_kill_conflicting_processes,
     get_conflicting_processes_report,
 )
-import time
 
 class DPIStartWorker(QObject):
     """Worker для асинхронного запуска DPI"""
@@ -609,10 +611,55 @@ class DPIController:
         # Prevents stale QTimer checks from previous start attempts.
         self._dpi_start_verify_generation = 0
 
-    def _set_runtime_dpi_running(self, running: bool) -> None:
-        app_runtime_state = getattr(self.app, "app_runtime_state", None)
-        if app_runtime_state is not None:
-            app_runtime_state.set_dpi_running(bool(running))
+    def _runtime_service(self):
+        return getattr(self.app, "dpi_runtime_service", None)
+
+    @staticmethod
+    def _expected_preset_path(selected_mode) -> str:
+        if isinstance(selected_mode, dict) and bool(selected_mode.get("is_preset_file")):
+            return str(selected_mode.get("preset_path") or "").strip()
+        return ""
+
+    @staticmethod
+    def _expected_process_name(launch_method: str) -> str:
+        method = str(launch_method or "").strip().lower()
+        if method == "orchestra":
+            return ""
+        try:
+            from config import get_winws_exe_for_method
+
+            return os.path.basename(get_winws_exe_for_method(method)).strip().lower()
+        except Exception:
+            return ""
+
+    def _begin_runtime_start(self, launch_method: str, selected_mode) -> None:
+        runtime_service = self._runtime_service()
+        if runtime_service is not None:
+            runtime_service.begin_start(
+                launch_method=launch_method,
+                expected_process=self._expected_process_name(launch_method),
+                expected_preset_path=self._expected_preset_path(selected_mode),
+            )
+
+    def _mark_runtime_running(self) -> None:
+        runtime_service = self._runtime_service()
+        if runtime_service is not None:
+            runtime_service.mark_running()
+
+    def _mark_runtime_failed(self, error_message: str, *, exit_code: int | None = None) -> None:
+        runtime_service = self._runtime_service()
+        if runtime_service is not None:
+            runtime_service.mark_start_failed(error_message, exit_code=exit_code)
+
+    def _begin_runtime_stop(self) -> None:
+        runtime_service = self._runtime_service()
+        if runtime_service is not None:
+            runtime_service.begin_stop()
+
+    def _mark_runtime_stopped(self) -> None:
+        runtime_service = self._runtime_service()
+        if runtime_service is not None:
+            runtime_service.mark_stopped(clear_error=True)
 
     def _process_pending_direct_preset_switch(self) -> None:
         target_generation = int(self._direct_preset_switch_requested_generation or 0)
@@ -1014,7 +1061,7 @@ class DPIController:
                         log(f"Ошибка подготовки direct запуска: {e}", "❌ ERROR")
                         self.app.set_status(f"❌ {e}")
                         self._show_launch_error_top(str(e))
-                        self._set_runtime_dpi_running(False)
+                        self._mark_runtime_failed(str(e))
                         return
 
                     preset_path = Path(str(selected_mode["preset_path"]))
@@ -1024,7 +1071,7 @@ class DPIController:
                     log(f"Preset файл не найден: {preset_path}", "❌ ERROR")
                     self.app.set_status("❌ Preset файл не найден. Создайте пресет в настройках")
                     self._show_launch_error_top("Preset файл не найден. Создайте пресет в настройках")
-                    self._set_runtime_dpi_running(False)
+                    self._mark_runtime_failed("Preset файл не найден. Создайте пресет в настройках")
                     return
 
                 # Проверяем что файл не пустой
@@ -1068,13 +1115,13 @@ class DPIController:
                         log("Preset файл не содержит активных фильтров", "WARNING")
                         self.app.set_status("⚠️ Выберите хотя бы одну категорию для запуска")
                         self._show_launch_error_top("Выберите хотя бы одну категорию для запуска")
-                        self._set_runtime_dpi_running(False)
+                        self._mark_runtime_failed("Выберите хотя бы одну категорию для запуска")
                         return
                 except Exception as e:
                     log(f"Ошибка чтения preset файла: {e}", "❌ ERROR")
                     self.app.set_status(f"❌ Ошибка чтения preset: {e}")
                     self._show_launch_error_top(f"Ошибка чтения preset: {e}")
-                    self._set_runtime_dpi_running(False)
+                    self._mark_runtime_failed(f"Ошибка чтения preset: {e}")
                     return
 
                 if launch_method == "direct_zapret2_orchestra":
@@ -1095,6 +1142,7 @@ class DPIController:
                 log(f"Неизвестный метод запуска '{launch_method}': стратегия не выбрана", "❌ ERROR")
                 self.app.set_status("❌ Неизвестный метод запуска")
                 self._show_launch_error_top("Неизвестный метод запуска")
+                self._mark_runtime_failed("Неизвестный метод запуска")
                 return
 
         prelaunch_warnings, prelaunch_error = self._sanitize_direct_preset_before_launch(selected_mode, launch_method)
@@ -1102,7 +1150,7 @@ class DPIController:
             log(prelaunch_error, "❌ ERROR")
             self.app.set_status(f"❌ {prelaunch_error}")
             self._show_launch_error_top(prelaunch_error)
-            self._set_runtime_dpi_running(False)
+            self._mark_runtime_failed(prelaunch_error)
             return
 
         self._pending_launch_warnings = [
@@ -1150,6 +1198,8 @@ class DPIController:
         store = getattr(self.app, "ui_state_store", None)
         if store is not None:
             store.set_dpi_busy(True, "Запуск Zapret...")
+
+        self._begin_runtime_start(str(launch_method or ""), selected_mode)
         
         # Создаем поток и worker
         self._dpi_start_thread = QThread()
@@ -1213,6 +1263,8 @@ class DPIController:
         store = getattr(self.app, "ui_state_store", None)
         if store is not None:
             store.set_dpi_busy(True, "Остановка Zapret...")
+
+        self._begin_runtime_stop()
         
         # Создаем поток и worker
         self._dpi_stop_thread = QThread()
@@ -1292,7 +1344,7 @@ class DPIController:
                 log(f"Ошибка асинхронного запуска DPI: {error_message}", "❌ ERROR")
                 self.app.set_status(f"❌ Ошибка запуска: {error_message}")
                 self._show_launch_error_top(error_message)
-                self._set_runtime_dpi_running(False)
+                self._mark_runtime_failed(error_message)
 
                 if self._restart_request_generation > self._restart_completed_generation:
                     QTimer.singleShot(0, self._process_pending_restart_request)
@@ -1353,7 +1405,7 @@ class DPIController:
         if running:
             log("DPI запущен асинхронно", "INFO")
             self.app.set_status("✅ DPI успешно запущен")
-            self._set_runtime_dpi_running(True)
+            self._mark_runtime_running()
 
             # Устанавливаем флаг намеренного запуска
             self.app.intentional_start = True
@@ -1382,7 +1434,7 @@ class DPIController:
             self._show_launch_error_top("Процесс не запустился. Проверьте логи")
 
             self._pending_launch_warnings = []
-            self._set_runtime_dpi_running(False)
+            self._mark_runtime_failed("Процесс не запустился. Проверьте логи")
 
         if self._restart_request_generation > self._restart_completed_generation:
             QTimer.singleShot(0, self._process_pending_restart_request)
@@ -1410,7 +1462,7 @@ class DPIController:
                         self.app.set_status(f"✅ {error_message}")
                     else:
                         self.app.set_status("✅ DPI успешно остановлен")
-                    self._set_runtime_dpi_running(False)
+                    self._mark_runtime_stopped()
 
                     if restart_generation_after_stop > self._restart_completed_generation:
                         self._restart_pending_stop_generation = 0
@@ -1424,7 +1476,7 @@ class DPIController:
                     # Процесс всё ещё работает
                     log("DPI всё ещё работает после попытки остановки", "⚠ WARNING")
                     self.app.set_status("⚠ Процесс всё ещё работает")
-                    self._set_runtime_dpi_running(True)
+                    self._mark_runtime_running()
 
                     self._restart_pending_stop_generation = 0
                 
@@ -1434,7 +1486,10 @@ class DPIController:
                 
                 # Проверяем реальный статус процесса
                 is_running = self.app.dpi_starter.check_process_running_wmi(silent=True)
-                self._set_runtime_dpi_running(is_running)
+                if is_running:
+                    self._mark_runtime_running()
+                else:
+                    self._mark_runtime_stopped()
 
                 self._restart_pending_stop_generation = 0
                 
@@ -1447,6 +1502,10 @@ class DPIController:
 
     def _on_direct_preset_switch_finished(self, success, error_message, generation, launch_method, skipped_as_stale):
         try:
+            store = getattr(self.app, "ui_state_store", None)
+            if store is not None:
+                store.set_dpi_busy(False)
+
             if hasattr(self.app, 'main_window') and hasattr(self.app.main_window, '_show_active_strategy_page_success'):
                 self.app.main_window._show_active_strategy_page_success()
 
@@ -1465,6 +1524,8 @@ class DPIController:
                     f"Direct preset switch успешно завершён, поколение {generation} ({launch_method})",
                     "INFO",
                 )
+                if int(self._direct_preset_switch_requested_generation or 0) <= int(self._direct_preset_switch_completed_generation or 0):
+                    self.app.set_status("✅ Пресет успешно применён")
             else:
                 log(
                     f"Ошибка direct preset switch, поколение {generation} ({launch_method}): {error_message}",

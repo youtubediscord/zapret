@@ -6,7 +6,7 @@ from .autostart_direct import check_direct_autostart_exists
 from .registry_check import is_autostart_enabled as registry_is_enabled
 
 class CheckerManager:
-    def __init__(self, winws_exe, status_callback=None, ui_callback=None, service_name="ZapretCensorliber"):
+    def __init__(self, winws_exe, status_callback=None, service_name="ZapretCensorliber"):
         """
         Инициализирует менеджер служб.
         
@@ -17,7 +17,6 @@ class CheckerManager:
         """
         self.winws_exe = winws_exe
         self.status_callback = status_callback
-        self.ui_callback = ui_callback
         self.service_name = service_name
     
     def set_status(self, text):

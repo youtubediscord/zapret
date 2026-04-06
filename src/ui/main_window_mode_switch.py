@@ -10,9 +10,6 @@ def handle_main_window_launch_method_changed(window, method: str) -> None:
 
     log(f"Метод запуска изменён на: {method}", "INFO")
     try:
-        app_runtime_state = getattr(window, "app_runtime_state", None)
-        if app_runtime_state is not None:
-            app_runtime_state.set_launch_method(method)
         if getattr(window, "ui_state_store", None) is not None:
             window.ui_state_store.bump_mode_revision()
     except Exception:
@@ -22,14 +19,16 @@ def handle_main_window_launch_method_changed(window, method: str) -> None:
         log("Останавливаем все процессы winws*.exe перед переключением режима...", "INFO")
 
         try:
+            runtime_service = getattr(window, "dpi_runtime_service", None)
+            if runtime_service is not None:
+                runtime_service.begin_stop()
             killed = kill_winws_all()
             if killed:
                 log("Все процессы winws*.exe остановлены через Win API", "INFO")
             if hasattr(window, 'dpi_starter'):
                 window.dpi_starter.cleanup_windivert_service()
-            app_runtime_state = getattr(window, "app_runtime_state", None)
-            if app_runtime_state is not None:
-                app_runtime_state.set_dpi_running(False)
+            if runtime_service is not None:
+                runtime_service.mark_stopped(clear_error=True)
             import time
             time.sleep(0.2)
         except Exception as e:
@@ -94,9 +93,6 @@ def complete_main_window_method_switch(window, method: str) -> None:
         pass
 
     try:
-        app_runtime_state = getattr(window, "app_runtime_state", None)
-        if app_runtime_state is not None:
-            app_runtime_state.set_launch_method(method)
         if getattr(window, "ui_state_store", None) is not None:
             window.ui_state_store.bump_mode_revision()
     except Exception:

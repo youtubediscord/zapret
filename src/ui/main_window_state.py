@@ -7,10 +7,15 @@ from typing import Callable, Iterable
 
 @dataclass(frozen=True, slots=True)
 class AppUiState:
+    dpi_phase: str = "stopped"
     dpi_running: bool = False
     dpi_busy: bool = False
     dpi_busy_text: str = ""
-    launch_method: str = ""
+    dpi_expected_process: str = ""
+    dpi_expected_preset_path: str = ""
+    dpi_pid: int | None = None
+    dpi_last_error: str = ""
+    dpi_last_exit_code: int | None = None
     current_strategy_summary: str = ""
     autostart_enabled: bool = False
     autostart_type: str = ""
@@ -93,13 +98,40 @@ class MainWindowStateStore:
     def set_dpi_running(self, running: bool) -> bool:
         return self.update(dpi_running=bool(running))
 
+    def set_dpi_runtime(
+        self,
+        *,
+        phase: str | None = None,
+        running: bool | None = None,
+        expected_process: str | None = None,
+        expected_preset_path: str | None = None,
+        pid: int | None = None,
+        last_error: str | None = None,
+        last_exit_code: int | None = None,
+    ) -> bool:
+        changes: dict[str, object] = {}
+
+        if phase is not None:
+            changes["dpi_phase"] = str(phase or "stopped").strip().lower() or "stopped"
+        if running is not None:
+            changes["dpi_running"] = bool(running)
+        if expected_process is not None:
+            changes["dpi_expected_process"] = str(expected_process or "").strip().lower()
+        if expected_preset_path is not None:
+            changes["dpi_expected_preset_path"] = str(expected_preset_path or "").strip()
+        if pid is not None:
+            changes["dpi_pid"] = int(pid) if isinstance(pid, int) else None
+        if last_error is not None:
+            changes["dpi_last_error"] = str(last_error or "").strip()
+        if last_exit_code is not None:
+            changes["dpi_last_exit_code"] = int(last_exit_code) if isinstance(last_exit_code, int) else None
+
+        return self.update(**changes)
+
     def set_dpi_busy(self, busy: bool, text: str = "") -> bool:
         if not busy:
             text = ""
         return self.update(dpi_busy=bool(busy), dpi_busy_text=str(text or ""))
-
-    def set_launch_method(self, method: str) -> bool:
-        return self.update(launch_method=str(method or "").strip().lower())
 
     def set_current_strategy_summary(self, summary: str) -> bool:
         return self.update(current_strategy_summary=str(summary or ""))

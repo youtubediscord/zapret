@@ -86,7 +86,7 @@ class AutostartRegistryChecker:
         
         try:
             # Полная проверка всех методов (медленная, но точная)
-            checker = CheckerManager(WINWS_EXE, None, None)
+            checker = CheckerManager(WINWS_EXE, None)
             real_status = checker.check_autostart_exists()
             
             # Получаем статус из реестра

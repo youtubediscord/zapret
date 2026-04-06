@@ -12,9 +12,13 @@ if TYPE_CHECKING:
 
 
 def _set_runtime_dpi_running(app: "LupiDPIApp", running: bool) -> None:
-    app_runtime_state = getattr(app, "app_runtime_state", None)
-    if app_runtime_state is not None:
-        app_runtime_state.set_dpi_running(bool(running))
+    runtime_service = getattr(app, "dpi_runtime_service", None)
+    if runtime_service is None:
+        return
+    if running:
+        runtime_service.mark_running()
+    else:
+        runtime_service.mark_stopped(clear_error=True)
 
 
 def stop_dpi(app: "LupiDPIApp"):
@@ -42,6 +46,10 @@ def stop_dpi(app: "LupiDPIApp"):
 def stop_dpi_direct(app: "LupiDPIApp"):
     """Останавливает DPI в Direct режиме через Win API"""
     try:
+        runtime_service = getattr(app, "dpi_runtime_service", None)
+        if runtime_service is not None:
+            runtime_service.begin_stop()
+
         # Проверяем, запущен ли процесс
         if not app.dpi_starter.check_process_running_wmi(silent=True):
             log("Процесс winws не запущен", level="INFO")
@@ -97,6 +105,9 @@ def stop_dpi_universal(app: "LupiDPIApp"):
     """Универсальная остановка DPI через Win API (для BAT режима)"""
     try:
         log("======================== Stop DPI (Universal Win API) ========================", level="START")
+        runtime_service = getattr(app, "dpi_runtime_service", None)
+        if runtime_service is not None:
+            runtime_service.begin_stop()
 
         # Проверяем, запущен ли процесс
         if not app.dpi_starter.check_process_running_wmi(silent=True):

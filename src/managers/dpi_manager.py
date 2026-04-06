@@ -43,9 +43,13 @@ class DPIManager(QObject):
             log(f"Неизвестный метод автозапуска: {launch_method}", "WARNING")
     
     def _set_runtime_dpi_running(self, running: bool) -> None:
-        app_runtime_state = getattr(self.app, "app_runtime_state", None)
-        if app_runtime_state is not None:
-            app_runtime_state.set_dpi_running(bool(running))
+        runtime_service = getattr(self.app, "dpi_runtime_service", None)
+        if runtime_service is None:
+            return
+        if running:
+            runtime_service.mark_running()
+        else:
+            runtime_service.mark_stopped(clear_error=True)
 
     def _start_direct_mode(self):
         """⚡ Запускает direct_zapret2_orchestra через preset файл"""
@@ -136,7 +140,10 @@ class DPIManager(QObject):
             # Обновляем UI
             if hasattr(self.app, "update_current_strategy_display"):
                 self.app.update_current_strategy_display("Оркестр")
-            self._set_runtime_dpi_running(True)
+            runtime_service = getattr(self.app, "dpi_runtime_service", None)
+            if runtime_service is not None:
+                runtime_service.begin_start(launch_method="orchestra")
+                runtime_service.mark_running()
 
             # Запускаем мониторинг на странице оркестра
             if hasattr(self.app, 'orchestra_page'):

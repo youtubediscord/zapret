@@ -325,14 +325,6 @@ class HomePage(BasePage):
 
     def _get_launch_method_display_name(self) -> str:
         """Возвращает человекочитаемое название текущего метода запуска."""
-        if self._ui_state_store is not None:
-            try:
-                method = self._ui_state_store.snapshot().launch_method
-                if method:
-                    label_key = self._LAUNCH_METHOD_LABELS.get(method, self._LAUNCH_METHOD_LABELS["direct_zapret2"])
-                    return tr_catalog(label_key, language=self._ui_language, default="Zapret 2")
-            except Exception:
-                pass
         try:
             from strategy_menu import get_strategy_launch_method
 
@@ -389,21 +381,28 @@ class HomePage(BasePage):
         self._ui_state_unsubscribe = store.subscribe(
             self._on_ui_state_changed,
             fields={
+                "dpi_phase",
                 "dpi_running",
                 "dpi_busy",
                 "dpi_busy_text",
-                "launch_method",
+                "dpi_last_error",
+                "mode_revision",
                 "autostart_enabled",
                 "subscription_is_premium",
                 "subscription_days_remaining",
                 "status_text",
                 "status_kind",
+                "current_strategy_summary",
             },
             emit_initial=True,
         )
 
     def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
-        self.update_dpi_status(state.dpi_running, state.current_strategy_summary or None)
+        self.update_dpi_status(
+            state.dpi_phase or ("running" if state.dpi_running else "stopped"),
+            state.current_strategy_summary or None,
+            state.dpi_last_error,
+        )
         self.update_autostart_status(state.autostart_enabled)
         self.update_subscription_status(
             state.subscription_is_premium,
@@ -552,9 +551,23 @@ class HomePage(BasePage):
         """Локальный обработчик открытия рабочей папки приложения."""
         _open_folder_action(self)
         
-    def update_dpi_status(self, is_running: bool, strategy_name: str | None = None):
+    @staticmethod
+    def _short_dpi_error(last_error: str) -> str:
+        text = str(last_error or "").strip()
+        if not text:
+            return ""
+        first_line = text.splitlines()[0].strip()
+        if len(first_line) <= 160:
+            return first_line
+        return first_line[:157] + "..."
+
+    def update_dpi_status(self, state: str | bool, strategy_name: str | None = None, last_error: str = ""):
         """Обновляет отображение статуса DPI"""
-        if is_running:
+        phase = str(state or "").strip().lower()
+        if phase not in {"starting", "running", "stopping", "failed", "stopped"}:
+            phase = "running" if bool(state) else "stopped"
+
+        if phase == "running":
             self.dpi_status_card.set_value(
                 tr_catalog("page.home.status.running", language=self._ui_language, default="Запущен"),
                 tr_catalog("page.home.status.bypass_active", language=self._ui_language, default="Обход блокировок активен"),
@@ -562,6 +575,21 @@ class HomePage(BasePage):
             self.dpi_status_card.set_status_color('running')
             self.start_btn.setVisible(False)
             self.stop_btn.setVisible(True)
+        elif phase == "starting":
+            self.dpi_status_card.set_value("Запускается", "Ждём подтверждение процесса winws")
+            self.dpi_status_card.set_status_color('warning')
+            self.start_btn.setVisible(False)
+            self.stop_btn.setVisible(False)
+        elif phase == "stopping":
+            self.dpi_status_card.set_value("Останавливается", "Завершаем процесс и освобождаем WinDivert")
+            self.dpi_status_card.set_status_color('warning')
+            self.start_btn.setVisible(False)
+            self.stop_btn.setVisible(False)
+        elif phase == "failed":
+            self.dpi_status_card.set_value("Ошибка запуска", self._short_dpi_error(last_error) or "Процесс не подтвердился или завершился сразу")
+            self.dpi_status_card.set_status_color('stopped')
+            self.start_btn.setVisible(True)
+            self.stop_btn.setVisible(False)
         else:
             self.dpi_status_card.set_value(
                 tr_catalog("page.home.status.stopped", language=self._ui_language, default="Остановлен"),

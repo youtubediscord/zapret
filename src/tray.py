@@ -620,6 +620,7 @@ class SystemTrayManager:
     def _build_menu_state(self) -> dict:
         is_visible = False
         is_dpi_running = self._is_dpi_running()
+        dpi_phase = self._dpi_phase()
         tg_label = "Telegram Proxy: выкл"
 
         try:
@@ -637,6 +638,7 @@ class SystemTrayManager:
         return {
             "is_visible": is_visible,
             "is_dpi_running": is_dpi_running,
+            "dpi_phase": dpi_phase,
             "tg_proxy_label": tg_label,
         }
 
@@ -757,7 +759,10 @@ class SystemTrayManager:
             self._tg_proxy_action.setText(state["tg_proxy_label"])
 
         if self._exit_stop_action is not None:
-            self._exit_stop_action.setEnabled(bool(state["is_dpi_running"]))
+            active_phases = {"starting", "running", "stopping"}
+            self._exit_stop_action.setEnabled(
+                bool(state["is_dpi_running"]) or str(state.get("dpi_phase") or "").strip().lower() in active_phases
+            )
 
     def _update_menu_widths(self, menu: QMenu) -> None:
         try:
@@ -1219,6 +1224,16 @@ class SystemTrayManager:
             return bool(app_runtime_state.is_dpi_running())
         except Exception:
             return False
+
+    def _dpi_phase(self) -> str:
+        app_runtime_state = getattr(self.parent, "app_runtime_state", None)
+        if app_runtime_state is None:
+            return "stopped"
+        try:
+            phase = str(app_runtime_state.current_dpi_phase() or "").strip().lower()
+            return phase or ("running" if app_runtime_state.is_dpi_running() else "stopped")
+        except Exception:
+            return "running" if self._is_dpi_running() else "stopped"
 
     def _is_windows_11_or_newer(self) -> bool:
         try:
