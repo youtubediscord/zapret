@@ -456,9 +456,8 @@ class DirectPresetFacadeBackend:
 
     def get_basic_ui_empty_state(self) -> dict[str, str] | None:
         """Explains why the direct categories page is empty, if it is empty."""
-        presets_dir = get_app_paths().engine_paths(self.engine).ensure_directories().presets_dir
-        preset_paths = sorted(path for path in presets_dir.glob("*.txt") if path.is_file())
-        if not preset_paths:
+        manifests = self.list_manifests()
+        if not manifests:
             return {
                 "reason": "no_presets",
                 "preset_name": "",

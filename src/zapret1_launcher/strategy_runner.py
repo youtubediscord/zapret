@@ -392,17 +392,6 @@ class StrategyRunnerV1(StrategyRunnerBase):
         max_retries = 2
 
         if not os.path.exists(preset_path):
-            log(f"Preset file not found: {preset_path}, attempting selected-source refresh...", "WARNING")
-            try:
-                from core.services import get_direct_flow_coordinator
-
-                get_direct_flow_coordinator().ensure_selected_source_path("direct_zapret1")
-                if os.path.exists(preset_path):
-                    log(f"Preset file became available after refresh: {preset_path}", "INFO")
-            except Exception as e:
-                log(f"Selected-source refresh failed: {e}", "WARNING")
-
-        if not os.path.exists(preset_path):
             log(f"Preset file not found: {preset_path}", "ERROR")
             self._set_last_error(f"Preset файл не найден: {preset_path}")
             return False
@@ -418,55 +407,20 @@ class StrategyRunnerV1(StrategyRunnerBase):
                 max_retries=int(max_retries),
             )
 
-    def _start_from_preset_file_locked(self, preset_path: str, strategy_name: str, *, retry_count: int, max_retries: int) -> bool:
-        artifact = self._compile_preset_artifact(preset_path)
-        if not artifact.validation_ok:
-            self._set_runner_state_locked(
-                PresetRunnerState.FAILED,
-                preset_path=preset_path,
-                strategy_name=strategy_name,
-                error=artifact.validation_report,
-                reason="launch_compile_failed",
-            )
-            self._set_last_error(artifact.validation_report)
-            return False
-
-        if self.running_process and self.is_running():
-            log("Stopping previous process before starting new one", "INFO")
-            self._stop_process_only_locked()
-
-        from utils.process_killer import kill_winws_force
-
+    def _prepare_cleanup_before_spawn_locked(self, *, retry_count: int) -> None:
         if retry_count > 0:
             self._aggressive_windivert_cleanup()
         else:
-            log("Cleaning up previous winws processes...", "DEBUG")
-            kill_winws_force()
-            self._fast_cleanup_services()
+            self._perform_standard_windivert_cleanup()
 
-            try:
-                from utils.service_manager import unload_driver
-                for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
-                    try:
-                        unload_driver(driver)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            time.sleep(0.3)
-
-        if not os.path.exists(self.winws_exe):
-            log(f"winws.exe disappeared: {self.winws_exe}", "ERROR")
-            self._set_last_error(f"winws.exe не найден: {self.winws_exe}")
-            return False
-
-        self._preset_file_path = preset_path
-        success = self._spawn_process_locked(artifact, strategy_name)
-        if success:
-            self._start_config_watcher(preset_path)
-            return True
-
+    def _maybe_retry_after_failed_spawn_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        retry_count: int,
+        max_retries: int,
+    ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
 
@@ -490,6 +444,43 @@ class StrategyRunnerV1(StrategyRunnerBase):
                 log(f"  {line}", "INFO")
 
         return False
+
+    def _start_from_preset_file_locked(self, preset_path: str, strategy_name: str, *, retry_count: int, max_retries: int) -> bool:
+        artifact = self._compile_preset_artifact(preset_path)
+        if not artifact.validation_ok:
+            self._set_runner_state_locked(
+                PresetRunnerState.FAILED,
+                preset_path=preset_path,
+                strategy_name=strategy_name,
+                error=artifact.validation_report,
+                reason="launch_compile_failed",
+            )
+            self._set_last_error(artifact.validation_report)
+            return False
+
+        if self.running_process and self.is_running():
+            log("Stopping previous process before starting new one", "INFO")
+            self._stop_process_only_locked()
+
+        self._prepare_cleanup_before_spawn_locked(retry_count=retry_count)
+
+        if not os.path.exists(self.winws_exe):
+            log(f"winws.exe disappeared: {self.winws_exe}", "ERROR")
+            self._set_last_error(f"winws.exe не найден: {self.winws_exe}")
+            return False
+
+        self._preset_file_path = preset_path
+        success = self._spawn_process_locked(artifact, strategy_name)
+        if success:
+            self._start_config_watcher(preset_path)
+            return True
+
+        return self._maybe_retry_after_failed_spawn_locked(
+            preset_path,
+            strategy_name,
+            retry_count=retry_count,
+            max_retries=max_retries,
+        )
 
     def stop(self) -> bool:
         """Stops running process and hot-reload watcher."""

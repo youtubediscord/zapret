@@ -857,6 +857,69 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 get_process_pids=get_process_pids,
             )
 
+    def _resolve_cleanup_required_before_spawn(
+        self,
+        *,
+        force_cleanup: bool,
+        get_process_pids,
+    ) -> bool:
+        cleanup_required = bool(force_cleanup)
+
+        if self.running_process and self.is_running():
+            log("Stopping previous process before starting new one", "INFO")
+            self._stop_process_only_locked()
+            cleanup_required = True
+
+        try:
+            active_winws_pids = get_process_pids("winws.exe") + get_process_pids("winws2.exe")
+        except Exception:
+            active_winws_pids = []
+
+        if active_winws_pids:
+            cleanup_required = True
+
+        return cleanup_required
+
+    def _perform_cleanup_before_spawn_locked(self, *, cleanup_required: bool) -> None:
+        if cleanup_required:
+            self._perform_standard_windivert_cleanup()
+        else:
+            log("Fast start: cleanup skipped (no active winws processes)", "DEBUG")
+
+    def _maybe_retry_after_failed_spawn_locked(
+        self,
+        preset_path: str,
+        strategy_name: str,
+        *,
+        cleanup_required: bool,
+        retry_count: int,
+        kill_winws_force,
+        get_process_pids,
+    ) -> bool:
+        exit_code = int(self._last_spawn_exit_code or -1)
+        stderr_output = str(self._last_spawn_stderr or "")
+
+        if self._is_windivert_system_error(stderr_output, exit_code):
+            log("WinDivert system error detected — retry will not help", "WARNING")
+            return False
+
+        if (
+            (not cleanup_required)
+            and retry_count == 0
+            and self._is_windivert_conflict_error(stderr_output, exit_code)
+        ):
+            log("WinDivert conflict detected, retrying with full cleanup", "WARNING")
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                force_cleanup=True,
+                retry_count=1,
+                kill_winws_force=kill_winws_force,
+                get_process_pids=get_process_pids,
+            )
+
+        return False
+
     def _start_from_preset_file_locked(
         self,
         preset_path: str,
@@ -885,39 +948,11 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
             return False
 
-        cleanup_required = bool(force_cleanup)
-
-        if self.running_process and self.is_running():
-            log("Stopping previous process before starting new one", "INFO")
-            self._stop_process_only_locked()
-            cleanup_required = True
-
-        try:
-            active_winws_pids = get_process_pids("winws.exe") + get_process_pids("winws2.exe")
-        except Exception:
-            active_winws_pids = []
-
-        if active_winws_pids:
-            cleanup_required = True
-
-        if cleanup_required:
-            log("Cleaning up previous winws processes...", "DEBUG")
-            kill_winws_force()
-            self._fast_cleanup_services()
-
-            try:
-                from utils.service_manager import unload_driver
-                for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
-                    try:
-                        unload_driver(driver)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            time.sleep(0.3)
-        else:
-            log("Fast start: cleanup skipped (no active winws processes)", "DEBUG")
+        cleanup_required = self._resolve_cleanup_required_before_spawn(
+            force_cleanup=force_cleanup,
+            get_process_pids=get_process_pids,
+        )
+        self._perform_cleanup_before_spawn_locked(cleanup_required=cleanup_required)
 
         self._preset_file_path = preset_path
         success = self._spawn_process_locked(
@@ -929,29 +964,14 @@ class StrategyRunnerV2(StrategyRunnerBase):
             self._start_config_watcher()
             return True
 
-        exit_code = int(self._last_spawn_exit_code or -1)
-        stderr_output = str(self._last_spawn_stderr or "")
-
-        if self._is_windivert_system_error(stderr_output, exit_code):
-            log("WinDivert system error detected — retry will not help", "WARNING")
-            return False
-
-        if (
-            (not cleanup_required)
-            and retry_count == 0
-            and self._is_windivert_conflict_error(stderr_output, exit_code)
-        ):
-            log("WinDivert conflict detected, retrying with full cleanup", "WARNING")
-            return self._start_from_preset_file_locked(
-                preset_path,
-                strategy_name,
-                force_cleanup=True,
-                retry_count=1,
-                kill_winws_force=kill_winws_force,
-                get_process_pids=get_process_pids,
-            )
-
-        return False
+        return self._maybe_retry_after_failed_spawn_locked(
+            preset_path,
+            strategy_name,
+            cleanup_required=cleanup_required,
+            retry_count=retry_count,
+            kill_winws_force=kill_winws_force,
+            get_process_pids=get_process_pids,
+        )
 
     def find_running_preset_pid(self, preset_path: str) -> Optional[int]:
         """Returns PID of winws2.exe running with @preset_path, if any."""

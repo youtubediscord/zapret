@@ -52,6 +52,7 @@ class PresetRepository:
     def __init__(self, paths: AppPaths):
         self._paths = paths
         self._index_cache: dict[str, tuple[tuple[object, ...], list[PresetManifest]]] = {}
+        self._prepared_runtime_engines: set[str] = set()
 
     def list_manifests(self, engine: str) -> list[PresetManifest]:
         manifests = self._load_index(engine)
@@ -199,6 +200,7 @@ class PresetRepository:
 
     def _load_index(self, engine: str) -> list[PresetManifest]:
         normalized_engine = str(engine or "").strip().lower()
+        self._ensure_runtime_support_ready(normalized_engine)
         cache_key = self._current_index_cache_key(normalized_engine)
         cached_entry = self._index_cache.get(normalized_engine)
         if cache_key is not None and cached_entry is not None and cached_entry[0] == cache_key:
@@ -212,6 +214,26 @@ class PresetRepository:
         manifests = [self._manifest_from_raw(item) for item in data if isinstance(item, dict)]
         self._cache_index(normalized_engine, manifests)
         return manifests
+
+    def _ensure_runtime_support_ready(self, engine: str) -> None:
+        normalized_engine = str(engine or "").strip().lower()
+        if normalized_engine in self._prepared_runtime_engines:
+            return
+
+        launch_method = ""
+        if normalized_engine == "winws1":
+            launch_method = "direct_zapret1"
+        elif normalized_engine == "winws2":
+            launch_method = "direct_zapret2"
+
+        if not launch_method:
+            self._prepared_runtime_engines.add(normalized_engine)
+            return
+
+        from .support_files import prepare_direct_support_files
+
+        prepare_direct_support_files(launch_method)
+        self._prepared_runtime_engines.add(normalized_engine)
 
     def _bootstrap_index(self, engine: str) -> None:
         engine_paths = self._engine_paths(engine)

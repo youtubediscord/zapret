@@ -164,6 +164,25 @@ class StrategyRunnerBase(ABC):
         except Exception as e:
             log(f"Fast cleanup error: {e}", "DEBUG")
 
+    def _unload_known_windivert_drivers(self) -> None:
+        """Best-effort unload of known WinDivert-related drivers before spawn."""
+        try:
+            for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
+                try:
+                    unload_driver(driver)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _perform_standard_windivert_cleanup(self) -> None:
+        """Canonical lightweight cleanup before ordinary preset start."""
+        log("Cleaning up previous winws processes...", "DEBUG")
+        kill_winws_force()
+        self._fast_cleanup_services()
+        self._unload_known_windivert_drivers()
+        time.sleep(0.3)
+
     def _force_cleanup_multiple_services(self, service_names: List[str], retry_count: int = 3):
         """Force cleanup multiple services"""
         for service_name in service_names:

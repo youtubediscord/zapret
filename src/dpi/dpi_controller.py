@@ -46,129 +46,193 @@ class DPIStartWorker(QObject):
         # Используем переданный launch_method так как он известен при создании worker'а
         return get_winws_exe_for_method(self.launch_method)
 
+    def _extract_preset_launch_input(self) -> tuple[bool, str]:
+        mode_param = self.selected_mode
+        try:
+            if (
+                isinstance(mode_param, dict)
+                and mode_param.get("is_preset_file")
+                and self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1")
+            ):
+                return True, str(mode_param.get("preset_path") or "").strip()
+        except Exception:
+            pass
+        return False, ""
+
+    def _can_reuse_running_process(self, *, is_preset_file: bool, preset_path: str) -> bool:
+        if not is_preset_file or not preset_path:
+            return False
+        if self.launch_method not in ("direct_zapret2", "direct_zapret2_orchestra"):
+            return False
+        try:
+            from launcher_common import get_strategy_runner
+
+            runner = get_strategy_runner(self._get_winws_exe())
+            if hasattr(runner, "find_running_preset_pid"):
+                pid = runner.find_running_preset_pid(preset_path)
+                if pid:
+                    log(
+                        f"Preset уже запущен (PID: {pid}), пропускаем остановку",
+                        "INFO",
+                    )
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _validate_preset_before_stop(self, *, is_preset_file: bool, preset_path: str, skip_stop: bool) -> bool:
+        if not is_preset_file or not preset_path or skip_stop:
+            return True
+        try:
+            from launcher_common import get_strategy_runner
+
+            runner = get_strategy_runner(self._get_winws_exe())
+            if hasattr(runner, "validate_preset_file"):
+                ok, report = runner.validate_preset_file(preset_path)
+                if ok:
+                    return True
+
+                lines = (report or "").splitlines()
+                if lines:
+                    log(lines[0], "❌ ERROR")
+                    for extra in lines[1:]:
+                        if extra.strip():
+                            log(extra, "INFO")
+                    short = lines[0].strip()
+                else:
+                    short = "Некорректный preset файл"
+
+                self._last_error_message = short
+                self.progress.emit(short)
+                self.finished.emit(False, short)
+                return False
+        except Exception:
+            pass
+        return True
+
+    def _stop_previous_process_if_needed(self, *, skip_stop: bool) -> None:
+        process_running = self.dpi_starter.check_process_running_wmi(silent=True)
+        if (not process_running) or skip_stop:
+            return
+
+        self.progress.emit("Останавливаем предыдущий процесс...")
+
+        if self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            from launcher_common import get_strategy_runner
+
+            runner = get_strategy_runner(self._get_winws_exe())
+            runner.stop()
+        else:
+            from dpi.stop import stop_dpi
+
+            stop_dpi(self.app_instance)
+
+        max_wait = 10
+        for attempt in range(max_wait):
+            time.sleep(0.5)
+            if not self.dpi_starter.check_process_running_wmi(silent=True):
+                log(f"✅ Предыдущий процесс остановлен (попытка {attempt + 1})", "DEBUG")
+                break
+        else:
+            log("⚠️ Процесс не остановился за 5 секунд, принудительное завершение...", "WARNING")
+            import subprocess
+
+            try:
+                subprocess.run(['taskkill', '/F', '/IM', 'winws.exe'], capture_output=True, timeout=3)
+                subprocess.run(['taskkill', '/F', '/IM', 'winws2.exe'], capture_output=True, timeout=3)
+                time.sleep(1)
+            except Exception as e:
+                log(f"Ошибка taskkill: {e}", "DEBUG")
+
+        time.sleep(0.5)
+
+    def _run_launch_method(self) -> bool:
+        if self.launch_method == "orchestra":
+            return self._start_orchestra()
+        if self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            return self._start_direct()
+        log(f"Неизвестный метод запуска: {self.launch_method}", "❌ ERROR")
+        return False
+
+    def _resolve_direct_preset_payload(self) -> tuple[str, str] | None:
+        mode_param = self.selected_mode
+        if not (isinstance(mode_param, dict) and mode_param.get("is_preset_file")):
+            log(
+                f"Legacy combined/custom launch больше не поддерживается для {self.launch_method}: {type(mode_param)}",
+                "❌ ERROR",
+            )
+            self._last_error_message = "Для прямого запуска используйте prepared preset файл"
+            self.progress.emit("❌ Для прямого запуска используйте prepared preset файл")
+            return None
+
+        preset_path = str(mode_param.get("preset_path", "") or "").strip()
+        strategy_name = str(mode_param.get("name", "Пресет") or "Пресет")
+
+        log(f"Запуск из preset файла: {preset_path}", "INFO")
+
+        if not preset_path:
+            log("Путь к preset файлу не указан", "❌ ERROR")
+            self._last_error_message = "Не указан путь к preset файлу"
+            self.progress.emit("❌ Ошибка: не указан путь к preset файлу")
+            return None
+
+        if not os.path.exists(preset_path):
+            log(f"Preset файл не найден: {preset_path}", "❌ ERROR")
+            self._last_error_message = f"Preset файл не найден: {preset_path}"
+            self.progress.emit("❌ Preset файл не найден")
+            return None
+
+        return preset_path, strategy_name
+
+    def _start_direct_preset_with_runner(self, preset_path: str, strategy_name: str) -> bool:
+        from launcher_common import get_strategy_runner
+
+        runner = get_strategy_runner(self._get_winws_exe())
+        success = runner.start_from_preset_file(preset_path, strategy_name)
+
+        if success:
+            log(f"Пресет '{strategy_name}' успешно запущен", "✅ SUCCESS")
+            return True
+
+        details = ""
+        try:
+            details = str(getattr(runner, "last_error", "") or "").strip()
+        except Exception:
+            details = ""
+        short = (details.splitlines()[0].strip() if details else "")
+        if short:
+            log(f"Не удалось запустить пресет: {short}", "❌ ERROR")
+            self._last_error_message = short
+            self.progress.emit(f"❌ {short}")
+        else:
+            log("Не удалось запустить пресет", "❌ ERROR")
+            self._last_error_message = "Не удалось запустить пресет (см. логи)"
+            self.progress.emit("❌ Не удалось запустить пресет. Проверьте логи")
+        return False
+
     def run(self):
         try:
             self.progress.emit("Подготовка к запуску...")
 
-            # Pre-calc preset start parameters (used for safe preflight validation).
-            skip_stop = False
-            mode_param = self.selected_mode
-            preset_path = ""
-            is_preset_file = False
-            try:
-                if (
-                    isinstance(mode_param, dict)
-                    and mode_param.get("is_preset_file")
-                    and self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1")
-                ):
-                    is_preset_file = True
-                    preset_path = (mode_param.get("preset_path") or "").strip()
-            except Exception:
-                is_preset_file = False
-                preset_path = ""
-
-            # Проверяем, не запущен ли уже процесс
+            is_preset_file, preset_path = self._extract_preset_launch_input()
             process_running = self.dpi_starter.check_process_running_wmi(silent=True)
-            if process_running:
-                # direct_zapret2: если запущен ТОТ ЖЕ selected source preset (@file),
-                # не останавливаем и не перезапускаем — просто "подключаемся".
-                try:
-                    if (
-                        self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra")
-                        and is_preset_file
-                        and preset_path
-                    ):
-                        from launcher_common import get_strategy_runner
+            skip_stop = process_running and self._can_reuse_running_process(
+                is_preset_file=is_preset_file,
+                preset_path=preset_path,
+            )
 
-                        runner = get_strategy_runner(self._get_winws_exe())
-                        if hasattr(runner, "find_running_preset_pid"):
-                            pid = runner.find_running_preset_pid(preset_path)
-                            if pid:
-                                log(
-                                    f"Preset уже запущен (PID: {pid}), пропускаем остановку",
-                                    "INFO",
-                                )
-                                skip_stop = True
-                except Exception:
-                    pass
+            if not self._validate_preset_before_stop(
+                is_preset_file=is_preset_file,
+                preset_path=preset_path,
+                skip_stop=skip_stop,
+            ):
+                return
 
-            # ✅ Preflight validation: if preset references missing files,
-            # do NOT stop an already running process.
-            if is_preset_file and preset_path and (not skip_stop):
-                try:
-                    from launcher_common import get_strategy_runner
-
-                    runner = get_strategy_runner(self._get_winws_exe())
-                    if hasattr(runner, "validate_preset_file"):
-                        ok, report = runner.validate_preset_file(preset_path)
-                        if not ok:
-                            # Log detailed report (first line as ERROR, rest as INFO)
-                            lines = (report or "").splitlines()
-                            if lines:
-                                log(lines[0], "❌ ERROR")
-                                for extra in lines[1:]:
-                                    if extra.strip():
-                                        log(extra, "INFO")
-                                short = lines[0].strip()
-                            else:
-                                short = "Некорректный preset файл"
-
-                            self._last_error_message = short
-                            self.progress.emit(short)
-                            self.finished.emit(False, short)
-                            return
-                except Exception:
-                    pass
-
-            if process_running and (not skip_stop):
-                self.progress.emit("Останавливаем предыдущий процесс...")
-
-                # Останавливаем через соответствующий метод
-                if self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
-                    from launcher_common import get_strategy_runner
-
-                    runner = get_strategy_runner(self._get_winws_exe())
-                    runner.stop()
-                else:
-                    from dpi.stop import stop_dpi
-
-                    stop_dpi(self.app_instance)
-
-                # Ждём пока процесс действительно остановится (до 5 секунд)
-                max_wait = 10
-                for attempt in range(max_wait):
-                    time.sleep(0.5)
-                    if not self.dpi_starter.check_process_running_wmi(silent=True):
-                        log(f"✅ Предыдущий процесс остановлен (попытка {attempt + 1})", "DEBUG")
-                        break
-                else:
-                    log("⚠️ Процесс не остановился за 5 секунд, принудительное завершение...", "WARNING")
-                    import subprocess
-
-                    try:
-                        subprocess.run(['taskkill', '/F', '/IM', 'winws.exe'],
-                                       capture_output=True, timeout=3)
-                        subprocess.run(['taskkill', '/F', '/IM', 'winws2.exe'],
-                                       capture_output=True, timeout=3)
-                        time.sleep(1)
-                    except Exception as e:
-                        log(f"Ошибка taskkill: {e}", "DEBUG")
-
-                # Дополнительная пауза для освобождения WinDivert
-                time.sleep(0.5)
+            self._stop_previous_process_if_needed(skip_stop=skip_stop)
 
             self.progress.emit("Запуск DPI...")
-            
-            # Выбираем метод запуска
-            if self.launch_method == "orchestra":
-                success = self._start_orchestra()
-            elif self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
-                # direct_zapret2_orchestra работает так же как direct, но с другим набором стратегий
-                # direct_zapret1 работает так же как direct, но использует winws.exe и tcp_zapret1.json
-                success = self._start_direct()
-            else:
-                log(f"Неизвестный метод запуска: {self.launch_method}", "❌ ERROR")
-                success = False
+
+            success = self._run_launch_method()
             
             if success:
                 self.progress.emit("DPI успешно запущен")
@@ -205,75 +269,11 @@ class DPIStartWorker(QObject):
     def _start_direct(self):
         """Запуск через preset-based direct path (StrategyRunner + prepared preset)."""
         try:
-            from launcher_common import get_strategy_runner
-
-            # Получаем runner
-            runner = get_strategy_runner(self._get_winws_exe())
-
-            mode_param = self.selected_mode
-
-            # ✅ НОВЫЙ РЕЖИМ: Запуск из готового preset файла (без реестра)
-            if isinstance(mode_param, dict) and mode_param.get('is_preset_file'):
-                preset_path = mode_param.get('preset_path', '')
-                strategy_name = mode_param.get('name', 'Пресет')
-
-                log(f"Запуск из preset файла: {preset_path}", "INFO")
-
-                if not preset_path:
-                    log("Путь к preset файлу не указан", "❌ ERROR")
-                    self._last_error_message = "Не указан путь к preset файлу"
-                    self.progress.emit("❌ Ошибка: не указан путь к preset файлу")
-                    return False
-
-                import os
-                if not os.path.exists(preset_path):
-                    try:
-                        from core.services import get_direct_flow_coordinator
-
-                        selected_source_path = get_direct_flow_coordinator().ensure_selected_source_path(self.launch_method)
-                        if selected_source_path.exists():
-                            preset_path = str(selected_source_path)
-                            log(f"Recovered missing selected source preset path: {preset_path}", "INFO")
-                    except Exception as e:
-                        log(f"Failed to recover selected source preset path: {e}", "WARNING")
-
-                if not os.path.exists(preset_path):
-                    log(f"Preset файл не найден: {preset_path}", "❌ ERROR")
-                    self._last_error_message = f"Preset файл не найден: {preset_path}"
-                    self.progress.emit("❌ Preset файл не найден")
-                    return False
-
-                # Запускаем напрямую через @file (hot-reload будет работать!)
-                success = runner.start_from_preset_file(preset_path, strategy_name)
-
-                if success:
-                    log(f"Пресет '{strategy_name}' успешно запущен", "✅ SUCCESS")
-                    return True
-                else:
-                    details = ""
-                    try:
-                        details = str(getattr(runner, "last_error", "") or "").strip()
-                    except Exception:
-                        details = ""
-                    short = (details.splitlines()[0].strip() if details else "")
-                    if short:
-                        log(f"Не удалось запустить пресет: {short}", "❌ ERROR")
-                        self._last_error_message = short
-                        self.progress.emit(f"❌ {short}")
-                    else:
-                        log("Не удалось запустить пресет", "❌ ERROR")
-                        self._last_error_message = "Не удалось запустить пресет (см. логи)"
-                        self.progress.emit("❌ Не удалось запустить пресет. Проверьте логи")
-                    return False
-
-            else:
-                log(
-                    f"Legacy combined/custom launch больше не поддерживается для {self.launch_method}: {type(mode_param)}",
-                    "❌ ERROR",
-                )
-                self._last_error_message = "Для прямого запуска используйте prepared preset файл"
-                self.progress.emit("❌ Для прямого запуска используйте prepared preset файл")
+            payload = self._resolve_direct_preset_payload()
+            if payload is None:
                 return False
+            preset_path, strategy_name = payload
+            return self._start_direct_preset_with_runner(preset_path, strategy_name)
                 
         except Exception as e:
             # Диагностируем ошибку и выводим понятное сообщение

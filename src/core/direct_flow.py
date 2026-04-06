@@ -78,6 +78,11 @@ class DirectFlowCoordinator:
         self._prepared_support_methods: set[str] = set()
         self._selected_manifest_cache: dict[str, tuple[tuple[object, ...], PresetManifest]] = {}
         self._index_kind_cache: dict[str, tuple[tuple[object, ...], dict[str, str]]] = {}
+        self._support_prepare_errors: dict[str, str] = {}
+
+    def ensure_support_files_ready(self, launch_method: str) -> None:
+        """Prepares runtime support files for the given direct launch method."""
+        self._ensure_support_files(launch_method)
 
     def ensure_launch_profile(
         self,
@@ -286,6 +291,12 @@ class DirectFlowCoordinator:
         preset_paths = self._list_source_preset_paths(engine)
         self._emit_timing(timing_callback, f"{label}.list_source_presets", t_list)
         if not preset_paths:
+            support_error = str(self._support_prepare_errors.get(method) or "").strip()
+            if support_error:
+                raise DirectFlowError(
+                    "Не удалось подготовить встроенные пресеты: "
+                    f"{support_error}"
+                )
             raise DirectFlowError(
                 "Пресеты не найдены. Скачайте файлы пресетов вручную: "
                 f"{self.PRESETS_DOWNLOAD_URL}"
@@ -335,8 +346,10 @@ class DirectFlowCoordinator:
 
             prepare_direct_support_files(method)
             self._prepared_support_methods.add(method)
+            self._support_prepare_errors.pop(method, None)
             self._emit_timing(timing_callback, f"{label}.prepare_direct_support_files", started_at)
         except Exception as exc:
+            self._support_prepare_errors[method] = str(exc or "unknown support preparation error")
             log(f"Failed to prepare direct support files for {method}: {exc}", "DEBUG")
 
     @staticmethod
