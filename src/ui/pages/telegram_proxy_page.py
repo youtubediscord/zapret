@@ -9,46 +9,46 @@ from __future__ import annotations
 
 import os
 import threading
-import webbrowser
-from collections import deque
 from typing import TYPE_CHECKING
+
+import qtawesome as qta
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QStackedWidget, QLineEdit,
 )
-from PyQt6.QtGui import QGuiApplication
 
 from .base_page import BasePage, ScrollBlockingPlainTextEdit
-from ui.compat_widgets import SettingsCard, ActionButton
+from ui.compat_widgets import (
+    SettingsCard,
+    enable_setting_card_group_auto_height,
+    insert_widget_into_setting_card_group,
+)
 from log import log
+from telegram_proxy.page_actions_controller import TelegramProxyPageActionsController
 from telegram_proxy.diagnostics_controller import TelegramProxyDiagnosticsController
+from telegram_proxy.page_runtime_controller import TelegramProxyRuntimeController
 from telegram_proxy.page_settings_controller import TelegramProxySettingsController
 from telegram_proxy.upstream_catalog import UpstreamCatalog
 
-try:
-    from qfluentwidgets import (
-        BodyLabel, CaptionLabel, StrongBodyLabel,
-        SpinBox, InfoBar, InfoBarPosition,
-        SegmentedWidget, ComboBox,
-        LineEdit, PasswordLineEdit, SettingCardGroup,
-        PushSettingCard, PrimaryPushSettingCard,
-    )
-    _HAS_FLUENT = True
-except ImportError:
-    from PyQt6.QtWidgets import QSpinBox as SpinBox, QComboBox as ComboBox
-    BodyLabel = QLabel
-    CaptionLabel = QLabel
-    StrongBodyLabel = QLabel
-    InfoBar = None
-    SegmentedWidget = None
-    LineEdit = QLineEdit
-    PasswordLineEdit = QLineEdit
-    SettingCardGroup = None
-    PushSettingCard = None  # type: ignore[assignment]
-    PrimaryPushSettingCard = None  # type: ignore[assignment]
-    _HAS_FLUENT = False
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    StrongBodyLabel,
+    SpinBox,
+    InfoBar,
+    InfoBarPosition,
+    SegmentedWidget,
+    ComboBox,
+    LineEdit,
+    PasswordLineEdit,
+    SettingCardGroup,
+    PushSettingCard,
+    PrimaryPushSettingCard,
+    PushButton,
+    PrimaryPushButton,
+)
 
 if TYPE_CHECKING:
     from main import LupiDPIApp
@@ -99,6 +99,8 @@ class TelegramProxyPage(BasePage):
         self.parent_app = parent
         self._log_timer = None
         self._settings_controller = TelegramProxySettingsController()
+        self._actions_controller = TelegramProxyPageActionsController()
+        self._runtime_controller = TelegramProxyRuntimeController()
         self._diagnostics_controller = TelegramProxyDiagnosticsController(self._settings_controller)
         self.enable_deferred_ui_build(build=self._setup_ui, after_build=self._after_ui_built)
         # Auto-start now lives in startup initialization, so it works
@@ -114,10 +116,7 @@ class TelegramProxyPage(BasePage):
 
     def _setup_ui(self):
         # ── Tabs (SegmentedWidget) ──
-        if SegmentedWidget is not None:
-            self._pivot = SegmentedWidget(self)
-        else:
-            self._pivot = None
+        self._pivot = SegmentedWidget(self)
 
         self._stacked = QStackedWidget(self)
 
@@ -149,22 +148,20 @@ class TelegramProxyPage(BasePage):
         self._stacked.addWidget(diag_panel)
 
         # Wire up tabs
-        if self._pivot is not None:
-            self._pivot.addItem("settings", "Настройки", lambda: self._switch_tab(0))
-            self._pivot.addItem("logs", "Логи", lambda: self._switch_tab(1))
-            self._pivot.addItem("diag", "Диагностика", lambda: self._switch_tab(2))
-            self._pivot.setCurrentItem("settings")
-            self.add_widget(self._pivot)
+        self._pivot.addItem("settings", "Настройки", lambda: self._switch_tab(0))
+        self._pivot.addItem("logs", "Логи", lambda: self._switch_tab(1))
+        self._pivot.addItem("diag", "Диагностика", lambda: self._switch_tab(2))
+        self._pivot.setCurrentItem("settings")
+        self.add_widget(self._pivot)
 
         self.add_widget(self._stacked)
         self._switch_tab(0)
 
     def _switch_tab(self, index: int):
         self._stacked.setCurrentIndex(index)
-        if self._pivot is not None:
-            keys = ["settings", "logs", "diag"]
-            if 0 <= index < len(keys):
-                self._pivot.setCurrentItem(keys[index])
+        keys = ["settings", "logs", "diag"]
+        if 0 <= index < len(keys):
+            self._pivot.setCurrentItem(keys[index])
 
     def _add_settings_item(self, container, widget: QWidget) -> None:
         add_setting_card = getattr(container, "addSettingCard", None)
@@ -174,10 +171,10 @@ class TelegramProxyPage(BasePage):
             container.add_widget(widget)
 
     def _insert_group_label(self, container, label: QWidget, index: int = 1) -> None:
-        layout = getattr(container, "vBoxLayout", None)
-        if layout is not None:
+        if getattr(container, "vBoxLayout", None) is not None:
             try:
-                layout.insertWidget(index, label)
+                insert_widget_into_setting_card_group(container, index, label)
+                enable_setting_card_group_auto_height(container)
                 return
             except Exception:
                 pass
@@ -196,7 +193,8 @@ class TelegramProxyPage(BasePage):
         status_header.addWidget(self._status_label)
         status_header.addStretch()
 
-        self._btn_toggle = ActionButton("Запустить")
+        self._btn_toggle = PushButton()
+        self._btn_toggle.setText("Запустить")
         self._btn_toggle.setFixedWidth(140)
         self._btn_toggle.clicked.connect(self._on_toggle_proxy)
         status_header.addWidget(self._btn_toggle)
@@ -207,17 +205,7 @@ class TelegramProxyPage(BasePage):
         layout.addWidget(self._status_card)
 
         # -- Quick setup card --
-        self._setup_open_card = None
-        self._setup_copy_card = None
-        self._btn_open_tg = None
-        self._btn_copy_link = None
-        if SettingCardGroup is not None and PrimaryPushSettingCard is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._setup_section_label = None
-            self._setup_card = SettingCardGroup("Быстрая настройка Telegram", self.content)
-        else:
-            self._setup_section_label = StrongBodyLabel("Быстрая настройка Telegram")
-            layout.addWidget(self._setup_section_label)
-            self._setup_card = SettingsCard()
+        self._setup_card = SettingCardGroup("Быстрая настройка Telegram", self.content)
 
         setup_desc = CaptionLabel(
             "Нажмите кнопку ниже - Telegram автоматически добавит прокси. "
@@ -225,60 +213,36 @@ class TelegramProxyPage(BasePage):
         )
         self._setup_desc_label = setup_desc
         setup_desc.setWordWrap(True)
-        if isinstance(self._setup_card, SettingCardGroup) if SettingCardGroup is not None else False:
-            self._insert_group_label(self._setup_card, setup_desc, 1)
+        self._insert_group_label(self._setup_card, setup_desc, 1)
 
-            self._setup_open_card = PrimaryPushSettingCard(
-                "Открыть",
-                qta.icon("mdi.telegram", color="#229ED9"),
-                "Добавить прокси в Telegram",
-                "Открыть ссылку для автоматической настройки прокси внутри Telegram.",
-            )
-            self._setup_open_card.clicked.connect(self._on_open_in_telegram)
-            try:
-                self._setup_open_card.button.setToolTip("Откроет ссылку для автоматической настройки прокси")
-            except Exception:
-                pass
-            self._add_settings_item(self._setup_card, self._setup_open_card)
+        self._setup_open_card = PrimaryPushSettingCard(
+            "Открыть",
+            qta.icon("mdi.telegram", color="#229ED9"),
+            "Добавить прокси в Telegram",
+            "Открыть ссылку для автоматической настройки прокси внутри Telegram.",
+        )
+        self._setup_open_card.clicked.connect(self._on_open_in_telegram)
+        try:
+            self._setup_open_card.button.setToolTip("Откроет ссылку для автоматической настройки прокси")
+        except Exception:
+            pass
+        self._add_settings_item(self._setup_card, self._setup_open_card)
 
-            self._setup_copy_card = PushSettingCard(
-                "Копировать",
-                qta.icon("mdi.content-copy", color="#60cdff"),
-                "Скопировать ссылку настройки",
-                "Сохранить ссылку в буфер обмена, если Telegram не открылся автоматически.",
-            )
-            self._setup_copy_card.clicked.connect(self._on_copy_link)
-            self._add_settings_item(self._setup_card, self._setup_copy_card)
-        else:
-            self._setup_card.add_widget(setup_desc)
-
-            btn_row = QHBoxLayout()
-            btn_row.setSpacing(8)
-
-            self._btn_open_tg = ActionButton("Добавить прокси в Telegram")
-            self._btn_open_tg.setToolTip("Откроет ссылку для автоматической настройки прокси")
-            self._btn_open_tg.clicked.connect(self._on_open_in_telegram)
-            btn_row.addWidget(self._btn_open_tg)
-
-            self._btn_copy_link = ActionButton("Скопировать ссылку")
-            self._btn_copy_link.clicked.connect(self._on_copy_link)
-            btn_row.addWidget(self._btn_copy_link)
-
-            btn_row.addStretch()
-            self._setup_card.add_layout(btn_row)
+        self._setup_copy_card = PushSettingCard(
+            "Копировать",
+            qta.icon("mdi.content-copy", color="#60cdff"),
+            "Скопировать ссылку настройки",
+            "Сохранить ссылку в буфер обмена, если Telegram не открылся автоматически.",
+        )
+        self._setup_copy_card.clicked.connect(self._on_copy_link)
+        self._add_settings_item(self._setup_card, self._setup_copy_card)
+        enable_setting_card_group_auto_height(self._setup_card)
 
         layout.addWidget(self._setup_card)
 
         # -- Settings card --
-        self._settings_section_label = None
-        if SettingCardGroup is not None and _HAS_FLUENT:
-            self._settings_card = SettingCardGroup("Настройки", self.content)
-            self._settings_host_card = SettingsCard()
-        else:
-            self._settings_section_label = StrongBodyLabel("Настройки")
-            layout.addWidget(self._settings_section_label)
-            self._settings_card = SettingsCard()
-            self._settings_host_card = self._settings_card
+        self._settings_card = SettingCardGroup("Настройки", self.content)
+        self._settings_host_card = SettingsCard()
 
         # Host + Port setting
         host_port_row = QHBoxLayout()
@@ -328,17 +292,12 @@ class TelegramProxyPage(BasePage):
         )
         self._auto_deeplink_toggle.toggle.setChecked(True)
         self._add_settings_item(self._settings_card, self._auto_deeplink_toggle)
+        enable_setting_card_group_auto_height(self._settings_card)
 
         layout.addWidget(self._settings_card)
 
         # -- Upstream proxy card --
-        self._upstream_section_label = None
-        if SettingCardGroup is not None and _HAS_FLUENT:
-            self._upstream_card = SettingCardGroup("Внешний прокси (upstream)", self.content)
-        else:
-            self._upstream_section_label = StrongBodyLabel("Внешний прокси (upstream)")
-            layout.addWidget(self._upstream_section_label)
-            self._upstream_card = SettingsCard()
+        self._upstream_card = SettingCardGroup("Внешний прокси (upstream)", self.content)
 
         upstream_desc = CaptionLabel(
             "SOCKS5 прокси-сервер для DC заблокированных вашим провайдером.\n"
@@ -376,8 +335,8 @@ class TelegramProxyPage(BasePage):
         self._insert_group_label(self._upstream_card, self._upstream_catalog_hint, 2)
 
         # Manual input container: shown only for "Ручной ввод"
-        self._upstream_manual_widget = SettingsCard()
-        manual_layout = QVBoxLayout()
+        self._upstream_manual_widget = QWidget(self._upstream_card)
+        manual_layout = QVBoxLayout(self._upstream_manual_widget)
         manual_layout.setContentsMargins(0, 0, 0, 0)
         manual_layout.setSpacing(8)
 
@@ -419,34 +378,18 @@ class TelegramProxyPage(BasePage):
         upstream_auth_row.addStretch()
         manual_layout.addLayout(upstream_auth_row)
 
-        self._upstream_manual_widget.add_layout(manual_layout)
         self._upstream_manual_widget.setVisible(True)
         self._add_settings_item(self._upstream_card, self._upstream_manual_widget)
 
         # MTProxy action (visible only when MTProxy preset selected)
-        self._mtproxy_action_card = None
-        self._btn_mtproxy = None
-        if PushSettingCard is not None and SettingCardGroup is not None and _HAS_FLUENT:
-            self._mtproxy_action_card = PushSettingCard(
-                "Открыть",
-                qta.icon("mdi.telegram", color="#229ED9"),
-                "Добавить MTProxy в Telegram",
-                "MTProxy настраивается в Telegram напрямую. Нажмите для добавления.",
-            )
-            self._mtproxy_action_card.clicked.connect(self._on_open_mtproxy)
-            self._mtproxy_action_widget = self._mtproxy_action_card
-        else:
-            self._mtproxy_action_widget = SettingsCard()
-            mtproxy_action_layout = QVBoxLayout()
-            mtproxy_action_layout.setContentsMargins(0, 0, 0, 0)
-            mtproxy_desc = CaptionLabel("MTProxy настраивается в Telegram напрямую. Нажмите для добавления.")
-            self._mtproxy_desc_label = mtproxy_desc
-            mtproxy_desc.setWordWrap(True)
-            mtproxy_action_layout.addWidget(mtproxy_desc)
-            self._btn_mtproxy = ActionButton("Добавить MTProxy в Telegram")
-            self._btn_mtproxy.clicked.connect(self._on_open_mtproxy)
-            mtproxy_action_layout.addWidget(self._btn_mtproxy)
-            self._mtproxy_action_widget.add_layout(mtproxy_action_layout)
+        self._mtproxy_action_card = PushSettingCard(
+            "Открыть",
+            qta.icon("mdi.telegram", color="#229ED9"),
+            "Добавить MTProxy в Telegram",
+            "MTProxy настраивается в Telegram напрямую. Нажмите для добавления.",
+        )
+        self._mtproxy_action_card.clicked.connect(self._on_open_mtproxy)
+        self._mtproxy_action_widget = self._mtproxy_action_card
         self._mtproxy_action_widget.setVisible(False)
         self._add_settings_item(self._upstream_card, self._mtproxy_action_widget)
         self._current_mtproxy_link = ""
@@ -459,6 +402,7 @@ class TelegramProxyPage(BasePage):
         )
         self._upstream_mode_toggle.toggle.setChecked(True)
         self._add_settings_item(self._upstream_card, self._upstream_mode_toggle)
+        enable_setting_card_group_auto_height(self._upstream_card)
 
         self._refresh_upstream_preset_combo(select_index=0)
 
@@ -491,15 +435,21 @@ class TelegramProxyPage(BasePage):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
 
-        self._btn_copy_logs = ActionButton("Копировать все")
+        self._btn_copy_logs = PushButton()
+        self._btn_copy_logs.setText("Копировать все")
+        self._btn_copy_logs.setIcon(qta.icon("mdi.content-copy", color="#60cdff"))
         self._btn_copy_logs.clicked.connect(self._on_copy_all_logs)
         toolbar.addWidget(self._btn_copy_logs)
 
-        self._btn_open_log_file = ActionButton("Открыть файл лога")
+        self._btn_open_log_file = PushButton()
+        self._btn_open_log_file.setText("Открыть файл лога")
+        self._btn_open_log_file.setIcon(qta.icon("fa5s.file-alt", color="#60cdff"))
         self._btn_open_log_file.clicked.connect(self._on_open_log_file)
         toolbar.addWidget(self._btn_open_log_file)
 
-        self._btn_clear_logs = ActionButton("Очистить")
+        self._btn_clear_logs = PushButton()
+        self._btn_clear_logs.setText("Очистить")
+        self._btn_clear_logs.setIcon(qta.icon("fa5s.eraser", color="#ff9800"))
         self._btn_clear_logs.clicked.connect(self._on_clear_logs)
         toolbar.addWidget(self._btn_clear_logs)
 
@@ -524,11 +474,15 @@ class TelegramProxyPage(BasePage):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
 
-        self._btn_run_diag = ActionButton("Запустить диагностику")
+        self._btn_run_diag = PrimaryPushButton()
+        self._btn_run_diag.setText("Запустить диагностику")
+        self._btn_run_diag.setIcon(qta.icon("fa5s.stethoscope", color="#60cdff"))
         self._btn_run_diag.clicked.connect(self._on_run_diagnostics)
         toolbar.addWidget(self._btn_run_diag)
 
-        self._btn_copy_diag = ActionButton("Копировать результат")
+        self._btn_copy_diag = PushButton()
+        self._btn_copy_diag.setText("Копировать результат")
+        self._btn_copy_diag.setIcon(qta.icon("mdi.content-copy", color="#60cdff"))
         self._btn_copy_diag.clicked.connect(self._on_copy_diag)
         toolbar.addWidget(self._btn_copy_diag)
 
@@ -542,10 +496,11 @@ class TelegramProxyPage(BasePage):
 
     def _on_run_diagnostics(self):
         """Run network diagnostics in a background thread."""
-        self._btn_run_diag.setEnabled(False)
-        self._btn_run_diag.setText("Тестирование...")
+        plan = self._actions_controller.build_diagnostics_start_plan()
+        self._btn_run_diag.setEnabled(plan.button_enabled)
+        self._btn_run_diag.setText(plan.button_text)
         self._diag_edit.clear()
-        self._diag_edit.appendPlainText("Запуск диагностики Telegram DC...\n")
+        self._diag_edit.appendPlainText(plan.initial_text)
 
         self._diag_result = None  # shared with thread
         self._diag_thread_done = False
@@ -559,17 +514,22 @@ class TelegramProxyPage(BasePage):
         # Poll for result every 200ms
         self._diag_poll_timer = QTimer(self)
         self._diag_poll_timer.timeout.connect(self._poll_diag)
-        self._diag_poll_timer.start(200)
+        self._diag_poll_timer.start(plan.poll_interval_ms)
 
     def _poll_diag(self):
         """Check if diag thread has new results."""
-        if self._diag_result is not None:
-            self._diag_edit.setPlainText(self._diag_result)
+        plan = self._actions_controller.build_diagnostics_poll_plan(
+            result_text=self._diag_result,
+            thread_done=self._diag_thread_done,
+        )
+        if plan.updated_text is not None:
+            self._diag_edit.setPlainText(plan.updated_text)
             sb = self._diag_edit.verticalScrollBar()
             if sb:
                 sb.setValue(sb.maximum())
-        if self._diag_thread_done:
+        if plan.should_stop_timer:
             self._diag_poll_timer.stop()
+        if plan.should_finish:
             self._diag_finished()
 
     def _run_diag_tests(self):
@@ -589,40 +549,34 @@ class TelegramProxyPage(BasePage):
             sb.setValue(sb.maximum())
 
     def _diag_finished(self):
-        self._btn_run_diag.setEnabled(True)
-        self._btn_run_diag.setText("Запустить диагностику")
+        plan = self._actions_controller.build_diagnostics_finish_plan()
+        self._btn_run_diag.setEnabled(plan.button_enabled)
+        self._btn_run_diag.setText(plan.button_text)
 
     def _refresh_pivot_texts(self) -> None:
-        pivot = getattr(self, "_pivot", None)
-        if pivot is None:
-            return
-
         try:
-            pivot.setItemText("settings", "Настройки")
-            pivot.setItemText("logs", "Логи")
-            pivot.setItemText("diag", "Диагностика")
+            self._pivot.setItemText("settings", "Настройки")
+            self._pivot.setItemText("logs", "Логи")
+            self._pivot.setItemText("diag", "Диагностика")
         except Exception:
             pass
 
     def _refresh_status_texts(self) -> None:
         mgr = _get_proxy_manager()
         running = bool(mgr.is_running)
+        plan = self._runtime_controller.build_status_plan(
+            running=running,
+            restarting=bool(getattr(self, "_restarting", False)),
+            starting=bool(getattr(self, "_starting", False)),
+            host=mgr.host,
+            port=mgr.port,
+        )
 
         if getattr(self, "_status_label", None) is not None:
-            if getattr(self, "_restarting", False):
-                self._status_label.setText("Перезапуск прокси...")
-            elif getattr(self, "_starting", False):
-                self._status_label.setText("Запуск прокси...")
-            elif running:
-                self._status_label.setText(f"Работает на {mgr.host}:{mgr.port}")
-            else:
-                self._status_label.setText("Остановлен")
+            self._status_label.setText(plan.status_text)
 
         if getattr(self, "_btn_toggle", None) is not None:
-            if running or getattr(self, "_restarting", False):
-                self._btn_toggle.setText("Остановить")
-            else:
-                self._btn_toggle.setText("Запустить")
+            self._btn_toggle.setText(plan.toggle_text)
 
     def _apply_ui_texts(self) -> None:
         if self.is_deferred_ui_build_pending():
@@ -632,24 +586,15 @@ class TelegramProxyPage(BasePage):
             self._refresh_pivot_texts()
             self._refresh_status_texts()
 
-            if getattr(self, "_setup_section_label", None) is not None:
-                self._setup_section_label.setText("Быстрая настройка Telegram")
-            else:
-                title_label = getattr(getattr(self, "_setup_card", None), "titleLabel", None)
-                if title_label is not None:
-                    title_label.setText("Быстрая настройка Telegram")
-            if getattr(self, "_settings_section_label", None) is not None:
-                self._settings_section_label.setText("Настройки")
-            else:
-                title_label = getattr(getattr(self, "_settings_card", None), "titleLabel", None)
-                if title_label is not None:
-                    title_label.setText("Настройки")
-            if getattr(self, "_upstream_section_label", None) is not None:
-                self._upstream_section_label.setText("Внешний прокси (upstream)")
-            else:
-                title_label = getattr(getattr(self, "_upstream_card", None), "titleLabel", None)
-                if title_label is not None:
-                    title_label.setText("Внешний прокси (upstream)")
+            title_label = getattr(getattr(self, "_setup_card", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText("Быстрая настройка Telegram")
+            title_label = getattr(getattr(self, "_settings_card", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText("Настройки")
+            title_label = getattr(getattr(self, "_upstream_card", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText("Внешний прокси (upstream)")
             if getattr(self, "_manual_section_label", None) is not None:
                 self._manual_section_label.setText("Ручная настройка")
 
@@ -687,8 +632,6 @@ class TelegramProxyPage(BasePage):
                     "SOCKS5 прокси и определение типа блокировки."
                 )
 
-            if getattr(self, "_btn_open_tg", None) is not None:
-                self._btn_open_tg.setText("Добавить прокси в Telegram")
             if getattr(self, "_setup_open_card", None) is not None:
                 self._setup_open_card.setTitle("Добавить прокси в Telegram")
                 self._setup_open_card.setContent(
@@ -697,8 +640,6 @@ class TelegramProxyPage(BasePage):
                 button = getattr(self._setup_open_card, "button", None)
                 if button is not None:
                     button.setText("Открыть")
-            if getattr(self, "_btn_copy_link", None) is not None:
-                self._btn_copy_link.setText("Скопировать ссылку")
             if getattr(self, "_setup_copy_card", None) is not None:
                 self._setup_copy_card.setTitle("Скопировать ссылку настройки")
                 self._setup_copy_card.setContent(
@@ -707,8 +648,6 @@ class TelegramProxyPage(BasePage):
                 button = getattr(self._setup_copy_card, "button", None)
                 if button is not None:
                     button.setText("Копировать")
-            if getattr(self, "_btn_mtproxy", None) is not None:
-                self._btn_mtproxy.setText("Добавить MTProxy в Telegram")
             if getattr(self, "_mtproxy_action_card", None) is not None:
                 self._mtproxy_action_card.setTitle("Добавить MTProxy в Telegram")
                 self._mtproxy_action_card.setContent(
@@ -783,20 +722,22 @@ class TelegramProxyPage(BasePage):
 
     def _on_copy_diag(self):
         text = self._diag_edit.toPlainText()
-        clipboard = QGuiApplication.clipboard()
-        if clipboard and text:
-            clipboard.setText(text)
-            if _HAS_FLUENT and InfoBar is not None:
-                try:
-                    InfoBar.success(
-                        title="Скопировано",
-                        content="Результат диагностики",
-                        parent=self,
-                        duration=2000,
-                        position=InfoBarPosition.TOP,
-                    )
-                except Exception:
-                    pass
+        plan = self._actions_controller.copy_text(
+            text,
+            success_title="Скопировано",
+            success_content="Результат диагностики",
+        )
+        if plan.ok and InfoBar is not None:
+            try:
+                InfoBar.success(
+                    title=plan.info_title,
+                    content=plan.info_content,
+                    parent=self,
+                    duration=2000,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception:
+                pass
 
     def _refresh_upstream_preset_combo(self, *, select_index: int | None = None) -> int:
         combo = self._upstream_preset_row.combo
@@ -943,29 +884,29 @@ class TelegramProxyPage(BasePage):
 
     def _on_copy_all_logs(self):
         text = self._log_edit.toPlainText()
-        clipboard = QGuiApplication.clipboard()
-        if clipboard and text:
-            clipboard.setText(text)
-            if _HAS_FLUENT and InfoBar is not None:
-                try:
-                    InfoBar.success(
-                        title="Скопировано",
-                        content=f"{len(text.splitlines())} строк",
-                        parent=self,
-                        duration=2000,
-                        position=InfoBarPosition.TOP,
-                    )
-                except Exception:
-                    pass
+        plan = self._actions_controller.copy_text(
+            text,
+            success_title="Скопировано",
+            success_content=f"{len(text.splitlines())} строк",
+        )
+        if plan.ok and InfoBar is not None:
+            try:
+                InfoBar.success(
+                    title=plan.info_title,
+                    content=plan.info_content,
+                    parent=self,
+                    duration=2000,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception:
+                pass
 
     def _on_open_log_file(self):
-        import os, subprocess
         mgr = _get_proxy_manager()
         path = mgr.proxy_logger.log_file_path
-        if os.path.exists(path):
-            subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
-        else:
-            self._append_log_line(f"Log file not found: {path}")
+        plan = self._actions_controller.open_log_file(path)
+        if plan.log_line:
+            self._append_log_line(plan.log_line)
 
     def _on_clear_logs(self):
         self._log_edit.clear()
@@ -974,19 +915,20 @@ class TelegramProxyPage(BasePage):
 
     def _on_toggle_proxy(self):
         mgr = _get_proxy_manager()
-        # During restart, _restarting is the source of truth (not mgr.is_running
-        # which becomes unreliable while ProxyController.stop() is in progress)
-        if getattr(self, '_restarting', False):
-            # Cancel pending restart — don't call stop_proxy() again,
-            # bg thread is already stopping the controller
+        plan = self._runtime_controller.build_toggle_action_plan(
+            running=bool(mgr.is_running),
+            restarting=bool(getattr(self, "_restarting", False)),
+            starting=bool(getattr(self, "_starting", False)),
+        )
+        if plan.action == "cancel_restart":
             self._restarting = False
             mgr.status_changed.emit(False)
-            self._settings_controller.set_proxy_enabled(False)
+            if plan.persist_enabled is not None:
+                self._settings_controller.set_proxy_enabled(plan.persist_enabled)
             return
-        # During async start, ignore clicks (button is disabled but belt-and-suspenders)
-        if getattr(self, '_starting', False):
+        if plan.action == "ignore":
             return
-        if mgr.is_running:
+        if plan.action == "stop":
             self._stop_proxy()
         else:
             self._start_proxy()
@@ -999,12 +941,14 @@ class TelegramProxyPage(BasePage):
         _start_proxy is invoked back on the GUI thread via QueuedConnection.
         """
         mgr = _get_proxy_manager()
-        if not mgr.is_running:
-            return
-        if getattr(self, '_restarting', False):
+        plan = self._runtime_controller.build_restart_plan(
+            running=bool(mgr.is_running),
+            restarting=bool(getattr(self, "_restarting", False)),
+        )
+        if not plan.should_restart:
             return
         self._restarting = True
-        self._status_label.setText("Перезапуск прокси...")
+        self._status_label.setText(plan.status_text)
 
         # Qt operations on GUI thread BEFORE going to background (Qt-safe)
         mgr._stop_stats_polling()
@@ -1039,26 +983,25 @@ class TelegramProxyPage(BasePage):
 
     @pyqtSlot()
     def _start_proxy(self):
-        if getattr(self, '_starting', False):
-            return  # Already starting in background
         mgr = _get_proxy_manager()
-        if mgr.is_running:
-            return  # Already running
-
-        self._starting = True
-        self._btn_toggle.setEnabled(False)
-        self._status_label.setText("Запуск прокси...")
-
         port = self._port_spin.value()
         host = self._host_edit.text().strip() or "127.0.0.1"
-
         upstream_config = self._settings_controller.build_upstream_config()
+        plan = self._runtime_controller.build_start_plan(
+            starting=bool(getattr(self, "_starting", False)),
+            running=bool(mgr.is_running),
+            host=host,
+            port=port,
+            upstream_config=upstream_config,
+        )
+        if not plan.should_start:
+            return
 
-        if upstream_config:
-            self._append_log_line(
-                f"Upstream: {upstream_config.host}:{upstream_config.port} "
-                f"(mode={upstream_config.mode}, user={upstream_config.username})"
-            )
+        self._starting = True
+        self._btn_toggle.setEnabled(plan.toggle_enabled)
+        self._status_label.setText(plan.status_text)
+        if plan.upstream_log_line:
+            self._append_log_line(plan.upstream_log_line)
 
         def _bg_start():
             ok = mgr.start_proxy(port=port, mode="socks5", host=host,
@@ -1075,12 +1018,14 @@ class TelegramProxyPage(BasePage):
     def _finish_start(self):
         """Called on GUI thread after background start completes."""
         self._starting = False
-        self._btn_toggle.setEnabled(True)
         ok = getattr(self, '_start_result', False)
-        if ok:
-            self._settings_controller.set_proxy_enabled(True)
+        plan = self._runtime_controller.build_finish_start_plan(ok)
+        self._btn_toggle.setEnabled(plan.toggle_enabled)
+        if plan.persist_enabled is not None:
+            self._settings_controller.set_proxy_enabled(plan.persist_enabled)
+        if plan.should_check_relay:
             self._check_relay_after_start()
-        else:
+        elif plan.fallback_to_stopped_status:
             self._on_status_changed(False)
 
     def _check_relay_after_start(self):
@@ -1095,15 +1040,18 @@ class TelegramProxyPage(BasePage):
         Uses generation counter to discard stale results after stop/restart.
         """
         # Invalidate any previous relay check
-        self._relay_check_gen = getattr(self, '_relay_check_gen', 0) + 1
-        gen = self._relay_check_gen
+        mgr = _get_proxy_manager()
+        start_plan = self._runtime_controller.build_relay_start_plan(
+            current_generation=getattr(self, "_relay_check_gen", 0),
+            host=mgr.host,
+            port=mgr.port,
+        )
+        self._relay_check_gen = start_plan.generation
+        gen = start_plan.generation
 
         # Show "checking..." in status
-        mgr = _get_proxy_manager()
         if mgr.is_running:
-            self._status_label.setText(
-                f"Работает на {mgr.host}:{mgr.port} — проверка relay..."
-            )
+            self._status_label.setText(start_plan.status_text)
 
         def _do_check():
             import time
@@ -1138,7 +1086,7 @@ class TelegramProxyPage(BasePage):
                     self._relay_diag = {"status": "ok", "ms": best_result["ms"]}
                 else:
                     # All attempts failed — check port 80 to determine cause
-                    http_ok = self._check_relay_http()
+                    http_ok = self._runtime_controller.check_relay_http()
 
                     # Determine if zapret is running
                     zapret_running = False
@@ -1168,17 +1116,6 @@ class TelegramProxyPage(BasePage):
                 log(f"Relay check error: {e}", "WARNING")
         threading.Thread(target=_do_check, daemon=True).start()
 
-    @staticmethod
-    def _check_relay_http(relay_ip: str = "149.154.167.220", timeout: float = 5.0) -> bool:
-        """Quick TCP check to relay on port 80 (HTTP). Returns True if port 80 responds."""
-        import socket
-        try:
-            sock = socket.create_connection((relay_ip, 80), timeout=timeout)
-            sock.close()
-            return True
-        except Exception:
-            return False
-
     @pyqtSlot()
     def _apply_relay_result(self):
         """Update status label and show warning based on relay check. GUI thread only."""
@@ -1188,68 +1125,18 @@ class TelegramProxyPage(BasePage):
         if not mgr.is_running:
             return
 
-        base = f"Работает на {mgr.host}:{mgr.port}"
-
-        if diag.get("status") == "ok":
-            ms = diag.get("ms", 0)
-            self._status_label.setText(f"{base} — Relay OK ({ms:.0f}ms)")
-            return
-
-        # Relay check failed — update status + show warning
-        http_ok = diag.get("http_ok", False)
-        zapret_running = diag.get("zapret_running", False)
-
-        if http_ok and zapret_running:
-            # Сценарий 1: IP доступен, TLS ломается, Zapret запущен
-            self._status_label.setText(f"{base} — Relay: стратегия Zapret ломает TLS")
-            title = "Стратегия Zapret ломает Telegram прокси"
-            content = (
-                "Что происходит: IP relay (149.154.167.220) доступен, "
-                "но текущая стратегия Zapret применяет desync к TLS "
-                "и ломает подключение прокси.\n"
-                "Что делать: смените стратегию Zapret на другую, "
-                "или выключите Zapret и перезапустите прокси."
-            )
-        elif http_ok and not zapret_running:
-            # Сценарий 2: IP доступен, TLS не проходит, Zapret выключен
-            self._status_label.setText(f"{base} — Relay: TLS не проходит")
-            title = "TLS к relay не проходит"
-            content = (
-                "Что происходит: IP relay (149.154.167.220) доступен по HTTP, "
-                "но TLS (порт 443) не проходит.\n"
-                "Что делать: если Zapret только что выключен — "
-                "перезапустите прокси (нажмите Остановить → Запустить).\n"
-                "Если после перезапуска проблема осталась — "
-                "ваш провайдер блокирует TLS к Telegram. "
-                "Настройте 'Внешний прокси' ниже."
-            )
-        elif zapret_running:
-            # Сценарий 3: IP недоступен, Zapret запущен
-            self._status_label.setText(f"{base} — Relay: недоступен, Zapret запущен")
-            title = "Relay недоступен — возможно мешает Zapret"
-            content = (
-                "Что происходит: relay (149.154.167.220) не отвечает "
-                "ни по HTTP, ни по TLS. Zapret запущен.\n"
-                "Что делать: выключите Zapret и перезапустите прокси.\n"
-                "Если без Zapret relay тоже недоступен — "
-                "ваш провайдер блокирует IP Telegram. "
-                "Настройте 'Внешний прокси' ниже."
-            )
-        else:
-            # Сценарий 4: IP недоступен, Zapret выключен = провайдер блокирует
-            self._status_label.setText(f"{base} — Relay: заблокирован провайдером")
-            title = "Провайдер блокирует Telegram"
-            content = (
-                "Что происходит: relay (149.154.167.220) полностью недоступен — "
-                "ваш провайдер блокирует IP Telegram.\n"
-                "Прокси не сможет работать напрямую.\n"
-                "Что делать: включите 'Внешний прокси' в настройках ниже "
-                "и выберите один из доступных прокси-серверов."
-            )
-
-        if InfoBar is not None:
+        plan = self._runtime_controller.build_relay_result_plan(
+            host=mgr.host,
+            port=mgr.port,
+            status=diag.get("status", "fail"),
+            ms=diag.get("ms", 0),
+            http_ok=bool(diag.get("http_ok", False)),
+            zapret_running=bool(diag.get("zapret_running", False)),
+        )
+        self._status_label.setText(plan.status_text)
+        if plan.show_warning and InfoBar is not None:
             InfoBar.warning(
-                title, content,
+                plan.warning_title, plan.warning_content,
                 duration=-1,
                 position=InfoBarPosition.TOP,
                 parent=self,
@@ -1261,83 +1148,46 @@ class TelegramProxyPage(BasePage):
         self._settings_controller.set_proxy_enabled(False)
 
     def _on_status_changed(self, running: bool):
-        self._status_dot.set_active(running)
-        if running:
-            # Reset speed tracking — new ProxyStats starts at 0
+        mgr = _get_proxy_manager()
+        plan = self._runtime_controller.build_status_plan(
+            running=bool(running),
+            restarting=bool(getattr(self, "_restarting", False)),
+            starting=bool(getattr(self, "_starting", False)),
+            host=mgr.host,
+            port=mgr.port,
+        )
+        self._status_dot.set_active(plan.dot_active)
+        if plan.reset_speed_state:
             self._prev_bytes_sent = 0
             self._prev_bytes_received = 0
-            self._speed_hist_up = deque(maxlen=5)
-            self._speed_hist_down = deque(maxlen=5)
-        else:
+            self._speed_hist_up = ()
+            self._speed_hist_down = ()
+        if plan.clear_stats:
             self._stats_label.setText("")
-            # Invalidate any ongoing relay check from a previous start
+        if plan.invalidate_relay_check:
             self._relay_check_gen = getattr(self, '_relay_check_gen', 0) + 1
 
-        self._refresh_status_texts()
-        self._port_spin.setEnabled(not running)
-        self._host_edit.setEnabled(not running)
+        self._status_label.setText(plan.status_text)
+        self._btn_toggle.setText(plan.toggle_text)
+        self._port_spin.setEnabled(plan.port_spin_enabled)
+        self._host_edit.setEnabled(plan.host_edit_enabled)
 
     def _on_stats_updated(self, stats):
         if stats is None:
             return
-
-        def _fmt_bytes(n: int) -> str:
-            if n < 1024:
-                return f"{n} B"
-            if n < 1024 * 1024:
-                return f"{n / 1024:.1f} KB"
-            if n < 1024 * 1024 * 1024:
-                return f"{n / (1024 * 1024):.1f} MB"
-            return f"{n / (1024 * 1024 * 1024):.2f} GB"
-
-        def _fmt_speed(n: int, secs: float) -> str:
-            if secs <= 0:
-                return "0 B/s"
-            rate = n / secs
-            if rate < 1024:
-                return f"{rate:.0f} B/s"
-            if rate < 1024 * 1024:
-                return f"{rate / 1024:.1f} KB/s"
-            return f"{rate / (1024 * 1024):.1f} MB/s"
-
-        uptime = stats.uptime_seconds
-        mins, secs = divmod(int(uptime), 60)
-        hrs, mins = divmod(mins, 60)
-        uptime_str = f"{hrs}:{mins:02d}:{secs:02d}" if hrs else f"{mins}:{secs:02d}"
-
-        now_sent = stats.bytes_sent
-        now_recv = stats.bytes_received
-        prev_sent = getattr(self, '_prev_bytes_sent', 0)
-        prev_recv = getattr(self, '_prev_bytes_received', 0)
-        delta_sent = now_sent - prev_sent
-        delta_recv = now_recv - prev_recv
-        self._prev_bytes_sent = now_sent
-        self._prev_bytes_received = now_recv
-        interval = 2.0
-
-        # Rolling average over last 5 samples (10 seconds)
-        if not hasattr(self, '_speed_hist_up'):
-            self._speed_hist_up = deque(maxlen=5)
-            self._speed_hist_down = deque(maxlen=5)
-        self._speed_hist_up.append(delta_sent)
-        self._speed_hist_down.append(delta_recv)
-        avg_sent = sum(self._speed_hist_up) / len(self._speed_hist_up)
-        avg_recv = sum(self._speed_hist_down) / len(self._speed_hist_down)
-
-        recv_zero_per_dc = getattr(stats, 'recv_zero_per_dc', {})
-        if recv_zero_per_dc:
-            parts = [f"DC{dc}:{cnt}" for dc, cnt in sorted(recv_zero_per_dc.items()) if cnt > 0]
-            recv_zero_str = f"  |  recv=0: {' '.join(parts)}" if parts else ""
-        else:
-            recv_zero = getattr(stats, 'recv_zero_count', 0)
-            recv_zero_str = f"  |  recv=0: {recv_zero}" if recv_zero > 0 else ""
-
-        self._stats_label.setText(
-            f"Подключения: {stats.active_connections} акт. / {stats.total_connections} всего  |  "
-            f"↑ {_fmt_bytes(now_sent)} ({_fmt_speed(avg_sent, interval)})  "
-            f"↓ {_fmt_bytes(now_recv)} ({_fmt_speed(avg_recv, interval)})  |  "
-            f"Uptime: {uptime_str}{recv_zero_str}"
+        plan = self._runtime_controller.build_stats_plan(
+            stats=stats,
+            prev_sent=getattr(self, '_prev_bytes_sent', 0),
+            prev_recv=getattr(self, '_prev_bytes_received', 0),
+            speed_hist_up=tuple(getattr(self, '_speed_hist_up', ()) or ()),
+            speed_hist_down=tuple(getattr(self, '_speed_hist_down', ()) or ()),
+            interval=2.0,
         )
+        self._prev_bytes_sent = plan.next_prev_sent
+        self._prev_bytes_received = plan.next_prev_recv
+        self._speed_hist_up = plan.next_speed_hist_up
+        self._speed_hist_down = plan.next_speed_hist_down
+        self._stats_label.setText(plan.stats_text)
 
     def _on_autostart_changed(self, checked: bool):
         self._settings_controller.set_autostart(checked)
@@ -1442,11 +1292,13 @@ class TelegramProxyPage(BasePage):
         link = getattr(self, '_current_mtproxy_link', '')
         if not link:
             return
-        try:
-            webbrowser.open(link)
-            self._append_log_line("Opened MTProxy link")
-        except Exception as e:
-            self._append_log_line(f"Failed to open MTProxy link: {e}")
+        plan = self._actions_controller.open_external_link(
+            link,
+            success_log="Opened MTProxy link",
+            error_prefix="Failed to open MTProxy link",
+        )
+        if plan.log_line:
+            self._append_log_line(plan.log_line)
 
     def _update_manual_instructions(self):
         """Update manual instructions label with current host/port."""
@@ -1463,11 +1315,13 @@ class TelegramProxyPage(BasePage):
             self._host_edit.text().strip(),
             self._port_spin.value(),
         )
-        try:
-            webbrowser.open(url)
-            self._append_log_line(f"Opened deep link: {url}")
-        except Exception as e:
-            self._append_log_line(f"Failed to open link: {e}")
+        plan = self._actions_controller.open_external_link(
+            url,
+            success_log=f"Opened deep link: {url}",
+            error_prefix="Failed to open link",
+        )
+        if plan.log_line:
+            self._append_log_line(plan.log_line)
 
     def _on_copy_link(self):
         """Copy proxy deep link to clipboard."""
@@ -1475,21 +1329,25 @@ class TelegramProxyPage(BasePage):
             self._host_edit.text().strip(),
             self._port_spin.value(),
         )
-        clipboard = QGuiApplication.clipboard()
-        if clipboard:
-            clipboard.setText(url)
-            self._append_log_line(f"Copied to clipboard: {url}")
-            if _HAS_FLUENT and InfoBar is not None:
-                try:
-                    InfoBar.success(
-                        title="Скопировано",
-                        content=url,
-                        parent=self,
-                        duration=2000,
-                        position=InfoBarPosition.TOP,
-                    )
-                except Exception:
-                    pass
+        plan = self._actions_controller.copy_text(
+            url,
+            success_title="Скопировано",
+            success_content=url,
+            success_log=f"Copied to clipboard: {url}",
+        )
+        if plan.log_line:
+            self._append_log_line(plan.log_line)
+        if plan.ok and InfoBar is not None:
+            try:
+                InfoBar.success(
+                    title=plan.info_title,
+                    content=plan.info_content,
+                    parent=self,
+                    duration=2000,
+                    position=InfoBarPosition.TOP,
+                )
+            except Exception:
+                pass
 
     # -- Hosts auto-management on tab show --
 
@@ -1499,19 +1357,15 @@ class TelegramProxyPage(BasePage):
 
     def _ensure_telegram_hosts(self):
         """Check/add Telegram entries in Windows hosts file (background thread)."""
-        import threading
         threading.Thread(
             target=self._ensure_telegram_hosts_worker,
             daemon=True,
         ).start()
 
-    @staticmethod
-    def _ensure_telegram_hosts_worker():
-        try:
-            from telegram_proxy.telegram_hosts import ensure_telegram_hosts
-            ensure_telegram_hosts()
-        except Exception as e:
-            log(f"Telegram hosts check error: {e}", "WARNING")
+    def _ensure_telegram_hosts_worker(self):
+        plan = self._actions_controller.ensure_telegram_hosts()
+        if not plan.ok and plan.log_line:
+            log(plan.log_line, "WARNING")
 
     def cleanup(self):
         """Called on app exit."""

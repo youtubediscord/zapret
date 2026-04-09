@@ -64,6 +64,18 @@ class AutostartOptionState:
 
 
 @dataclass(slots=True)
+class AutostartActionApplyPlan:
+    should_push_state: bool
+    enabled: bool
+    autostart_type: str | None
+    strategy_name: str | None
+    emit_enabled: bool
+    emit_disabled: bool
+    log_level: str
+    log_message: str
+
+
+@dataclass(slots=True)
 class AutostartShowEventPlan:
     should_schedule_detection: bool
     detection_delay_ms: int
@@ -312,3 +324,50 @@ class AutostartPageController:
         return {
             "gui": AutostartOptionState(disabled=False, is_active=False),
         }
+
+    @staticmethod
+    def build_disable_apply_plan(result: AutostartActionResult) -> AutostartActionApplyPlan:
+        removed = int(result.removed_count or 0)
+        if removed > 0:
+            message = f"Автозапуск отключён, удалено записей: {removed}"
+        else:
+            message = "Автозапуск отключён"
+        return AutostartActionApplyPlan(
+            should_push_state=True,
+            enabled=False,
+            autostart_type=None,
+            strategy_name=None,
+            emit_enabled=False,
+            emit_disabled=True,
+            log_level="INFO",
+            log_message=message,
+        )
+
+    @staticmethod
+    def build_setup_apply_plan(
+        result: AutostartActionResult,
+        *,
+        failure_message: str,
+    ) -> AutostartActionApplyPlan:
+        if result.ok:
+            return AutostartActionApplyPlan(
+                should_push_state=True,
+                enabled=True,
+                autostart_type=result.autostart_type,
+                strategy_name=result.strategy_name,
+                emit_enabled=True,
+                emit_disabled=False,
+                log_level="INFO",
+                log_message="",
+            )
+
+        return AutostartActionApplyPlan(
+            should_push_state=False,
+            enabled=False,
+            autostart_type=None,
+            strategy_name=None,
+            emit_enabled=False,
+            emit_disabled=False,
+            log_level="ERROR",
+            log_message=failure_message,
+        )

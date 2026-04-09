@@ -131,6 +131,24 @@ class PremiumPairingSnapshot:
 
 
 @dataclass(slots=True)
+class PremiumWorkerGatePlan:
+    can_start: bool
+
+
+@dataclass(slots=True)
+class PremiumPairingPollPlan:
+    should_stop_timer: bool
+    should_check_status: bool
+
+
+@dataclass(slots=True)
+class PremiumClosePlan:
+    stop_autopoll: bool
+    should_quit_thread: bool
+    wait_timeout_ms: int
+
+
+@dataclass(slots=True)
 class PremiumActionResult:
     ok: bool
     message: str
@@ -683,6 +701,25 @@ class PremiumPageController:
             can_poll=can_poll,
             start_timer=can_poll,
             stop_timer=not can_poll,
+        )
+
+    @staticmethod
+    def build_worker_gate_plan(*, thread_running: bool) -> PremiumWorkerGatePlan:
+        return PremiumWorkerGatePlan(can_start=not bool(thread_running))
+
+    @staticmethod
+    def build_pairing_poll_plan(*, can_poll: bool) -> PremiumPairingPollPlan:
+        return PremiumPairingPollPlan(
+            should_stop_timer=not bool(can_poll),
+            should_check_status=bool(can_poll),
+        )
+
+    @staticmethod
+    def build_close_plan(*, thread_running: bool) -> PremiumClosePlan:
+        return PremiumClosePlan(
+            stop_autopoll=True,
+            should_quit_thread=bool(thread_running),
+            wait_timeout_ms=2000,
         )
 
     @staticmethod

@@ -6,7 +6,11 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 
 from .base_page import BasePage
 from dpi.dpi_settings_page_controller import DpiSettingsPageController
-from ui.compat_widgets import SettingsCard
+from ui.compat_widgets import (
+    SettingsCard,
+    enable_setting_card_group_auto_height,
+    insert_widget_into_setting_card_group,
+)
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from ui.widgets.win11_controls import (
@@ -19,10 +23,12 @@ from log import log
 
 try:
     from qfluentwidgets import StrongBodyLabel, CaptionLabel as _CaptionLabel, SettingCardGroup
+    _HAS_FLUENT_LABELS = True
 except ImportError:
     StrongBodyLabel = QLabel  # type: ignore[assignment,misc]
     _CaptionLabel = QLabel  # type: ignore[assignment,misc]
     SettingCardGroup = None  # type: ignore[assignment,misc]
+    _HAS_FLUENT_LABELS = False
 
 class DpiSettingsPage(BasePage):
     """Страница настроек DPI"""
@@ -310,11 +316,12 @@ class DpiSettingsPage(BasePage):
                 self.content,
             )
             try:
-                self.advanced_card.vBoxLayout.insertWidget(1, advanced_desc)
+                insert_widget_into_setting_card_group(self.advanced_card, 1, advanced_desc)
             except Exception:
                 pass
             self.advanced_card.addSettingCard(self.wssize_toggle)
             self.advanced_card.addSettingCard(self.debug_log_toggle)
+            enable_setting_card_group_auto_height(self.advanced_card)
         else:
             self.advanced_card = SettingsCard(
                 self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")

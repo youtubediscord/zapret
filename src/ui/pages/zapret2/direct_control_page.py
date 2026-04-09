@@ -17,7 +17,16 @@ from PyQt6.QtWidgets import (
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
-from ui.compat_widgets import ActionButton, PrimaryActionButton, PulsingDot, ResetActionButton, SettingsCard, set_tooltip
+from ui.compat_widgets import (
+    ActionButton,
+    PrimaryActionButton,
+    PulsingDot,
+    ResetActionButton,
+    SettingsCard,
+    enable_setting_card_group_auto_height,
+    insert_widget_into_setting_card_group,
+    set_tooltip,
+)
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
@@ -663,6 +672,7 @@ class Zapret2DirectControlPage(BasePage):
             self.reset_program_card = reset_card
             self.add_widget(program_settings_card)
             self.add_widget(reset_card)
+        enable_setting_card_group_auto_height(self.program_settings_card)
         _log_startup_z2_control_metric("_build_ui.program_settings_rows", (_time.perf_counter() - _t_program) * 1000)
 
         self.add_spacing(16)
@@ -723,7 +733,7 @@ class Zapret2DirectControlPage(BasePage):
                 self.content,
             )
             try:
-                self.advanced_card.vBoxLayout.insertWidget(2, self.advanced_desc)
+                insert_widget_into_setting_card_group(self.advanced_card, 2, self.advanced_desc)
             except Exception:
                 pass
             for card in (
@@ -734,6 +744,7 @@ class Zapret2DirectControlPage(BasePage):
                 if card is None:
                     continue
                 self.advanced_card.addSettingCard(card)
+            enable_setting_card_group_auto_height(self.advanced_card)
         else:
             self.advanced_settings_section_label = self.add_section_title(
                 return_widget=True,

@@ -8,11 +8,13 @@ from PyQt6.QtGui import QFont
 import qtawesome as qta
 
 try:
-    from qfluentwidgets import StrongBodyLabel, BodyLabel, CaptionLabel, InfoBar
+    from qfluentwidgets import StrongBodyLabel, BodyLabel, CaptionLabel, InfoBar, SettingCardGroup, PushSettingCard
     _HAS_FLUENT_LABELS = True
 except ImportError:
     StrongBodyLabel = QLabel; BodyLabel = QLabel; CaptionLabel = QLabel
     InfoBar = None
+    SettingCardGroup = None  # type: ignore[assignment]
+    PushSettingCard = None  # type: ignore[assignment]
     _HAS_FLUENT_LABELS = False
 
 from .base_page import BasePage
@@ -37,6 +39,8 @@ class IpsetPage(BasePage):
         self._open_icon_label = None
         self._open_text_label = None
         self._actions_card = None
+        self._actions_group = None
+        self._open_action_card = None
         self._info_card = None
         self._files_info_state = {
             "text": "",
@@ -122,35 +126,23 @@ class IpsetPage(BasePage):
         self.layout.addWidget(desc_card)
         
         # Кнопки действий
-        actions_card = SettingsCard(self._tr("page.ipset.section.actions", "Действия"))
-        self._actions_card = actions_card
-        actions_layout = QVBoxLayout()
-        actions_layout.setSpacing(8)
-        
-        # Открыть папку
-        open_row = QWidget()
-        open_layout = QHBoxLayout(open_row)
-        open_layout.setContentsMargins(0, 0, 0, 0)
-        
-        open_icon = QLabel()
-        self._open_icon_label = open_icon
-        open_icon.setPixmap(qta.icon('fa5s.folder-open', color=tokens.accent_hex).pixmap(18, 18))
-        open_layout.addWidget(open_icon)
-        
-        open_text = BodyLabel(self._tr("page.ipset.open_folder.label", "Открыть папку IP-сетов"))
-        self._open_text_label = open_text
-        open_text.setStyleSheet(f"color: {tokens.fg};")
-        open_layout.addWidget(open_text, 1)
-        
-        self.open_ipset_btn = ActionButton(self._tr("page.ipset.button.open", "Открыть"), "fa5s.external-link-alt")
-        self.open_ipset_btn.setFixedHeight(32)
-        self.open_ipset_btn.clicked.connect(self._open_ipset_folder)
-        open_layout.addWidget(self.open_ipset_btn)
-        
-        actions_layout.addWidget(open_row)
-        
-        actions_card.add_layout(actions_layout)
-        self.layout.addWidget(actions_card)
+        self._actions_card = None
+        self._actions_group = SettingCardGroup(
+            self._tr("page.ipset.section.actions", "Действия"),
+            self.content,
+        )
+        self._open_action_card = PushSettingCard(
+            self._tr("page.ipset.button.open", "Открыть"),
+            qta.icon('fa5s.folder-open', color=tokens.accent_hex),
+            self._tr("page.ipset.open_folder.label", "Открыть папку IP-сетов"),
+            self._tr(
+                "page.ipset.action.open_folder.description",
+                "Открыть папку со списками IP и подсетей для ручной проверки и редактирования.",
+            ),
+        )
+        self._open_action_card.clicked.connect(self._open_ipset_folder)
+        self._actions_group.addSettingCard(self._open_action_card)
+        self.layout.addWidget(self._actions_group)
         
         # Информация о файлах
         info_card = SettingsCard(self._tr("page.ipset.section.info", "Информация"))
@@ -190,14 +182,29 @@ class IpsetPage(BasePage):
                     "IP-сеты содержат IP-адреса и подсети для обхода блокировок по IP.\n"
                     "Используются когда блокировка происходит на уровне IP-адресов.",
                 )
-            )
+        )
         if self._actions_card is not None:
             self._actions_card.set_title(self._tr("page.ipset.section.actions", "Действия"))
+        if self._actions_group is not None:
+            try:
+                self._actions_group.titleLabel.setText(self._tr("page.ipset.section.actions", "Действия"))
+            except Exception:
+                pass
         if self._info_card is not None:
             self._info_card.set_title(self._tr("page.ipset.section.info", "Информация"))
         if self._open_text_label is not None:
             self._open_text_label.setText(self._tr("page.ipset.open_folder.label", "Открыть папку IP-сетов"))
-        self.open_ipset_btn.setText(self._tr("page.ipset.button.open", "Открыть"))
+        if hasattr(self, "open_ipset_btn") and self.open_ipset_btn is not None:
+            self.open_ipset_btn.setText(self._tr("page.ipset.button.open", "Открыть"))
+        if self._open_action_card is not None:
+            self._open_action_card.setTitle(self._tr("page.ipset.open_folder.label", "Открыть папку IP-сетов"))
+            self._open_action_card.setContent(
+                self._tr(
+                    "page.ipset.action.open_folder.description",
+                    "Открыть папку со списками IP и подсетей для ручной проверки и редактирования.",
+                )
+            )
+            self._open_action_card.button.setText(self._tr("page.ipset.button.open", "Открыть"))
         self._render_files_info()
 
     def _open_ipset_folder(self):

@@ -21,6 +21,7 @@ try:
         LineEdit, ComboBox, MessageBox, InfoBar,
         MessageBoxBase, SubtitleLabel, BodyLabel, CaptionLabel,
         TransparentToolButton, TransparentPushButton,
+        SettingCardGroup, PushSettingCard, PrimaryPushSettingCard,
     )
     _HAS_FLUENT_INPUTS = True
 except ImportError:
@@ -34,6 +35,9 @@ except ImportError:
     SubtitleLabel = QLabel
     BodyLabel = QLabel
     CaptionLabel = QLabel
+    SettingCardGroup = None  # type: ignore[assignment]
+    PushSettingCard = None  # type: ignore[assignment]
+    PrimaryPushSettingCard = None  # type: ignore[assignment]
     _HAS_FLUENT_INPUTS = False
 
 
@@ -393,6 +397,11 @@ class BlobsPage(BasePage):
         self._desc_label = None
         self._filter_icon_label = None
         self._initial_blobs_load_requested = False
+        self._actions_group = None
+        self._actions_meta_card = None
+        self._add_action_card = None
+        self._open_folder_action_card = None
+        self._open_json_action_card = None
 
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
@@ -449,38 +458,98 @@ class BlobsPage(BasePage):
         self.layout.addWidget(desc_card)
         
         # Панель действий
-        actions_card = SettingsCard()
-        actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(8)
-        
-        # Кнопка добавления
-        self.add_btn = ActionButton(self._tr("page.blobs.button.add", "Добавить блоб"), "fa5s.plus")
-        self.add_btn.clicked.connect(self._add_blob)
-        actions_layout.addWidget(self.add_btn)
-        
-        # Кнопка перезагрузки
-        self.reload_btn = RefreshButton()
-        self.reload_btn.clicked.connect(self._reload_blobs)
-        actions_layout.addWidget(self.reload_btn)
-        
-        # Открыть папку bin
-        self.open_folder_btn = ActionButton(self._tr("page.blobs.button.bin_folder", "Папка bin"), "fa5s.folder-open")
-        self.open_folder_btn.clicked.connect(self._open_bin_folder)
-        actions_layout.addWidget(self.open_folder_btn)
-        
-        # Открыть JSON
-        self.open_json_btn = ActionButton(self._tr("page.blobs.button.open_json", "Открыть JSON"), "fa5s.file-code")
-        self.open_json_btn.clicked.connect(self._open_json)
-        actions_layout.addWidget(self.open_json_btn)
-        
-        actions_layout.addStretch()
-        actions_card.add_layout(actions_layout)
-        
-        # Счётчик под кнопками
-        self.count_label = QLabel("")
-        actions_card.add_widget(self.count_label)
-        
-        self.layout.addWidget(actions_card)
+        if SettingCardGroup is not None and PushSettingCard is not None and PrimaryPushSettingCard is not None and _HAS_FLUENT_INPUTS:
+            actions_group = SettingCardGroup(
+                self._tr("page.blobs.section.actions", "Действия"),
+                self.content,
+            )
+            self._actions_group = actions_group
+
+            self._add_action_card = PrimaryPushSettingCard(
+                self._tr("page.blobs.button.add", "Добавить блоб"),
+                qta.icon("fa5s.plus", color=tokens.accent_hex),
+                self._tr("page.blobs.button.add", "Добавить блоб"),
+                self._tr(
+                    "page.blobs.action.add.description",
+                    "Открыть форму создания нового пользовательского блоба для стратегий.",
+                ),
+            )
+            self._add_action_card.clicked.connect(self._add_blob)
+            self.add_btn = self._add_action_card.button
+            actions_group.addSettingCard(self._add_action_card)
+
+            meta_card = SettingsCard()
+            self._actions_meta_card = meta_card
+            meta_layout = QHBoxLayout()
+            meta_layout.setContentsMargins(10, 6, 12, 6)
+            meta_layout.setSpacing(8)
+            self.reload_btn = RefreshButton()
+            self.reload_btn.clicked.connect(self._reload_blobs)
+            meta_layout.addWidget(self.reload_btn)
+            self.count_label = QLabel("")
+            meta_layout.addWidget(self.count_label, 1)
+            meta_card.add_layout(meta_layout)
+            actions_group.addSettingCard(meta_card)
+
+            self._open_folder_action_card = PushSettingCard(
+                self._tr("page.blobs.button.bin_folder", "Папка bin"),
+                qta.icon("fa5s.folder-open", color=tokens.accent_hex),
+                self._tr("page.blobs.button.bin_folder", "Папка bin"),
+                self._tr(
+                    "page.blobs.action.bin_folder.description",
+                    "Открыть папку bin с бинарными blob-файлами.",
+                ),
+            )
+            self._open_folder_action_card.clicked.connect(self._open_bin_folder)
+            self.open_folder_btn = self._open_folder_action_card.button
+            actions_group.addSettingCard(self._open_folder_action_card)
+
+            self._open_json_action_card = PushSettingCard(
+                self._tr("page.blobs.button.open_json", "Открыть JSON"),
+                qta.icon("fa5s.file-code", color="#60cdff"),
+                self._tr("page.blobs.button.open_json", "Открыть JSON"),
+                self._tr(
+                    "page.blobs.action.open_json.description",
+                    "Открыть blobs.json с индексом blob-описаний.",
+                ),
+            )
+            self._open_json_action_card.clicked.connect(self._open_json)
+            self.open_json_btn = self._open_json_action_card.button
+            actions_group.addSettingCard(self._open_json_action_card)
+            self.layout.addWidget(actions_group)
+        else:
+            actions_card = SettingsCard()
+            actions_layout = QHBoxLayout()
+            actions_layout.setSpacing(8)
+            
+            # Кнопка добавления
+            self.add_btn = ActionButton(self._tr("page.blobs.button.add", "Добавить блоб"), "fa5s.plus")
+            self.add_btn.clicked.connect(self._add_blob)
+            actions_layout.addWidget(self.add_btn)
+            
+            # Кнопка перезагрузки
+            self.reload_btn = RefreshButton()
+            self.reload_btn.clicked.connect(self._reload_blobs)
+            actions_layout.addWidget(self.reload_btn)
+            
+            # Открыть папку bin
+            self.open_folder_btn = ActionButton(self._tr("page.blobs.button.bin_folder", "Папка bin"), "fa5s.folder-open")
+            self.open_folder_btn.clicked.connect(self._open_bin_folder)
+            actions_layout.addWidget(self.open_folder_btn)
+            
+            # Открыть JSON
+            self.open_json_btn = ActionButton(self._tr("page.blobs.button.open_json", "Открыть JSON"), "fa5s.file-code")
+            self.open_json_btn.clicked.connect(self._open_json)
+            actions_layout.addWidget(self.open_json_btn)
+            
+            actions_layout.addStretch()
+            actions_card.add_layout(actions_layout)
+            
+            # Счётчик под кнопками
+            self.count_label = QLabel("")
+            actions_card.add_widget(self.count_label)
+            
+            self.layout.addWidget(actions_card)
         
         # Фильтр поиска
         filter_card = SettingsCard()
@@ -738,9 +807,40 @@ class BlobsPage(BasePage):
                 )
             )
 
+        try:
+            title_label = getattr(getattr(self, "_actions_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(self._tr("page.blobs.section.actions", "Действия"))
+        except Exception:
+            pass
+
         self.add_btn.setText(self._tr("page.blobs.button.add", "Добавить блоб"))
         self.open_folder_btn.setText(self._tr("page.blobs.button.bin_folder", "Папка bin"))
         self.open_json_btn.setText(self._tr("page.blobs.button.open_json", "Открыть JSON"))
+        if self._add_action_card is not None:
+            self._add_action_card.setTitle(self._tr("page.blobs.button.add", "Добавить блоб"))
+            self._add_action_card.setContent(
+                self._tr(
+                    "page.blobs.action.add.description",
+                    "Открыть форму создания нового пользовательского блоба для стратегий.",
+                )
+            )
+        if self._open_folder_action_card is not None:
+            self._open_folder_action_card.setTitle(self._tr("page.blobs.button.bin_folder", "Папка bin"))
+            self._open_folder_action_card.setContent(
+                self._tr(
+                    "page.blobs.action.bin_folder.description",
+                    "Открыть папку bin с бинарными blob-файлами.",
+                )
+            )
+        if self._open_json_action_card is not None:
+            self._open_json_action_card.setTitle(self._tr("page.blobs.button.open_json", "Открыть JSON"))
+            self._open_json_action_card.setContent(
+                self._tr(
+                    "page.blobs.action.open_json.description",
+                    "Открыть blobs.json с индексом blob-описаний.",
+                )
+            )
         self.filter_edit.setPlaceholderText(self._tr("page.blobs.filter.placeholder", "Фильтр по имени..."))
 
         self._load_blobs()

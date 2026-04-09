@@ -7,51 +7,46 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
 )
+import qtawesome as qta
 
-try:
-    from qfluentwidgets import (
-        IndeterminateProgressBar, ProgressBar, ComboBox,
-        StrongBodyLabel, BodyLabel, CaptionLabel, TextEdit,
-    )
-    _HAS_FLUENT_WIDGETS = True
-except ImportError:
-    from PyQt6.QtWidgets import QProgressBar as IndeterminateProgressBar, QProgressBar as ProgressBar, QComboBox as ComboBox
-    from PyQt6.QtWidgets import QTextEdit as TextEdit
-    StrongBodyLabel = QLabel
-    BodyLabel = QLabel
-    CaptionLabel = QLabel
-    _HAS_FLUENT_WIDGETS = False
+from qfluentwidgets import (
+    IndeterminateProgressBar,
+    ComboBox,
+    StrongBodyLabel,
+    BodyLabel,
+    CaptionLabel,
+    TextEdit,
+    SettingCardGroup,
+    PushSettingCard,
+    PrimaryPushSettingCard,
+)
 
 from .base_page import BasePage, ScrollBlockingTextEdit
-from ui.compat_widgets import SettingsCard, ActionButton
+from ui.compat_widgets import SettingsCard
 from connection_test import ConnectionTestWorker
 from ui.connection_page_controller import ConnectionPageController
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.text_catalog import tr as tr_catalog
 
+class _ScrollBlockingTextBase(TextEdit):
+    """TextEdit (Fluent) that stops wheel-scroll from propagating to the parent page."""
 
-if _HAS_FLUENT_WIDGETS:
-    class _ScrollBlockingTextBase(TextEdit):
-        """TextEdit (Fluent) that stops wheel-scroll from propagating to the parent page."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("noDrag", True)
+        apply_editor_smooth_scroll_preference(self)
 
-        def __init__(self, parent=None):
-            super().__init__(parent)
-            self.setProperty("noDrag", True)
-            apply_editor_smooth_scroll_preference(self)
-
-        def wheelEvent(self, event):
-            scrollbar = self.verticalScrollBar()
-            delta = event.angleDelta().y()
-            if delta > 0 and scrollbar.value() == scrollbar.minimum():
-                event.accept()
-                return
-            if delta < 0 and scrollbar.value() == scrollbar.maximum():
-                event.accept()
-                return
-            super().wheelEvent(event)
+    def wheelEvent(self, event):
+        scrollbar = self.verticalScrollBar()
+        delta = event.angleDelta().y()
+        if delta > 0 and scrollbar.value() == scrollbar.minimum():
             event.accept()
-else:
-    _ScrollBlockingTextBase = ScrollBlockingTextEdit
+            return
+        if delta < 0 and scrollbar.value() == scrollbar.maximum():
+            event.accept()
+            return
+        super().wheelEvent(event)
+        event.accept()
 
 
 class StatusBadge(CaptionLabel):
@@ -81,6 +76,11 @@ class ConnectionTestPage(BasePage):
         self.worker_thread = None
         self.stop_check_timer = None
         self._controller = ConnectionPageController()
+        self._actions_group = None
+        self._controls_card = None
+        self._start_action_card = None
+        self._stop_action_card = None
+        self._support_action_card = None
 
         # Контейнер с ограниченной шириной, чтобы не расползалось за края
         self.container = QWidget(self.content)
@@ -108,11 +108,20 @@ class ConnectionTestPage(BasePage):
         self.send_log_btn.setEnabled(send_log_enabled)
         self.progress_bar.setVisible(progress_visible)
 
-        if _HAS_FLUENT_WIDGETS:
-            if progress_visible:
-                self.progress_bar.start()
-            else:
-                self.progress_bar.stop()
+        if progress_visible:
+            self.progress_bar.start()
+        else:
+            self.progress_bar.stop()
+
+        try:
+            if self._start_action_card is not None:
+                self._start_action_card.setEnabled(start_enabled)
+            if self._stop_action_card is not None:
+                self._stop_action_card.setEnabled(stop_enabled)
+            if self._support_action_card is not None:
+                self._support_action_card.setEnabled(send_log_enabled)
+        except Exception:
+            pass
 
     def _build_page_ui(self) -> None:
         self._build_header()
@@ -155,6 +164,7 @@ class ConnectionTestPage(BasePage):
 
     def _build_controls(self):
         card = SettingsCard(tr_catalog("page.connection.card.testing", language=self._ui_language, default="Тестирование"))
+        self._controls_card = card
 
         # Тип теста
         selector_row = QHBoxLayout()
@@ -166,29 +176,6 @@ class ConnectionTestPage(BasePage):
         self._refresh_test_combo_items()
         selector_row.addWidget(self.test_combo, 1)
         card.add_layout(selector_row)
-
-        # Кнопки
-        buttons_row = QHBoxLayout()
-        buttons_row.setSpacing(8)
-
-        self.start_btn = ActionButton(tr_catalog("page.connection.button.start", language=self._ui_language, default="Запустить тест"), "fa5s.play", accent=True)
-        self.start_btn.clicked.connect(self.start_test)
-        buttons_row.addWidget(self.start_btn, 1)
-
-        self.stop_btn = ActionButton(tr_catalog("page.connection.button.stop", language=self._ui_language, default="Стоп"), "fa5s.stop")
-        self.stop_btn.clicked.connect(self.stop_test)
-        self.stop_btn.setEnabled(False)
-        buttons_row.addWidget(self.stop_btn, 1)
-
-        self.send_log_btn = ActionButton(
-            tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"),
-            "fa5b.github",
-        )
-        self.send_log_btn.clicked.connect(self.open_support_with_log)
-        self.send_log_btn.setEnabled(False)
-        buttons_row.addWidget(self.send_log_btn, 1)
-
-        card.add_layout(buttons_row)
 
         # Прогресс + статус
         status_layout = QHBoxLayout()
@@ -203,6 +190,57 @@ class ConnectionTestPage(BasePage):
 
         card.add_layout(status_layout)
         self.container_layout.addWidget(card)
+
+        self._actions_group = SettingCardGroup(
+            tr_catalog("page.connection.actions.title", language=self._ui_language, default="Действия"),
+            self.content,
+        )
+
+        self._start_action_card = PrimaryPushSettingCard(
+            tr_catalog("page.connection.button.start", language=self._ui_language, default="Запустить тест"),
+            qta.icon("fa5s.play", color="#4CAF50"),
+            tr_catalog("page.connection.button.start", language=self._ui_language, default="Запустить тест"),
+            tr_catalog(
+                "page.connection.action.start.description",
+                language=self._ui_language,
+                default="Запустить выбранный сценарий диагностики для Discord и YouTube.",
+            ),
+        )
+        self._start_action_card.clicked.connect(self.start_test)
+        self.start_btn = self._start_action_card.button
+        self._actions_group.addSettingCard(self._start_action_card)
+
+        self._stop_action_card = PushSettingCard(
+            tr_catalog("page.connection.button.stop", language=self._ui_language, default="Стоп"),
+            qta.icon("fa5s.stop", color="#ff9800"),
+            tr_catalog("page.connection.button.stop", language=self._ui_language, default="Стоп"),
+            tr_catalog(
+                "page.connection.action.stop.description",
+                language=self._ui_language,
+                default="Остановить текущий тест, если он уже запущен.",
+            ),
+        )
+        self._stop_action_card.clicked.connect(self.stop_test)
+        self.stop_btn = self._stop_action_card.button
+        self._stop_action_card.setEnabled(False)
+        self._actions_group.addSettingCard(self._stop_action_card)
+
+        self._support_action_card = PushSettingCard(
+            tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"),
+            qta.icon("fa5b.github", color="#60cdff"),
+            tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"),
+            tr_catalog(
+                "page.connection.action.support.description",
+                language=self._ui_language,
+                default="Собрать архив логов и открыть готовое обращение в GitHub Discussions.",
+            ),
+        )
+        self._support_action_card.clicked.connect(self.open_support_with_log)
+        self.send_log_btn = self._support_action_card.button
+        self._support_action_card.setEnabled(False)
+        self._actions_group.addSettingCard(self._support_action_card)
+
+        self.container_layout.addWidget(self._actions_group)
 
     def _build_log_viewer(self):
         log_card = SettingsCard(tr_catalog("page.connection.card.result", language=self._ui_language, default="Результат тестирования"))
@@ -358,6 +396,22 @@ class ConnectionTestPage(BasePage):
         if self.is_deferred_ui_build_pending():
             return
 
+        try:
+            if self._controls_card is not None:
+                self._controls_card.set_title(
+                    tr_catalog("page.connection.card.testing", language=self._ui_language, default="Тестирование")
+                )
+        except Exception:
+            pass
+        try:
+            title_label = getattr(getattr(self, "_actions_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(
+                    tr_catalog("page.connection.actions.title", language=self._ui_language, default="Действия")
+                )
+        except Exception:
+            pass
+
         self.hero_title.setText(tr_catalog("page.connection.hero.title", language=self._ui_language, default="Диагностика сетевых соединений"))
         self.hero_subtitle.setText(
             tr_catalog(
@@ -372,6 +426,34 @@ class ConnectionTestPage(BasePage):
         self.start_btn.setText(tr_catalog("page.connection.button.start", language=self._ui_language, default="Запустить тест"))
         self.stop_btn.setText(tr_catalog("page.connection.button.stop", language=self._ui_language, default="Стоп"))
         self.send_log_btn.setText(tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"))
+
+        if self._start_action_card is not None:
+            self._start_action_card.setTitle(tr_catalog("page.connection.button.start", language=self._ui_language, default="Запустить тест"))
+            self._start_action_card.setContent(
+                tr_catalog(
+                    "page.connection.action.start.description",
+                    language=self._ui_language,
+                    default="Запустить выбранный сценарий диагностики для Discord и YouTube.",
+                )
+            )
+        if self._stop_action_card is not None:
+            self._stop_action_card.setTitle(tr_catalog("page.connection.button.stop", language=self._ui_language, default="Стоп"))
+            self._stop_action_card.setContent(
+                tr_catalog(
+                    "page.connection.action.stop.description",
+                    language=self._ui_language,
+                    default="Остановить текущий тест, если он уже запущен.",
+                )
+            )
+        if self._support_action_card is not None:
+            self._support_action_card.setTitle(tr_catalog("page.connection.button.send_log", language=self._ui_language, default="Подготовить обращение"))
+            self._support_action_card.setContent(
+                tr_catalog(
+                    "page.connection.action.support.description",
+                    language=self._ui_language,
+                    default="Собрать архив логов и открыть готовое обращение в GitHub Discussions.",
+                )
+            )
     
     def cleanup(self):
         """Очистка потоков при закрытии"""

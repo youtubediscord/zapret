@@ -23,7 +23,15 @@ except ImportError:
     _HAS_FLUENT_LABELS = False
 
 from .base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton, PrimaryActionButton, ResetActionButton, StatusIndicator, set_tooltip
+from ui.compat_widgets import (
+    SettingsCard,
+    ActionButton,
+    PrimaryActionButton,
+    ResetActionButton,
+    StatusIndicator,
+    enable_setting_card_group_auto_height,
+    set_tooltip,
+)
 from ui.compat_widgets import PulsingDot
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
@@ -351,35 +359,46 @@ class ControlPage(BasePage):
 
         if program_settings_card is not None:
             self.add_widget(program_settings_card)
+        enable_setting_card_group_auto_height(self.program_settings_card)
 
         self.add_spacing(16)
         
         # Дополнительные действия
-        self.add_section_title(text_key="page.control.section.additional")
-        
-        extra_card = SettingsCard()
-        
-        extra_layout = QHBoxLayout()
-        extra_layout.setSpacing(8)
-        
         self.test_btn = ActionButton(
             tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения"),
             "fa5s.wifi",
         )
         self.test_btn.clicked.connect(self._open_connection_test)
-        extra_layout.addWidget(self.test_btn)
-        
         self.folder_btn = ActionButton(
             tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку"),
             "fa5s.folder-open",
         )
         self.folder_btn.clicked.connect(self._open_folder)
-        extra_layout.addWidget(self.folder_btn)
-        
-        extra_layout.addStretch()
-        extra_card.add_layout(extra_layout)
-        
-        self.add_widget(extra_card)
+
+        self.additional_section_label = None
+        self.extra_actions_group = SettingCardGroup(
+            tr_catalog("page.control.section.additional", language=self._ui_language, default="Дополнительные действия"),
+            self.content,
+        )
+        self.test_action_card = PushSettingCard(
+            tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения"),
+            qta.icon("fa5s.wifi", color="#60cdff"),
+            tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения"),
+            tr_catalog("page.control.section.additional.test_desc", language=self._ui_language, default="Проверить сетевое подключение и доступность маршрута"),
+        )
+        self.test_action_card.clicked.connect(self._open_connection_test)
+
+        self.folder_action_card = PushSettingCard(
+            tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку"),
+            qta.icon("fa5s.folder-open", color="#ffc107"),
+            tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку"),
+            tr_catalog("page.control.section.additional.folder_desc", language=self._ui_language, default="Быстро перейти к рабочей папке программы"),
+        )
+        self.folder_action_card.clicked.connect(self._open_folder)
+
+        self.extra_actions_group.addSettingCards([self.test_action_card, self.folder_action_card])
+        enable_setting_card_group_auto_height(self.extra_actions_group)
+        self.add_widget(self.extra_actions_group)
 
     def on_page_activated(self, first_show: bool) -> None:
         _ = first_show
@@ -622,6 +641,11 @@ class ControlPage(BasePage):
         )
         self.test_btn.setText(tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения"))
         self.folder_btn.setText(tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку"))
+        extra_group_title = getattr(getattr(self, "extra_actions_group", None), "titleLabel", None)
+        if extra_group_title is not None:
+            extra_group_title.setText(
+                tr_catalog("page.control.section.additional", language=self._ui_language, default="Дополнительные действия")
+            )
         title_label = getattr(getattr(self, "program_settings_card", None), "titleLabel", None)
         if title_label is not None:
             title_label.setText(
@@ -666,6 +690,32 @@ class ControlPage(BasePage):
                 self._reset_program_desc_label.setText(
                     tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
                 )
+        if getattr(self, "test_action_card", None) is not None:
+            try:
+                self.test_action_card.setTitle(
+                    tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения")
+                )
+                self.test_action_card.setContent(
+                    tr_catalog("page.control.section.additional.test_desc", language=self._ui_language, default="Проверить сетевое подключение и доступность маршрута")
+                )
+                self.test_action_card.button.setText(
+                    tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения")
+                )
+            except Exception:
+                pass
+        if getattr(self, "folder_action_card", None) is not None:
+            try:
+                self.folder_action_card.setTitle(
+                    tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку")
+                )
+                self.folder_action_card.setContent(
+                    tr_catalog("page.control.section.additional.folder_desc", language=self._ui_language, default="Быстро перейти к рабочей папке программы")
+                )
+                self.folder_action_card.button.setText(
+                    tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку")
+                )
+            except Exception:
+                pass
         self._update_stop_winws_button_text()
         phase, last_error = self._get_current_dpi_runtime_state()
         self.update_status(phase, last_error)

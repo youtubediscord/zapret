@@ -19,7 +19,7 @@ try:
     from qfluentwidgets import (
         CaptionLabel, StrongBodyLabel, SubtitleLabel, BodyLabel,
         IndeterminateProgressBar, MessageBox, InfoBar,
-        PushButton, FluentIcon, CardWidget, SettingCardGroup,
+        PushButton, PushSettingCard, FluentIcon, CardWidget, SettingCardGroup,
     )
     _HAS_FLUENT = True
 except ImportError:
@@ -28,6 +28,7 @@ except ImportError:
     MessageBox = None
     InfoBar = None
     PushButton = None
+    PushSettingCard = None
     FluentIcon = None
     CardWidget = QWidget  # type: ignore
     SettingCardGroup = None  # type: ignore[assignment]
@@ -180,104 +181,33 @@ class Zapret1DirectControlPage(BasePage):
         self.add_section_title(text_key="page.z1_control.section.presets")
 
         # Card A — Выбранный source-пресет
-        if _HAS_FLUENT:
-            preset_card = CardWidget()
-        else:
-            preset_card = SettingsCard()
-        preset_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        preset_row = QHBoxLayout(preset_card)
-        preset_row.setContentsMargins(16, 14, 16, 14)
-        preset_row.setSpacing(12)
-
-        from PyQt6.QtWidgets import QLabel
-        preset_icon_lbl = QLabel()
-        preset_icon_lbl.setPixmap(qta.icon("fa5s.star", color="#ffc107").pixmap(20, 20))
-        preset_icon_lbl.setFixedSize(24, 24)
-        preset_row.addWidget(preset_icon_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-
-        preset_col = QVBoxLayout()
-        preset_col.setSpacing(2)
-        if _HAS_FLUENT:
-            self.preset_name_label = StrongBodyLabel(
-                tr_catalog("page.z1_control.preset.not_selected", language=self._ui_language, default="Не выбран")
-            )
-            preset_col.addWidget(self.preset_name_label)
-            self.preset_caption_label = CaptionLabel(
-                tr_catalog("page.z1_control.preset.current", language=self._ui_language, default="Текущий активный пресет")
-            )
-            preset_col.addWidget(self.preset_caption_label)
-        else:
-            self.preset_name_label = QLabel(
-                tr_catalog("page.z1_control.preset.not_selected", language=self._ui_language, default="Не выбран")
-            )
-            self.preset_caption_label = None
-            preset_col.addWidget(self.preset_name_label)
-        preset_row.addLayout(preset_col, 1)
-
-        if _HAS_FLUENT and PushButton is not None:
-            presets_btn = PushButton()
-            presets_btn.setText(tr_catalog("page.z1_control.button.my_presets", language=self._ui_language, default="Мои пресеты"))
-            presets_btn.setIcon(FluentIcon.FOLDER)
-            presets_btn.clicked.connect(self.navigate_to_presets.emit)
-        else:
-            presets_btn = ActionButton(
-                tr_catalog("page.z1_control.button.my_presets", language=self._ui_language, default="Мои пресеты"),
-                "fa5s.folder",
-            )
-            presets_btn.clicked.connect(self.navigate_to_presets.emit)
-        self.presets_btn = presets_btn
-        preset_row.addWidget(presets_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        preset_card = PushSettingCard(
+            tr_catalog("page.z1_control.button.my_presets", language=self._ui_language, default="Мои пресеты"),
+            qta.icon("fa5s.star", color="#ffc107"),
+            tr_catalog("page.z1_control.preset.not_selected", language=self._ui_language, default="Не выбран"),
+            tr_catalog("page.z1_control.preset.current", language=self._ui_language, default="Текущий активный пресет"),
+            self.content,
+        )
+        preset_card.clicked.connect(self.navigate_to_presets.emit)
+        self.preset_name_label = preset_card.titleLabel
+        self.preset_caption_label = preset_card.contentLabel
+        self.presets_btn = preset_card.button
         self.add_widget(preset_card)
 
         self.add_spacing(8)
 
         # Card B — Стратегии
-        if _HAS_FLUENT:
-            strat_card = CardWidget()
-        else:
-            strat_card = SettingsCard()
-        strat_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        strat_row = QHBoxLayout(strat_card)
-        strat_row.setContentsMargins(16, 14, 16, 14)
-        strat_row.setSpacing(12)
-
-        strat_icon_lbl = QLabel()
-        strat_icon_lbl.setPixmap(qta.icon("fa5s.play", color="#60cdff").pixmap(20, 20))
-        strat_icon_lbl.setFixedSize(24, 24)
-        strat_row.addWidget(strat_icon_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-
-        strat_col = QVBoxLayout()
-        strat_col.setSpacing(2)
-        if _HAS_FLUENT:
-            self.strategies_title_label = StrongBodyLabel(
-                tr_catalog("page.z1_control.strategies.title", language=self._ui_language, default="Стратегии по категориям")
-            )
-            self.strategies_desc_label = CaptionLabel(
-                tr_catalog("page.z1_control.strategies.desc", language=self._ui_language, default="Выбор стратегии для YouTube, Discord и др.")
-            )
-            strat_col.addWidget(self.strategies_title_label)
-            strat_col.addWidget(self.strategies_desc_label)
-        else:
-            self.strategies_title_label = QLabel(
-                tr_catalog("page.z1_control.strategies.title", language=self._ui_language, default="Стратегии по категориям")
-            )
-            self.strategies_desc_label = None
-            strat_col.addWidget(self.strategies_title_label)
-        strat_row.addLayout(strat_col, 1)
-
-        if _HAS_FLUENT and PushButton is not None:
-            open_strat_btn = PushButton()
-            open_strat_btn.setText(tr_catalog("page.z1_control.button.open", language=self._ui_language, default="Открыть"))
-            open_strat_btn.setIcon(FluentIcon.PLAY)
-            open_strat_btn.clicked.connect(self._open_strategies_page)
-        else:
-            open_strat_btn = ActionButton(
-                tr_catalog("page.z1_control.button.open", language=self._ui_language, default="Открыть"),
-                "fa5s.play",
-            )
-            open_strat_btn.clicked.connect(self._open_strategies_page)
-        self.open_strat_btn = open_strat_btn
-        strat_row.addWidget(open_strat_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        strat_card = PushSettingCard(
+            tr_catalog("page.z1_control.button.open", language=self._ui_language, default="Открыть"),
+            qta.icon("fa5s.play", color="#60cdff"),
+            tr_catalog("page.z1_control.strategies.title", language=self._ui_language, default="Стратегии по категориям"),
+            tr_catalog("page.z1_control.strategies.desc", language=self._ui_language, default="Выбор стратегии для YouTube, Discord и др."),
+            self.content,
+        )
+        strat_card.clicked.connect(self._open_strategies_page)
+        self.strategies_title_label = strat_card.titleLabel
+        self.strategies_desc_label = strat_card.contentLabel
+        self.open_strat_btn = strat_card.button
         self.add_widget(strat_card)
 
         self.add_spacing(16)

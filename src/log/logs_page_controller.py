@@ -29,6 +29,45 @@ class LogsStatsState:
     max_debug_logs: int
 
 
+@dataclass(slots=True)
+class LogsThreadStopPlan:
+    should_stop_worker: bool
+    should_quit_thread: bool
+    should_wait: bool
+    wait_timeout_ms: int
+    should_terminate: bool
+    terminate_wait_ms: int
+
+
+@dataclass(slots=True)
+class LogsWinwsOutputPlan:
+    action: str
+    status_kind: str
+    status_text: str
+    process: object | None
+
+
+@dataclass(slots=True)
+class LogsTailStartPlan:
+    should_start: bool
+    info_text: str
+    file_path: str
+
+
+@dataclass(slots=True)
+class LogsSupportFeedbackPlan:
+    ok: bool
+    status_text: str
+    status_tone: str
+    infobar_title: str
+    infobar_content: str
+
+
+@dataclass(slots=True)
+class LogsStatsTextPlan:
+    text: str
+
+
 class LogsPageController:
     def get_current_log_file(self) -> str:
         return getattr(global_logger, "log_file", LOG_FILE)
@@ -192,3 +231,167 @@ class LogsPageController:
 
     def open_logs_folder(self) -> None:
         subprocess.run(["explorer", LOGS_FOLDER], check=False)
+
+    @staticmethod
+    def create_log_tail_worker(file_path: str):
+        from log_tail import LogTailWorker
+
+        return LogTailWorker(
+            file_path,
+            poll_interval=0.6,
+            initial_chunk_chars=65536,
+            initial_max_bytes=1024 * 1024,
+        )
+
+    @staticmethod
+    def create_winws_output_worker(process):
+        from log.winws_output_worker import WinwsOutputWorker
+
+        worker = WinwsOutputWorker()
+        worker.set_process(process)
+        return worker
+
+    @staticmethod
+    def build_thread_stop_plan(*, has_worker: bool, thread_running: bool, blocking: bool) -> LogsThreadStopPlan:
+        return LogsThreadStopPlan(
+            should_stop_worker=bool(has_worker),
+            should_quit_thread=bool(thread_running),
+            should_wait=bool(blocking and thread_running),
+            wait_timeout_ms=2000,
+            should_terminate=bool(blocking and thread_running),
+            terminate_wait_ms=500,
+        )
+
+    @staticmethod
+    def build_tail_start_plan(*, current_log_file: str) -> LogsTailStartPlan:
+        file_path = str(current_log_file or "").strip()
+        if not file_path or not os.path.exists(file_path):
+            return LogsTailStartPlan(
+                should_start=False,
+                info_text="",
+                file_path=file_path,
+            )
+        return LogsTailStartPlan(
+            should_start=True,
+            info_text=f"📄 {os.path.basename(file_path)}",
+            file_path=file_path,
+        )
+
+    @staticmethod
+    def build_support_feedback(result) -> LogsSupportFeedbackPlan:
+        status_parts: list[str] = []
+        if result.zip_path:
+            status_parts.append("ZIP готов")
+        if result.copied_to_clipboard:
+            status_parts.append("шаблон скопирован")
+        if result.discussions_opened:
+            status_parts.append("GitHub открыт")
+        if result.bundle_folder_opened:
+            status_parts.append("папка открыта")
+
+        archive_name = os.path.basename(result.zip_path) if result.zip_path else "архив не создан"
+        content = f"Архив: {archive_name}\n"
+        content += (
+            "Шаблон обращения скопирован в буфер обмена."
+            if result.copied_to_clipboard
+            else "Шаблон не удалось скопировать в буфер обмена."
+        )
+
+        return LogsSupportFeedbackPlan(
+            ok=True,
+            status_text=" • ".join(status_parts) or "Подготовка завершена",
+            status_tone="success",
+            infobar_title="Поддержка подготовлена",
+            infobar_content=content,
+        )
+
+    @staticmethod
+    def build_support_error_feedback(error: str) -> LogsSupportFeedbackPlan:
+        return LogsSupportFeedbackPlan(
+            ok=False,
+            status_text="Ошибка подготовки",
+            status_tone="error",
+            infobar_title="Ошибка",
+            infobar_content=f"Не удалось подготовить обращение:\n{str(error or '')}",
+        )
+
+    @staticmethod
+    def build_stats_text_plan(stats: LogsStatsState, *, language: str) -> LogsStatsTextPlan:
+        from ui.text_catalog import tr as tr_catalog
+
+        return LogsStatsTextPlan(
+            text=tr_catalog(
+                "page.logs.stats.template",
+                language=language,
+                default="📊 Логи: {logs} (макс {max_logs}) | 🔧 Debug: {debug} (макс {max_debug}) | 💾 Размер: {size:.2f} MB",
+            ).format(
+                logs=stats.app_logs,
+                max_logs=stats.max_logs,
+                debug=stats.debug_logs,
+                max_debug=stats.max_debug_logs,
+                size=stats.total_size_mb,
+            )
+        )
+
+    def build_winws_output_plan(self, *, launch_method: str, orchestra_runner, language: str) -> LogsWinwsOutputPlan:
+        source, runner = self.get_running_runner_source(launch_method, orchestra_runner)
+
+        if source == "orchestra" and runner:
+            pid = self.get_runner_pid(runner)
+            return LogsWinwsOutputPlan(
+                action="orchestra",
+                status_kind="running",
+                status_text=f"PID: {pid} | Оркестратор",
+                process=None,
+            )
+
+        if source != "direct" or not runner:
+            from ui.text_catalog import tr as tr_catalog
+
+            return LogsWinwsOutputPlan(
+                action="idle",
+                status_kind="neutral",
+                status_text=tr_catalog(
+                    "page.logs.winws.status.not_running",
+                    language=language,
+                    default="Процесс не запущен",
+                ),
+                process=None,
+            )
+
+        process = runner.get_process()
+        if not process:
+            from ui.text_catalog import tr as tr_catalog
+
+            return LogsWinwsOutputPlan(
+                action="idle",
+                status_kind="neutral",
+                status_text=tr_catalog(
+                    "page.logs.winws.status.not_running",
+                    language=language,
+                    default="Процесс не запущен",
+                ),
+                process=None,
+            )
+
+        strategy_info = {}
+        try:
+            get_info = getattr(runner, "get_current_strategy_info", None)
+            if callable(get_info):
+                info_value = get_info()
+                if isinstance(info_value, dict):
+                    strategy_info = info_value
+        except Exception:
+            pass
+
+        strategy_name = strategy_info.get("name", "winws")
+        if len(strategy_name) > 35:
+            strategy_name = strategy_name[:32] + "..."
+        pid = strategy_info.get("pid") or self.get_runner_pid(runner)
+
+        return LogsWinwsOutputPlan(
+            action="start_worker",
+            status_kind="running",
+            status_text=f"PID: {pid} | {strategy_name}",
+            process=process,
+        )

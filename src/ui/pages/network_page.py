@@ -31,7 +31,12 @@ except ImportError:
 
 from .base_page import BasePage
 from ui.widgets.win11_controls import Win11ToggleRow
-from ui.compat_widgets import SettingsCard, ActionButton
+from ui.compat_widgets import (
+    SettingsCard,
+    ActionButton,
+    enable_setting_card_group_auto_height,
+    insert_widget_into_setting_card_group,
+)
 from ui.compat_widgets import ResetActionButton
 from ui.page_runtime import PageSnapshotCache
 from ui.theme import get_theme_tokens
@@ -1214,7 +1219,7 @@ class NetworkPage(BasePage):
             dns_layout.addWidget(self.force_dns_status_label)
         else:
             try:
-                self.force_dns_card.vBoxLayout.insertWidget(1, self.force_dns_status_label)
+                insert_widget_into_setting_card_group(self.force_dns_card, 1, self.force_dns_status_label)
             except Exception:
                 pass
 
@@ -1230,6 +1235,7 @@ class NetworkPage(BasePage):
             )
             self._force_dns_reset_card.clicked.connect(self._confirm_reset_dns_to_dhcp)
             self.force_dns_card.addSettingCard(self._force_dns_reset_card)
+            enable_setting_card_group_auto_height(self.force_dns_card)
         else:
             self.force_dns_reset_dhcp_btn = ResetActionButton(
                 self._tr("page.network.force_dns.reset.button", "Сбросить DNS на DHCP"),

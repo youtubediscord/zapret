@@ -7,29 +7,25 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QThread, Qt
 from PyQt6.QtGui import QFont, QTextCursor
+import qtawesome as qta
 
 from .base_page import BasePage, ScrollBlockingTextEdit
 from dns.dns_check_page_controller import DNSCheckPageController
-from ui.compat_widgets import SettingsCard, ActionButton
+from ui.compat_widgets import SettingsCard
 from ui.theme import get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
 from ui.text_catalog import tr as tr_catalog
 
-try:
-    from qfluentwidgets import ProgressBar, IndeterminateProgressBar, InfoBar
-    _HAS_FLUENT_PROGRESS = True
-except ImportError:
-    from PyQt6.QtWidgets import QProgressBar as ProgressBar  # type: ignore[assignment]
-    from PyQt6.QtWidgets import QProgressBar as IndeterminateProgressBar  # type: ignore[assignment]
-    InfoBar = None
-    _HAS_FLUENT_PROGRESS = False
-
-try:
-    from qfluentwidgets import StrongBodyLabel, BodyLabel, CaptionLabel
-    _HAS_FLUENT_LABELS = True
-except ImportError:
-    StrongBodyLabel = QLabel; BodyLabel = QLabel; CaptionLabel = QLabel
-    _HAS_FLUENT_LABELS = False
+from qfluentwidgets import (
+    IndeterminateProgressBar,
+    InfoBar,
+    SettingCardGroup,
+    PushSettingCard,
+    PrimaryPushSettingCard,
+    StrongBodyLabel,
+    BodyLabel,
+    CaptionLabel,
+)
 
 
 class DNSCheckPage(BasePage):
@@ -55,6 +51,10 @@ class DNSCheckPage(BasePage):
             "page.dns_check.info.servers",
             "page.dns_check.info.recommended",
         ]
+        self._actions_group = None
+        self._start_action_card = None
+        self._quick_action_card = None
+        self._save_action_card = None
 
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
@@ -73,11 +73,19 @@ class DNSCheckPage(BasePage):
         self.quick_check_button.setEnabled(quick_enabled)
         self.save_button.setEnabled(save_enabled)
         self.progress_bar.setVisible(progress_visible)
-        if _HAS_FLUENT_PROGRESS:
-            if progress_visible:
-                self.progress_bar.start()
-            else:
-                self.progress_bar.stop()
+        if progress_visible:
+            self.progress_bar.start()
+        else:
+            self.progress_bar.stop()
+        try:
+            if self._start_action_card is not None:
+                self._start_action_card.setEnabled(check_enabled)
+            if self._quick_action_card is not None:
+                self._quick_action_card.setEnabled(quick_enabled)
+            if self._save_action_card is not None:
+                self._save_action_card.setEnabled(save_enabled)
+        except Exception:
+            pass
     
     def _build_ui(self):
         """Создаёт интерфейс страницы."""
@@ -123,24 +131,6 @@ class DNSCheckPage(BasePage):
         # Карточка с управлением
         self.control_card = SettingsCard(tr_catalog("page.dns_check.card.testing", language=self._ui_language, default="Тестирование"))
         
-        # Кнопки
-        buttons_layout = QHBoxLayout()
-        buttons_layout.setSpacing(12)
-        
-        self.check_button = ActionButton(tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"), "fa5s.play")
-        self.check_button.clicked.connect(self.start_check)
-        buttons_layout.addWidget(self.check_button, 1)
-
-        self.quick_check_button = ActionButton(tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"), "fa5s.bolt")
-        self.quick_check_button.clicked.connect(self.quick_dns_check)
-        buttons_layout.addWidget(self.quick_check_button, 1)
-
-        self.save_button = ActionButton(tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"), "fa5s.save")
-        self.save_button.setEnabled(False)
-        self.save_button.clicked.connect(self.save_results)
-        buttons_layout.addWidget(self.save_button, 1)
-        self.control_card.add_layout(buttons_layout)
-        
         # Прогресс бар
         self.progress_bar = IndeterminateProgressBar(self)
         self.progress_bar.setVisible(False)
@@ -152,6 +142,57 @@ class DNSCheckPage(BasePage):
         self.control_card.add_widget(self.status_label)
 
         self.layout.addWidget(self.control_card)
+
+        # Действия
+        self._actions_group = SettingCardGroup(
+            tr_catalog("page.dns_check.section.actions", language=self._ui_language, default="Действия"),
+            self.content,
+        )
+
+        self._start_action_card = PrimaryPushSettingCard(
+            tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"),
+            qta.icon("fa5s.play", color="#4CAF50"),
+            tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"),
+            tr_catalog(
+                "page.dns_check.action.start.description",
+                language=self._ui_language,
+                default="Полностью проверить DNS-резолвинг через разные серверы и собрать расширенный отчёт.",
+            ),
+        )
+        self._start_action_card.clicked.connect(self.start_check)
+        self.check_button = self._start_action_card.button
+        self._actions_group.addSettingCard(self._start_action_card)
+
+        self._quick_action_card = PushSettingCard(
+            tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"),
+            qta.icon("fa5s.bolt", color="#60cdff"),
+            tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"),
+            tr_catalog(
+                "page.dns_check.action.quick.description",
+                language=self._ui_language,
+                default="Сделать быстрый тест только текущего системного DNS без полного сценария.",
+            ),
+        )
+        self._quick_action_card.clicked.connect(self.quick_dns_check)
+        self.quick_check_button = self._quick_action_card.button
+        self._actions_group.addSettingCard(self._quick_action_card)
+
+        self._save_action_card = PushSettingCard(
+            tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"),
+            qta.icon("fa5s.save", color="#ff9800"),
+            tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"),
+            tr_catalog(
+                "page.dns_check.action.save.description",
+                language=self._ui_language,
+                default="Сохранить текущий отчёт DNS-проверки в текстовый файл.",
+            ),
+        )
+        self._save_action_card.setEnabled(False)
+        self._save_action_card.clicked.connect(self.save_results)
+        self.save_button = self._save_action_card.button
+        self._actions_group.addSettingCard(self._save_action_card)
+
+        self.layout.addWidget(self._actions_group)
         
         # Результаты
         self.results_card = SettingsCard(tr_catalog("page.dns_check.card.results", language=self._ui_language, default="Результаты"))
@@ -384,10 +425,7 @@ class DNSCheckPage(BasePage):
 
     def _set_card_title(self, card: SettingsCard, text: str) -> None:
         try:
-            item = card.main_layout.itemAt(0)
-            widget = item.widget() if item else None
-            if widget is not None and hasattr(widget, "setText"):
-                widget.setText(text)
+            card.set_title(text)
         except Exception:
             pass
 
@@ -397,6 +435,12 @@ class DNSCheckPage(BasePage):
         self._set_card_title(self.info_card, tr_catalog("page.dns_check.card.what_we_check", language=self._ui_language, default="Что проверяем"))
         self._set_card_title(self.control_card, tr_catalog("page.dns_check.card.testing", language=self._ui_language, default="Тестирование"))
         self._set_card_title(self.results_card, tr_catalog("page.dns_check.card.results", language=self._ui_language, default="Результаты"))
+        try:
+            title_label = getattr(getattr(self, "_actions_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(tr_catalog("page.dns_check.section.actions", language=self._ui_language, default="Действия"))
+        except Exception:
+            pass
 
         for label in list(self._info_text_labels):
             try:
@@ -409,3 +453,30 @@ class DNSCheckPage(BasePage):
         self.check_button.setText(tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"))
         self.quick_check_button.setText(tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"))
         self.save_button.setText(tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"))
+        if self._start_action_card is not None:
+            self._start_action_card.setTitle(tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"))
+            self._start_action_card.setContent(
+                tr_catalog(
+                    "page.dns_check.action.start.description",
+                    language=self._ui_language,
+                    default="Полностью проверить DNS-резолвинг через разные серверы и собрать расширенный отчёт.",
+                )
+            )
+        if self._quick_action_card is not None:
+            self._quick_action_card.setTitle(tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"))
+            self._quick_action_card.setContent(
+                tr_catalog(
+                    "page.dns_check.action.quick.description",
+                    language=self._ui_language,
+                    default="Сделать быстрый тест только текущего системного DNS без полного сценария.",
+                )
+            )
+        if self._save_action_card is not None:
+            self._save_action_card.setTitle(tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"))
+            self._save_action_card.setContent(
+                tr_catalog(
+                    "page.dns_check.action.save.description",
+                    language=self._ui_language,
+                    default="Сохранить текущий отчёт DNS-проверки в текстовый файл.",
+                )
+            )

@@ -12,14 +12,14 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QFrame, QGridLayout
+    QFrame, QGridLayout, QPushButton
 )
 from PyQt6.QtGui import QColor, QDesktopServices
 import qtawesome as qta
 
 from .base_page import BasePage
 from ui.home_page_controller import HomePageController
-from ui.compat_widgets import SettingsCard, StatusIndicator, ActionButton, set_tooltip
+from ui.compat_widgets import SettingsCard, StatusIndicator, set_tooltip
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
 from ui.window_action_controller import (
@@ -33,14 +33,19 @@ from log import log
 try:
     from qfluentwidgets import (
         CardWidget, isDarkTheme, themeColor,
+        PushButton,
         SubtitleLabel, BodyLabel, StrongBodyLabel, CaptionLabel,
-        IndeterminateProgressBar,
+        IndeterminateProgressBar, SettingCardGroup, PushSettingCard, PrimaryPushSettingCard,
     )
     HAS_FLUENT = True
 except ImportError:
     from PyQt6.QtWidgets import QProgressBar as IndeterminateProgressBar  # type: ignore[assignment]
     HAS_FLUENT = False
     CardWidget = QFrame
+    PushButton = QPushButton  # type: ignore[assignment]
+    SettingCardGroup = None  # type: ignore[assignment]
+    PushSettingCard = None  # type: ignore[assignment]
+    PrimaryPushSettingCard = None  # type: ignore[assignment]
 
 
 def _accent_hex() -> str:
@@ -277,6 +282,13 @@ class HomePage(BasePage):
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
         self._startup_showevent_profile_logged = False
+        self._actions_group = None
+        self._actions_section_label = None
+        self._start_action_card = None
+        self._stop_action_card = None
+        self._test_action_card = None
+        self._folder_action_card = None
+        self._guide_action_card = None
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
         _log_startup_home_metric("__init__.total", (_time.perf_counter() - _t_init) * 1000)
 
@@ -429,42 +441,83 @@ class HomePage(BasePage):
         
         # Быстрые действия
         _t_actions = _time.perf_counter()
-        self.add_section_title(text_key="page.home.section.quick_actions")
-        
-        self.actions_card = SettingsCard()
-        actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(8)
-        
-        # Кнопка запуска
-        self.start_btn = ActionButton(tr_catalog("page.home.action.start", language=self._ui_language, default="Запустить"), "fa5s.play", accent=True)
-        self.start_btn.clicked.connect(self._start_dpi)
-        actions_layout.addWidget(self.start_btn)
-        
-        # Кнопка остановки
-        self.stop_btn = ActionButton(tr_catalog("page.home.action.stop", language=self._ui_language, default="Остановить"), "fa5s.stop")
-        self.stop_btn.clicked.connect(self._stop_dpi)
-        self.stop_btn.setVisible(False)
-        actions_layout.addWidget(self.stop_btn)
-        
-        # Кнопка теста
-        self.test_btn = ActionButton(tr_catalog("page.home.action.connection_test", language=self._ui_language, default="Тест соединения"), "fa5s.wifi")
-        self.test_btn.clicked.connect(self._open_connection_test)
-        actions_layout.addWidget(self.test_btn)
-        
-        # Кнопка папки
-        self.folder_btn = ActionButton(tr_catalog("page.home.action.open_folder", language=self._ui_language, default="Открыть папку"), "fa5s.folder-open")
-        self.folder_btn.clicked.connect(self._open_folder)
-        actions_layout.addWidget(self.folder_btn)
+        quick_actions_title = tr_catalog("page.home.section.quick_actions", language=self._ui_language, default="Быстрые действия")
+        self._actions_section_label = None
+        self._actions_group = SettingCardGroup(quick_actions_title, self.content)
+        self.actions_card = self._actions_group
 
-        # Кнопка "Как использовать"
-        self.guide_btn = ActionButton(tr_catalog("page.home.action.how_to_use", language=self._ui_language, default="Как использовать"), "fa5s.question-circle")
+        self._start_action_card = PrimaryPushSettingCard(
+            tr_catalog("page.home.action.start", language=self._ui_language, default="Запустить"),
+            qta.icon("fa5s.play", color="#4CAF50"),
+            tr_catalog("page.home.action.start.title", language=self._ui_language, default="Запустить Zapret"),
+            tr_catalog(
+                "page.home.action.start.description",
+                language=self._ui_language,
+                default="Запустить обход блокировок прямо с главного экрана.",
+            ),
+        )
+        self.start_btn = self._start_action_card.button
+        self.start_btn.clicked.connect(self._start_dpi)
+        self._actions_group.addSettingCard(self._start_action_card)
+
+        self._stop_action_card = PushSettingCard(
+            tr_catalog("page.home.action.stop", language=self._ui_language, default="Остановить"),
+            qta.icon("fa5s.stop", color="#ff9800"),
+            tr_catalog("page.home.action.stop.title", language=self._ui_language, default="Остановить Zapret"),
+            tr_catalog(
+                "page.home.action.stop.description",
+                language=self._ui_language,
+                default="Остановить уже запущенный процесс обхода блокировок.",
+            ),
+        )
+        self.stop_btn = self._stop_action_card.button
+        self.stop_btn.clicked.connect(self._stop_dpi)
+        self._stop_action_card.setVisible(False)
+        self._actions_group.addSettingCard(self._stop_action_card)
+
+        self._test_action_card = PushSettingCard(
+            tr_catalog("page.home.action.connection_test", language=self._ui_language, default="Тест соединения"),
+            qta.icon("fa5s.wifi", color=_accent_hex()),
+            tr_catalog("page.home.action.connection_test", language=self._ui_language, default="Тест соединения"),
+            tr_catalog(
+                "page.home.action.connection_test.description",
+                language=self._ui_language,
+                default="Открыть страницу диагностики сетевых соединений.",
+            ),
+        )
+        self.test_btn = self._test_action_card.button
+        self.test_btn.clicked.connect(self._open_connection_test)
+        self._actions_group.addSettingCard(self._test_action_card)
+
+        self._folder_action_card = PushSettingCard(
+            tr_catalog("page.home.action.open_folder", language=self._ui_language, default="Открыть папку"),
+            qta.icon("fa5s.folder-open", color=_accent_hex()),
+            tr_catalog("page.home.action.open_folder", language=self._ui_language, default="Открыть папку"),
+            tr_catalog(
+                "page.home.action.open_folder.description",
+                language=self._ui_language,
+                default="Открыть рабочую папку приложения и связанные файлы.",
+            ),
+        )
+        self.folder_btn = self._folder_action_card.button
+        self.folder_btn.clicked.connect(self._open_folder)
+        self._actions_group.addSettingCard(self._folder_action_card)
+
+        self._guide_action_card = PushSettingCard(
+            tr_catalog("page.home.action.how_to_use", language=self._ui_language, default="Как использовать"),
+            qta.icon("fa5s.question-circle", color=_accent_hex()),
+            tr_catalog("page.home.action.how_to_use", language=self._ui_language, default="Как использовать"),
+            tr_catalog(
+                "page.home.action.how_to_use.description",
+                language=self._ui_language,
+                default="Открыть руководство по использованию в браузере.",
+            ),
+        )
+        self.guide_btn = self._guide_action_card.button
         self.guide_btn.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl("https://publish.obsidian.md/zapret/Zapret/guide"))
         )
-        actions_layout.addWidget(self.guide_btn)
-        
-        actions_layout.addStretch()
-        self.actions_card.add_layout(actions_layout)
+        self._actions_group.addSettingCard(self._guide_action_card)
         self.add_widget(self.actions_card)
         _log_startup_home_metric("_build_ui.quick_actions", (_time.perf_counter() - _t_actions) * 1000)
         
@@ -527,8 +580,8 @@ class HomePage(BasePage):
         )
         self.dpi_status_card.set_value(plan.value, plan.info)
         self.dpi_status_card.set_status_color(plan.status_color)
-        self.start_btn.setVisible(plan.show_start)
-        self.stop_btn.setVisible(plan.show_stop)
+        self._start_action_card.setVisible(plan.show_start)
+        self._stop_action_card.setVisible(plan.show_stop)
             
         # На главной всегда отображаем текущий метод запуска (без иконок категорий).
         self.update_launch_method_card()
@@ -570,6 +623,8 @@ class HomePage(BasePage):
         # Блокируем/разблокируем кнопки
         self.start_btn.setEnabled(not loading)
         self.stop_btn.setEnabled(not loading)
+        self._start_action_card.setEnabled(not loading)
+        self._stop_action_card.setEnabled(not loading)
         
         # Обновляем статус если есть текст
         if loading and text:
@@ -612,7 +667,9 @@ class HomePage(BasePage):
         premium_layout.addLayout(text_layout, 1)
         
         # Кнопка Premium
-        self.premium_link_btn = ActionButton(tr_catalog("page.home.premium.more", language=self._ui_language, default="Подробнее"), "fa5s.arrow-right")
+        self.premium_link_btn = PushButton()
+        self.premium_link_btn.setText(tr_catalog("page.home.premium.more", language=self._ui_language, default="Подробнее"))
+        self.premium_link_btn.setIcon(qta.icon("fa5s.arrow-right", color=_accent_hex()))
         self.premium_link_btn.setFixedHeight(36)
         premium_layout.addWidget(self.premium_link_btn)
         
@@ -626,11 +683,61 @@ class HomePage(BasePage):
         self.strategy_card.set_title(tr_catalog("page.home.card.method.title", language=self._ui_language, default="Метод запуска"))
         self.autostart_card.set_title(tr_catalog("page.home.card.autostart.title", language=self._ui_language, default="Автозапуск"))
         self.subscription_card.set_title(tr_catalog("page.home.card.subscription.title", language=self._ui_language, default="Подписка"))
+        try:
+            title_label = getattr(getattr(self, "_actions_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(tr_catalog("page.home.section.quick_actions", language=self._ui_language, default="Быстрые действия"))
+        except Exception:
+            pass
 
+        self._start_action_card.setTitle(tr_catalog("page.home.action.start.title", language=self._ui_language, default="Запустить Zapret"))
+        self._start_action_card.setContent(
+            tr_catalog(
+                "page.home.action.start.description",
+                language=self._ui_language,
+                default="Запустить обход блокировок прямо с главного экрана.",
+            )
+        )
         self.start_btn.setText(tr_catalog("page.home.action.start", language=self._ui_language, default="Запустить"))
+
+        self._stop_action_card.setTitle(tr_catalog("page.home.action.stop.title", language=self._ui_language, default="Остановить Zapret"))
+        self._stop_action_card.setContent(
+            tr_catalog(
+                "page.home.action.stop.description",
+                language=self._ui_language,
+                default="Остановить уже запущенный процесс обхода блокировок.",
+            )
+        )
         self.stop_btn.setText(tr_catalog("page.home.action.stop", language=self._ui_language, default="Остановить"))
+
+        self._test_action_card.setTitle(tr_catalog("page.home.action.connection_test", language=self._ui_language, default="Тест соединения"))
+        self._test_action_card.setContent(
+            tr_catalog(
+                "page.home.action.connection_test.description",
+                language=self._ui_language,
+                default="Открыть страницу диагностики сетевых соединений.",
+            )
+        )
         self.test_btn.setText(tr_catalog("page.home.action.connection_test", language=self._ui_language, default="Тест соединения"))
+
+        self._folder_action_card.setTitle(tr_catalog("page.home.action.open_folder", language=self._ui_language, default="Открыть папку"))
+        self._folder_action_card.setContent(
+            tr_catalog(
+                "page.home.action.open_folder.description",
+                language=self._ui_language,
+                default="Открыть рабочую папку приложения и связанные файлы.",
+            )
+        )
         self.folder_btn.setText(tr_catalog("page.home.action.open_folder", language=self._ui_language, default="Открыть папку"))
+
+        self._guide_action_card.setTitle(tr_catalog("page.home.action.how_to_use", language=self._ui_language, default="Как использовать"))
+        self._guide_action_card.setContent(
+            tr_catalog(
+                "page.home.action.how_to_use.description",
+                language=self._ui_language,
+                default="Открыть руководство по использованию в браузере.",
+            )
+        )
         self.guide_btn.setText(tr_catalog("page.home.action.how_to_use", language=self._ui_language, default="Как использовать"))
 
         try:

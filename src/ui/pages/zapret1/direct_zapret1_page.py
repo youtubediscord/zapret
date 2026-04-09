@@ -7,6 +7,8 @@ import time as _time
 
 from typing import Any
 
+import qtawesome as qta
+
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget, QHBoxLayout
 
@@ -22,6 +24,8 @@ try:
         BreadcrumbBar,
         MessageBox,
         BodyLabel,
+        SettingCardGroup,
+        PushSettingCard,
     )
     _HAS_FLUENT = True
 except ImportError:
@@ -29,6 +33,8 @@ except ImportError:
 
     BreadcrumbBar = None  # type: ignore
     MessageBox = None  # type: ignore
+    SettingCardGroup = None  # type: ignore[assignment]
+    PushSettingCard = None  # type: ignore[assignment]
     _HAS_FLUENT = False
 
 
@@ -74,6 +80,10 @@ class Zapret1StrategiesPage(BasePage):
         self._expand_btn = None
         self._collapse_btn = None
         self._info_btn = None
+        self._toolbar_group = None
+        self._expand_card = None
+        self._collapse_card = None
+        self._info_card = None
         self._empty_state_label = None
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -241,42 +251,104 @@ class Zapret1StrategiesPage(BasePage):
         _log_startup_z1_direct_metric("_build_content.targets_list", (_time.perf_counter() - _t_targets) * 1000)
 
     def _build_toolbar(self) -> None:
-        actions_card = SettingsCard()
-        actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(8)
+        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
+            self._toolbar_group = SettingCardGroup(
+                tr_catalog("page.z1_direct.toolbar.title", language=self._ui_language, default="Действия"),
+                self.content,
+            )
 
-        self._reload_btn = RefreshButton()
-        self._reload_btn.clicked.connect(self._reload)
-        actions_layout.addWidget(self._reload_btn)
+            self._reload_btn = RefreshButton()
+            self._reload_btn.clicked.connect(self._reload)
+            reload_card = SettingsCard()
+            reload_layout = QHBoxLayout()
+            reload_layout.setContentsMargins(10, 6, 12, 6)
+            reload_layout.addWidget(self._reload_btn)
+            reload_layout.addStretch()
+            reload_card.add_layout(reload_layout)
+            self._toolbar_group.addSettingCard(reload_card)
 
-        expand_btn = ActionButton(
-            tr_catalog("page.z1_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
-            "fa5s.expand-alt",
-        )
-        expand_btn.clicked.connect(self._expand_all)
-        actions_layout.addWidget(expand_btn)
-        self._expand_btn = expand_btn
+            self._expand_card = PushSettingCard(
+                tr_catalog("page.z1_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
+                qta.icon("fa5s.expand-alt", color="#4CAF50"),
+                tr_catalog("page.z1_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
+                tr_catalog(
+                    "page.z1_direct.toolbar.expand.description",
+                    language=self._ui_language,
+                    default="Развернуть все категории и target'ы в списке.",
+                ),
+                self.content,
+            )
+            self._expand_card.clicked.connect(self._expand_all)
+            self._expand_btn = self._expand_card.button
+            self._toolbar_group.addSettingCard(self._expand_card)
 
-        collapse_btn = ActionButton(
-            tr_catalog("page.z1_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
-            "fa5s.compress-alt",
-        )
-        collapse_btn.clicked.connect(self._collapse_all)
-        actions_layout.addWidget(collapse_btn)
-        self._collapse_btn = collapse_btn
+            self._collapse_card = PushSettingCard(
+                tr_catalog("page.z1_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
+                qta.icon("fa5s.compress-alt", color="#ff9800"),
+                tr_catalog("page.z1_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
+                tr_catalog(
+                    "page.z1_direct.toolbar.collapse.description",
+                    language=self._ui_language,
+                    default="Свернуть все категории и target'ы в списке.",
+                ),
+                self.content,
+            )
+            self._collapse_card.clicked.connect(self._collapse_all)
+            self._collapse_btn = self._collapse_card.button
+            self._toolbar_group.addSettingCard(self._collapse_card)
 
-        info_btn = ActionButton(
-            tr_catalog("page.z1_direct.toolbar.info", language=self._ui_language, default="Что это?"),
-            "fa5s.question-circle",
-            accent=False,
-        )
-        info_btn.clicked.connect(self._show_info)
-        actions_layout.addWidget(info_btn)
-        self._info_btn = info_btn
+            self._info_card = PushSettingCard(
+                tr_catalog("page.z1_direct.toolbar.info", language=self._ui_language, default="Что это?"),
+                qta.icon("fa5s.question-circle", color="#60cdff"),
+                tr_catalog("page.z1_direct.toolbar.info", language=self._ui_language, default="Что это?"),
+                tr_catalog(
+                    "page.z1_direct.toolbar.info.description",
+                    language=self._ui_language,
+                    default="Показать краткое объяснение, как устроен прямой запуск Zapret 1.",
+                ),
+                self.content,
+            )
+            self._info_card.clicked.connect(self._show_info)
+            self._info_btn = self._info_card.button
+            self.add_widget(self._toolbar_group)
+            self._toolbar_group.addSettingCard(self._info_card)
+        else:
+            actions_card = SettingsCard()
+            actions_layout = QHBoxLayout()
+            actions_layout.setSpacing(8)
 
-        actions_layout.addStretch()
-        actions_card.add_layout(actions_layout)
-        self.add_widget(actions_card)
+            self._reload_btn = RefreshButton()
+            self._reload_btn.clicked.connect(self._reload)
+            actions_layout.addWidget(self._reload_btn)
+
+            expand_btn = ActionButton(
+                tr_catalog("page.z1_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
+                "fa5s.expand-alt",
+            )
+            expand_btn.clicked.connect(self._expand_all)
+            actions_layout.addWidget(expand_btn)
+            self._expand_btn = expand_btn
+
+            collapse_btn = ActionButton(
+                tr_catalog("page.z1_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
+                "fa5s.compress-alt",
+            )
+            collapse_btn.clicked.connect(self._collapse_all)
+            actions_layout.addWidget(collapse_btn)
+            self._collapse_btn = collapse_btn
+
+            info_btn = ActionButton(
+                tr_catalog("page.z1_direct.toolbar.info", language=self._ui_language, default="Что это?"),
+                "fa5s.question-circle",
+                accent=False,
+            )
+            info_btn.clicked.connect(self._show_info)
+            actions_layout.addWidget(info_btn)
+            self._info_btn = info_btn
+
+            actions_layout.addStretch()
+            actions_card.add_layout(actions_layout)
+            self.add_widget(actions_card)
 
     # ------------------------------------------------------------------
     # Data helpers
@@ -470,18 +542,59 @@ class Zapret1StrategiesPage(BasePage):
             self._back_btn.setText(
                 tr_catalog("page.z1_direct.back.control", language=self._ui_language, default="← Управление")
             )
+        try:
+            title_label = getattr(getattr(self, "_toolbar_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(
+                    tr_catalog("page.z1_direct.toolbar.title", language=self._ui_language, default="Действия")
+                )
+        except Exception:
+            pass
 
         if self._expand_btn is not None:
             self._expand_btn.setText(
                 tr_catalog("page.z1_direct.toolbar.expand", language=self._ui_language, default="Развернуть")
             )
+        if self._expand_card is not None:
+            self._expand_card.setTitle(
+                tr_catalog("page.z1_direct.toolbar.expand", language=self._ui_language, default="Развернуть")
+            )
+            self._expand_card.setContent(
+                tr_catalog(
+                    "page.z1_direct.toolbar.expand.description",
+                    language=self._ui_language,
+                    default="Развернуть все категории и target'ы в списке.",
+                )
+            )
         if self._collapse_btn is not None:
             self._collapse_btn.setText(
                 tr_catalog("page.z1_direct.toolbar.collapse", language=self._ui_language, default="Свернуть")
             )
+        if self._collapse_card is not None:
+            self._collapse_card.setTitle(
+                tr_catalog("page.z1_direct.toolbar.collapse", language=self._ui_language, default="Свернуть")
+            )
+            self._collapse_card.setContent(
+                tr_catalog(
+                    "page.z1_direct.toolbar.collapse.description",
+                    language=self._ui_language,
+                    default="Свернуть все категории и target'ы в списке.",
+                )
+            )
         if self._info_btn is not None:
             self._info_btn.setText(
                 tr_catalog("page.z1_direct.toolbar.info", language=self._ui_language, default="Что это?")
+            )
+        if self._info_card is not None:
+            self._info_card.setTitle(
+                tr_catalog("page.z1_direct.toolbar.info", language=self._ui_language, default="Что это?")
+            )
+            self._info_card.setContent(
+                tr_catalog(
+                    "page.z1_direct.toolbar.info.description",
+                    language=self._ui_language,
+                    default="Показать краткое объяснение, как устроен прямой запуск Zapret 1.",
+                )
             )
 
         if self._empty_state_label is not None:

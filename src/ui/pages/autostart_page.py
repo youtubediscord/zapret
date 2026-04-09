@@ -836,17 +836,27 @@ class AutostartPage(BasePage):
             log(f"  Card '{type_name}': disabled={state.disabled}, active={state.is_active}", "DEBUG")
             card.set_disabled(state.disabled, is_active=state.is_active)
 
+    def _apply_action_plan(self, plan) -> None:
+        if plan.should_push_state:
+            self._current_autostart_type = plan.autostart_type
+            self._push_autostart_state(
+                plan.enabled,
+                plan.strategy_name,
+                plan.autostart_type,
+            )
+        if plan.emit_enabled:
+            self.autostart_enabled.emit()
+        if plan.emit_disabled:
+            self.autostart_disabled.emit()
+        if plan.log_message:
+            log(plan.log_message, plan.log_level)
+
     def _on_disable_clicked(self):
         """Отключение автозапуска"""
         try:
             result = self._controller.disable_autostart()
-
-            self._current_autostart_type = None
-            self._push_autostart_state(False)
-            self.autostart_disabled.emit()
-
-            if result.removed_count:
-                log(f"Автозапуск отключён, удалено записей: {result.removed_count}", "INFO")
+            plan = self._controller.build_disable_apply_plan(result)
+            self._apply_action_plan(plan)
 
         except Exception as e:
             log(f"Ошибка отключения автозапуска: {e}", "ERROR")
@@ -855,13 +865,11 @@ class AutostartPage(BasePage):
         """Автозапуск GUI программы"""
         try:
             result = self._controller.setup_gui_autostart(self.strategy_name)
-
-            if result.ok:
-                self._current_autostart_type = result.autostart_type
-                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
-                self.autostart_enabled.emit()
-            else:
-                log("Не удалось настроить автозапуск GUI", "ERROR")
+            plan = self._controller.build_setup_apply_plan(
+                result,
+                failure_message="Не удалось настроить автозапуск GUI",
+            )
+            self._apply_action_plan(plan)
 
         except Exception as e:
             log(f"Ошибка автозапуска GUI: {e}", "ERROR")
@@ -870,12 +878,11 @@ class AutostartPage(BasePage):
         """Создание службы Windows"""
         try:
             result = self._controller.setup_direct_service(self.app_instance)
-            if result.ok:
-                self._current_autostart_type = result.autostart_type
-                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
-                self.autostart_enabled.emit()
-            else:
-                log("Ошибка создания службы", "ERROR")
+            plan = self._controller.build_setup_apply_plan(
+                result,
+                failure_message="Ошибка создания службы",
+            )
+            self._apply_action_plan(plan)
         except Exception as e:
             log(f"Ошибка создания службы: {e}", "ERROR")
 
@@ -883,12 +890,11 @@ class AutostartPage(BasePage):
         """Задача при входе пользователя"""
         try:
             result = self._controller.setup_direct_logon_task(self.app_instance)
-            if result.ok:
-                self._current_autostart_type = result.autostart_type
-                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
-                self.autostart_enabled.emit()
-            else:
-                log("Ошибка создания задачи", "ERROR")
+            plan = self._controller.build_setup_apply_plan(
+                result,
+                failure_message="Ошибка создания задачи",
+            )
+            self._apply_action_plan(plan)
         except Exception as e:
             log(f"Ошибка создания задачи: {e}", "ERROR")
 
@@ -896,11 +902,10 @@ class AutostartPage(BasePage):
         """Задача при загрузке системы"""
         try:
             result = self._controller.setup_direct_boot_task(self.app_instance)
-            if result.ok:
-                self._current_autostart_type = result.autostart_type
-                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
-                self.autostart_enabled.emit()
-            else:
-                log("Ошибка создания задачи", "ERROR")
+            plan = self._controller.build_setup_apply_plan(
+                result,
+                failure_message="Ошибка создания задачи",
+            )
+            self._apply_action_plan(plan)
         except Exception as e:
             log(f"Ошибка создания задачи: {e}", "ERROR")
