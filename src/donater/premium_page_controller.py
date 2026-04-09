@@ -117,6 +117,13 @@ class PremiumDeviceInfoPlan:
     last_check_kwargs: dict
 
 
+@dataclass(slots=True)
+class PremiumAutopollPlan:
+    can_poll: bool
+    start_timer: bool
+    stop_timer: bool
+
+
 class PremiumPageController:
     @staticmethod
     def resolve_checker_bundle() -> PremiumCheckerInitResult:
@@ -636,4 +643,32 @@ class PremiumPageController:
             last_check_text_key="page.premium.label.last_check.none",
             last_check_text_default="Последняя проверка: —",
             last_check_kwargs={},
+        )
+
+    @staticmethod
+    def build_pairing_autopoll_plan(
+        *,
+        checker_ready: bool,
+        storage_ready: bool,
+        page_visible: bool,
+        activation_in_progress: bool,
+        connection_test_in_progress: bool,
+        worker_running: bool,
+        has_device_token: bool,
+        has_pending_pair_code: bool,
+    ) -> PremiumAutopollPlan:
+        can_poll = (
+            checker_ready
+            and storage_ready
+            and page_visible
+            and not activation_in_progress
+            and not connection_test_in_progress
+            and not worker_running
+            and not has_device_token
+            and has_pending_pair_code
+        )
+        return PremiumAutopollPlan(
+            can_poll=can_poll,
+            start_timer=can_poll,
+            stop_timer=not can_poll,
         )

@@ -611,27 +611,37 @@ class PremiumPage(BasePage):
             return False
 
     def _can_poll_pairing_status(self) -> bool:
-        if not self.checker or not self.RegistryManager:
-            return False
-        if not self.isVisible():
-            return False
-        if self._activation_in_progress or self._connection_test_in_progress:
-            return False
-        if self.current_thread and self.current_thread.isRunning():
-            return False
-
+        has_device_token = False
         try:
-            if self.RegistryManager.get_device_token():
-                return False
+            if self.RegistryManager:
+                has_device_token = bool(self.RegistryManager.get_device_token())
         except Exception:
-            pass
+            has_device_token = False
 
-        return self._has_pending_pair_code()
+        plan = self._controller.build_pairing_autopoll_plan(
+            checker_ready=bool(self.checker),
+            storage_ready=bool(self.RegistryManager),
+            page_visible=self.isVisible(),
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            worker_running=bool(self.current_thread and self.current_thread.isRunning()),
+            has_device_token=has_device_token,
+            has_pending_pair_code=self._has_pending_pair_code(),
+        )
+        return plan.can_poll
 
     def _start_pairing_status_autopoll(self) -> None:
-        if not self._can_poll_pairing_status():
-            return
-        if not self._pairing_status_timer.isActive():
+        plan = self._controller.build_pairing_autopoll_plan(
+            checker_ready=bool(self.checker),
+            storage_ready=bool(self.RegistryManager),
+            page_visible=self.isVisible(),
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            worker_running=bool(self.current_thread and self.current_thread.isRunning()),
+            has_device_token=bool(self.RegistryManager and self.RegistryManager.get_device_token()) if self.RegistryManager else False,
+            has_pending_pair_code=self._has_pending_pair_code(),
+        )
+        if plan.start_timer and not self._pairing_status_timer.isActive():
             self._pairing_status_timer.start()
 
     def _stop_pairing_status_autopoll(self) -> None:
@@ -639,9 +649,26 @@ class PremiumPage(BasePage):
             self._pairing_status_timer.stop()
 
     def _sync_pairing_status_autopoll(self) -> None:
-        if self._can_poll_pairing_status():
+        has_device_token = False
+        try:
+            if self.RegistryManager:
+                has_device_token = bool(self.RegistryManager.get_device_token())
+        except Exception:
+            has_device_token = False
+
+        plan = self._controller.build_pairing_autopoll_plan(
+            checker_ready=bool(self.checker),
+            storage_ready=bool(self.RegistryManager),
+            page_visible=self.isVisible(),
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            worker_running=bool(self.current_thread and self.current_thread.isRunning()),
+            has_device_token=has_device_token,
+            has_pending_pair_code=self._has_pending_pair_code(),
+        )
+        if plan.start_timer:
             self._start_pairing_status_autopoll()
-        else:
+        if plan.stop_timer:
             self._stop_pairing_status_autopoll()
 
     def _poll_pairing_status(self) -> None:
