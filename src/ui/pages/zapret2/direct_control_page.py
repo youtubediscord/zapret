@@ -6,7 +6,7 @@ import re
 import time as _time
 import webbrowser
 
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -37,6 +37,7 @@ from ui.window_action_controller import (
     stop_and_exit,
     stop_dpi,
 )
+from .direct_control_page_controller import Zapret2DirectControlPageController
 
 try:
     from qfluentwidgets import (
@@ -161,77 +162,6 @@ def _log_startup_z2_control_metric(section: str, elapsed_ms: float) -> None:
     _log(f"⏱ Startup UI Section: ZAPRET2_DIRECT_CONTROL {section} {rounded}ms", "⏱ STARTUP")
 
 
-class _AdvancedSettingsLoadWorker(QThread):
-    loaded = pyqtSignal(int, dict)
-
-    def __init__(self, request_id: int, parent=None):
-        super().__init__(parent)
-        self._request_id = int(request_id)
-
-    def run(self) -> None:
-        state: dict = {}
-        try:
-            from core.presets.direct_facade import DirectPresetFacade
-
-            state = DirectPresetFacade.from_launch_method("direct_zapret2").get_advanced_settings_state() or {}
-        except Exception:
-            state = {}
-        self.loaded.emit(self._request_id, state)
-
-
-class _DirectPresetSummaryLoadWorker(QThread):
-    loaded = pyqtSignal(int, dict)
-
-    def __init__(self, request_id: int, parent=None):
-        super().__init__(parent)
-        self._request_id = int(request_id)
-
-    def run(self) -> None:
-        self.loaded.emit(self._request_id, _load_direct_zapret2_preset_summary_payload())
-
-
-def _load_direct_zapret2_preset_summary_payload() -> dict:
-    payload: dict = {
-        "active_preset_name": "",
-        "active_lists": [],
-    }
-    try:
-        from core.services import get_direct_flow_coordinator
-        from core.presets.direct_facade import DirectPresetFacade
-
-        preset = get_direct_flow_coordinator().get_selected_source_manifest("direct_zapret2")
-        payload["active_preset_name"] = str(getattr(preset, "name", "") or "").strip()
-
-        facade = DirectPresetFacade.from_launch_method("direct_zapret2")
-        source_text = facade.read_selected_source_text()
-        active_lists: list[str] = []
-        seen_lists: set[str] = set()
-        for raw in str(source_text or "").splitlines():
-            stripped = raw.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            for value in _HOSTLIST_DISPLAY_RE.findall(stripped):
-                list_path = value.strip().strip('"').strip("'")
-                if not list_path:
-                    continue
-
-                normalized = list_path.replace("\\", "/")
-                list_name = normalized.rsplit("/", 1)[-1]
-                if not list_name:
-                    continue
-
-                dedupe_key = list_name.lower()
-                if dedupe_key in seen_lists:
-                    continue
-                seen_lists.add(dedupe_key)
-                active_lists.append(list_name)
-        payload["active_lists"] = active_lists
-    except Exception:
-        pass
-
-    return payload
-
-
 class BigActionButton(PrimaryActionButton):
     """Большая кнопка запуска (акцентная, PrimaryPushButton)."""
 
@@ -270,6 +200,7 @@ class Zapret2DirectControlPage(BasePage):
 
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
+        self._controller = Zapret2DirectControlPageController()
         self._startup_showevent_profile_logged = False
         self._advanced_settings_worker = None
         self._advanced_settings_request_id = 0
@@ -906,7 +837,7 @@ class Zapret2DirectControlPage(BasePage):
 
         self._advanced_settings_request_id += 1
         request_id = self._advanced_settings_request_id
-        worker = _AdvancedSettingsLoadWorker(request_id, self)
+        worker = self._controller.create_advanced_settings_worker(request_id, self)
         self._advanced_settings_worker = worker
         worker.loaded.connect(self._on_advanced_settings_loaded)
         worker.finished.connect(worker.deleteLater)
@@ -931,7 +862,7 @@ class Zapret2DirectControlPage(BasePage):
 
         self._preset_summary_request_id += 1
         request_id = self._preset_summary_request_id
-        worker = _DirectPresetSummaryLoadWorker(request_id, self)
+        worker = self._controller.create_preset_summary_worker(request_id, self)
         self._preset_summary_worker = worker
         worker.loaded.connect(self._on_preset_summary_loaded)
         worker.finished.connect(worker.deleteLater)
@@ -1124,26 +1055,10 @@ class Zapret2DirectControlPage(BasePage):
         self._on_reset_program_clicked()
 
     def _sync_program_settings(self) -> None:
-        try:
-            from config import get_dpi_autostart
-
-            self._set_toggle_checked(self.auto_dpi_toggle, bool(get_dpi_autostart()))
-        except Exception:
-            pass
-
-        try:
-            from altmenu.defender_manager import WindowsDefenderManager
-
-            self._set_toggle_checked(self.defender_toggle, bool(WindowsDefenderManager().is_defender_disabled()))
-        except Exception:
-            pass
-
-        try:
-            from altmenu.max_blocker import is_max_blocked
-
-            self._set_toggle_checked(self.max_block_toggle, bool(is_max_blocked()))
-        except Exception:
-            pass
+        plan = self._controller.load_program_settings()
+        self._set_toggle_checked(self.auto_dpi_toggle, plan.auto_dpi_enabled)
+        self._set_toggle_checked(self.defender_toggle, plan.defender_disabled)
+        self._set_toggle_checked(self.max_block_toggle, plan.max_blocked)
 
     def _set_status(self, msg: str) -> None:
         try:
@@ -1154,16 +1069,9 @@ class Zapret2DirectControlPage(BasePage):
 
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         try:
-            from config import set_dpi_autostart
-
-            set_dpi_autostart(bool(enabled))
-            msg = (
-                "DPI будет включаться автоматически при старте программы"
-                if enabled
-                else "Автозагрузка DPI отключена"
-            )
-            self._set_status(msg)
-            InfoBar.success(title="Автозагрузка DPI", content=msg, parent=self.window())
+            plan = self._controller.save_auto_dpi(enabled)
+            self._set_status(plan.message)
+            InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
         finally:
             self._sync_program_settings()
 
@@ -1316,40 +1224,20 @@ class Zapret2DirectControlPage(BasePage):
             self._sync_program_settings()
 
     def _on_reset_program_clicked(self) -> None:
-        from startup.check_cache import startup_cache
-        from log import log
-
         try:
-            startup_cache.invalidate_cache()
-            log("Кэш проверок запуска очищен пользователем", "INFO")
-            self._set_status("Кэш проверок запуска очищен")
+            ok, message = self._controller.reset_startup_cache()
+            if ok:
+                self._set_status(message)
+            else:
+                InfoBar.warning(title="Ошибка", content=f"Не удалось очистить кэш: {message}", parent=self.window())
         except Exception as e:
             InfoBar.warning(title="Ошибка", content=f"Не удалось очистить кэш: {e}", parent=self.window())
-            log(f"Ошибка очистки кэша: {e}", "❌ ERROR")
         finally:
             self._sync_program_settings()
 
     def _update_stop_winws_button_text(self):
-        try:
-            from strategy_menu.launch_method_store import get_strategy_launch_method
-            from config import get_winws_exe_for_method
-
-            method = get_strategy_launch_method()
-            exe_name = os.path.basename(get_winws_exe_for_method(method)) or "winws.exe"
-            template = tr_catalog(
-                "page.z2_control.button.stop_only_template",
-                language=self._ui_language,
-                default="Остановить только {exe_name}",
-            )
-            self.stop_winws_btn.setText(template.format(exe_name=exe_name))
-        except Exception:
-            self.stop_winws_btn.setText(
-                tr_catalog(
-                    "page.z2_control.button.stop_only_winws",
-                    language=self._ui_language,
-                    default="Остановить только winws.exe",
-                )
-            )
+        plan = self._controller.build_stop_button_plan(language=self._ui_language)
+        self.stop_winws_btn.setText(plan.text)
 
     def set_loading(self, loading: bool, text: str = ""):
         if _HAS_FLUENT_LABELS:
@@ -1405,70 +1293,23 @@ class Zapret2DirectControlPage(BasePage):
         self.update_status(state.dpi_phase or ("running" if state.dpi_running else "stopped"), state.dpi_last_error)
         self.update_strategy(state.current_strategy_summary or "")
 
-    @staticmethod
-    def _short_dpi_error(last_error: str) -> str:
-        text = str(last_error or "").strip()
-        if not text:
-            return ""
-        first_line = text.splitlines()[0].strip()
-        if len(first_line) <= 160:
-            return first_line
-        return first_line[:157] + "..."
-
     def update_status(self, state: str | bool, last_error: str = ""):
-        phase = str(state or "").strip().lower()
-        if phase not in {"autostart_pending", "starting", "running", "stopping", "failed", "stopped"}:
-            phase = "running" if bool(state) else "stopped"
-
-        if phase == "running":
-            self.status_title.setText(tr_catalog("page.z2_control.status.running", language=self._ui_language, default="Zapret работает"))
-            self.status_desc.setText(tr_catalog("page.z2_control.status.bypass_active", language=self._ui_language, default="Обход блокировок активен"))
-            self.status_dot.set_color("#6ccb5f")
+        plan = self._controller.build_status_plan(
+            state=state,
+            last_error=last_error,
+            language=self._ui_language,
+        )
+        self.status_title.setText(plan.title)
+        self.status_desc.setText(plan.description)
+        self.status_dot.set_color(plan.dot_color)
+        if plan.pulsing:
             self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self._update_stop_winws_button_text()
-            self.stop_winws_btn.setVisible(True)
-            self.stop_and_exit_btn.setVisible(True)
-        elif phase == "autostart_pending":
-            self.status_title.setText("Автозапуск Zapret запланирован")
-            self.status_desc.setText("Подготавливаем стартовый запуск выбранного пресета")
-            self.status_dot.set_color("#f5a623")
-            self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
-        elif phase == "starting":
-            self.status_title.setText("Zapret запускается")
-            self.status_desc.setText("Ждём подтверждение процесса winws")
-            self.status_dot.set_color("#f5a623")
-            self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
-        elif phase == "stopping":
-            self.status_title.setText("Zapret останавливается")
-            self.status_desc.setText("Завершаем процесс и освобождаем WinDivert")
-            self.status_dot.set_color("#f5a623")
-            self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
-        elif phase == "failed":
-            self.status_title.setText("Ошибка запуска Zapret")
-            self.status_desc.setText(self._short_dpi_error(last_error) or "Процесс не подтвердился или завершился сразу")
-            self.status_dot.set_color("#ff6b6b")
-            self.status_dot.stop_pulse()
-            self.start_btn.setVisible(True)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
         else:
-            self.status_title.setText(tr_catalog("page.z2_control.status.stopped", language=self._ui_language, default="Zapret остановлен"))
-            self.status_desc.setText(tr_catalog("page.z2_control.status.press_start", language=self._ui_language, default="Нажмите «Запустить» для активации"))
-            self.status_dot.set_color("#ff6b6b")
             self.status_dot.stop_pulse()
-            self.start_btn.setVisible(True)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
+        self.start_btn.setVisible(plan.show_start)
+        self._update_stop_winws_button_text()
+        self.stop_winws_btn.setVisible(plan.show_stop_only)
+        self.stop_and_exit_btn.setVisible(plan.show_stop_and_exit)
 
     def update_strategy(self, name: str):
         self._update_stop_winws_button_text()

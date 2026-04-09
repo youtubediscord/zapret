@@ -125,7 +125,6 @@ from core.runtime.preset_runtime_coordinator import (
 # Navigation icon mapping (SectionName/PageName -> FluentIcon)
 # ---------------------------------------------------------------------------
 _NAV_ICONS = {
-    PageName.HOME: FluentIcon.HOME if HAS_FLUENT else None,
     PageName.CONTROL: FluentIcon.COMMAND_PROMPT if HAS_FLUENT else None,
     PageName.ZAPRET2_DIRECT_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
     PageName.AUTOSTART: FluentIcon.POWER_BUTTON if HAS_FLUENT else None,
@@ -159,7 +158,6 @@ _NAV_ICONS = {
 
 # Russian labels for navigation
 _NAV_LABELS = {
-    PageName.HOME: "Главная",
     PageName.CONTROL: "Управление",
     PageName.ZAPRET2_DIRECT_CONTROL: "Управление Zapret 2",
     PageName.AUTOSTART: "Автозапуск",

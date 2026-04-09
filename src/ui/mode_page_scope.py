@@ -33,7 +33,6 @@ MODE_SEARCH_PAGE_SCOPES: dict[str, frozenset[PageName]] = {
         PageName.ZAPRET1_PRESET_DETAIL,
     }),
     "orchestra": frozenset({
-        PageName.CONTROL,
         PageName.ORCHESTRA,
         PageName.ORCHESTRA_SETTINGS,
     }),

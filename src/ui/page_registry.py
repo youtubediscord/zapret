@@ -7,7 +7,6 @@ from ui.page_names import PageName
 
 
 PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {
-    PageName.HOME: ("home_page", "ui.pages.home_page", "HomePage"),
     PageName.CONTROL: ("control_page", "ui.pages.control_page", "ControlPage"),
     PageName.ZAPRET2_DIRECT_CONTROL: (
         "zapret2_direct_control_page",
@@ -100,7 +99,11 @@ PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {
     PageName.SERVERS: ("servers_page", "ui.pages.servers_page", "ServersPage"),
     PageName.ABOUT: ("about_page", "ui.pages.about_page", "AboutPage"),
     PageName.SUPPORT: ("support_page", "ui.pages.support_page", "SupportPage"),
-    PageName.ORCHESTRA: ("orchestra_page", "ui.pages.orchestra_page", "OrchestraPage"),
+    PageName.ORCHESTRA: (
+        "orchestra_page",
+        "ui.pages.orchestra.orchestra_page",
+        "OrchestraPage",
+    ),
     PageName.ORCHESTRA_SETTINGS: (
         "orchestra_settings_page",
         "ui.pages.orchestra.orchestra_settings_page",
@@ -143,7 +146,6 @@ def _profile(kind: str, warmup_policy: str, first_show_budget_ms: int, repeat_sh
 
 
 PAGE_PERFORMANCE_PROFILES: dict[PageName, PagePerformanceProfile] = {
-    PageName.HOME: _profile("heavy_list", "module", 200),
     PageName.CONTROL: _profile("heavy_list", "module", 200),
     PageName.ZAPRET2_DIRECT_CONTROL: _profile("heavy_list", "module", 200),
     PageName.ZAPRET2_DIRECT: _profile("heavy_list", "module", 200),

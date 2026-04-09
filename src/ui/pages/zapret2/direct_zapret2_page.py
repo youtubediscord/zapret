@@ -6,7 +6,7 @@
 
 import time as _time
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QEvent
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QFrame, QSizePolicy
@@ -14,23 +14,23 @@ from PyQt6.QtWidgets import (
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton, RefreshButton
+from ui.compat_widgets import SettingsCard, RefreshButton
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.widgets import PresetTargetsList
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
 from log import log
 
-try:
-    from qfluentwidgets import CaptionLabel, BodyLabel, PushButton, TransparentPushButton, PrimaryPushSettingCard, SettingCardGroup, PushSettingCard
-    _HAS_FLUENT_LABELS = True
-except ImportError:
-    from PyQt6.QtWidgets import QLabel as BodyLabel, QLabel as CaptionLabel, QPushButton as PushButton
-    TransparentPushButton = PushButton
-    PrimaryPushSettingCard = None  # type: ignore[assignment]
-    SettingCardGroup = None  # type: ignore[assignment]
-    PushSettingCard = None  # type: ignore[assignment]
-    _HAS_FLUENT_LABELS = False
+from qfluentwidgets import (
+    BreadcrumbBar,
+    MessageBox,
+    CaptionLabel,
+    BodyLabel,
+    PushButton,
+    PrimaryPushSettingCard,
+    SettingCardGroup,
+    PushSettingCard,
+)
 
 
 _CATEGORY_REQUEST_FORM_URL = (
@@ -68,40 +68,10 @@ class Zapret2StrategiesPageNew(BasePage):
         self.parent_app = parent
 
         # Breadcrumb navigation: Управление › Прямой запуск Zapret 2
-        self._breadcrumb = None
-        try:
-            from qfluentwidgets import BreadcrumbBar as _BreadcrumbBar
-            self._breadcrumb = _BreadcrumbBar()
-            self._rebuild_breadcrumb()
-            self._breadcrumb.currentItemChanged.connect(self._on_breadcrumb_item_changed)
-            self.layout.insertWidget(0, self._breadcrumb)
-        except Exception:
-            self._breadcrumb = None
-            # Fallback: original back button
-            try:
-                import qtawesome as _qta
-                from PyQt6.QtCore import QSize as _QSize
-                from PyQt6.QtWidgets import QHBoxLayout as _QHBoxLayout, QWidget as _QWidget
-                from ui.theme import get_theme_tokens as _get_tokens
-                _tokens = _get_tokens()
-                _back_btn = TransparentPushButton()
-                _back_btn.setText(
-                    tr_catalog("page.z2_direct.back.control", language=self._ui_language, default="Управление")
-                )
-                _back_btn.setIcon(_qta.icon("fa5s.chevron-left", color=_tokens.fg_muted))
-                _back_btn.setIconSize(_QSize(12, 12))
-                _back_btn.clicked.connect(self.back_clicked.emit)
-                self._back_btn = _back_btn
-                _back_layout = _QHBoxLayout()
-                _back_layout.setContentsMargins(0, 0, 0, 0)
-                _back_layout.setSpacing(0)
-                _back_layout.addWidget(_back_btn)
-                _back_layout.addStretch()
-                _back_widget = _QWidget()
-                _back_widget.setLayout(_back_layout)
-                self.layout.insertWidget(0, _back_widget)
-            except Exception:
-                pass
+        self._breadcrumb = BreadcrumbBar()
+        self._rebuild_breadcrumb()
+        self._breadcrumb.currentItemChanged.connect(self._on_breadcrumb_item_changed)
+        self.layout.insertWidget(0, self._breadcrumb)
 
         self.target_selections = {}
         self._targets_list = None
@@ -113,7 +83,6 @@ class Zapret2StrategiesPageNew(BasePage):
         self._preset_refresh_pending = False
         self._list_structure_signature = None
         self._empty_state_label = None
-        self._request_hint_label = None
         self._request_btn = None
         self._request_card = None
         self._expand_btn = None
@@ -123,7 +92,6 @@ class Zapret2StrategiesPageNew(BasePage):
         self._expand_card = None
         self._collapse_card = None
         self._info_card = None
-        self._back_btn = None
         self._render_probe_build_started_at = None
         self._render_probe_build_finished_at = None
         self._render_probe_first_paint_logged = False
@@ -259,146 +227,80 @@ class Zapret2StrategiesPageNew(BasePage):
                     "Откройте готовую форму на GitHub и опишите, что нужно добавить в hostlist или ipset."
                 ),
             )
-            if PrimaryPushSettingCard is not None and _HAS_FLUENT_LABELS:
-                self._request_hint_label = None
-                self._request_card = PrimaryPushSettingCard(
-                    tr_catalog("page.z2_direct.request.button", language=self._ui_language, default="ОТКРЫТЬ ФОРМУ НА GITHUB"),
-                    qta.icon("fa5b.github", color=get_theme_tokens().accent_hex),
-                    tr_catalog("page.z2_direct.request.card.title", language=self._ui_language, default="Открыть форму на GitHub"),
-                    _hint_text,
-                )
-                self._request_card.clicked.connect(self._open_category_request_form)
-                self._request_btn = self._request_card.button
-                request_card = self._request_card
-            else:
-                request_card = SettingsCard()
-                request_layout = QHBoxLayout()
-                request_layout.setContentsMargins(0, 0, 0, 0)
-                request_layout.setSpacing(16)
-
-                # Описательный текст слева
-                request_hint = CaptionLabel(_hint_text)
-                self._request_hint_label = request_hint
-                request_hint.setWordWrap(True)
-                request_hint.setContentsMargins(12, 0, 0, 0)
-                request_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-                request_hint.setMinimumWidth(0)
-                request_layout.addWidget(request_hint, 1)
-
-                # Кнопка GitHub-формы
-                request_btn = ActionButton(
-                    tr_catalog("page.z2_direct.request.button", language=self._ui_language, default="ОТКРЫТЬ ФОРМУ НА GITHUB"),
-                    "fa5b.github",
-                )
-                self._request_btn = request_btn
-                request_btn.setFixedHeight(36)
-                request_btn.clicked.connect(self._open_category_request_form)
-                request_layout.addWidget(request_btn, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-
-                request_card.add_layout(request_layout)
+            self._request_card = PrimaryPushSettingCard(
+                tr_catalog("page.z2_direct.request.button", language=self._ui_language, default="ОТКРЫТЬ ФОРМУ НА GITHUB"),
+                qta.icon("fa5b.github", color=get_theme_tokens().accent_hex),
+                tr_catalog("page.z2_direct.request.card.title", language=self._ui_language, default="Открыть форму на GitHub"),
+                _hint_text,
+            )
+            self._request_card.clicked.connect(self._open_category_request_form)
+            self._request_btn = self._request_card.button
+            request_card = self._request_card
             self.content_layout.addWidget(request_card)
             _log_startup_z2_direct_metric("_build_content.request_card", (_time.perf_counter() - _t_request_link) * 1000)
 
             # Панель действий (toolbar)
             _t_toolbar = _time.perf_counter()
-            if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT_LABELS:
-                self._toolbar_group = SettingCardGroup(
-                    tr_catalog("page.z2_direct.toolbar.title", language=self._ui_language, default="Действия"),
-                    self.content,
-                )
-                actions_card = self._toolbar_group
+            self._toolbar_group = SettingCardGroup(
+                tr_catalog("page.z2_direct.toolbar.title", language=self._ui_language, default="Действия"),
+                self.content,
+            )
+            actions_card = self._toolbar_group
 
-                self._reload_btn = RefreshButton()
-                self._reload_btn.clicked.connect(self._reload_strategies)
-                reload_card = SettingsCard()
-                reload_layout = QHBoxLayout()
-                reload_layout.setContentsMargins(10, 6, 12, 6)
-                reload_layout.addWidget(self._reload_btn)
-                reload_layout.addStretch()
-                reload_card.add_layout(reload_layout)
-                self._toolbar_group.addSettingCard(reload_card)
+            self._reload_btn = RefreshButton()
+            self._reload_btn.clicked.connect(self._reload_strategies)
+            reload_card = SettingsCard()
+            reload_layout = QHBoxLayout()
+            reload_layout.setContentsMargins(10, 6, 12, 6)
+            reload_layout.addWidget(self._reload_btn)
+            reload_layout.addStretch()
+            reload_card.add_layout(reload_layout)
+            self._toolbar_group.addSettingCard(reload_card)
 
-                self._expand_card = PushSettingCard(
-                    tr_catalog("page.z2_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
-                    qta.icon("fa5s.expand-alt", color="#4CAF50"),
-                    tr_catalog("page.z2_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
-                    tr_catalog(
-                        "page.z2_direct.toolbar.expand.description",
-                        language=self._ui_language,
-                        default="Развернуть все категории и target'ы в списке.",
-                    ),
-                    self.content,
-                )
-                self._expand_card.clicked.connect(self._expand_all)
-                self._expand_btn = self._expand_card.button
-                self._toolbar_group.addSettingCard(self._expand_card)
+            self._expand_card = PushSettingCard(
+                tr_catalog("page.z2_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
+                qta.icon("fa5s.expand-alt", color="#4CAF50"),
+                tr_catalog("page.z2_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
+                tr_catalog(
+                    "page.z2_direct.toolbar.expand.description",
+                    language=self._ui_language,
+                    default="Развернуть все категории и target'ы в списке.",
+                ),
+                self.content,
+            )
+            self._expand_card.clicked.connect(self._expand_all)
+            self._expand_btn = self._expand_card.button
+            self._toolbar_group.addSettingCard(self._expand_card)
 
-                self._collapse_card = PushSettingCard(
-                    tr_catalog("page.z2_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
-                    qta.icon("fa5s.compress-alt", color="#ff9800"),
-                    tr_catalog("page.z2_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
-                    tr_catalog(
-                        "page.z2_direct.toolbar.collapse.description",
-                        language=self._ui_language,
-                        default="Свернуть все категории и target'ы в списке.",
-                    ),
-                    self.content,
-                )
-                self._collapse_card.clicked.connect(self._collapse_all)
-                self._collapse_btn = self._collapse_card.button
-                self._toolbar_group.addSettingCard(self._collapse_card)
+            self._collapse_card = PushSettingCard(
+                tr_catalog("page.z2_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
+                qta.icon("fa5s.compress-alt", color="#ff9800"),
+                tr_catalog("page.z2_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
+                tr_catalog(
+                    "page.z2_direct.toolbar.collapse.description",
+                    language=self._ui_language,
+                    default="Свернуть все категории и target'ы в списке.",
+                ),
+                self.content,
+            )
+            self._collapse_card.clicked.connect(self._collapse_all)
+            self._collapse_btn = self._collapse_card.button
+            self._toolbar_group.addSettingCard(self._collapse_card)
 
-                self._info_card = PushSettingCard(
-                    tr_catalog("page.z2_direct.toolbar.info", language=self._ui_language, default="Что это такое?"),
-                    qta.icon("fa5s.question-circle", color="#60cdff"),
-                    tr_catalog("page.z2_direct.toolbar.info", language=self._ui_language, default="Что это такое?"),
-                    tr_catalog(
-                        "page.z2_direct.toolbar.info.description",
-                        language=self._ui_language,
-                        default="Показать краткое объяснение по работе прямого запуска Zapret 2.",
-                    ),
-                    self.content,
-                )
-                self._info_card.clicked.connect(self._show_info_popup)
-                self._info_btn = self._info_card.button
-                self._toolbar_group.addSettingCard(self._info_card)
-            else:
-                actions_card = SettingsCard()
-                actions_layout = QHBoxLayout()
-                actions_layout.setSpacing(8)
-
-                self._reload_btn = RefreshButton()
-                self._reload_btn.clicked.connect(self._reload_strategies)
-                actions_layout.addWidget(self._reload_btn)
-
-                expand_btn = ActionButton(
-                    tr_catalog("page.z2_direct.toolbar.expand", language=self._ui_language, default="Развернуть"),
-                    "fa5s.expand-alt",
-                )
-                expand_btn.clicked.connect(self._expand_all)
-                actions_layout.addWidget(expand_btn)
-                self._expand_btn = expand_btn
-
-                collapse_btn = ActionButton(
-                    tr_catalog("page.z2_direct.toolbar.collapse", language=self._ui_language, default="Свернуть"),
-                    "fa5s.compress-alt",
-                )
-                collapse_btn.clicked.connect(self._collapse_all)
-                actions_layout.addWidget(collapse_btn)
-                self._collapse_btn = collapse_btn
-
-                info_btn = ActionButton(
-                    tr_catalog("page.z2_direct.toolbar.info", language=self._ui_language, default="Что это такое?"),
-                    "fa5s.question-circle",
-                    accent=False,
-                )
-                info_btn.clicked.connect(self._show_info_popup)
-                actions_layout.addWidget(info_btn)
-                self._info_btn = info_btn
-
-                actions_layout.addStretch()
-
-                actions_card.add_layout(actions_layout)
+            self._info_card = PushSettingCard(
+                tr_catalog("page.z2_direct.toolbar.info", language=self._ui_language, default="Что это такое?"),
+                qta.icon("fa5s.question-circle", color="#60cdff"),
+                tr_catalog("page.z2_direct.toolbar.info", language=self._ui_language, default="Что это такое?"),
+                tr_catalog(
+                    "page.z2_direct.toolbar.info.description",
+                    language=self._ui_language,
+                    default="Показать краткое объяснение по работе прямого запуска Zapret 2.",
+                ),
+                self.content,
+            )
+            self._info_card.clicked.connect(self._show_info_popup)
+            self._info_btn = self._info_card.button
+            self._toolbar_group.addSettingCard(self._info_card)
             self.content_layout.addWidget(actions_card)
             _log_startup_z2_direct_metric("_build_content.toolbar", (_time.perf_counter() - _t_toolbar) * 1000)
 
@@ -850,7 +752,6 @@ class Zapret2StrategiesPageNew(BasePage):
     def _show_info_popup(self):
         """Показывает информационный диалог о режиме прямого запуска."""
         try:
-            from qfluentwidgets import MessageBox
             box = MessageBox(
                 tr_catalog("page.z2_direct.info.title", language=self._ui_language, default="Прямой запуск Zapret 2"),
                 self._tr_info_text(),
@@ -881,10 +782,6 @@ class Zapret2StrategiesPageNew(BasePage):
         super().set_ui_language(language)
         self._rebuild_breadcrumb()
 
-        if self._back_btn is not None:
-            self._back_btn.setText(
-                tr_catalog("page.z2_direct.back.control", language=self._ui_language, default="Управление")
-            )
         try:
             title_label = getattr(getattr(self, "_toolbar_group", None), "titleLabel", None)
             if title_label is not None:
@@ -894,17 +791,6 @@ class Zapret2StrategiesPageNew(BasePage):
         except Exception:
             pass
 
-        if self._request_hint_label is not None:
-            self._request_hint_label.setText(
-                tr_catalog(
-                    "page.z2_direct.request.hint",
-                    language=self._ui_language,
-                    default=(
-                        "Хотите добавить новый сайт или сервис в Zapret 2? "
-                        "Откройте готовую форму на GitHub и опишите, что нужно добавить в hostlist или ipset."
-                    ),
-                )
-            )
         if self._request_card is not None:
             self._request_card.setTitle(
                 tr_catalog("page.z2_direct.request.card.title", language=self._ui_language, default="Открыть форму на GitHub")

@@ -34,9 +34,6 @@ def get_eager_page_names(window) -> tuple[PageName, ...]:
     method = window._get_launch_method()
 
     names: list[PageName] = []
-    startup_without_home = {"direct_zapret2", "direct_zapret1", "direct_zapret2_orchestra", "orchestra"}
-    if method not in startup_without_home:
-        names.append(PageName.HOME)
     eager_mode_entry_page = getattr(window, "_eager_mode_entry_page", {}) or {}
     eager_page_names_base = getattr(window, "_eager_page_names_base", ()) or ()
     entry_page = eager_mode_entry_page.get(method)
@@ -368,50 +365,6 @@ def _register_deferred_page_build_hook(window, page_name: PageName, page: QWidge
 
 
 def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> None:
-    if page_name == PageName.HOME:
-        if hasattr(page, "premium_link_btn"):
-            connect_signal_once(
-                window,
-                "home.premium_link_btn.clicked",
-                page.premium_link_btn.clicked,
-                window._open_subscription_dialog,
-            )
-        if hasattr(page, "navigate_to_control"):
-            connect_signal_once(
-                window,
-                "home.navigate_to_control",
-                page.navigate_to_control,
-                window._navigate_to_control,
-            )
-        if hasattr(page, "navigate_to_strategies"):
-            connect_signal_once(
-                window,
-                "home.navigate_to_strategies",
-                page.navigate_to_strategies,
-                window._navigate_to_strategies,
-            )
-        if hasattr(page, "navigate_to_autostart"):
-            connect_signal_once(
-                window,
-                "home.navigate_to_autostart",
-                page.navigate_to_autostart,
-                window.show_autostart_page,
-            )
-        if hasattr(page, "navigate_to_premium"):
-            connect_signal_once(
-                window,
-                "home.navigate_to_premium",
-                page.navigate_to_premium,
-                window._open_subscription_dialog,
-            )
-        if hasattr(page, "navigate_to_dpi_settings"):
-            connect_signal_once(
-                window,
-                "home.navigate_to_dpi_settings",
-                page.navigate_to_dpi_settings,
-                lambda: window.show_page(PageName.DPI_SETTINGS),
-            )
-
     if page_name == PageName.AUTOSTART:
         if hasattr(page, "autostart_enabled"):
             connect_signal_once(

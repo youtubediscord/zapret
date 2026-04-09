@@ -1,4 +1,4 @@
-# ui/pages/orchestra_page.py
+# ui/pages/orchestra/orchestra_page.py
 """Страница оркестратора автоматического обучения (circular)"""
 
 from queue import Queue, Empty
@@ -12,7 +12,7 @@ from PyQt6.QtGui import QFont, QTextCursor, QAction
 import qtawesome as qta
 
 from orchestra.page_controller import OrchestraPageController
-from .base_page import BasePage
+from ..base_page import BasePage
 from ui.popup_menu import exec_popup_menu
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog

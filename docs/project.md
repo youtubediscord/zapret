@@ -197,7 +197,6 @@ zapret/
 
 | Страница | Файл | Назначение |
 |----------|------|------------|
-| Главная | home_page.py | Статус DPI, кнопки запуска |
 | Управление | control_page.py | Альтернативное управление |
 | Стратегии | strategies_page.py | Выбор стратегий |
 | Хостлисты | hostlist_page.py | Управление доменами |
@@ -211,7 +210,7 @@ zapret/
 | Оформление | appearance_page.py | Темы |
 | Premium | premium_page.py | Подписка |
 | Логи | logs_page.py | Просмотр логов |
-| Оркестратор | orchestra_page.py | Логи оркестратора |
+| Оркестратор | orchestra/orchestra_page.py | Логи оркестратора |
 | Залоченные | orchestra_locked_page.py | Зафиксированные стратегии |
 | Заблокированные | orchestra_blocked_page.py | Черный список |
 | Белый список | orchestra_whitelist_page.py | Исключения оркестратора |

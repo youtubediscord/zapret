@@ -112,7 +112,6 @@ def init_navigation(window) -> None:
             attach_sidebar_search_to_titlebar(window)
             update_titlebar_search_width(window)
 
-    _add(PageName.HOME)
     _add(PageName.CONTROL)
     _add(PageName.ZAPRET2_DIRECT_CONTROL)
     _add(PageName.ZAPRET2_ORCHESTRA_CONTROL)

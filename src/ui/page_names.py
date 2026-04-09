@@ -24,7 +24,6 @@ class PageName(Enum):
     """
 
     # === Основные страницы ===
-    HOME = auto()                    # Главная
     CONTROL = auto()                 # Управление DPI
     ZAPRET2_DIRECT_CONTROL = auto()  # Zapret 2 Direct: управление (главная вкладка в "Стратегии")
     ZAPRET2_DIRECT = auto()          # Zapret 2 Direct стратегии
@@ -87,7 +86,6 @@ class SectionName(Enum):
     """
 
     # === Главное меню ===
-    HOME = auto()                    # Главная
     CONTROL = auto()                 # Управление
 
     # === Стратегии (collapsible группа) ===
@@ -128,7 +126,6 @@ class SectionName(Enum):
 # Маппинг Section -> Page (какую страницу открывать при клике на секцию)
 # None означает что секция collapsible - при клике определяется динамически в main_window
 SECTION_TO_PAGE: dict[SectionName, Optional[PageName]] = {
-    SectionName.HOME: PageName.HOME,
     SectionName.CONTROL: PageName.CONTROL,
     SectionName.STRATEGIES: None,  # Collapsible группа, целевая страница определяется по методу запуска
     SectionName.HOSTLIST: PageName.HOSTLIST,

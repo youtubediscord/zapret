@@ -6,6 +6,7 @@ from importlib import import_module
 
 
 _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
+    "OrchestraPage": (".orchestra_page", "OrchestraPage"),
     "OrchestraSettingsPage": (".orchestra_settings_page", "OrchestraSettingsPage"),
     "OrchestraLockedPage": (".locked_page", "OrchestraLockedPage"),
     "OrchestraBlockedPage": (".blocked_page", "OrchestraBlockedPage"),

@@ -20,24 +20,13 @@ try:
     from qfluentwidgets import (
         BodyLabel, CaptionLabel, InfoBar, LineEdit, MessageBox, SegmentedWidget,
         StrongBodyLabel, PushSettingCard, PrimaryPushSettingCard, SettingCardGroup,
+        PushButton, PrimaryPushButton,
     )
-    _HAS_FLUENT = True
 except ImportError:
-    SegmentedWidget = None
-    InfoBar = None
-    MessageBox = None
-    PushSettingCard = None  # type: ignore[assignment]
-    PrimaryPushSettingCard = None  # type: ignore[assignment]
-    SettingCardGroup = None  # type: ignore[assignment]
-    from PyQt6.QtWidgets import QLineEdit as LineEdit  # type: ignore[assignment]
-    BodyLabel = QLabel          # type: ignore[assignment,misc]
-    CaptionLabel = QLabel       # type: ignore[assignment,misc]
-    StrongBodyLabel = QLabel    # type: ignore[assignment,misc]
-    _HAS_FLUENT = False
+    raise
 
 from .base_page import BasePage, ScrollBlockingPlainTextEdit
-from ui.compat_widgets import ResetActionButton
-from ui.compat_widgets import SettingsCard, ActionButton, set_tooltip
+from ui.compat_widgets import SettingsCard
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
 from log import log
@@ -128,7 +117,6 @@ class HostlistPage(BasePage):
         self._ipru_status_timer.setSingleShot(True)
         self._ipru_status_timer.timeout.connect(self._ipru_update_status)
 
-        self._action_rows: list[dict] = []
         self._controller = HostlistPageController()
 
         self.enable_deferred_ui_build()
@@ -159,10 +147,7 @@ class HostlistPage(BasePage):
 
     def _build_ui(self):
         # Pivot tab selector
-        if SegmentedWidget is not None:
-            self.pivot = SegmentedWidget(self)
-        else:
-            self.pivot = None
+        self.pivot = SegmentedWidget(self)
 
         # Stacked panels
         self.stacked = CurrentPanelStackedWidget(self)
@@ -183,25 +168,23 @@ class HostlistPage(BasePage):
         self.stacked.addWidget(panel_ips)
         self.stacked.addWidget(panel_exclusions)
 
-        if self.pivot is not None:
-            self.pivot.addItem("hostlist", self._tr("page.hostlist.tab.hostlist", "Hostlist"), lambda: self._switch_tab(0))
-            self.pivot.addItem("ipset", self._tr("page.hostlist.tab.ipset", "IPset"), lambda: self._switch_tab(1))
-            self.pivot.addItem("domains", self._tr("page.hostlist.tab.domains", "Мои домены"), lambda: self._switch_tab(2))
-            self.pivot.addItem("ips", self._tr("page.hostlist.tab.ips", "Мои IP"), lambda: self._switch_tab(3))
-            self.pivot.addItem("exclusions", self._tr("page.hostlist.tab.exclusions", "Исключения"), lambda: self._switch_tab(4))
-            self.pivot.setCurrentItem("hostlist")
-            self.pivot.setItemFontSize(13)
-            self.layout.addWidget(self.pivot)
+        self.pivot.addItem("hostlist", self._tr("page.hostlist.tab.hostlist", "Hostlist"), lambda: self._switch_tab(0))
+        self.pivot.addItem("ipset", self._tr("page.hostlist.tab.ipset", "IPset"), lambda: self._switch_tab(1))
+        self.pivot.addItem("domains", self._tr("page.hostlist.tab.domains", "Мои домены"), lambda: self._switch_tab(2))
+        self.pivot.addItem("ips", self._tr("page.hostlist.tab.ips", "Мои IP"), lambda: self._switch_tab(3))
+        self.pivot.addItem("exclusions", self._tr("page.hostlist.tab.exclusions", "Исключения"), lambda: self._switch_tab(4))
+        self.pivot.setCurrentItem("hostlist")
+        self.pivot.setItemFontSize(13)
+        self.layout.addWidget(self.pivot)
 
         self.layout.addWidget(self.stacked)
         self._switch_tab(0)
 
     def _switch_tab(self, index: int):
         self.stacked.setCurrentIndex(index)
-        if self.pivot is not None:
-            keys = ["hostlist", "ipset", "domains", "ips", "exclusions"]
-            if 0 <= index < len(keys):
-                self.pivot.setCurrentItem(keys[index])
+        keys = ["hostlist", "ipset", "domains", "ips", "exclusions"]
+        if 0 <= index < len(keys):
+            self.pivot.setCurrentItem(keys[index])
         self._refresh_stacked_geometry()
         # Lazy-load editors on first visit
         if index == 2 and not self._domains_loaded:
@@ -244,81 +227,46 @@ class HostlistPage(BasePage):
         desc_card.add_widget(desc)
         lay.addWidget(desc_card)
 
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._hostlist_manage_card = None
-            manage_group = SettingCardGroup(self._tr("page.hostlist.section.manage", "Управление"), self.content)
-            self._hostlist_manage_group = manage_group
+        self._hostlist_manage_card = None
+        manage_group = SettingCardGroup(self._tr("page.hostlist.section.manage", "Управление"), self.content)
+        self._hostlist_manage_group = manage_group
 
-            self._hostlist_open_folder_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.open", "Открыть"),
-                qta.icon("fa5s.folder-open", color=tokens.accent_hex),
-                self._tr("page.hostlist.hostlist.action.open_folder.title", "Открыть папку хостлистов"),
-                self._tr(
-                    "page.hostlist.hostlist.action.open_folder.description",
-                    "Открыть общую папку hostlist и ipset списков в проводнике.",
-                ),
-            )
-            self._hostlist_open_folder_action_card.clicked.connect(self._open_lists_folder)
+        self._hostlist_open_folder_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.open", "Открыть"),
+            qta.icon("fa5s.folder-open", color=tokens.accent_hex),
+            self._tr("page.hostlist.hostlist.action.open_folder.title", "Открыть папку хостлистов"),
+            self._tr(
+                "page.hostlist.hostlist.action.open_folder.description",
+                "Открыть общую папку hostlist и ipset списков в проводнике.",
+            ),
+        )
+        self._hostlist_open_folder_action_card.clicked.connect(self._open_lists_folder)
 
-            self._hostlist_rebuild_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.rebuild", "Перестроить"),
-                qta.icon("fa5s.sync-alt", color="#4CAF50"),
-                self._tr("page.hostlist.hostlist.action.rebuild.title", "Перестроить хостлисты"),
-                self._tr(
-                    "page.hostlist.hostlist.action.rebuild.subtitle",
-                    "Обновляет списки из встроенной базы",
-                ),
-            )
-            self._hostlist_rebuild_action_card.clicked.connect(self._rebuild_hostlists)
+        self._hostlist_rebuild_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.rebuild", "Перестроить"),
+            qta.icon("fa5s.sync-alt", color="#4CAF50"),
+            self._tr("page.hostlist.hostlist.action.rebuild.title", "Перестроить хостлисты"),
+            self._tr(
+                "page.hostlist.hostlist.action.rebuild.subtitle",
+                "Обновляет списки из встроенной базы",
+            ),
+        )
+        self._hostlist_rebuild_action_card.clicked.connect(self._rebuild_hostlists)
 
-            manage_group.addSettingCards([
-                self._hostlist_open_folder_action_card,
-                self._hostlist_rebuild_action_card,
-            ])
-            manage_card = SettingsCard()
-            self._hostlist_info_card = manage_card
-        else:
-            manage_card = SettingsCard(self._tr("page.hostlist.section.manage", "Управление"))
-            self._hostlist_manage_card = manage_card
-            manage_card.add_widget(self._build_action_row(
-                title=self._tr("page.hostlist.hostlist.action.open_folder.title", "Открыть папку хостлистов"),
-                icon_name="fa5s.folder-open",
-                button_text=self._tr("page.hostlist.button.open", "Открыть"),
-                button_icon="fa5s.external-link-alt",
-                callback=self._open_lists_folder,
-                title_key="page.hostlist.hostlist.action.open_folder.title",
-                title_default="Открыть папку хостлистов",
-                button_key="page.hostlist.button.open",
-                button_default="Открыть",
-            ))
-            manage_card.add_widget(self._build_action_row(
-                title=self._tr("page.hostlist.hostlist.action.rebuild.title", "Перестроить хостлисты"),
-                icon_name="fa5s.sync-alt",
-                button_text=self._tr("page.hostlist.button.rebuild", "Перестроить"),
-                button_icon="fa5s.sync-alt",
-                callback=self._rebuild_hostlists,
-                subtitle=self._tr(
-                    "page.hostlist.hostlist.action.rebuild.subtitle",
-                    "Обновляет списки из встроенной базы",
-                ),
-                title_key="page.hostlist.hostlist.action.rebuild.title",
-                title_default="Перестроить хостлисты",
-                subtitle_key="page.hostlist.hostlist.action.rebuild.subtitle",
-                subtitle_default="Обновляет списки из встроенной базы",
-                button_key="page.hostlist.button.rebuild",
-                button_default="Перестроить",
-            ))
+        manage_group.addSettingCards([
+            self._hostlist_open_folder_action_card,
+            self._hostlist_rebuild_action_card,
+        ])
+        manage_card = SettingsCard()
+        self._hostlist_info_card = manage_card
         self.hostlist_info_label = CaptionLabel(
             self._tr("page.hostlist.info.loading", "Загрузка информации...")
         )
         self.hostlist_info_label.setStyleSheet(f"color: {tokens.fg_muted};")
         self.hostlist_info_label.setWordWrap(True)
         manage_card.add_widget(self.hostlist_info_label)
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            manage_group.addSettingCard(manage_card)
-            lay.addWidget(manage_group)
-        else:
-            lay.addWidget(manage_card)
+        manage_group.addSettingCard(manage_card)
+        lay.addWidget(manage_group)
 
         lay.addStretch()
         return panel
@@ -342,54 +290,37 @@ class HostlistPage(BasePage):
         desc_card.add_widget(desc)
         lay.addWidget(desc_card)
 
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._ipset_manage_card = None
-            manage_group = SettingCardGroup(self._tr("page.hostlist.section.manage", "Управление"), self.content)
-            self._ipset_manage_group = manage_group
+        self._ipset_manage_card = None
+        manage_group = SettingCardGroup(self._tr("page.hostlist.section.manage", "Управление"), self.content)
+        self._ipset_manage_group = manage_group
 
-            self._ipset_open_folder_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.open", "Открыть"),
-                qta.icon("fa5s.folder-open", color=tokens.accent_hex),
-                self._tr("page.hostlist.ipset.action.open_folder.title", "Открыть папку IP-сетов"),
-                self._tr(
-                    "page.hostlist.ipset.action.open_folder.description",
-                    "Открыть общую папку hostlist и ipset списков в проводнике.",
-                ),
-            )
-            self._ipset_open_folder_action_card.clicked.connect(self._open_lists_folder)
-            manage_group.addSettingCard(self._ipset_open_folder_action_card)
-            manage_card = SettingsCard()
-            self._ipset_info_card = manage_card
-        else:
-            manage_card = SettingsCard(self._tr("page.hostlist.section.manage", "Управление"))
-            self._ipset_manage_card = manage_card
-            manage_card.add_widget(self._build_action_row(
-                title=self._tr("page.hostlist.ipset.action.open_folder.title", "Открыть папку IP-сетов"),
-                icon_name="fa5s.folder-open",
-                button_text=self._tr("page.hostlist.button.open", "Открыть"),
-                button_icon="fa5s.external-link-alt",
-                callback=self._open_lists_folder,
-                title_key="page.hostlist.ipset.action.open_folder.title",
-                title_default="Открыть папку IP-сетов",
-                button_key="page.hostlist.button.open",
-                button_default="Открыть",
-            ))
+        self._ipset_open_folder_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.open", "Открыть"),
+            qta.icon("fa5s.folder-open", color=tokens.accent_hex),
+            self._tr("page.hostlist.ipset.action.open_folder.title", "Открыть папку IP-сетов"),
+            self._tr(
+                "page.hostlist.ipset.action.open_folder.description",
+                "Открыть общую папку hostlist и ipset списков в проводнике.",
+            ),
+        )
+        self._ipset_open_folder_action_card.clicked.connect(self._open_lists_folder)
+        manage_group.addSettingCard(self._ipset_open_folder_action_card)
+        manage_card = SettingsCard()
+        self._ipset_info_card = manage_card
         self.ipset_info_label = CaptionLabel(
             self._tr("page.hostlist.info.loading", "Загрузка информации...")
         )
         self.ipset_info_label.setStyleSheet(f"color: {tokens.fg_muted};")
         self.ipset_info_label.setWordWrap(True)
         manage_card.add_widget(self.ipset_info_label)
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            manage_group.addSettingCard(manage_card)
-            lay.addWidget(manage_group)
-        else:
-            lay.addWidget(manage_card)
+        manage_group.addSettingCard(manage_card)
+        lay.addWidget(manage_group)
 
         lay.addStretch()
         return panel
 
     def _build_domains_panel(self) -> QWidget:
+        tokens = get_theme_tokens()
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(0, 8, 0, 0)
@@ -424,105 +355,55 @@ class HostlistPage(BasePage):
         if hasattr(self._d_input, "returnPressed"):
             self._d_input.returnPressed.connect(self._domains_add)
         add_row.addWidget(self._d_input, 1)
-        self._d_add_btn = ActionButton(
-            self._tr("page.hostlist.button.add", "Добавить"),
-            "fa5s.plus",
-            accent=True,
-        )
+        self._d_add_btn = PrimaryPushButton()
+        self._d_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
+        self._d_add_btn.setIcon(qta.icon("fa5s.plus", color=tokens.accent_hex))
         self._d_add_btn.setFixedHeight(38)
         self._d_add_btn.clicked.connect(self._domains_add)
         add_row.addWidget(self._d_add_btn)
         add_card.add_layout(add_row)
         lay.addWidget(add_card)
 
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._domains_actions_card = None
-            self._domains_actions_group = SettingCardGroup(self._tr("page.hostlist.section.actions", "Действия"), self.content)
-            actions_group = self._domains_actions_group
+        self._domains_actions_card = None
+        self._domains_actions_group = SettingCardGroup(self._tr("page.hostlist.section.actions", "Действия"), self.content)
+        actions_group = self._domains_actions_group
 
-            self._domains_open_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                self._tr(
-                    "page.hostlist.domains.tooltip.open_file",
-                    "Сохраняет изменения и открывает other.user.txt в проводнике",
-                ),
-            )
-            self._domains_open_action_card.clicked.connect(self._domains_open_file)
+        self._domains_open_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            self._tr(
+                "page.hostlist.domains.tooltip.open_file",
+                "Сохраняет изменения и открывает other.user.txt в проводнике",
+            ),
+        )
+        self._domains_open_action_card.clicked.connect(self._domains_open_file)
 
-            self._domains_reset_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.reset_file", "Сбросить файл"),
-                qta.icon("fa5s.undo", color="#ff9800"),
-                self._tr("page.hostlist.button.reset_file", "Сбросить файл"),
-                self._tr(
-                    "page.hostlist.domains.tooltip.reset_file",
-                    "Очищает other.user.txt и пересобирает other.txt из системной базы",
-                ),
-            )
-            self._domains_reset_action_card.clicked.connect(self._domains_confirm_reset_file)
+        self._domains_reset_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.reset_file", "Сбросить файл"),
+            qta.icon("fa5s.undo", color="#ff9800"),
+            self._tr("page.hostlist.button.reset_file", "Сбросить файл"),
+            self._tr(
+                "page.hostlist.domains.tooltip.reset_file",
+                "Очищает other.user.txt и пересобирает other.txt из системной базы",
+            ),
+        )
+        self._domains_reset_action_card.clicked.connect(self._domains_confirm_reset_file)
 
-            self._domains_clear_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                qta.icon("fa5s.trash-alt", color="#ff9800"),
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                self._tr("page.hostlist.domains.tooltip.clear_all", "Удаляет только пользовательские домены"),
-            )
-            self._domains_clear_action_card.clicked.connect(self._domains_confirm_clear_all)
+        self._domains_clear_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            qta.icon("fa5s.trash-alt", color="#ff9800"),
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            self._tr("page.hostlist.domains.tooltip.clear_all", "Удаляет только пользовательские домены"),
+        )
+        self._domains_clear_action_card.clicked.connect(self._domains_confirm_clear_all)
 
-            actions_group.addSettingCards([
-                self._domains_open_action_card,
-                self._domains_reset_action_card,
-                self._domains_clear_action_card,
-            ])
-            lay.addWidget(actions_group)
-        else:
-            actions_card = SettingsCard(self._tr("page.hostlist.section.actions", "Действия"))
-            self._domains_actions_card = actions_card
-            actions_row = QHBoxLayout()
-            actions_row.setSpacing(8)
-            open_btn = ActionButton(self._tr("page.hostlist.button.open_file", "Открыть файл"), "fa5s.external-link-alt")
-            self._domains_open_btn = open_btn
-            open_btn.setFixedHeight(36)
-            set_tooltip(
-                open_btn,
-                self._tr(
-                    "page.hostlist.domains.tooltip.open_file",
-                    "Сохраняет изменения и открывает other.user.txt в проводнике",
-                ),
-            )
-            open_btn.clicked.connect(self._domains_open_file)
-            actions_row.addWidget(open_btn)
-            reset_btn = ResetActionButton(
-                self._tr("page.hostlist.button.reset_file", "Сбросить файл"),
-                confirm_text=self._tr("page.hostlist.confirm.reset", "Подтвердить сброс"),
-            )
-            self._domains_reset_btn = reset_btn
-            reset_btn.setFixedHeight(36)
-            set_tooltip(
-                reset_btn,
-                self._tr(
-                    "page.hostlist.domains.tooltip.reset_file",
-                    "Очищает other.user.txt и пересобирает other.txt из системной базы",
-                ),
-            )
-            reset_btn.reset_confirmed.connect(self._domains_reset_file)
-            actions_row.addWidget(reset_btn)
-            clear_btn = ResetActionButton(
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                confirm_text=self._tr("page.hostlist.confirm.clear", "Подтвердить очистку"),
-            )
-            self._domains_clear_btn = clear_btn
-            clear_btn.setFixedHeight(36)
-            set_tooltip(
-                clear_btn,
-                self._tr("page.hostlist.domains.tooltip.clear_all", "Удаляет только пользовательские домены"),
-            )
-            clear_btn.reset_confirmed.connect(self._domains_clear_all)
-            actions_row.addWidget(clear_btn)
-            actions_row.addStretch()
-            actions_card.add_layout(actions_row)
-            lay.addWidget(actions_card)
+        actions_group.addSettingCards([
+            self._domains_open_action_card,
+            self._domains_reset_action_card,
+            self._domains_clear_action_card,
+        ])
+        lay.addWidget(actions_group)
 
         editor_card = SettingsCard(
             self._tr("page.hostlist.domains.section.editor", "other.user.txt (редактор)")
@@ -556,6 +437,7 @@ class HostlistPage(BasePage):
         return panel
 
     def _build_ips_panel(self) -> QWidget:
+        tokens = get_theme_tokens()
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(0, 8, 0, 0)
@@ -588,54 +470,37 @@ class HostlistPage(BasePage):
         if hasattr(self._i_input, "returnPressed"):
             self._i_input.returnPressed.connect(self._ips_add)
         add_row.addWidget(self._i_input, 1)
-        self._i_add_btn = ActionButton(self._tr("page.hostlist.button.add", "Добавить"), "fa5s.plus", accent=True)
+        self._i_add_btn = PrimaryPushButton()
+        self._i_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
+        self._i_add_btn.setIcon(qta.icon("fa5s.plus", color=tokens.accent_hex))
         self._i_add_btn.setFixedHeight(38)
         self._i_add_btn.clicked.connect(self._ips_add)
         add_row.addWidget(self._i_add_btn)
         add_card.add_layout(add_row)
         lay.addWidget(add_card)
 
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._ips_actions_card = None
-            self._ips_actions_group = SettingCardGroup(self._tr("page.hostlist.section.actions", "Действия"), self.content)
-            actions_group = self._ips_actions_group
+        self._ips_actions_card = None
+        self._ips_actions_group = SettingCardGroup(self._tr("page.hostlist.section.actions", "Действия"), self.content)
+        actions_group = self._ips_actions_group
 
-            self._ips_open_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                self._tr("page.hostlist.ips.action.open_file.description", "Сохраняет изменения и открывает ipset-all.user.txt в проводнике."),
-            )
-            self._ips_open_action_card.clicked.connect(self._ips_open_file)
+        self._ips_open_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            self._tr("page.hostlist.ips.action.open_file.description", "Сохраняет изменения и открывает ipset-all.user.txt в проводнике."),
+        )
+        self._ips_open_action_card.clicked.connect(self._ips_open_file)
 
-            self._ips_clear_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                qta.icon("fa5s.trash-alt", color="#ff9800"),
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                self._tr("page.hostlist.ips.action.clear_all.description", "Удаляет все пользовательские IP и подсети."),
-            )
-            self._ips_clear_action_card.clicked.connect(self._ips_clear_all)
+        self._ips_clear_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            qta.icon("fa5s.trash-alt", color="#ff9800"),
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            self._tr("page.hostlist.ips.action.clear_all.description", "Удаляет все пользовательские IP и подсети."),
+        )
+        self._ips_clear_action_card.clicked.connect(self._ips_clear_all)
 
-            actions_group.addSettingCards([self._ips_open_action_card, self._ips_clear_action_card])
-            lay.addWidget(actions_group)
-        else:
-            actions_card = SettingsCard(self._tr("page.hostlist.section.actions", "Действия"))
-            self._ips_actions_card = actions_card
-            actions_row = QHBoxLayout()
-            actions_row.setSpacing(8)
-            open_btn = ActionButton(self._tr("page.hostlist.button.open_file", "Открыть файл"), "fa5s.external-link-alt")
-            self._ips_open_btn = open_btn
-            open_btn.setFixedHeight(36)
-            open_btn.clicked.connect(self._ips_open_file)
-            actions_row.addWidget(open_btn)
-            clear_btn = ActionButton(self._tr("page.hostlist.button.clear_all", "Очистить всё"), "fa5s.trash-alt")
-            self._ips_clear_btn = clear_btn
-            clear_btn.setFixedHeight(36)
-            clear_btn.clicked.connect(self._ips_clear_all)
-            actions_row.addWidget(clear_btn)
-            actions_row.addStretch()
-            actions_card.add_layout(actions_row)
-            lay.addWidget(actions_card)
+        actions_group.addSettingCards([self._ips_open_action_card, self._ips_clear_action_card])
+        lay.addWidget(actions_group)
 
         editor_card = SettingsCard(
             self._tr("page.hostlist.ips.section.editor", "ipset-all.user.txt (редактор)")
@@ -671,68 +536,6 @@ class HostlistPage(BasePage):
 
         self._apply_editor_styles()
         return panel
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # Shared helpers
-    # ──────────────────────────────────────────────────────────────────────────
-
-    def _build_action_row(
-        self,
-        *,
-        title: str,
-        icon_name: str,
-        button_text: str,
-        button_icon: str,
-        callback,
-        subtitle: str = "",
-        title_key: str = "",
-        title_default: str = "",
-        subtitle_key: str = "",
-        subtitle_default: str = "",
-        button_key: str = "",
-        button_default: str = "",
-    ) -> QWidget:
-        tokens = get_theme_tokens()
-        row = QWidget()
-        row_lay = QHBoxLayout(row)
-        row_lay.setContentsMargins(0, 0, 0, 0)
-
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(qta.icon(icon_name, color=tokens.accent_hex).pixmap(18, 18))
-        self._accent_icon_lbls.append((icon_lbl, icon_name))
-        row_lay.addWidget(icon_lbl)
-
-        if subtitle:
-            text_lay = QVBoxLayout()
-            text_lay.setSpacing(2)
-            title_lbl = BodyLabel(title)
-            text_lay.addWidget(title_lbl)
-            sub = CaptionLabel(subtitle)
-            sub.setStyleSheet(f"color: {tokens.fg_faint};")
-            text_lay.addWidget(sub)
-            row_lay.addLayout(text_lay, 1)
-        else:
-            title_lbl = BodyLabel(title)
-            sub = None
-            row_lay.addWidget(title_lbl, 1)
-
-        btn = ActionButton(button_text, button_icon)
-        btn.setFixedHeight(32)
-        btn.clicked.connect(callback)
-        row_lay.addWidget(btn)
-
-        self._action_rows.append({
-            "title_label": title_lbl,
-            "subtitle_label": sub,
-            "button": btn,
-            "title_key": title_key,
-            "title_default": title_default or title,
-            "subtitle_key": subtitle_key,
-            "subtitle_default": subtitle_default or subtitle,
-            "button_key": button_key,
-            "button_default": button_default or button_text,
-        })
-        return row
 
     def _apply_page_theme(self, tokens=None, force: bool = False):
         _ = force
@@ -1221,6 +1024,7 @@ class HostlistPage(BasePage):
     # ──────────────────────────────────────────────────────────────────────────
 
     def _build_exclusions_panel(self) -> QWidget:
+        tokens = get_theme_tokens()
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(0, 8, 0, 0)
@@ -1254,95 +1058,58 @@ class HostlistPage(BasePage):
         if hasattr(self._excl_input, "returnPressed"):
             self._excl_input.returnPressed.connect(self._excl_add)
         add_row.addWidget(self._excl_input, 1)
-        self._excl_add_btn = ActionButton(
-            self._tr("page.hostlist.button.add", "Добавить"),
-            "fa5s.plus",
-            accent=True,
-        )
+        self._excl_add_btn = PrimaryPushButton()
+        self._excl_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
+        self._excl_add_btn.setIcon(qta.icon("fa5s.plus", color=tokens.accent_hex))
         self._excl_add_btn.setFixedHeight(38)
         self._excl_add_btn.clicked.connect(self._excl_add)
         add_row.addWidget(self._excl_add_btn)
         add_card.add_layout(add_row)
         lay.addWidget(add_card)
 
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._excl_actions_card = None
-            self._excl_actions_group = SettingCardGroup(self._tr("page.hostlist.section.actions", "Действия"), self.content)
-            actions_group = self._excl_actions_group
+        self._excl_actions_card = None
+        self._excl_actions_group = SettingCardGroup(self._tr("page.hostlist.section.actions", "Действия"), self.content)
+        actions_group = self._excl_actions_group
 
-            self._excl_defaults_action_card = (PrimaryPushSettingCard or PushSettingCard)(
-                self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"),
-                qta.icon("fa5s.plus-circle", color=tokens.accent_hex),
-                self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"),
-                self._tr("page.hostlist.exclusions.action.add_missing.description", "Восстановить недостающие домены по умолчанию в системной базе netrogat."),
-            )
-            self._excl_defaults_action_card.clicked.connect(self._excl_add_missing_defaults)
+        self._excl_defaults_action_card = (PrimaryPushSettingCard or PushSettingCard)(
+            self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"),
+            qta.icon("fa5s.plus-circle", color=tokens.accent_hex),
+            self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"),
+            self._tr("page.hostlist.exclusions.action.add_missing.description", "Восстановить недостающие домены по умолчанию в системной базе netrogat."),
+        )
+        self._excl_defaults_action_card.clicked.connect(self._excl_add_missing_defaults)
 
-            self._excl_open_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                self._tr("page.hostlist.exclusions.action.open_file.description", "Сохраняет изменения и открывает netrogat.user.txt в проводнике."),
-            )
-            self._excl_open_action_card.clicked.connect(self._excl_open_file)
+        self._excl_open_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            self._tr("page.hostlist.exclusions.action.open_file.description", "Сохраняет изменения и открывает netrogat.user.txt в проводнике."),
+        )
+        self._excl_open_action_card.clicked.connect(self._excl_open_file)
 
-            self._excl_open_final_action_card = PushSettingCard(
-                self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
-                qta.icon("fa5s.file-alt", color="#4CAF50"),
-                self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
-                self._tr("page.hostlist.exclusions.action.open_final.description", "Сохраняет изменения и открывает собранный итоговый файл netrogat.txt."),
-            )
-            self._excl_open_final_action_card.clicked.connect(self._excl_open_final_file)
+        self._excl_open_final_action_card = PushSettingCard(
+            self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
+            qta.icon("fa5s.file-alt", color="#4CAF50"),
+            self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
+            self._tr("page.hostlist.exclusions.action.open_final.description", "Сохраняет изменения и открывает собранный итоговый файл netrogat.txt."),
+        )
+        self._excl_open_final_action_card.clicked.connect(self._excl_open_final_file)
 
-            self._excl_clear_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                qta.icon("fa5s.trash-alt", color="#ff9800"),
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                self._tr("page.hostlist.exclusions.action.clear_all.description", "Удаляет все пользовательские домены из netrogat.user.txt."),
-            )
-            self._excl_clear_action_card.clicked.connect(self._excl_clear_all)
+        self._excl_clear_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            qta.icon("fa5s.trash-alt", color="#ff9800"),
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            self._tr("page.hostlist.exclusions.action.clear_all.description", "Удаляет все пользовательские домены из netrogat.user.txt."),
+        )
+        self._excl_clear_action_card.clicked.connect(self._excl_clear_all)
 
-            actions_group.addSettingCards([
-                self._excl_defaults_action_card,
-                self._excl_open_action_card,
-                self._excl_open_final_action_card,
-                self._excl_clear_action_card,
-            ])
-            lay.addWidget(actions_group)
-        else:
-            actions_card = SettingsCard(self._tr("page.hostlist.section.actions", "Действия"))
-            self._excl_actions_card = actions_card
-            actions_row = QHBoxLayout()
-            actions_row.setSpacing(8)
-            defaults_btn = ActionButton(
-                self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"),
-                "fa5s.plus-circle",
-            )
-            self._excl_defaults_btn = defaults_btn
-            defaults_btn.setFixedHeight(36)
-            defaults_btn.clicked.connect(self._excl_add_missing_defaults)
-            actions_row.addWidget(defaults_btn)
-            open_btn = ActionButton(self._tr("page.hostlist.button.open_file", "Открыть файл"), "fa5s.external-link-alt")
-            self._excl_open_btn = open_btn
-            open_btn.setFixedHeight(36)
-            open_btn.clicked.connect(self._excl_open_file)
-            actions_row.addWidget(open_btn)
-            open_final_btn = ActionButton(
-                self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
-                "fa5s.file-alt",
-            )
-            self._excl_open_final_btn = open_final_btn
-            open_final_btn.setFixedHeight(36)
-            open_final_btn.clicked.connect(self._excl_open_final_file)
-            actions_row.addWidget(open_final_btn)
-            clear_btn = ActionButton(self._tr("page.hostlist.button.clear_all", "Очистить всё"), "fa5s.trash-alt")
-            self._excl_clear_btn = clear_btn
-            clear_btn.setFixedHeight(36)
-            clear_btn.clicked.connect(self._excl_clear_all)
-            actions_row.addWidget(clear_btn)
-            actions_row.addStretch()
-            actions_card.add_layout(actions_row)
-            lay.addWidget(actions_card)
+        actions_group.addSettingCards([
+            self._excl_defaults_action_card,
+            self._excl_open_action_card,
+            self._excl_open_final_action_card,
+            self._excl_clear_action_card,
+        ])
+        lay.addWidget(actions_group)
 
         editor_card = SettingsCard(
             self._tr("page.hostlist.exclusions.section.editor_domain", "netrogat.user.txt (редактор)")
@@ -1404,82 +1171,51 @@ class HostlistPage(BasePage):
         if hasattr(self._ipru_input, "returnPressed"):
             self._ipru_input.returnPressed.connect(self._ipru_add)
         ipru_add_row.addWidget(self._ipru_input, 1)
-        self._ipru_add_btn = ActionButton(
-            self._tr("page.hostlist.button.add", "Добавить"),
-            "fa5s.plus",
-            accent=True,
-        )
+        self._ipru_add_btn = PrimaryPushButton()
+        self._ipru_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
+        self._ipru_add_btn.setIcon(qta.icon("fa5s.plus", color=tokens.accent_hex))
         self._ipru_add_btn.setFixedHeight(38)
         self._ipru_add_btn.clicked.connect(self._ipru_add)
         ipru_add_row.addWidget(self._ipru_add_btn)
         ipru_add_card.add_layout(ipru_add_row)
         lay.addWidget(ipru_add_card)
 
-        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT:
-            self._ipru_actions_card = None
-            self._ipru_actions_group = SettingCardGroup(
-                self._tr("page.hostlist.exclusions.ipru.section.actions", "Действия IP-исключений"),
-                self.content,
-            )
-            ipru_actions_group = self._ipru_actions_group
-            self._ipru_open_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
-                self._tr("page.hostlist.button.open_file", "Открыть файл"),
-                self._tr("page.hostlist.exclusions.ipru.action.open_file.description", "Сохраняет изменения и открывает ipset-ru.user.txt в проводнике."),
-            )
-            self._ipru_open_action_card.clicked.connect(self._ipru_open_file)
+        self._ipru_actions_card = None
+        self._ipru_actions_group = SettingCardGroup(
+            self._tr("page.hostlist.exclusions.ipru.section.actions", "Действия IP-исключений"),
+            self.content,
+        )
+        ipru_actions_group = self._ipru_actions_group
+        self._ipru_open_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            qta.icon("fa5s.external-link-alt", color=tokens.accent_hex),
+            self._tr("page.hostlist.button.open_file", "Открыть файл"),
+            self._tr("page.hostlist.exclusions.ipru.action.open_file.description", "Сохраняет изменения и открывает ipset-ru.user.txt в проводнике."),
+        )
+        self._ipru_open_action_card.clicked.connect(self._ipru_open_file)
 
-            self._ipru_open_final_action_card = PushSettingCard(
-                self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
-                qta.icon("fa5s.file-alt", color="#4CAF50"),
-                self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
-                self._tr("page.hostlist.exclusions.ipru.action.open_final.description", "Сохраняет изменения и открывает итоговый ipset-ru.txt."),
-            )
-            self._ipru_open_final_action_card.clicked.connect(self._ipru_open_final_file)
+        self._ipru_open_final_action_card = PushSettingCard(
+            self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
+            qta.icon("fa5s.file-alt", color="#4CAF50"),
+            self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
+            self._tr("page.hostlist.exclusions.ipru.action.open_final.description", "Сохраняет изменения и открывает итоговый ipset-ru.txt."),
+        )
+        self._ipru_open_final_action_card.clicked.connect(self._ipru_open_final_file)
 
-            self._ipru_clear_action_card = PushSettingCard(
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                qta.icon("fa5s.trash-alt", color="#ff9800"),
-                self._tr("page.hostlist.button.clear_all", "Очистить всё"),
-                self._tr("page.hostlist.exclusions.ipru.action.clear_all.description", "Удаляет все пользовательские IP-исключения из ipset-ru.user.txt."),
-            )
-            self._ipru_clear_action_card.clicked.connect(self._ipru_clear_all)
+        self._ipru_clear_action_card = PushSettingCard(
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            qta.icon("fa5s.trash-alt", color="#ff9800"),
+            self._tr("page.hostlist.button.clear_all", "Очистить всё"),
+            self._tr("page.hostlist.exclusions.ipru.action.clear_all.description", "Удаляет все пользовательские IP-исключения из ipset-ru.user.txt."),
+        )
+        self._ipru_clear_action_card.clicked.connect(self._ipru_clear_all)
 
-            ipru_actions_group.addSettingCards([
-                self._ipru_open_action_card,
-                self._ipru_open_final_action_card,
-                self._ipru_clear_action_card,
-            ])
-            lay.addWidget(ipru_actions_group)
-        else:
-            ipru_actions_card = SettingsCard(
-                self._tr("page.hostlist.exclusions.ipru.section.actions", "Действия IP-исключений")
-            )
-            self._ipru_actions_card = ipru_actions_card
-            ipru_actions_row = QHBoxLayout()
-            ipru_actions_row.setSpacing(8)
-            ipru_open_btn = ActionButton(self._tr("page.hostlist.button.open_file", "Открыть файл"), "fa5s.external-link-alt")
-            self._ipru_open_btn = ipru_open_btn
-            ipru_open_btn.setFixedHeight(36)
-            ipru_open_btn.clicked.connect(self._ipru_open_file)
-            ipru_actions_row.addWidget(ipru_open_btn)
-            ipru_open_final_btn = ActionButton(
-                self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"),
-                "fa5s.file-alt",
-            )
-            self._ipru_open_final_btn = ipru_open_final_btn
-            ipru_open_final_btn.setFixedHeight(36)
-            ipru_open_final_btn.clicked.connect(self._ipru_open_final_file)
-            ipru_actions_row.addWidget(ipru_open_final_btn)
-            ipru_clear_btn = ActionButton(self._tr("page.hostlist.button.clear_all", "Очистить всё"), "fa5s.trash-alt")
-            self._ipru_clear_btn = ipru_clear_btn
-            ipru_clear_btn.setFixedHeight(36)
-            ipru_clear_btn.clicked.connect(self._ipru_clear_all)
-            ipru_actions_row.addWidget(ipru_clear_btn)
-            ipru_actions_row.addStretch()
-            ipru_actions_card.add_layout(ipru_actions_row)
-            lay.addWidget(ipru_actions_card)
+        ipru_actions_group.addSettingCards([
+            self._ipru_open_action_card,
+            self._ipru_open_final_action_card,
+            self._ipru_clear_action_card,
+        ])
+        lay.addWidget(ipru_actions_group)
 
         ipru_editor_card = SettingsCard(
             self._tr("page.hostlist.exclusions.ipru.section.editor", "ipset-ru.user.txt (редактор)")
@@ -2022,20 +1758,6 @@ class HostlistPage(BasePage):
             self.pivot.setItemText("ips", self._tr("page.hostlist.tab.ips", "Мои IP"))
             self.pivot.setItemText("exclusions", self._tr("page.hostlist.tab.exclusions", "Исключения"))
 
-        for row in self._action_rows:
-            if row.get("title_label") is not None:
-                row["title_label"].setText(
-                    self._tr(row.get("title_key") or "", row.get("title_default") or "")
-                )
-            if row.get("subtitle_label") is not None:
-                row["subtitle_label"].setText(
-                    self._tr(row.get("subtitle_key") or "", row.get("subtitle_default") or "")
-                )
-            if row.get("button") is not None:
-                row["button"].setText(
-                    self._tr(row.get("button_key") or "", row.get("button_default") or "")
-                )
-
         if hasattr(self, "_hostlist_desc_label"):
             self._hostlist_desc_label.setText(
                 self._tr("page.hostlist.hostlist.desc", "Используется для обхода блокировок по доменам.")
@@ -2109,34 +1831,6 @@ class HostlistPage(BasePage):
             )
         if hasattr(self, "_d_add_btn"):
             self._d_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
-        if hasattr(self, "_domains_open_btn"):
-            self._domains_open_btn.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
-            set_tooltip(
-                self._domains_open_btn,
-                self._tr(
-                    "page.hostlist.domains.tooltip.open_file",
-                    "Сохраняет изменения и открывает other.user.txt в проводнике",
-                ),
-            )
-        if hasattr(self, "_domains_reset_btn"):
-            self._domains_reset_btn._default_text = self._tr("page.hostlist.button.reset_file", "Сбросить файл")
-            self._domains_reset_btn._confirm_text = self._tr("page.hostlist.confirm.reset", "Подтвердить сброс")
-            self._domains_reset_btn.setText(self._domains_reset_btn._default_text)
-            set_tooltip(
-                self._domains_reset_btn,
-                self._tr(
-                    "page.hostlist.domains.tooltip.reset_file",
-                    "Очищает other.user.txt и пересобирает other.txt из системной базы",
-                ),
-            )
-        if hasattr(self, "_domains_clear_btn"):
-            self._domains_clear_btn._default_text = self._tr("page.hostlist.button.clear_all", "Очистить всё")
-            self._domains_clear_btn._confirm_text = self._tr("page.hostlist.confirm.clear", "Подтвердить очистку")
-            self._domains_clear_btn.setText(self._domains_clear_btn._default_text)
-            set_tooltip(
-                self._domains_clear_btn,
-                self._tr("page.hostlist.domains.tooltip.clear_all", "Удаляет только пользовательские домены"),
-            )
         if hasattr(self, "_domains_open_action_card"):
             self._domains_open_action_card.setTitle(self._tr("page.hostlist.button.open_file", "Открыть файл"))
             self._domains_open_action_card.setContent(
@@ -2190,10 +1884,6 @@ class HostlistPage(BasePage):
             )
         if hasattr(self, "_i_add_btn"):
             self._i_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
-        if hasattr(self, "_ips_open_btn"):
-            self._ips_open_btn.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
-        if hasattr(self, "_ips_clear_btn"):
-            self._ips_clear_btn.setText(self._tr("page.hostlist.button.clear_all", "Очистить всё"))
         if hasattr(self, "_ips_open_action_card"):
             self._ips_open_action_card.setTitle(self._tr("page.hostlist.button.open_file", "Открыть файл"))
             self._ips_open_action_card.setContent(
@@ -2238,14 +1928,6 @@ class HostlistPage(BasePage):
             )
         if hasattr(self, "_excl_add_btn"):
             self._excl_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
-        if hasattr(self, "_excl_defaults_btn"):
-            self._excl_defaults_btn.setText(self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"))
-        if hasattr(self, "_excl_open_btn"):
-            self._excl_open_btn.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
-        if hasattr(self, "_excl_open_final_btn"):
-            self._excl_open_final_btn.setText(self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"))
-        if hasattr(self, "_excl_clear_btn"):
-            self._excl_clear_btn.setText(self._tr("page.hostlist.button.clear_all", "Очистить всё"))
         if hasattr(self, "_excl_defaults_action_card"):
             self._excl_defaults_action_card.setTitle(self._tr("page.hostlist.exclusions.button.add_missing", "Добавить недостающие"))
             self._excl_defaults_action_card.setContent(
@@ -2312,12 +1994,6 @@ class HostlistPage(BasePage):
             )
         if hasattr(self, "_ipru_add_btn"):
             self._ipru_add_btn.setText(self._tr("page.hostlist.button.add", "Добавить"))
-        if hasattr(self, "_ipru_open_btn"):
-            self._ipru_open_btn.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
-        if hasattr(self, "_ipru_open_final_btn"):
-            self._ipru_open_final_btn.setText(self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"))
-        if hasattr(self, "_ipru_clear_btn"):
-            self._ipru_clear_btn.setText(self._tr("page.hostlist.button.clear_all", "Очистить всё"))
         if hasattr(self, "_ipru_open_action_card"):
             self._ipru_open_action_card.setTitle(self._tr("page.hostlist.button.open_file", "Открыть файл"))
             self._ipru_open_action_card.setContent(

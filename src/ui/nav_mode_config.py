@@ -35,7 +35,12 @@ def get_nav_visibility(method: str) -> dict[PageName, bool]:
         # CONTROL скрыта для direct_zapret2 (заменена на ZAPRET2_DIRECT_CONTROL)
         # и для direct_zapret1 (заменена на ZAPRET1_DIRECT_CONTROL)
         # и для direct_zapret2_orchestra (заменена на ZAPRET2_ORCHESTRA_CONTROL)
-        PageName.CONTROL:                  not is_direct_zapret2 and not is_direct_zapret1 and not is_direct_zapret2_orchestra,
+        PageName.CONTROL:                  (
+            not is_direct_zapret2
+            and not is_direct_zapret1
+            and not is_direct_zapret2_orchestra
+            and not is_pure_orchestra
+        ),
         PageName.ZAPRET2_DIRECT_CONTROL:   is_direct_zapret2,
         PageName.ZAPRET2_ORCHESTRA_CONTROL: is_direct_zapret2_orchestra,
 
