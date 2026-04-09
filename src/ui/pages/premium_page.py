@@ -3,7 +3,7 @@
 
 import time
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QApplication, QSizePolicy
 
 try:
@@ -23,33 +23,13 @@ except ImportError:
 
 import webbrowser
 
+from donater.premium_page_controller import PremiumPageController
+from donater.premium_worker import PremiumWorkerThread
 from .base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton, RefreshButton
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme_semantic import get_semantic_palette
 from ui.text_catalog import tr as tr_catalog
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Worker thread
-# ─────────────────────────────────────────────────────────────────────────────
-
-class WorkerThread(QThread):
-    """Поток для выполнения фоновых операций"""
-    result_ready = pyqtSignal(object)
-    error_occurred = pyqtSignal(str)
-
-    def __init__(self, target, args=None):
-        super().__init__()
-        self.target = target
-        self.args = args or ()
-
-    def run(self):
-        try:
-            result = self.target(*self.args)
-            self.result_ready.emit(result)
-        except Exception as e:
-            self.error_occurred.emit(str(e))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -137,6 +117,7 @@ class PremiumPage(BasePage):
             subtitle_key="page.premium.subtitle",
         )
 
+        self._controller = PremiumPageController()
         self.checker = None
         self.RegistryManager = None
         self.current_thread = None
@@ -269,15 +250,21 @@ class PremiumPage(BasePage):
         text_default: str = "",
         text_kwargs: dict | None = None,
     ) -> None:
-        resolved_text = text if text is not None else ""
-        if text_key:
-            resolved_text = self._tr(text_key, text_default, **(text_kwargs or {}))
+        plan = self._controller.build_activation_status_plan(
+            text=text,
+            text_key=text_key,
+            text_default=text_default,
+            text_kwargs=text_kwargs,
+        )
+        resolved_text = plan.text
+        if plan.text_key:
+            resolved_text = self._tr(plan.text_key, plan.text_default, **plan.text_kwargs)
 
         self._activation_status_state = {
             "text": resolved_text,
-            "text_key": text_key,
-            "text_default": text_default,
-            "text_kwargs": dict(text_kwargs or {}),
+            "text_key": plan.text_key,
+            "text_default": plan.text_default,
+            "text_kwargs": dict(plan.text_kwargs),
         }
         self.activation_status.setText(resolved_text)
 
@@ -306,56 +293,21 @@ class PremiumPage(BasePage):
         )
 
     def _apply_subscription_snapshot(self, is_premium: bool, days_remaining: int | None) -> None:
-        if is_premium:
-            if days_remaining is None:
-                self._set_status_badge(
-                    status="active",
-                    text_key="page.premium.status.active.title",
-                    text_default="Premium активен",
-                )
-                self._days_state_kind = "none"
-                self._days_state_value = 0
-            elif days_remaining > 30:
-                self._set_status_badge(
-                    status="active",
-                    text_key="page.premium.status.active.title",
-                    text_default="Premium активен",
-                    details_key="page.premium.status.active.days_left",
-                    details_default="Осталось {days} дней",
-                    details_kwargs={"days": days_remaining},
-                )
-                self._days_state_kind = "normal"
-                self._days_state_value = int(days_remaining)
-            elif days_remaining > 7:
-                self._set_status_badge(
-                    status="warning",
-                    text_key="page.premium.status.active.title",
-                    text_default="Premium активен",
-                    details_key="page.premium.status.active.days_left",
-                    details_default="Осталось {days} дней",
-                    details_kwargs={"days": days_remaining},
-                )
-                self._days_state_kind = "warning"
-                self._days_state_value = int(days_remaining)
-            else:
-                self._set_status_badge(
-                    status="expired",
-                    text_key="page.premium.status.expiring_soon.title",
-                    text_default="Premium скоро закончится",
-                    details_key="page.premium.status.active.days_left",
-                    details_default="Осталось {days} дней",
-                    details_kwargs={"days": days_remaining},
-                )
-                self._days_state_kind = "urgent"
-                self._days_state_value = int(days_remaining)
-        else:
-            self._set_status_badge(
-                status="neutral",
-                text_key="page.premium.status.inactive.title",
-                text_default="Подписка не активирована",
-            )
-            self._days_state_kind = "none"
-            self._days_state_value = 0
+        badge_plan, days_plan, _emitted_days = self._controller.build_subscription_snapshot_plan(
+            is_premium=is_premium,
+            days_remaining=days_remaining,
+        )
+        self._set_status_badge(
+            status=badge_plan.status,
+            text_key=badge_plan.text_key,
+            text_default=badge_plan.text_default,
+            text_kwargs=badge_plan.text_kwargs,
+            details_key=badge_plan.details_key,
+            details_default=badge_plan.details_default,
+            details_kwargs=badge_plan.details_kwargs,
+        )
+        self._days_state_kind = days_plan.kind
+        self._days_state_value = days_plan.value
 
         self._render_days_label()
 
@@ -420,9 +372,10 @@ class PremiumPage(BasePage):
         if not self._initialized:
             self._initialized = True
             self._init_checker()
-            self._server_status_mode = "idle"
-            self._server_status_message = ""
-            self._server_status_success = None
+            plan = self._controller.build_server_status_plan(mode="idle")
+            self._server_status_mode = plan.mode
+            self._server_status_message = plan.message
+            self._server_status_success = plan.success
             self._render_server_status()
         self._sync_pairing_status_autopoll()
 
@@ -441,9 +394,11 @@ class PremiumPage(BasePage):
 
     def _init_checker(self):
         try:
-            from donater import DonateChecker, PremiumStorage
-            self.checker = DonateChecker()
-            self.RegistryManager = PremiumStorage
+            init_result = self._controller.resolve_checker_bundle()
+            self.checker = init_result.checker
+            self.RegistryManager = init_result.storage
+            if not init_result.init_ok:
+                raise RuntimeError("premium checker init failed")
             self._update_device_info()
         except Exception as e:
             from log import log
@@ -799,7 +754,7 @@ class PremiumPage(BasePage):
             text_default="🔄 Создаю код...",
         )
 
-        self.current_thread = WorkerThread(self.checker.pair_start)
+        self.current_thread = self._controller.create_worker_thread(self.checker.pair_start)
         self.current_thread.result_ready.connect(self._on_pair_code_created)
         self.current_thread.error_occurred.connect(self._on_activation_error)
         self.current_thread.start()
@@ -872,7 +827,7 @@ class PremiumPage(BasePage):
             details_default="Подключение к серверу",
         )
 
-        self.current_thread = WorkerThread(self.checker.check_device_activation)
+        self.current_thread = self._controller.create_worker_thread(self.checker.check_device_activation)
         self.current_thread.result_ready.connect(self._on_status_complete)
         self.current_thread.error_occurred.connect(self._on_status_error)
         self.current_thread.start()
@@ -1027,7 +982,7 @@ class PremiumPage(BasePage):
         self._server_status_success = None
         self._render_server_status()
 
-        self.current_thread = WorkerThread(self.checker.test_connection)
+        self.current_thread = self._controller.create_worker_thread(self.checker.test_connection)
         self.current_thread.result_ready.connect(self._on_connection_test_complete)
         self.current_thread.error_occurred.connect(self._on_connection_test_error)
         self.current_thread.start()

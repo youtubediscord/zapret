@@ -2,7 +2,6 @@
 """Страница управления Hosts файлом - разблокировка сервисов"""
 
 import os
-import re
 from string import Template
 from PyQt6.QtCore import Qt, QThread, QTimer, QEvent
 from PyQt6.QtWidgets import (
@@ -79,71 +78,14 @@ def _get_fluent_chip_style(tokens=None) -> str:
         accent_rgb=tokens.accent_rgb_str,
     )
 
-_DNS_PROFILE_IP_SUFFIX = re.compile(r"\s*\(\s*(?:\d{1,3}\.){3}\d{1,3}\s*\)\s*$")
-
-
-def _format_dns_profile_label(profile_name: str) -> str:
-    label = (profile_name or "").strip()
-    if not label:
-        return ""
-    return _DNS_PROFILE_IP_SUFFIX.sub("", label).strip()
-
-
 # Импортируем сервисы и домены
 try:
     from hosts.proxy_domains import (
-        QUICK_SERVICES,
         ensure_ipv6_catalog_sections_if_available,
-        get_dns_profiles,
-        get_all_services,
-        get_service_has_geohide_ips,
-        get_service_available_dns_profiles,
-        get_service_domain_ip_map,
-        get_service_domain_names,
-        get_service_domains,
-        get_hosts_catalog_signature,
-        invalidate_hosts_catalog_cache,
-        load_user_hosts_selection,
-        save_user_hosts_selection,
     )
 except ImportError:
-    QUICK_SERVICES = []
-
     def ensure_ipv6_catalog_sections_if_available() -> tuple[bool, bool]:
         return (False, False)
-
-    def get_dns_profiles() -> list[str]:
-        return []
-
-    def get_all_services() -> list[str]:
-        return []
-
-    def get_service_has_geohide_ips(service_name: str) -> bool:
-        return False
-
-    def get_service_available_dns_profiles(service_name: str) -> list[str]:
-        return []
-
-    def get_service_domain_ip_map(*args, **kwargs) -> dict[str, str]:
-        return {}
-
-    def get_service_domain_names(service_name: str) -> list[str]:
-        return []
-
-    def get_service_domains(service_name: str) -> dict[str, str]:
-        return {}
-
-    def get_hosts_catalog_signature() -> tuple[str, int, int] | None:
-        return None
-
-    def invalidate_hosts_catalog_cache() -> None:
-        return None
-
-    def load_user_hosts_selection() -> dict[str, str]:
-        return {}
-
-    def save_user_hosts_selection(selected_profiles: dict[str, str]) -> bool:
-        return False
 
 def _is_fluent_combo(obj) -> bool:
     """Проверяет, является ли объект qfluentwidgets ComboBox."""
@@ -168,6 +110,7 @@ class HostsPage(BasePage):
         self.hosts_manager = None
         self.service_combos = {}
         self.service_icon_labels = {}
+        self.service_icon_names = {}
         self.service_name_labels = {}
         self.service_icon_base_colors = {}
         self._services_section_title_labels = []
@@ -195,7 +138,7 @@ class HostsPage(BasePage):
         self._last_error = None  # Последняя ошибка
         self._current_operation = None
         self._startup_initialized = False
-        self._service_dns_selection = load_user_hosts_selection()
+        self._service_dns_selection = self._controller.load_user_selection()
         self._ipv6_infobar_shown = False
 
         from qfluentwidgets import qconfig
@@ -267,23 +210,32 @@ class HostsPage(BasePage):
             return
 
         ipv6_catalog_changed, _ = self._ensure_ipv6_catalog_sections()
+        show_plan = self._controller.build_show_event_plan(
+            startup_initialized=self._startup_initialized,
+            has_hosts_manager=self.hosts_manager is not None,
+            ipv6_catalog_changed=ipv6_catalog_changed,
+        )
 
         # Лениво инициализируем тяжёлые части страницы только при первом открытии вкладки.
-        if not self._startup_initialized:
-            if self.hosts_manager is None:
-                self._init_hosts_manager()
+        if show_plan.init_hosts_manager:
+            self._init_hosts_manager()
+        if show_plan.check_access:
             self._check_hosts_access()
+        if show_plan.rebuild_services:
             self._rebuild_services_selectors()
+        if show_plan.mark_initialized:
             self._startup_initialized = True
 
-        self._start_catalog_watcher()
-        if ipv6_catalog_changed:
-            self._refresh_catalog_if_needed(trigger="ipv6")
-        self._refresh_catalog_if_needed(trigger="tab")
+        if show_plan.start_watcher:
+            self._start_catalog_watcher()
+        for trigger in show_plan.refresh_triggers:
+            self._refresh_catalog_if_needed(trigger=trigger)
 
         # После инициализации/пересборки селекторов обновляем статус по реальному hosts.
-        self._invalidate_cache()
-        self._update_ui()
+        if show_plan.invalidate_cache:
+            self._invalidate_cache()
+        if show_plan.update_ui:
+            self._update_ui()
 
     def hideEvent(self, event):  # noqa: N802 (Qt naming)
         self._close_service_combo_popups()
@@ -383,26 +335,10 @@ class HostsPage(BasePage):
         if self.hosts_manager is not None:
             return
 
-        try:
-            app_hosts_manager = None
-            parent_app = getattr(self, "parent_app", None)
-            if parent_app is not None:
-                app_hosts_manager = getattr(parent_app, "hosts_manager", None)
-            if app_hosts_manager is None and self._app_parent is not None:
-                app_hosts_manager = getattr(self._app_parent, "hosts_manager", None)
-
-            if app_hosts_manager is not None:
-                self.hosts_manager = app_hosts_manager
-                log("HostsPage: используем общий HostsManager приложения", "DEBUG")
-                return
-        except Exception:
-            pass
-
-        try:
-            from hosts.hosts import HostsManager
-            self.hosts_manager = HostsManager(status_callback=lambda m: log(f"Hosts: {m}", "INFO"))
-        except Exception as e:
-            log(f"Ошибка инициализации HostsManager: {e}", "ERROR")
+        self.hosts_manager = self._controller.resolve_hosts_manager(
+            getattr(self, "parent_app", None),
+            self._app_parent,
+        )
 
     def _invalidate_cache(self):
         """Сбрасывает кеш активных доменов"""
@@ -428,98 +364,29 @@ class HostsPage(BasePage):
         if not self.hosts_manager:
             return
 
-        try:
-            active_domains_map = self.hosts_manager.get_active_domains_map() or {}
-        except Exception:
-            active_domains_map = {}
-
-        def infer_profile_from_hosts(service_name: str, available_profiles: list[str]) -> str | None:
-            if not active_domains_map or not available_profiles:
-                return None
-
-            best_profile: str | None = None
-            best_matches = -1
-            best_present = -1
-            best_total = 0
-
-            for profile_name in available_profiles:
-                try:
-                    domain_map = get_service_domain_ip_map(service_name, profile_name) or {}
-                except Exception:
-                    domain_map = {}
-                if not domain_map:
-                    continue
-
-                total = len(domain_map)
-                present = 0
-                matches = 0
-                for domain, ip in domain_map.items():
-                    active_ip = active_domains_map.get(domain)
-                    if active_ip is None:
-                        continue
-                    present += 1
-                    if (active_ip or "").strip() == (ip or "").strip():
-                        matches += 1
-
-                if total and matches == total:
-                    return profile_name
-
-                if matches > best_matches or (matches == best_matches and present > best_present):
-                    best_profile = profile_name
-                    best_matches = matches
-                    best_present = present
-                    best_total = total
-
-            if not best_profile:
-                return None
-
-            # Direct-only services: if at least one domain is present in hosts, keep them enabled.
-            if len(available_profiles) == 1 and best_present > 0:
-                return best_profile
-
-            # Otherwise, require a reasonably confident match.
-            if best_total and best_matches > 0 and (best_matches / best_total) >= 0.6:
-                return best_profile
-
-            return None
-
-        def infer_direct_toggle_from_hosts(service_name: str) -> bool:
-            """Для direct-only сервисов: включено, если хотя бы один домен сервиса есть в hosts."""
-            try:
-                for domain in (get_service_domain_names(service_name) or []):
-                    if domain in active_domains_map:
-                        return True
-            except Exception:
-                pass
-            return False
-
-        direct_profile = self._get_direct_profile_name()
-
-        new_selection: dict[str, str] = {}
+        active_domains_map = self._controller.read_active_domains_map(self.hosts_manager)
+        sync_plan = self._controller.build_selection_sync_plan(
+            service_names=list(self.service_combos.keys()),
+            active_domains_map=active_domains_map,
+        )
 
         was_building = getattr(self, "_building_services_ui", False)
         self._building_services_ui = True
         try:
             for service_name, combo in list(self.service_combos.items()):
-                direct_only = not get_service_has_geohide_ips(service_name)
+                entry = sync_plan.entries.get(service_name)
+                if entry is None:
+                    continue
 
-                available = list(get_service_available_dns_profiles(service_name) or [])
-                inferred: str | None = None
-
-                if direct_only:
-                    enabled = infer_direct_toggle_from_hosts(service_name)
+                if entry.direct_only:
                     if isinstance(combo, QCheckBox):
-                        can_toggle = bool(direct_profile and direct_profile in available)
-                        combo.setEnabled(can_toggle)
-                        combo.setChecked(bool(enabled and can_toggle))
-                        if combo.isChecked() and direct_profile:
-                            new_selection[service_name] = direct_profile
+                        combo.setEnabled(entry.toggle_enabled)
+                        combo.setChecked(entry.toggle_checked)
                         self._update_profile_row_visual(service_name)
                         continue
-                    if enabled and direct_profile and direct_profile in available:
-                        inferred = direct_profile
+                    inferred = entry.selected_profile
                 else:
-                    inferred = infer_profile_from_hosts(service_name, available)
+                    inferred = entry.selected_profile
 
                 if inferred:
                     if _is_fluent_combo(combo):
@@ -528,7 +395,6 @@ class HostsPage(BasePage):
                             combo.blockSignals(True)
                             combo.setCurrentIndex(idx)
                             combo.blockSignals(False)
-                            new_selection[service_name] = inferred
                         else:
                             combo.blockSignals(True)
                             combo.setCurrentIndex(0)
@@ -545,8 +411,8 @@ class HostsPage(BasePage):
         finally:
             self._building_services_ui = was_building
 
-        self._service_dns_selection = new_selection
-        save_user_hosts_selection(self._service_dns_selection)
+        self._service_dns_selection = dict(sync_plan.new_selection)
+        self._controller.save_user_selection(self._service_dns_selection)
 
     def _get_active_domains(self) -> set:
         """Возвращает активные домены с кешированием (чтобы не читать hosts 28 раз)"""
@@ -628,7 +494,7 @@ class HostsPage(BasePage):
     def _ensure_ipv6_catalog_sections(self) -> tuple[bool, bool]:
         """Добавляет managed IPv6 секции в hosts.ini при доступном IPv6."""
         try:
-            changed, ipv6_available = ensure_ipv6_catalog_sections_if_available()
+            changed, ipv6_available = self._controller.ensure_ipv6_catalog_sections()
             if changed:
                 log("Hosts: обнаружен IPv6, каталог hosts.ini дополнен IPv6 секциями", "INFO")
                 if InfoBar is not None and not self._ipv6_infobar_shown:
@@ -651,29 +517,29 @@ class HostsPage(BasePage):
             self._catalog_watch_timer.stop()
 
     def _refresh_catalog_if_needed(self, trigger: str) -> None:
-        try:
-            sig = get_hosts_catalog_signature()
-        except Exception:
-            sig = None
+        sig = self._controller.get_catalog_signature()
+        refresh_plan = self._controller.build_catalog_refresh_plan(
+            current_signature=self._catalog_sig,
+            new_signature=sig,
+            trigger=trigger,
+            services_layout_exists=self._services_layout is not None,
+        )
 
-        if sig == self._catalog_sig:
+        if not refresh_plan.changed:
             return
 
-        # Сбросим кэш парсинга, чтобы следующий доступ точно перечитал файл.
-        try:
-            invalidate_hosts_catalog_cache()
-        except Exception:
-            pass
+        if refresh_plan.invalidate_cache:
+            self._controller.invalidate_catalog_cache()
 
-        if self._services_layout is None:
-            self._catalog_sig = sig
+        if not refresh_plan.should_rebuild:
+            self._catalog_sig = refresh_plan.new_signature
             return
 
-        if self._catalog_sig is not None:
-            log(f"Hosts: hosts.ini изменился ({trigger}) — обновляем список сервисов", "INFO")
+        if refresh_plan.should_log:
+            log(refresh_plan.log_message, "INFO")
 
         self._rebuild_services_selectors()
-        self._catalog_sig = sig
+        self._catalog_sig = refresh_plan.new_signature
 
     def _services_add_section_title(self, text: str) -> None:
         if self._services_layout is None:
@@ -697,6 +563,7 @@ class HostsPage(BasePage):
         self._clear_layout(self._services_layout)
         self.service_combos = {}
         self.service_icon_labels = {}
+        self.service_icon_names = {}
         self.service_name_labels = {}
         self.service_icon_base_colors = {}
         self._services_section_title_labels = []
@@ -704,10 +571,7 @@ class HostsPage(BasePage):
         self._service_group_chips_scrolls = []
         self._service_group_chip_buttons = []
         self._build_services_selectors()
-        try:
-            self._catalog_sig = get_hosts_catalog_signature()
-        except Exception:
-            self._catalog_sig = None
+        self._catalog_sig = self._controller.get_catalog_signature()
 
     def _show_error(self, message: str):
         """Показывает InfoBar с ошибкой доступа и кнопкой восстановления прав."""
@@ -722,10 +586,16 @@ class HostsPage(BasePage):
 
         try:
             from qfluentwidgets import InfoBarPosition
+            error_plan = self._controller.build_error_bar_plan(
+                message=message,
+                title=self._tr("page.hosts.error.title", "Нет доступа к hosts"),
+                action_text=self._tr("page.hosts.button.restore_access", "Восстановить права доступа"),
+                action_pending_text=self._tr("page.hosts.button.restoring_access", "Восстановление..."),
+            )
 
             bar = InfoBar.error(
-                title=self._tr("page.hosts.error.title", "Нет доступа к hosts"),
-                content=message,
+                title=error_plan.title,
+                content=error_plan.content,
                 orient=Qt.Orientation.Vertical,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
@@ -734,16 +604,12 @@ class HostsPage(BasePage):
             )
 
             # Кнопка "Восстановить права"
-            restore_btn = PushButton(
-                self._tr("page.hosts.button.restore_access", "Восстановить права доступа")
-            )
+            restore_btn = PushButton(error_plan.action_text)
             restore_btn.setFixedWidth(220)
 
             def _on_restore():
                 restore_btn.setEnabled(False)
-                restore_btn.setText(
-                    self._tr("page.hosts.button.restoring_access", "Восстановление...")
-                )
+                restore_btn.setText(error_plan.action_pending_text)
                 self._restore_hosts_permissions(bar, restore_btn)
 
             restore_btn.clicked.connect(_on_restore)
@@ -772,20 +638,21 @@ class HostsPage(BasePage):
             result = self._controller.restore_hosts_permissions()
             success = result.success
             message = result.message
+            restore_plan = self._controller.build_restore_permissions_plan(
+                success=success,
+                message=message,
+            )
 
             if success:
                 self._dismiss_hosts_error_bar()
                 self._invalidate_cache()
                 self._update_ui()
                 self._sync_selections_from_hosts()
-                if InfoBar:
+                if InfoBar and restore_plan.message_plan is not None:
                     from qfluentwidgets import InfoBarPosition
                     InfoBar.success(
-                        title=self._tr("page.hosts.permissions.restore.success.title", "Готово"),
-                        content=self._tr(
-                            "page.hosts.permissions.restore.success.content",
-                            "Права доступа к файлу hosts восстановлены",
-                        ),
+                        title=restore_plan.message_plan.title,
+                        content=restore_plan.message_plan.content,
                         isClosable=True,
                         position=InfoBarPosition.TOP,
                         duration=5000,
@@ -799,7 +666,7 @@ class HostsPage(BasePage):
                         pass
                 self._hosts_error_bar = None
                 self._last_error = None
-                self._show_error(message)
+                self._show_error(restore_plan.error_message)
         except Exception as e:
             log(f"Ошибка при восстановлении прав: {e}", "ERROR")
             if bar is not None:
@@ -814,22 +681,20 @@ class HostsPage(BasePage):
     def _check_hosts_access(self):
         """Проверяет доступ к hosts файлу при загрузке страницы"""
         state = self._get_hosts_runtime_state()
-        if state.error_message:
-            self._show_error(self._tr("page.hosts.error.read_hosts", "Ошибка чтения hosts: {error}", error=state.error_message))
-            return
-
-        if state.accessible:
-            self._hide_error()
-            return
-
-        hosts_path = self._get_hosts_path_str()
-        self._show_error(
-            self._tr(
+        access_plan = self._controller.build_access_plan(
+            state,
+            hosts_path=self._get_hosts_path_str(),
+            read_error_message=self._tr("page.hosts.error.read_hosts", "Ошибка чтения hosts: {error}", error=state.error_message),
+            no_access_message=self._tr(
                 "page.hosts.error.no_access.short",
                 "Нет доступа для изменения файла hosts. Скорее всего защитник/антивирус заблокировал запись.\nПуть: {path}",
-                path=hosts_path,
-            )
+                path="{path}",
+            ),
         )
+        if not access_plan.show_error:
+            self._hide_error()
+            return
+        self._show_error(access_plan.error_message)
 
     def _build_info_note(self):
         """Информационная заметка о том, зачем нужен hosts"""
@@ -945,47 +810,34 @@ class HostsPage(BasePage):
         if self._applying:
             return
 
-        target_profile = (profile_name or "").strip()
+        plan = self._controller.build_bulk_profile_selection_plan(
+            current_selection=self._service_dns_selection,
+            service_names=service_names,
+            profile_name=profile_name,
+        )
 
-        # Для массового применения по группе используем строгую логику:
-        # профиль должен быть доступен для КАЖДОГО сервиса в группе,
-        # иначе отменяем операцию целиком (без частичного применения).
-        if target_profile:
-            unavailable = [
-                service_name
-                for service_name in service_names
-                if target_profile not in (get_service_available_dns_profiles(service_name) or [])
-            ]
-            if unavailable:
+        if not plan.changed:
+            if plan.skipped_services:
                 log(
-                    f"Hosts: массовое применение отменено — профиль '{target_profile}' недоступен для: "
-                    + ", ".join(unavailable[:8])
-                    + ("…" if len(unavailable) > 8 else ""),
+                    "Hosts: профиль недоступен для: "
+                    + ", ".join(plan.skipped_services[:8])
+                    + ("…" if len(plan.skipped_services) > 8 else ""),
                     "DEBUG",
                 )
-                return
+            return
 
-        changed = False
-        skipped: list[str] = []
+        target_profile = (profile_name or "").strip()
         for service_name in service_names:
             control = self.service_combos.get(service_name)
             if not control:
                 continue
 
             if _is_fluent_combo(control):
-                if target_profile:
-                    target_idx = control.findData(target_profile)
-                    if target_idx < 0:
-                        skipped.append(service_name)
-                        continue
-                else:
-                    target_idx = 0
-
-                if control.currentIndex() != target_idx:
+                target_idx = control.findData(target_profile) if target_profile else 0
+                if target_idx >= 0 and control.currentIndex() != target_idx:
                     control.blockSignals(True)
                     control.setCurrentIndex(target_idx)
                     control.blockSignals(False)
-                    changed = True
             elif isinstance(control, QCheckBox):
                 desired = bool(target_profile)
                 if control.isChecked() != desired:
@@ -995,191 +847,41 @@ class HostsPage(BasePage):
                         control.setChecked(desired)
                     finally:
                         self._building_services_ui = was_building
-                    changed = True
-            else:
-                continue
-
-            if not target_profile:
-                if service_name in self._service_dns_selection:
-                    self._service_dns_selection.pop(service_name, None)
-                    changed = True
-            else:
-                if self._service_dns_selection.get(service_name) != target_profile:
-                    self._service_dns_selection[service_name] = target_profile
-                    changed = True
 
             self._update_profile_row_visual(service_name)
 
-        if not changed:
-            if skipped:
-                log(
-                    "Hosts: профиль недоступен для: "
-                    + ", ".join(skipped[:8])
-                    + ("…" if len(skipped) > 8 else ""),
-                    "DEBUG",
-                )
-            return
-
+        self._service_dns_selection = dict(plan.new_selection)
         self._apply_current_selection()
 
     def _build_services_selectors(self):
         OFF_LABEL = self._tr("page.hosts.services.off", "Откл.")
-        all_dns_profiles = [p for p in (get_dns_profiles() or []) if isinstance(p, str) and p.strip()]
-
-        # Карта иконок/цветов по сервису (если есть в QUICK_SERVICES)
-        ui_map = {name: (icon_name, icon_color) for icon_name, name, icon_color in QUICK_SERVICES}
-
-        # Все сервисы (с выбором DNS)
-        all_services = list(get_all_services() or [])
-        ordered_services: list[str] = []
-        for _icon, name, _color in QUICK_SERVICES:
-            if name in all_services and name not in ordered_services:
-                ordered_services.append(name)
-        for name in all_services:
-            if name not in ordered_services:
-                ordered_services.append(name)
-
-        def is_ai_service(name: str) -> bool:
-            s = (name or "").strip().lower()
-            return any(
-                k in s
-                for k in (
-                    "chatgpt",
-                    "openai",
-                    "gemini",
-                    "claude",
-                    "copilot",
-                    "grok",
-                    "manus",
-                )
-            )
-
-        no_geohide: list[str] = []
-        ai: list[str] = []
-        other: list[str] = []
-        for service_name in ordered_services:
-            if not get_service_has_geohide_ips(service_name):
-                no_geohide.append(service_name)
-            elif is_ai_service(service_name):
-                ai.append(service_name)
-            else:
-                other.append(service_name)
-
-        def get_common_dns_profiles(service_names: list[str]) -> list[str]:
-            """
-            Возвращает DNS-профили, которые доступны ДЛЯ КАЖДОГО сервиса в группе.
-            Нужно для group-chips, чтобы не показывать провайдеры, недоступные
-            хотя бы для одного сервиса в этой группе.
-            """
-            common: set[str] | None = None
-
-            for service_name in service_names:
-                available = {
-                    p
-                    for p in (get_service_available_dns_profiles(service_name) or [])
-                    if isinstance(p, str) and p.strip()
-                }
-                if common is None:
-                    common = available
-                else:
-                    common &= available
-
-                if not common:
-                    return []
-
-            if not common:
-                return []
-
-            # Сохраняем порядок как в общем списке [DNS].
-            return [profile for profile in all_dns_profiles if profile in common]
+        active_domains_map = self._controller.read_active_domains_map(self.hosts_manager)
+        catalog_plan = self._controller.build_services_catalog_plan(
+            current_selection=self._service_dns_selection,
+            active_domains_map=active_domains_map,
+            direct_title=self._tr("page.hosts.group.direct", "Напрямую из hosts"),
+            ai_title=self._tr("page.hosts.group.ai", "ИИ"),
+            other_title=self._tr("page.hosts.group.other", "Остальные"),
+        )
 
         self._services_add_section_title(
             tr_catalog("page.hosts.section.services", language=self._ui_language, default="Сервисы")
         )
 
         self._building_services_ui = True
-        selection_migrated = False
         try:
-            active_domains_map: dict[str, str] = {}
-            try:
-                if self.hosts_manager:
-                    active_domains_map = self.hosts_manager.get_active_domains_map() or {}
-            except Exception:
-                active_domains_map = {}
-
-            def normalize_profile_name(profile_name: str) -> str:
-                return _format_dns_profile_label(profile_name).strip().lower()
-
-            def infer_profile_from_hosts(service_name: str, available_profiles: list[str]) -> str | None:
-                if not active_domains_map:
-                    return None
-                if not available_profiles:
-                    return None
-
-                best_profile: str | None = None
-                best_matches = -1
-                best_present = -1
-                best_total = 0
-
-                for profile_name in available_profiles:
-                    try:
-                        domain_map = get_service_domain_ip_map(service_name, profile_name) or {}
-                    except Exception:
-                        domain_map = {}
-                    if not domain_map:
-                        continue
-
-                    total = len(domain_map)
-                    present = 0
-                    matches = 0
-                    for domain, ip in domain_map.items():
-                        active_ip = active_domains_map.get(domain)
-                        if active_ip is None:
-                            continue
-                        present += 1
-                        if (active_ip or "").strip() == (ip or "").strip():
-                            matches += 1
-
-                    if total and matches == total:
-                        return profile_name
-
-                    if matches > best_matches or (matches == best_matches and present > best_present):
-                        best_profile = profile_name
-                        best_matches = matches
-                        best_present = present
-                        best_total = total
-
-                if not best_profile:
-                    return None
-
-                # Direct-only services: if at least one domain is present in hosts, keep them enabled.
-                if len(available_profiles) == 1 and best_present > 0:
-                    return best_profile
-
-                # Otherwise, require a reasonably confident match.
-                if best_total and best_matches > 0 and (best_matches / best_total) >= 0.6:
-                    return best_profile
-
-                return None
-
-            direct_profile = self._get_direct_profile_name()
-
-            def add_group(title: str, names: list[str], direct_only: bool = False) -> None:
-                nonlocal selection_migrated
-                if not names:
-                    return
-
+            for group_plan in catalog_plan.groups:
                 card = SettingsCard()
 
                 header = QHBoxLayout()
                 header.setContentsMargins(0, 0, 0, 0)
                 header.setSpacing(10)
 
-                title_label = StrongBodyLabel(title)
+                title_label = StrongBodyLabel(group_plan.title)
                 self._service_group_title_labels.append(title_label)
                 header.addWidget(title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
-                if not direct_only:
+                if not group_plan.direct_only:
                     chips = QWidget()
                     chips_layout = QHBoxLayout(chips)
                     chips_layout.setContentsMargins(0, 0, 0, 0)
@@ -1190,18 +892,17 @@ class HostsPage(BasePage):
                     off_btn = self._make_fluent_chip(OFF_LABEL)
                     self._service_group_chip_buttons.append(off_btn)
                     off_btn.clicked.connect(
-                        lambda _checked=False, n=tuple(names): self._bulk_apply_dns_profile(list(n), None)
+                        lambda _checked=False, n=tuple(group_plan.service_names): self._bulk_apply_dns_profile(list(n), None)
                     )
                     chips_layout.addWidget(off_btn)
 
-                    for profile_name in get_common_dns_profiles(names):
-                        label = _format_dns_profile_label(profile_name)
+                    for profile_name, label in group_plan.common_profiles:
                         if not label:
                             continue
                         btn = self._make_fluent_chip(label)
                         self._service_group_chip_buttons.append(btn)
                         btn.clicked.connect(
-                            lambda _checked=False, n=tuple(names), p=profile_name: self._bulk_apply_dns_profile(list(n), p)
+                            lambda _checked=False, n=tuple(group_plan.service_names), p=profile_name: self._bulk_apply_dns_profile(list(n), p)
                         )
                         chips_layout.addWidget(btn)
 
@@ -1232,60 +933,32 @@ class HostsPage(BasePage):
 
                 card.add_layout(header)
 
-                for service_name in names:
+                for row_plan in group_plan.rows:
                     row = QHBoxLayout()
                     row.setContentsMargins(0, 0, 0, 0)
                     row.setSpacing(10)
-
-                    icon_name, icon_color = ui_map.get(service_name, ("fa5s.globe", None))
 
                     # Иконка сервиса (QLabel с pixmap — оставляем)
                     icon_label = QLabel()
                     icon_label.setFixedSize(20, 20)
                     row.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
-                    name_label = BodyLabel(service_name)
-                    self.service_name_labels[service_name] = name_label
+                    name_label = BodyLabel(row_plan.service_name)
+                    self.service_name_labels[row_plan.service_name] = name_label
                     row.addWidget(name_label, 1, Qt.AlignmentFlag.AlignVCenter)
 
-                    # Откл. + доступные профили
-                    available = get_service_available_dns_profiles(service_name) or []
-
-                    is_direct_only = not get_service_has_geohide_ips(service_name)
-                    if is_direct_only:
+                    if row_plan.direct_only:
                         toggle = Win11ToggleSwitchNoText()
-                        can_toggle = bool(direct_profile and direct_profile in available)
-                        toggle.setEnabled(can_toggle)
-
-                        # Источник истины = реальный hosts: выбор в UI должен отражать то, что реально записано.
-                        enabled = False
-                        if can_toggle:
-                            try:
-                                enabled = any(
-                                    (domain in active_domains_map)
-                                    for domain in (get_service_domain_names(service_name) or [])
-                                )
-                            except Exception:
-                                enabled = False
-
-                        toggle.setChecked(bool(enabled and can_toggle))
-
-                        if toggle.isChecked():
-                            if self._service_dns_selection.get(service_name) != direct_profile:
-                                self._service_dns_selection[service_name] = direct_profile  # type: ignore[arg-type]
-                                selection_migrated = True
-                        else:
-                            if service_name in self._service_dns_selection:
-                                self._service_dns_selection.pop(service_name, None)
-                                selection_migrated = True
+                        toggle.setEnabled(row_plan.toggle_enabled)
+                        toggle.setChecked(row_plan.toggle_checked)
 
                         toggle.toggled.connect(
-                            lambda checked, s=service_name: self._on_direct_toggle_changed(s, checked)
+                            lambda checked, s=row_plan.service_name: self._on_direct_toggle_changed(s, checked)
                         )
 
                         row.addWidget(toggle, 0, Qt.AlignmentFlag.AlignVCenter)
                         card.add_layout(row)
-                        self.service_combos[service_name] = toggle
+                        self.service_combos[row_plan.service_name] = toggle
                     else:
                         if _HAS_FLUENT and ComboBox is not None:
                             combo = ComboBox()
@@ -1296,68 +969,38 @@ class HostsPage(BasePage):
                         combo.setCursor(Qt.CursorShape.PointingHandCursor)
                         combo.setMinimumWidth(220)
                         combo.addItem(OFF_LABEL, userData=None)
-                        for profile_name in available:
-                            combo.addItem(_format_dns_profile_label(profile_name), userData=profile_name)
+                        for profile_name, label in row_plan.profile_items:
+                            combo.addItem(label, userData=profile_name)
 
-                        # Источник истины = реальный hosts: выбор в UI должен отражать то, что реально записано.
-                        inferred = infer_profile_from_hosts(service_name, available)
-
-                        if inferred:
-                            inferred_idx = combo.findData(inferred)
+                        if row_plan.selected_profile:
+                            inferred_idx = combo.findData(row_plan.selected_profile)
                             if inferred_idx >= 0:
                                 combo.setCurrentIndex(inferred_idx)
-                                if self._service_dns_selection.get(service_name) != inferred:
-                                    self._service_dns_selection[service_name] = inferred
-                                    selection_migrated = True
                             else:
                                 combo.setCurrentIndex(0)
-                                if service_name in self._service_dns_selection:
-                                    self._service_dns_selection.pop(service_name, None)
-                                    selection_migrated = True
                         else:
                             combo.setCurrentIndex(0)
-                            if service_name in self._service_dns_selection:
-                                self._service_dns_selection.pop(service_name, None)
-                                selection_migrated = True
 
                         combo.currentIndexChanged.connect(
-                            lambda _idx, s=service_name, c=combo: self._on_profile_changed(s, c.currentData())
+                            lambda _idx, s=row_plan.service_name, c=combo: self._on_profile_changed(s, c.currentData())
                         )
                         row.addWidget(combo, 0, Qt.AlignmentFlag.AlignVCenter)
 
                         card.add_layout(row)
-                        self.service_combos[service_name] = combo
-                    self.service_icon_labels[service_name] = icon_label
-                    self.service_icon_base_colors[service_name] = icon_color
+                        self.service_combos[row_plan.service_name] = combo
+                    self.service_icon_labels[row_plan.service_name] = icon_label
+                    self.service_icon_names[row_plan.service_name] = row_plan.icon_name
+                    self.service_icon_base_colors[row_plan.service_name] = row_plan.icon_color
 
-                    self._update_profile_row_visual(service_name)
+                    self._update_profile_row_visual(row_plan.service_name)
 
                 self._services_add_widget(card)
-
-            add_group(self._tr("page.hosts.group.direct", "Напрямую из hosts"), no_geohide, direct_only=True)
-            add_group(self._tr("page.hosts.group.ai", "ИИ"), ai)
-            add_group(self._tr("page.hosts.group.other", "Остальные"), other)
-
-            if selection_migrated:
-                save_user_hosts_selection(self._service_dns_selection)
         finally:
             self._building_services_ui = False
 
-    def _get_direct_profile_name(self) -> str | None:
-        """
-        Профиль "direct"/"Вкл. (активировать hosts)" из каталога DNS.
-        Нужен для сервисов без proxy/geohide IP (они должны работать как toggle).
-        """
-        try:
-            for profile in (get_dns_profiles() or []):
-                p = (profile or "").strip().lower()
-                if not p:
-                    continue
-                if ("вкл. (активировать hosts)" in p) or ("direct" in p) or ("no proxy" in p):
-                    return profile
-        except Exception:
-            pass
-        return None
+        self._service_dns_selection = dict(catalog_plan.new_selection)
+        if catalog_plan.selection_migrated:
+            self._controller.save_user_selection(self._service_dns_selection)
 
     def _on_direct_toggle_changed(self, service_name: str, checked: bool) -> None:
         if getattr(self, "_building_services_ui", False):
@@ -1367,29 +1010,30 @@ class HostsPage(BasePage):
             self._update_profile_row_visual(service_name)
             return
 
-        direct_profile = self._get_direct_profile_name()
-        if not direct_profile:
-            # Strict: without an explicit "direct"/"Вкл. (активировать hosts)" profile we can never apply hosts.
+        plan = self._controller.build_direct_toggle_plan(
+            current_selection=self._service_dns_selection,
+            service_name=service_name,
+            checked=checked,
+        )
+        self._service_dns_selection = dict(plan.new_selection)
+
+        if plan.force_checked is not None or plan.force_enabled is not None:
             control = self.service_combos.get(service_name)
             if isinstance(control, QCheckBox):
                 was_building = getattr(self, "_building_services_ui", False)
                 self._building_services_ui = True
                 try:
-                    control.setChecked(False)
+                    if plan.force_checked is not None:
+                        control.setChecked(plan.force_checked)
+                    if plan.force_enabled is not None:
+                        control.setEnabled(plan.force_enabled)
                 finally:
                     self._building_services_ui = was_building
-                control.setEnabled(False)
-            self._service_dns_selection.pop(service_name, None)
-            self._update_profile_row_visual(service_name)
             return
 
-        if checked:
-            self._service_dns_selection[service_name] = direct_profile
-        else:
-            self._service_dns_selection.pop(service_name, None)
-
         self._update_profile_row_visual(service_name)
-        self._apply_current_selection()
+        if plan.apply_now:
+            self._apply_current_selection()
 
     def _build_adobe_section(self):
         self.add_section_title(text_key="page.hosts.section.additional")
@@ -1444,14 +1088,16 @@ class HostsPage(BasePage):
             self._update_profile_row_visual(service_name)
             return
 
-        profile_name = selected_profile.strip() if isinstance(selected_profile, str) else ""
-        if not profile_name:
-            self._service_dns_selection.pop(service_name, None)
-        else:
-            self._service_dns_selection[service_name] = profile_name
+        plan = self._controller.build_profile_selection_plan(
+            current_selection=self._service_dns_selection,
+            service_name=service_name,
+            selected_profile=selected_profile,
+        )
+        self._service_dns_selection = dict(plan.new_selection)
 
         self._update_profile_row_visual(service_name)
-        self._apply_current_selection()
+        if plan.apply_now:
+            self._apply_current_selection()
 
     def _update_profile_row_visual(self, service_name: str):
         combo = self.service_combos.get(service_name)
@@ -1469,11 +1115,7 @@ class HostsPage(BasePage):
         elif isinstance(combo, QCheckBox):
             enabled = bool(combo.isChecked())
         color = base_color if enabled else tokens.fg_faint
-        icon_name = None
-        for i_name, n, _c in QUICK_SERVICES:
-            if n == service_name:
-                icon_name = i_name
-                break
+        icon_name = self.service_icon_names.get(service_name)
         try:
             icon = qta.icon(icon_name or "fa5s.globe", color=color)
         except Exception:
@@ -1509,19 +1151,15 @@ class HostsPage(BasePage):
         self._run_operation('clear_all')
 
     def _open_hosts_file(self):
-        try:
-            import ctypes
-            import os
-            hosts_path = self._get_hosts_path_str()
-            if os.path.exists(hosts_path):
-                ctypes.windll.shell32.ShellExecuteW(None, "runas", "notepad.exe", hosts_path, None, 1)
-        except Exception as e:
-            if InfoBar:
-                InfoBar.warning(
-                    title=self._tr("page.hosts.open.error.title", "Ошибка"),
-                    content=self._tr("page.hosts.open.error.content", "Не удалось открыть: {error}", error=e),
-                    parent=self.window(),
-                )
+        result = self._controller.open_hosts_file()
+        if result.success:
+            return
+        if InfoBar:
+            InfoBar.warning(
+                title=self._tr("page.hosts.open.error.title", "Ошибка"),
+                content=self._tr("page.hosts.open.error.content", "Не удалось открыть: {error}", error=result.message),
+                parent=self.window(),
+            )
 
     def _toggle_adobe(self, checked: bool):
         if self._applying:
@@ -1577,8 +1215,9 @@ class HostsPage(BasePage):
 
     def _reset_all_service_profiles(self) -> None:
         """Сбрасывает выбор профилей в UI и user_hosts.ini (после очистки hosts)."""
-        self._service_dns_selection = {}
-        save_user_hosts_selection(self._service_dns_selection)
+        reset_plan = self._controller.build_reset_selection_plan()
+        self._service_dns_selection = dict(reset_plan.new_selection)
+        self._controller.save_user_selection(self._service_dns_selection)
 
         was_building = getattr(self, "_building_services_ui", False)
         self._building_services_ui = True
@@ -1599,26 +1238,27 @@ class HostsPage(BasePage):
     def _update_ui(self):
         """Обновляет весь UI"""
         runtime_state = self._get_hosts_runtime_state()
-        active = self._get_active_domains()
+        status_display = self._controller.build_status_display_plan(
+            runtime_state,
+            active_text=self._tr("page.hosts.status.active_domains", "Активно {count} доменов", count=len(runtime_state.active_domains)),
+            none_text=self._tr("page.hosts.status.none_active", "Нет активных"),
+        )
         tokens = get_theme_tokens()
         semantic = get_semantic_palette()
 
         # Статус
-        if active:
+        if status_display.dot_active:
             self.status_dot.setStyleSheet(f"color: {semantic.success}; font-size: 12px;")
-            self.status_label.setText(
-                self._tr("page.hosts.status.active_domains", "Активно {count} доменов", count=len(active))
-            )
         else:
             self.status_dot.setStyleSheet(f"color: {tokens.fg_faint}; font-size: 12px;")
-            self.status_label.setText(self._tr("page.hosts.status.none_active", "Нет активных"))
+        self.status_label.setText(status_display.label_text)
 
         # Обновляем иконки под текущие выборы
         for name in list(self.service_combos.keys()):
             self._update_profile_row_visual(name)
 
         # Adobe
-        is_adobe = runtime_state.adobe_active
+        is_adobe = status_display.adobe_active
         self.adobe_switch.blockSignals(True)
         self.adobe_switch.setChecked(is_adobe)
         self.adobe_switch.blockSignals(False)
