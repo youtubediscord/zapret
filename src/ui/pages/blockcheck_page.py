@@ -17,7 +17,7 @@ from ui.text_catalog import tr as tr_catalog
 try:
     from qfluentwidgets import (
         ComboBox, CaptionLabel, BodyLabel, StrongBodyLabel,
-        IndeterminateProgressBar, qconfig, isDarkTheme, themeColor,
+        IndeterminateProgressBar, isDarkTheme, themeColor,
         TableWidget, PushButton, LineEdit, SegmentedWidget,
     )
     HAS_FLUENT = True
@@ -255,7 +255,6 @@ class BlockcheckPage(BasePage):
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._connect_theme()
         try:
             self.set_ui_language(self._ui_language)
         except Exception:
@@ -597,12 +596,9 @@ class BlockcheckPage(BasePage):
     # Theme
     # ------------------------------------------------------------------
 
-    def _connect_theme(self):
-        if HAS_FLUENT:
-            qconfig.themeChanged.connect(lambda _: self._apply_theme())
-            qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
-    def _apply_theme(self):
+    def _apply_page_theme(self, tokens=None, force: bool = False):
+        _ = tokens
+        _ = force
         """Update DPI badge colors and chip styles on theme change."""
         if self._last_report:
             self._update_dpi_summary(self._last_report)

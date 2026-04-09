@@ -300,14 +300,10 @@ class AutostartPage(BasePage):
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -321,22 +317,20 @@ class AutostartPage(BasePage):
     def showEvent(self, event):
         """Вызывается при показе страницы - запускаем определение в фоне"""
         super().showEvent(event)
-        # Spontaneous showEvent = система показала окно (восстановление из трея/свёрнутого).
-        # Пропускаем тяжёлую детекцию при простом восстановлении окна.
-        if event.spontaneous():
+        plan = self._controller.build_show_event_plan(
+            spontaneous=event.spontaneous(),
+        )
+        if not plan.should_schedule_detection:
             return
-        # Запускаем определение типа автозапуска в фоновом потоке
-        # с небольшой задержкой чтобы UI успел отрисоваться
-        QTimer.singleShot(50, self._start_autostart_detection)
+        QTimer.singleShot(plan.detection_delay_ms, self._start_autostart_detection)
 
     def _start_autostart_detection(self):
         """Запускает определение типа автозапуска в фоновом потоке"""
-        # Если уже идёт проверка, не запускаем новую
-        if self._detection_pending:
-            return
-
-        # Если предыдущий поток ещё жив, ждём его завершения
-        if self._detector_worker is not None and self._detector_worker.isRunning():
+        plan = self._controller.build_detection_start_plan(
+            detection_pending=self._detection_pending,
+            worker_running=bool(self._detector_worker is not None and self._detector_worker.isRunning()),
+        )
+        if not plan.should_start:
             return
 
         self._detection_pending = True
@@ -346,17 +340,14 @@ class AutostartPage(BasePage):
 
     def _on_autostart_detected(self, autostart_type: str):
         """Обработчик результата определения типа автозапуска"""
-        self._detection_pending = False
+        plan = self._controller.build_detection_result_plan(autostart_type)
+        self._detection_pending = plan.detection_pending
 
-        # Пустая строка означает None
-        if not autostart_type:
-            autostart_type = None
+        log(f"Detected autostart type: {plan.autostart_type}", "DEBUG")
 
-        log(f"Detected autostart type: {autostart_type}", "DEBUG")
-
-        if autostart_type:
-            self._current_autostart_type = autostart_type
-            self._push_autostart_state(True, self.strategy_name, autostart_type)
+        if plan.enabled:
+            self._current_autostart_type = plan.autostart_type
+            self._push_autostart_state(True, self.strategy_name, plan.autostart_type)
         else:
             self._current_autostart_type = None
             self._push_autostart_state(False)
@@ -375,28 +366,14 @@ class AutostartPage(BasePage):
     def _auto_init(self):
         """Автоматическая инициализация из parent или глобального контекста"""
         try:
-            # Ищем главное приложение через цепочку parent
-            widget = self.parent()
-            while widget is not None:
-                # LupiDPIApp имеет атрибут dpi_controller
-                if hasattr(widget, 'dpi_controller'):
-                    self._app_instance = widget
-                    log("AutostartPage: app_instance найден через parent", "DEBUG")
-                    break
-                widget = widget.parent() if hasattr(widget, 'parent') else None
-
-            # Обновляем имя стратегии
-            if self._app_instance and self.strategy_name is None:
-                store = getattr(self._app_instance, "ui_state_store", None)
-                if store is not None:
-                    strategy_name = store.snapshot().current_strategy_summary
-                    if strategy_name:
-                        self.strategy_name = strategy_name
-                self.current_strategy_label.setText(
-                    self.strategy_name
-                    or self._tr("page.autostart.strategy.not_selected", "Не выбрана")
-                )
-
+            plan = self._controller.resolve_app_init_plan(
+                self.parent(),
+                strategy_name=self.strategy_name,
+                strategy_not_selected_text=self._tr("page.autostart.strategy.not_selected", "Не выбрана"),
+            )
+            self._app_instance = plan.app_instance
+            self.strategy_name = plan.strategy_name
+            self.current_strategy_label.setText(plan.strategy_text)
         except Exception as e:
             log(f"AutostartPage._auto_init ошибка: {e}", "WARNING")
 
@@ -672,7 +649,7 @@ class AutostartPage(BasePage):
         self._update_mode()
 
         # Apply theme once after building the UI.
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _update_mode(self):
         """Обновляет отображение режима"""
@@ -705,12 +682,9 @@ class AutostartPage(BasePage):
         tokens = get_theme_tokens()
         self.mode_arrow.setPixmap(qta.icon('fa5s.chevron-right', color=tokens.fg_faint).pixmap(14, 14))
 
-    def on_theme_changed(self):
-        """Вызывается при смене темы"""
-        self._apply_theme()
-
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         # Mode card icon — accent color still needs manual update
         if hasattr(self, "_mode_icon_label"):

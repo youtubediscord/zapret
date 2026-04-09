@@ -1,10 +1,11 @@
 # widgets/progress_bar.py
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QGraphicsOpacityEffect
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QEvent
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer
 from PyQt6.QtGui import QFont
 
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 
 class AnimatedProgressBar(QWidget):
     """Красивый анимированный прогресс-бар с текстом статуса"""
@@ -13,6 +14,7 @@ class AnimatedProgressBar(QWidget):
         super().__init__(parent)
         self.setupUI()
         self._is_visible = False
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_styles)
         
     def setupUI(self):
         # Основной layout
@@ -181,11 +183,3 @@ class AnimatedProgressBar(QWidget):
             opacity = 0.7
             
         self.opacity_effect.setOpacity(opacity)
-
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                self._apply_theme_styles()
-        except Exception:
-            pass
-        super().changeEvent(event)

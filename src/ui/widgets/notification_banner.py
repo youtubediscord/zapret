@@ -10,14 +10,8 @@ from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect
 import qtawesome as qta
 
-try:
-    from qfluentwidgets import qconfig
-    _HAS_FLUENT = True
-except ImportError:
-    qconfig = None
-    _HAS_FLUENT = False
-
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 
 
 class NotificationBanner(QWidget):
@@ -63,9 +57,7 @@ class NotificationBanner(QWidget):
         super().__init__(parent)
         self._setup_ui()
         self._setup_animation()
-        if qconfig is not None:
-            qconfig.themeChanged.connect(lambda _: self._refresh_theme())
-            qconfig.themeColorChanged.connect(lambda _: self._refresh_theme())
+        self._theme_refresh = ThemeRefreshController(self, self._refresh_theme)
         self._refresh_theme()
         self.hide()  # Скрыт по умолчанию
 

@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QVBoxLayout, QLabel,
                             QRadioButton, QWidget, QListWidgetItem, QSizePolicy)
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QBrush
 
 from launcher_common.constants import LABEL_TEXTS, LABEL_COLORS
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.compat_widgets import set_tooltip
 
 def _style_selected(tokens) -> str:
@@ -108,6 +109,7 @@ class CompactStrategyItem(QFrame):
         self._apply_style(False)
         self._init_ui()
         self._setup_tooltip()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
 
     def _get_rating_style(self):
         """Возвращает стиль на основе рейтинга стратегии"""
@@ -214,13 +216,10 @@ class CompactStrategyItem(QFrame):
         self._current_style = None  # Сбрасываем кэш
         self._apply_style(self.is_selected)
 
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                self._apply_style(self.is_selected)
-        except Exception:
-            pass
-        super().changeEvent(event)
+    def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
+        _ = tokens
+        _ = force
+        self._apply_style(self.is_selected)
 
     def _update_rating_style(self):
         """Обновляет стиль рейтинга"""

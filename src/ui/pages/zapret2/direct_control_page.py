@@ -280,6 +280,18 @@ class Zapret2DirectControlPage(BasePage):
             pass
         self._update_stop_winws_button_text()
 
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        theme_tokens = tokens or get_theme_tokens()
+
+        try:
+            if hasattr(self, "advanced_desc") and self.advanced_desc is not None:
+                self.advanced_desc.setStyleSheet(
+                    f"color: #ff9800; padding-bottom: 8px; font-family: {theme_tokens.font_family_qss};"
+                )
+        except Exception:
+            pass
+
     def _start_dpi(self) -> None:
         start_dpi(self)
 
@@ -632,7 +644,6 @@ class Zapret2DirectControlPage(BasePage):
         advanced_layout.setSpacing(6)
 
         self.advanced_desc = CaptionLabel(tr_catalog("page.z2_control.advanced.warning", language=self._ui_language, default="⚠ Изменяйте только если знаете что делаете")) if _HAS_FLUENT_LABELS else QLabel(tr_catalog("page.z2_control.advanced.warning", language=self._ui_language, default="⚠ Изменяйте только если знаете что делаете"))
-        self.advanced_desc.setStyleSheet("color: #ff9800; padding-bottom: 8px;")
         advanced_layout.addWidget(self.advanced_desc)
 
         try:
@@ -1390,6 +1401,27 @@ class Zapret2DirectControlPage(BasePage):
 
         self._update_stop_winws_button_text()
         self._refresh_direct_mode_label()
+        try:
+            self.discord_restart_toggle.set_texts(
+                tr_catalog("page.dpi_settings.discord_restart.title", language=self._ui_language, default="Перезапуск Discord"),
+                tr_catalog("page.dpi_settings.discord_restart.desc", language=self._ui_language, default="Автоперезапуск при смене стратегии"),
+            )
+        except Exception:
+            pass
+        try:
+            self.wssize_toggle.set_texts(
+                tr_catalog("page.dpi_settings.advanced.wssize.title", language=self._ui_language, default="Включить --wssize"),
+                tr_catalog("page.dpi_settings.advanced.wssize.desc", language=self._ui_language, default="Добавляет параметр размера окна TCP"),
+            )
+        except Exception:
+            pass
+        try:
+            self.debug_log_toggle.set_texts(
+                tr_catalog("page.dpi_settings.advanced.debug_log.title", language=self._ui_language, default="Включить лог-файл (--debug)"),
+                tr_catalog("page.dpi_settings.advanced.debug_log.desc", language=self._ui_language, default="Записывает логи winws в папку logs"),
+            )
+        except Exception:
+            pass
 
     def _open_docs(self) -> None:
         try:

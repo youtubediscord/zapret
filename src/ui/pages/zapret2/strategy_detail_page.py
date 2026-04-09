@@ -663,8 +663,6 @@ class StrategyDetailPage(BasePage):
         self._main_window = None
         self._strategies_data_by_id = {}
         self._content_built = False
-        self._theme_refresh_scheduled = False
-        self._theme_refresh_in_progress = False
         self._last_theme_overrides_key = None
         self._last_parent_link_icon_color = None
         self._last_edit_args_icon_color = None
@@ -737,31 +735,9 @@ class StrategyDetailPage(BasePage):
         except Exception:
             pass
 
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                if self._theme_refresh_in_progress:
-                    return super().changeEvent(event)
-                if not self._theme_refresh_scheduled:
-                    self._theme_refresh_scheduled = True
-                    QTimer.singleShot(0, self._on_debounced_theme_change)
-        except Exception:
-            pass
-        return super().changeEvent(event)
-
-    def _on_debounced_theme_change(self) -> None:
-        if self._theme_refresh_in_progress:
-            return
-        self._theme_refresh_in_progress = True
-        try:
-            self._apply_theme_overrides()
-        finally:
-            self._theme_refresh_in_progress = False
-            self._theme_refresh_scheduled = False
-
-    def _apply_theme_overrides(self) -> None:
-        try:
-            tokens = get_theme_tokens()
+            tokens = tokens or get_theme_tokens()
         except Exception:
             return
 
@@ -772,7 +748,7 @@ class StrategyDetailPage(BasePage):
             str(tokens.fg_faint),
             str(tokens.accent_hex),
         )
-        if key == self._last_theme_overrides_key:
+        if not force and key == self._last_theme_overrides_key:
             return
         self._last_theme_overrides_key = key
 
@@ -1487,7 +1463,7 @@ class StrategyDetailPage(BasePage):
         search_layout.addWidget(self._edit_args_btn)
 
         # Initialize dynamic visuals/tooltips (sort/filter buttons).
-        self._apply_theme_overrides()
+        self._apply_page_theme(force=True)
         self._update_technique_filter_ui()
         self._populate_sort_combo()
 

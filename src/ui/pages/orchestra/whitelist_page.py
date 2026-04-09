@@ -38,6 +38,7 @@ except ImportError:
 from ..base_page import BasePage
 from ui.compat_widgets import set_tooltip
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from log import log
 
@@ -67,6 +68,7 @@ class WhitelistDomainRow(QFrame):
         self._delete_btn = None
 
         self._setup_ui(domain, is_default)
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
 
     def _setup_ui(self, domain: str, is_default: bool):
         self.setFixedHeight(40)
@@ -100,11 +102,6 @@ class WhitelistDomainRow(QFrame):
             layout.addWidget(delete_btn)
 
         self._apply_theme()
-
-    def changeEvent(self, event) -> None:
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_theme()
-        super().changeEvent(event)
 
     def refresh_theme(self) -> None:
         self._tokens = get_theme_tokens()
@@ -172,14 +169,10 @@ class OrchestraWhitelistPage(BasePage):
         self._add_card = None
         self._domains_card = None
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(build=self._setup_ui, after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -298,8 +291,9 @@ class OrchestraWhitelistPage(BasePage):
 
         self.layout.addWidget(domains_card, 1)
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         if hasattr(self, "add_btn") and self.add_btn is not None:
             self.add_btn.setIcon(qta.icon("mdi.plus", color=tokens.fg))

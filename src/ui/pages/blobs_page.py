@@ -1,7 +1,7 @@
 # ui/pages/blobs_page.py
 """Страница управления блобами (Zapret 2 / Direct режим)"""
 
-from PyQt6.QtCore import Qt, QTimer, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QFileDialog, QSizePolicy
@@ -12,6 +12,7 @@ import os
 from .base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton, RefreshButton, set_tooltip
 from ui.theme import get_theme_tokens, get_card_gradient_qss
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from log import log
 
@@ -61,6 +62,7 @@ class BlobItemWidget(QFrame):
         # Политика размера: предпочитает минимальную ширину
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self._build_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -151,11 +153,6 @@ class BlobItemWidget(QFrame):
             layout.addWidget(self._delete_btn)
 
         self._apply_theme()
-
-    def changeEvent(self, event) -> None:
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_theme()
-        super().changeEvent(event)
 
     def refresh_theme(self) -> None:
         self._tokens = get_theme_tokens()
@@ -396,14 +393,10 @@ class BlobsPage(BasePage):
         self._desc_label = None
         self._filter_icon_label = None
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -511,8 +504,9 @@ class BlobsPage(BasePage):
         # Загружаем блобы
         QTimer.singleShot(100, self._load_blobs)
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         if self._desc_label is not None:
             self._desc_label.setStyleSheet(

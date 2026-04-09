@@ -63,6 +63,31 @@ class AutostartOptionState:
     is_active: bool
 
 
+@dataclass(slots=True)
+class AutostartShowEventPlan:
+    should_schedule_detection: bool
+    detection_delay_ms: int
+
+
+@dataclass(slots=True)
+class AutostartDetectionStartPlan:
+    should_start: bool
+
+
+@dataclass(slots=True)
+class AutostartDetectionResultPlan:
+    detection_pending: bool
+    autostart_type: str | None
+    enabled: bool
+
+
+@dataclass(slots=True)
+class AutostartAppInitPlan:
+    app_instance: object | None
+    strategy_name: str | None
+    strategy_text: str
+
+
 class AutostartPageController:
     @staticmethod
     def create_detector_worker() -> AutostartDetectorWorker:
@@ -77,6 +102,53 @@ class AutostartPageController:
             if method and method in AutostartDetectorWorker.METHOD_TO_TYPE:
                 return AutostartDetectorWorker.METHOD_TO_TYPE[method]
         return None
+
+    @staticmethod
+    def build_show_event_plan(*, spontaneous: bool) -> AutostartShowEventPlan:
+        return AutostartShowEventPlan(
+            should_schedule_detection=not bool(spontaneous),
+            detection_delay_ms=50,
+        )
+
+    @staticmethod
+    def build_detection_start_plan(*, detection_pending: bool, worker_running: bool) -> AutostartDetectionStartPlan:
+        return AutostartDetectionStartPlan(
+            should_start=not bool(detection_pending) and not bool(worker_running),
+        )
+
+    @staticmethod
+    def build_detection_result_plan(autostart_type: str | None) -> AutostartDetectionResultPlan:
+        normalized_type = str(autostart_type or "").strip() or None
+        return AutostartDetectionResultPlan(
+            detection_pending=False,
+            autostart_type=normalized_type,
+            enabled=bool(normalized_type),
+        )
+
+    @staticmethod
+    def resolve_app_init_plan(parent_widget, *, strategy_name: str | None, strategy_not_selected_text: str) -> AutostartAppInitPlan:
+        app_instance = None
+        widget = parent_widget
+        while widget is not None:
+            if hasattr(widget, "dpi_controller"):
+                app_instance = widget
+                log("AutostartPage: app_instance найден через parent", "DEBUG")
+                break
+            widget = widget.parent() if hasattr(widget, "parent") else None
+
+        resolved_strategy = strategy_name
+        if app_instance is not None and not resolved_strategy:
+            store = getattr(app_instance, "ui_state_store", None)
+            if store is not None:
+                current = store.snapshot().current_strategy_summary
+                if current:
+                    resolved_strategy = current
+
+        return AutostartAppInitPlan(
+            app_instance=app_instance,
+            strategy_name=resolved_strategy,
+            strategy_text=resolved_strategy or strategy_not_selected_text,
+        )
 
     @staticmethod
     def disable_autostart() -> AutostartActionResult:

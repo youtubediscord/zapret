@@ -141,14 +141,10 @@ class HostsPage(BasePage):
         self._service_dns_selection = self._controller.load_user_selection()
         self._ipv6_infobar_shown = False
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -159,9 +155,10 @@ class HostsPage(BasePage):
                 return text
         return text
 
-    def _apply_theme(self) -> None:
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         """Applies theme tokens to widgets that still use raw setStyleSheet."""
-        tokens = get_theme_tokens()
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         # Section title labels (plain QLabel kept for layout/padding control).
         for label in list(self._services_section_title_labels):

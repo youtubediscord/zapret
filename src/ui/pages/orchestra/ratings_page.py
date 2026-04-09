@@ -49,14 +49,10 @@ class OrchestraRatingsPage(BasePage):
         self._filter_card = None
         self._history_card = None
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(build=self._setup_ui, after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -89,7 +85,7 @@ class OrchestraRatingsPage(BasePage):
                 self.refresh_btn,
                 self._tr("page.orchestra.ratings.button.refresh", "Обновить"),
             )
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _setup_ui(self):
         # === Фильтр ===
@@ -178,8 +174,9 @@ class OrchestraRatingsPage(BasePage):
         self._http_data = {}
         self._udp_data = {}
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         if hasattr(self, "refresh_btn") and self.refresh_btn is not None:
             icon_name = "mdi.loading" if self._refresh_loading else "mdi.refresh"
             icon_color = tokens.fg_faint if self._refresh_loading else tokens.fg

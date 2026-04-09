@@ -3,12 +3,13 @@
 
 import sys
 
-from PyQt6.QtCore import Qt, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QColor
 import qtawesome as qta
 
 from .base_page import BasePage
+from ui.appearance_page_controller import AppearancePageController
 from ui.compat_widgets import SettingsCard, ActionButton, SettingsRow
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme import get_theme_tokens, get_rkn_background_options
@@ -70,6 +71,7 @@ class AppearancePage(BasePage):
             subtitle_key="page.appearance.subtitle",
         )
 
+        self._controller = AppearancePageController()
         self._display_mode_seg = None    # SegmentedWidget
         self._display_mode_section_title = None
         self._display_mode_card = None
@@ -701,28 +703,19 @@ class AppearancePage(BasePage):
 
     def _load_display_mode(self):
         """Load saved display mode from registry."""
-        try:
-            from config.reg import get_display_mode
-            mode = get_display_mode()
-            if self._display_mode_seg is not None:
-                self._display_mode_seg.blockSignals(True)
-                try:
-                    self._display_mode_seg.setCurrentItem(mode)
-                except Exception:
-                    pass
-                self._display_mode_seg.blockSignals(False)
-        except Exception:
-            pass
+        mode = self._controller.load_display_mode()
+        if self._display_mode_seg is not None:
+            self._display_mode_seg.blockSignals(True)
+            try:
+                self._display_mode_seg.setCurrentItem(mode)
+            except Exception:
+                pass
+            self._display_mode_seg.blockSignals(False)
 
     def _on_display_mode_changed(self, mode: str):
         """Handle display mode toggle."""
-        effective_mode = mode
-        try:
-            from config.reg import set_display_mode, get_display_mode
-            set_display_mode(mode)
-            effective_mode = get_display_mode()
-        except Exception:
-            pass
+        plan = self._controller.save_display_mode(mode)
+        effective_mode = plan.effective_mode
 
         if self._display_mode_seg is not None and effective_mode != mode:
             self._display_mode_seg.blockSignals(True)
@@ -756,13 +749,8 @@ class AppearancePage(BasePage):
         if self._language_combo is None:
             return
 
-        try:
-            from config.reg import get_ui_language
-            from ui.text_catalog import normalize_language
-
-            lang = normalize_language(get_ui_language())
-        except Exception:
-            lang = "ru"
+        plan = self._controller.load_ui_language()
+        lang = plan.language
 
         index = -1
         try:
@@ -792,14 +780,8 @@ class AppearancePage(BasePage):
         if not isinstance(lang, str) or not lang:
             return
 
-        try:
-            from config.reg import set_ui_language
-
-            set_ui_language(lang)
-        except Exception:
-            pass
-
-        self.ui_language_changed.emit(lang)
+        plan = self._controller.save_ui_language(lang)
+        self.ui_language_changed.emit(plan.language)
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -840,12 +822,8 @@ class AppearancePage(BasePage):
 
     def _load_bg_preset(self):
         """Load saved background preset from registry."""
-        try:
-            from config.reg import get_background_preset
-            preset = get_background_preset()
-            self._apply_bg_preset_ui(preset)
-        except Exception:
-            pass
+        plan = self._controller.load_background_preset()
+        self._apply_bg_preset_ui(plan.preset)
 
     def _apply_bg_preset_ui(self, preset: str):
         """Update RadioButton selection without emitting signals."""
@@ -868,12 +846,7 @@ class AppearancePage(BasePage):
 
     def _update_display_mode_section_state(self, preset: str | None = None) -> None:
         if preset is None:
-            try:
-                from config.reg import get_background_preset
-
-                preset = get_background_preset()
-            except Exception:
-                preset = "standard"
+            preset = self._controller.load_background_preset().preset
 
         show_section = self._should_show_display_mode_for_preset(preset)
 
@@ -892,11 +865,7 @@ class AppearancePage(BasePage):
         if self._rkn_background_combo is None:
             return
 
-        try:
-            from config.reg import get_rkn_background
-            saved_value = get_rkn_background()
-        except Exception:
-            saved_value = None
+        saved_value = self._controller.load_rkn_background().value
 
         options = get_rkn_background_options()
 
@@ -921,13 +890,9 @@ class AppearancePage(BasePage):
                 index = 0
             self._rkn_background_combo.setCurrentIndex(index)
 
-            try:
-                from config.reg import set_rkn_background
-                selected_rel = self._rkn_background_combo.itemData(index)
-                if isinstance(selected_rel, str) and selected_rel:
-                    set_rkn_background(selected_rel)
-            except Exception:
-                pass
+            selected_rel = self._rkn_background_combo.itemData(index)
+            if isinstance(selected_rel, str) and selected_rel:
+                self._controller.save_rkn_background(selected_rel)
         else:
             self._rkn_background_combo.addItem(
                 tr_catalog("page.appearance.background.rkn.none", language=self._ui_language, default="Фоны не найдены"),
@@ -963,11 +928,7 @@ class AppearancePage(BasePage):
         if not isinstance(selected_rel, str) or not selected_rel:
             return
 
-        try:
-            from config.reg import set_rkn_background
-            set_rkn_background(selected_rel)
-        except Exception:
-            pass
+        self._controller.save_rkn_background(selected_rel)
 
         if self._bg_radio_rkn_chan is not None and self._bg_radio_rkn_chan.isChecked():
             self.background_refresh_needed.emit()
@@ -976,11 +937,8 @@ class AppearancePage(BasePage):
         """Handle background preset RadioButton toggle."""
         if not checked:
             return
-        try:
-            from config.reg import set_background_preset
-            set_background_preset(preset)
-        except Exception:
-            pass
+        plan = self._controller.save_background_preset(preset)
+        preset = plan.preset
         if self._mica_switch:
             self._mica_switch.setEnabled(preset == "standard")
         # AMOLED and РКН Тян require dark mode — force it automatically
@@ -1012,15 +970,11 @@ class AppearancePage(BasePage):
 
     def _load_mica_state(self):
         """Load Mica state from registry."""
-        try:
-            from config.reg import get_mica_enabled, get_background_preset
-            self.set_mica_state(get_mica_enabled())
-            # Disable switch if non-standard preset is active
-            if self._mica_switch:
-                preset = get_background_preset()
-                self._mica_switch.setEnabled(preset == "standard")
-        except Exception:
-            pass
+        mica_plan = self._controller.load_mica_enabled()
+        self.set_mica_state(mica_plan.enabled)
+        if self._mica_switch:
+            preset = self._controller.load_background_preset().preset
+            self._mica_switch.setEnabled(preset == "standard")
 
     def _apply_theme_tokens(self, theme_name: str) -> None:
         """Refresh qtawesome icon labels on theme change."""
@@ -1036,37 +990,25 @@ class AppearancePage(BasePage):
         if self._opacity_label:
             self._opacity_label.setText(f"{value}%")
 
-        # Сохраняем в реестр
-        from config.reg import set_window_opacity
-        set_window_opacity(value)
+        opacity_plan = self._controller.save_window_opacity(value)
 
         # Уведомляем главное окно
-        self.opacity_changed.emit(value)
+        self.opacity_changed.emit(opacity_plan.value)
 
         from log import log
-        log(f"Прозрачность окна: {value}%", "DEBUG")
+        log(f"Прозрачность окна: {opacity_plan.value}%", "DEBUG")
 
     def _on_snowflakes_changed(self, state):
         """Обработчик изменения состояния снежинок"""
         enabled = state == Qt.CheckState.Checked.value
-
-        # Сохраняем в реестр
-        from config.reg import set_snowflakes_enabled
-        set_snowflakes_enabled(enabled)
-
-        # Уведомляем главное окно
-        self.snowflakes_changed.emit(enabled)
+        plan = self._controller.save_snowflakes_enabled(enabled)
+        self.snowflakes_changed.emit(plan.enabled)
 
     def _on_garland_changed(self, state):
         """Обработчик изменения состояния гирлянды"""
         enabled = state == Qt.CheckState.Checked.value
-
-        # Сохраняем в реестр
-        from config.reg import set_garland_enabled
-        set_garland_enabled(enabled)
-
-        # Эмитим сигнал
-        self.garland_changed.emit(enabled)
+        plan = self._controller.save_garland_enabled(enabled)
+        self.garland_changed.emit(plan.enabled)
 
     def _on_accent_color_changed(self, color: QColor):
         """Обработчик изменения акцентного цвета через ColorPickerButton."""
@@ -1077,25 +1019,13 @@ class AppearancePage(BasePage):
         except Exception:
             pass
         hex_color = color.name()
-        try:
-            from config.reg import set_accent_color
-            set_accent_color(hex_color)
-        except Exception:
-            pass
-        self.accent_color_changed.emit(hex_color)
+        plan = self._controller.save_accent_color(hex_color)
+        if plan.hex_color:
+            self.accent_color_changed.emit(plan.hex_color)
         # If tinted bg is active, trigger window background refresh
-        try:
-            from config.reg import get_tinted_background
-            if get_tinted_background():
-                self.background_refresh_needed.emit()
-        except Exception:
-            pass
-
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            if hasattr(self, '_garland_icon_label'):
-                self._refresh_accent_icons()
-        super().changeEvent(event)
+        tinted_plan = self._controller.load_tinted_settings()
+        if tinted_plan.tinted_background:
+            self.background_refresh_needed.emit()
 
     def _refresh_accent_icons(self, tokens=None):
         """Обновляет иконки страницы при смене акцентного цвета."""
@@ -1109,55 +1039,47 @@ class AppearancePage(BasePage):
             if lbl is not None:
                 lbl.setPixmap(qta.icon(icon_name, color=tokens.accent_hex).pixmap(size, size))
 
+    def _apply_page_theme(self, tokens=None, force: bool = False):
+        _ = force
+        self._refresh_accent_icons(tokens=tokens)
+
     def _load_extra_accent_settings(self):
         """Загружает настройки Follow Windows Accent и Tinted Background."""
         if not _HAS_COLOR_PICKER:
             return
-        try:
-            from config.reg import (get_follow_windows_accent, get_tinted_background,
-                                     get_tinted_background_intensity)
-            follow = get_follow_windows_accent()
-            tinted = get_tinted_background()
-            intensity = get_tinted_background_intensity()
+        plan = self._controller.load_tinted_settings()
 
-            if self._follow_windows_accent_cb is not None:
-                self._follow_windows_accent_cb.blockSignals(True)
-                self._follow_windows_accent_cb.setChecked(follow)
-                self._follow_windows_accent_cb.blockSignals(False)
+        if self._follow_windows_accent_cb is not None:
+            self._follow_windows_accent_cb.blockSignals(True)
+            self._follow_windows_accent_cb.setChecked(plan.follow_windows_accent)
+            self._follow_windows_accent_cb.blockSignals(False)
 
-            if self._tinted_bg_cb is not None:
-                self._tinted_bg_cb.blockSignals(True)
-                self._tinted_bg_cb.setChecked(tinted)
-                self._tinted_bg_cb.blockSignals(False)
+        if self._tinted_bg_cb is not None:
+            self._tinted_bg_cb.blockSignals(True)
+            self._tinted_bg_cb.setChecked(plan.tinted_background)
+            self._tinted_bg_cb.blockSignals(False)
 
-            if self._tinted_intensity_slider is not None:
-                self._tinted_intensity_slider.blockSignals(True)
-                self._tinted_intensity_slider.setValue(intensity)
-                self._tinted_intensity_slider.blockSignals(False)
+        if self._tinted_intensity_slider is not None:
+            self._tinted_intensity_slider.blockSignals(True)
+            self._tinted_intensity_slider.setValue(plan.tinted_intensity)
+            self._tinted_intensity_slider.blockSignals(False)
 
-            if self._tinted_intensity_value_label is not None:
-                self._tinted_intensity_value_label.setText(str(intensity))
+        if self._tinted_intensity_value_label is not None:
+            self._tinted_intensity_value_label.setText(str(plan.tinted_intensity))
 
-            if self._tinted_intensity_container is not None:
-                self._tinted_intensity_container.setVisible(tinted)
+        if self._tinted_intensity_container is not None:
+            self._tinted_intensity_container.setVisible(plan.tinted_background)
 
-            # If follow_windows is on: apply Windows accent now and disable picker
-            if follow:
-                self._apply_windows_accent()
-                if self._color_picker_btn is not None:
-                    self._color_picker_btn.setEnabled(False)
-        except Exception:
-            pass
+        if plan.follow_windows_accent:
+            self._apply_windows_accent()
+            if self._color_picker_btn is not None:
+                self._color_picker_btn.setEnabled(False)
 
     def _on_follow_windows_accent_changed(self, state):
         """Обработчик переключения 'Акцент из Windows'."""
         enabled = state == Qt.CheckState.Checked.value
-        try:
-            from config.reg import set_follow_windows_accent
-            set_follow_windows_accent(enabled)
-        except Exception:
-            pass
-        if enabled:
+        plan = self._controller.save_follow_windows_accent(enabled)
+        if plan.enabled:
             self._apply_windows_accent()
             if self._color_picker_btn is not None:
                 self._color_picker_btn.setEnabled(False)
@@ -1168,13 +1090,13 @@ class AppearancePage(BasePage):
     def _apply_windows_accent(self):
         """Читает системный акцент Windows и применяет его."""
         try:
-            from config.reg import get_windows_system_accent, set_accent_color
-            hex_color = get_windows_system_accent()
+            plan = self._controller.load_windows_system_accent()
+            hex_color = plan.hex_color
             if hex_color:
                 color = QColor(hex_color)
                 if color.isValid():
                     setThemeColor(color)
-                    set_accent_color(hex_color)
+                    self._controller.save_accent_color(hex_color)
                     if self._color_picker_btn is not None:
                         self._color_picker_btn.setColor(color)
                     self.accent_color_changed.emit(hex_color)
@@ -1185,40 +1107,29 @@ class AppearancePage(BasePage):
     def _on_tinted_bg_changed(self, state):
         """Обработчик переключения 'Тонировать фон'."""
         enabled = state == Qt.CheckState.Checked.value
-        try:
-            from config.reg import set_tinted_background
-            set_tinted_background(enabled)
-        except Exception:
-            pass
+        plan = self._controller.save_tinted_background(enabled)
         if self._tinted_intensity_container is not None:
-            self._tinted_intensity_container.setVisible(enabled)
+            self._tinted_intensity_container.setVisible(plan.enabled)
         self.background_refresh_needed.emit()
 
     def _on_tinted_intensity_changed(self, value: int):
         """Обработчик изменения интенсивности тонировки."""
-        try:
-            from config.reg import set_tinted_background_intensity
-            set_tinted_background_intensity(value)
-        except Exception:
-            pass
+        plan = self._controller.save_tinted_background_intensity(value)
         if self._tinted_intensity_value_label is not None:
-            self._tinted_intensity_value_label.setText(str(value))
+            self._tinted_intensity_value_label.setText(str(plan.value))
         self.background_refresh_needed.emit()
 
     def _load_accent_color(self):
         """Загружает сохранённый акцентный цвет и применяет его."""
         if not _HAS_COLOR_PICKER or self._color_picker_btn is None:
             return
-        try:
-            from config.reg import get_accent_color
-            hex_color = get_accent_color()
-            if hex_color:
-                color = QColor(hex_color)
-                if color.isValid():
-                    self._color_picker_btn.setColor(color)
-                    setThemeColor(color)
-        except Exception:
-            pass
+        plan = self._controller.load_accent_color()
+        hex_color = plan.hex_color
+        if hex_color:
+            color = QColor(hex_color)
+            if color.isValid():
+                self._color_picker_btn.setColor(color)
+                setThemeColor(color)
 
     def set_current_theme(self, theme_name: str):
         """No-op: theme selection removed. Kept for backward compatibility."""
@@ -1241,48 +1152,40 @@ class AppearancePage(BasePage):
             self._bg_radio_rkn_chan.setEnabled(is_premium)
         self._update_rkn_background_control_state()
 
-        # If premium lost and a premium preset is active, switch back to standard
-        if not is_premium:
-            try:
-                from config.reg import get_background_preset, set_background_preset
-                current_preset = get_background_preset()
-                if current_preset in ("amoled", "rkn_chan"):
-                    set_background_preset("standard")
-                    self._apply_bg_preset_ui("standard")
-                    self.background_preset_changed.emit("standard")
-            except Exception:
-                pass
+        current_preset = self._controller.load_background_preset().preset
+        premium_effects = self._controller.load_premium_effects()
+        premium_plan = self._controller.build_premium_status_plan(
+            is_premium=is_premium,
+            current_preset=current_preset,
+            was_garland_enabled=was_garland_enabled,
+            was_snowflakes_enabled=was_snowflakes_enabled,
+            premium_effects=premium_effects,
+        )
 
-        # Update garland/snowflakes checkboxes (unchanged logic)
-        from config.reg import get_garland_enabled, get_snowflakes_enabled
+        if premium_plan.effective_preset is not None:
+            preset_plan = self._controller.save_background_preset(premium_plan.effective_preset)
+            self._apply_bg_preset_ui(preset_plan.preset)
+            self.background_preset_changed.emit(preset_plan.preset)
 
         if self._garland_checkbox:
             self._garland_checkbox.setEnabled(is_premium)
             self._garland_checkbox.blockSignals(True)
-            if is_premium:
-                self._garland_checkbox.setChecked(get_garland_enabled())
-            else:
-                self._garland_checkbox.setChecked(False)
+            self._garland_checkbox.setChecked(premium_plan.garland_checked)
             self._garland_checkbox.blockSignals(False)
 
         if self._snowflakes_checkbox:
             self._snowflakes_checkbox.setEnabled(is_premium)
             self._snowflakes_checkbox.blockSignals(True)
-            if is_premium:
-                self._snowflakes_checkbox.setChecked(get_snowflakes_enabled())
-            else:
-                self._snowflakes_checkbox.setChecked(False)
+            self._snowflakes_checkbox.setChecked(premium_plan.snowflakes_checked)
             self._snowflakes_checkbox.blockSignals(False)
 
-        if not is_premium and was_garland_enabled:
-            from config.reg import set_garland_enabled
-            set_garland_enabled(False)
-            self.garland_changed.emit(False)
+        if premium_plan.disable_garland:
+            plan = self._controller.save_garland_enabled(False)
+            self.garland_changed.emit(plan.enabled)
 
-        if not is_premium and was_snowflakes_enabled:
-            from config.reg import set_snowflakes_enabled
-            set_snowflakes_enabled(False)
-            self.snowflakes_changed.emit(False)
+        if premium_plan.disable_snowflakes:
+            plan = self._controller.save_snowflakes_enabled(False)
+            self.snowflakes_changed.emit(plan.enabled)
 
         self._update_display_mode_section_state()
 
@@ -1314,35 +1217,23 @@ class AppearancePage(BasePage):
 
     def _on_animations_changed(self, enabled: bool):
         """Handle animations SwitchButton toggle."""
-        try:
-            from config.reg import set_animations_enabled
-            set_animations_enabled(enabled)
-        except Exception:
-            pass
-        self.animations_changed.emit(enabled)
+        plan = self._controller.save_animations_enabled(enabled)
+        self.animations_changed.emit(plan.enabled)
 
     def _on_smooth_scroll_changed(self, enabled: bool):
         """Handle smooth scroll SwitchButton toggle."""
-        try:
-            from config.reg import set_smooth_scroll_enabled
-            set_smooth_scroll_enabled(enabled)
-        except Exception:
-            pass
-        self.smooth_scroll_changed.emit(enabled)
+        plan = self._controller.save_smooth_scroll_enabled(enabled)
+        self.smooth_scroll_changed.emit(plan.enabled)
 
     def _load_performance_settings(self):
         """Load animations and smooth scroll state from registry into switches."""
-        try:
-            from config.reg import get_animations_enabled, get_smooth_scroll_enabled
-            anim = get_animations_enabled()
-            smooth = get_smooth_scroll_enabled()
-            if self._animations_switch is not None:
-                self._animations_switch.blockSignals(True)
-                self._animations_switch.setChecked(anim)
-                self._animations_switch.blockSignals(False)
-            if self._smooth_scroll_switch is not None:
-                self._smooth_scroll_switch.blockSignals(True)
-                self._smooth_scroll_switch.setChecked(smooth)
-                self._smooth_scroll_switch.blockSignals(False)
-        except Exception:
-            pass
+        anim_plan = self._controller.load_animations_enabled()
+        smooth_plan = self._controller.load_smooth_scroll_enabled()
+        if self._animations_switch is not None:
+            self._animations_switch.blockSignals(True)
+            self._animations_switch.setChecked(anim_plan.enabled)
+            self._animations_switch.blockSignals(False)
+        if self._smooth_scroll_switch is not None:
+            self._smooth_scroll_switch.blockSignals(True)
+            self._smooth_scroll_switch.setChecked(smooth_plan.enabled)
+            self._smooth_scroll_switch.blockSignals(False)

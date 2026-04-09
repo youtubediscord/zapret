@@ -22,7 +22,7 @@ from ui.text_catalog import tr as tr_catalog
 try:
     from qfluentwidgets import (
         ComboBox, CaptionLabel, BodyLabel,
-        ProgressBar, qconfig,
+        ProgressBar,
         TableWidget, PushButton, LineEdit, RoundMenu,
     )
     HAS_FLUENT = True
@@ -85,8 +85,6 @@ class StrategyScanPage(BasePage):
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._connect_theme()
-
         if self._embedded:
             try:
                 if self.title_label is not None:
@@ -488,11 +486,9 @@ class StrategyScanPage(BasePage):
     # Theme
     # ------------------------------------------------------------------
 
-    def _connect_theme(self):
-        if HAS_FLUENT:
-            qconfig.themeChanged.connect(lambda _: self._apply_theme())
-
-    def _apply_theme(self):
+    def _apply_page_theme(self, tokens=None, force: bool = False):
+        _ = tokens
+        _ = force
         pass  # Table colors are set per-cell, no global refresh needed
 
     def _apply_language_plan(self, language: str) -> None:

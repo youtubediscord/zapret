@@ -20,6 +20,7 @@ except ImportError:
     _USE_FLUENT = False
 
 from ui.text_catalog import tr as tr_catalog, normalize_language
+from ui.theme_refresh import ThemeRefreshController
 
 
 def _apply_widget_smooth_mode(widget, enabled: bool) -> None:
@@ -157,6 +158,11 @@ class BasePage(_FluentScrollArea):
         self._deferred_ui_build_done = True
         self._deferred_ui_build_callable = None
         self._deferred_ui_after_build = None
+        self._page_theme_refresh = ThemeRefreshController(
+            self,
+            self._apply_page_theme,
+            is_build_pending=self.is_deferred_ui_build_pending,
+        )
 
         # Ensure objectName is set (required by FluentWindow.addSubInterface)
         if not self.objectName():
@@ -298,17 +304,11 @@ class BasePage(_FluentScrollArea):
             except Exception:
                 pass
 
-        for method_name in ("_apply_theme", "_apply_theme_styles", "_apply_page_theme"):
-            method = getattr(self, method_name, None)
-            if not callable(method):
-                continue
-            try:
-                try:
-                    method(force=True)
-                except TypeError:
-                    method()
-            except Exception:
-                pass
+        try:
+            self._page_theme_refresh.invalidate()
+            self._page_theme_refresh.request_refresh(force=True)
+        except Exception:
+            pass
 
         try:
             style = self.style()
@@ -389,13 +389,29 @@ class BasePage(_FluentScrollArea):
         self._ui_language = normalize_language(language)
         self._retranslate_base_texts()
 
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = tokens
+        _ = force
+
     def showEvent(self, event):  # noqa: N802 (Qt override)
         super().showEvent(event)
         if not bool(getattr(self, "_deferred_ui_build_enabled", False)):
+            try:
+                self._page_theme_refresh.flush_pending()
+            except Exception:
+                pass
             return
         if event is not None and event.spontaneous():
+            try:
+                self._page_theme_refresh.flush_pending()
+            except Exception:
+                pass
             return
         self.ensure_deferred_ui_built()
+        try:
+            self._page_theme_refresh.flush_pending()
+        except Exception:
+            pass
 
     def _retranslate_base_texts(self) -> None:
         if self._title_key and hasattr(self, "title_label") and self.title_label is not None:

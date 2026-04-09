@@ -46,6 +46,7 @@ except ImportError:
 
 from ui.widgets import NotificationBanner
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from log import log
 from orchestra.ignored_targets import is_orchestra_ignored_target
@@ -75,6 +76,7 @@ class LockedDomainRow(QFrame):
         self._proto_label = None
         self._delete_btn = None
         self._setup_ui(domain, strategy, proto)
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
 
     def _setup_ui(self, domain: str, strategy: int, proto: str):
         self.setFixedHeight(40)
@@ -112,11 +114,6 @@ class LockedDomainRow(QFrame):
         layout.addWidget(delete_btn)
 
         self._apply_theme()
-
-    def changeEvent(self, event) -> None:
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_theme()
-        super().changeEvent(event)
 
     def refresh_theme(self) -> None:
         self._tokens = get_theme_tokens()
@@ -183,14 +180,10 @@ class OrchestraLockedPage(BasePage):
         self._initial_load_done = False
         self._refresh_loading = False
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(build=self._setup_ui, after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -339,8 +332,9 @@ class OrchestraLockedPage(BasePage):
 
         self.layout.addWidget(list_card)
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         if hasattr(self, "lock_btn") and self.lock_btn is not None:
             self.lock_btn.setIcon(qta.icon("mdi.plus", color=tokens.fg))

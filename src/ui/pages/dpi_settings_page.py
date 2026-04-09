@@ -1,7 +1,7 @@
 # ui/pages/dpi_settings_page.py
 """Страница настроек DPI"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 
 from .base_page import BasePage
@@ -22,12 +22,6 @@ try:
 except ImportError:
     StrongBodyLabel = QLabel  # type: ignore[assignment,misc]
     _CaptionLabel = QLabel  # type: ignore[assignment,misc]
-
-
-def _build_theme_refresh_key(tokens) -> tuple[str, str, str]:
-    return (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.font_family_qss))
-
-
 class DpiSettingsPage(BasePage):
     """Страница настроек DPI"""
 
@@ -47,9 +41,6 @@ class DpiSettingsPage(BasePage):
         self._zapret1_header = None
         self._orchestra_label = None
         self._advanced_desc_label = None
-        self._applying_theme_styles = False
-        self._last_theme_refresh_key: tuple[str, str, str] | None = None
-        self._theme_refresh_pending_when_hidden = False
         self._controller = DpiSettingsPageController()
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
@@ -65,7 +56,8 @@ class DpiSettingsPage(BasePage):
                 return text
         return text
 
-    def _apply_theme_styles(self, tokens=None) -> None:
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
         theme_tokens = tokens or get_theme_tokens()
         try:
             if hasattr(self, "zapret2_header") and self.zapret2_header is not None:
@@ -98,44 +90,6 @@ class DpiSettingsPage(BasePage):
                 self.separator2.setStyleSheet(f"background-color: {theme_tokens.divider_strong}; margin: 8px 0;")
         except Exception:
             pass
-
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                if self._applying_theme_styles:
-                    return super().changeEvent(event)
-                tokens = get_theme_tokens()
-                theme_key = _build_theme_refresh_key(tokens)
-                if theme_key == self._last_theme_refresh_key:
-                    return super().changeEvent(event)
-                if not self.isVisible():
-                    self._theme_refresh_pending_when_hidden = True
-                    return super().changeEvent(event)
-                self._applying_theme_styles = True
-                try:
-                    self._last_theme_refresh_key = theme_key
-                    self._apply_theme_styles(tokens)
-                finally:
-                    self._applying_theme_styles = False
-        except Exception:
-            pass
-        super().changeEvent(event)
-
-    def showEvent(self, event):  # noqa: N802 (Qt override)
-        super().showEvent(event)
-        if not self._theme_refresh_pending_when_hidden:
-            return
-        self._theme_refresh_pending_when_hidden = False
-        tokens = get_theme_tokens()
-        theme_key = _build_theme_refresh_key(tokens)
-        if theme_key == self._last_theme_refresh_key:
-            return
-        self._applying_theme_styles = True
-        try:
-            self._last_theme_refresh_key = theme_key
-            self._apply_theme_styles(tokens)
-        finally:
-            self._applying_theme_styles = False
         
     def _build_ui(self):
         """Строит UI страницы"""
@@ -373,7 +327,7 @@ class DpiSettingsPage(BasePage):
         self.layout.addStretch()
 
         # Apply token-driven accents/dividers.
-        self._apply_theme_styles()
+        self._apply_page_theme(force=True)
         
     def _load_settings(self):
         """Загружает настройки"""

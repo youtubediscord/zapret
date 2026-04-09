@@ -17,6 +17,7 @@ from qfluentwidgets import (
 from qfluentwidgets.common.style_sheet import FluentStyleSheet
 
 from log import log
+from ui.theme_refresh import ThemeRefreshController
 
 
 class ArgsPreviewDialog(QDialog):
@@ -64,12 +65,7 @@ class ArgsPreviewDialog(QDialog):
         FluentStyleSheet.DIALOG.apply(self)
 
         self._init_ui()
-
-        try:
-            from qfluentwidgets import qconfig
-            qconfig.themeChanged.connect(lambda _: self._refresh_info_label())
-        except Exception:
-            pass
+        self._theme_refresh = ThemeRefreshController(self, self._refresh_info_label)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)

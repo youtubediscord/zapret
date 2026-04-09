@@ -71,14 +71,10 @@ class DNSCheckPage(BasePage):
             "page.dns_check.info.recommended",
         ]
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
-        self._apply_theme()
+        self._apply_page_theme(force=True)
     
     def _build_ui(self):
         """Создаёт интерфейс страницы."""
@@ -197,8 +193,9 @@ class DNSCheckPage(BasePage):
         self._status_tone = tone
         self._status_bold = bold
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         for label in list(self._info_text_labels):
             try:
                 label.setStyleSheet(f"color: {tokens.fg_muted};")

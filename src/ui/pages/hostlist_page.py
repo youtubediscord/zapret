@@ -128,9 +128,6 @@ class HostlistPage(BasePage):
         self._action_rows: list[dict] = []
         self._controller = HostlistPageController()
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_editor_styles())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_editor_styles())
         self.enable_deferred_ui_build()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
@@ -609,8 +606,12 @@ class HostlistPage(BasePage):
         })
         return row
 
-    def _apply_editor_styles(self):
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False):
+        _ = force
+        self._apply_editor_styles(tokens=tokens)
+
+    def _apply_editor_styles(self, tokens=None):
+        tokens = tokens or get_theme_tokens()
 
         if hasattr(self, "_accent_icon_lbls"):
             for lbl, icon_name in self._accent_icon_lbls:

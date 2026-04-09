@@ -1,7 +1,7 @@
 # ui/pages/logs_page.py
 """Страница просмотра логов в реальном времени"""
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, QObject, QEvent
+from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, QObject
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QApplication,
@@ -191,9 +191,6 @@ class LogsPage(BasePage):
         self._exclude_pattern = re.compile('|'.join(EXCLUDE_PATTERNS), re.IGNORECASE)
 
         self._tokens = get_theme_tokens()
-        self._theme_apply_scheduled = False
-        self._theme_apply_pending_when_hidden = False
-        self._last_theme_apply_key: tuple[str, str, str] | None = None
 
         # Theme-dependent colors used in runtime status/output updates.
         self._winws_stdout_color = "#00ff88"
@@ -233,49 +230,13 @@ class LogsPage(BasePage):
 
     def _after_ui_built(self) -> None:
         try:
-            self._apply_theme(force=True)
+            self._apply_page_theme(force=True)
         except Exception:
             pass
 
-    def changeEvent(self, event):
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            try:
-                if self.is_deferred_ui_build_pending():
-                    self._theme_apply_pending_when_hidden = True
-                    return super().changeEvent(event)
-                tokens = get_theme_tokens()
-                if self._build_theme_apply_key(tokens) == self._last_theme_apply_key:
-                    return super().changeEvent(event)
-                if not self.isVisible():
-                    self._theme_apply_pending_when_hidden = True
-                    return super().changeEvent(event)
-                self._schedule_theme_apply()
-            except Exception:
-                pass
-        super().changeEvent(event)
-
-    def _build_theme_apply_key(self, tokens) -> tuple[str, str, str]:
-        return (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.font_family_qss))
-
-    def _schedule_theme_apply(self) -> None:
-        if self._theme_apply_scheduled:
-            return
-        self._theme_apply_scheduled = True
-        QTimer.singleShot(0, self._apply_theme_debounced)
-
-    def _apply_theme_debounced(self) -> None:
-        self._theme_apply_scheduled = False
-        if not self.isVisible():
-            self._theme_apply_pending_when_hidden = True
-            return
-        self._apply_theme()
-
-    def _apply_theme(self, theme_name: str | None = None, *, force: bool = False) -> None:
-        tokens = get_theme_tokens(theme_name)
-        theme_key = self._build_theme_apply_key(tokens)
-        if not force and theme_key == self._last_theme_apply_key:
-            return
-        self._last_theme_apply_key = theme_key
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         self._tokens = tokens
 
         # Controls — log_combo is now a Fluent ComboBox; no manual stylesheet needed
@@ -513,7 +474,7 @@ class LogsPage(BasePage):
         self.add_widget(self.stacked_widget)
 
         # Apply token-driven styles once widgets exist.
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _switch_tab(self, index: int):
         """Переключает между табами"""
@@ -987,7 +948,7 @@ class LogsPage(BasePage):
 
         # Send tab is lazily built; apply current theme now.
         self._retranslate_send_tab()
-        self._apply_theme(force=True)
+        self._apply_page_theme(force=True)
 
     def _is_orchestra_mode(self) -> bool:
         """Проверяет, активен ли режим оркестратора"""
@@ -1134,10 +1095,6 @@ class LogsPage(BasePage):
     def showEvent(self, event):
         """При показе страницы запускаем мониторинг"""
         super().showEvent(event)
-
-        if self._theme_apply_pending_when_hidden:
-            self._theme_apply_pending_when_hidden = False
-            self._schedule_theme_apply()
 
         # Spontaneous showEvent = система восстановила окно (из трея/свёрнутого).
         # Не перезапускаем workers/таймеры при простом восстановлении окна.

@@ -9,12 +9,11 @@ import qtawesome as qta
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
 
 try:
-    from qfluentwidgets import StrongBodyLabel, CaptionLabel, InfoBar, qconfig
+    from qfluentwidgets import StrongBodyLabel, CaptionLabel, InfoBar
 except ImportError:
     StrongBodyLabel = QLabel
     CaptionLabel = QLabel
     InfoBar = None
-    qconfig = None
 
 from config.urls import SUPPORT_DISCUSSIONS_URL
 from log import log
@@ -46,10 +45,6 @@ class SupportPage(BasePage):
         self._tg_btn: ActionButton | None = None
         self._dc_row: SettingsRow | None = None
         self._dc_btn: ActionButton | None = None
-
-        if qconfig is not None:
-            qconfig.themeChanged.connect(lambda _: self._apply_theme())
-            qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
 
         self.enable_deferred_ui_build()
 
@@ -142,8 +137,9 @@ class SupportPage(BasePage):
 
         self.add_widget(channels_card)
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         if self._support_icon_label is not None:
             try:
                 self._support_icon_label.setPixmap(

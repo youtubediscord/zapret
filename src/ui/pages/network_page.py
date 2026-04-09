@@ -4,7 +4,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QRadioButton, QButtonGroup,
@@ -30,6 +30,7 @@ from ui.widgets.win11_controls import Win11ToggleRow
 from ui.compat_widgets import SettingsCard, ActionButton
 from ui.compat_widgets import ResetActionButton
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from log import log
 from dns import DNS_PROVIDERS
@@ -84,6 +85,7 @@ class DNSProviderCard(SettingsCard):
         self.setProperty("selected", False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
 
     @staticmethod
     def _normalize_ip_list(value) -> list[str]:
@@ -247,14 +249,13 @@ class DNSProviderCard(SettingsCard):
             self.selected.emit(self.name, self.data)
         super().mousePressEvent(event)
 
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_theme_styles()
-            if self._is_selected:
-                self.indicator.setStyleSheet(self._indicator_on())
-            else:
-                self.indicator.setStyleSheet(self._indicator_off())
-        super().changeEvent(event)
+    def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        self._apply_theme_styles(tokens)
+        if self._is_selected:
+            self.indicator.setStyleSheet(self._indicator_on())
+        else:
+            self.indicator.setStyleSheet(self._indicator_off())
 
 
 class AdapterCard(SettingsCard):
@@ -267,6 +268,7 @@ class AdapterCard(SettingsCard):
         self.dns_label = None  # Сохраняем ссылку для обновления
         self._name_label = None
         self._setup_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_styles)
     
     def _setup_ui(self):
         tokens = get_theme_tokens()
@@ -403,11 +405,6 @@ class AdapterCard(SettingsCard):
         else:
             self.check_icon.setPixmap(qta.icon('mdi.checkbox-blank-outline', color=tokens.fg_faint).pixmap(18, 18))
 
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_theme_styles()
-        super().changeEvent(event)
-
 
 class NetworkPage(BasePage):
     """Страница сетевых настроек с интегрированным DNS"""
@@ -470,13 +467,8 @@ class NetworkPage(BasePage):
             pass
 
     def _after_ui_built(self) -> None:
-        self._apply_inline_theme_styles()
+        self._apply_page_theme(force=True)
         self._start_loading()
-
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_inline_theme_styles()
-        super().changeEvent(event)
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -1154,7 +1146,11 @@ class NetworkPage(BasePage):
                 )
         except Exception:
             pass
-    
+
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        self._apply_inline_theme_styles(tokens)
+
     def _on_force_dns_toggled(self, enabled: bool):
         """Обработчик переключения принудительного DNS"""
         try:

@@ -70,10 +70,6 @@ class AboutPage(BasePage):
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
         self.enable_deferred_ui_build()
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
@@ -1078,8 +1074,9 @@ class AboutPage(BasePage):
     # Theme
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         if self._support_icon_label is not None:
             try:
                 self._support_icon_label.setPixmap(

@@ -112,10 +112,6 @@ class CustomDomainsPage(BasePage):
             title_key="page.custom_domains.title",
             subtitle_key="page.custom_domains.subtitle",
         )
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme_styles())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme_styles())
-
         self.enable_deferred_ui_build(after_build=self._after_ui_built)
 
     def _after_ui_built(self) -> None:
@@ -282,10 +278,11 @@ class CustomDomainsPage(BasePage):
         self.layout.addWidget(self.status_label)
 
         # Apply token-based styles (also used on theme change).
-        self._apply_theme_styles()
+        self._apply_page_theme(force=True)
 
-    def _apply_theme_styles(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         try:
             if hasattr(self, "text_edit") and self.text_edit is not None:

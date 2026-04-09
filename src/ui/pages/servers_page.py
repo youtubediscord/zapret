@@ -1,7 +1,7 @@
 # ui/pages/servers_page.py
 """Страница мониторинга серверов обновлений"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QStackedWidget, QTableWidgetItem, QHeaderView,
@@ -13,6 +13,7 @@ import time
 from .base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton, PrimaryActionButton
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from updater.update_page_controller import UpdatePageController
 
@@ -108,6 +109,7 @@ class UpdateStatusCard(CardWidget):
         self._state_elapsed = 0.0
         self._tokens = get_theme_tokens()
         self._build_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
 
     def _tr(self, key: str, default: str) -> str:
         return tr_catalog(key, language=self._ui_language, default=default)
@@ -403,6 +405,7 @@ class ChangelogCard(CardWidget):
         self._raw_version = ""
         self._mode = "idle"
         self._build_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
         self.hide()
 
     def _tr(self, key: str, default: str) -> str:
@@ -875,16 +878,9 @@ class ServersPage(BasePage):
     def _tr(self, key: str, default: str) -> str:
         return tr_catalog(key, language=self._ui_language, default=default)
 
-    def changeEvent(self, event):
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            try:
-                self._apply_theme()
-            except Exception:
-                pass
-        super().changeEvent(event)
-
-    def _apply_theme(self, theme_name: str | None = None) -> None:
-        self._tokens = get_theme_tokens(theme_name)
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        self._tokens = tokens or get_theme_tokens()
         tokens = self._tokens
 
         if hasattr(self, "servers_table"):

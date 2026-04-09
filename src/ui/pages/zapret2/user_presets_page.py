@@ -1319,7 +1319,6 @@ class BaseZapret2UserPresetsPage(BasePage):
         self._manager_backend = ""
         self._ui_dirty = True  # needs rebuild on next show
         self._cached_presets_metadata: dict[str, dict[str, object]] = {}
-        self._page_theme_refresh_scheduled = False
         self._last_page_theme_key: tuple[str, str, str] | None = None
 
         self._file_watcher: Optional[QFileSystemWatcher] = None
@@ -1646,28 +1645,6 @@ class BaseZapret2UserPresetsPage(BasePage):
         self._resync_layout_metrics()
         self._schedule_layout_resync()
 
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                try:
-                    tokens = get_theme_tokens()
-                    theme_key = (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.surface_bg))
-                    if theme_key == self._last_page_theme_key:
-                        return super().changeEvent(event)
-                except Exception:
-                    pass
-                if not self._page_theme_refresh_scheduled:
-                    self._page_theme_refresh_scheduled = True
-                    QTimer.singleShot(0, self._on_debounced_page_theme_change)
-        except Exception:
-            pass
-        return super().changeEvent(event)
-
-    def _on_debounced_page_theme_change(self) -> None:
-        self._page_theme_refresh_scheduled = False
-        self._apply_page_theme()
-        self._schedule_layout_resync()
-
     def hideEvent(self, event):
         self._layout_resync_timer.stop()
         self._layout_resync_delayed_timer.stop()
@@ -1676,7 +1653,7 @@ class BaseZapret2UserPresetsPage(BasePage):
 
     def _after_ui_built(self) -> None:
         started_at = time.perf_counter()
-        self._apply_page_theme()
+        self._apply_page_theme(force=True)
 
         try:
             store = self._get_preset_store()
@@ -1952,11 +1929,11 @@ class BaseZapret2UserPresetsPage(BasePage):
             box.cancelButton.hide()
             box.exec()
 
-    def _apply_page_theme(self) -> None:
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         try:
-            tokens = get_theme_tokens()
+            tokens = tokens or get_theme_tokens()
             theme_key = (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.surface_bg))
-            if theme_key == self._last_page_theme_key:
+            if not force and theme_key == self._last_page_theme_key:
                 return
 
             semantic = get_semantic_palette(tokens.theme_name)
@@ -1979,6 +1956,7 @@ class BaseZapret2UserPresetsPage(BasePage):
                 self.presets_list.viewport().update()
 
             self._last_page_theme_key = theme_key
+            self._schedule_layout_resync()
 
         except Exception as e:
             log(f"Ошибка применения темы на странице пресетов: {e}", "DEBUG")

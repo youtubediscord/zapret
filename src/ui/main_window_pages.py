@@ -313,31 +313,6 @@ def connect_signal_once(window, key: str, signal_obj, slot_obj) -> None:
     except Exception:
         pass
 
-
-def _connect_appearance_autostart_theme_bridge(window) -> None:
-    appearance_page = get_loaded_page(window, PageName.APPEARANCE)
-    autostart_page = get_loaded_page(window, PageName.AUTOSTART)
-    if appearance_page is None or autostart_page is None:
-        return
-    if not hasattr(autostart_page, "on_theme_changed"):
-        return
-
-    if hasattr(appearance_page, "display_mode_changed"):
-        connect_signal_once(
-            window,
-            "appearance.display_mode_changed->autostart.on_theme_changed",
-            appearance_page.display_mode_changed,
-            lambda _mode: autostart_page.on_theme_changed(),
-        )
-    elif hasattr(appearance_page, "theme_changed"):
-        connect_signal_once(
-            window,
-            "appearance.theme_changed->autostart.on_theme_changed",
-            appearance_page.theme_changed,
-            autostart_page.on_theme_changed,
-        )
-
-
 def ensure_page_in_stacked_widget(window, page: QWidget | None) -> None:
     stack = getattr(window, "stackedWidget", None)
     if page is None or stack is None:
@@ -457,8 +432,6 @@ def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> Non
                 page.navigate_to_dpi_settings,
                 window._navigate_to_dpi_settings,
             )
-        _connect_appearance_autostart_theme_bridge(window)
-
     if page_name == PageName.APPEARANCE:
         if hasattr(page, "display_mode_changed"):
             window.display_mode_changed = page.display_mode_changed
@@ -529,8 +502,6 @@ def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> Non
                 page.ui_language_changed,
                 window._on_ui_language_changed,
             )
-        _connect_appearance_autostart_theme_bridge(window)
-
     if page_name == PageName.ABOUT:
         if hasattr(page, "premium_btn"):
             connect_signal_once(
