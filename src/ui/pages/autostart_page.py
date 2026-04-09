@@ -1,13 +1,14 @@
 # ui/pages/autostart_page.py
 """Страница настроек автозапуска"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
 import qtawesome as qta
 import os
 
+from autostart.page_controller import AutostartPageController
 from .base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton
 from ui.theme import (
@@ -36,50 +37,6 @@ except ImportError:
     BodyLabel = QLabel          # type: ignore[misc,assignment]
     CaptionLabel = QLabel       # type: ignore[misc,assignment]
     _HAS_FLUENT = False
-
-
-class AutostartDetectorWorker(QThread):
-    """Фоновый поток для определения типа автозапуска"""
-    finished = pyqtSignal(str)  # Передаёт тип автозапуска или None
-
-    # Маппинг методов из реестра в UI типы
-    METHOD_TO_TYPE = {
-        "exe": "gui",
-        "direct_task": "gui",
-        "direct_boot": "gui",
-        "direct_service": "gui",
-        "service": "gui",
-        "task": "gui",
-        "direct_task_bat": "gui",
-        "direct_boot_bat": "gui",
-    }
-
-    def run(self):
-        try:
-            autostart_type = self._detect_type()
-            self.finished.emit(autostart_type or "")
-        except Exception as e:
-            log(f"AutostartDetectorWorker error: {e}", "WARNING")
-            self.finished.emit("")
-
-    def _detect_type(self) -> str:
-        """Определяет какой тип автозапуска сейчас активен"""
-        try:
-            from autostart.registry_check import AutostartRegistryChecker
-
-            # 1. Проверяем статус и метод из реестра (основной источник)
-            if AutostartRegistryChecker.is_autostart_enabled():
-                method = AutostartRegistryChecker.get_autostart_method()
-                if method and method in self.METHOD_TO_TYPE:
-                    return self.METHOD_TO_TYPE[method]
-
-            # 2. Если реестр пустой, возвращаем None
-            return None
-
-        except Exception as e:
-            log(f"Error in _detect_type: {e}", "WARNING")
-            return None
-
 
 class AutostartOptionCard(SimpleCardWidget):
     """Карточка опции автозапуска"""
@@ -331,6 +288,7 @@ class AutostartPage(BasePage):
             subtitle_key="page.autostart.subtitle",
         )
 
+        self._controller = AutostartPageController()
         self._app_instance = None
         self.strategy_name = None
         self._current_autostart_type = None  # Текущий активный тип автозапуска
@@ -382,7 +340,7 @@ class AutostartPage(BasePage):
             return
 
         self._detection_pending = True
-        self._detector_worker = AutostartDetectorWorker()
+        self._detector_worker = self._controller.create_detector_worker()
         self._detector_worker.finished.connect(self._on_autostart_detected)
         self._detector_worker.start()
 
@@ -721,24 +679,9 @@ class AutostartPage(BasePage):
         try:
             from strategy_menu import get_strategy_launch_method
             method = get_strategy_launch_method()
-            self._current_mode_method = method or ""
-
-            if method == "direct_zapret2":
-                self.mode_label.setText(
-                    self._tr("page.autostart.mode.direct_zapret2", "Прямой запуск (Zapret 2)")
-                )
-            elif method == "direct_zapret2_orchestra":
-                self.mode_label.setText(
-                    self._tr("page.autostart.mode.orchestra_zapret2", "Оркестратор Zapret 2")
-                )
-            elif method == "orchestra":
-                self.mode_label.setText(
-                    self._tr("page.autostart.mode.orchestra_learning", "Оркестр (автообучение)")
-                )
-            else:
-                self.mode_label.setText(
-                    self._tr("page.autostart.mode.classic_bat", "Классический (BAT файлы)")
-                )
+            plan = self._controller.build_mode_plan(method)
+            self._current_mode_method = plan.method
+            self.mode_label.setText(plan.mode_text)
 
             self.service_option.setVisible(False)
             self.logon_option.setVisible(False)
@@ -865,54 +808,35 @@ class AutostartPage(BasePage):
 
     def update_status(self, enabled: bool, strategy_name: str = None, autostart_type: str = None):
         """Обновляет отображение статуса автозапуска"""
-        self._autostart_enabled = bool(enabled)
-        self._current_autostart_type = autostart_type if enabled else None
+        plan = self._controller.build_status_plan(
+            enabled=enabled,
+            strategy_name=strategy_name,
+            autostart_type=autostart_type,
+            current_strategy_text=self.current_strategy_label.text() if hasattr(self, "current_strategy_label") else "",
+            enabled_base_text=self._tr("page.autostart.status.enabled.desc.base", "Zapret запускается автоматически"),
+            gui_type_text=self._tr("page.autostart.status.type.gui", "программа Zapret"),
+            disabled_title_text=self._tr("page.autostart.status.disabled.title", "Автозапуск отключён"),
+            disabled_desc_text=self._tr("page.autostart.status.disabled.desc", "Zapret не запускается автоматически"),
+            enabled_title_text=self._tr("page.autostart.status.enabled.title", "Автозапуск включён"),
+            strategy_not_selected_text=self._tr("page.autostart.strategy.not_selected", "Не выбрана"),
+        )
+
+        self._autostart_enabled = plan.enabled
+        self._current_autostart_type = plan.active_type
         if strategy_name:
             self.strategy_name = strategy_name
-        if enabled:
-            self.status_label.setText(
-                self._tr("page.autostart.status.enabled.title", "Автозапуск включён")
-            )
-
-            type_desc = ""
-            if autostart_type:
-                type_map = {
-                    "gui": self._tr("page.autostart.status.type.gui", "программа Zapret"),
-                }
-                type_desc = type_map.get(autostart_type, "")
-
-            desc = self._tr("page.autostart.status.enabled.desc.base", "Zapret запускается автоматически")
-            if type_desc:
-                desc = self._tr(
-                    "page.autostart.status.enabled.desc.with_type",
-                    "{base} {type_desc}",
-                    base=desc,
-                    type_desc=type_desc,
-                )
-            self.status_desc.setText(desc)
-
+        self.status_label.setText(plan.status_title)
+        self.status_desc.setText(plan.status_description)
+        if plan.status_icon_kind == "enabled":
             self.status_icon.setPixmap(qta.icon('fa5s.check-circle', color=get_semantic_palette().success).pixmap(20, 20))
-            self.disable_btn.setVisible(True)
         else:
-            self.status_label.setText(
-                self._tr("page.autostart.status.disabled.title", "Автозапуск отключён")
-            )
-            self.status_desc.setText(
-                self._tr("page.autostart.status.disabled.desc", "Zapret не запускается автоматически")
-            )
             tokens = get_theme_tokens()
             self.status_icon.setPixmap(qta.icon('fa5s.circle', color=tokens.fg_faint).pixmap(20, 20))
-            self.disable_btn.setVisible(False)
-
-        if strategy_name:
-            self.current_strategy_label.setText(strategy_name)
-        elif not self.current_strategy_label.text().strip():
-            self.current_strategy_label.setText(
-                self._tr("page.autostart.strategy.not_selected", "Не выбрана")
-            )
+        self.disable_btn.setVisible(plan.disable_visible)
+        self.current_strategy_label.setText(plan.strategy_text)
 
         # Обновляем состояние карточек (блокировка/разблокировка)
-        self._update_options_state(enabled, autostart_type)
+        self._update_options_state(plan.enabled, plan.active_type)
 
         # Обновляем режим при каждом обновлении статуса
         self._update_mode()
@@ -925,42 +849,29 @@ class AutostartPage(BasePage):
 
         log(f"_update_options_state: enabled={autostart_enabled}, type={active_type}", "DEBUG")
 
-        # Карта типов автозапуска к карточкам
         type_to_card = {"gui": self.gui_option}
-
-        if autostart_enabled:
-            if active_type:
-                # Блокируем ВСЕ карточки, активную выделяем особым образом.
-                for type_name, card in type_to_card.items():
-                    is_active_card = type_name == active_type
-                    log(f"  Card '{type_name}': active={is_active_card}", "DEBUG")
-                    card.set_disabled(True, is_active=is_active_card)
-            else:
-                # Статус включен, но тип пока неизвестен (например, до завершения детекции).
-                # В этом состоянии все варианты должны быть некликабельны.
-                for type_name, card in type_to_card.items():
-                    log(f"  Card '{type_name}': disabled=True (type pending)", "DEBUG")
-                    card.set_disabled(True, is_active=False)
-        else:
-            # Разблокируем все карточки
-            for type_name, card in type_to_card.items():
-                log(f"  Card '{type_name}': disabled=False", "DEBUG")
-                card.set_disabled(False, is_active=False)
+        option_state_map = self._controller.build_option_state_map(
+            autostart_enabled=autostart_enabled,
+            active_type=active_type,
+        )
+        for type_name, card in type_to_card.items():
+            state = option_state_map.get(type_name)
+            if state is None:
+                continue
+            log(f"  Card '{type_name}': disabled={state.disabled}, active={state.is_active}", "DEBUG")
+            card.set_disabled(state.disabled, is_active=state.is_active)
 
     def _on_disable_clicked(self):
         """Отключение автозапуска"""
         try:
-            from autostart.autostart_remove import AutoStartCleaner
-
-            cleaner = AutoStartCleaner()
-            removed = cleaner.run()
+            result = self._controller.disable_autostart()
 
             self._current_autostart_type = None
             self._push_autostart_state(False)
             self.autostart_disabled.emit()
 
-            if removed:
-                log(f"Автозапуск отключён, удалено записей: {removed}", "INFO")
+            if result.removed_count:
+                log(f"Автозапуск отключён, удалено записей: {result.removed_count}", "INFO")
 
         except Exception as e:
             log(f"Ошибка отключения автозапуска: {e}", "ERROR")
@@ -968,16 +879,11 @@ class AutostartPage(BasePage):
     def _on_gui_autostart(self):
         """Автозапуск GUI программы"""
         try:
-            from autostart.autostart_exe import setup_autostart_for_exe
+            result = self._controller.setup_gui_autostart(self.strategy_name)
 
-            ok = setup_autostart_for_exe(
-                selected_mode=self.strategy_name or "Default",
-                status_cb=lambda msg: log(msg, "INFO"),
-            )
-
-            if ok:
-                self._current_autostart_type = "gui"
-                self._push_autostart_state(True, self.strategy_name, "gui")
+            if result.ok:
+                self._current_autostart_type = result.autostart_type
+                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
                 self.autostart_enabled.emit()
             else:
                 log("Не удалось настроить автозапуск GUI", "ERROR")
@@ -988,99 +894,38 @@ class AutostartPage(BasePage):
     def _on_service_autostart(self):
         """Создание службы Windows"""
         try:
-            self._setup_direct_service()
+            result = self._controller.setup_direct_service(self.app_instance)
+            if result.ok:
+                self._current_autostart_type = result.autostart_type
+                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
+                self.autostart_enabled.emit()
+            else:
+                log("Ошибка создания службы", "ERROR")
         except Exception as e:
             log(f"Ошибка создания службы: {e}", "ERROR")
 
     def _on_logon_autostart(self):
         """Задача при входе пользователя"""
         try:
-            self._setup_direct_logon_task()
+            result = self._controller.setup_direct_logon_task(self.app_instance)
+            if result.ok:
+                self._current_autostart_type = result.autostart_type
+                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
+                self.autostart_enabled.emit()
+            else:
+                log("Ошибка создания задачи", "ERROR")
         except Exception as e:
             log(f"Ошибка создания задачи: {e}", "ERROR")
 
     def _on_boot_autostart(self):
         """Задача при загрузке системы"""
         try:
-            self._setup_direct_boot_task()
+            result = self._controller.setup_direct_boot_task(self.app_instance)
+            if result.ok:
+                self._current_autostart_type = result.autostart_type
+                self._push_autostart_state(True, result.strategy_name, result.autostart_type)
+                self.autostart_enabled.emit()
+            else:
+                log("Ошибка создания задачи", "ERROR")
         except Exception as e:
             log(f"Ошибка создания задачи: {e}", "ERROR")
-
-    def _setup_direct_service(self):
-        """Служба Windows для Direct режима"""
-        from autostart.autostart_direct import collect_direct_strategy_args
-        from autostart.autostart_direct_service import setup_direct_service
-
-        if not self.app_instance:
-            log("Приложение не инициализировано", "ERROR")
-            return
-
-        args, name, winws_exe = collect_direct_strategy_args(self.app_instance)
-
-        if not args or not winws_exe:
-            log("Не удалось собрать аргументы стратегии", "ERROR")
-            return
-
-        ok = setup_direct_service(
-            winws_exe=winws_exe,
-            strategy_args=args,
-            strategy_name=name,
-            ui_error_cb=lambda msg: log(msg, "ERROR")
-        )
-
-        if ok:
-            self._current_autostart_type = "service"
-            self._push_autostart_state(True, name, "service")
-            self.autostart_enabled.emit()
-
-    def _setup_direct_logon_task(self):
-        """Задача при входе для Direct режима"""
-        from autostart.autostart_direct import collect_direct_strategy_args, setup_direct_autostart_task
-
-        if not self.app_instance:
-            log("Приложение не инициализировано", "ERROR")
-            return
-
-        args, name, winws_exe = collect_direct_strategy_args(self.app_instance)
-
-        if not args or not winws_exe:
-            log("Не удалось собрать аргументы стратегии", "ERROR")
-            return
-
-        ok = setup_direct_autostart_task(
-            winws_exe=winws_exe,
-            strategy_args=args,
-            strategy_name=name,
-            ui_error_cb=lambda msg: log(msg, "ERROR")
-        )
-
-        if ok:
-            self._current_autostart_type = "logon"
-            self._push_autostart_state(True, name, "logon")
-            self.autostart_enabled.emit()
-
-    def _setup_direct_boot_task(self):
-        """Задача при загрузке для Direct режима"""
-        from autostart.autostart_direct import collect_direct_strategy_args, setup_direct_autostart_service
-
-        if not self.app_instance:
-            log("Приложение не инициализировано", "ERROR")
-            return
-
-        args, name, winws_exe = collect_direct_strategy_args(self.app_instance)
-
-        if not args or not winws_exe:
-            log("Не удалось собрать аргументы стратегии", "ERROR")
-            return
-
-        ok = setup_direct_autostart_service(
-            winws_exe=winws_exe,
-            strategy_args=args,
-            strategy_name=name,
-            ui_error_cb=lambda msg: log(msg, "ERROR")
-        )
-
-        if ok:
-            self._current_autostart_type = "boot"
-            self._push_autostart_state(True, name, "boot")
-            self.autostart_enabled.emit()
