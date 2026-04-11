@@ -43,11 +43,9 @@ class TelegramProxyDiagnosticsController:
         ("149.154.167.220", "zws4.web.telegram.org", 4),
     ]
 
-    def __init__(self, settings_controller: TelegramProxySettingsController | None = None) -> None:
-        self._settings_controller = settings_controller or TelegramProxySettingsController()
-
+    @classmethod
     def run_all(
-        self,
+        cls,
         proxy_port: int,
         *,
         progress_callback: Callable[[str], None] | None = None,
@@ -66,12 +64,12 @@ class TelegramProxyDiagnosticsController:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
             dc_futures = {
-                executor.submit(self._test_single_ip, ip, dc, wss): (ip, dc)
-                for ip, dc, wss in self.DC_TARGETS
+                executor.submit(cls._test_single_ip, ip, dc, wss): (ip, dc)
+                for ip, dc, wss in cls.DC_TARGETS
             }
             wss_futures = [
-                executor.submit(self._test_wss_relay, ip, domain, dc)
-                for ip, domain, dc in self.WSS_PROBE_TARGETS
+                executor.submit(cls._test_wss_relay, ip, domain, dc)
+                for ip, domain, dc in cls.WSS_PROBE_TARGETS
             ]
 
             relay_future = executor.submit(check_relay_reachable, timeout=5.0)
@@ -81,15 +79,15 @@ class TelegramProxyDiagnosticsController:
                 timeout=5.0,
             )
 
-            sni_future = executor.submit(self._test_sni_vs_ip)
-            http_future = executor.submit(self._test_http_port80)
-            proxy_future = executor.submit(self._test_proxy_liveness, "127.0.0.1", proxy_port)
-            winws_future = executor.submit(self._check_winws2_running)
+            sni_future = executor.submit(cls._test_sni_vs_ip)
+            http_future = executor.submit(cls._test_http_port80)
+            proxy_future = executor.submit(cls._test_proxy_liveness, "127.0.0.1", proxy_port)
+            winws_future = executor.submit(cls._check_winws2_running)
 
             upstream_future = None
-            upstream_target = self._settings_controller.load_upstream_test_target()
+            upstream_target = TelegramProxySettingsController.load_upstream_test_target()
             if upstream_target is not None:
-                upstream_future = executor.submit(self._test_upstream_proxy, *upstream_target)
+                upstream_future = executor.submit(cls._test_upstream_proxy, *upstream_target)
 
             relay_result = relay_future.result()
             results.extend(
@@ -237,7 +235,7 @@ class TelegramProxyDiagnosticsController:
                 "=" * 76,
                 "  ИТОГ",
                 "=" * 76,
-                self._build_summary(dc_lines, wss_results, proxy_result, winws2_running),
+                cls._build_summary(dc_lines, wss_results, proxy_result, winws2_running),
                 f"\nВремя тестирования: {elapsed:.1f}s",
             ]
         )
@@ -541,8 +539,8 @@ class TelegramProxyDiagnosticsController:
         except Exception:
             return False
 
+    @staticmethod
     def _build_summary(
-        self,
         dc_lines: list[str],
         wss_results: list[dict],
         proxy_result: dict,

@@ -1,34 +1,32 @@
 # ui/pages/logs_page.py
 """Страница просмотра логов в реальном времени"""
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, QObject, QEvent
+from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QComboBox, QApplication,
+    QApplication,
     QSplitter, QTextEdit, QStackedWidget, QLineEdit, QFrame
 )
-try:
-    from qfluentwidgets import (
-        BodyLabel, CaptionLabel, StrongBodyLabel,
-        PushButton as FluentPushButton,
-        ComboBox,
-        SegmentedWidget, ToolButton, InfoBar,
-    )
-    _FLUENT_OK = True
-except ImportError:
-    ComboBox = QComboBox
-    InfoBar = None
-    _FLUENT_OK = False
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    StrongBodyLabel,
+    PushButton,
+    PushButton as FluentPushButton,
+    ComboBox,
+    SegmentedWidget,
+    ToolButton,
+    InfoBar,
+)
 from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QPixmap, QPainter, QTransform, QIcon
 import qtawesome as qta
 import os
 import re
-import threading
 import queue
 import html
 
 from .base_page import BasePage, ScrollBlockingTextEdit
-from ui.compat_widgets import SettingsCard, ActionButton, set_tooltip
+from ui.compat_widgets import QuickActionsBar, SettingsCard, set_tooltip
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from log import log
@@ -68,106 +66,6 @@ EXCLUDE_PATTERNS = [
 ]
 
 
-class WinwsOutputWorker(QObject):
-    """Worker для чтения stdout/stderr от процесса winws"""
-    new_output = pyqtSignal(str, str)  # (text, stream_type: 'stdout' | 'stderr')
-    process_ended = pyqtSignal(int)     # exit_code
-    finished = pyqtSignal()
-
-    def __init__(self):
-        super().__init__()
-        self._running = False
-        self._process = None
-
-    def set_process(self, process):
-        """Устанавливает процесс для мониторинга"""
-        self._process = process
-
-    def run(self):
-        """Читает вывод процесса в реальном времени"""
-        self._running = True
-
-        if not self._process:
-            self.finished.emit()
-            return
-
-        def read_stream(stream, stream_type):
-            """Читает поток в отдельном потоке"""
-            try:
-                while self._running and self._process.poll() is None:
-                    line = stream.readline()
-                    if line:
-                        try:
-                            text = line.decode('utf-8', errors='replace').rstrip()
-                        except:
-                            text = str(line).rstrip()
-                        if text:
-                            self.new_output.emit(text, stream_type)
-                    else:
-                        if not self._running:
-                            break
-                        # Protect from busy-loop when pipe returns empty chunk.
-                        QThread.msleep(25)
-
-                # Читаем оставшееся после завершения
-                remaining = stream.read()
-                if remaining:
-                    try:
-                        text = remaining.decode('utf-8', errors='replace').rstrip()
-                    except:
-                        text = str(remaining).rstrip()
-                    if text:
-                        for line in text.split('\n'):
-                            if line.strip():
-                                self.new_output.emit(line.strip(), stream_type)
-            except Exception as e:
-                log(f"Ошибка чтения {stream_type}: {e}", "DEBUG")
-
-        # Запускаем чтение stdout и stderr в отдельных потоках
-        stdout_thread = None
-        stderr_thread = None
-
-        if self._process.stdout:
-            stdout_thread = threading.Thread(
-                target=read_stream,
-                args=(self._process.stdout, 'stdout'),
-                daemon=True
-            )
-            stdout_thread.start()
-
-        if self._process.stderr:
-            stderr_thread = threading.Thread(
-                target=read_stream,
-                args=(self._process.stderr, 'stderr'),
-                daemon=True
-            )
-            stderr_thread.start()
-
-        # Ждём завершения процесса
-        try:
-            while self._running and self._process.poll() is None:
-                QThread.msleep(200)
-
-            # Ждём завершения потоков чтения
-            if stdout_thread and stdout_thread.is_alive():
-                stdout_thread.join(timeout=1.0)
-            if stderr_thread and stderr_thread.is_alive():
-                stderr_thread.join(timeout=1.0)
-
-            if self._process.returncode is not None:
-                self.process_ended.emit(self._process.returncode)
-
-        except Exception as e:
-            log(f"Ошибка мониторинга процесса: {e}", "DEBUG")
-
-        self._running = False
-        self.finished.emit()
-
-    def stop(self):
-        """Останавливает worker"""
-        self._running = False
-
-
 class LogsPage(BasePage):
     """Страница просмотра логов"""
     
@@ -185,15 +83,11 @@ class LogsPage(BasePage):
         
         self._thread = None
         self._worker = None
-        self._controller = LogsPageController()
-        self.current_log_file = self._controller.get_current_log_file()
+        self.current_log_file = LogsPageController.get_current_log_file()
         self._error_pattern = re.compile('|'.join(ERROR_PATTERNS))
         self._exclude_pattern = re.compile('|'.join(EXCLUDE_PATTERNS), re.IGNORECASE)
 
         self._tokens = get_theme_tokens()
-        self._theme_apply_scheduled = False
-        self._theme_apply_pending_when_hidden = False
-        self._last_theme_apply_key: tuple[str, str, str] | None = None
 
         # Theme-dependent colors used in runtime status/output updates.
         self._winws_stdout_color = "#00ff88"
@@ -210,6 +104,10 @@ class LogsPage(BasePage):
         self._orchestra_text_label = None
         self._send_status_text = ""
         self._send_status_tone = "neutral"
+        self._controls_actions_title = None
+        self._controls_actions_bar = None
+        self._send_actions_title = None
+        self._send_actions_bar = None
 
         # Winws output worker
         self._winws_thread = None
@@ -224,58 +122,39 @@ class LogsPage(BasePage):
         self._winws_status_timer = QTimer(self)
         self._winws_status_timer.timeout.connect(self._update_winws_status)
 
-        self._logs_tab_initialized = False
+        self._runtime_initialized = False
         self._send_tab_initialized = False
+        self._runtime_started = False
 
         # qtawesome animations (e.g. qta.Spin) are not QAbstractAnimation; track state ourselves.
         self._refresh_spin_active = False
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
+        self._build_ui()
         try:
-            self._apply_theme(force=True)
+            self._apply_page_theme(force=True)
         except Exception:
             pass
+        self._run_runtime_init_once()
 
-    def changeEvent(self, event):
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            try:
-                if self.is_deferred_ui_build_pending():
-                    self._theme_apply_pending_when_hidden = True
-                    return super().changeEvent(event)
-                tokens = get_theme_tokens()
-                if self._build_theme_apply_key(tokens) == self._last_theme_apply_key:
-                    return super().changeEvent(event)
-                if not self.isVisible():
-                    self._theme_apply_pending_when_hidden = True
-                    return super().changeEvent(event)
-                self._schedule_theme_apply()
-            except Exception:
-                pass
-        super().changeEvent(event)
-
-    def _build_theme_apply_key(self, tokens) -> tuple[str, str, str]:
-        return (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.font_family_qss))
-
-    def _schedule_theme_apply(self) -> None:
-        if self._theme_apply_scheduled:
+    def _run_runtime_init_once(self) -> None:
+        if self._runtime_initialized:
             return
-        self._theme_apply_scheduled = True
-        QTimer.singleShot(0, self._apply_theme_debounced)
+        self._runtime_initialized = True
 
-    def _apply_theme_debounced(self) -> None:
-        self._theme_apply_scheduled = False
-        if not self.isVisible():
-            self._theme_apply_pending_when_hidden = True
-            return
-        self._apply_theme()
+        # Делаем первый refresh после построения UI, а не из activation,
+        # чтобы page activation не владел initial runtime-догрузкой.
+        QTimer.singleShot(0, lambda: self._refresh_logs_list(run_cleanup=False))
+        QTimer.singleShot(0, self._update_stats)
 
-    def _apply_theme(self, theme_name: str | None = None, *, force: bool = False) -> None:
-        tokens = get_theme_tokens(theme_name)
-        theme_key = self._build_theme_apply_key(tokens)
-        if not force and theme_key == self._last_theme_apply_key:
-            return
-        self._last_theme_apply_key = theme_key
+        if not self._runtime_started:
+            self._runtime_started = True
+            self._start_tail_worker()
+            self._start_winws_output_worker()
+            # Таймер статуса должен жить отдельно от простого переключения вкладок.
+            self._winws_status_timer.start(3000)
+
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         self._tokens = tokens
 
         # Controls — log_combo is now a Fluent ComboBox; no manual stylesheet needed
@@ -457,35 +336,20 @@ class LogsPage(BasePage):
         # ═══════════════════════════════════════════════════════════
         # Переключатель табов (ЛОГИ / ОТПРАВКА) — Fluent Pivot
         # ═══════════════════════════════════════════════════════════
-        if _FLUENT_OK:
-            self.tabs_pivot = SegmentedWidget()
-            self.tabs_pivot.addItem(
-                routeKey="logs",
-                text=" " + tr_catalog("page.logs.tab.logs", default="ЛОГИ"),
-                onClick=lambda: self._switch_tab(0),
-            )
-            self.tabs_pivot.addItem(
-                routeKey="send",
-                text=" " + tr_catalog("page.logs.tab.send", default="ОТПРАВКА"),
-                onClick=lambda: self._switch_tab(1),
-            )
-            self.tabs_pivot.setCurrentItem("logs")
-            self.tabs_pivot.setItemFontSize(13)
-            self.add_widget(self.tabs_pivot)
-        else:
-            # Fallback без Fluent
-            tabs_container = QWidget()
-            tabs_layout = QHBoxLayout(tabs_container)
-            tabs_layout.setContentsMargins(0, 0, 0, 8)
-            tabs_layout.setSpacing(0)
-            self.tab_logs_btn = QPushButton(" " + tr_catalog("page.logs.tab.logs", default="ЛОГИ"))
-            self.tab_logs_btn.clicked.connect(lambda: self._switch_tab(0))
-            tabs_layout.addWidget(self.tab_logs_btn)
-            self.tab_send_btn = QPushButton(" " + tr_catalog("page.logs.tab.send", default="ОТПРАВКА"))
-            self.tab_send_btn.clicked.connect(lambda: self._switch_tab(1))
-            tabs_layout.addWidget(self.tab_send_btn)
-            tabs_layout.addStretch()
-            self.add_widget(tabs_container)
+        self.tabs_pivot = SegmentedWidget()
+        self.tabs_pivot.addItem(
+            routeKey="logs",
+            text=" " + tr_catalog("page.logs.tab.logs", default="ЛОГИ"),
+            onClick=lambda: self._switch_tab(0),
+        )
+        self.tabs_pivot.addItem(
+            routeKey="send",
+            text=" " + tr_catalog("page.logs.tab.send", default="ОТПРАВКА"),
+            onClick=lambda: self._switch_tab(1),
+        )
+        self.tabs_pivot.setCurrentItem("logs")
+        self.tabs_pivot.setItemFontSize(13)
+        self.add_widget(self.tabs_pivot)
 
         # ═══════════════════════════════════════════════════════════
         # Стек страниц (ЛОГИ / ОТПРАВКА)
@@ -513,7 +377,7 @@ class LogsPage(BasePage):
         self.add_widget(self.stacked_widget)
 
         # Apply token-driven styles once widgets exist.
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _switch_tab(self, index: int):
         """Переключает между табами"""
@@ -527,12 +391,11 @@ class LogsPage(BasePage):
         self.stacked_widget.setCurrentIndex(index)
 
         # Sync Pivot indicator
-        if _FLUENT_OK and hasattr(self, "tabs_pivot"):
-            key = "send" if index == 1 else "logs"
-            try:
-                self.tabs_pivot.setCurrentItem(key)
-            except Exception:
-                pass
+        key = "send" if index == 1 else "logs"
+        try:
+            self.tabs_pivot.setCurrentItem(key)
+        except Exception:
+            pass
 
         if index == 1:
             # Обновляем видимость индикатора оркестратора
@@ -544,26 +407,11 @@ class LogsPage(BasePage):
         logs_text = " " + tr_catalog("page.logs.tab.logs", language=language, default="ЛОГИ")
         send_text = " " + tr_catalog("page.logs.tab.send", language=language, default="ОТПРАВКА")
 
-        if _FLUENT_OK and hasattr(self, "tabs_pivot"):
-            try:
-                self.tabs_pivot.setItemText("logs", logs_text)
-                self.tabs_pivot.setItemText("send", send_text)
-            except Exception:
-                pass
-
-        if hasattr(self, "tab_logs_btn") and self.tab_logs_btn is not None:
-            try:
-                self.tab_logs_btn.setText(logs_text)
-            except Exception:
-                pass
-        if hasattr(self, "tab_send_btn") and self.tab_send_btn is not None:
-            try:
-                self.tab_send_btn.setText(send_text)
-            except Exception:
-                pass
-
-        if self.is_deferred_ui_build_pending():
-            return
+        try:
+            self.tabs_pivot.setItemText("logs", logs_text)
+            self.tabs_pivot.setItemText("send", send_text)
+        except Exception:
+            pass
 
         self._retranslate_logs_tab()
         if self._send_tab_initialized:
@@ -572,10 +420,7 @@ class LogsPage(BasePage):
 
     def _set_card_title(self, card: SettingsCard, text: str) -> None:
         try:
-            item = card.main_layout.itemAt(0)
-            widget = item.widget() if item else None
-            if widget is not None and hasattr(widget, "setText"):
-                widget.setText(text)
+            card.set_title(text)
         except Exception:
             pass
 
@@ -592,6 +437,11 @@ class LogsPage(BasePage):
         except Exception:
             pass
 
+        if self._controls_actions_title is not None:
+            self._controls_actions_title.setText(
+                tr_catalog("page.logs.actions.title", language=self._ui_language, default="Действия")
+            )
+
         try:
             set_tooltip(
                 self.refresh_btn,
@@ -604,6 +454,27 @@ class LogsPage(BasePage):
             self.copy_btn.setText(tr_catalog("page.logs.button.copy", language=self._ui_language, default="Копировать"))
             self.clear_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
             self.folder_btn.setText(tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка"))
+            self.copy_btn.setToolTip(
+                tr_catalog(
+                    "page.logs.action.copy.description",
+                    language=self._ui_language,
+                    default="Скопировать содержимое текущего лога в буфер обмена.",
+                )
+            )
+            self.clear_btn.setToolTip(
+                tr_catalog(
+                    "page.logs.action.clear.description",
+                    language=self._ui_language,
+                    default="Очистить только текущее окно просмотра, не удаляя файл лога.",
+                )
+            )
+            self.folder_btn.setToolTip(
+                tr_catalog(
+                    "page.logs.action.folder.description",
+                    language=self._ui_language,
+                    default="Открыть папку logs с файлами приложения.",
+                )
+            )
             self.errors_title_label.setText(tr_catalog("page.logs.errors.title", language=self._ui_language, default="Ошибки и предупреждения"))
             self.clear_errors_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
             self.clear_winws_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
@@ -622,6 +493,10 @@ class LogsPage(BasePage):
                 self.send_card,
                 tr_catalog("page.logs.send.card.title", language=self._ui_language, default="Поддержка через GitHub Discussions"),
             )
+            if self._send_actions_title is not None:
+                self._send_actions_title.setText(
+                    tr_catalog("page.logs.send.actions.title", language=self._ui_language, default="Действия")
+                )
             self._orchestra_text_label.setText(
                 tr_catalog(
                     "page.logs.send.orchestra.active",
@@ -649,6 +524,20 @@ class LogsPage(BasePage):
             self.open_logs_folder_btn.setText(
                 tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка")
             )
+            self.send_log_btn.setToolTip(
+                tr_catalog(
+                    "page.logs.send.action.send.description",
+                    language=self._ui_language,
+                    default="Собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
+                )
+            )
+            self.open_logs_folder_btn.setToolTip(
+                tr_catalog(
+                    "page.logs.send.action.folder.description",
+                    language=self._ui_language,
+                    default="Открыть папку logs, где лежат логи и подготовленные support bundles.",
+                )
+            )
         except Exception:
             pass
 
@@ -673,8 +562,7 @@ class LogsPage(BasePage):
         self.log_combo.currentIndexChanged.connect(self._on_log_selected)
         row1.addWidget(self.log_combo, 1)
         
-        _RefreshBtn = ToolButton if _FLUENT_OK else QPushButton
-        self.refresh_btn = _RefreshBtn()
+        self.refresh_btn = ToolButton()
         tokens = get_theme_tokens()
         self._refresh_icon_normal = qta.icon('fa5s.sync-alt', color=tokens.fg)
         self._spin_timer = QTimer(self)
@@ -693,41 +581,64 @@ class LogsPage(BasePage):
         
         controls_main.addLayout(row1)
         
-        # Ряд 2: кнопки действий
-        row2 = QHBoxLayout()
-        row2.setSpacing(8)
-        
-        self.copy_btn = ActionButton(
-            tr_catalog("page.logs.button.copy", language=self._ui_language, default="Копировать"),
-            "fa5s.copy",
-        )
-        self.copy_btn.clicked.connect(self._copy_log)
-        row2.addWidget(self.copy_btn)
-
-        self.clear_btn = ActionButton(
-            tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"),
-            "fa5s.eraser",
-        )
-        self.clear_btn.clicked.connect(self._clear_view)
-        row2.addWidget(self.clear_btn)
-
-        self.folder_btn = ActionButton(
-            tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка"),
-            "fa5s.folder-open",
-        )
-        self.folder_btn.clicked.connect(self._open_folder)
-        row2.addWidget(self.folder_btn)
-
-        row2.addStretch()
-        
         # Информационная строка
-        self.info_label = (CaptionLabel if _FLUENT_OK else QLabel)()
-        row2.addWidget(self.info_label)
-        
-        controls_main.addLayout(row2)
+        info_row = QHBoxLayout()
+        info_row.setSpacing(8)
+        info_row.addStretch()
+        self.info_label = CaptionLabel()
+        info_row.addWidget(self.info_label)
+        controls_main.addLayout(info_row)
         
         controls_card.add_layout(controls_main)
         parent_layout.addWidget(controls_card)
+
+        self._controls_actions_title = StrongBodyLabel(
+            tr_catalog("page.logs.actions.title", language=self._ui_language, default="Действия")
+        )
+        parent_layout.addWidget(self._controls_actions_title)
+
+        self._controls_actions_bar = QuickActionsBar(self.content)
+
+        self.copy_btn = PushButton()
+        self.copy_btn.setText(tr_catalog("page.logs.button.copy", language=self._ui_language, default="Копировать"))
+        self.copy_btn.setIcon(qta.icon("fa5s.copy", color=tokens.accent_hex))
+        self.copy_btn.setToolTip(
+            tr_catalog(
+                "page.logs.action.copy.description",
+                language=self._ui_language,
+                default="Скопировать содержимое текущего лога в буфер обмена.",
+            )
+        )
+        self.copy_btn.clicked.connect(self._copy_log)
+        self._controls_actions_bar.add_button(self.copy_btn)
+
+        self.clear_btn = PushButton()
+        self.clear_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
+        self.clear_btn.setIcon(qta.icon("fa5s.eraser", color="#ff9800"))
+        self.clear_btn.setToolTip(
+            tr_catalog(
+                "page.logs.action.clear.description",
+                language=self._ui_language,
+                default="Очистить только текущее окно просмотра, не удаляя файл лога.",
+            )
+        )
+        self.clear_btn.clicked.connect(self._clear_view)
+        self._controls_actions_bar.add_button(self.clear_btn)
+
+        self.folder_btn = PushButton()
+        self.folder_btn.setText(tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка"))
+        self.folder_btn.setIcon(qta.icon("fa5s.folder-open", color=tokens.accent_hex))
+        self.folder_btn.setToolTip(
+            tr_catalog(
+                "page.logs.action.folder.description",
+                language=self._ui_language,
+                default="Открыть папку logs с файлами приложения.",
+            )
+        )
+        self.folder_btn.clicked.connect(self._open_folder)
+        self._controls_actions_bar.add_button(self.folder_btn)
+
+        parent_layout.addWidget(self._controls_actions_bar)
 
         # ═══════════════════════════════════════════════════════════
         # Область логов
@@ -747,7 +658,7 @@ class LogsPage(BasePage):
         log_layout.addWidget(self.log_text)
         
         # Статистика внизу лог-карточки
-        self.stats_label = (CaptionLabel if _FLUENT_OK else QLabel)()
+        self.stats_label = CaptionLabel()
         log_layout.addWidget(self.stats_label)
         
         log_card.add_layout(log_layout)
@@ -768,23 +679,22 @@ class LogsPage(BasePage):
         errors_header.addWidget(warning_icon)
         
         # Заголовок
-        self.errors_title_label = (StrongBodyLabel if _FLUENT_OK else QLabel)(
+        self.errors_title_label = StrongBodyLabel(
             tr_catalog("page.logs.errors.title", language=self._ui_language, default="Ошибки и предупреждения")
         )
         errors_header.addWidget(self.errors_title_label)
         errors_header.addSpacing(8)
 
-        self.errors_count_label = (CaptionLabel if _FLUENT_OK else QLabel)(
+        self.errors_count_label = CaptionLabel(
             tr_catalog("page.logs.errors.count", language=self._ui_language, default="Ошибок: {count}").format(count=0)
         )
         errors_header.addWidget(self.errors_count_label)
         
         errors_header.addStretch()
         
-        self.clear_errors_btn = ActionButton(
-            tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"),
-            "fa5s.trash",
-        )
+        self.clear_errors_btn = FluentPushButton()
+        self.clear_errors_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
+        self.clear_errors_btn.setIcon(qta.icon("fa5s.trash", color=tokens.fg))
         self.clear_errors_btn.clicked.connect(self._clear_errors)
         errors_header.addWidget(self.clear_errors_btn)
         
@@ -820,7 +730,7 @@ class LogsPage(BasePage):
         winws_header.addWidget(terminal_icon)
 
         # Заголовок
-        self.winws_title_label = (StrongBodyLabel if _FLUENT_OK else QLabel)(
+        self.winws_title_label = StrongBodyLabel(
             tr_catalog(
                 "page.logs.winws.title_template",
                 language=self._ui_language,
@@ -831,7 +741,7 @@ class LogsPage(BasePage):
         winws_header.addSpacing(16)
 
         # Статус процесса
-        self.winws_status_label = (CaptionLabel if _FLUENT_OK else QLabel)(
+        self.winws_status_label = CaptionLabel(
             tr_catalog("page.logs.winws.status.not_running", language=self._ui_language, default="Процесс не запущен")
         )
         winws_header.addWidget(self.winws_status_label)
@@ -839,10 +749,9 @@ class LogsPage(BasePage):
         winws_header.addStretch()
 
         # Кнопка очистки
-        self.clear_winws_btn = ActionButton(
-            tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"),
-            "fa5s.trash",
-        )
+        self.clear_winws_btn = FluentPushButton()
+        self.clear_winws_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
+        self.clear_winws_btn.setIcon(qta.icon("fa5s.trash", color=tokens.fg))
         self.clear_winws_btn.clicked.connect(self._clear_winws_output)
         winws_header.addWidget(self.clear_winws_btn)
 
@@ -873,6 +782,7 @@ class LogsPage(BasePage):
 
     def _build_send_tab(self, parent_layout):
         """Строит вкладку поддержки по логам."""
+        tokens = get_theme_tokens()
 
         # ═══════════════════════════════════════════════════════════
         # Форма отправки
@@ -900,7 +810,7 @@ class LogsPage(BasePage):
         self._orchestra_icon_label = orchestra_icon
         orchestra_layout.addWidget(orchestra_icon)
 
-        orchestra_text = (BodyLabel if _FLUENT_OK else QLabel)(
+        orchestra_text = BodyLabel(
             tr_catalog(
                 "page.logs.send.orchestra.active",
                 language=self._ui_language,
@@ -923,7 +833,7 @@ class LogsPage(BasePage):
         send_layout.addWidget(self.orchestra_mode_container)
 
         # Описание
-        self.send_desc_label = (BodyLabel if _FLUENT_OK else QLabel)(
+        self.send_desc_label = BodyLabel(
             tr_catalog(
                 "page.logs.send.desc",
                 language=self._ui_language,
@@ -942,7 +852,7 @@ class LogsPage(BasePage):
         self._info_icon_label = info_icon
         info_layout.addWidget(info_icon)
 
-        self.send_info_label = (CaptionLabel if _FLUENT_OK else QLabel)(
+        self.send_info_label = CaptionLabel(
             tr_catalog(
                 "page.logs.send.info",
                 language=self._ui_language,
@@ -954,40 +864,58 @@ class LogsPage(BasePage):
 
         send_layout.addWidget(info_container)
 
-        # Кнопки поддержки
-        buttons_row = QHBoxLayout()
-
-        self.send_log_btn = ActionButton(
-            tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Подготовить обращение"),
-            "fa5b.github",
-        )
-        self.send_log_btn.clicked.connect(self._prepare_support_from_logs)
-        buttons_row.addWidget(self.send_log_btn)
-
-        self.open_logs_folder_btn = ActionButton(
-            tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка"),
-            "fa5s.folder-open",
-        )
-        self.open_logs_folder_btn.clicked.connect(self._open_folder)
-        buttons_row.addWidget(self.open_logs_folder_btn)
-
-        buttons_row.addStretch()
-
         # Статус отправки
-        self.send_status_label = (CaptionLabel if _FLUENT_OK else QLabel)()
-        buttons_row.addWidget(self.send_status_label)
-
-        send_layout.addLayout(buttons_row)
+        self.send_status_label = CaptionLabel()
+        send_layout.addWidget(self.send_status_label)
 
         send_card.add_layout(send_layout)
         parent_layout.addWidget(send_card)
+
+        self._send_actions_title = StrongBodyLabel(
+            tr_catalog("page.logs.send.actions.title", language=self._ui_language, default="Действия")
+        )
+        parent_layout.addWidget(self._send_actions_title)
+
+        self._send_actions_bar = QuickActionsBar(self.content)
+
+        self.send_log_btn = PushButton()
+        self.send_log_btn.setText(
+            tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Подготовить обращение")
+        )
+        self.send_log_btn.setIcon(qta.icon("fa5b.github", color=tokens.accent_hex))
+        self.send_log_btn.setToolTip(
+            tr_catalog(
+                "page.logs.send.action.send.description",
+                language=self._ui_language,
+                default="Собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
+            )
+        )
+        self.send_log_btn.clicked.connect(self._prepare_support_from_logs)
+        self._send_actions_bar.add_button(self.send_log_btn)
+
+        self.open_logs_folder_btn = PushButton()
+        self.open_logs_folder_btn.setText(
+            tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка")
+        )
+        self.open_logs_folder_btn.setIcon(qta.icon("fa5s.folder-open", color=tokens.accent_hex))
+        self.open_logs_folder_btn.setToolTip(
+            tr_catalog(
+                "page.logs.send.action.folder.description",
+                language=self._ui_language,
+                default="Открыть папку logs, где лежат логи и подготовленные support bundles.",
+            )
+        )
+        self.open_logs_folder_btn.clicked.connect(self._open_folder)
+        self._send_actions_bar.add_button(self.open_logs_folder_btn)
+
+        parent_layout.addWidget(self._send_actions_bar)
 
         # Растяжка чтобы форма была вверху
         parent_layout.addStretch()
 
         # Send tab is lazily built; apply current theme now.
         self._retranslate_send_tab()
-        self._apply_theme(force=True)
+        self._apply_page_theme(force=True)
 
     def _is_orchestra_mode(self) -> bool:
         """Проверяет, активен ли режим оркестратора"""
@@ -1035,7 +963,7 @@ class LogsPage(BasePage):
             return
 
         try:
-            exe_name = self._controller.resolve_winws_exe_name(self._get_launch_method())
+            exe_name = LogsPageController.resolve_winws_exe_name(self._get_launch_method())
         except Exception:
             exe_name = "winws.exe"
 
@@ -1057,14 +985,14 @@ class LogsPage(BasePage):
             - "direct" для StrategyRunner
             - None если процесс не запущен
         """
-        return self._controller.get_running_runner_source(
+        return LogsPageController.get_running_runner_source(
             self._get_launch_method(),
             self._get_orchestra_runner(),
         )
 
     def _get_runner_pid(self, runner):
         """Возвращает PID для любого типа runner'а"""
-        return self._controller.get_runner_pid(runner)
+        return LogsPageController.get_runner_pid(runner)
 
     def _get_orchestra_log_path(self) -> str:
         """
@@ -1074,7 +1002,7 @@ class LogsPage(BasePage):
         1. Текущий активный лог (если оркестратор запущен)
         2. Последний сохранённый лог из истории
         """
-        return self._controller.get_orchestra_log_path(self._get_orchestra_runner())
+        return LogsPageController.get_orchestra_log_path(self._get_orchestra_runner())
 
     def _update_orchestra_indicator(self):
         """Обновляет видимость индикатора режима оркестратора"""
@@ -1083,82 +1011,40 @@ class LogsPage(BasePage):
 
     def _prepare_support_from_logs(self):
         try:
-            result = self._controller.prepare_support_bundle(
+            result = LogsPageController.prepare_support_bundle(
                 current_log_file=self.current_log_file,
                 orchestra_runner=self._get_orchestra_runner(),
             )
 
             if result.zip_path:
                 log(f"Подготовлен архив поддержки: {result.zip_path}", "INFO")
-
-            status_parts: list[str] = []
-            if result.zip_path:
-                status_parts.append("ZIP готов")
-            if result.copied_to_clipboard:
-                status_parts.append("шаблон скопирован")
-            if result.discussions_opened:
-                status_parts.append("GitHub открыт")
-            if result.bundle_folder_opened:
-                status_parts.append("папка открыта")
-
-            if status_parts:
-                self._send_status_text = " • ".join(status_parts)
-                self._send_status_tone = "success"
-            else:
-                self._send_status_text = "Подготовка завершена"
-                self._send_status_tone = "success"
+            feedback = LogsPageController.build_support_feedback(result)
+            self._send_status_text = feedback.status_text
+            self._send_status_tone = feedback.status_tone
             self._render_send_status_label()
 
             if InfoBar:
-                archive_name = os.path.basename(result.zip_path) if result.zip_path else "архив не создан"
-                content = f"Архив: {archive_name}\n"
-                content += "Шаблон обращения скопирован в буфер обмена." if result.copied_to_clipboard else "Шаблон не удалось скопировать в буфер обмена."
                 InfoBar.success(
-                    title="Поддержка подготовлена",
-                    content=content,
+                    title=feedback.infobar_title,
+                    content=feedback.infobar_content,
                     parent=self.window(),
                     duration=5000,
                 )
         except Exception as e:
             log(f"Ошибка подготовки обращения из логов: {e}", "ERROR")
-            self._send_status_text = "Ошибка подготовки"
-            self._send_status_tone = "error"
+            feedback = LogsPageController.build_support_error_feedback(str(e))
+            self._send_status_text = feedback.status_text
+            self._send_status_tone = feedback.status_tone
             self._render_send_status_label()
             if InfoBar:
                 InfoBar.warning(
-                    title="Ошибка",
-                    content=f"Не удалось подготовить обращение:\n{e}",
+                    title=feedback.infobar_title,
+                    content=feedback.infobar_content,
                     parent=self.window(),
                 )
         
-    def showEvent(self, event):
-        """При показе страницы запускаем мониторинг"""
-        super().showEvent(event)
-
-        if self._theme_apply_pending_when_hidden:
-            self._theme_apply_pending_when_hidden = False
-            self._schedule_theme_apply()
-
-        # Spontaneous showEvent = система восстановила окно (из трея/свёрнутого).
-        # Не перезапускаем workers/таймеры при простом восстановлении окна.
-        if event.spontaneous():
-            return
-        if not self._logs_tab_initialized:
-            self._logs_tab_initialized = True
-            # Делаем тяжелые операции после первого показа страницы, чтобы UI не "подвисал" при переходе.
-            QTimer.singleShot(0, lambda: self._refresh_logs_list(run_cleanup=False))
-            QTimer.singleShot(0, self._update_stats)
-        self._start_tail_worker()
-        self._start_winws_output_worker()
-        # Таймер для проверки статуса каждые 3 секунды
-        self._winws_status_timer.start(3000)
-
-    def hideEvent(self, event):
-        """При скрытии страницы останавливаем мониторинг"""
-        super().hideEvent(event)
-        self._stop_tail_worker()
-        self._stop_winws_output_worker()
-        self._winws_status_timer.stop()
+    def on_page_hidden(self) -> None:
+        pass
         
     def _refresh_logs_list(self, *, run_cleanup: bool = True):
         """Обновляет список доступных лог-файлов"""
@@ -1171,7 +1057,7 @@ class LogsPage(BasePage):
         self.log_combo.clear()
         
         try:
-            state = self._controller.list_logs(run_cleanup=run_cleanup)
+            state = LogsPageController.list_logs(run_cleanup=run_cleanup)
             if run_cleanup and state.cleanup_deleted > 0:
                 log(f"🗑️ Удалено старых логов: {state.cleanup_deleted} из {state.cleanup_total}", "INFO")
             if run_cleanup and state.cleanup_errors:
@@ -1230,22 +1116,16 @@ class LogsPage(BasePage):
     def _start_tail_worker(self):
         """Запускает worker для чтения лога"""
         self._stop_tail_worker()
-
-        if not self.current_log_file or not os.path.exists(self.current_log_file):
+        plan = LogsPageController.build_tail_start_plan(current_log_file=self.current_log_file)
+        if not plan.should_start:
             return
 
         self.log_text.clear()
-        self.info_label.setText(f"📄 {os.path.basename(self.current_log_file)}")
+        self.info_label.setText(plan.info_text)
 
         try:
             self._thread = QThread(self)
-            # Initial history: limit to recent tail to keep the page snappy on huge logs.
-            self._worker = LogTailWorker(
-                self.current_log_file,
-                poll_interval=0.6,
-                initial_chunk_chars=65536,
-                initial_max_bytes=1024 * 1024,
-            )
+            self._worker = LogsPageController.create_log_tail_worker(plan.file_path)
             self._worker.moveToThread(self._thread)
 
             self._thread.started.connect(self._worker.run)
@@ -1268,8 +1148,13 @@ class LogsPage(BasePage):
         """Останавливает worker (неблокирующий по умолчанию)"""
         worker = getattr(self, "_worker", None)
         thread = getattr(self, "_thread", None)
+        stop_plan = LogsPageController.build_thread_stop_plan(
+            has_worker=worker is not None,
+            thread_running=bool(thread and self._thread and self._thread.isRunning()) if thread is not None else False,
+            blocking=blocking,
+        )
 
-        if worker:
+        if stop_plan.should_stop_worker and worker:
             try:
                 worker.stop()
             except RuntimeError:
@@ -1287,72 +1172,41 @@ class LogsPage(BasePage):
             self._thread = None
             return
 
-        if not running:
+        if not stop_plan.should_quit_thread or not running:
             return
 
         thread.quit()
-        if not blocking:
+        if not stop_plan.should_wait:
             return
 
         # Блокирующий режим только при закрытии приложения
-        if not thread.wait(2000):
+        if not thread.wait(stop_plan.wait_timeout_ms):
             log("⚠ Log tail worker не завершился, принудительно завершаем", "WARNING")
-            try:
-                thread.terminate()
-                thread.wait(500)
-            except Exception:
-                pass
+            if stop_plan.should_terminate:
+                try:
+                    thread.terminate()
+                    thread.wait(stop_plan.terminate_wait_ms)
+                except Exception:
+                    pass
 
     def _start_winws_output_worker(self):
         """Запускает worker для чтения вывода winws"""
         self._stop_winws_output_worker()
         self._refresh_winws_title()
 
-        source, runner = self._get_running_runner_source()
-        if source == "orchestra" and runner:
-            # В оркестраторе stdout уже читает OrchestraRunner._read_output,
-            # поэтому тут только обновляем статус, без второго reader'а.
-            pid = self._get_runner_pid(runner)
-            self._set_winws_status("running", f"PID: {pid} | Оркестратор")
+        plan = LogsPageController.build_winws_output_plan(
+            launch_method=self._get_launch_method(),
+            orchestra_runner=self._get_orchestra_runner(),
+            language=self._ui_language,
+        )
+        self._set_winws_status(plan.status_kind, plan.status_text)
+
+        if plan.action != "start_worker" or not plan.process:
             return
-
-        if source != "direct" or not runner:
-            self._set_winws_status(
-                "neutral",
-                tr_catalog("page.logs.winws.status.not_running", language=self._ui_language, default="Процесс не запущен"),
-            )
-            return
-
-        process = runner.get_process()
-        if not process:
-            self._set_winws_status(
-                "neutral",
-                tr_catalog("page.logs.winws.status.not_running", language=self._ui_language, default="Процесс не запущен"),
-            )
-            return
-
-        # Обновляем статус
-        strategy_info = {}
-        try:
-            get_info = getattr(runner, 'get_current_strategy_info', None)
-            if callable(get_info):
-                info_value = get_info()
-                if isinstance(info_value, dict):
-                    strategy_info = info_value
-        except Exception:
-            pass
-
-        strategy_name = strategy_info.get('name', 'winws')
-        # Обрезаем длинные названия стратегий
-        if len(strategy_name) > 35:
-            strategy_name = strategy_name[:32] + "..."
-        pid = strategy_info.get('pid') or self._get_runner_pid(runner)
-        self._set_winws_status("running", f"PID: {pid} | {strategy_name}")
 
         try:
             self._winws_thread = QThread(self)
-            self._winws_worker = WinwsOutputWorker()
-            self._winws_worker.set_process(process)
+            self._winws_worker = LogsPageController.create_winws_output_worker(plan.process)
             self._winws_worker.moveToThread(self._winws_thread)
 
             self._winws_thread.started.connect(self._winws_worker.run)
@@ -1367,19 +1221,25 @@ class LogsPage(BasePage):
     def _stop_winws_output_worker(self, blocking: bool = False):
         """Останавливает worker чтения вывода winws (неблокирующий по умолчанию)"""
         try:
-            if self._winws_worker:
+            stop_plan = LogsPageController.build_thread_stop_plan(
+                has_worker=self._winws_worker is not None,
+                thread_running=bool(self._winws_thread and self._winws_thread.isRunning()),
+                blocking=blocking,
+            )
+            if stop_plan.should_stop_worker and self._winws_worker:
                 self._winws_worker.stop()
-            if self._winws_thread and self._winws_thread.isRunning():
+            if stop_plan.should_quit_thread and self._winws_thread and self._winws_thread.isRunning():
                 self._winws_thread.quit()
-                if blocking:
+                if stop_plan.should_wait:
                     # Блокирующий режим только при закрытии приложения
-                    if not self._winws_thread.wait(2000):
+                    if not self._winws_thread.wait(stop_plan.wait_timeout_ms):
                         log("⚠ Winws output worker не завершился, принудительно завершаем", "WARNING")
-                        try:
-                            self._winws_thread.terminate()
-                            self._winws_thread.wait(500)
-                        except:
-                            pass
+                        if stop_plan.should_terminate:
+                            try:
+                                self._winws_thread.terminate()
+                                self._winws_thread.wait(stop_plan.terminate_wait_ms)
+                            except:
+                                pass
                 # Неблокирующий режим - поток остановится сам
         except Exception as e:
             log(f"Ошибка остановки winws output worker: {e}", "DEBUG")
@@ -1543,28 +1403,16 @@ class LogsPage(BasePage):
     def _open_folder(self):
         """Открывает папку с логами"""
         try:
-            self._controller.open_logs_folder()
+            LogsPageController.open_logs_folder()
         except Exception as e:
             log(f"Ошибка открытия папки: {e}", "ERROR")
             
     def _update_stats(self):
         """Обновляет статистику"""
         try:
-            stats = self._controller.build_stats()
-
-            self.stats_label.setText(
-                tr_catalog(
-                    "page.logs.stats.template",
-                    language=self._ui_language,
-                    default="📊 Логи: {logs} (макс {max_logs}) | 🔧 Debug: {debug} (макс {max_debug}) | 💾 Размер: {size:.2f} MB",
-                ).format(
-                    logs=stats.app_logs,
-                    max_logs=stats.max_logs,
-                    debug=stats.debug_logs,
-                    max_debug=stats.max_debug_logs,
-                    size=stats.total_size_mb,
-                )
-            )
+            stats = LogsPageController.build_stats()
+            plan = LogsPageController.build_stats_text_plan(stats, language=self._ui_language)
+            self.stats_label.setText(plan.text)
         except Exception as e:
             self.stats_label.setText(f"Ошибка статистики: {e}")
 
@@ -1629,5 +1477,6 @@ class LogsPage(BasePage):
             
     def cleanup(self):
         """Очистка при закрытии - блокирующий режим"""
+        self._winws_status_timer.stop()
         self._stop_tail_worker(blocking=True)
         self._stop_winws_output_worker(blocking=True)

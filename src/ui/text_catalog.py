@@ -39,10 +39,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Оформление",
         "en": "Appearance",
     },
-    "nav.page.home": {
-        "ru": "Главная",
-        "en": "Home",
-    },
     "nav.page.control": {
         "ru": "Управление",
         "en": "Control",
@@ -142,26 +138,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "common.error.title": {
         "ru": "Ошибка",
         "en": "Error",
-    },
-    "page.home.title": {
-        "ru": "Главная",
-        "en": "Home",
-    },
-    "page.home.quick_actions": {
-        "ru": "Быстрые действия",
-        "en": "Quick Actions",
-    },
-    "page.home.status": {
-        "ru": "Статус",
-        "en": "Status",
-    },
-    "page.home.launch_method": {
-        "ru": "Метод запуска",
-        "en": "Launch Method",
-    },
-    "page.home.subscription": {
-        "ru": "Подписка",
-        "en": "Subscription",
     },
     "page.control.title": {
         "ru": "Управление",
@@ -1750,150 +1726,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.dpi_settings.advanced.debug_log.desc": {
         "ru": "Записывает логи winws в папку logs",
         "en": "Writes winws logs to the logs folder",
-    },
-    "page.home.subtitle": {
-        "ru": "Обзор состояния Zapret",
-        "en": "Zapret status overview",
-    },
-    "page.home.section.quick_actions": {
-        "ru": "Быстрые действия",
-        "en": "Quick Actions",
-    },
-    "page.home.section.status": {
-        "ru": "Статус",
-        "en": "Status",
-    },
-    "page.home.card.dpi.title": {
-        "ru": "Статус Zapret",
-        "en": "Zapret Status",
-    },
-    "page.home.card.method.title": {
-        "ru": "Метод запуска",
-        "en": "Launch Method",
-    },
-    "page.home.card.autostart.title": {
-        "ru": "Автозапуск",
-        "en": "Autostart",
-    },
-    "page.home.card.subscription.title": {
-        "ru": "Подписка",
-        "en": "Subscription",
-    },
-    "page.home.status.checking": {
-        "ru": "Проверка...",
-        "en": "Checking...",
-    },
-    "page.home.status.detecting": {
-        "ru": "Определение состояния",
-        "en": "Detecting state",
-    },
-    "page.home.status.running": {
-        "ru": "Запущен",
-        "en": "Running",
-    },
-    "page.home.status.stopped": {
-        "ru": "Остановлен",
-        "en": "Stopped",
-    },
-    "page.home.status.bypass_active": {
-        "ru": "Обход блокировок активен",
-        "en": "Bypass is active",
-    },
-    "page.home.status.press_start": {
-        "ru": "Нажмите Запустить",
-        "en": "Press Start",
-    },
-    "page.home.status.ready": {
-        "ru": "Готов к работе",
-        "en": "Ready",
-    },
-    "page.home.action.start": {
-        "ru": "Запустить",
-        "en": "Start",
-    },
-    "page.home.action.stop": {
-        "ru": "Остановить",
-        "en": "Stop",
-    },
-    "page.home.action.connection_test": {
-        "ru": "Тест соединения",
-        "en": "Connection Test",
-    },
-    "page.home.action.open_folder": {
-        "ru": "Открыть папку",
-        "en": "Open Folder",
-    },
-    "page.home.action.how_to_use": {
-        "ru": "Как использовать",
-        "en": "How to Use",
-    },
-    "page.home.strategy.current_method": {
-        "ru": "Текущий метод запуска",
-        "en": "Current launch method",
-    },
-    "page.home.launch_method.direct_z2": {
-        "ru": "Zapret 2",
-        "en": "Zapret 2",
-    },
-    "page.home.launch_method.direct_z1": {
-        "ru": "Zapret 1 (прямой запуск)",
-        "en": "Zapret 1 (direct)",
-    },
-    "page.home.launch_method.orchestra": {
-        "ru": "Оркестратор",
-        "en": "Orchestrator",
-    },
-    "page.home.launch_method.orchestra_z2": {
-        "ru": "Оркестраторный Zapret 2",
-        "en": "Orchestrated Zapret 2",
-    },
-    "page.home.autostart.enabled": {
-        "ru": "Включён",
-        "en": "Enabled",
-    },
-    "page.home.autostart.disabled": {
-        "ru": "Отключён",
-        "en": "Disabled",
-    },
-    "page.home.autostart.with_windows": {
-        "ru": "Запускается с Windows",
-        "en": "Starts with Windows",
-    },
-    "page.home.autostart.manual": {
-        "ru": "Запускайте вручную",
-        "en": "Start manually",
-    },
-    "page.home.subscription.premium": {
-        "ru": "Premium",
-        "en": "Premium",
-    },
-    "page.home.subscription.free": {
-        "ru": "Free",
-        "en": "Free",
-    },
-    "page.home.subscription.basic": {
-        "ru": "Базовые функции",
-        "en": "Basic features",
-    },
-    "page.home.subscription.days_left": {
-        "ru": "Осталось {days} дней",
-        "en": "{days} days left",
-    },
-    "page.home.subscription.all_features": {
-        "ru": "Все функции доступны",
-        "en": "All features available",
-    },
-    "page.home.premium.title": {
-        "ru": "Zapret Premium",
-        "en": "Zapret Premium",
-    },
-    "page.home.premium.desc": {
-        "ru": "Дополнительные темы, приоритетная поддержка и VPN-сервис",
-        "en": "Extra themes, priority support and VPN service",
-    },
-    "page.home.premium.more": {
-        "ru": "Подробнее",
-        "en": "Learn More",
     },
     "page.hostlist.subtitle": {
         "ru": "Управление hostlist и ipset списками для обхода блокировок",
@@ -5649,6 +5481,14 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "ru": "Инерционная прокрутка страниц настроек",
         "en": "Inertial scrolling on settings pages",
     },
+    "page.appearance.performance.editor_scroll.title": {
+        "ru": "Плавная прокрутка редакторов",
+        "en": "Editor Smooth Scrolling",
+    },
+    "page.appearance.performance.editor_scroll.description": {
+        "ru": "Плавная прокрутка внутри больших текстовых полей и редакторов. Работает только при включённых анимациях интерфейса.",
+        "en": "Smooth scrolling inside large text fields and editors. Works only when interface animations are enabled.",
+    },
     "page.autostart.recommended": {
         "ru": "Рекомендуется",
         "en": "Recommended",
@@ -5887,7 +5727,6 @@ TEXTS.update(TEXTS_PAGES_FINAL)
 
 
 NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
-    PageName.HOME: "nav.page.home",
     PageName.CONTROL: "nav.page.control",
     PageName.ZAPRET2_DIRECT_CONTROL: "nav.page.zapret2_direct_control",
     PageName.ZAPRET2_ORCHESTRA_CONTROL: "nav.page.zapret2_orchestra_control",
@@ -5940,11 +5779,6 @@ class SearchMatch:
 
 
 SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
-    SearchEntry("home.title", PageName.HOME, "page.home.title"),
-    SearchEntry("home.quick_actions", PageName.HOME, "page.home.quick_actions", section_key="page.home.quick_actions"),
-    SearchEntry("home.status", PageName.HOME, "page.home.status", section_key="page.home.status"),
-    SearchEntry("home.launch_method", PageName.HOME, "page.home.launch_method", section_key="page.home.status"),
-    SearchEntry("home.subscription", PageName.HOME, "page.home.subscription", section_key="page.home.status"),
     SearchEntry("control.title", PageName.CONTROL, "page.control.title"),
     SearchEntry("control.status", PageName.CONTROL, "page.control.status", section_key="page.control.status"),
     SearchEntry("control.settings", PageName.CONTROL, "page.control.program_settings", section_key="page.control.program_settings"),

@@ -1,12 +1,15 @@
 # ui/pages/dpi_settings_page.py
 """Страница настроек DPI"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 
 from .base_page import BasePage
 from dpi.dpi_settings_page_controller import DpiSettingsPageController
-from ui.compat_widgets import SettingsCard
+from ui.compat_widgets import (
+    build_advanced_settings_section,
+    SettingsCard,
+)
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from ui.widgets.win11_controls import (
@@ -18,15 +21,13 @@ from ui.widgets.win11_controls import (
 from log import log
 
 try:
-    from qfluentwidgets import StrongBodyLabel, CaptionLabel as _CaptionLabel
+    from qfluentwidgets import StrongBodyLabel, CaptionLabel as _CaptionLabel, SettingCardGroup
+    _HAS_FLUENT_LABELS = True
 except ImportError:
     StrongBodyLabel = QLabel  # type: ignore[assignment,misc]
     _CaptionLabel = QLabel  # type: ignore[assignment,misc]
-
-
-def _build_theme_refresh_key(tokens) -> tuple[str, str, str]:
-    return (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.font_family_qss))
-
+    SettingCardGroup = None  # type: ignore[assignment,misc]
+    _HAS_FLUENT_LABELS = False
 
 class DpiSettingsPage(BasePage):
     """Страница настроек DPI"""
@@ -46,14 +47,8 @@ class DpiSettingsPage(BasePage):
         self._method_desc_label = None
         self._zapret1_header = None
         self._orchestra_label = None
-        self._advanced_desc_label = None
-        self._applying_theme_styles = False
-        self._last_theme_refresh_key: tuple[str, str, str] | None = None
-        self._theme_refresh_pending_when_hidden = False
-        self._controller = DpiSettingsPageController()
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
+        self._advanced_notice = None
+        self._build_ui()
         self._load_settings()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
@@ -65,77 +60,15 @@ class DpiSettingsPage(BasePage):
                 return text
         return text
 
-    def _apply_theme_styles(self, tokens=None) -> None:
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
         theme_tokens = tokens or get_theme_tokens()
-        try:
-            if hasattr(self, "zapret2_header") and self.zapret2_header is not None:
-                self.zapret2_header.setStyleSheet(
-                    f"color: {theme_tokens.accent_hex};"
-                )
-        except Exception:
-            pass
-
-        try:
-            if self._zapret1_header is not None:
-                self._zapret1_header.setStyleSheet("color: #ff9800;")
-        except Exception:
-            pass
-
-        try:
-            if self._orchestra_label is not None:
-                self._orchestra_label.setStyleSheet("color: #9c27b0;")
-        except Exception:
-            pass
-
-        try:
-            if self._advanced_desc_label is not None:
-                self._advanced_desc_label.setStyleSheet("color: #ff9800;")
-        except Exception:
-            pass
 
         try:
             if hasattr(self, "separator2") and self.separator2 is not None:
                 self.separator2.setStyleSheet(f"background-color: {theme_tokens.divider_strong}; margin: 8px 0;")
         except Exception:
             pass
-
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                if self._applying_theme_styles:
-                    return super().changeEvent(event)
-                tokens = get_theme_tokens()
-                theme_key = _build_theme_refresh_key(tokens)
-                if theme_key == self._last_theme_refresh_key:
-                    return super().changeEvent(event)
-                if not self.isVisible():
-                    self._theme_refresh_pending_when_hidden = True
-                    return super().changeEvent(event)
-                self._applying_theme_styles = True
-                try:
-                    self._last_theme_refresh_key = theme_key
-                    self._apply_theme_styles(tokens)
-                finally:
-                    self._applying_theme_styles = False
-        except Exception:
-            pass
-        super().changeEvent(event)
-
-    def showEvent(self, event):  # noqa: N802 (Qt override)
-        super().showEvent(event)
-        if not self._theme_refresh_pending_when_hidden:
-            return
-        self._theme_refresh_pending_when_hidden = False
-        tokens = get_theme_tokens()
-        theme_key = _build_theme_refresh_key(tokens)
-        if theme_key == self._last_theme_refresh_key:
-            return
-        self._applying_theme_styles = True
-        try:
-            self._last_theme_refresh_key = theme_key
-            self._apply_theme_styles(tokens)
-        finally:
-            self._applying_theme_styles = False
         
     def _build_ui(self):
         """Строит UI страницы"""
@@ -236,19 +169,13 @@ class DpiSettingsPage(BasePage):
         method_layout.addWidget(self.separator2)
 
         # Перезапуск Discord (только для Zapret 1/2)
-        self.discord_restart_container = QWidget()
-        discord_layout = QVBoxLayout(self.discord_restart_container)
-        discord_layout.setContentsMargins(0, 0, 0, 0)
-        discord_layout.setSpacing(0)
-
         self.discord_restart_toggle = Win11ToggleRow(
             "mdi.discord",
             self._tr("page.dpi_settings.discord_restart.title", "Перезапуск Discord"),
             self._tr("page.dpi_settings.discord_restart.desc", "Автоперезапуск при смене стратегии"),
             "#7289da",
         )
-        discord_layout.addWidget(self.discord_restart_toggle)
-        method_layout.addWidget(self.discord_restart_container)
+        method_layout.addWidget(self.discord_restart_toggle)
 
         # ─────────────────────────────────────────────────────────────────────
         # НАСТРОЙКИ ОРКЕСТРАТОРА (только в режиме оркестратора)
@@ -335,50 +262,33 @@ class DpiSettingsPage(BasePage):
         # ═══════════════════════════════════════════════════════════════════════
         # ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ
         # ═══════════════════════════════════════════════════════════════════════
-        self.advanced_card = SettingsCard(
-            self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
-        )
-        advanced_layout = QVBoxLayout()
-        advanced_layout.setSpacing(6)
-        
-        # Описание
-        advanced_desc = _CaptionLabel(
-            self._tr("page.dpi_settings.advanced.warning", "⚠ Изменяйте только если знаете что делаете")
-        )
-        self._advanced_desc_label = advanced_desc
-        advanced_desc.setContentsMargins(0, 0, 0, 8)
-        advanced_layout.addWidget(advanced_desc)
-        
-        # WSSize
         self.wssize_toggle = Win11ToggleRow(
             "fa5s.ruler-horizontal",
             self._tr("page.dpi_settings.advanced.wssize.title", "Включить --wssize"),
             self._tr("page.dpi_settings.advanced.wssize.desc", "Добавляет параметр размера окна TCP"),
-            "#9c27b0",
         )
-        advanced_layout.addWidget(self.wssize_toggle)
-        
-        # Debug лог
         self.debug_log_toggle = Win11ToggleRow(
             "mdi.file-document-outline",
             self._tr("page.dpi_settings.advanced.debug_log.title", "Включить лог-файл (--debug)"),
             self._tr("page.dpi_settings.advanced.debug_log.desc", "Записывает логи winws в папку logs"),
-            "#00bcd4",
         )
-        advanced_layout.addWidget(self.debug_log_toggle)
-        
-        self.advanced_card.add_layout(advanced_layout)
+        self.advanced_card, self._advanced_notice = build_advanced_settings_section(
+            title=self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ"),
+            warning_text=self._tr("page.dpi_settings.advanced.warning", "⚠ Изменяйте только если знаете что делаете"),
+            parent=self.content,
+            toggle_rows=[self.wssize_toggle, self.debug_log_toggle],
+        )
         self.layout.addWidget(self.advanced_card)
         
         self.layout.addStretch()
 
         # Apply token-driven accents/dividers.
-        self._apply_theme_styles()
+        self._apply_page_theme(force=True)
         
     def _load_settings(self):
         """Загружает настройки"""
         try:
-            state = self._controller.load_state()
+            state = DpiSettingsPageController.load_state()
 
             # Устанавливаем выбранный метод
             self._update_method_selection(state.launch_method)
@@ -405,7 +315,7 @@ class DpiSettingsPage(BasePage):
     def _select_method(self, method: str):
         """Обработчик выбора метода"""
         try:
-            next_method = self._controller.apply_launch_method(method)
+            next_method = DpiSettingsPageController.apply_launch_method(method)
             self._update_method_selection(next_method)
             self._update_filters_visibility(next_method)
             self.launch_method_changed.emit(next_method)
@@ -427,7 +337,7 @@ class DpiSettingsPage(BasePage):
     def _on_discord_restart_changed(self, enabled: bool):
         """Обработчик изменения настройки перезапуска Discord"""
         try:
-            self._controller.set_discord_restart_enabled(enabled)
+            DpiSettingsPageController.set_discord_restart_enabled(enabled)
             status = "включён" if enabled else "отключён"
             log(f"Автоперезапуск Discord {status}", "INFO")
         except Exception as e:
@@ -460,7 +370,7 @@ class DpiSettingsPage(BasePage):
     def _on_strict_detection_changed(self, enabled: bool):
         """Обработчик изменения строгого режима детекции"""
         try:
-            self._controller.set_orchestra_setting("strict_detection", enabled, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("strict_detection", enabled, app=self.window())
             log(f"Строгий режим детекции: {'включён' if enabled else 'выключен'}", "INFO")
 
         except Exception as e:
@@ -469,7 +379,7 @@ class DpiSettingsPage(BasePage):
     def _on_debug_file_changed(self, enabled: bool):
         """Обработчик изменения сохранения debug файла"""
         try:
-            self._controller.set_orchestra_setting("debug_file", enabled, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("debug_file", enabled, app=self.window())
             log(f"Сохранение debug файла: {'включено' if enabled else 'выключено'}", "INFO")
 
         except Exception as e:
@@ -478,7 +388,7 @@ class DpiSettingsPage(BasePage):
     def _on_auto_restart_discord_changed(self, enabled: bool):
         """Обработчик изменения авторестарта при Discord FAIL"""
         try:
-            self._controller.set_orchestra_setting("auto_restart_discord", enabled, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("auto_restart_discord", enabled, app=self.window())
             log(f"Авторестарт при Discord FAIL: {'включён' if enabled else 'выключен'}", "INFO")
 
         except Exception as e:
@@ -487,7 +397,7 @@ class DpiSettingsPage(BasePage):
     def _on_discord_fails_changed(self, value: int):
         """Обработчик изменения количества фейлов для рестарта Discord"""
         try:
-            self._controller.set_orchestra_setting("discord_fails", value, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("discord_fails", value, app=self.window())
             log(f"Фейлов для рестарта Discord: {value}", "INFO")
 
         except Exception as e:
@@ -496,7 +406,7 @@ class DpiSettingsPage(BasePage):
     def _on_lock_successes_changed(self, value: int):
         """Обработчик изменения количества успехов для LOCK"""
         try:
-            self._controller.set_orchestra_setting("lock_successes", value, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("lock_successes", value, app=self.window())
             log(f"Успехов для LOCK: {value}", "INFO")
 
         except Exception as e:
@@ -505,7 +415,7 @@ class DpiSettingsPage(BasePage):
     def _on_unlock_fails_changed(self, value: int):
         """Обработчик изменения количества ошибок для AUTO-UNLOCK"""
         try:
-            self._controller.set_orchestra_setting("unlock_fails", value, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("unlock_fails", value, app=self.window())
             log(f"Ошибок для AUTO-UNLOCK: {value}", "INFO")
 
         except Exception as e:
@@ -535,15 +445,15 @@ class DpiSettingsPage(BasePage):
                 
     def _on_filter_changed(self, kind: str, value):
         """Обработчик изменения фильтра"""
-        self._controller.set_filter_state(kind, bool(value))
+        DpiSettingsPageController.set_filter_state(kind, bool(value))
 
         self.filters_changed.emit()
         
     def _update_filters_visibility(self, method: str | None = None):
         """Обновляет видимость фильтров и секций"""
         try:
-            resolved_method = str(method or self._controller.get_launch_method()).strip().lower()
-            visibility = self._controller.describe_visibility(resolved_method)
+            resolved_method = str(method or DpiSettingsPageController.get_launch_method()).strip().lower()
+            visibility = DpiSettingsPageController.describe_visibility(resolved_method)
 
             # For direct_zapret2 these options are shown on the Strategies/Management page
             # (ui/pages/zapret2/direct_control_page.py), so hide them here.
@@ -553,16 +463,16 @@ class DpiSettingsPage(BasePage):
             # from the current mode source of truth (preset for direct preset flow).
             if visibility.show_advanced:
                 try:
-                    self.wssize_toggle.setChecked(bool(self._controller.get_filter_state("wssize", resolved_method)), block_signals=True)
-                    self.debug_log_toggle.setChecked(bool(self._controller.get_filter_state("debug", resolved_method)), block_signals=True)
+                    self.wssize_toggle.setChecked(bool(DpiSettingsPageController.get_filter_state("wssize", resolved_method)), block_signals=True)
+                    self.debug_log_toggle.setChecked(bool(DpiSettingsPageController.get_filter_state("debug", resolved_method)), block_signals=True)
                 except Exception:
                     pass
 
             # Discord restart только для Zapret 1/2 (без оркестратора)
-            self.discord_restart_container.setVisible(visibility.show_discord_restart)
+            self.discord_restart_toggle.setVisible(visibility.show_discord_restart)
             if visibility.show_discord_restart:
                 try:
-                    self.discord_restart_toggle.setChecked(self._controller.get_discord_restart_enabled(), block_signals=True)
+                    self.discord_restart_toggle.setChecked(DpiSettingsPageController.get_discord_restart_enabled(), block_signals=True)
                 except Exception:
                     pass
 
@@ -671,11 +581,20 @@ class DpiSettingsPage(BasePage):
         )
 
         if hasattr(self, "advanced_card") and self.advanced_card is not None:
-            self.advanced_card.set_title(
-                self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
-            )
-        if self._advanced_desc_label is not None:
-            self._advanced_desc_label.setText(
+            try:
+                title_label = getattr(self.advanced_card, "titleLabel", None)
+                if title_label is not None:
+                    title_label.setText(
+                        self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
+                    )
+                else:
+                    self.advanced_card.set_title(
+                        self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
+                    )
+            except Exception:
+                pass
+        if self._advanced_notice is not None:
+            self._advanced_notice.setText(
                 self._tr("page.dpi_settings.advanced.warning", "⚠ Изменяйте только если знаете что делаете")
             )
         self.wssize_toggle.set_texts(

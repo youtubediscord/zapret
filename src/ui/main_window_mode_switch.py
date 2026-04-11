@@ -42,6 +42,13 @@ def complete_main_window_method_switch(window, method: str) -> None:
     from launcher_common import invalidate_strategy_runner
     from utils.service_manager import cleanup_windivert_services
 
+    direct_flow_coordinator = None
+    try:
+        app_context = getattr(window, "app_context", None)
+        direct_flow_coordinator = getattr(app_context, "direct_flow_coordinator", None)
+    except Exception:
+        direct_flow_coordinator = None
+
     try:
         cleanup_windivert_services()
     except Exception:
@@ -57,9 +64,12 @@ def complete_main_window_method_switch(window, method: str) -> None:
 
     can_autostart = True
     if method == "direct_zapret2":
-        from core.services import get_direct_flow_coordinator
         try:
-            get_direct_flow_coordinator().get_startup_snapshot("direct_zapret2")
+            if direct_flow_coordinator is None:
+                from core.services import get_direct_flow_coordinator
+
+                direct_flow_coordinator = get_direct_flow_coordinator()
+            direct_flow_coordinator.get_startup_snapshot("direct_zapret2")
         except Exception:
             log("direct_zapret2: выбранный source-пресет не подготовлен", "ERROR")
             try:
@@ -80,9 +90,11 @@ def complete_main_window_method_switch(window, method: str) -> None:
 
     elif method == "direct_zapret1":
         try:
-            from core.services import get_direct_flow_coordinator
+            if direct_flow_coordinator is None:
+                from core.services import get_direct_flow_coordinator
 
-            get_direct_flow_coordinator().get_startup_snapshot("direct_zapret1")
+                direct_flow_coordinator = get_direct_flow_coordinator()
+            direct_flow_coordinator.get_startup_snapshot("direct_zapret1")
         except Exception as e:
             log(f"direct_zapret1: ошибка инициализации пресета: {e}", "WARNING")
             can_autostart = False

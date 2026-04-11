@@ -6,10 +6,17 @@ from ui.main_window_state import AppUiState, MainWindowStateStore
 class AppRuntimeState:
     """Единая точка записи и чтения runtime-состояния GUI."""
 
-    def __init__(self, app_instance) -> None:
-        self.app = app_instance
+    def __init__(self, app_instance_or_store) -> None:
+        self.app = None
+        self._direct_store = None
+        if isinstance(app_instance_or_store, MainWindowStateStore):
+            self._direct_store = app_instance_or_store
+        else:
+            self.app = app_instance_or_store
 
     def _store(self) -> MainWindowStateStore | None:
+        if isinstance(self._direct_store, MainWindowStateStore):
+            return self._direct_store
         store = getattr(self.app, "ui_state_store", None)
         if isinstance(store, MainWindowStateStore):
             return store

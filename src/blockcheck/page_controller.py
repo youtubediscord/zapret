@@ -54,8 +54,9 @@ class BlockcheckPageController:
         safe_mode = "".join(ch if (ch.isalnum() or ch in ("_", "-")) else "_" for ch in raw_mode) or "full"
         return os.path.join(log_dir, f"blockcheck_run_{ts}_{safe_mode}.log")
 
-    def start_run_log(self, mode: str, extra_domains: list[str]) -> BlockcheckRunLogState:
-        path = self.make_run_log_path(mode)
+    @staticmethod
+    def start_run_log(mode: str, extra_domains: list[str]) -> BlockcheckRunLogState:
+        path = BlockcheckPageController.make_run_log_path(mode)
         try:
             log_dir = os.path.dirname(path)
             os.makedirs(log_dir, exist_ok=True)

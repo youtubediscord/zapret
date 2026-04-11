@@ -1,7 +1,7 @@
 """Ленивые экспорты страниц главного окна.
 
 Важно: пакет `ui.pages` не должен eagerly импортировать все страницы сразу.
-Главное окно загружает страницы по прямым путям вроде `ui.pages.home_page`,
+Главное окно загружает страницы по прямым путям вроде `ui.pages.network_page`,
 и если `__init__.py` тянет весь пакет целиком, то первая lazy-инициализация
 любой страницы фактически импортирует десятки чужих модулей и их зависимости.
 
@@ -15,7 +15,6 @@ from importlib import import_module
 
 
 _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
-    "HomePage": (".home_page", "HomePage"),
     "ControlPage": (".control_page", "ControlPage"),
     "Zapret2OrchestraStrategiesPage": (".zapret2_orchestra_strategies_page", "Zapret2OrchestraStrategiesPage"),
     "Zapret2DirectControlPage": (".zapret2", "Zapret2DirectControlPage"),
@@ -46,7 +45,7 @@ _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
     "NetrogatPage": (".netrogat_page", "NetrogatPage"),
     "ConnectionTestPage": (".connection_page", "ConnectionTestPage"),
     "DNSCheckPage": (".dns_check_page", "DNSCheckPage"),
-    "OrchestraPage": (".orchestra_page", "OrchestraPage"),
+    "OrchestraPage": (".orchestra", "OrchestraPage"),
     "OrchestraSettingsPage": (".orchestra", "OrchestraSettingsPage"),
     "OrchestraLockedPage": (".orchestra", "OrchestraLockedPage"),
     "OrchestraBlockedPage": (".orchestra", "OrchestraBlockedPage"),

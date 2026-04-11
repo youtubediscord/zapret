@@ -11,17 +11,29 @@ try:
     from qfluentwidgets import (
         SubtitleLabel, BodyLabel, StrongBodyLabel, CaptionLabel,
         IndeterminateProgressBar, MessageBox, InfoBar,
+        SettingCardGroup, PushSettingCard,
     )
     _HAS_FLUENT_LABELS = True
 except ImportError:
     from PyQt6.QtWidgets import QProgressBar as IndeterminateProgressBar  # type: ignore[assignment]
     MessageBox = None
     InfoBar = None
+    SettingCardGroup = None  # type: ignore[assignment]
+    PushSettingCard = None  # type: ignore[assignment]
     _HAS_FLUENT_LABELS = False
 
 from .base_page import BasePage
-from ui.compat_widgets import SettingsRow, PulsingDot
-from ui.compat_widgets import SettingsCard, ActionButton, PrimaryActionButton, ResetActionButton, StatusIndicator, set_tooltip
+from ui.compat_widgets import (
+    SettingsCard,
+    ActionButton,
+    PrimaryActionButton,
+    QuickActionsBar,
+    ResetActionButton,
+    StatusIndicator,
+    enable_setting_card_group_auto_height,
+    set_tooltip,
+)
+from ui.compat_widgets import PulsingDot
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
 from ui.window_action_controller import (
@@ -39,6 +51,9 @@ except ImportError:
     HAS_FLUENT = False
 
 
+from ui.control_page_controller import ControlPageController
+
+
 class BigActionButton(PrimaryActionButton):
     """Большая акцентная кнопка действия (запуск)"""
 
@@ -54,7 +69,7 @@ class StopButton(ActionButton):
     """Кнопка остановки (нейтральная, не акцентная)"""
 
     def __init__(self, text: str, icon_name: str = None, accent: bool = False, parent=None):
-        super().__init__(text, icon_name, accent=False, parent=parent)
+        super().__init__(text, icon_name, parent=parent)
 
 
 class ControlPage(BasePage):
@@ -68,14 +83,20 @@ class ControlPage(BasePage):
             title_key="page.control.title",
             subtitle_key="page.control.subtitle",
         )
-        self._program_settings_synced = False
+        self._program_settings_runtime_attached = False
+        self._runtime_initialized = False
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
         self._last_known_dpi_running = False
 
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
+        self._build_ui()
+        self._run_runtime_init_once()
 
-    def _after_ui_built(self) -> None:
+    def _run_runtime_init_once(self) -> None:
+        if self._runtime_initialized:
+            return
+        self._runtime_initialized = True
+        self._attach_program_settings_runtime()
         self._update_stop_winws_button_text()
 
     def _start_dpi(self) -> None:
@@ -92,16 +113,6 @@ class ControlPage(BasePage):
 
     def _open_folder(self) -> None:
         open_folder(self)
-
-    def showEvent(self, event):  # noqa: N802 (Qt naming)
-        super().showEvent(event)
-        if event.spontaneous():
-            return
-        if self._program_settings_synced:
-            return
-
-        self._program_settings_synced = True
-        QTimer.singleShot(0, self._sync_program_settings)
 
     def _build_ui(self):
         # Статус работы
@@ -258,120 +269,152 @@ class ControlPage(BasePage):
         self.add_spacing(16)
 
         # Настройки программы (бывшие пункты Alt-меню "Настройки")
-        self.add_section_title(text_key="page.control.section.program_settings")
-
-        program_settings_card = SettingsCard()
+        program_settings_title = tr_catalog(
+            "page.control.section.program_settings",
+            language=self._ui_language,
+            default="Настройки программы",
+        )
+        if SettingCardGroup is not None and PushSettingCard is not None and _HAS_FLUENT_LABELS:
+            self.program_settings_section_label = None
+            program_settings_card = SettingCardGroup(program_settings_title, self.content)
+        else:
+            self.program_settings_section_label = self.add_section_title(
+                text_key="page.control.section.program_settings"
+            )
+            program_settings_card = SettingsCard()
+        self.program_settings_card = program_settings_card
 
         try:
-            from ui.widgets.win11_controls import Win11ToggleSwitch
+            from ui.widgets.win11_controls import Win11ToggleRow
         except Exception:
-            Win11ToggleSwitch = None  # type: ignore[assignment]
+            Win11ToggleRow = None  # type: ignore[assignment]
 
-        # Автозагрузка DPI
-        auto_row = SettingsRow(
+        if Win11ToggleRow is None:
+            raise RuntimeError("Win11ToggleRow недоступен для страницы управления")
+
+        self.auto_dpi_toggle = Win11ToggleRow(
             "fa5s.bolt",
             tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
             tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы"),
         )
-        self.auto_row = auto_row
-        self.auto_dpi_toggle = Win11ToggleSwitch() if Win11ToggleSwitch else ActionButton(
-            tr_catalog("common.toggle.on_off", language=self._ui_language, default="Вкл/Выкл")
-        )
-        self.auto_dpi_toggle.setProperty("noDrag", True)
-        if hasattr(self.auto_dpi_toggle, "toggled"):
-            self.auto_dpi_toggle.toggled.connect(self._on_auto_dpi_toggled)
-        auto_row.set_control(self.auto_dpi_toggle)
-        program_settings_card.add_widget(auto_row)
+        self.auto_dpi_toggle.toggled.connect(self._on_auto_dpi_toggled)
 
-        # Windows Defender
-        defender_row = SettingsRow(
+        self.defender_toggle = Win11ToggleRow(
             "fa5s.shield-alt",
             tr_catalog("page.control.setting.defender.title", language=self._ui_language, default="Отключить Windows Defender"),
             tr_catalog("page.control.setting.defender.desc", language=self._ui_language, default="Требуются права администратора"),
         )
-        self.defender_row = defender_row
-        self.defender_toggle = Win11ToggleSwitch() if Win11ToggleSwitch else ActionButton(
-            tr_catalog("common.toggle.on_off", language=self._ui_language, default="Вкл/Выкл")
-        )
-        self.defender_toggle.setProperty("noDrag", True)
-        if hasattr(self.defender_toggle, "toggled"):
-            self.defender_toggle.toggled.connect(self._on_defender_toggled)
-        defender_row.set_control(self.defender_toggle)
-        program_settings_card.add_widget(defender_row)
+        self.defender_toggle.toggled.connect(self._on_defender_toggled)
 
-        # MAX blocker
-        max_row = SettingsRow(
+        self.max_block_toggle = Win11ToggleRow(
             "fa5s.ban",
             tr_catalog("page.control.setting.max_block.title", language=self._ui_language, default="Блокировать установку MAX"),
             tr_catalog("page.control.setting.max_block.desc", language=self._ui_language, default="Блокирует запуск/установку MAX и домены в hosts"),
         )
-        self.max_row = max_row
-        self.max_block_toggle = Win11ToggleSwitch() if Win11ToggleSwitch else ActionButton(
-            tr_catalog("common.toggle.on_off", language=self._ui_language, default="Вкл/Выкл")
-        )
-        self.max_block_toggle.setProperty("noDrag", True)
-        if hasattr(self.max_block_toggle, "toggled"):
-            self.max_block_toggle.toggled.connect(self._on_max_blocker_toggled)
-        max_row.set_control(self.max_block_toggle)
-        program_settings_card.add_widget(max_row)
+        self.max_block_toggle.toggled.connect(self._on_max_blocker_toggled)
 
-        # Сброс программы
-        reset_row = SettingsRow(
-            "fa5s.undo",
-            tr_catalog("page.control.setting.reset.title", language=self._ui_language, default="Сбросить программу"),
-            tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)"),
-        )
-        self.reset_row = reset_row
-        self.reset_program_btn = ResetActionButton(
-            tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить"),
-            confirm_text=tr_catalog("page.control.button.reset_confirm", language=self._ui_language, default="Сбросить?"),
-        )
-        self.reset_program_btn.setProperty("noDrag", True)
-        self.reset_program_btn.reset_confirmed.connect(self._on_reset_program_clicked)
-        reset_row.set_control(self.reset_program_btn)
-        program_settings_card.add_widget(reset_row)
+        add_setting_card = getattr(program_settings_card, "addSettingCard", None)
+        if callable(add_setting_card):
+            add_setting_card(self.auto_dpi_toggle)
+            add_setting_card(self.defender_toggle)
+            add_setting_card(self.max_block_toggle)
+        else:
+            program_settings_card.add_widget(self.auto_dpi_toggle)
+            program_settings_card.add_widget(self.defender_toggle)
+            program_settings_card.add_widget(self.max_block_toggle)
 
-        self.add_widget(program_settings_card)
+        self.reset_program_card = None
+        self.reset_program_btn = None
+        self._reset_program_desc_label = None
+        if callable(add_setting_card) and PushSettingCard is not None:
+            self.reset_program_card = PushSettingCard(
+                tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить"),
+                qta.icon("fa5s.undo", color="#ff9800"),
+                tr_catalog("page.control.setting.reset.title", language=self._ui_language, default="Сбросить программу"),
+                tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)"),
+            )
+            self.reset_program_card.clicked.connect(self._confirm_reset_program_clicked)
+            add_setting_card(self.reset_program_card)
+        else:
+            self.reset_program_btn = ResetActionButton(
+                tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить"),
+                confirm_text=tr_catalog("page.control.button.reset_confirm", language=self._ui_language, default="Сбросить?"),
+            )
+            self.reset_program_btn.setProperty("noDrag", True)
+            self.reset_program_btn.reset_confirmed.connect(self._on_reset_program_clicked)
+            reset_card = SettingsCard(
+                tr_catalog("page.control.setting.reset.title", language=self._ui_language, default="Сбросить программу")
+            )
+            reset_desc_label = CaptionLabel(
+                tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
+            ) if _HAS_FLUENT_LABELS else QLabel(
+                tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
+            )
+            reset_desc_label.setWordWrap(True)
+            self._reset_program_desc_label = reset_desc_label
+            reset_card.add_widget(reset_desc_label)
+            reset_layout = QHBoxLayout()
+            reset_layout.setSpacing(8)
+            reset_layout.addWidget(self.reset_program_btn)
+            reset_layout.addStretch()
+            reset_card.add_layout(reset_layout)
+            self.reset_program_card = reset_card
+            self.add_widget(program_settings_card)
+            self.add_widget(reset_card)
+            program_settings_card = None
+
+        if program_settings_card is not None:
+            self.add_widget(program_settings_card)
+        enable_setting_card_group_auto_height(self.program_settings_card)
 
         self.add_spacing(16)
         
         # Дополнительные действия
-        self.add_section_title(text_key="page.control.section.additional")
-        
-        extra_card = SettingsCard()
-        
-        extra_layout = QHBoxLayout()
-        extra_layout.setSpacing(8)
-        
         self.test_btn = ActionButton(
             tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения"),
             "fa5s.wifi",
         )
         self.test_btn.clicked.connect(self._open_connection_test)
-        extra_layout.addWidget(self.test_btn)
-        
         self.folder_btn = ActionButton(
             tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку"),
             "fa5s.folder-open",
         )
         self.folder_btn.clicked.connect(self._open_folder)
-        extra_layout.addWidget(self.folder_btn)
-        
-        extra_layout.addStretch()
-        extra_card.add_layout(extra_layout)
-        
-        self.add_widget(extra_card)
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        # Обновляем состояние тогглов при каждом показе страницы
+        self.additional_section_label = None
+        self.additional_section_label = StrongBodyLabel(
+            tr_catalog("page.control.section.additional", language=self._ui_language, default="Дополнительные действия")
+        )
+        self.add_widget(self.additional_section_label)
+
+        self.extra_actions_group = QuickActionsBar(self.content)
+        self.test_btn.setToolTip(
+            tr_catalog(
+                "page.control.section.additional.test_desc",
+                language=self._ui_language,
+                default="Проверить сетевое подключение и доступность маршрута",
+            )
+        )
+        self.folder_btn.setToolTip(
+            tr_catalog(
+                "page.control.section.additional.folder_desc",
+                language=self._ui_language,
+                default="Быстро перейти к рабочей папке программы",
+            )
+        )
+        self.extra_actions_group.add_buttons([self.test_btn, self.folder_btn])
+        self.add_widget(self.extra_actions_group)
+
+    def _set_toggle_checked(self, toggle, checked: bool) -> None:
+        """Устанавливает состояние toggle-карточки или переключателя без лишних сигналов."""
         try:
-            self._sync_program_settings()
+            toggle.setChecked(bool(checked), block_signals=True)
+            return
+        except TypeError:
+            pass
         except Exception:
             pass
 
-    def _set_toggle_checked(self, toggle, checked: bool) -> None:
-        """Устанавливает состояние Win11ToggleSwitch без побочных эффектов анимации/сигналов."""
         try:
             toggle.blockSignals(True)
         except Exception:
@@ -383,7 +426,8 @@ class ControlPage(BasePage):
         except Exception:
             pass
 
-        # Win11ToggleSwitch: обновляем позицию круга без анимации (как в Win11ToggleRow)
+        # У кастомного fallback-переключателя есть анимируемый круг, который нужно
+        # принудительно переставить при немом обновлении состояния.
         try:
             toggle._circle_position = (toggle.width() - 18) if checked else 4.0  # type: ignore[attr-defined]
             toggle.update()
@@ -395,28 +439,50 @@ class ControlPage(BasePage):
         except Exception:
             pass
 
+    def _confirm_reset_program_clicked(self) -> None:
+        title = tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить")
+        confirm_text = tr_catalog(
+            "page.control.button.reset_confirm",
+            language=self._ui_language,
+            default="Сбросить?",
+        )
+        if MessageBox is not None:
+            try:
+                box = MessageBox(title, confirm_text, self.window())
+                if not box.exec():
+                    return
+            except Exception:
+                pass
+        self._on_reset_program_clicked()
+
+    def _attach_program_settings_runtime(self) -> None:
+        if self._program_settings_runtime_attached:
+            return
+        self._program_settings_runtime_attached = True
+        self._get_program_settings_runtime_service().subscribe(
+            self._apply_program_settings_snapshot,
+            emit_initial=True,
+        )
+
+    def _apply_program_settings_snapshot(self, snapshot) -> None:
+        """Применяет shared snapshot программных настроек к toggle-элементам."""
+        self._set_toggle_checked(self.auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
+        self._set_toggle_checked(self.defender_toggle, getattr(snapshot, "defender_disabled", False))
+        self._set_toggle_checked(self.max_block_toggle, getattr(snapshot, "max_blocked", False))
+
     def _sync_program_settings(self) -> None:
-        """Синхронизирует UI с текущими настройками (реестр/система)."""
-        # Автозагрузка DPI
-        try:
-            from config import get_dpi_autostart
-            self._set_toggle_checked(self.auto_dpi_toggle, bool(get_dpi_autostart()))
-        except Exception:
-            pass
+        """Явно перечитывает shared snapshot программных настроек."""
+        snapshot = self._get_program_settings_runtime_service().refresh()
+        self._apply_program_settings_snapshot(snapshot)
 
-        # Windows Defender (реальное состояние системы)
-        try:
-            from altmenu.defender_manager import WindowsDefenderManager
-            self._set_toggle_checked(self.defender_toggle, bool(WindowsDefenderManager().is_defender_disabled()))
-        except Exception:
-            pass
+    def _get_program_settings_runtime_service(self):
+        app_context = getattr(self.window(), "app_context", None)
+        service = getattr(app_context, "program_settings_runtime_service", None)
+        if service is None:
+            from core.services import get_program_settings_runtime_service
 
-        # MAX blocker (состояние из реестра GUI)
-        try:
-            from altmenu.max_blocker import is_max_blocked
-            self._set_toggle_checked(self.max_block_toggle, bool(is_max_blocked()))
-        except Exception:
-            pass
+            service = get_program_settings_runtime_service()
+        return service
 
     def _set_status(self, msg: str) -> None:
         try:
@@ -425,232 +491,102 @@ class ControlPage(BasePage):
         except Exception:
             pass
 
+    def _show_action_result_plan(self, plan, toggle=None) -> None:
+        if plan.revert_checked is not None and toggle is not None:
+            self._set_toggle_checked(toggle, plan.revert_checked)
+
+        if plan.final_status:
+            self._set_status(plan.final_status)
+
+        if plan.level == "success":
+            InfoBar.success(title=plan.title, content=plan.content, parent=self.window())
+        elif plan.level == "warning":
+            InfoBar.warning(title=plan.title, content=plan.content, parent=self.window())
+        else:
+            InfoBar.error(title=plan.title, content=plan.content, parent=self.window())
+
+    def _run_confirmation_dialog(self, dialog_plan, toggle=None) -> bool:
+        box = MessageBox(dialog_plan.title, dialog_plan.content, self.window())
+        if box.exec():
+            return True
+        if dialog_plan.revert_checked is not None and toggle is not None:
+            self._set_toggle_checked(toggle, dialog_plan.revert_checked)
+        return False
+
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         try:
-            from config import set_dpi_autostart
-            set_dpi_autostart(bool(enabled))
-
-            msg = (
-                "DPI будет включаться автоматически при старте программы"
-                if enabled
-                else "Автозагрузка DPI отключена"
-            )
-            self._set_status(msg)
-            InfoBar.success(title="Автозагрузка DPI", content=msg, parent=self.window())
+            plan = ControlPageController.save_auto_dpi(enabled)
+            self._set_status(plan.message)
+            InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
         finally:
             self._sync_program_settings()
 
     def _on_defender_toggled(self, disable: bool) -> None:
-        import ctypes
-
-        # Требуются права администратора
-        if not ctypes.windll.shell32.IsUserAnAdmin():
+        start_plan = ControlPageController.build_defender_toggle_start_plan(
+            disable=disable,
+            language=self._ui_language,
+        )
+        if start_plan.blocked:
             InfoBar.error(
-                title="Требуются права администратора",
-                content="Для управления Windows Defender требуются права администратора. Перезапустите программу от имени администратора.",
+                title=start_plan.blocked_title,
+                content=start_plan.blocked_content,
                 parent=self.window(),
             )
-            self._set_toggle_checked(self.defender_toggle, not disable)
+            if start_plan.blocked_revert_checked is not None:
+                self._set_toggle_checked(self.defender_toggle, start_plan.blocked_revert_checked)
             return
 
         try:
-            from altmenu.defender_manager import WindowsDefenderManager, set_defender_disabled
-
-            manager = WindowsDefenderManager(status_callback=self._set_status)
-
-            if disable:
-                # Первое подтверждение: подробное предупреждение о последствиях
-                # Пользователь должен осознанно принять решение об отключении защиты
-                box = MessageBox(
-                    tr_catalog(
-                        "page.control.dialog.defender_disable.title",
-                        language=self._ui_language,
-                        default="⚠️ Отключение Windows Defender",
-                    ),
-                    "Вы собираетесь отключить встроенную антивирусную защиту Windows.\n\n"
-                    "Что произойдёт:\n"
-                    "• Защита в реальном времени будет отключена\n"
-                    "• Облачная защита и SmartScreen будут отключены\n"
-                    "• Автоматическая отправка образцов будет отключена\n"
-                    "• Мониторинг поведения программ будет отключён\n\n"
-                    "⚠️ Ваш компьютер станет уязвим для вирусов и вредоносного ПО.\n"
-                    "Отключайте только если вы понимаете, что делаете.\n"
-                    "Вы сможете включить Defender обратно в любой момент.",
-                    self.window(),
-                )
-                if not box.exec():
-                    self._set_toggle_checked(self.defender_toggle, False)
+            for dialog_plan in start_plan.confirmations:
+                if not self._run_confirmation_dialog(dialog_plan, self.defender_toggle):
                     return
 
-                # Второе подтверждение: финальное согласие пользователя
-                box2 = MessageBox(
-                    "Подтверждение",
-                    "Вы уверены? Нажимая «ОК», вы подтверждаете, что:\n\n"
-                    "• Вы самостоятельно приняли решение отключить Windows Defender\n"
-                    "• Вы осознаёте риски работы без антивирусной защиты\n"
-                    "• Вы знаете, что можете включить защиту обратно\n\n"
-                    "Может потребоваться перезагрузка для полного применения.",
-                    self.window(),
-                )
-                if not box2.exec():
-                    self._set_toggle_checked(self.defender_toggle, False)
-                    return
+            if start_plan.start_status:
+                self._set_status(start_plan.start_status)
 
-                self._set_status("Отключение Windows Defender...")
-                success, count = manager.disable_defender()
-
-                if success:
-                    set_defender_disabled(True)
-                    InfoBar.success(
-                        title="Windows Defender отключен",
-                        content=f"Windows Defender успешно отключен. Применено {count} настроек. Может потребоваться перезагрузка.",
-                        parent=self.window(),
-                    )
-                else:
-                    InfoBar.error(
-                        title="Ошибка",
-                        content="Не удалось отключить Windows Defender. Возможно, некоторые настройки заблокированы системой.",
-                        parent=self.window(),
-                    )
-                    self._set_toggle_checked(self.defender_toggle, False)
-            else:
-                box = MessageBox(
-                    tr_catalog(
-                        "page.control.dialog.defender_enable.title",
-                        language=self._ui_language,
-                        default="Включение Windows Defender",
-                    ),
-                    "Включить Windows Defender обратно?\n\n"
-                    "Это восстановит защиту вашего компьютера.",
-                    self.window(),
-                )
-                if not box.exec():
-                    self._set_toggle_checked(self.defender_toggle, True)
-                    return
-
-                self._set_status("Включение Windows Defender...")
-                success, count = manager.enable_defender()
-
-                if success:
-                    set_defender_disabled(False)
-                    InfoBar.success(
-                        title="Windows Defender включен",
-                        content="Windows Defender успешно включен. Защита вашего компьютера восстановлена.",
-                        parent=self.window(),
-                    )
-                else:
-                    InfoBar.warning(
-                        title="Частичный успех",
-                        content="Windows Defender включен частично. Некоторые настройки могут потребовать ручного исправления.",
-                        parent=self.window(),
-                    )
-
-            self._set_status("Готово")
-
-        except Exception as e:
-            InfoBar.error(
-                title="Ошибка",
-                content=f"Произошла ошибка при изменении настроек Windows Defender: {e}",
-                parent=self.window(),
+            result_plan = ControlPageController.run_defender_toggle(
+                disable=disable,
+                status_callback=self._set_status,
             )
+            self._show_action_result_plan(result_plan, self.defender_toggle)
         finally:
             self._sync_program_settings()
 
     def _on_max_blocker_toggled(self, enable: bool) -> None:
+        start_plan = ControlPageController.build_max_block_toggle_start_plan(
+            enable=enable,
+            language=self._ui_language,
+        )
         try:
-            from altmenu.max_blocker import MaxBlockerManager
-
-            manager = MaxBlockerManager(status_callback=self._set_status)
-
-            if enable:
-                box = MessageBox(
-                    tr_catalog(
-                        "page.control.dialog.max_block_enable.title",
-                        language=self._ui_language,
-                        default="Блокировка MAX",
-                    ),
-                    "Включить блокировку установки и работы программы MAX?\n\n"
-                    "• Заблокирует запуск max.exe, max.msi и других файлов MAX\n"
-                    "• Добавит правила блокировки в Windows Firewall\n"
-                    "• Заблокирует домены MAX в файле hosts",
-                    self.window(),
-                )
-                if not box.exec():
-                    self._set_toggle_checked(self.max_block_toggle, False)
+            for dialog_plan in start_plan.confirmations:
+                if not self._run_confirmation_dialog(dialog_plan, self.max_block_toggle):
                     return
 
-                success, message = manager.enable_blocking()
+            if start_plan.start_status:
+                self._set_status(start_plan.start_status)
 
-                if success:
-                    InfoBar.success(title="Блокировка включена", content=message, parent=self.window())
-                else:
-                    InfoBar.warning(title="Ошибка", content=f"Не удалось полностью включить блокировку: {message}", parent=self.window())
-                    self._set_toggle_checked(self.max_block_toggle, False)
-            else:
-                box = MessageBox(
-                    tr_catalog(
-                        "page.control.dialog.max_block_disable.title",
-                        language=self._ui_language,
-                        default="Отключение блокировки MAX",
-                    ),
-                    "Отключить блокировку программы MAX?\n\n"
-                    "Это удалит все созданные блокировки и правила.",
-                    self.window(),
-                )
-                if not box.exec():
-                    self._set_toggle_checked(self.max_block_toggle, True)
-                    return
-
-                success, message = manager.disable_blocking()
-                if success:
-                    InfoBar.success(title="Блокировка отключена", content=message, parent=self.window())
-                else:
-                    InfoBar.warning(title="Ошибка", content=f"Не удалось полностью отключить блокировку: {message}", parent=self.window())
-
-            self._set_status("Готово")
-
-        except Exception as e:
-            InfoBar.error(title="Ошибка", content=f"Ошибка при переключении блокировки MAX: {e}", parent=self.window())
+            result_plan = ControlPageController.run_max_block_toggle(
+                enable=enable,
+                status_callback=self._set_status,
+            )
+            self._show_action_result_plan(result_plan, self.max_block_toggle)
         finally:
             self._sync_program_settings()
 
     def _on_reset_program_clicked(self) -> None:
-        from startup.check_cache import startup_cache
-        from log import log
-
         try:
-            startup_cache.invalidate_cache()
-            log("Кэш проверок запуска очищен пользователем", "INFO")
-            self._set_status("Кэш проверок запуска очищен")
-        except Exception as e:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось очистить кэш: {e}", parent=self.window())
-            log(f"Ошибка очистки кэша: {e}", "❌ ERROR")
+            ok, message = ControlPageController.reset_startup_cache()
+            if ok:
+                self._set_status(message)
+            else:
+                InfoBar.warning(title="Ошибка", content=f"Не удалось очистить кэш: {message}", parent=self.window())
         finally:
             self._sync_program_settings()
 
     def _update_stop_winws_button_text(self):
         """Обновляет подпись кнопки остановки (winws.exe vs winws2.exe) по текущему режиму."""
-        try:
-            from strategy_menu import get_strategy_launch_method
-            from config import get_winws_exe_for_method
-
-            method = get_strategy_launch_method()
-            exe_name = os.path.basename(get_winws_exe_for_method(method)) or "winws.exe"
-            template = tr_catalog(
-                "page.control.button.stop_only_template",
-                language=self._ui_language,
-                default="Остановить только {exe_name}",
-            )
-            self.stop_winws_btn.setText(template.format(exe_name=exe_name))
-        except Exception:
-            # Fallback на старую подпись (не ломаем UI из-за циклических импортов/ошибок реестра)
-            self.stop_winws_btn.setText(
-                tr_catalog(
-                    "page.control.button.stop_only_winws",
-                    language=self._ui_language,
-                    default="Остановить только winws.exe",
-                )
-            )
+        plan = ControlPageController.build_stop_button_plan(language=self._ui_language)
+        self.stop_winws_btn.setText(plan.text)
         
     def set_loading(self, loading: bool, text: str = ""):
         """Показывает/скрывает индикатор загрузки и блокирует кнопки"""
@@ -702,11 +638,18 @@ class ControlPage(BasePage):
         if store is not None:
             try:
                 snapshot = store.snapshot()
-                phase = str(snapshot.dpi_phase or "").strip().lower() or ("running" if snapshot.dpi_running else "stopped")
-                return phase, str(snapshot.dpi_last_error or "").strip()
+                plan = ControlPageController.resolve_runtime_state(
+                    snapshot_state=snapshot,
+                    last_known_dpi_running=self._last_known_dpi_running,
+                )
+                return plan.phase, plan.last_error
             except Exception:
                 pass
-        return ("running" if bool(getattr(self, "_last_known_dpi_running", False)) else "stopped"), ""
+        plan = ControlPageController.resolve_runtime_state(
+            snapshot_state=None,
+            last_known_dpi_running=self._last_known_dpi_running,
+        )
+        return plan.phase, plan.last_error
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -717,154 +660,93 @@ class ControlPage(BasePage):
         )
         self.test_btn.setText(tr_catalog("page.control.button.connection_test", language=self._ui_language, default="Тест соединения"))
         self.folder_btn.setText(tr_catalog("page.control.button.open_folder", language=self._ui_language, default="Открыть папку"))
-        self.reset_program_btn._default_text = tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить")
-        self.reset_program_btn._confirm_text = tr_catalog(
-            "page.control.button.reset_confirm",
-            language=self._ui_language,
-            default="Сбросить?",
+        if self.additional_section_label is not None:
+            self.additional_section_label.setText(
+                tr_catalog("page.control.section.additional", language=self._ui_language, default="Дополнительные действия")
+            )
+        self.test_btn.setToolTip(
+            tr_catalog("page.control.section.additional.test_desc", language=self._ui_language, default="Проверить сетевое подключение и доступность маршрута")
         )
-        self.reset_program_btn.setText(self.reset_program_btn._default_text)
+        self.folder_btn.setToolTip(
+            tr_catalog("page.control.section.additional.folder_desc", language=self._ui_language, default="Быстро перейти к рабочей папке программы")
+        )
+        title_label = getattr(getattr(self, "program_settings_card", None), "titleLabel", None)
+        if title_label is not None:
+            title_label.setText(
+                tr_catalog("page.control.section.program_settings", language=self._ui_language, default="Настройки программы")
+            )
 
-        self.auto_row.set_title(tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"))
-        self.auto_row.set_description(
-            tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы")
+        self.auto_dpi_toggle.set_texts(
+            tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
+            tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы"),
         )
-        self.defender_row.set_title(tr_catalog("page.control.setting.defender.title", language=self._ui_language, default="Отключить Windows Defender"))
-        self.defender_row.set_description(
-            tr_catalog("page.control.setting.defender.desc", language=self._ui_language, default="Требуются права администратора")
+        self.defender_toggle.set_texts(
+            tr_catalog("page.control.setting.defender.title", language=self._ui_language, default="Отключить Windows Defender"),
+            tr_catalog("page.control.setting.defender.desc", language=self._ui_language, default="Требуются права администратора"),
         )
-        self.max_row.set_title(tr_catalog("page.control.setting.max_block.title", language=self._ui_language, default="Блокировать установку MAX"))
-        self.max_row.set_description(
-            tr_catalog("page.control.setting.max_block.desc", language=self._ui_language, default="Блокирует запуск/установку MAX и домены в hosts")
+        self.max_block_toggle.set_texts(
+            tr_catalog("page.control.setting.max_block.title", language=self._ui_language, default="Блокировать установку MAX"),
+            tr_catalog("page.control.setting.max_block.desc", language=self._ui_language, default="Блокирует запуск/установку MAX и домены в hosts"),
         )
-        self.reset_row.set_title(tr_catalog("page.control.setting.reset.title", language=self._ui_language, default="Сбросить программу"))
-        self.reset_row.set_description(
-            tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
-        )
+
+        if self.reset_program_card is not None and hasattr(self.reset_program_card, "setTitle"):
+            try:
+                self.reset_program_card.setTitle(
+                    tr_catalog("page.control.setting.reset.title", language=self._ui_language, default="Сбросить программу")
+                )
+                self.reset_program_card.setContent(
+                    tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
+                )
+                button = getattr(self.reset_program_card, "button", None)
+                if button is not None:
+                    button.setText(tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить"))
+            except Exception:
+                pass
+        elif self.reset_program_btn is not None:
+            self.reset_program_btn._default_text = tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить")
+            self.reset_program_btn._confirm_text = tr_catalog(
+                "page.control.button.reset_confirm",
+                language=self._ui_language,
+                default="Сбросить?",
+            )
+            self.reset_program_btn.setText(self.reset_program_btn._default_text)
+            if self._reset_program_desc_label is not None:
+                self._reset_program_desc_label.setText(
+                    tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
+                )
         self._update_stop_winws_button_text()
         phase, last_error = self._get_current_dpi_runtime_state()
         self.update_status(phase, last_error)
         self.update_strategy(self.strategy_label.text())
         
-    @staticmethod
-    def _short_dpi_error(last_error: str) -> str:
-        text = str(last_error or "").strip()
-        if not text:
-            return ""
-        first_line = text.splitlines()[0].strip()
-        if len(first_line) <= 160:
-            return first_line
-        return first_line[:157] + "..."
-
     def update_status(self, state: str | bool, last_error: str = ""):
         """Обновляет отображение статуса"""
-        phase = str(state or "").strip().lower()
-        if phase not in {"autostart_pending", "starting", "running", "stopping", "failed", "stopped"}:
-            phase = "running" if bool(state) else "stopped"
-
-        self._last_known_dpi_running = phase == "running"
-        if phase == "running":
-            self.status_title.setText(
-                tr_catalog("page.control.status.running", language=self._ui_language, default="Zapret работает")
-            )
-            self.status_desc.setText(
-                tr_catalog("page.control.status.bypass_active", language=self._ui_language, default="Обход блокировок активен")
-            )
-            self.status_dot.set_color('#6ccb5f')
+        plan = ControlPageController.build_status_plan(
+            state=state,
+            last_error=last_error,
+            language=self._ui_language,
+        )
+        self._last_known_dpi_running = plan.phase == "running"
+        self.status_title.setText(plan.title)
+        self.status_desc.setText(plan.description)
+        self.status_dot.set_color(plan.dot_color)
+        if plan.pulsing:
             self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self._update_stop_winws_button_text()
-            self.stop_winws_btn.setVisible(True)
-            self.stop_and_exit_btn.setVisible(True)
-        elif phase == "autostart_pending":
-            self.status_title.setText("Автозапуск Zapret запланирован")
-            self.status_desc.setText("Ждём завершения стартовой инициализации перед запуском")
-            self.status_dot.set_color('#f5a623')
-            self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
-        elif phase == "starting":
-            self.status_title.setText("Zapret запускается")
-            self.status_desc.setText("Ждём подтверждение процесса winws")
-            self.status_dot.set_color('#f5a623')
-            self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
-        elif phase == "stopping":
-            self.status_title.setText("Zapret останавливается")
-            self.status_desc.setText("Завершаем процесс и освобождаем WinDivert")
-            self.status_dot.set_color('#f5a623')
-            self.status_dot.start_pulse()
-            self.start_btn.setVisible(False)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
-        elif phase == "failed":
-            self.status_title.setText("Ошибка запуска Zapret")
-            self.status_desc.setText(self._short_dpi_error(last_error) or "Процесс не подтвердился или завершился сразу")
-            self.status_dot.set_color('#ff6b6b')
-            self.status_dot.stop_pulse()
-            self.start_btn.setVisible(True)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
         else:
-            self.status_title.setText(
-                tr_catalog("page.control.status.stopped", language=self._ui_language, default="Zapret остановлен")
-            )
-            self.status_desc.setText(
-                tr_catalog("page.control.status.press_start", language=self._ui_language, default="Нажмите «Запустить» для активации")
-            )
-            self.status_dot.set_color('#ff6b6b')
             self.status_dot.stop_pulse()
-            self.start_btn.setVisible(True)
-            self.stop_winws_btn.setVisible(False)
-            self.stop_and_exit_btn.setVisible(False)
+        self.start_btn.setVisible(plan.show_start)
+        self._update_stop_winws_button_text()
+        self.stop_winws_btn.setVisible(plan.show_stop_only)
+        self.stop_and_exit_btn.setVisible(plan.show_stop_and_exit)
             
     def update_strategy(self, name: str):
         """Обновляет отображение текущей стратегии"""
         self._update_stop_winws_button_text()
-        # Direct modes: show summary of active target'ов from the selected source preset.
-        try:
-            from strategy_menu import get_strategy_launch_method
-
-            method = get_strategy_launch_method()
-            if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
-                from ui.main_window_display import get_direct_strategy_summary
-
-                summary = get_direct_strategy_summary(self.window() or self, max_items=2)
-                name = summary or tr_catalog(
-                    "page.control.strategy.not_selected",
-                    language=self._ui_language,
-                    default="Не выбрана",
-                )
-
-                if method in ("direct_zapret2", "direct_zapret1"):
-                    from core.presets.direct_facade import DirectPresetFacade
-
-                    selections = DirectPresetFacade.from_launch_method(method).get_strategy_selections() or {}
-                else:
-                    from legacy_registry_launch.selection_store import get_direct_strategy_selections
-
-                    selections = get_direct_strategy_selections() or {}
-                active_count = sum(1 for strategy_id in selections.values() if (strategy_id or "none") != "none")
-                if active_count > 0:
-                    set_tooltip(self.strategy_label, summary.replace(" • ", "\n").replace(" +", "\n+"))
-                else:
-                    set_tooltip(self.strategy_label, "")
-        except Exception:
-            pass
-
-        not_selected = tr_catalog("page.control.strategy.not_selected", language=self._ui_language, default="Не выбрана")
-        if name and name not in ("Автостарт DPI отключен", not_selected):
-            self.strategy_label.setText(name)
-            self.strategy_desc.setText(
-                tr_catalog("page.control.strategy.active", language=self._ui_language, default="Активная стратегия обхода")
-            )
-        else:
-            self.strategy_label.setText(
-                tr_catalog("page.control.strategy.not_selected", language=self._ui_language, default="Не выбрана")
-            )
-            self.strategy_desc.setText(
-                tr_catalog("page.control.strategy.select_hint", language=self._ui_language, default="Выберите стратегию в разделе «Стратегии»")
-            )
+        plan = ControlPageController.build_strategy_display_plan(
+            name=name,
+            language=self._ui_language,
+            window=self.window() or self,
+        )
+        self.strategy_label.setText(plan.title)
+        self.strategy_desc.setText(plan.description)
+        set_tooltip(self.strategy_label, plan.tooltip)

@@ -168,12 +168,6 @@ class OrchestraSettingsPage(QWidget):
         if self.pivot is not None and 0 <= index < len(self.TAB_KEYS):
             self.pivot.setCurrentItem(self.TAB_KEYS[index])
 
-    def showEvent(self, a0):  # noqa: N802 (Qt naming)
-        super().showEvent(a0)
-        if a0 is None or a0.spontaneous():
-            return
-        self._ensure_tab_page(self.stacked.currentIndex())
-
     def switch_to_tab(self, key: str) -> None:
         """External API: switch to the named tab."""
         if key in self.TAB_KEYS:

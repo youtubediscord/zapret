@@ -510,10 +510,10 @@ def set_rkn_background(value: str | None) -> bool:
 _ANIMATIONS_ENABLED_NAME = "AnimationsEnabled"  # REG_DWORD (0 | 1)
 
 def get_animations_enabled() -> bool:
-    """Включены ли анимации интерфейса. По умолчанию True."""
+    """Включены ли анимации интерфейса. По умолчанию False."""
     from config import REGISTRY_PATH
     val = reg(REGISTRY_PATH, _ANIMATIONS_ENABLED_NAME)
-    return True if val is None else bool(val)
+    return False if val is None else bool(val)
 
 def set_animations_enabled(value: bool) -> bool:
     """Сохраняет флаг анимаций интерфейса."""
@@ -523,6 +523,7 @@ def set_animations_enabled(value: bool) -> bool:
 
 # ───────────── Плавная прокрутка ─────────────
 _SMOOTH_SCROLL_ENABLED_NAME = "SmoothScrollEnabled"  # REG_DWORD (0 | 1)
+_EDITOR_SMOOTH_SCROLL_ENABLED_NAME = "EditorSmoothScrollEnabled"  # REG_DWORD (0 | 1)
 
 def get_smooth_scroll_enabled() -> bool:
     """Включена ли плавная прокрутка страниц. По умолчанию True."""
@@ -534,6 +535,19 @@ def set_smooth_scroll_enabled(value: bool) -> bool:
     """Сохраняет флаг плавной прокрутки."""
     from config import REGISTRY_PATH
     return reg(REGISTRY_PATH, _SMOOTH_SCROLL_ENABLED_NAME, int(value))
+
+
+def get_editor_smooth_scroll_enabled() -> bool:
+    """Включена ли плавная прокрутка внутри редакторов. По умолчанию False."""
+    from config import REGISTRY_PATH
+    val = reg(REGISTRY_PATH, _EDITOR_SMOOTH_SCROLL_ENABLED_NAME)
+    return False if val is None else bool(val)
+
+
+def set_editor_smooth_scroll_enabled(value: bool) -> bool:
+    """Сохраняет флаг плавной прокрутки внутри редакторов."""
+    from config import REGISTRY_PATH
+    return reg(REGISTRY_PATH, _EDITOR_SMOOTH_SCROLL_ENABLED_NAME, int(value))
 
 
 # ───────────── Telegram WebSocket Proxy ─────────────

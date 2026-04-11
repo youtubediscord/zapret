@@ -3,22 +3,31 @@
 
 import sys
 
-from PyQt6.QtCore import Qt, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QColor
 import qtawesome as qta
 
 from .base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton, SettingsRow
+from ui.appearance_page_controller import AppearancePageController
+from ui.compat_widgets import (
+    SettingsCard,
+    ActionButton,
+    SettingsRow,
+    build_premium_badge,
+    enable_setting_card_group_auto_height,
+    insert_widget_into_setting_card_group,
+)
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme import get_theme_tokens, get_rkn_background_options
 from ui.text_catalog import tr as tr_catalog
+from ui.widgets.win11_controls import Win11ToggleRow
 
 try:
     from qfluentwidgets import (
         BodyLabel, CaptionLabel, ColorPickerButton, setThemeColor,
         ColorDialog,
-        CheckBox, SegmentedWidget, RadioButton, Slider, ComboBox,
+        CheckBox, SegmentedWidget, RadioButton, Slider, ComboBox, SettingCardGroup,
     )
     _HAS_FLUENT_LABELS = True
     _HAS_COLOR_PICKER = True
@@ -31,6 +40,7 @@ except ImportError:
     )
     SegmentedWidget = None
     ColorDialog = None
+    SettingCardGroup = None
     _HAS_FLUENT_LABELS = False
     _HAS_COLOR_PICKER = False
 
@@ -58,6 +68,8 @@ class AppearancePage(BasePage):
     animations_changed = pyqtSignal(bool)
     # Сигнал изменения плавной прокрутки
     smooth_scroll_changed = pyqtSignal(bool)
+    # Сигнал изменения плавной прокрутки внутри редакторов
+    editor_smooth_scroll_changed = pyqtSignal(bool)
     # Сигнал смены языка интерфейса
     ui_language_changed = pyqtSignal(str)
 
@@ -81,12 +93,8 @@ class AppearancePage(BasePage):
         self._bg_radio_amoled = None     # RadioButton
         self._bg_radio_rkn_chan = None   # RadioButton
         self._rkn_background_combo = None
-        self._is_premium = False
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
-        self._garland_enabled_state = False
-        self._snowflakes_enabled_state = False
-        self._window_opacity_state = 100
         self._garland_checkbox = None
         self._snowflakes_checkbox = None
         self._opacity_slider = None
@@ -95,26 +103,33 @@ class AppearancePage(BasePage):
         self._garland_icon_label = None
         self._snowflakes_icon_label = None
         self._color_picker_btn = None
+        self._accent_group = None
+        self._accent_desc_label = None
+        self._accent_color_row = None
         self._follow_windows_accent_cb = None
         self._tinted_bg_cb = None
         self._tinted_intensity_container = None
+        self._tinted_intensity_label = None
         self._tinted_intensity_slider = None
         self._tinted_intensity_value_label = None
         self._mica_switch = None
         self._animations_switch = None
         self._smooth_scroll_switch = None
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
+        self._editor_smooth_scroll_switch = None
+        self._performance_card = None
+        self._performance_section_title = None
+        self._performance_group = None
+        self._build_ui()
+        is_premium, garland_enabled, snowflakes_enabled, window_opacity = self._current_appearance_state()
         try:
-            self.set_premium_status(self._is_premium)
+            self.set_premium_status(is_premium)
         except Exception:
             pass
 
         try:
-            self.set_garland_state(self._garland_enabled_state)
-            self.set_snowflakes_state(self._snowflakes_enabled_state)
-            self.set_opacity_value(self._window_opacity_state)
+            self.set_garland_state(garland_enabled)
+            self.set_snowflakes_state(snowflakes_enabled)
+            self.set_opacity_value(window_opacity)
         except Exception:
             pass
 
@@ -204,13 +219,8 @@ class AppearancePage(BasePage):
         # ═══════════════════════════════════════════════════════════
         # ЯЗЫК ИНТЕРФЕЙСА
         # ═══════════════════════════════════════════════════════════
-        from ui.text_catalog import LANGUAGE_OPTIONS, normalize_language
-        try:
-            from config.reg import get_ui_language
-
-            _lang = normalize_language(get_ui_language())
-        except Exception:
-            _lang = "ru"
+        from ui.text_catalog import LANGUAGE_OPTIONS
+        _lang = AppearancePageController.load_ui_language().language
 
         self.add_section_title(text_key="appearance.language.section")
 
@@ -283,10 +293,9 @@ class AppearancePage(BasePage):
         self._bg_radio_amoled.setEnabled(False)
         self._bg_radio_amoled.toggled.connect(lambda checked: self._on_bg_preset_toggled("amoled", checked))
         amoled_row.addWidget(self._bg_radio_amoled)
-        amoled_badge = QLabel(
+        amoled_badge = build_premium_badge(
             tr_catalog("common.badge.premium", language=self._ui_language, default="⭐ Premium")
         )
-        amoled_badge.setStyleSheet("color: #b45309; font-size: 10px; font-weight: bold; background: rgba(255,193,7,0.15); padding: 2px 6px; border-radius: 4px;")
         amoled_row.addWidget(amoled_badge)
         amoled_row.addStretch()
         bg_layout.addLayout(amoled_row)
@@ -300,10 +309,9 @@ class AppearancePage(BasePage):
         self._bg_radio_rkn_chan.setEnabled(False)
         self._bg_radio_rkn_chan.toggled.connect(lambda checked: self._on_bg_preset_toggled("rkn_chan", checked))
         rkn_row.addWidget(self._bg_radio_rkn_chan)
-        rkn_badge = QLabel(
+        rkn_badge = build_premium_badge(
             tr_catalog("common.badge.premium", language=self._ui_language, default="⭐ Premium")
         )
-        rkn_badge.setStyleSheet("color: #b45309; font-size: 10px; font-weight: bold; background: rgba(255,193,7,0.15); padding: 2px 6px; border-radius: 4px;")
         rkn_row.addWidget(rkn_badge)
         rkn_row.addStretch()
         bg_layout.addLayout(rkn_row)
@@ -365,10 +373,9 @@ class AppearancePage(BasePage):
         )
         garland_row.addWidget(garland_label)
 
-        premium_badge = QLabel(
+        premium_badge = build_premium_badge(
             tr_catalog("common.badge.premium", language=self._ui_language, default="⭐ Premium")
         )
-        premium_badge.setStyleSheet("color: #b45309; font-size: 10px; font-weight: bold; background-color: rgba(255, 193, 7, 0.15); padding: 2px 6px; border-radius: 4px;")
         garland_row.addWidget(premium_badge)
 
         garland_row.addStretch()
@@ -416,10 +423,9 @@ class AppearancePage(BasePage):
         )
         snowflakes_row.addWidget(snowflakes_label)
 
-        snowflakes_badge = QLabel(
+        snowflakes_badge = build_premium_badge(
             tr_catalog("common.badge.premium", language=self._ui_language, default="⭐ Premium")
         )
-        snowflakes_badge.setStyleSheet("color: #b45309; font-size: 10px; font-weight: bold; background-color: rgba(255, 193, 7, 0.15); padding: 2px 6px; border-radius: 4px;")
         snowflakes_row.addWidget(snowflakes_badge)
 
         snowflakes_row.addStretch()
@@ -490,11 +496,7 @@ class AppearancePage(BasePage):
 
         opacity_row.addStretch()
 
-        try:
-            from config.reg import get_window_opacity
-            initial_opacity = get_window_opacity()
-        except Exception:
-            initial_opacity = 0 if is_win11_plus else 100
+        initial_opacity = AppearancePageController.load_window_opacity().value
 
         self._opacity_label = CaptionLabel(f"{initial_opacity}%")
         self._opacity_label.setMinimumWidth(40)
@@ -521,11 +523,19 @@ class AppearancePage(BasePage):
         # АКЦЕНТНЫЙ ЦВЕТ (qfluentwidgets setThemeColor)
         # ═══════════════════════════════════════════════════════════
         if _HAS_COLOR_PICKER:
-            self.add_section_title(text_key="page.appearance.section.accent")
-
-            accent_card = SettingsCard()
-            accent_layout = QVBoxLayout()
-            accent_layout.setSpacing(12)
+            if SettingCardGroup is not None and _HAS_FLUENT_LABELS:
+                self._accent_group = SettingCardGroup(
+                    tr_catalog("page.appearance.section.accent", language=self._ui_language, default="Акцентный цвет"),
+                    self.content,
+                )
+                accent_card = self._accent_group
+                accent_layout = None
+            else:
+                self.add_section_title(text_key="page.appearance.section.accent")
+                self._accent_group = None
+                accent_card = SettingsCard()
+                accent_layout = QVBoxLayout()
+                accent_layout.setSpacing(12)
 
             accent_desc = CaptionLabel(
                 tr_catalog(
@@ -538,13 +548,18 @@ class AppearancePage(BasePage):
                 )
             )
             accent_desc.setWordWrap(True)
-            accent_layout.addWidget(accent_desc)
+            self._accent_desc_label = accent_desc
+            if accent_layout is not None:
+                accent_layout.addWidget(accent_desc)
+            else:
+                insert_widget_into_setting_card_group(accent_card, 1, accent_desc)
 
             accent_row = SettingsRow(
                 "fa5s.palette",
                 tr_catalog("page.appearance.accent.color.title", language=self._ui_language, default="Цвет акцента"),
                 "",
             )
+            self._accent_color_row = accent_row
             self._color_picker_btn = ColorPickerButton(
                 QColor("#0078d4"),
                 tr_catalog("page.appearance.accent.color.pick", language=self._ui_language, default="Выбрать цвет"),
@@ -556,9 +571,12 @@ class AppearancePage(BasePage):
                 pass
             self._color_picker_btn.colorChanged.connect(self._on_accent_color_changed)
             accent_row.set_control(self._color_picker_btn)
-            accent_layout.addWidget(accent_row)
+            if accent_layout is not None:
+                accent_layout.addWidget(accent_row)
+            else:
+                accent_card.addSettingCard(accent_row)
 
-            win_accent_row = SettingsRow(
+            self._follow_windows_accent_cb = Win11ToggleRow(
                 "fa5s.windows",
                 tr_catalog("page.appearance.accent.windows.title", language=self._ui_language, default="Акцент из Windows"),
                 tr_catalog(
@@ -567,12 +585,13 @@ class AppearancePage(BasePage):
                     default="Автоматически использовать системный акцентный цвет Windows",
                 ),
             )
-            self._follow_windows_accent_cb = CheckBox()
-            self._follow_windows_accent_cb.stateChanged.connect(self._on_follow_windows_accent_changed)
-            win_accent_row.set_control(self._follow_windows_accent_cb)
-            accent_layout.addWidget(win_accent_row)
+            self._follow_windows_accent_cb.toggled.connect(self._on_follow_windows_accent_changed)
+            if accent_layout is not None:
+                accent_layout.addWidget(self._follow_windows_accent_cb)
+            else:
+                accent_card.addSettingCard(self._follow_windows_accent_cb)
 
-            tinted_bg_row = SettingsRow(
+            self._tinted_bg_cb = Win11ToggleRow(
                 "fa5s.fill-drip",
                 tr_catalog(
                     "page.appearance.accent.tint_background.title",
@@ -585,10 +604,11 @@ class AppearancePage(BasePage):
                     default="Фон окна окрашивается в оттенок акцентного цвета",
                 ),
             )
-            self._tinted_bg_cb = CheckBox()
-            self._tinted_bg_cb.stateChanged.connect(self._on_tinted_bg_changed)
-            tinted_bg_row.set_control(self._tinted_bg_cb)
-            accent_layout.addWidget(tinted_bg_row)
+            self._tinted_bg_cb.toggled.connect(self._on_tinted_bg_changed)
+            if accent_layout is not None:
+                accent_layout.addWidget(self._tinted_bg_cb)
+            else:
+                accent_card.addSettingCard(self._tinted_bg_cb)
 
             self._tinted_intensity_container = QWidget()
             intensity_row_layout = QHBoxLayout(self._tinted_intensity_container)
@@ -601,6 +621,7 @@ class AppearancePage(BasePage):
                     default="Интенсивность тонировки:",
                 )
             )
+            self._tinted_intensity_label = intensity_label
             self._tinted_intensity_slider = Slider(Qt.Orientation.Horizontal)
             self._tinted_intensity_slider.setRange(0, 30)
             self._tinted_intensity_slider.setValue(15)
@@ -609,9 +630,25 @@ class AppearancePage(BasePage):
             intensity_row_layout.addWidget(intensity_label)
             intensity_row_layout.addWidget(self._tinted_intensity_slider, 1)
             intensity_row_layout.addWidget(self._tinted_intensity_value_label)
-            accent_layout.addWidget(self._tinted_intensity_container)
+            if accent_layout is not None:
+                accent_layout.addWidget(self._tinted_intensity_container)
+            else:
+                self._tinted_intensity_row = SettingsRow(
+                    "fa5s.sliders-h",
+                    tr_catalog(
+                        "page.appearance.accent.tint_intensity.label",
+                        language=self._ui_language,
+                        default="Интенсивность тонировки:",
+                    ),
+                    "",
+                )
+                self._tinted_intensity_row.set_control(self._tinted_intensity_container)
+                accent_card.addSettingCard(self._tinted_intensity_row)
 
-            accent_card.add_layout(accent_layout)
+            if accent_layout is not None:
+                accent_card.add_layout(accent_layout)
+            else:
+                enable_setting_card_group_auto_height(accent_card)
             self.add_widget(accent_card)
 
             self.add_spacing(16)
@@ -621,46 +658,72 @@ class AppearancePage(BasePage):
         # ═══════════════════════════════════════════════════════════
         # ПРОИЗВОДИТЕЛЬНОСТЬ
         # ═══════════════════════════════════════════════════════════
-        self.add_section_title(text_key="page.appearance.section.performance")
-
-        perf_card = SettingsCard()
-        perf_layout = QVBoxLayout()
-        perf_layout.setSpacing(12)
-
-        try:
-            from qfluentwidgets import SwitchButton
-
-            anim_row = SettingsRow(
-                "fa5s.film",
-                tr_catalog("page.appearance.performance.animations.title", language=self._ui_language, default="Анимации интерфейса"),
-                tr_catalog(
-                    "page.appearance.performance.animations.description",
-                    language=self._ui_language,
-                    default="Анимации кнопок, переходов и элементов WinUI",
-                ),
+        if SettingCardGroup is not None and _HAS_FLUENT_LABELS:
+            self._performance_group = SettingCardGroup(
+                tr_catalog("page.appearance.section.performance", language=self._ui_language, default="Производительность"),
+                self.content,
             )
-            self._animations_switch = SwitchButton()
-            self._animations_switch.checkedChanged.connect(self._on_animations_changed)
-            anim_row.set_control(self._animations_switch)
-            perf_layout.addWidget(anim_row)
+            perf_card = self._performance_group
+            perf_layout = None
+        else:
+            self.add_section_title(text_key="page.appearance.section.performance")
+            self._performance_group = None
+            perf_card = SettingsCard()
+            perf_layout = QVBoxLayout()
+            perf_layout.setSpacing(12)
 
-            scroll_row = SettingsRow(
-                "fa5s.mouse",
-                tr_catalog("page.appearance.performance.scroll.title", language=self._ui_language, default="Плавная прокрутка"),
-                tr_catalog(
-                    "page.appearance.performance.scroll.description",
-                    language=self._ui_language,
-                    default="Инерционная прокрутка страниц настроек",
-                ),
-            )
-            self._smooth_scroll_switch = SwitchButton()
-            self._smooth_scroll_switch.checkedChanged.connect(self._on_smooth_scroll_changed)
-            scroll_row.set_control(self._smooth_scroll_switch)
-            perf_layout.addWidget(scroll_row)
-        except Exception:
-            pass
+        self._performance_card = perf_card
+        self._animations_switch = Win11ToggleRow(
+            "fa5s.film",
+            tr_catalog("page.appearance.performance.animations.title", language=self._ui_language, default="Анимации интерфейса"),
+            tr_catalog(
+                "page.appearance.performance.animations.description",
+                language=self._ui_language,
+                default="Анимации кнопок, переходов и элементов WinUI",
+            ),
+        )
+        self._animations_switch.toggled.connect(self._on_animations_changed)
+        if perf_layout is not None:
+            perf_layout.addWidget(self._animations_switch)
+        else:
+            perf_card.addSettingCard(self._animations_switch)
 
-        perf_card.add_layout(perf_layout)
+        self._smooth_scroll_switch = Win11ToggleRow(
+            "fa5s.mouse",
+            tr_catalog("page.appearance.performance.scroll.title", language=self._ui_language, default="Плавная прокрутка"),
+            tr_catalog(
+                "page.appearance.performance.scroll.description",
+                language=self._ui_language,
+                default="Инерционная прокрутка страниц настроек",
+            ),
+        )
+        self._smooth_scroll_switch.toggled.connect(self._on_smooth_scroll_changed)
+        if perf_layout is not None:
+            perf_layout.addWidget(self._smooth_scroll_switch)
+        else:
+            perf_card.addSettingCard(self._smooth_scroll_switch)
+
+        self._editor_smooth_scroll_switch = Win11ToggleRow(
+            "fa5s.file-alt",
+            tr_catalog(
+                "page.appearance.performance.editor_scroll.title",
+                language=self._ui_language,
+                default="Плавная прокрутка редакторов",
+            ),
+            tr_catalog(
+                "page.appearance.performance.editor_scroll.description",
+                language=self._ui_language,
+                default="Плавная прокрутка внутри больших текстовых полей и редакторов. Работает только при включённых анимациях интерфейса.",
+            ),
+        )
+        self._editor_smooth_scroll_switch.toggled.connect(self._on_editor_smooth_scroll_changed)
+        if perf_layout is not None:
+            perf_layout.addWidget(self._editor_smooth_scroll_switch)
+        else:
+            perf_card.addSettingCard(self._editor_smooth_scroll_switch)
+
+        if perf_layout is not None:
+            perf_card.add_layout(perf_layout)
         self.add_widget(perf_card)
         self.add_spacing(16)
         self._load_performance_settings()
@@ -701,28 +764,19 @@ class AppearancePage(BasePage):
 
     def _load_display_mode(self):
         """Load saved display mode from registry."""
-        try:
-            from config.reg import get_display_mode
-            mode = get_display_mode()
-            if self._display_mode_seg is not None:
-                self._display_mode_seg.blockSignals(True)
-                try:
-                    self._display_mode_seg.setCurrentItem(mode)
-                except Exception:
-                    pass
-                self._display_mode_seg.blockSignals(False)
-        except Exception:
-            pass
+        mode = AppearancePageController.load_display_mode()
+        if self._display_mode_seg is not None:
+            self._display_mode_seg.blockSignals(True)
+            try:
+                self._display_mode_seg.setCurrentItem(mode)
+            except Exception:
+                pass
+            self._display_mode_seg.blockSignals(False)
 
     def _on_display_mode_changed(self, mode: str):
         """Handle display mode toggle."""
-        effective_mode = mode
-        try:
-            from config.reg import set_display_mode, get_display_mode
-            set_display_mode(mode)
-            effective_mode = get_display_mode()
-        except Exception:
-            pass
+        plan = AppearancePageController.save_display_mode(mode)
+        effective_mode = plan.effective_mode
 
         if self._display_mode_seg is not None and effective_mode != mode:
             self._display_mode_seg.blockSignals(True)
@@ -756,13 +810,8 @@ class AppearancePage(BasePage):
         if self._language_combo is None:
             return
 
-        try:
-            from config.reg import get_ui_language
-            from ui.text_catalog import normalize_language
-
-            lang = normalize_language(get_ui_language())
-        except Exception:
-            lang = "ru"
+        plan = AppearancePageController.load_ui_language()
+        lang = plan.language
 
         index = -1
         try:
@@ -792,20 +841,11 @@ class AppearancePage(BasePage):
         if not isinstance(lang, str) or not lang:
             return
 
-        try:
-            from config.reg import set_ui_language
-
-            set_ui_language(lang)
-        except Exception:
-            pass
-
-        self.ui_language_changed.emit(lang)
+        plan = AppearancePageController.save_ui_language(lang)
+        self.ui_language_changed.emit(plan.language)
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
-
-        if self.is_deferred_ui_build_pending():
-            return
 
         from ui.text_catalog import tr as tr_catalog
 
@@ -838,14 +878,111 @@ class AppearancePage(BasePage):
             except Exception:
                 pass
 
-    def _load_bg_preset(self):
-        """Load saved background preset from registry."""
         try:
-            from config.reg import get_background_preset
-            preset = get_background_preset()
-            self._apply_bg_preset_ui(preset)
+            title_label = getattr(getattr(self, "_accent_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(
+                    tr_catalog("page.appearance.section.accent", language=language, default="Акцентный цвет")
+                )
         except Exception:
             pass
+
+        try:
+            title_label = getattr(getattr(self, "_performance_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(
+                    tr_catalog("page.appearance.section.performance", language=language, default="Производительность")
+                )
+        except Exception:
+            pass
+
+        if self._accent_desc_label is not None:
+            self._accent_desc_label.setText(
+                tr_catalog(
+                    "page.appearance.accent.description",
+                    language=language,
+                    default=(
+                        "Цвет акцентных элементов интерфейса: кнопок, иконок, индикаторов. "
+                        "Изменяет цвет нативных компонентов WinUI."
+                    ),
+                )
+            )
+
+        if self._accent_color_row is not None:
+            self._accent_color_row.set_title(
+                tr_catalog("page.appearance.accent.color.title", language=language, default="Цвет акцента")
+            )
+
+        if self._follow_windows_accent_cb is not None:
+            self._follow_windows_accent_cb.set_texts(
+                tr_catalog("page.appearance.accent.windows.title", language=language, default="Акцент из Windows"),
+                tr_catalog(
+                    "page.appearance.accent.windows.description",
+                    language=language,
+                    default="Автоматически использовать системный акцентный цвет Windows",
+                ),
+            )
+
+        if self._tinted_bg_cb is not None:
+            self._tinted_bg_cb.set_texts(
+                tr_catalog(
+                    "page.appearance.accent.tint_background.title",
+                    language=language,
+                    default="Тонировать фон акцентным цветом",
+                ),
+                tr_catalog(
+                    "page.appearance.accent.tint_background.description",
+                    language=language,
+                    default="Фон окна окрашивается в оттенок акцентного цвета",
+                ),
+            )
+
+        if self._tinted_intensity_label is not None:
+            self._tinted_intensity_label.setText(
+                tr_catalog(
+                    "page.appearance.accent.tint_intensity.label",
+                    language=language,
+                    default="Интенсивность тонировки:",
+                )
+            )
+
+        if self._animations_switch is not None:
+            self._animations_switch.set_texts(
+                tr_catalog("page.appearance.performance.animations.title", language=language, default="Анимации интерфейса"),
+                tr_catalog(
+                    "page.appearance.performance.animations.description",
+                    language=language,
+                    default="Анимации кнопок, переходов и элементов WinUI",
+                ),
+            )
+
+        if self._smooth_scroll_switch is not None:
+            self._smooth_scroll_switch.set_texts(
+                tr_catalog("page.appearance.performance.scroll.title", language=language, default="Плавная прокрутка"),
+                tr_catalog(
+                    "page.appearance.performance.scroll.description",
+                    language=language,
+                    default="Инерционная прокрутка страниц настроек",
+                ),
+            )
+        if self._editor_smooth_scroll_switch is not None:
+            self._editor_smooth_scroll_switch.set_texts(
+                tr_catalog(
+                    "page.appearance.performance.editor_scroll.title",
+                    language=language,
+                    default="Плавная прокрутка редакторов",
+                ),
+                tr_catalog(
+                    "page.appearance.performance.editor_scroll.description",
+                    language=language,
+                    default="Плавная прокрутка внутри больших текстовых полей и редакторов. Работает только при включённых анимациях интерфейса.",
+                ),
+            )
+
+    def _load_bg_preset(self):
+        """Load saved background preset from registry."""
+        plan = AppearancePageController.load_background_preset()
+        self._apply_bg_preset_ui(plan.preset)
 
     def _apply_bg_preset_ui(self, preset: str):
         """Update RadioButton selection without emitting signals."""
@@ -868,12 +1005,7 @@ class AppearancePage(BasePage):
 
     def _update_display_mode_section_state(self, preset: str | None = None) -> None:
         if preset is None:
-            try:
-                from config.reg import get_background_preset
-
-                preset = get_background_preset()
-            except Exception:
-                preset = "standard"
+            preset = AppearancePageController.load_background_preset().preset
 
         show_section = self._should_show_display_mode_for_preset(preset)
 
@@ -892,11 +1024,7 @@ class AppearancePage(BasePage):
         if self._rkn_background_combo is None:
             return
 
-        try:
-            from config.reg import get_rkn_background
-            saved_value = get_rkn_background()
-        except Exception:
-            saved_value = None
+        saved_value = AppearancePageController.load_rkn_background().value
 
         options = get_rkn_background_options()
 
@@ -921,13 +1049,9 @@ class AppearancePage(BasePage):
                 index = 0
             self._rkn_background_combo.setCurrentIndex(index)
 
-            try:
-                from config.reg import set_rkn_background
-                selected_rel = self._rkn_background_combo.itemData(index)
-                if isinstance(selected_rel, str) and selected_rel:
-                    set_rkn_background(selected_rel)
-            except Exception:
-                pass
+            selected_rel = self._rkn_background_combo.itemData(index)
+            if isinstance(selected_rel, str) and selected_rel:
+                AppearancePageController.save_rkn_background(selected_rel)
         else:
             self._rkn_background_combo.addItem(
                 tr_catalog("page.appearance.background.rkn.none", language=self._ui_language, default="Фоны не найдены"),
@@ -949,7 +1073,8 @@ class AppearancePage(BasePage):
             has_options = False
 
         is_rkn_selected = bool(self._bg_radio_rkn_chan and self._bg_radio_rkn_chan.isChecked())
-        self._rkn_background_combo.setEnabled(bool(self._is_premium and is_rkn_selected and has_options))
+        is_premium, _garland_enabled, _snowflakes_enabled, _window_opacity = self._current_appearance_state()
+        self._rkn_background_combo.setEnabled(bool(is_premium and is_rkn_selected and has_options))
 
     def _on_rkn_background_changed(self, index: int):
         if self._rkn_background_combo is None or index < 0:
@@ -963,11 +1088,7 @@ class AppearancePage(BasePage):
         if not isinstance(selected_rel, str) or not selected_rel:
             return
 
-        try:
-            from config.reg import set_rkn_background
-            set_rkn_background(selected_rel)
-        except Exception:
-            pass
+        AppearancePageController.save_rkn_background(selected_rel)
 
         if self._bg_radio_rkn_chan is not None and self._bg_radio_rkn_chan.isChecked():
             self.background_refresh_needed.emit()
@@ -976,11 +1097,8 @@ class AppearancePage(BasePage):
         """Handle background preset RadioButton toggle."""
         if not checked:
             return
-        try:
-            from config.reg import set_background_preset
-            set_background_preset(preset)
-        except Exception:
-            pass
+        plan = AppearancePageController.save_background_preset(preset)
+        preset = plan.preset
         if self._mica_switch:
             self._mica_switch.setEnabled(preset == "standard")
         # AMOLED and РКН Тян require dark mode — force it automatically
@@ -1012,15 +1130,11 @@ class AppearancePage(BasePage):
 
     def _load_mica_state(self):
         """Load Mica state from registry."""
-        try:
-            from config.reg import get_mica_enabled, get_background_preset
-            self.set_mica_state(get_mica_enabled())
-            # Disable switch if non-standard preset is active
-            if self._mica_switch:
-                preset = get_background_preset()
-                self._mica_switch.setEnabled(preset == "standard")
-        except Exception:
-            pass
+        mica_plan = AppearancePageController.load_mica_enabled()
+        self.set_mica_state(mica_plan.enabled)
+        if self._mica_switch:
+            preset = AppearancePageController.load_background_preset().preset
+            self._mica_switch.setEnabled(preset == "standard")
 
     def _apply_theme_tokens(self, theme_name: str) -> None:
         """Refresh qtawesome icon labels on theme change."""
@@ -1036,37 +1150,25 @@ class AppearancePage(BasePage):
         if self._opacity_label:
             self._opacity_label.setText(f"{value}%")
 
-        # Сохраняем в реестр
-        from config.reg import set_window_opacity
-        set_window_opacity(value)
+        opacity_plan = AppearancePageController.save_window_opacity(value)
 
         # Уведомляем главное окно
-        self.opacity_changed.emit(value)
+        self.opacity_changed.emit(opacity_plan.value)
 
         from log import log
-        log(f"Прозрачность окна: {value}%", "DEBUG")
+        log(f"Прозрачность окна: {opacity_plan.value}%", "DEBUG")
 
     def _on_snowflakes_changed(self, state):
         """Обработчик изменения состояния снежинок"""
         enabled = state == Qt.CheckState.Checked.value
-
-        # Сохраняем в реестр
-        from config.reg import set_snowflakes_enabled
-        set_snowflakes_enabled(enabled)
-
-        # Уведомляем главное окно
-        self.snowflakes_changed.emit(enabled)
+        plan = AppearancePageController.save_snowflakes_enabled(enabled)
+        self.snowflakes_changed.emit(plan.enabled)
 
     def _on_garland_changed(self, state):
         """Обработчик изменения состояния гирлянды"""
         enabled = state == Qt.CheckState.Checked.value
-
-        # Сохраняем в реестр
-        from config.reg import set_garland_enabled
-        set_garland_enabled(enabled)
-
-        # Эмитим сигнал
-        self.garland_changed.emit(enabled)
+        plan = AppearancePageController.save_garland_enabled(enabled)
+        self.garland_changed.emit(plan.enabled)
 
     def _on_accent_color_changed(self, color: QColor):
         """Обработчик изменения акцентного цвета через ColorPickerButton."""
@@ -1077,25 +1179,13 @@ class AppearancePage(BasePage):
         except Exception:
             pass
         hex_color = color.name()
-        try:
-            from config.reg import set_accent_color
-            set_accent_color(hex_color)
-        except Exception:
-            pass
-        self.accent_color_changed.emit(hex_color)
+        plan = AppearancePageController.save_accent_color(hex_color)
+        if plan.hex_color:
+            self.accent_color_changed.emit(plan.hex_color)
         # If tinted bg is active, trigger window background refresh
-        try:
-            from config.reg import get_tinted_background
-            if get_tinted_background():
-                self.background_refresh_needed.emit()
-        except Exception:
-            pass
-
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            if hasattr(self, '_garland_icon_label'):
-                self._refresh_accent_icons()
-        super().changeEvent(event)
+        tinted_plan = AppearancePageController.load_tinted_settings()
+        if tinted_plan.tinted_background:
+            self.background_refresh_needed.emit()
 
     def _refresh_accent_icons(self, tokens=None):
         """Обновляет иконки страницы при смене акцентного цвета."""
@@ -1109,55 +1199,53 @@ class AppearancePage(BasePage):
             if lbl is not None:
                 lbl.setPixmap(qta.icon(icon_name, color=tokens.accent_hex).pixmap(size, size))
 
+    def _apply_page_theme(self, tokens=None, force: bool = False):
+        _ = force
+        self._refresh_accent_icons(tokens=tokens)
+
     def _load_extra_accent_settings(self):
         """Загружает настройки Follow Windows Accent и Tinted Background."""
         if not _HAS_COLOR_PICKER:
             return
-        try:
-            from config.reg import (get_follow_windows_accent, get_tinted_background,
-                                     get_tinted_background_intensity)
-            follow = get_follow_windows_accent()
-            tinted = get_tinted_background()
-            intensity = get_tinted_background_intensity()
+        plan = AppearancePageController.load_tinted_settings()
 
-            if self._follow_windows_accent_cb is not None:
+        if self._follow_windows_accent_cb is not None:
+            try:
+                self._follow_windows_accent_cb.setChecked(plan.follow_windows_accent, block_signals=True)
+            except TypeError:
                 self._follow_windows_accent_cb.blockSignals(True)
-                self._follow_windows_accent_cb.setChecked(follow)
+                self._follow_windows_accent_cb.setChecked(plan.follow_windows_accent)
                 self._follow_windows_accent_cb.blockSignals(False)
 
-            if self._tinted_bg_cb is not None:
+        if self._tinted_bg_cb is not None:
+            try:
+                self._tinted_bg_cb.setChecked(plan.tinted_background, block_signals=True)
+            except TypeError:
                 self._tinted_bg_cb.blockSignals(True)
-                self._tinted_bg_cb.setChecked(tinted)
+                self._tinted_bg_cb.setChecked(plan.tinted_background)
                 self._tinted_bg_cb.blockSignals(False)
 
-            if self._tinted_intensity_slider is not None:
-                self._tinted_intensity_slider.blockSignals(True)
-                self._tinted_intensity_slider.setValue(intensity)
-                self._tinted_intensity_slider.blockSignals(False)
+        if self._tinted_intensity_slider is not None:
+            self._tinted_intensity_slider.blockSignals(True)
+            self._tinted_intensity_slider.setValue(plan.tinted_intensity)
+            self._tinted_intensity_slider.blockSignals(False)
 
-            if self._tinted_intensity_value_label is not None:
-                self._tinted_intensity_value_label.setText(str(intensity))
+        if self._tinted_intensity_value_label is not None:
+            self._tinted_intensity_value_label.setText(str(plan.tinted_intensity))
 
-            if self._tinted_intensity_container is not None:
-                self._tinted_intensity_container.setVisible(tinted)
+        if self._tinted_intensity_container is not None:
+            self._tinted_intensity_container.setVisible(plan.tinted_background)
 
-            # If follow_windows is on: apply Windows accent now and disable picker
-            if follow:
-                self._apply_windows_accent()
-                if self._color_picker_btn is not None:
-                    self._color_picker_btn.setEnabled(False)
-        except Exception:
-            pass
+        if plan.follow_windows_accent:
+            self._apply_windows_accent()
+            if self._color_picker_btn is not None:
+                self._color_picker_btn.setEnabled(False)
 
     def _on_follow_windows_accent_changed(self, state):
         """Обработчик переключения 'Акцент из Windows'."""
-        enabled = state == Qt.CheckState.Checked.value
-        try:
-            from config.reg import set_follow_windows_accent
-            set_follow_windows_accent(enabled)
-        except Exception:
-            pass
-        if enabled:
+        enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
+        plan = AppearancePageController.save_follow_windows_accent(enabled)
+        if plan.enabled:
             self._apply_windows_accent()
             if self._color_picker_btn is not None:
                 self._color_picker_btn.setEnabled(False)
@@ -1168,13 +1256,13 @@ class AppearancePage(BasePage):
     def _apply_windows_accent(self):
         """Читает системный акцент Windows и применяет его."""
         try:
-            from config.reg import get_windows_system_accent, set_accent_color
-            hex_color = get_windows_system_accent()
+            plan = AppearancePageController.load_windows_system_accent()
+            hex_color = plan.hex_color
             if hex_color:
                 color = QColor(hex_color)
                 if color.isValid():
                     setThemeColor(color)
-                    set_accent_color(hex_color)
+                    AppearancePageController.save_accent_color(hex_color)
                     if self._color_picker_btn is not None:
                         self._color_picker_btn.setColor(color)
                     self.accent_color_changed.emit(hex_color)
@@ -1184,41 +1272,30 @@ class AppearancePage(BasePage):
 
     def _on_tinted_bg_changed(self, state):
         """Обработчик переключения 'Тонировать фон'."""
-        enabled = state == Qt.CheckState.Checked.value
-        try:
-            from config.reg import set_tinted_background
-            set_tinted_background(enabled)
-        except Exception:
-            pass
+        enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
+        plan = AppearancePageController.save_tinted_background(enabled)
         if self._tinted_intensity_container is not None:
-            self._tinted_intensity_container.setVisible(enabled)
+            self._tinted_intensity_container.setVisible(plan.enabled)
         self.background_refresh_needed.emit()
 
     def _on_tinted_intensity_changed(self, value: int):
         """Обработчик изменения интенсивности тонировки."""
-        try:
-            from config.reg import set_tinted_background_intensity
-            set_tinted_background_intensity(value)
-        except Exception:
-            pass
+        plan = AppearancePageController.save_tinted_background_intensity(value)
         if self._tinted_intensity_value_label is not None:
-            self._tinted_intensity_value_label.setText(str(value))
+            self._tinted_intensity_value_label.setText(str(plan.value))
         self.background_refresh_needed.emit()
 
     def _load_accent_color(self):
         """Загружает сохранённый акцентный цвет и применяет его."""
         if not _HAS_COLOR_PICKER or self._color_picker_btn is None:
             return
-        try:
-            from config.reg import get_accent_color
-            hex_color = get_accent_color()
-            if hex_color:
-                color = QColor(hex_color)
-                if color.isValid():
-                    self._color_picker_btn.setColor(color)
-                    setThemeColor(color)
-        except Exception:
-            pass
+        plan = AppearancePageController.load_accent_color()
+        hex_color = plan.hex_color
+        if hex_color:
+            color = QColor(hex_color)
+            if color.isValid():
+                self._color_picker_btn.setColor(color)
+                setThemeColor(color)
 
     def set_current_theme(self, theme_name: str):
         """No-op: theme selection removed. Kept for backward compatibility."""
@@ -1230,7 +1307,6 @@ class AppearancePage(BasePage):
 
     def set_premium_status(self, is_premium: bool):
         """Update premium status — unlocks AMOLED/РКН Тян bg presets."""
-        self._is_premium = is_premium
         was_garland_enabled = bool(self._garland_checkbox and self._garland_checkbox.isChecked())
         was_snowflakes_enabled = bool(self._snowflakes_checkbox and self._snowflakes_checkbox.isChecked())
 
@@ -1241,54 +1317,45 @@ class AppearancePage(BasePage):
             self._bg_radio_rkn_chan.setEnabled(is_premium)
         self._update_rkn_background_control_state()
 
-        # If premium lost and a premium preset is active, switch back to standard
-        if not is_premium:
-            try:
-                from config.reg import get_background_preset, set_background_preset
-                current_preset = get_background_preset()
-                if current_preset in ("amoled", "rkn_chan"):
-                    set_background_preset("standard")
-                    self._apply_bg_preset_ui("standard")
-                    self.background_preset_changed.emit("standard")
-            except Exception:
-                pass
+        current_preset = AppearancePageController.load_background_preset().preset
+        premium_effects = AppearancePageController.load_premium_effects()
+        premium_plan = AppearancePageController.build_premium_status_plan(
+            is_premium=is_premium,
+            current_preset=current_preset,
+            was_garland_enabled=was_garland_enabled,
+            was_snowflakes_enabled=was_snowflakes_enabled,
+            premium_effects=premium_effects,
+        )
 
-        # Update garland/snowflakes checkboxes (unchanged logic)
-        from config.reg import get_garland_enabled, get_snowflakes_enabled
+        if premium_plan.effective_preset is not None:
+            preset_plan = AppearancePageController.save_background_preset(premium_plan.effective_preset)
+            self._apply_bg_preset_ui(preset_plan.preset)
+            self.background_preset_changed.emit(preset_plan.preset)
 
         if self._garland_checkbox:
             self._garland_checkbox.setEnabled(is_premium)
             self._garland_checkbox.blockSignals(True)
-            if is_premium:
-                self._garland_checkbox.setChecked(get_garland_enabled())
-            else:
-                self._garland_checkbox.setChecked(False)
+            self._garland_checkbox.setChecked(premium_plan.garland_checked)
             self._garland_checkbox.blockSignals(False)
 
         if self._snowflakes_checkbox:
             self._snowflakes_checkbox.setEnabled(is_premium)
             self._snowflakes_checkbox.blockSignals(True)
-            if is_premium:
-                self._snowflakes_checkbox.setChecked(get_snowflakes_enabled())
-            else:
-                self._snowflakes_checkbox.setChecked(False)
+            self._snowflakes_checkbox.setChecked(premium_plan.snowflakes_checked)
             self._snowflakes_checkbox.blockSignals(False)
 
-        if not is_premium and was_garland_enabled:
-            from config.reg import set_garland_enabled
-            set_garland_enabled(False)
-            self.garland_changed.emit(False)
+        if premium_plan.disable_garland:
+            plan = AppearancePageController.save_garland_enabled(False)
+            self.garland_changed.emit(plan.enabled)
 
-        if not is_premium and was_snowflakes_enabled:
-            from config.reg import set_snowflakes_enabled
-            set_snowflakes_enabled(False)
-            self.snowflakes_changed.emit(False)
+        if premium_plan.disable_snowflakes:
+            plan = AppearancePageController.save_snowflakes_enabled(False)
+            self.snowflakes_changed.emit(plan.enabled)
 
         self._update_display_mode_section_state()
 
     def set_garland_state(self, enabled: bool):
         """Устанавливает состояние чекбокса гирлянды (без эмита сигнала)"""
-        self._garland_enabled_state = bool(enabled)
         if self._garland_checkbox:
             self._garland_checkbox.blockSignals(True)
             self._garland_checkbox.setChecked(enabled)
@@ -1296,7 +1363,6 @@ class AppearancePage(BasePage):
 
     def set_snowflakes_state(self, enabled: bool):
         """Устанавливает состояние чекбокса снежинок (без эмита сигнала)"""
-        self._snowflakes_enabled_state = bool(enabled)
         if self._snowflakes_checkbox:
             self._snowflakes_checkbox.blockSignals(True)
             self._snowflakes_checkbox.setChecked(enabled)
@@ -1304,7 +1370,6 @@ class AppearancePage(BasePage):
 
     def set_opacity_value(self, value: int):
         """Устанавливает значение слайдера прозрачности (без эмита сигнала)"""
-        self._window_opacity_state = int(value)
         if self._opacity_slider:
             self._opacity_slider.blockSignals(True)
             self._opacity_slider.setValue(value)
@@ -1312,37 +1377,73 @@ class AppearancePage(BasePage):
         if self._opacity_label:
             self._opacity_label.setText(f"{value}%")
 
+    def _current_appearance_state(self) -> tuple[bool, bool, bool, int]:
+        store = self._ui_state_store
+        if store is not None:
+            try:
+                snapshot = store.snapshot()
+                return (
+                    bool(snapshot.subscription_is_premium),
+                    bool(snapshot.garland_enabled),
+                    bool(snapshot.snowflakes_enabled),
+                    int(snapshot.window_opacity),
+                )
+            except Exception:
+                pass
+
+        garland_enabled = bool(self._garland_checkbox and self._garland_checkbox.isChecked())
+        snowflakes_enabled = bool(self._snowflakes_checkbox and self._snowflakes_checkbox.isChecked())
+        window_opacity = int(self._opacity_slider.value()) if self._opacity_slider is not None else 100
+        return False, garland_enabled, snowflakes_enabled, window_opacity
+
     def _on_animations_changed(self, enabled: bool):
         """Handle animations SwitchButton toggle."""
-        try:
-            from config.reg import set_animations_enabled
-            set_animations_enabled(enabled)
-        except Exception:
-            pass
-        self.animations_changed.emit(enabled)
+        plan = AppearancePageController.save_animations_enabled(enabled)
+        self.animations_changed.emit(plan.enabled)
+        self._sync_performance_dependencies(plan.enabled)
+
+        editor_plan = AppearancePageController.load_editor_smooth_scroll_enabled()
+        self.editor_smooth_scroll_changed.emit(editor_plan.enabled)
 
     def _on_smooth_scroll_changed(self, enabled: bool):
         """Handle smooth scroll SwitchButton toggle."""
-        try:
-            from config.reg import set_smooth_scroll_enabled
-            set_smooth_scroll_enabled(enabled)
-        except Exception:
-            pass
-        self.smooth_scroll_changed.emit(enabled)
+        plan = AppearancePageController.save_smooth_scroll_enabled(enabled)
+        self.smooth_scroll_changed.emit(plan.enabled)
+
+    def _on_editor_smooth_scroll_changed(self, enabled: bool):
+        """Handle editor smooth scroll toggle."""
+        plan = AppearancePageController.save_editor_smooth_scroll_enabled(enabled)
+        self.editor_smooth_scroll_changed.emit(plan.enabled)
+
+    def _sync_performance_dependencies(self, animations_enabled: bool) -> None:
+        """Редакторская плавность зависит от мастер-переключателя анимаций."""
+        if self._editor_smooth_scroll_switch is not None:
+            self._editor_smooth_scroll_switch.setEnabled(bool(animations_enabled))
 
     def _load_performance_settings(self):
-        """Load animations and smooth scroll state from registry into switches."""
-        try:
-            from config.reg import get_animations_enabled, get_smooth_scroll_enabled
-            anim = get_animations_enabled()
-            smooth = get_smooth_scroll_enabled()
-            if self._animations_switch is not None:
+        """Load performance state from registry into switches."""
+        anim_plan = AppearancePageController.load_animations_enabled()
+        smooth_plan = AppearancePageController.load_smooth_scroll_enabled()
+        editor_plan = AppearancePageController.load_editor_smooth_scroll_enabled()
+        if self._animations_switch is not None:
+            try:
+                self._animations_switch.setChecked(anim_plan.enabled, block_signals=True)
+            except TypeError:
                 self._animations_switch.blockSignals(True)
-                self._animations_switch.setChecked(anim)
+                self._animations_switch.setChecked(anim_plan.enabled)
                 self._animations_switch.blockSignals(False)
-            if self._smooth_scroll_switch is not None:
+        if self._smooth_scroll_switch is not None:
+            try:
+                self._smooth_scroll_switch.setChecked(smooth_plan.enabled, block_signals=True)
+            except TypeError:
                 self._smooth_scroll_switch.blockSignals(True)
-                self._smooth_scroll_switch.setChecked(smooth)
+                self._smooth_scroll_switch.setChecked(smooth_plan.enabled)
                 self._smooth_scroll_switch.blockSignals(False)
-        except Exception:
-            pass
+        if self._editor_smooth_scroll_switch is not None:
+            try:
+                self._editor_smooth_scroll_switch.setChecked(editor_plan.enabled, block_signals=True)
+            except TypeError:
+                self._editor_smooth_scroll_switch.blockSignals(True)
+                self._editor_smooth_scroll_switch.setChecked(editor_plan.enabled)
+                self._editor_smooth_scroll_switch.blockSignals(False)
+        self._sync_performance_dependencies(anim_plan.enabled)

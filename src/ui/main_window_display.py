@@ -11,17 +11,14 @@ def get_direct_strategy_summary(window, max_items: int = 2) -> str:
 
         method = (get_strategy_launch_method() or "").strip().lower()
         if method == "direct_zapret2_orchestra":
-            from legacy_registry_launch.selection_store import get_direct_strategy_selections
-            from legacy_registry_launch.strategies_registry import registry
+            from preset_orchestra_zapret2 import PresetManager
 
-            selections = get_direct_strategy_selections() or {}
-            active_names: list[str] = []
-            for target_key in registry.get_all_target_keys_by_command_order():
-                sid = selections.get(target_key, "none") or "none"
-                if sid == "none":
-                    continue
-                info = registry.get_target_info(target_key)
-                active_names.append(getattr(info, "full_name", None) or target_key)
+            selections = PresetManager().get_strategy_selections() or {}
+            active_names = [
+                str(target_key or "").strip()
+                for target_key, strategy_id in selections.items()
+                if str(target_key or "").strip() and (strategy_id or "none") != "none"
+            ]
 
             if not active_names:
                 return "Не выбрана"

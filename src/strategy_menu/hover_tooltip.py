@@ -7,11 +7,12 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QGraphicsDropShadowEffect, QApplication)
 from PyQt6.QtCore import (Qt, QTimer, QPropertyAnimation, QEasingCurve, 
-                          QPoint, QRectF, pyqtProperty, QEvent)
+                          QPoint, QRectF, pyqtProperty)
 from PyQt6.QtGui import (QColor, QPainter, QPainterPath, QBrush, 
                          QPen, QLinearGradient, QCursor)
 
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 
 
 class FloatingSpinner(QWidget):
@@ -101,6 +102,7 @@ class StrategyHoverTooltip(QWidget):
         self._fade_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         
         self._init_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_styles)
         
     def _init_ui(self):
         """Инициализация интерфейса"""
@@ -317,15 +319,6 @@ class StrategyHoverTooltip(QWidget):
 
         painter.setPen(QPen(border_color, 1))
         painter.drawPath(path)
-
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                self._apply_theme_styles()
-        except Exception:
-            pass
-        super().changeEvent(event)
-
 
 class TooltipManager:
     """Менеджер hover tooltip"""

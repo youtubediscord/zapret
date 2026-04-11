@@ -204,6 +204,10 @@ def invalidate_categories_cache() -> None:
     _CACHED_CATEGORIES = None
 
 
+def invalidate_strategies_cache() -> None:
+    _CACHED_STRATEGIES.clear()
+
+
 def load_strategies(strategy_type: str, strategy_set: Optional[str] = None) -> Dict[str, Dict]:
     cache_key = (strategy_type, strategy_set)
     if cache_key in _CACHED_STRATEGIES:

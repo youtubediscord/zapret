@@ -33,6 +33,13 @@ label = recommended
 description = 6 повторов fake для STUN и Discord IP Discovery
 --lua-desync=fake:blob=0x00:repeats=6
 
+[stock_builtin_discord_voice_tls_max]
+name = Fake tls_max
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенных Discord Voice пресетов с blob tls_max в basic-режиме.
+--lua-desync=fake:blob=tls_max
+
 [ipv4_ipv6_dup_autottl]
 name = IPv4+IPv6 DUP AutoTTL
 author = Community

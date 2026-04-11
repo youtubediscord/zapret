@@ -229,12 +229,6 @@ def _resolve_tg_proxy_manager():
     return get_proxy_manager()
 
 
-def _get_loaded_page(window, page_name):
-    from ui.main_window_pages import get_loaded_page
-
-    return get_loaded_page(window, page_name)
-
-
 def _fluent_icon(name: str):
     if FluentIcon is None:
         return None
@@ -860,6 +854,22 @@ class SystemTrayManager:
         except Exception as e:
             log(f"Ошибка сохранения геометрии окна: {e}", "ERROR")
 
+    def _cleanup_loaded_detail_page_overlays(self) -> None:
+        try:
+            from ui.router import get_zapret2_strategy_detail_pages
+
+            call_loaded_page_method = getattr(self.parent, "_call_loaded_page_method", None)
+            if not callable(call_loaded_page_method):
+                return
+
+            for page_name in get_zapret2_strategy_detail_pages():
+                try:
+                    call_loaded_page_method(page_name, "close_transient_overlays")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def _cleanup_transient_overlays(self) -> None:
         try:
             from ui.widgets.strategies_tooltip import strategies_tooltip_manager
@@ -879,18 +889,7 @@ class SystemTrayManager:
         except Exception:
             pass
 
-        try:
-            from ui.page_names import PageName
-
-            for page_name in (
-                PageName.ZAPRET2_STRATEGY_DETAIL,
-                PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
-            ):
-                page = _get_loaded_page(self.parent, page_name)
-                if page is not None and hasattr(page, "_close_preview_dialog"):
-                    page._close_preview_dialog(force=True)
-        except Exception:
-            pass
+        self._cleanup_loaded_detail_page_overlays()
 
     def hide_to_tray(self, show_hint: bool = True) -> bool:
         try:

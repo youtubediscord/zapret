@@ -9,10 +9,23 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget, QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 from PyQt6.QtGui import QFont
 
+from core.runtime.direct_ui_snapshot_service import DirectTargetDetailSnapshotWorker
 from ui.pages.base_page import BasePage
 from ui.compat_widgets import ActionButton, RefreshButton, SettingsCard
+from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.widgets.direct_zapret2_strategies_tree import DirectZapret2StrategiesTree, StrategyTreeRow
 from ui.text_catalog import tr as tr_catalog
+from ui.smooth_scroll import apply_editor_smooth_scroll_preference
+from ui.pages.strategy_detail_components import (
+    build_detail_subtitle_widgets,
+    build_strategies_tree_widget,
+    run_args_editor_dialog,
+)
+from ui.pages.zapret2.strategy_detail_apply import (
+    apply_loading_indicator_state,
+    apply_tree_selected_strategy_state,
+)
+from ui.pages.zapret1.strategy_detail_page_v1_controller import StrategyDetailPageV1Controller
 from log import log
 
 try:
@@ -65,17 +78,6 @@ except ImportError:
     _HAS_QTA = False
 
 
-_LABEL_ORDER = {
-    "recommended": 0,
-    "stable": 1,
-    None: 2,
-    "none": 2,
-    "experimental": 3,
-    "game": 4,
-    "caution": 5,
-}
-
-
 class _ArgsEditorDialog(MessageBoxBase):  # type: ignore[misc, valid-type]
     """Диалог ручного редактирования аргументов стратегии."""
 
@@ -111,36 +113,7 @@ class _ArgsEditorDialog(MessageBoxBase):  # type: ignore[misc, valid-type]
         self.viewLayout.addWidget(hint)
 
         self._text_edit = TextEdit()
-        try:
-            from config.reg import get_smooth_scroll_enabled
-            from qfluentwidgets.common.smooth_scroll import SmoothMode
-
-            smooth_enabled = get_smooth_scroll_enabled()
-            mode = SmoothMode.COSINE if smooth_enabled else SmoothMode.NO_SMOOTH
-            delegate = (
-                getattr(self._text_edit, "scrollDelegate", None)
-                or getattr(self._text_edit, "scrollDelagate", None)
-                or getattr(self._text_edit, "delegate", None)
-            )
-            if delegate is not None:
-                if hasattr(delegate, "useAni"):
-                    if not hasattr(delegate, "_zapret_base_use_ani"):
-                        delegate._zapret_base_use_ani = bool(delegate.useAni)
-                    delegate.useAni = bool(delegate._zapret_base_use_ani) if smooth_enabled else False
-                for smooth_attr in ("verticalSmoothScroll", "horizonSmoothScroll"):
-                    smooth = getattr(delegate, smooth_attr, None)
-                    smooth_setter = getattr(smooth, "setSmoothMode", None)
-                    if callable(smooth_setter):
-                        smooth_setter(mode)
-
-            setter = getattr(self._text_edit, "setSmoothMode", None)
-            if callable(setter):
-                try:
-                    setter(mode, Qt.Orientation.Vertical)
-                except TypeError:
-                    setter(mode)
-        except Exception:
-            pass
+        apply_editor_smooth_scroll_preference(self._text_edit)
         self._text_edit.setPlaceholderText(
             self._tr(
                 "page.z1_strategy_detail.args_dialog.placeholder",
@@ -181,6 +154,12 @@ class Zapret1StrategyDetailPage(BasePage):
         self._target_info: dict[str, Any] = {}
         self._direct_facade = None
         self._target_payload = None
+        self._target_payload_worker = None
+        self._target_payload_request_id = 0
+        self._pending_target_key: str = ""
+        self._preset_refresh_pending = False
+        self._ui_state_store = None
+        self._ui_state_unsubscribe = None
 
         self._strategies: dict[str, dict] = {}
         self._current_strategy_id: str = "none"
@@ -216,7 +195,7 @@ class Zapret1StrategyDetailPage(BasePage):
         self._success_timer.setSingleShot(True)
         self._success_timer.timeout.connect(self._hide_success)
 
-        self.enable_deferred_ui_build()
+        self._build_ui()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -265,32 +244,20 @@ class Zapret1StrategyDetailPage(BasePage):
         )
         header_layout.addWidget(self._title_label)
 
-        subtitle_row = QHBoxLayout()
-        subtitle_row.setContentsMargins(0, 0, 0, 0)
-        subtitle_row.setSpacing(6)
-
-        if _HAS_FLUENT:
-            self._spinner = IndeterminateProgressRing()
-            self._spinner.setFixedSize(16, 16)
-            self._spinner.setStrokeWidth(2)
-        else:
-            self._spinner = QWidget()
-        self._spinner.hide()
-        subtitle_row.addWidget(self._spinner)
-
-        self._success_icon = PixmapLabel()
-        self._success_icon.setFixedSize(16, 16)
-        self._success_icon.hide()
-        subtitle_row.addWidget(self._success_icon)
-
-        self._subtitle_label = BodyLabel("")
-        subtitle_row.addWidget(self._subtitle_label)
-
-        self._selected_label = CaptionLabel("")
+        subtitle_widgets = build_detail_subtitle_widgets(
+            parent=self,
+            body_label_cls=BodyLabel,
+            spinner_cls=IndeterminateProgressRing if _HAS_FLUENT else QWidget,
+            pixmap_label_cls=PixmapLabel,
+            subtitle_strategy_label_cls=CaptionLabel,
+            detail_text_color="#9aa2af",
+        )
+        self._spinner = subtitle_widgets.spinner
+        self._success_icon = subtitle_widgets.success_icon
+        self._subtitle_label = subtitle_widgets.subtitle_label
+        self._selected_label = subtitle_widgets.subtitle_strategy_label
         self._selected_label.setFont(QFont("Segoe UI", 10))
-        subtitle_row.addWidget(self._selected_label, 1)
-
-        header_layout.addLayout(subtitle_row)
+        header_layout.addWidget(subtitle_widgets.container_widget)
 
         self._desc_label = BodyLabel("")
         self._desc_label.setWordWrap(True)
@@ -386,7 +353,6 @@ class Zapret1StrategyDetailPage(BasePage):
         self._edit_args_btn = ActionButton(
             self._tr("page.z1_strategy_detail.button.edit_args", "Редактировать аргументы"),
             "fa5s.edit",
-            accent=False,
         )
         self._edit_args_btn.clicked.connect(self._open_args_editor)
         controls_row.addWidget(self._edit_args_btn)
@@ -410,8 +376,16 @@ class Zapret1StrategyDetailPage(BasePage):
         list_layout.setContentsMargins(0, 0, 0, 0)
         list_layout.setSpacing(8)
 
-        self._tree = DirectZapret2StrategiesTree(self)
-        self._tree.strategy_clicked.connect(self._on_strategy_selected)
+        self._tree = build_strategies_tree_widget(
+            parent=self,
+            tree_cls=DirectZapret2StrategiesTree,
+            on_row_clicked=self._on_strategy_selected,
+            on_favorite_toggled=lambda *_args: None,
+            on_working_mark_requested=lambda *_args: None,
+            on_preview_requested=lambda *_args: None,
+            on_preview_pinned_requested=lambda *_args: None,
+            on_preview_hide_requested=lambda: None,
+        )
         list_layout.addWidget(self._tree, 1)
 
         self._empty_label = CaptionLabel(
@@ -479,30 +453,132 @@ class Zapret1StrategyDetailPage(BasePage):
     # Public API
     # ------------------------------------------------------------------
 
-    def show_target(self, target_key: str, direct_facade) -> None:
-        self._target_key = str(target_key or "").strip().lower()
-        self._direct_facade = direct_facade
-        payload = None
+    def _load_target_payload_sync(self, target_key: str | None = None, *, refresh: bool = False):
+        key = str(target_key or self._target_key or "").strip().lower()
+        if not key:
+            return None
         try:
-            payload = direct_facade.get_target_detail_payload(self._target_key)
+            payload = self._get_direct_ui_snapshot_service().load_target_detail_payload(
+                "direct_zapret1",
+                key,
+                refresh=refresh,
+            )
         except Exception:
-            payload = None
+            return None
+        if payload is not None and str(getattr(payload, "target_key", "") or "").strip().lower() == key:
+            self._target_payload = payload
+        return payload
+
+    def _get_direct_ui_snapshot_service(self):
+        app_context = getattr(self.window(), "app_context", None)
+        service = getattr(app_context, "direct_ui_snapshot_service", None)
+        if service is None:
+            from core.services import get_direct_ui_snapshot_service
+
+            service = get_direct_ui_snapshot_service()
+        return service
+
+    def _request_target_payload(self, target_key: str, *, refresh: bool, reason: str) -> None:
+        normalized_key = str(target_key or "").strip().lower()
+        if not normalized_key:
+            return
+        token = self.issue_page_load_token(reason=f"{reason}:{normalized_key}")
+        self._target_payload_request_id += 1
+        request_id = self._target_payload_request_id
+        self._target_key = normalized_key
+        self.show_loading()
+        worker = DirectTargetDetailSnapshotWorker(
+            request_id,
+            launch_method="direct_zapret1",
+            target_key=normalized_key,
+            refresh=refresh,
+            parent=self,
+        )
+        worker.loaded.connect(
+            lambda loaded_request_id, snapshot, load_token=token: self._on_target_payload_loaded(
+                loaded_request_id,
+                snapshot,
+                load_token,
+            )
+        )
+        self._target_payload_worker = worker
+        worker.start()
+
+    def _on_target_payload_loaded(self, request_id: int, snapshot, token: int) -> None:
+        if request_id != self._target_payload_request_id:
+            return
+        if not self.is_page_load_token_current(token):
+            return
+        if self._refresh_btn:
+            self._refresh_btn.set_loading(False)
+        payload = getattr(snapshot, "payload", None)
+        if payload is None:
+            self._strategies = {}
+            self._rebuild_tree_rows()
+            self._refresh_args_preview()
+            self._update_selected_label()
+            self._sync_target_controls()
+            if self._spinner is not None:
+                try:
+                    if hasattr(self._spinner, "stop"):
+                        self._spinner.stop()
+                except Exception:
+                    pass
+                self._spinner.hide()
+            self._hide_success()
+            return
         self._target_payload = payload
         target_info = getattr(payload, "target_item", None)
-        self._target_info = self._normalize_target_info(target_key, target_info)
+        self._target_info = self._normalize_target_info(self._target_key, target_info)
         self._current_strategy_id = self._load_current_strategy_id()
         if self._current_strategy_id and self._current_strategy_id != "none":
             self._last_enabled_strategy_id = self._current_strategy_id
-
         self._update_header_labels()
         self._rebuild_breadcrumb()
-        self._reload_target()
+        self._apply_loaded_target_payload()
 
-    def showEvent(self, event):
-        super().showEvent(event)
+    def _apply_loaded_target_payload(self) -> None:
+        payload = getattr(self, "_target_payload", None)
+        if payload is not None:
+            self._strategies = dict(getattr(payload, "strategy_entries", {}) or {})
+        else:
+            self._strategies = {}
+        self._rebuild_tree_rows()
+        self._refresh_args_preview()
+        self._update_selected_label()
+        self._sync_target_controls()
+        self.show_success()
+
+    def show_target(self, target_key: str, direct_facade=None) -> None:
+        normalized_target_key = str(target_key or "").strip().lower()
+        if not normalized_target_key:
+            return
+        if direct_facade is not None:
+            self._direct_facade = direct_facade
+        if self._direct_facade is None:
+            try:
+                from core.presets.direct_facade import DirectPresetFacade
+
+                self._direct_facade = DirectPresetFacade.from_launch_method("direct_zapret1")
+            except Exception:
+                self._direct_facade = None
+        if not self.isVisible():
+            self._pending_target_key = normalized_target_key
+            return
+        self._pending_target_key = ""
+        self._request_target_payload(normalized_target_key, refresh=False, reason="show_target")
+
+    def on_page_activated(self, first_show: bool) -> None:
+        _ = first_show
+        pending_target_key = str(getattr(self, "_pending_target_key", "") or "").strip().lower()
+        if pending_target_key:
+            self._pending_target_key = ""
+            self._request_target_payload(pending_target_key, refresh=False, reason="show_target")
+            return
         self._rebuild_breadcrumb()
-        if self._target_key:
-            QTimer.singleShot(0, self._reload_target)
+        if self._target_key and self._preset_refresh_pending:
+            self._preset_refresh_pending = False
+            QTimer.singleShot(0, self.refresh_from_preset_switch)
 
     # ------------------------------------------------------------------
     # Data mapping / loading
@@ -510,28 +586,7 @@ class Zapret1StrategyDetailPage(BasePage):
 
     @staticmethod
     def _normalize_target_info(target_key: str, target_info: Any) -> dict[str, Any]:
-        if isinstance(target_info, dict):
-            info = dict(target_info)
-            info.setdefault("key", target_key)
-            info.setdefault("full_name", target_key)
-            info.setdefault("description", "")
-            info.setdefault("base_filter", "")
-            info.setdefault("base_filter_hostlist", "")
-            info.setdefault("base_filter_ipset", "")
-            return info
-
-        return {
-            "key": getattr(target_info, "key", target_key),
-            "full_name": getattr(target_info, "full_name", target_key),
-            "description": getattr(target_info, "description", ""),
-            "protocol": getattr(target_info, "protocol", ""),
-            "ports": getattr(target_info, "ports", ""),
-            "icon_name": getattr(target_info, "icon_name", ""),
-            "icon_color": getattr(target_info, "icon_color", "#909090"),
-            "base_filter": getattr(target_info, "base_filter", ""),
-            "base_filter_hostlist": getattr(target_info, "base_filter_hostlist", ""),
-            "base_filter_ipset": getattr(target_info, "base_filter_ipset", ""),
-        }
+        return StrategyDetailPageV1Controller.normalize_target_info(target_key, target_info)
 
     def _load_current_strategy_id(self) -> str:
         if not self._direct_facade or not self._target_key:
@@ -552,10 +607,10 @@ class Zapret1StrategyDetailPage(BasePage):
         payload = getattr(self, "_target_payload", None)
         if payload is not None and str(getattr(payload, "target_key", "") or "") == key:
             return payload.details
-        try:
-            return self._direct_facade.get_target_details(key)
-        except Exception:
+        payload = self._load_target_payload_sync(key, refresh=False)
+        if payload is None:
             return None
+        return getattr(payload, "details", None)
 
     def _reload_target(self, *_args) -> None:
         if not self._target_key:
@@ -563,22 +618,8 @@ class Zapret1StrategyDetailPage(BasePage):
         if self._refresh_btn:
             self._refresh_btn.set_loading(True)
 
-        self.show_loading()
         try:
-            payload = self._direct_facade.get_target_detail_payload(self._target_key)
-            if payload is not None:
-                self._target_payload = payload
-                self._strategies = dict(getattr(payload, "strategy_entries", {}) or {})
-            else:
-                self._strategies = self._direct_facade.get_target_strategies(self._target_key) or {}
-            self._current_strategy_id = self._load_current_strategy_id()
-            if self._current_strategy_id and self._current_strategy_id != "none":
-                self._last_enabled_strategy_id = self._current_strategy_id
-            self._rebuild_tree_rows()
-            self._refresh_args_preview()
-            self._update_selected_label()
-            self._sync_target_controls()
-            self.show_success()
+            self._request_target_payload(self._target_key, refresh=True, reason="reload")
         except Exception as e:
             log(f"Zapret1StrategyDetailPage: cannot load strategies: {e}", "ERROR")
             self._strategies = {}
@@ -587,25 +628,19 @@ class Zapret1StrategyDetailPage(BasePage):
             self._update_selected_label()
             self._sync_target_controls()
             self._hide_success()
-        finally:
-            if self._refresh_btn:
-                self._refresh_btn.set_loading(False)
+
+    def refresh_from_preset_switch(self) -> None:
+        """Перечитывает текущий target после смены активного source preset."""
+        if not self.isVisible():
+            self._preset_refresh_pending = True
+            return
+        if not self._target_key:
+            return
+        self._preset_refresh_pending = False
+        self._request_target_payload(self._target_key, refresh=True, reason="preset_switch")
 
     def _sorted_strategy_items(self) -> list[dict]:
-        items = [s for s in (self._strategies or {}).values() if s.get("id")]
-
-        if self._sort_mode == "alpha_asc":
-            return sorted(items, key=lambda s: (s.get("name", "")).lower())
-        if self._sort_mode == "alpha_desc":
-            return sorted(items, key=lambda s: (s.get("name", "")).lower(), reverse=True)
-
-        return sorted(
-            items,
-            key=lambda s: (
-                _LABEL_ORDER.get(s.get("label"), 2),
-                (s.get("name", "")).lower(),
-            ),
-        )
+        return StrategyDetailPageV1Controller.sorted_strategy_items(self._strategies, self._sort_mode)
 
     def _rebuild_tree_rows(self) -> None:
         if not self._tree:
@@ -811,11 +846,7 @@ class Zapret1StrategyDetailPage(BasePage):
             self._sync_target_controls()
 
     def _default_strategy_id(self) -> str:
-        for item in self._sorted_strategy_items():
-            sid = str(item.get("id") or "").strip()
-            if sid and sid != "none":
-                return sid
-        return "none"
+        return StrategyDetailPageV1Controller.default_strategy_id(self._strategies, self._sort_mode)
 
     def _on_enable_toggled(self, enabled: bool) -> None:
         if not self._direct_facade or not self._target_key:
@@ -865,8 +896,10 @@ class Zapret1StrategyDetailPage(BasePage):
             self._refresh_args_preview()
             self._sync_target_controls()
 
-            if self._tree and self._tree.has_strategy(sid):
-                self._tree.set_selected_strategy(sid)
+            apply_tree_selected_strategy_state(
+                self._tree,
+                strategy_id=sid,
+            )
 
             self.strategy_selected.emit(self._target_key, sid)
             log(f"V1 strategy set: {self._target_key} = {sid}", "INFO")
@@ -888,15 +921,7 @@ class Zapret1StrategyDetailPage(BasePage):
             self._reload_target()
 
     def _strategy_display_name(self, strategy_id: str) -> str:
-        sid = (strategy_id or "").strip()
-        if not sid or sid == "none":
-            return self._tr("page.z1_strategy_detail.tree.disabled.name", "Выключено")
-        if sid == "custom":
-            return self._tr("page.z1_strategy_detail.tree.custom.name", "Свой набор")
-        info = (self._strategies or {}).get(sid)
-        if info:
-            return info.get("name", sid)
-        return sid
+        return StrategyDetailPageV1Controller.strategy_display_name(strategy_id, self._strategies, self._tr)
 
     # ------------------------------------------------------------------
     # Args preview / editor
@@ -927,22 +952,23 @@ class Zapret1StrategyDetailPage(BasePage):
         payload = getattr(self, "_target_payload", None)
         if payload is not None and str(getattr(payload, "target_key", "") or "") == self._target_key:
             return str(getattr(payload, "raw_args_text", "") or "").strip()
-        try:
-            return (self._direct_facade.get_target_raw_args_text(self._target_key) or "").strip()
-        except Exception:
-            return ""
+        payload = self._load_target_payload_sync(self._target_key, refresh=False)
+        if payload is not None:
+            return str(getattr(payload, "raw_args_text", "") or "").strip()
+        return ""
 
     def _open_args_editor(self, *_args) -> None:
         if not _HAS_FLUENT or (self._current_strategy_id or "none") == "none":
             return
         try:
-            dlg = _ArgsEditorDialog(
-                self._get_current_args(),
-                self.window(),
+            edited_text = run_args_editor_dialog(
+                initial_text=self._get_current_args(),
+                parent=self.window(),
                 language=self._ui_language,
+                dialog_cls=_ArgsEditorDialog,
             )
-            if dlg.exec():
-                self._save_custom_args(dlg.get_text().strip())
+            if edited_text is not None:
+                self._save_custom_args(edited_text.strip())
         except Exception as e:
             log(f"Zapret1StrategyDetailPage: args editor error: {e}", "ERROR")
 
@@ -957,8 +983,10 @@ class Zapret1StrategyDetailPage(BasePage):
                 save_and_sync=True,
             ):
                 return
+            payload = self._load_target_payload_sync(self._target_key, refresh=True)
             self._current_strategy_id = (
-                self._direct_facade.get_strategy_selections().get(self._target_key, "none") or "none"
+                str(getattr(getattr(payload, "details", None), "current_strategy", "none") or "none")
+                if payload is not None else "none"
             )
             if self._current_strategy_id != "none":
                 self._last_enabled_strategy_id = self._current_strategy_id
@@ -987,7 +1015,7 @@ class Zapret1StrategyDetailPage(BasePage):
                         duration=1800,
                     )
 
-            self._reload_target()
+            self._request_target_payload(self._target_key, refresh=True, reason="args_saved")
 
         except Exception as e:
             log(f"V1 save custom args error: {e}", "ERROR")
@@ -1003,39 +1031,57 @@ class Zapret1StrategyDetailPage(BasePage):
     # ------------------------------------------------------------------
 
     def show_loading(self) -> None:
-        if self._spinner is not None:
-            try:
-                if hasattr(self._spinner, "start"):
-                    self._spinner.start()
-            except Exception:
-                pass
-            self._spinner.show()
-
-        if self._success_icon is not None:
-            self._success_icon.hide()
+        apply_loading_indicator_state(
+            self._spinner,
+            self._success_icon,
+            loading=True,
+        )
 
     def show_success(self) -> None:
-        if self._spinner is not None:
+        success_pixmap = None
+        if _HAS_QTA and qta is not None:
             try:
-                if hasattr(self._spinner, "stop"):
-                    self._spinner.stop()
+                success_pixmap = qta.icon("fa5s.check-circle", color="#6ccb5f").pixmap(16, 16)
             except Exception:
-                pass
-            self._spinner.hide()
-
-        if self._success_icon is not None:
-            if _HAS_QTA and qta is not None:
-                try:
-                    self._success_icon.setPixmap(qta.icon("fa5s.check-circle", color="#6ccb5f").pixmap(16, 16))
-                except Exception:
-                    pass
-            self._success_icon.show()
+                success_pixmap = None
+        apply_loading_indicator_state(
+            self._spinner,
+            self._success_icon,
+            success=True,
+            success_pixmap=success_pixmap,
+        )
 
         self._success_timer.start(1200)
 
     def _hide_success(self) -> None:
-        if self._success_icon is not None:
-            self._success_icon.hide()
+        apply_loading_indicator_state(
+            self._spinner,
+            self._success_icon,
+            loading=False,
+            success=False,
+        )
+
+    def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
+        if self._ui_state_store is store:
+            return
+
+        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
+        if callable(unsubscribe):
+            try:
+                unsubscribe()
+            except Exception:
+                pass
+
+        self._ui_state_store = store
+        self._ui_state_unsubscribe = store.subscribe(
+            self._on_ui_state_changed,
+            fields={"active_preset_revision", "preset_content_revision"},
+            emit_initial=False,
+        )
+
+    def _on_ui_state_changed(self, _state: AppUiState, changed_fields: frozenset[str]) -> None:
+        if "active_preset_revision" in changed_fields or "preset_content_revision" in changed_fields:
+            self.refresh_from_preset_switch()
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)

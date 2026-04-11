@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.theme import get_theme_tokens, get_cached_qta_pixmap, to_qcolor
+from ui.theme_refresh import ThemeRefreshController
 from ui.theme_semantic import get_semantic_palette
 
 try:
@@ -108,6 +109,7 @@ class DirectZapret2StrategiesTree(QTreeWidget):
         self._tokens = get_theme_tokens()
         self._applying_theme_styles = False
         self._apply_theme_styles()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
 
         self._mono_font = QFont("Consolas", 9)
         self._name_font = QFont("Segoe UI", 10)
@@ -254,22 +256,15 @@ class DirectZapret2StrategiesTree(QTreeWidget):
         except Exception:
             pass
 
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                if self._applying_theme_styles:
-                    return super().changeEvent(event)
-
-                old_key = self._current_icon_theme_key()
-                self._tokens = get_theme_tokens()
-                self._apply_theme_styles()
-                new_key = self._current_icon_theme_key()
-                if old_key != new_key:
-                    self._tech_icon_cache.clear()
-                    self._refresh_tech_icons_after_theme_change()
-        except Exception:
-            pass
-        return super().changeEvent(event)
+    def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        old_key = self._current_icon_theme_key()
+        self._tokens = tokens or get_theme_tokens()
+        self._apply_theme_styles()
+        new_key = self._current_icon_theme_key()
+        if old_key != new_key:
+            self._tech_icon_cache.clear()
+            self._refresh_tech_icons_after_theme_change()
 
     def _current_icon_theme_key(self) -> tuple[str, str, str, str, str, str, int]:
         tokens = self._tokens or get_theme_tokens("Темная синяя")

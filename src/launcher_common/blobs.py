@@ -23,6 +23,69 @@ from log import log
 _BLOBS_CACHE = None
 _BLOBS_JSON_PATH = None
 
+# Все системные блобы добавляются в начало preset файла.
+# Пути к файлам относительные (@bin/...) - они разрешаются winws2.exe.
+HARDCODED_BLOBS = (
+    "--blob=tls_google:@bin/tls_clienthello_www_google_com.bin "
+    "--blob=tls1:@bin/tls_clienthello_1.bin "
+    "--blob=tls2:@bin/tls_clienthello_2.bin "
+    "--blob=tls2n:@bin/tls_clienthello_2n.bin "
+    "--blob=tls3:@bin/tls_clienthello_3.bin "
+    "--blob=tls4:@bin/tls_clienthello_4.bin "
+    "--blob=tls5:@bin/tls_clienthello_5.bin "
+    "--blob=tls6:@bin/tls_clienthello_6.bin "
+    "--blob=tls7:@bin/tls_clienthello_7.bin "
+    "--blob=tls8:@bin/tls_clienthello_8.bin "
+    "--blob=tls9:@bin/tls_clienthello_9.bin "
+    "--blob=tls10:@bin/tls_clienthello_10.bin "
+    "--blob=tls11:@bin/tls_clienthello_11.bin "
+    "--blob=tls12:@bin/tls_clienthello_12.bin "
+    "--blob=tls13:@bin/tls_clienthello_13.bin "
+    "--blob=tls14:@bin/tls_clienthello_14.bin "
+    "--blob=tls17:@bin/tls_clienthello_17.bin "
+    "--blob=tls18:@bin/tls_clienthello_18.bin "
+    "--blob=tls_sber:@bin/tls_clienthello_sberbank_ru.bin "
+    "--blob=tls_vk:@bin/tls_clienthello_vk_com.bin "
+    "--blob=tls_vk_kyber:@bin/tls_clienthello_vk_com_kyber.bin "
+    "--blob=tls_deepseek:@bin/tls_clienthello_chat_deepseek_com.bin "
+    "--blob=tls_max:@bin/tls_clienthello_max_ru.bin "
+    "--blob=tls_iana:@bin/tls_clienthello_iana_org.bin "
+    "--blob=tls_4pda:@bin/tls_clienthello_4pda_to.bin "
+    "--blob=tls_gosuslugi:@bin/tls_clienthello_gosuslugi_ru.bin "
+    "--blob=syndata3:@bin/tls_clienthello_3.bin "
+    "--blob=syn_packet:@bin/syn_packet.bin "
+    "--blob=dtls_w3:@bin/dtls_clienthello_w3_org.bin "
+    "--blob=quic_google:@bin/quic_initial_www_google_com.bin "
+    "--blob=quic_vk:@bin/quic_initial_vk_com.bin "
+    "--blob=quic1:@bin/quic_1.bin "
+    "--blob=quic2:@bin/quic_2.bin "
+    "--blob=quic3:@bin/quic_3.bin "
+    "--blob=quic4:@bin/quic_4.bin "
+    "--blob=quic5:@bin/quic_5.bin "
+    "--blob=quic6:@bin/quic_6.bin "
+    "--blob=quic7:@bin/quic_7.bin "
+    "--blob=quic_test:@bin/quic_test_00.bin "
+    "--blob=fake_tls:@bin/fake_tls_1.bin "
+    "--blob=fake_tls_1:@bin/fake_tls_1.bin "
+    "--blob=fake_tls_2:@bin/fake_tls_2.bin "
+    "--blob=fake_tls_3:@bin/fake_tls_3.bin "
+    "--blob=fake_tls_4:@bin/fake_tls_4.bin "
+    "--blob=fake_tls_5:@bin/fake_tls_5.bin "
+    "--blob=fake_tls_6:@bin/fake_tls_6.bin "
+    "--blob=fake_tls_7:@bin/fake_tls_7.bin "
+    "--blob=fake_tls_8:@bin/fake_tls_8.bin "
+    "--blob=fake_quic:@bin/fake_quic.bin "
+    "--blob=fake_quic_1:@bin/fake_quic_1.bin "
+    "--blob=fake_quic_2:@bin/fake_quic_2.bin "
+    "--blob=fake_quic_3:@bin/fake_quic_3.bin "
+    "--blob=fake_default_udp:0x00000000000000000000000000000000 "
+    "--blob=http_req:@bin/http_iana_org.bin "
+    "--blob=hex_0e0e0f0e:0x0E0E0F0E "
+    "--blob=hex_0f0e0e0f:0x0F0E0E0F "
+    "--blob=hex_0f0f0f0f:0x0F0F0F0F "
+    "--blob=hex_00:0x00"
+)
+
 
 def _get_blobs_json_path() -> str:
     """Возвращает путь к JSON файлу блобов"""
@@ -144,7 +207,6 @@ def get_system_blobs_info() -> dict:
             }
         }
     """
-    from legacy_registry_launch.zapret2_strategy_builder import HARDCODED_BLOBS
     from config import BIN_FOLDER
 
     # Парсим HARDCODED_BLOBS строку

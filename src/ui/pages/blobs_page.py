@@ -1,7 +1,7 @@
 # ui/pages/blobs_page.py
 """Страница управления блобами (Zapret 2 / Direct режим)"""
 
-from PyQt6.QtCore import Qt, QTimer, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QFileDialog, QSizePolicy
@@ -10,8 +10,17 @@ import qtawesome as qta
 import os
 
 from .base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton, RefreshButton, set_tooltip
+from ui.compat_widgets import (
+    SettingsCard,
+    ActionButton,
+    PrimaryActionButton,
+    QuickActionsBar,
+    RefreshButton,
+    insert_widget_into_setting_card_group,
+    set_tooltip,
+)
 from ui.theme import get_theme_tokens, get_card_gradient_qss
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from log import log
 
@@ -20,6 +29,7 @@ try:
         LineEdit, ComboBox, MessageBox, InfoBar,
         MessageBoxBase, SubtitleLabel, BodyLabel, CaptionLabel,
         TransparentToolButton, TransparentPushButton,
+        SettingCardGroup,
     )
     _HAS_FLUENT_INPUTS = True
 except ImportError:
@@ -33,6 +43,7 @@ except ImportError:
     SubtitleLabel = QLabel
     BodyLabel = QLabel
     CaptionLabel = QLabel
+    SettingCardGroup = None  # type: ignore[assignment]
     _HAS_FLUENT_INPUTS = False
 
 
@@ -61,6 +72,7 @@ class BlobItemWidget(QFrame):
         # Политика размера: предпочитает минимальную ширину
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self._build_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -151,11 +163,6 @@ class BlobItemWidget(QFrame):
             layout.addWidget(self._delete_btn)
 
         self._apply_theme()
-
-    def changeEvent(self, event) -> None:
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_theme()
-        super().changeEvent(event)
 
     def refresh_theme(self) -> None:
         self._tokens = get_theme_tokens()
@@ -395,15 +402,20 @@ class BlobsPage(BasePage):
 
         self._desc_label = None
         self._filter_icon_label = None
+        self._runtime_initialized = False
+        self._actions_group = None
+        self._actions_meta_card = None
+        self._actions_bar = None
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
+        self._build_ui()
+        self._apply_page_theme(force=True)
+        self._run_runtime_init_once()
 
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
-        self._apply_theme()
+    def _run_runtime_init_once(self) -> None:
+        if self._runtime_initialized:
+            return
+        self._runtime_initialized = True
+        QTimer.singleShot(0, self._load_blobs)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -448,38 +460,102 @@ class BlobsPage(BasePage):
         self.layout.addWidget(desc_card)
         
         # Панель действий
-        actions_card = SettingsCard()
-        actions_layout = QHBoxLayout()
-        actions_layout.setSpacing(8)
-        
-        # Кнопка добавления
-        self.add_btn = ActionButton(self._tr("page.blobs.button.add", "Добавить блоб"), "fa5s.plus")
-        self.add_btn.clicked.connect(self._add_blob)
-        actions_layout.addWidget(self.add_btn)
-        
-        # Кнопка перезагрузки
-        self.reload_btn = RefreshButton()
-        self.reload_btn.clicked.connect(self._reload_blobs)
-        actions_layout.addWidget(self.reload_btn)
-        
-        # Открыть папку bin
-        self.open_folder_btn = ActionButton(self._tr("page.blobs.button.bin_folder", "Папка bin"), "fa5s.folder-open")
-        self.open_folder_btn.clicked.connect(self._open_bin_folder)
-        actions_layout.addWidget(self.open_folder_btn)
-        
-        # Открыть JSON
-        self.open_json_btn = ActionButton(self._tr("page.blobs.button.open_json", "Открыть JSON"), "fa5s.file-code")
-        self.open_json_btn.clicked.connect(self._open_json)
-        actions_layout.addWidget(self.open_json_btn)
-        
-        actions_layout.addStretch()
-        actions_card.add_layout(actions_layout)
-        
-        # Счётчик под кнопками
-        self.count_label = QLabel("")
-        actions_card.add_widget(self.count_label)
-        
-        self.layout.addWidget(actions_card)
+        if SettingCardGroup is not None and _HAS_FLUENT_INPUTS:
+            actions_group = SettingCardGroup(
+                self._tr("page.blobs.section.actions", "Действия"),
+                self.content,
+            )
+            self._actions_group = actions_group
+            self._actions_bar = QuickActionsBar(self.content)
+
+            self.add_btn = PrimaryActionButton(
+                self._tr("page.blobs.button.add", "Добавить блоб"),
+                "fa5s.plus",
+            )
+            self.add_btn.clicked.connect(self._add_blob)
+            set_tooltip(
+                self.add_btn,
+                self._tr(
+                    "page.blobs.action.add.description",
+                    "Открыть форму создания нового пользовательского блоба для стратегий.",
+                ),
+            )
+
+            self.reload_btn = RefreshButton()
+            self.reload_btn.clicked.connect(self._reload_blobs)
+            set_tooltip(
+                self.reload_btn,
+                self._tr("page.blobs.button.reload", "Обновить список блобов"),
+            )
+
+            self.open_folder_btn = ActionButton(
+                self._tr("page.blobs.button.bin_folder", "Папка bin"),
+                "fa5s.folder-open",
+            )
+            self.open_folder_btn.clicked.connect(self._open_bin_folder)
+            set_tooltip(
+                self.open_folder_btn,
+                self._tr(
+                    "page.blobs.action.bin_folder.description",
+                    "Открыть папку bin с бинарными blob-файлами.",
+                ),
+            )
+
+            self.open_json_btn = ActionButton(
+                self._tr("page.blobs.button.open_json", "Открыть JSON"),
+                "fa5s.file-code",
+            )
+            self.open_json_btn.clicked.connect(self._open_json)
+            set_tooltip(
+                self.open_json_btn,
+                self._tr(
+                    "page.blobs.action.open_json.description",
+                    "Открыть blobs.json с индексом blob-описаний.",
+                ),
+            )
+
+            self._actions_bar.add_buttons([self.add_btn, self.reload_btn, self.open_folder_btn, self.open_json_btn])
+            insert_widget_into_setting_card_group(actions_group, 1, self._actions_bar)
+
+            meta_card = SettingsCard()
+            self._actions_meta_card = meta_card
+            self.count_label = QLabel("")
+            meta_card.add_widget(self.count_label)
+            actions_group.addSettingCard(meta_card)
+            self.layout.addWidget(actions_group)
+        else:
+            actions_card = SettingsCard()
+            actions_layout = QHBoxLayout()
+            actions_layout.setSpacing(8)
+            
+            # Кнопка добавления
+            self.add_btn = ActionButton(self._tr("page.blobs.button.add", "Добавить блоб"), "fa5s.plus")
+            self.add_btn.clicked.connect(self._add_blob)
+            actions_layout.addWidget(self.add_btn)
+            
+            # Кнопка перезагрузки
+            self.reload_btn = RefreshButton()
+            self.reload_btn.clicked.connect(self._reload_blobs)
+            actions_layout.addWidget(self.reload_btn)
+            
+            # Открыть папку bin
+            self.open_folder_btn = ActionButton(self._tr("page.blobs.button.bin_folder", "Папка bin"), "fa5s.folder-open")
+            self.open_folder_btn.clicked.connect(self._open_bin_folder)
+            actions_layout.addWidget(self.open_folder_btn)
+            
+            # Открыть JSON
+            self.open_json_btn = ActionButton(self._tr("page.blobs.button.open_json", "Открыть JSON"), "fa5s.file-code")
+            self.open_json_btn.clicked.connect(self._open_json)
+            actions_layout.addWidget(self.open_json_btn)
+            
+            actions_layout.addStretch()
+            actions_card.add_layout(actions_layout)
+            
+            # Счётчик под кнопками
+            self.count_label = QLabel("")
+            actions_card.add_widget(self.count_label)
+            
+            self.layout.addWidget(actions_card)
         
         # Фильтр поиска
         filter_card = SettingsCard()
@@ -508,11 +584,9 @@ class BlobsPage(BasePage):
         
         self.layout.addWidget(self.blobs_container)
         
-        # Загружаем блобы
-        QTimer.singleShot(100, self._load_blobs)
-
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
 
         if self._desc_label is not None:
             self._desc_label.setStyleSheet(
@@ -606,7 +680,7 @@ class BlobsPage(BasePage):
             )
 
             # Refresh styles for newly created widgets.
-            self._apply_theme()
+            self._apply_page_theme(force=True)
             
         except Exception as e:
             log(f"Ошибка загрузки блобов: {e}", "ERROR")
@@ -619,7 +693,7 @@ class BlobsPage(BasePage):
             error_label.setProperty("blobSection", "error")
             self.blobs_layout.addWidget(error_label)
 
-            self._apply_theme()
+            self._apply_page_theme(force=True)
             
     def _filter_blobs(self, text: str):
         """Фильтрует блобы по тексту"""
@@ -739,9 +813,41 @@ class BlobsPage(BasePage):
                 )
             )
 
+        try:
+            title_label = getattr(getattr(self, "_actions_group", None), "titleLabel", None)
+            if title_label is not None:
+                title_label.setText(self._tr("page.blobs.section.actions", "Действия"))
+        except Exception:
+            pass
+
         self.add_btn.setText(self._tr("page.blobs.button.add", "Добавить блоб"))
         self.open_folder_btn.setText(self._tr("page.blobs.button.bin_folder", "Папка bin"))
         self.open_json_btn.setText(self._tr("page.blobs.button.open_json", "Открыть JSON"))
+        set_tooltip(
+            self.add_btn,
+            self._tr(
+                "page.blobs.action.add.description",
+                "Открыть форму создания нового пользовательского блоба для стратегий.",
+            ),
+        )
+        set_tooltip(
+            self.reload_btn,
+            self._tr("page.blobs.button.reload", "Обновить список блобов"),
+        )
+        set_tooltip(
+            self.open_folder_btn,
+            self._tr(
+                "page.blobs.action.bin_folder.description",
+                "Открыть папку bin с бинарными blob-файлами.",
+            ),
+        )
+        set_tooltip(
+            self.open_json_btn,
+            self._tr(
+                "page.blobs.action.open_json.description",
+                "Открыть blobs.json с индексом blob-описаний.",
+            ),
+        )
         self.filter_edit.setPlaceholderText(self._tr("page.blobs.filter.placeholder", "Фильтр по имени..."))
 
         self._load_blobs()

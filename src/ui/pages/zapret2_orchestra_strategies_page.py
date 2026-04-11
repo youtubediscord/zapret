@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from typing import Any
 
 from PyQt6.QtCore import pyqtSignal, QTimer
@@ -100,24 +101,24 @@ class Zapret2OrchestraStrategiesPage(BasePage):
         self._ui_state_unsubscribe = None
 
         self._built = False
-        self._current_mode = None
+        self._current_mode = self._get_launch_method()
         self._preset_refresh_pending = False
 
         self._process_check_timer = QTimer(self)
         self._process_check_timer.timeout.connect(self._check_process_status)
         self._process_check_attempts = 0
         self._max_check_attempts = 30
+        self._runtime_started = False
 
         self._setup_breadcrumb()
-        self.enable_deferred_ui_build(build=self._rebuild_current_view)
+        self._rebuild_current_view()
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def showEvent(self, event):
-        super().showEvent(event)
-
+    def on_page_activated(self, first_show: bool) -> None:
+        _ = first_show
         method = self._get_launch_method()
         if method != self._current_mode:
             self._current_mode = method
@@ -133,9 +134,12 @@ class Zapret2OrchestraStrategiesPage(BasePage):
                 self._preset_refresh_pending = False
                 self._refresh_runtime_state()
 
-    def hideEvent(self, event):
-        self._stop_process_monitoring()
-        super().hideEvent(event)
+        if not self._runtime_started:
+            self._runtime_started = True
+            self._start_process_monitoring()
+
+    def on_page_hidden(self) -> None:
+        pass
 
     # ------------------------------------------------------------------
     # Navigation / breadcrumb
@@ -183,6 +187,11 @@ class Zapret2OrchestraStrategiesPage(BasePage):
                 self.parent_app.show_page(PageName.ZAPRET2_ORCHESTRA_CONTROL)
         except Exception:
             pass
+
+    def _reset_mode_view_state(self) -> None:
+        self._built = False
+        self._view_mode = "list"
+        self._selected_category_key = ""
 
     # ------------------------------------------------------------------
     # View build
@@ -478,29 +487,57 @@ class Zapret2OrchestraStrategiesPage(BasePage):
             return ""
 
     @staticmethod
+    def _category_value(category: Any, key: str, default: Any = "") -> Any:
+        if isinstance(category, dict):
+            return category.get(key, default)
+        return getattr(category, key, default)
+
+    @staticmethod
     def _load_categories() -> dict[str, Any]:
         try:
-            from legacy_registry_launch.strategies_registry import registry
+            from preset_orchestra_zapret2.catalog import load_categories
 
-            categories = dict(registry.categories or {})
-            if categories:
-                return categories
-
-            try:
-                registry.reload_strategies()
-                categories = dict(registry.categories or {})
-            except Exception:
-                pass
-
+            raw_categories = load_categories() or {}
+            categories: dict[str, Any] = {}
+            fallback_order = 0
+            for category_key, info in raw_categories.items():
+                key = str(category_key or "").strip().lower()
+                if not key:
+                    continue
+                payload = dict(info or {})
+                display_name = str(
+                    payload.get("full_name")
+                    or payload.get("name")
+                    or payload.get("display_name")
+                    or key
+                ).strip() or key
+                categories[key] = SimpleNamespace(
+                    key=key,
+                    full_name=display_name,
+                    description=str(payload.get("description") or "").strip(),
+                    protocol=str(payload.get("protocol") or "").strip(),
+                    ports=str(payload.get("ports") or "").strip(),
+                    order=int(payload.get("order") or fallback_order),
+                    command_order=int(payload.get("command_order") or payload.get("order") or fallback_order),
+                    command_group=str(payload.get("command_group") or payload.get("group") or "default").strip() or "default",
+                    strategy_type=str(payload.get("strategy_type") or "tcp").strip() or "tcp",
+                    requires_all_ports=bool(payload.get("requires_all_ports", False)),
+                    icon_name=payload.get("icon_name"),
+                    icon_color=str(payload.get("icon_color") or "#2196F3"),
+                    tooltip=str(payload.get("tooltip") or "").strip(),
+                    base_filter_hostlist=str(payload.get("base_filter_hostlist") or payload.get("base_filter") or "").strip(),
+                    base_filter_ipset=str(payload.get("base_filter_ipset") or "").strip(),
+                )
+                fallback_order += 1
             return categories
         except Exception:
             return {}
 
     def _load_current_selections(self) -> dict[str, str]:
         try:
-            from legacy_registry_launch.selection_store import get_direct_strategy_selections
+            from preset_orchestra_zapret2 import PresetManager
 
-            raw = get_direct_strategy_selections() or {}
+            raw = PresetManager().get_strategy_selections() or {}
         except Exception:
             raw = {}
 
@@ -509,24 +546,25 @@ class Zapret2OrchestraStrategiesPage(BasePage):
     @staticmethod
     def _load_filter_modes() -> dict[str, str]:
         try:
-            from strategy_menu.command_builder import get_filter_mode
-            from legacy_registry_launch.strategies_registry import registry
+            from preset_orchestra_zapret2 import PresetManager
 
+            manager = PresetManager()
             out = {}
-            for key in (registry.categories or {}).keys():
-                mode = (get_filter_mode(key) or "").strip().lower()
+            for key in (Zapret2OrchestraStrategiesPage._load_categories() or {}).keys():
+                mode = str(manager.get_category_filter_mode(key) or "").strip().lower()
                 if mode in ("hostlist", "ipset"):
                     out[key] = mode
             return out
         except Exception:
             return {}
 
-    @staticmethod
-    def _load_category_strategies(category_key: str) -> dict[str, dict]:
+    def _load_category_strategies(self, category_key: str) -> dict[str, dict]:
         try:
-            from legacy_registry_launch.strategies_registry import registry
+            from preset_orchestra_zapret2.catalog import load_strategies
 
-            strategies = registry.get_category_strategies(category_key) or {}
+            category = (self._categories or {}).get(category_key)
+            strategy_type = str(self._category_value(category, "strategy_type", "tcp") or "tcp").strip() or "tcp"
+            strategies = load_strategies(strategy_type, strategy_set="orchestra") or {}
             result: dict[str, dict] = {}
             for sid, data in strategies.items():
                 if not sid:
@@ -715,9 +753,9 @@ class Zapret2OrchestraStrategiesPage(BasePage):
 
         self.show_loading()
         try:
-            from legacy_registry_launch.selection_store import set_direct_strategy_for_target
+            from preset_orchestra_zapret2 import PresetManager
 
-            ok = set_direct_strategy_for_target(category_key, sid)
+            ok = PresetManager().set_strategy_selection(category_key, sid, save_and_sync=True)
             if not ok:
                 raise RuntimeError("Не удалось сохранить выбор")
 
@@ -828,9 +866,10 @@ class Zapret2OrchestraStrategiesPage(BasePage):
             self._reload_btn.set_loading(True)
 
         try:
-            from legacy_registry_launch.strategies_registry import registry
+            from preset_orchestra_zapret2.catalog import invalidate_categories_cache, invalidate_strategies_cache
 
-            registry.reload_strategies()
+            invalidate_categories_cache()
+            invalidate_strategies_cache()
             self._categories = self._load_categories()
             self.category_selections = self._load_current_selections()
 
@@ -858,10 +897,12 @@ class Zapret2OrchestraStrategiesPage(BasePage):
 
     def _clear_all(self) -> None:
         try:
-            from legacy_registry_launch.selection_store import set_direct_strategy_selections
+            from preset_orchestra_zapret2 import PresetManager
 
             none_selections = {k: "none" for k in (self._categories or {}).keys()}
-            set_direct_strategy_selections(none_selections)
+            ok = PresetManager().clear_all_strategy_selections(save_and_sync=True)
+            if not ok:
+                raise RuntimeError("Не удалось отключить все категории")
             self.category_selections = none_selections
 
             self._update_dpi_filters_display()
@@ -879,9 +920,11 @@ class Zapret2OrchestraStrategiesPage(BasePage):
 
     def _reset_to_defaults(self) -> None:
         try:
-            from strategy_menu import clear_direct_zapret2_orchestra_strategies
+            from preset_orchestra_zapret2 import PresetManager
 
-            clear_direct_zapret2_orchestra_strategies()
+            ok = PresetManager().reset_strategy_selections_to_defaults(save_and_sync=True)
+            if not ok:
+                raise RuntimeError("Не удалось сбросить orchestra категории")
 
             self.category_selections = self._load_current_selections()
             self._update_dpi_filters_display()
@@ -1008,6 +1051,9 @@ class Zapret2OrchestraStrategiesPage(BasePage):
 
     def update_current_strategy(self, name: str) -> None:
         _ = name
+        if not self.isVisible():
+            self._preset_refresh_pending = True
+            return
         self._refresh_runtime_state()
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
@@ -1032,9 +1078,7 @@ class Zapret2OrchestraStrategiesPage(BasePage):
         if "mode_revision" in changed_fields:
             if not self.isVisible():
                 self._current_mode = None
-                self._built = False
-                self._view_mode = "list"
-                self._selected_category_key = ""
+                self._reset_mode_view_state()
                 return
             self.reload_for_mode_change()
             return
@@ -1049,9 +1093,7 @@ class Zapret2OrchestraStrategiesPage(BasePage):
     def reload_for_mode_change(self) -> None:
         self._stop_process_monitoring()
         self._current_mode = None
-        self._built = False
-        self._view_mode = "list"
-        self._selected_category_key = ""
+        self._reset_mode_view_state()
 
         if self.isVisible():
             self._rebuild_current_view()
@@ -1061,13 +1103,15 @@ class Zapret2OrchestraStrategiesPage(BasePage):
         if not categories_to_disable:
             return
         try:
-            from legacy_registry_launch.selection_store import set_direct_strategy_selections
+            from preset_orchestra_zapret2 import PresetManager
 
             for key in categories_to_disable:
                 if key in self.category_selections:
                     self.category_selections[key] = "none"
 
-            set_direct_strategy_selections(self.category_selections)
+            ok = PresetManager().set_strategy_selections(self.category_selections, save_and_sync=True)
+            if not ok:
+                raise RuntimeError("Не удалось применить orchestra selections")
 
             if self._has_any_active_strategy():
                 self._restart_dpi_with_current_selections()

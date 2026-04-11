@@ -8,15 +8,16 @@ from PyQt6.QtGui import QFont
 import qtawesome as qta
 
 try:
-    from qfluentwidgets import StrongBodyLabel, BodyLabel, CaptionLabel, InfoBar
+    from qfluentwidgets import StrongBodyLabel, BodyLabel, CaptionLabel, InfoBar, SettingCardGroup
     _HAS_FLUENT_LABELS = True
 except ImportError:
     StrongBodyLabel = QLabel; BodyLabel = QLabel; CaptionLabel = QLabel
     InfoBar = None
+    SettingCardGroup = None  # type: ignore[assignment]
     _HAS_FLUENT_LABELS = False
 
 from .base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton
+from ui.compat_widgets import SettingsCard, ActionButton, QuickActionsBar, insert_widget_into_setting_card_group, set_tooltip
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
 from log import log
@@ -37,6 +38,9 @@ class IpsetPage(BasePage):
         self._open_icon_label = None
         self._open_text_label = None
         self._actions_card = None
+        self._actions_group = None
+        self._actions_bar = None
+        self.open_ipset_btn = None
         self._info_card = None
         self._files_info_state = {
             "text": "",
@@ -44,15 +48,17 @@ class IpsetPage(BasePage):
             "default": "Загрузка информации...",
             "kwargs": {},
         }
+        self._runtime_initialized = False
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
+        self._build_ui()
+        self._apply_page_theme(force=True)
+        self._run_runtime_init_once()
 
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
-        self._apply_theme()
+    def _run_runtime_init_once(self) -> None:
+        if self._runtime_initialized:
+            return
+        self._runtime_initialized = True
+        QTimer.singleShot(0, self._load_info)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -118,35 +124,27 @@ class IpsetPage(BasePage):
         self.layout.addWidget(desc_card)
         
         # Кнопки действий
-        actions_card = SettingsCard(self._tr("page.ipset.section.actions", "Действия"))
-        self._actions_card = actions_card
-        actions_layout = QVBoxLayout()
-        actions_layout.setSpacing(8)
-        
-        # Открыть папку
-        open_row = QWidget()
-        open_layout = QHBoxLayout(open_row)
-        open_layout.setContentsMargins(0, 0, 0, 0)
-        
-        open_icon = QLabel()
-        self._open_icon_label = open_icon
-        open_icon.setPixmap(qta.icon('fa5s.folder-open', color=tokens.accent_hex).pixmap(18, 18))
-        open_layout.addWidget(open_icon)
-        
-        open_text = BodyLabel(self._tr("page.ipset.open_folder.label", "Открыть папку IP-сетов"))
-        self._open_text_label = open_text
-        open_text.setStyleSheet(f"color: {tokens.fg};")
-        open_layout.addWidget(open_text, 1)
-        
-        self.open_ipset_btn = ActionButton(self._tr("page.ipset.button.open", "Открыть"), "fa5s.external-link-alt")
-        self.open_ipset_btn.setFixedHeight(32)
+        self._actions_card = None
+        self._actions_group = SettingCardGroup(
+            self._tr("page.ipset.section.actions", "Действия"),
+            self.content,
+        )
+        self._actions_bar = QuickActionsBar(self.content)
+        self.open_ipset_btn = ActionButton(
+            self._tr("page.ipset.button.open", "Открыть"),
+            "fa5s.folder-open",
+        )
         self.open_ipset_btn.clicked.connect(self._open_ipset_folder)
-        open_layout.addWidget(self.open_ipset_btn)
-        
-        actions_layout.addWidget(open_row)
-        
-        actions_card.add_layout(actions_layout)
-        self.layout.addWidget(actions_card)
+        set_tooltip(
+            self.open_ipset_btn,
+            self._tr(
+                "page.ipset.action.open_folder.description",
+                "Открыть папку со списками IP и подсетей для ручной проверки и редактирования.",
+            ),
+        )
+        self._actions_bar.add_button(self.open_ipset_btn)
+        insert_widget_into_setting_card_group(self._actions_group, 1, self._actions_bar)
+        self.layout.addWidget(self._actions_group)
         
         # Информация о файлах
         info_card = SettingsCard(self._tr("page.ipset.section.info", "Информация"))
@@ -162,13 +160,11 @@ class IpsetPage(BasePage):
         info_card.add_layout(info_layout)
         self.layout.addWidget(info_card)
         
-        # Загружаем информацию
-        QTimer.singleShot(100, self._load_info)
-        
         self.layout.addStretch()
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         if self._desc_label is not None:
             self._desc_label.setStyleSheet(f"color: {tokens.fg_muted};")
         if self._open_icon_label is not None:
@@ -188,14 +184,25 @@ class IpsetPage(BasePage):
                     "IP-сеты содержат IP-адреса и подсети для обхода блокировок по IP.\n"
                     "Используются когда блокировка происходит на уровне IP-адресов.",
                 )
-            )
+        )
         if self._actions_card is not None:
             self._actions_card.set_title(self._tr("page.ipset.section.actions", "Действия"))
+        if self._actions_group is not None:
+            try:
+                self._actions_group.titleLabel.setText(self._tr("page.ipset.section.actions", "Действия"))
+            except Exception:
+                pass
         if self._info_card is not None:
             self._info_card.set_title(self._tr("page.ipset.section.info", "Информация"))
-        if self._open_text_label is not None:
-            self._open_text_label.setText(self._tr("page.ipset.open_folder.label", "Открыть папку IP-сетов"))
-        self.open_ipset_btn.setText(self._tr("page.ipset.button.open", "Открыть"))
+        if hasattr(self, "open_ipset_btn") and self.open_ipset_btn is not None:
+            self.open_ipset_btn.setText(self._tr("page.ipset.button.open", "Открыть"))
+            set_tooltip(
+                self.open_ipset_btn,
+                self._tr(
+                    "page.ipset.action.open_folder.description",
+                    "Открыть папку со списками IP и подсетей для ручной проверки и редактирования.",
+                )
+            )
         self._render_files_info()
 
     def _open_ipset_folder(self):

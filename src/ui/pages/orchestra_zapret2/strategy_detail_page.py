@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from ui.pages.zapret2.strategy_detail_page import StrategyDetailPage
 from ui.text_catalog import tr as tr_catalog
 
 
 class OrchestraZapret2StrategyDetailPage(StrategyDetailPage):
-    def showEvent(self, event):
-        super().showEvent(event)
+    def on_page_activated(self, first_show: bool) -> None:
+        super().on_page_activated(first_show)
         try:
             self.title_label.setText(
                 tr_catalog(

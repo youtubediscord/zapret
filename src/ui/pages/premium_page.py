@@ -3,12 +3,14 @@
 
 import time
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtWidgets import QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QApplication, QSizePolicy
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtWidgets import QWidget, QFrame, QLabel, QVBoxLayout, QHBoxLayout, QApplication, QSizePolicy, QPushButton
+import qtawesome as qta
 
 try:
     from qfluentwidgets import (
         LineEdit, MessageBox, InfoBar,
+        PushButton, PrimaryPushButton,
         BodyLabel, CaptionLabel, StrongBodyLabel, SubtitleLabel,
     )
     _HAS_FLUENT = True
@@ -17,39 +19,21 @@ except ImportError:
         QLineEdit as LineEdit, QLabel as BodyLabel, QLabel as CaptionLabel,
         QLabel as StrongBodyLabel, QLabel as SubtitleLabel,
     )
+    PushButton = QPushButton  # type: ignore[assignment]
+    PrimaryPushButton = QPushButton  # type: ignore[assignment]
     MessageBox = None
     InfoBar = None
     _HAS_FLUENT = False
 
 import webbrowser
 
+from donater.premium_page_controller import PremiumPageController
+from donater.premium_worker import PremiumWorkerThread
 from .base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton, RefreshButton
+from ui.compat_widgets import SettingsCard, RefreshButton, QuickActionsBar
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme_semantic import get_semantic_palette
 from ui.text_catalog import tr as tr_catalog
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Worker thread
-# ─────────────────────────────────────────────────────────────────────────────
-
-class WorkerThread(QThread):
-    """Поток для выполнения фоновых операций"""
-    result_ready = pyqtSignal(object)
-    error_occurred = pyqtSignal(str)
-
-    def __init__(self, target, args=None):
-        super().__init__()
-        self.target = target
-        self.args = args or ()
-
-    def run(self):
-        try:
-            result = self.target(*self.args)
-            self.result_ready.emit(result)
-        except Exception as e:
-            self.error_occurred.emit(str(e))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +120,6 @@ class PremiumPage(BasePage):
             title_key="page.premium.title",
             subtitle_key="page.premium.subtitle",
         )
-
         self.checker = None
         self.RegistryManager = None
         self.current_thread = None
@@ -167,9 +150,10 @@ class PremiumPage(BasePage):
         self._pairing_status_timer = QTimer(self)
         self._pairing_status_timer.setInterval(self._PAIRING_AUTOPOLL_INTERVAL_MS)
         self._pairing_status_timer.timeout.connect(self._poll_pairing_status)
+        self._actions_bar = None
+        self._runtime_initialized = False
 
-        self.enable_deferred_ui_build()
-        self._initialized = False
+        self._build_ui()
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
 
@@ -269,15 +253,21 @@ class PremiumPage(BasePage):
         text_default: str = "",
         text_kwargs: dict | None = None,
     ) -> None:
-        resolved_text = text if text is not None else ""
-        if text_key:
-            resolved_text = self._tr(text_key, text_default, **(text_kwargs or {}))
+        plan = PremiumPageController.build_activation_status_plan(
+            text=text,
+            text_key=text_key,
+            text_default=text_default,
+            text_kwargs=text_kwargs,
+        )
+        resolved_text = plan.text
+        if plan.text_key:
+            resolved_text = self._tr(plan.text_key, plan.text_default, **plan.text_kwargs)
 
         self._activation_status_state = {
             "text": resolved_text,
-            "text_key": text_key,
-            "text_default": text_default,
-            "text_kwargs": dict(text_kwargs or {}),
+            "text_key": plan.text_key,
+            "text_default": plan.text_default,
+            "text_kwargs": dict(plan.text_kwargs),
         }
         self.activation_status.setText(resolved_text)
 
@@ -306,56 +296,21 @@ class PremiumPage(BasePage):
         )
 
     def _apply_subscription_snapshot(self, is_premium: bool, days_remaining: int | None) -> None:
-        if is_premium:
-            if days_remaining is None:
-                self._set_status_badge(
-                    status="active",
-                    text_key="page.premium.status.active.title",
-                    text_default="Premium активен",
-                )
-                self._days_state_kind = "none"
-                self._days_state_value = 0
-            elif days_remaining > 30:
-                self._set_status_badge(
-                    status="active",
-                    text_key="page.premium.status.active.title",
-                    text_default="Premium активен",
-                    details_key="page.premium.status.active.days_left",
-                    details_default="Осталось {days} дней",
-                    details_kwargs={"days": days_remaining},
-                )
-                self._days_state_kind = "normal"
-                self._days_state_value = int(days_remaining)
-            elif days_remaining > 7:
-                self._set_status_badge(
-                    status="warning",
-                    text_key="page.premium.status.active.title",
-                    text_default="Premium активен",
-                    details_key="page.premium.status.active.days_left",
-                    details_default="Осталось {days} дней",
-                    details_kwargs={"days": days_remaining},
-                )
-                self._days_state_kind = "warning"
-                self._days_state_value = int(days_remaining)
-            else:
-                self._set_status_badge(
-                    status="expired",
-                    text_key="page.premium.status.expiring_soon.title",
-                    text_default="Premium скоро закончится",
-                    details_key="page.premium.status.active.days_left",
-                    details_default="Осталось {days} дней",
-                    details_kwargs={"days": days_remaining},
-                )
-                self._days_state_kind = "urgent"
-                self._days_state_value = int(days_remaining)
-        else:
-            self._set_status_badge(
-                status="neutral",
-                text_key="page.premium.status.inactive.title",
-                text_default="Подписка не активирована",
-            )
-            self._days_state_kind = "none"
-            self._days_state_value = 0
+        badge_plan, days_plan, _emitted_days = PremiumPageController.build_subscription_snapshot_plan(
+            is_premium=is_premium,
+            days_remaining=days_remaining,
+        )
+        self._set_status_badge(
+            status=badge_plan.status,
+            text_key=badge_plan.text_key,
+            text_default=badge_plan.text_default,
+            text_kwargs=badge_plan.text_kwargs,
+            details_key=badge_plan.details_key,
+            details_default=badge_plan.details_default,
+            details_kwargs=badge_plan.details_kwargs,
+        )
+        self._days_state_kind = days_plan.kind
+        self._days_state_value = days_plan.value
 
         self._render_days_label()
 
@@ -413,37 +368,48 @@ class PremiumPage(BasePage):
 
         self.server_status_label.setText(self._tr("page.premium.label.server.checking", "Сервер: проверка..."))
 
+    def _run_runtime_init_once(self) -> None:
+        plan = PremiumPageController.build_page_init_plan(
+            runtime_initialized=self._runtime_initialized,
+        )
+        if not plan.ensure_checker_once:
+            return
+
+        self._runtime_initialized = True
+        self._init_checker()
+        self._server_status_mode = plan.init_server_status_plan.mode
+        self._server_status_message = plan.init_server_status_plan.message
+        self._server_status_success = plan.init_server_status_plan.success
+        self._render_server_status()
+
     # ── lifecycle ────────────────────────────────────────────────────────────
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        if not self._initialized:
-            self._initialized = True
-            self._init_checker()
-            self._server_status_mode = "idle"
-            self._server_status_message = ""
-            self._server_status_success = None
-            self._render_server_status()
+    def on_page_activated(self, first_show: bool) -> None:
         self._sync_pairing_status_autopoll()
 
-    def hideEvent(self, event):
+    def on_page_hidden(self) -> None:
         self._stop_pairing_status_autopoll()
-        super().hideEvent(event)
 
     def closeEvent(self, event):
-        self._stop_pairing_status_autopoll()
-        if self.current_thread and self.current_thread.isRunning():
+        plan = PremiumPageController.build_close_plan(
+            thread_running=bool(self.current_thread and self.current_thread.isRunning()),
+        )
+        if plan.stop_autopoll:
+            self._stop_pairing_status_autopoll()
+        if plan.should_quit_thread and self.current_thread and self.current_thread.isRunning():
             self.current_thread.quit()
-            self.current_thread.wait()
+            self.current_thread.wait(plan.wait_timeout_ms)
         event.accept()
 
     # ── initialization ───────────────────────────────────────────────────────
 
     def _init_checker(self):
         try:
-            from donater import DonateChecker, PremiumStorage
-            self.checker = DonateChecker()
-            self.RegistryManager = PremiumStorage
+            init_result = PremiumPageController.resolve_checker_bundle()
+            self.checker = init_result.checker
+            self.RegistryManager = init_result.storage
+            if not init_result.init_ok:
+                raise RuntimeError("premium checker init failed")
             self._update_device_info()
         except Exception as e:
             from log import log
@@ -503,11 +469,9 @@ class PremiumPage(BasePage):
         self.key_input.setReadOnly(True)
         key_row.addWidget(self.key_input, 1)
 
-        self.activate_btn = ActionButton(
-            self._tr("page.premium.button.create_code", "Создать код"),
-            "fa5s.link",
-            accent=True,
-        )
+        self.activate_btn = PrimaryPushButton()
+        self.activate_btn.setText(self._tr("page.premium.button.create_code", "Создать код"))
+        self.activate_btn.setIcon(qta.icon("fa5s.link", color="#60cdff"))
         self.activate_btn.clicked.connect(self._create_pair_code)
         key_row.addWidget(self.activate_btn)
 
@@ -548,11 +512,9 @@ class PremiumPage(BasePage):
         labels_layout.addWidget(self.last_check_label)
         labels_layout.addWidget(self.server_status_label)
 
-        self.open_bot_btn = ActionButton(
-            self._tr("page.premium.button.open_bot", "Открыть бота"),
-            "fa5b.telegram",
-            accent=True,
-        )
+        self.open_bot_btn = PushButton()
+        self.open_bot_btn.setText(self._tr("page.premium.button.open_bot", "Открыть бота"))
+        self.open_bot_btn.setIcon(qta.icon("fa5b.telegram", color="#229ED9"))
         self.open_bot_btn.clicked.connect(self._open_extend_bot)
 
         row_layout = QHBoxLayout()
@@ -569,40 +531,56 @@ class PremiumPage(BasePage):
         # ─── Действия ────────────────────────────────────────────────────────
         self.add_section_title(text_key="page.premium.section.actions")
 
-        actions_card = SettingsCard()
-
-        actions_row = QHBoxLayout()
-        actions_row.setSpacing(8)
-
         self.refresh_btn = RefreshButton(self._tr("page.premium.button.refresh_status", "Обновить статус"))
         self.refresh_btn.clicked.connect(self._check_status)
-        actions_row.addWidget(self.refresh_btn, 1)
+        self.refresh_btn.setToolTip(
+            self._tr(
+                "page.premium.action.refresh_status.description",
+                "Повторно запросить Premium-статус и обновить данные устройства.",
+            )
+        )
 
-        self.change_key_btn = ActionButton(
-            self._tr("page.premium.button.reset_activation", "Сбросить активацию"),
-            "fa5s.exchange-alt",
+        self._actions_bar = QuickActionsBar(self.content)
+        self._actions_bar.add_button(self.refresh_btn)
+
+        self.change_key_btn = PushButton()
+        self.change_key_btn.setText(self._tr("page.premium.button.reset_activation", "Сбросить активацию"))
+        self.change_key_btn.setIcon(qta.icon("fa5s.exchange-alt", color="#ff9800"))
+        self.change_key_btn.setToolTip(
+            self._tr(
+                "page.premium.action.reset_activation.description",
+                "Удалить токен устройства, офлайн-кэш и код привязки на этом компьютере.",
+            )
         )
         self.change_key_btn.clicked.connect(self._change_key)
-        actions_row.addWidget(self.change_key_btn, 1)
+        self._actions_bar.add_button(self.change_key_btn)
 
-        self.test_btn = ActionButton(
-            self._tr("page.premium.button.test_connection", "Проверить соединение"),
-            "fa5s.plug",
+        self.test_btn = PushButton()
+        self.test_btn.setText(self._tr("page.premium.button.test_connection", "Проверить соединение"))
+        self.test_btn.setIcon(qta.icon("fa5s.plug", color="#60cdff"))
+        self.test_btn.setToolTip(
+            self._tr(
+                "page.premium.action.test_connection.description",
+                "Проверить доступность Premium backend и соединение с сервером.",
+            )
         )
         self.test_btn.clicked.connect(self._test_connection)
-        actions_row.addWidget(self.test_btn, 1)
+        self._actions_bar.add_button(self.test_btn)
 
-        self.extend_btn = ActionButton(
-            self._tr("page.premium.button.extend", "Продлить подписку"),
-            "fa5b.telegram",
-            accent=True,
+        self.extend_btn = PrimaryPushButton()
+        self.extend_btn.setText(self._tr("page.premium.button.extend", "Продлить подписку"))
+        self.extend_btn.setIcon(qta.icon("fa5b.telegram", color="#229ED9"))
+        self.extend_btn.setToolTip(
+            self._tr(
+                "page.premium.action.extend.description",
+                "Открыть Telegram-бота для продления подписки или покупки Premium.",
+            )
         )
         self.extend_btn.clicked.connect(self._open_extend_bot)
-        actions_row.addWidget(self.extend_btn, 1)
+        self._actions_bar.add_button(self.extend_btn)
 
-        actions_card.add_layout(actions_row)
-
-        self.add_widget(actions_card)
+        self.add_widget(self._actions_bar)
+        self._run_runtime_init_once()
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -624,11 +602,35 @@ class PremiumPage(BasePage):
         self.refresh_btn.setText(self._tr("page.premium.button.refresh_status", "Обновить статус"))
         self.change_key_btn.setText(self._tr("page.premium.button.reset_activation", "Сбросить активацию"))
         self.extend_btn.setText(self._tr("page.premium.button.extend", "Продлить подписку"))
+        self.refresh_btn.setToolTip(
+            self._tr(
+                "page.premium.action.refresh_status.description",
+                "Повторно запросить Premium-статус и обновить данные устройства.",
+            )
+        )
+        self.change_key_btn.setToolTip(
+            self._tr(
+                "page.premium.action.reset_activation.description",
+                "Удалить токен устройства, офлайн-кэш и код привязки на этом компьютере.",
+            )
+        )
+        self.extend_btn.setToolTip(
+            self._tr(
+                "page.premium.action.extend.description",
+                "Открыть Telegram-бота для продления подписки или покупки Premium.",
+            )
+        )
 
         if self._connection_test_in_progress:
             self.test_btn.setText(self._tr("page.premium.button.test_connection.loading", "Проверка..."))
         else:
             self.test_btn.setText(self._tr("page.premium.button.test_connection", "Проверить соединение"))
+        self.test_btn.setToolTip(
+            self._tr(
+                "page.premium.action.test_connection.description",
+                "Проверить доступность Premium backend и соединение с сервером.",
+            )
+        )
 
         self._update_device_info()
         self._render_server_status()
@@ -643,40 +645,46 @@ class PremiumPage(BasePage):
             self.key_input_container.setVisible(visible)
 
     def _has_pending_pair_code(self) -> bool:
-        if not self.RegistryManager:
-            return False
-
-        try:
-            pair_code = self.RegistryManager.get_pair_code()
-            pair_expires_at = self.RegistryManager.get_pair_expires_at()
-            if not pair_code or not pair_expires_at:
-                return False
-            return int(pair_expires_at) >= int(time.time())
-        except Exception:
-            return False
+        snapshot = PremiumPageController.read_pairing_snapshot(
+            self.RegistryManager,
+            current_time=int(time.time()),
+        )
+        return snapshot.has_pending_pair_code
 
     def _can_poll_pairing_status(self) -> bool:
-        if not self.checker or not self.RegistryManager:
-            return False
-        if not self.isVisible():
-            return False
-        if self._activation_in_progress or self._connection_test_in_progress:
-            return False
-        if self.current_thread and self.current_thread.isRunning():
-            return False
+        snapshot = PremiumPageController.read_pairing_snapshot(
+            self.RegistryManager,
+            current_time=int(time.time()),
+        )
 
-        try:
-            if self.RegistryManager.get_device_token():
-                return False
-        except Exception:
-            pass
-
-        return self._has_pending_pair_code()
+        plan = PremiumPageController.build_pairing_autopoll_plan(
+            checker_ready=bool(self.checker),
+            storage_ready=bool(self.RegistryManager),
+            page_visible=self.isVisible(),
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            worker_running=bool(self.current_thread and self.current_thread.isRunning()),
+            has_device_token=snapshot.has_device_token,
+            has_pending_pair_code=snapshot.has_pending_pair_code,
+        )
+        return plan.can_poll
 
     def _start_pairing_status_autopoll(self) -> None:
-        if not self._can_poll_pairing_status():
-            return
-        if not self._pairing_status_timer.isActive():
+        snapshot = PremiumPageController.read_pairing_snapshot(
+            self.RegistryManager,
+            current_time=int(time.time()),
+        )
+        plan = PremiumPageController.build_pairing_autopoll_plan(
+            checker_ready=bool(self.checker),
+            storage_ready=bool(self.RegistryManager),
+            page_visible=self.isVisible(),
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            worker_running=bool(self.current_thread and self.current_thread.isRunning()),
+            has_device_token=snapshot.has_device_token,
+            has_pending_pair_code=snapshot.has_pending_pair_code,
+        )
+        if plan.start_timer and not self._pairing_status_timer.isActive():
             self._pairing_status_timer.start()
 
     def _stop_pairing_status_autopoll(self) -> None:
@@ -684,100 +692,96 @@ class PremiumPage(BasePage):
             self._pairing_status_timer.stop()
 
     def _sync_pairing_status_autopoll(self) -> None:
-        if self._can_poll_pairing_status():
+        snapshot = PremiumPageController.read_pairing_snapshot(
+            self.RegistryManager,
+            current_time=int(time.time()),
+        )
+
+        plan = PremiumPageController.build_pairing_autopoll_plan(
+            checker_ready=bool(self.checker),
+            storage_ready=bool(self.RegistryManager),
+            page_visible=self.isVisible(),
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            worker_running=bool(self.current_thread and self.current_thread.isRunning()),
+            has_device_token=snapshot.has_device_token,
+            has_pending_pair_code=snapshot.has_pending_pair_code,
+        )
+        if plan.start_timer:
             self._start_pairing_status_autopoll()
-        else:
+        if plan.stop_timer:
             self._stop_pairing_status_autopoll()
 
     def _poll_pairing_status(self) -> None:
-        if not self._can_poll_pairing_status():
+        plan = PremiumPageController.build_pairing_poll_plan(
+            can_poll=self._can_poll_pairing_status(),
+        )
+        if plan.should_stop_timer:
             self._stop_pairing_status_autopoll()
             return
-        self._check_status()
+        if plan.should_check_status:
+            self._check_status()
 
     def _update_device_info(self):
         if not self.checker:
             return
         try:
-            self.device_id_label.setText(
-                self._tr(
-                    "page.premium.label.device_id.value",
-                    "ID устройства: {device_id}...",
-                    device_id=self.checker.device_id[:16],
-                )
+            snapshot = PremiumPageController.read_device_storage_snapshot(
+                self.RegistryManager,
+                current_time=int(time.time()),
+            )
+            plan = PremiumPageController.build_device_info_plan(
+                device_id=self.checker.device_id,
+                device_token=snapshot.get("device_token"),
+                pair_code=snapshot.get("pair_code"),
+                last_check=snapshot.get("last_check"),
+                token_present_text=self._tr("page.premium.label.device_token.present", "device token: ✅"),
+                token_absent_text=self._tr("page.premium.label.device_token.absent", "device token: ❌"),
+                pair_template_text=self._tr("page.premium.label.pair_code.value", "pair: {pair_code}"),
             )
 
-            device_token = None
-            try:
-                device_token = self.RegistryManager.get_device_token()
-            except Exception:
-                pass
-
-            pair_code = None
-            pair_expires_at = None
-            try:
-                pair_code = self.RegistryManager.get_pair_code()
-                pair_expires_at = self.RegistryManager.get_pair_expires_at()
-            except Exception:
-                pass
-
-            if pair_code and pair_expires_at:
-                try:
-                    if int(pair_expires_at) < int(time.time()):
-                        self.RegistryManager.clear_pair_code()
-                        pair_code = None
-                except Exception:
-                    pass
-
-            parts = [
-                self._tr("page.premium.label.device_token.present", "device token: ✅")
-                if device_token
-                else self._tr("page.premium.label.device_token.absent", "device token: ❌")
-            ]
-            if pair_code:
-                parts.append(self._tr("page.premium.label.pair_code.value", "pair: {pair_code}", pair_code=pair_code))
-            self.saved_key_label.setText(" | ".join(parts))
-
-            last_check = self.RegistryManager.get_last_check()
-            if last_check:
-                self.last_check_label.setText(
-                    self._tr(
-                        "page.premium.label.last_check.value",
-                        "Последняя проверка: {date}",
-                        date=last_check.strftime('%d.%m.%Y %H:%M'),
-                    )
+            self.device_id_label.setText(
+                self._tr(
+                    plan.device_id_text_key,
+                    plan.device_id_text_default,
+                    **plan.device_id_kwargs,
                 )
-            else:
-                self.last_check_label.setText(
-                    self._tr("page.premium.label.last_check.none", "Последняя проверка: —")
+            )
+            self.saved_key_label.setText(plan.saved_key_text)
+            self.last_check_label.setText(
+                self._tr(
+                    plan.last_check_text_key,
+                    plan.last_check_text_default,
+                    **plan.last_check_kwargs,
                 )
+            )
         except Exception as e:
             from log import log
             log(f"Ошибка обновления информации об устройстве: {e}", "DEBUG")
 
     def _open_extend_bot(self) -> None:
-        try:
-            from config.telegram_links import open_telegram_link
-            open_telegram_link("zapretvpns_bot")
+        result = PremiumPageController.open_extend_bot()
+        if result.ok:
             return
-        except Exception:
-            try:
-                webbrowser.open("https://t.me/zapretvpns_bot")
-            except Exception as e:
-                if InfoBar:
-                    InfoBar.warning(
-                        title=self._tr("common.error.title", "Ошибка"),
-                        content=self._tr(
-                            "page.premium.error.open_telegram",
-                            "Не удалось открыть Telegram: {error}",
-                            error=e,
-                        ),
-                        parent=self.window(),
-                    )
+        if InfoBar:
+            InfoBar.warning(
+                title=self._tr("common.error.title", "Ошибка"),
+                content=self._tr(
+                    "page.premium.error.open_telegram",
+                    "Не удалось открыть Telegram: {error}",
+                    error=result.message,
+                ),
+                parent=self.window(),
+            )
 
     # ── pair code ────────────────────────────────────────────────────────────
 
     def _create_pair_code(self):
+        gate_plan = PremiumPageController.build_worker_gate_plan(
+            thread_running=bool(self.current_thread and self.current_thread.isRunning()),
+        )
+        if not gate_plan.can_start:
+            return
         if not self.checker:
             self._init_checker()
             if not self.checker:
@@ -787,69 +791,80 @@ class PremiumPage(BasePage):
                 )
                 return
 
-        self._activation_in_progress = True
-        self._stop_pairing_status_autopoll()
-        self.key_input.clear()
-        self.activate_btn.setEnabled(False)
+        plan = PremiumPageController.build_pair_code_start_plan()
+        self._activation_in_progress = plan.activation_in_progress
+        if plan.stop_autopoll:
+            self._stop_pairing_status_autopoll()
+        if plan.clear_key_input:
+            self.key_input.clear()
+        self.activate_btn.setEnabled(plan.activate_enabled)
         self.activate_btn.setText(
-            self._tr("page.premium.button.create_code.loading", "Создание...")
+            self._tr(plan.activate_text_key, plan.activate_text_default)
         )
         self._set_activation_status(
-            text_key="page.premium.activation.progress.creating_code",
-            text_default="🔄 Создаю код...",
+            text=plan.activation_status_plan.text,
+            text_key=plan.activation_status_plan.text_key,
+            text_default=plan.activation_status_plan.text_default,
+            text_kwargs=plan.activation_status_plan.text_kwargs,
         )
 
-        self.current_thread = WorkerThread(self.checker.pair_start)
+        self.current_thread = PremiumPageController.create_worker_thread(self.checker.pair_start)
         self.current_thread.result_ready.connect(self._on_pair_code_created)
         self.current_thread.error_occurred.connect(self._on_activation_error)
         self.current_thread.start()
 
     def _on_pair_code_created(self, result):
-        try:
-            success, message, code = result
-        except Exception:
-            success, message, code = False, self._tr("page.premium.activation.error.invalid_reply", "Неверный ответ"), None
-
-        self._activation_in_progress = False
-        self.activate_btn.setEnabled(True)
-        self.activate_btn.setText(self._tr("page.premium.button.create_code", "Создать код"))
-
-        if success:
-            if code:
-                self.key_input.setText(str(code))
-                try:
-                    QApplication.clipboard().setText(str(code))
-                except Exception:
-                    pass
-            self._set_activation_status(
-                text_key="page.premium.activation.success.code_created",
-                text_default="✅ Код создан и скопирован. Отправьте его боту в Telegram.",
-            )
-            self._update_device_info()
-            self._start_pairing_status_autopoll()
-        else:
+        plan = PremiumPageController.build_pair_code_result_plan(result)
+        self._activation_in_progress = plan.activation_in_progress
+        self.activate_btn.setEnabled(plan.activate_enabled)
+        self.activate_btn.setText(self._tr(plan.activate_text_key, plan.activate_text_default))
+        if plan.clear_key_input:
             self.key_input.clear()
-            self._set_activation_status(text=f"❌ {message}")
+        else:
+            self.key_input.setText(plan.key_input_text)
+        if plan.copy_to_clipboard and plan.key_input_text:
+            try:
+                QApplication.clipboard().setText(plan.key_input_text)
+            except Exception:
+                pass
+        self._set_activation_status(
+            text=plan.activation_status_plan.text,
+            text_key=plan.activation_status_plan.text_key,
+            text_default=plan.activation_status_plan.text_default,
+            text_kwargs=plan.activation_status_plan.text_kwargs,
+        )
+        if plan.update_device_info:
             self._update_device_info()
+        if plan.start_autopoll:
+            self._start_pairing_status_autopoll()
+        if plan.stop_autopoll:
             self._stop_pairing_status_autopoll()
 
     def _on_activation_error(self, error):
-        self._activation_in_progress = False
-        self.key_input.clear()
-        self.activate_btn.setEnabled(True)
-        self.activate_btn.setText(self._tr("page.premium.button.create_code", "Создать код"))
+        plan = PremiumPageController.build_pair_code_error_plan(str(error or ""))
+        self._activation_in_progress = plan.activation_in_progress
+        if plan.clear_key_input:
+            self.key_input.clear()
+        self.activate_btn.setEnabled(plan.activate_enabled)
+        self.activate_btn.setText(self._tr(plan.activate_text_key, plan.activate_text_default))
         self._set_activation_status(
-            text_key="page.premium.activation.error.generic",
-            text_default="❌ Ошибка: {error}",
-            text_kwargs={"error": error},
+            text=plan.activation_status_plan.text,
+            text_key=plan.activation_status_plan.text_key,
+            text_default=plan.activation_status_plan.text_default,
+            text_kwargs=plan.activation_status_plan.text_kwargs,
         )
-        self._update_device_info()
-        self._stop_pairing_status_autopoll()
+        if plan.update_device_info:
+            self._update_device_info()
+        if plan.stop_autopoll:
+            self._stop_pairing_status_autopoll()
 
     # ── status check ─────────────────────────────────────────────────────────
 
     def _check_status(self):
-        if self.current_thread and self.current_thread.isRunning():
+        gate_plan = PremiumPageController.build_worker_gate_plan(
+            thread_running=bool(self.current_thread and self.current_thread.isRunning()),
+        )
+        if not gate_plan.can_start:
             return
         if not self.checker:
             self._init_checker()
@@ -872,7 +887,7 @@ class PremiumPage(BasePage):
             details_default="Подключение к серверу",
         )
 
-        self.current_thread = WorkerThread(self.checker.check_device_activation)
+        self.current_thread = PremiumPageController.create_worker_thread(self.checker.check_device_activation)
         self.current_thread.result_ready.connect(self._on_status_complete)
         self.current_thread.error_occurred.connect(self._on_status_error)
         self.current_thread.start()
@@ -880,112 +895,39 @@ class PremiumPage(BasePage):
     def _on_status_complete(self, result):
         self.refresh_btn.set_loading(False)
         self._update_device_info()
-
-        if result is None or not isinstance(result, dict):
-            self._set_status_badge(
-                status="expired",
-                text_key="page.premium.status.error.title",
-                text_default="Ошибка",
-                details_key="page.premium.status.error.invalid_response",
-                details_default="Неверный ответ сервера",
-            )
-            return
-
-        if 'activated' not in result:
-            self._set_status_badge(
-                status="expired",
-                text_key="page.premium.status.error.title",
-                text_default="Ошибка",
-                details_key="page.premium.status.error.incomplete_response",
-                details_default="Неполный ответ",
-            )
-            return
-
         try:
-            is_premium = bool(result.get("is_premium", result.get("activated")))
-            is_linked = bool(result.get("found"))
+            plan = PremiumPageController.build_status_check_plan(
+                result,
+                linked_hint=self._tr(
+                    "page.premium.status.inactive.linked_hint",
+                    "Продлите подписку в боте и нажмите «Обновить статус».",
+                ),
+                unlinked_hint=self._tr(
+                    "page.premium.status.inactive.unlinked_hint",
+                    "Создайте код и привяжите устройство.",
+                ),
+            )
 
-            if is_premium:
+            self._set_status_badge(
+                status=plan.badge_plan.status,
+                text_key=plan.badge_plan.text_key,
+                text_default=plan.badge_plan.text_default,
+                text_kwargs=plan.badge_plan.text_kwargs,
+                details_key=plan.badge_plan.details_key,
+                details_default=plan.badge_plan.details_default,
+                details_kwargs=plan.badge_plan.details_kwargs,
+            )
+            self._days_state_kind = plan.days_plan.kind
+            self._days_state_value = plan.days_plan.value
+            self._render_days_label()
+            self._set_activation_section_visible(not plan.hide_activation_section)
+
+            if plan.stop_autopoll:
                 self._stop_pairing_status_autopoll()
-                days_remaining = result.get('days_remaining')
-                self._set_activation_section_visible(False)
+            elif plan.sync_autopoll:
+                self._sync_pairing_status_autopoll()
 
-                if days_remaining is not None:
-                    if days_remaining > 30:
-                        self._set_status_badge(
-                            status="active",
-                            text_key="page.premium.status.active.title",
-                            text_default="Подписка активна",
-                            details_key="page.premium.status.active.days_left",
-                            details_default="Осталось {days} дней",
-                            details_kwargs={"days": days_remaining},
-                        )
-                        self._days_state_kind = "normal"
-                        self._days_state_value = int(days_remaining)
-                        self._render_days_label()
-                    elif days_remaining > 7:
-                        self._set_status_badge(
-                            status="warning",
-                            text_key="page.premium.status.active.title",
-                            text_default="Подписка активна",
-                            details_key="page.premium.status.active.days_left",
-                            details_default="Осталось {days} дней",
-                            details_kwargs={"days": days_remaining},
-                        )
-                        self._days_state_kind = "warning"
-                        self._days_state_value = int(days_remaining)
-                        self._render_days_label()
-                    else:
-                        self._set_status_badge(
-                            status="warning",
-                            text_key="page.premium.status.expiring_soon.title",
-                            text_default="Скоро истекает!",
-                            details_key="page.premium.status.active.days_left",
-                            details_default="Осталось {days} дней",
-                            details_kwargs={"days": days_remaining},
-                        )
-                        self._days_state_kind = "urgent"
-                        self._days_state_value = int(days_remaining)
-                        self._render_days_label()
-                    self.subscription_updated.emit(True, days_remaining)
-                else:
-                    self._set_status_badge(
-                        status="active",
-                        text_key="page.premium.status.active.title",
-                        text_default="Подписка активна",
-                        details=result.get('status', ''),
-                    )
-                    self._days_state_kind = "none"
-                    self._days_state_value = 0
-                    self._render_days_label()
-                    self.subscription_updated.emit(True, 0)
-            else:
-                self._set_activation_section_visible(not is_linked)
-                if is_linked:
-                    self._stop_pairing_status_autopoll()
-                else:
-                    self._sync_pairing_status_autopoll()
-                details = result.get('status', '') or (
-                    self._tr(
-                        "page.premium.status.inactive.linked_hint",
-                        "Продлите подписку в боте и нажмите «Обновить статус».",
-                    )
-                    if is_linked else
-                    self._tr(
-                        "page.premium.status.inactive.unlinked_hint",
-                        "Создайте код и привяжите устройство.",
-                    )
-                )
-                self._set_status_badge(
-                    status="expired",
-                    text_key="page.premium.status.inactive.title",
-                    text_default="Подписка не активна",
-                    details=details,
-                )
-                self._days_state_kind = "none"
-                self._days_state_value = 0
-                self._render_days_label()
-                self.subscription_updated.emit(False, 0)
+            self.subscription_updated.emit(plan.emitted_is_premium, plan.emitted_days)
 
         except Exception as e:
             self._sync_pairing_status_autopoll()
@@ -1000,55 +942,70 @@ class PremiumPage(BasePage):
     def _on_status_error(self, error):
         self._sync_pairing_status_autopoll()
         self.refresh_btn.set_loading(False)
+        plan = PremiumPageController.build_status_check_plan(
+            {"activated": False, "status": str(error or ""), "found": False},
+            linked_hint=self._tr(
+                "page.premium.status.inactive.linked_hint",
+                "Продлите подписку в боте и нажмите «Обновить статус».",
+            ),
+            unlinked_hint=self._tr(
+                "page.premium.status.inactive.unlinked_hint",
+                "Создайте код и привяжите устройство.",
+            ),
+        )
         self._set_status_badge(
             status="expired",
             text_key="page.premium.status.error.check_failed",
             text_default="Ошибка проверки",
-            details=error,
+            details=plan.badge_plan.details_default or str(error or ""),
         )
 
     # ── connection test ───────────────────────────────────────────────────────
 
     def _test_connection(self):
+        gate_plan = PremiumPageController.build_worker_gate_plan(
+            thread_running=bool(self.current_thread and self.current_thread.isRunning()),
+        )
+        if not gate_plan.can_start:
+            return
         if not self.checker:
             self._init_checker()
-            if not self.checker:
-                self._server_status_mode = "init_error"
-                self._server_status_message = ""
-                self._server_status_success = False
-                self._render_server_status()
-                return
-
-        self._connection_test_in_progress = True
-        self.test_btn.setEnabled(False)
-        self.test_btn.setText(self._tr("page.premium.button.test_connection.loading", "Проверка..."))
-        self._server_status_mode = "checking"
-        self._server_status_message = ""
-        self._server_status_success = None
+        plan = PremiumPageController.build_connection_test_start_plan(
+            checker_ready=bool(self.checker),
+        )
+        self._connection_test_in_progress = plan.connection_in_progress
+        self.test_btn.setEnabled(plan.test_enabled)
+        self.test_btn.setText(self._tr(plan.test_text_key, plan.test_text_default))
+        self._server_status_mode = plan.server_status_plan.mode
+        self._server_status_message = plan.server_status_plan.message
+        self._server_status_success = plan.server_status_plan.success
         self._render_server_status()
+        if not self.checker:
+            return
 
-        self.current_thread = WorkerThread(self.checker.test_connection)
+        self.current_thread = PremiumPageController.create_worker_thread(self.checker.test_connection)
         self.current_thread.result_ready.connect(self._on_connection_test_complete)
         self.current_thread.error_occurred.connect(self._on_connection_test_error)
         self.current_thread.start()
 
     def _on_connection_test_complete(self, result):
-        success, message = result
-        self._connection_test_in_progress = False
-        self.test_btn.setEnabled(True)
-        self.test_btn.setText(self._tr("page.premium.button.test_connection", "Проверить соединение"))
-        self._server_status_mode = "result"
-        self._server_status_message = str(message or "")
-        self._server_status_success = bool(success)
+        plan = PremiumPageController.build_connection_test_result_plan(result)
+        self._connection_test_in_progress = plan.connection_in_progress
+        self.test_btn.setEnabled(plan.test_enabled)
+        self.test_btn.setText(self._tr(plan.test_text_key, plan.test_text_default))
+        self._server_status_mode = plan.server_status_plan.mode
+        self._server_status_message = plan.server_status_plan.message
+        self._server_status_success = plan.server_status_plan.success
         self._render_server_status()
 
     def _on_connection_test_error(self, error):
-        self._connection_test_in_progress = False
-        self.test_btn.setEnabled(True)
-        self.test_btn.setText(self._tr("page.premium.button.test_connection", "Проверить соединение"))
-        self._server_status_mode = "error"
-        self._server_status_message = str(error or "")
-        self._server_status_success = False
+        plan = PremiumPageController.build_connection_test_error_plan(str(error or ""))
+        self._connection_test_in_progress = plan.connection_in_progress
+        self.test_btn.setEnabled(plan.test_enabled)
+        self.test_btn.setText(self._tr(plan.test_text_key, plan.test_text_default))
+        self._server_status_mode = plan.server_status_plan.mode
+        self._server_status_message = plan.server_status_plan.message
+        self._server_status_success = plan.server_status_plan.success
         self._render_server_status()
 
     # ── reset activation ──────────────────────────────────────────────────────
@@ -1066,32 +1023,31 @@ class PremiumPage(BasePage):
             if not box.exec():
                 return
 
-        try:
-            if self.checker:
-                self.checker.clear_saved_key()
-        except Exception:
-            if self.RegistryManager:
-                try:
-                    self.RegistryManager.clear_device_token()
-                    self.RegistryManager.clear_premium_cache()
-                    self.RegistryManager.clear_pair_code()
-                    self.RegistryManager.save_last_check()
-                except Exception:
-                    pass
+        PremiumPageController.reset_premium_storage(self.checker, self.RegistryManager)
+        plan = PremiumPageController.build_reset_plan()
 
-        self.key_input.clear()
-        self._set_activation_status(text="")
+        if plan.clear_pair_input:
+            self.key_input.clear()
+        self._set_activation_status(
+            text=plan.activation_status_plan.text,
+            text_key=plan.activation_status_plan.text_key,
+            text_default=plan.activation_status_plan.text_default,
+            text_kwargs=plan.activation_status_plan.text_kwargs,
+        )
         self._update_device_info()
         self._set_status_badge(
-            status="expired",
-            text_key="page.premium.status.reset.title",
-            text_default="Привязка сброшена",
-            details_key="page.premium.status.reset.details",
-            details_default="Создайте новый код для привязки",
+            status=plan.badge_plan.status,
+            text_key=plan.badge_plan.text_key,
+            text_default=plan.badge_plan.text_default,
+            text_kwargs=plan.badge_plan.text_kwargs,
+            details_key=plan.badge_plan.details_key,
+            details_default=plan.badge_plan.details_default,
+            details_kwargs=plan.badge_plan.details_kwargs,
         )
-        self._days_state_kind = "none"
-        self._days_state_value = 0
+        self._days_state_kind = plan.days_plan.kind
+        self._days_state_value = plan.days_plan.value
         self._render_days_label()
-        self._set_activation_section_visible(True)
-        self._stop_pairing_status_autopoll()
-        self.subscription_updated.emit(False, 0)
+        self._set_activation_section_visible(plan.show_activation_section)
+        if plan.stop_autopoll:
+            self._stop_pairing_status_autopoll()
+        self.subscription_updated.emit(plan.emitted_is_premium, plan.emitted_days)

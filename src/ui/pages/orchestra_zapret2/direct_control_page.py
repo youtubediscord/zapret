@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 from ui.compat_widgets import set_tooltip
 from ui.pages.zapret2.direct_control_page import Zapret2DirectControlPage
 from ui.text_catalog import tr as tr_catalog
 
 
 class OrchestraZapret2DirectControlPage(Zapret2DirectControlPage):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._apply_orchestra_labels()
+    def _after_ui_built(self) -> None:
+        self._attach_program_settings_runtime()
+        super()._after_ui_built()
+        self._apply_orchestra_labels(language=self._ui_language)
         self._refresh_direct_mode_label()
 
     def _apply_orchestra_labels(self, language: str | None = None) -> None:
@@ -90,13 +93,13 @@ class OrchestraZapret2DirectControlPage(Zapret2DirectControlPage):
                         default="Открыть блобы",
                     )
                 )
-
         except Exception:
             pass
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
         self._apply_orchestra_labels(language=language)
+        self._refresh_direct_mode_label()
 
     def _open_direct_mode_dialog(self) -> None:
         return
@@ -117,28 +120,125 @@ class OrchestraZapret2DirectControlPage(Zapret2DirectControlPage):
         except Exception:
             pass
 
-    def _on_debug_log_toggled(self, enabled: bool) -> None:
+    def _sync_direct_launch_mode_from_settings(self) -> None:
+        self._refresh_direct_mode_label()
+
+    def _build_orchestra_preset_summary(self) -> tuple[str, str, str, str]:
+        preset_name = ""
+        category_names: list[str] = []
+
         try:
             from preset_orchestra_zapret2 import PresetManager
 
-            PresetManager().set_debug_log_enabled(bool(enabled))
-        except Exception:
-            pass
-
-        try:
-            from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
-
-            if not ensure_default_preset_exists():
-                return
             manager = PresetManager()
-            preset = manager.get_active_preset()
-            if preset:
-                manager.sync_preset_to_active_file(preset)
+            preset_name = str(manager.get_active_preset_name() or "").strip()
+            selections = manager.get_strategy_selections() or {}
+            category_names = [str(key or "").strip() for key in selections.keys() if str(key or "").strip()]
         except Exception:
-            pass
+            preset_name = ""
+            category_names = []
+
+        if not preset_name:
+            preset_name = tr_catalog(
+                "page.z2_control.preset.not_selected",
+                language=self._ui_language,
+                default="Не выбран",
+            )
+            preset_tooltip = ""
+        else:
+            preset_tooltip = preset_name
+
+        if category_names:
+            strategy_text = " • ".join(category_names)
+            strategy_tooltip = "\n".join(category_names)
+        else:
+            strategy_text = tr_catalog(
+                "page.z2_orchestra_control.strategy.no_active_categories",
+                language=self._ui_language,
+                default="Нет активных категорий",
+            )
+            strategy_tooltip = ""
+
+        return preset_name, preset_tooltip, strategy_text, strategy_tooltip
+
+    def _hydrate_initial_advanced_settings(self) -> None:
+        self._advanced_settings_dirty = False
+        self._load_advanced_settings()
+
+    def _hydrate_initial_preset_summary(self) -> None:
+        self._preset_summary_dirty = False
+        preset_name, preset_tooltip, strategy_text, strategy_tooltip = self._build_orchestra_preset_summary()
+        self.preset_name_label.setText(preset_name)
+        set_tooltip(self.preset_name_label, preset_tooltip)
+        self.strategy_label.setText(strategy_text)
+        set_tooltip(self.strategy_label, strategy_tooltip)
+
+    def _schedule_advanced_settings_reload(self, *, force: bool = False) -> None:
+        if not force and not getattr(self, "_advanced_settings_dirty", True):
+            return
+        if not self.isVisible():
+            self._advanced_settings_dirty = True
+            return
+        if getattr(self, "_advanced_settings_worker", None) is not None:
+            try:
+                if self._advanced_settings_worker.isRunning():
+                    return
+            except Exception:
+                pass
+
+        self._advanced_settings_request_id += 1
+        request_id = self._advanced_settings_request_id
+        from ui.pages.zapret2.direct_control_page import Zapret2DirectControlPageController
+
+        self._advanced_settings_worker = Zapret2DirectControlPageController.create_advanced_settings_worker(request_id, self)
+        self._advanced_settings_worker.loaded.connect(self._on_advanced_settings_loaded)
+        self._advanced_settings_worker.finished.connect(self._advanced_settings_worker.deleteLater)
+        self._advanced_settings_worker.start()
+
+    def _on_advanced_settings_loaded(self, request_id: int, state: dict) -> None:
+        if int(request_id) != int(self._advanced_settings_request_id):
+            return
+        self._advanced_settings_dirty = False
+        from ui.pages.zapret2.direct_control_page import Zapret2DirectControlPageController
+
+        plan = Zapret2DirectControlPageController.build_advanced_settings_apply_plan(state if isinstance(state, dict) else {})
+        self._apply_advanced_settings_plan(plan)
+
+    def _schedule_preset_summary_reload(self, *, force: bool = False) -> None:
+        if not force and not getattr(self, "_preset_summary_dirty", True):
+            return
+        if not self.isVisible():
+            self._preset_summary_dirty = True
+            return
+        if getattr(self, "_preset_summary_worker", None) is not None:
+            try:
+                if self._preset_summary_worker.isRunning():
+                    return
+            except Exception:
+                pass
+
+        self._preset_summary_request_id += 1
+        request_id = self._preset_summary_request_id
+        from ui.pages.zapret2.direct_control_page import Zapret2DirectControlPageController
+
+        self._preset_summary_worker = Zapret2DirectControlPageController.create_preset_summary_worker(request_id, self)
+        self._preset_summary_worker.loaded.connect(self._on_preset_summary_loaded)
+        self._preset_summary_worker.finished.connect(self._preset_summary_worker.deleteLater)
+        self._preset_summary_worker.start()
+
+    def _on_preset_summary_loaded(self, request_id: int, payload: dict) -> None:
+        if int(request_id) != int(self._preset_summary_request_id):
+            return
+        self._preset_summary_dirty = False
+        from ui.pages.zapret2.direct_control_page import Zapret2DirectControlPageController
+
+        plan = Zapret2DirectControlPageController.build_preset_summary_plan(payload, language=self._ui_language)
+        self.preset_name_label.setText(plan.preset_name_text)
+        set_tooltip(self.preset_name_label, plan.preset_name_tooltip)
+        self.strategy_label.setText(plan.strategy_text)
+        set_tooltip(self.strategy_label, plan.strategy_tooltip)
 
     def _load_advanced_settings(self) -> None:
-        """Sync orchestra-specific advanced toggles from the active orchestra preset."""
         try:
             from discord.discord_restart import get_discord_restart_setting
 
@@ -156,6 +256,26 @@ class OrchestraZapret2DirectControlPage(Zapret2DirectControlPage):
             set_checked = getattr(debug_toggle, "setChecked", None)
             if callable(set_checked):
                 set_checked(bool(PresetManager().get_debug_log_enabled()), block_signals=True)
+        except Exception:
+            pass
+
+    def _on_debug_log_toggled(self, enabled: bool) -> None:
+        try:
+            from preset_orchestra_zapret2 import PresetManager
+
+            PresetManager().set_debug_log_enabled(bool(enabled))
+        except Exception:
+            pass
+
+        try:
+            from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
+
+            if not ensure_default_preset_exists():
+                return
+            manager = PresetManager()
+            preset = manager.get_active_preset()
+            if preset:
+                manager.sync_preset_to_active_file(preset)
         except Exception:
             pass
 

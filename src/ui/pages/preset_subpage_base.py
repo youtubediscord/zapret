@@ -10,7 +10,9 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QFileDialog
 
 from ui.pages.base_page import BasePage
+from ui.compat_widgets import style_semantic_caption_label
 from ui.popup_menu import exec_popup_menu
+from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 
 try:
     from qfluentwidgets import (
@@ -109,6 +111,7 @@ class _RenameDialog(MessageBoxBase):
         self.nameEdit.setClearButtonEnabled(True)
 
         self.warningLabel = CaptionLabel("", self.widget)
+        style_semantic_caption_label(self.warningLabel, tone="error")
         self.warningLabel.hide()
 
         self.viewLayout.addWidget(self.titleLabel)
@@ -307,6 +310,7 @@ class PresetSubpageBase(BasePage):
         self.add_widget(actions)
 
         self.editor = PlainTextEdit(self)
+        apply_editor_smooth_scroll_preference(self.editor)
         self.editor.textChanged.connect(self._on_text_changed)
         self.add_widget(self.editor, 1)
 
@@ -608,22 +612,27 @@ class PresetSubpageBase(BasePage):
 
     def _current_selected_name(self) -> str:
         try:
-            from core.services import get_direct_flow_coordinator
-
             method = self._direct_launch_method()
-            selected = get_direct_flow_coordinator().get_selected_source_manifest(method)
+            selected = self._get_direct_flow_coordinator().get_selected_source_manifest(method)
             return (selected.name if selected is not None else "").strip()
         except Exception:
             return ""
 
     def _current_selected_file_name(self) -> str:
         try:
-            from core.services import get_direct_flow_coordinator
-
             method = self._direct_launch_method()
-            return (get_direct_flow_coordinator().get_selected_source_file_name(method) or "").strip()
+            return (self._get_direct_flow_coordinator().get_selected_source_file_name(method) or "").strip()
         except Exception:
             return ""
+
+    def _get_direct_flow_coordinator(self):
+        app_context = getattr(self.window(), "app_context", None)
+        coordinator = getattr(app_context, "direct_flow_coordinator", None)
+        if coordinator is None:
+            from core.services import get_direct_flow_coordinator
+
+            coordinator = get_direct_flow_coordinator()
+        return coordinator
 
     def _activate_selected_preset(self) -> bool:
         try:

@@ -38,7 +38,7 @@ class ServerPool:
         self.selected_server = self._load_selected_server()
 
         if not self.servers:
-            log("⚠️ ServerPool: нет серверов (UPDATE_SERVERS не задан в .env)", "POOL")
+            log("⚠️ ServerPool: нет серверов (UPDATE_SERVERS не задан в generated runtime config)", "POOL")
             self.selected_server = None
             return
 

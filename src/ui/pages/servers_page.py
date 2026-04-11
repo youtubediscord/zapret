@@ -1,7 +1,7 @@
 # ui/pages/servers_page.py
 """Страница мониторинга серверов обновлений"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QSize
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QStackedWidget, QTableWidgetItem, QHeaderView,
@@ -13,8 +13,12 @@ import time
 from .base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton, PrimaryActionButton
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
 from updater.update_page_controller import UpdatePageController
+from updater.server_status_table_state import ServerStatusTableState
+from updater.update_page_view_controller import UpdatePageViewController
+from ui.widgets.win11_controls import Win11ToggleRow
 
 try:
     from qfluentwidgets import (
@@ -23,7 +27,7 @@ try:
         SwitchButton, CardWidget,
         TableWidget,
         ProgressBar, IndeterminateProgressBar, IndeterminateProgressRing,
-        FluentIcon,
+        FluentIcon, PushSettingCard, SettingCardGroup,
     )
     _HAS_FLUENT = True
 except ImportError:
@@ -40,11 +44,11 @@ except ImportError:
     IndeterminateProgressRing = None
     CardWidget = QFrame
     FluentIcon = None
+    PushSettingCard = None  # type: ignore[assignment]
+    SettingCardGroup = None  # type: ignore[assignment]
     _HAS_FLUENT = False
 
 from config import APP_VERSION, CHANNEL
-from config.telegram_links import open_telegram_link
-from updater.channel_utils import is_test_update_channel
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -108,6 +112,7 @@ class UpdateStatusCard(CardWidget):
         self._state_elapsed = 0.0
         self._tokens = get_theme_tokens()
         self._build_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
 
     def _tr(self, key: str, default: str) -> str:
         return tr_catalog(key, language=self._ui_language, default=default)
@@ -161,7 +166,7 @@ class UpdateStatusCard(CardWidget):
 
         main_layout.addWidget(content)
 
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _apply_theme(self, theme_name: str | None = None) -> None:
         self._tokens = get_theme_tokens(theme_name)
@@ -178,19 +183,6 @@ class UpdateStatusCard(CardWidget):
     def _on_check_clicked(self):
         self.check_clicked.emit()
 
-    def _format_checked_ago(self, elapsed: float) -> str:
-        mins_ago = int(max(elapsed, 0.0) // 60)
-        secs_ago = int(max(elapsed, 0.0) % 60)
-        if mins_ago > 0:
-            return self._tr(
-                "page.servers.update.subtitle.checked_ago_min_sec_template",
-                "Проверено {minutes}м {seconds}с назад",
-            ).format(minutes=mins_ago, seconds=secs_ago)
-        return self._tr(
-            "page.servers.update.subtitle.checked_ago_sec_template",
-            "Проверено {seconds}с назад",
-        ).format(seconds=secs_ago)
-
     def _set_error_icon(self) -> None:
         tokens = self._tokens
         error_hex = "#dc2626" if tokens.is_light else "#f87171"
@@ -198,173 +190,111 @@ class UpdateStatusCard(CardWidget):
         self._icon_label.setPixmap(pixmap)
 
     def _apply_state_text(self) -> None:
-        state = self._state
-
-        if state == "checking":
-            self.title_label.setText(self._tr("page.servers.update.title.checking", "Проверка обновлений..."))
-            self.subtitle_label.setText(
-                self._tr("page.servers.update.subtitle.checking", "Подождите, идёт проверка серверов")
-            )
-            return
-
-        if state == "available":
-            self.title_label.setText(
-                self._tr("page.servers.update.title.available_template", "Доступно обновление v{version}").format(
-                    version=self._state_version
-                )
-            )
-            self.subtitle_label.setText(
-                self._tr(
-                    "page.servers.update.subtitle.available",
-                    "Установите обновление ниже или проверьте ещё раз",
-                )
-            )
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "up_to_date":
-            self.title_label.setText(self._tr("page.servers.update.title.none", "Обновлений нет"))
-            self.subtitle_label.setText(
-                self._tr(
-                    "page.servers.update.subtitle.latest_template",
-                    "Установлена последняя версия {version}",
-                ).format(version=APP_VERSION)
-            )
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "error":
-            self.title_label.setText(self._tr("page.servers.update.title.error", "Ошибка проверки"))
-            self.subtitle_label.setText((self._state_message or "")[:60])
-            self.check_btn.setText(self._tr("page.servers.update.button.retry", "Повторить"))
-            return
-
-        if state == "found":
-            self.title_label.setText(
-                self._tr("page.servers.update.title.found_template", "Найдено обновление v{version}").format(
-                    version=self._state_version
-                )
-            )
-            self.subtitle_label.setText(
-                self._tr("page.servers.update.subtitle.source_template", "Источник: {source}").format(
-                    source=self._state_source
-                )
-            )
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "download_error":
-            self.title_label.setText(self._tr("page.servers.update.title.download_error", "Ошибка загрузки"))
-            self.subtitle_label.setText(self._tr("page.servers.update.subtitle.try_again", "Попробуйте снова"))
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "deferred":
-            self.title_label.setText(
-                self._tr("page.servers.update.title.deferred_template", "Обновление v{version} отложено").format(
-                    version=self._state_version
-                )
-            )
-            self.subtitle_label.setText(
-                self._tr("page.servers.update.subtitle.recheck_hint", "Нажмите для повторной проверки")
-            )
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "checked_ago":
-            self.title_label.setText(self._tr("page.servers.update.title.default", "Проверка обновлений"))
-            self.subtitle_label.setText(self._format_checked_ago(self._state_elapsed))
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "auto_on":
-            self.title_label.setText(self._tr("page.servers.update.title.default", "Проверка обновлений"))
-            self.subtitle_label.setText(self._tr("page.servers.update.subtitle.auto_on", "Автопроверка включена"))
-            self.check_btn.setText(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
-            return
-
-        if state == "manual":
-            self.title_label.setText(self._tr("page.servers.update.title.default", "Проверка обновлений"))
-            self.subtitle_label.setText(
-                self._tr("page.servers.update.subtitle.press_button", "Нажмите кнопку для проверки")
-            )
-            self.check_btn.setText(self._tr("page.servers.update.button.manual", "ПРОВЕРИТЬ ВРУЧНУЮ"))
-            return
-
-        # idle
-        self.title_label.setText(self._tr("page.servers.update.title.default", "Проверка обновлений"))
-        self.subtitle_label.setText(
-            self._tr(
-                "page.servers.update.subtitle.default",
-                "Нажмите для проверки доступных обновлений",
-            )
+        plan = UpdatePageViewController.build_update_status_card_plan(
+            state=self._state,
+            version=self._state_version,
+            source=self._state_source,
+            message=self._state_message,
+            elapsed=self._state_elapsed,
+            app_version=APP_VERSION,
+            language=self._ui_language,
         )
-        self.check_btn.setText(self._tr("page.servers.update.button.check", "Проверить обновления"))
+        self.title_label.setText(plan.title)
+        self.subtitle_label.setText(plan.subtitle)
+        self.check_btn.setText(plan.button_text)
+
+    def _apply_transition_plan(self, plan) -> None:
+        self._is_checking = plan.is_checking
+        self._state = plan.state
+        self._state_version = plan.state_version
+        self._state_source = plan.state_source
+        self._state_message = plan.state_message
+        self._state_elapsed = plan.state_elapsed
+
+        if plan.icon_mode == "error":
+            self._set_error_icon()
+        elif plan.icon_mode == "idle":
+            self._set_icon_idle()
+
+        self._apply_state_text()
+
+        if plan.loading_mode == "start":
+            self.check_btn.start_loading()
+        elif plan.loading_mode == "stop":
+            self.check_btn.stop_loading(plan.stop_loading_text)
+
+        if plan.check_enabled is not None:
+            self.check_btn.setEnabled(plan.check_enabled)
 
     def start_checking(self):
-        self._is_checking = True
-        self._state = "checking"
-        self._apply_state_text()
-        self.check_btn.start_loading()
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="checking",
+            language=self._ui_language,
+        )
+        self._apply_transition_plan(plan)
 
     def stop_checking(self, found_update: bool = False, version: str = ""):
-        self._is_checking = False
-        self._set_icon_idle()
-        self._state_version = version or ""
-        self._state = "available" if found_update else "up_to_date"
-        self._apply_state_text()
-        self.check_btn.stop_loading(self._tr("page.servers.update.button.recheck", "ПРОВЕРИТЬ СНОВА"))
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="result",
+            language=self._ui_language,
+            version=version,
+            found_update=found_update,
+        )
+        self._apply_transition_plan(plan)
 
     def set_error(self, message: str):
-        self._is_checking = False
-        self._state = "error"
-        self._state_message = (message or "")[:60]
-        self._set_error_icon()
-        self._apply_state_text()
-        self.check_btn.stop_loading(self._tr("page.servers.update.button.retry", "Повторить"))
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="error",
+            language=self._ui_language,
+            message=message,
+        )
+        self._apply_transition_plan(plan)
 
     def show_found_update(self, version: str, source: str) -> None:
-        self._is_checking = False
-        self._set_icon_idle()
-        self._state = "found"
-        self._state_version = version or ""
-        self._state_source = source or ""
-        self._apply_state_text()
-        self.check_btn.setEnabled(True)
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="found",
+            language=self._ui_language,
+            version=version,
+            source=source,
+        )
+        self._apply_transition_plan(plan)
 
     def show_download_error(self) -> None:
-        self._is_checking = False
-        self._set_error_icon()
-        self._state = "download_error"
-        self._apply_state_text()
-        self.check_btn.setEnabled(True)
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="download_error",
+            language=self._ui_language,
+        )
+        self._apply_transition_plan(plan)
 
     def show_deferred(self, version: str) -> None:
-        self._is_checking = False
-        self._set_icon_idle()
-        self._state = "deferred"
-        self._state_version = version or ""
-        self._apply_state_text()
-        self.check_btn.setEnabled(True)
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="deferred",
+            language=self._ui_language,
+            version=version,
+        )
+        self._apply_transition_plan(plan)
 
     def show_checked_ago(self, elapsed: float) -> None:
-        self._is_checking = False
-        self._set_icon_idle()
-        self._state = "checked_ago"
-        self._state_elapsed = max(0.0, float(elapsed or 0.0))
-        self._apply_state_text()
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="checked_ago",
+            language=self._ui_language,
+            elapsed=elapsed,
+        )
+        self._apply_transition_plan(plan)
 
     def show_manual_hint(self) -> None:
-        self._is_checking = False
-        self._set_icon_idle()
-        self._state = "manual"
-        self._apply_state_text()
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="manual",
+            language=self._ui_language,
+        )
+        self._apply_transition_plan(plan)
 
     def show_auto_enabled_hint(self) -> None:
-        self._is_checking = False
-        self._set_icon_idle()
-        self._state = "auto_on"
-        self._apply_state_text()
+        plan = UpdatePageViewController.build_update_status_transition_plan(
+            target_state="auto_on",
+            language=self._ui_language,
+        )
+        self._apply_transition_plan(plan)
 
     def set_ui_language(self, language: str) -> None:
         self._ui_language = language
@@ -403,6 +333,7 @@ class ChangelogCard(CardWidget):
         self._raw_version = ""
         self._mode = "idle"
         self._build_ui()
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
         self.hide()
 
     def _tr(self, key: str, default: str) -> str:
@@ -517,7 +448,7 @@ class ChangelogCard(CardWidget):
 
         layout.addWidget(self.buttons_widget)
 
-        self._apply_theme()
+        self._apply_page_theme(force=True)
 
     def _apply_theme(self, theme_name: str | None = None) -> None:
         self._tokens = get_theme_tokens(theme_name)
@@ -534,208 +465,144 @@ class ChangelogCard(CardWidget):
 
         if self._raw_changelog:
             try:
-                self.changelog_text.setText(self._make_links_clickable(self._raw_changelog, tokens.accent_hex))
+                self.changelog_text.setText(UpdatePageViewController.make_links_clickable(self._raw_changelog, tokens.accent_hex))
             except Exception:
                 pass
-
-    def _make_links_clickable(self, text: str, accent_hex: str) -> str:
-        import re
-        url_pattern = r'(https?://[^\s<>"\']+)'
-
-        def replace_url(match):
-            url = match.group(1)
-            while url and url[-1] in '.,;:!?)':
-                url = url[:-1]
-            return f'<a href="{url}" style="color: {accent_hex};">{url}</a>'
-
-        return re.sub(url_pattern, replace_url, text)
 
     def show_update(self, version: str, changelog: str):
         if self._is_downloading:
             return
-        self._mode = "update"
-        self._is_downloading = False
-        self._icon_kind = "update"
-        self._raw_version = str(version or "")
-        self._download_error_text = ""
-        self.version_label.setText(
-            self._tr(
-                "page.servers.changelog.version.transition_template",
-                "v{current}  →  v{target}",
-            ).format(current=APP_VERSION, target=version)
+        plan = UpdatePageViewController.build_changelog_update_plan(
+            version=version,
+            changelog=changelog,
+            app_version=APP_VERSION,
+            accent_hex=self._tokens.accent_hex,
+            language=self._ui_language,
         )
-        self.title_label.setText(self._tr("page.servers.changelog.title.available", "Доступно обновление"))
-        self.install_btn.setText(self._tr("page.servers.changelog.button.install", "Установить"))
-
-        if changelog:
-            if len(changelog) > 200:
-                changelog = changelog[:200] + "..."
-            self._raw_changelog = changelog
-            self.changelog_text.setText(self._make_links_clickable(changelog, self._tokens.accent_hex))
-            self.changelog_text.show()
-        else:
-            self._raw_changelog = ""
-            self.changelog_text.hide()
-
-        self.progress_widget.hide()
-        self.buttons_widget.show()
-        self.close_btn.show()
+        self._mode = plan.mode
+        self._is_downloading = plan.is_downloading
+        self._icon_kind = plan.icon_kind
+        self._raw_version = plan.raw_version
+        self._download_error_text = plan.download_error_text
+        self.version_label.setText(plan.version_text)
+        self.title_label.setText(plan.title_text)
+        self.install_btn.setText(plan.install_text)
+        self._raw_changelog = plan.raw_changelog
+        self.changelog_text.setText(plan.changelog_html)
+        self.changelog_text.setVisible(plan.changelog_visible)
+        self.progress_widget.setVisible(plan.progress_visible)
+        self.buttons_widget.setVisible(plan.buttons_visible)
+        self.close_btn.setVisible(plan.close_visible)
         self.show()
         self._apply_theme()
 
     def start_download(self, version: str):
-        self._mode = "downloading"
-        self._is_downloading = True
-        self._icon_kind = "download"
-        self._raw_version = str(version or "")
-        self._download_start_time = time.time()
-        self._last_bytes = 0
-        self._last_speed_time = time.time()
-        self._last_speed_bytes = 0
-        self._smoothed_speed = 0.0  # Сглаженная скорость (bytes/sec)
-        self._download_percent = 0
-        self._download_done_bytes = 0
-        self._download_total_bytes = 0
-        self._download_speed_kb = None
-        self._download_eta_seconds = None
-        self._download_error_text = ""
-
-        self.title_label.setText(
-            self._tr("page.servers.changelog.title.downloading_template", "Загрузка v{version}").format(
-                version=version
-            )
+        plan = UpdatePageViewController.build_changelog_download_start_plan(
+            version=version,
+            language=self._ui_language,
+            now=time.time(),
         )
+        self._mode = plan.mode
+        self._is_downloading = plan.is_downloading
+        self._icon_kind = plan.icon_kind
+        self._raw_version = plan.raw_version
+        self._download_start_time = plan.download_start_time
+        self._last_bytes = plan.last_bytes
+        self._last_speed_time = plan.last_speed_time
+        self._last_speed_bytes = plan.last_speed_bytes
+        self._smoothed_speed = plan.smoothed_speed
+        self._download_percent = plan.download_percent
+        self._download_done_bytes = plan.download_done_bytes
+        self._download_total_bytes = plan.download_total_bytes
+        self._download_speed_kb = plan.download_speed_kb
+        self._download_eta_seconds = plan.download_eta_seconds
+        self._download_error_text = plan.download_error_text
+        self.title_label.setText(plan.title_text)
         self._apply_theme()
-
-        self.version_label.setText(
-            self._tr("page.servers.changelog.version.preparing", "Подготовка к загрузке...")
-        )
+        self.version_label.setText(plan.version_text)
         self.changelog_text.hide()
-        self.buttons_widget.hide()
-        self.close_btn.hide()
-
+        self.buttons_widget.setVisible(plan.buttons_visible)
+        self.close_btn.setVisible(plan.close_visible)
         self.progress_bar.setValue(0)
-        self.progress_bar.hide()
-        if self._progress_indeterminate is not None:
+        self.progress_bar.setVisible(plan.show_progress_bar)
+        if self._progress_indeterminate is not None and plan.show_indeterminate:
             self._progress_indeterminate.start()
             self._progress_indeterminate.show()
-        self.progress_label.setText("0%")
-        self.speed_label.setText(self._tr("page.servers.changelog.progress.speed_unknown", "Скорость: —"))
-        self.eta_label.setText(self._tr("page.servers.changelog.progress.eta_unknown", "Осталось: —"))
-        self.progress_widget.show()
+        self.progress_label.setText(plan.progress_label_text)
+        self.speed_label.setText(plan.speed_label_text)
+        self.eta_label.setText(plan.eta_label_text)
+        self.progress_widget.setVisible(plan.progress_visible)
 
     def update_progress(self, percent: int, done_bytes: int, total_bytes: int):
-        self._mode = "downloading"
-        self._download_percent = int(percent)
-        self._download_done_bytes = int(done_bytes)
-        self._download_total_bytes = int(total_bytes)
+        plan = UpdatePageViewController.build_changelog_progress_plan(
+            percent=percent,
+            done_bytes=done_bytes,
+            total_bytes=total_bytes,
+            last_speed_time=self._last_speed_time,
+            last_speed_bytes=self._last_speed_bytes,
+            smoothed_speed=self._smoothed_speed,
+            language=self._ui_language,
+            now=time.time(),
+            progress_bar_visible=self.progress_bar.isVisible(),
+        )
+        self._mode = plan.mode
+        self._download_percent = plan.download_percent
+        self._download_done_bytes = plan.download_done_bytes
+        self._download_total_bytes = plan.download_total_bytes
+        self._last_bytes = plan.last_bytes
+        self._last_speed_time = plan.last_speed_time
+        self._last_speed_bytes = plan.last_speed_bytes
+        self._smoothed_speed = plan.smoothed_speed
+        self._download_speed_kb = plan.download_speed_kb
+        self._download_eta_seconds = plan.download_eta_seconds
 
-        # First bytes received — swap indeterminate → determinate bar
-        if self._progress_indeterminate is not None and self._progress_indeterminate.isVisible():
+        if plan.hide_indeterminate and self._progress_indeterminate is not None and self._progress_indeterminate.isVisible():
             try:
                 self._progress_indeterminate.stop()
                 self._progress_indeterminate.hide()
             except Exception:
                 pass
-            self.progress_bar.show()
-        self.progress_bar.setValue(percent)
-        self.progress_label.setText(f"{percent}%")
-
-        done_mb = done_bytes / (1024 * 1024)
-        total_mb = total_bytes / (1024 * 1024)
-        self.version_label.setText(
-            self._tr(
-                "page.servers.changelog.progress.downloaded_mb_template",
-                "Загружено {done:.1f} / {total:.1f} МБ",
-            ).format(done=done_mb, total=total_mb)
-        )
-
-        now = time.time()
-        dt = now - self._last_speed_time
-        if dt >= 1.0 and done_bytes > 0:
-            # Мгновенная скорость за последний интервал
-            delta_bytes = done_bytes - self._last_speed_bytes
-            if delta_bytes <= 0:
-                # Смена сервера или resume — сбрасываем EMA
-                self._smoothed_speed = 0.0
-                self._last_speed_time = now
-                self._last_speed_bytes = done_bytes
-                return
-            instant_speed = delta_bytes / dt
-
-            # Сглаживание: 40% старое + 60% новое (быстро реагирует на смену сервера)
-            if self._smoothed_speed <= 0:
-                self._smoothed_speed = instant_speed
-            else:
-                self._smoothed_speed = self._smoothed_speed * 0.4 + instant_speed * 0.6
-
-            self._last_speed_time = now
-            self._last_speed_bytes = done_bytes
-
-            speed = self._smoothed_speed
-            speed_kb = speed / 1024
-            self._download_speed_kb = speed_kb
-
-            if speed_kb > 1024:
-                self.speed_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.speed_mb_template",
-                        "Скорость: {value:.1f} МБ/с",
-                    ).format(value=speed_kb / 1024)
-                )
-            else:
-                self.speed_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.speed_kb_template",
-                        "Скорость: {value:.0f} КБ/с",
-                    ).format(value=speed_kb)
-                )
-
-            if speed > 0:
-                remaining = (total_bytes - done_bytes) / speed
-                self._download_eta_seconds = remaining
-                if remaining < 60:
-                    self.eta_label.setText(
-                        self._tr(
-                            "page.servers.changelog.progress.eta_sec_template",
-                            "Осталось: {seconds} сек",
-                        ).format(seconds=int(remaining))
-                    )
-                else:
-                    self.eta_label.setText(
-                        self._tr(
-                            "page.servers.changelog.progress.eta_min_template",
-                            "Осталось: {minutes} мин",
-                        ).format(minutes=int(remaining / 60))
-                    )
-
-        self._last_bytes = done_bytes
+        self.progress_bar.setVisible(plan.show_progress_bar)
+        self.progress_bar.setValue(plan.progress_value)
+        self.progress_label.setText(plan.progress_label_text)
+        self.version_label.setText(plan.version_text)
+        self.speed_label.setText(plan.speed_label_text)
+        self.eta_label.setText(plan.eta_label_text)
 
     def download_complete(self):
-        self._mode = "installing"
+        plan = UpdatePageViewController.build_changelog_terminal_plan(
+            kind="installing",
+            language=self._ui_language,
+            app_version=APP_VERSION,
+        )
+        self._mode = plan.mode
+        self._is_downloading = plan.is_downloading
+        self._icon_kind = plan.icon_kind
         if self._progress_indeterminate is not None:
             try:
                 self._progress_indeterminate.stop()
                 self._progress_indeterminate.hide()
             except Exception:
                 pass
-        self.progress_bar.show()
-        self.title_label.setText(self._tr("page.servers.changelog.title.installing", "Установка..."))
-        self.version_label.setText(
-            self._tr(
-                "page.servers.changelog.version.installer_starting",
-                "Запуск установщика, приложение закроется",
-            )
-        )
-        self.progress_bar.setValue(100)
-        self.progress_label.setText("100%")
-        self.speed_label.setText("")
-        self.eta_label.setText("")
+        self.progress_bar.setVisible(plan.progress_visible)
+        self.title_label.setText(plan.title_text)
+        self.version_label.setText(plan.version_text)
+        self.progress_bar.setValue(plan.progress_value)
+        self.progress_label.setText(plan.progress_label_text)
+        self.speed_label.setText(plan.speed_label_text)
+        self.eta_label.setText(plan.eta_label_text)
 
     def download_failed(self, error: str):
-        self._mode = "failed"
-        self._is_downloading = False
-        self._download_error_text = error[:80] if len(error) > 80 else error
+        plan = UpdatePageViewController.build_changelog_terminal_plan(
+            kind="failed",
+            language=self._ui_language,
+            app_version=APP_VERSION,
+            download_error_text=error,
+        )
+        self._mode = plan.mode
+        self._is_downloading = plan.is_downloading
+        self._download_error_text = plan.error_text
+        self._icon_kind = plan.icon_kind
         if self._progress_indeterminate is not None:
             try:
                 self._progress_indeterminate.stop()
@@ -743,100 +610,37 @@ class ChangelogCard(CardWidget):
             except Exception:
                 pass
 
-        self.title_label.setText(
-            self._tr("page.servers.changelog.title.download_error", "Ошибка загрузки")
-        )
-        self.title_label.setStyleSheet("color: #ff6b6b;")
+        self.title_label.setText(plan.title_text)
+        if plan.title_color:
+            self.title_label.setStyleSheet(f"color: {plan.title_color};")
         self.icon_label.setPixmap(qta.icon('fa5s.exclamation-triangle', color='#ff6b6b').pixmap(24, 24))
-
-        self.version_label.setText(self._download_error_text)
-        self.progress_widget.hide()
-        self.buttons_widget.show()
-        self.close_btn.show()
-        self.install_btn.setText(self._tr("page.servers.changelog.button.retry", "Повторить"))
+        self.version_label.setText(plan.version_text)
+        self.progress_widget.setVisible(plan.progress_visible)
+        self.buttons_widget.setVisible(plan.buttons_visible)
+        self.close_btn.setVisible(plan.close_visible)
+        self.install_btn.setText(plan.install_text)
 
     def set_ui_language(self, language: str) -> None:
         self._ui_language = language
         self.later_btn.setText(self._tr("page.servers.changelog.button.later", "Позже"))
-
-        if self._mode == "update":
-            self.title_label.setText(self._tr("page.servers.changelog.title.available", "Доступно обновление"))
-            self.version_label.setText(
-                self._tr(
-                    "page.servers.changelog.version.transition_template",
-                    "v{current}  →  v{target}",
-                ).format(current=APP_VERSION, target=self._raw_version)
-            )
-            self.install_btn.setText(self._tr("page.servers.changelog.button.install", "Установить"))
-        elif self._mode == "downloading":
-            self.title_label.setText(
-                self._tr("page.servers.changelog.title.downloading_template", "Загрузка v{version}").format(
-                    version=self._raw_version
-                )
-            )
-            if self._download_done_bytes > 0 and self._download_total_bytes > 0:
-                done_mb = self._download_done_bytes / (1024 * 1024)
-                total_mb = self._download_total_bytes / (1024 * 1024)
-                self.version_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.downloaded_mb_template",
-                        "Загружено {done:.1f} / {total:.1f} МБ",
-                    ).format(done=done_mb, total=total_mb)
-                )
-            else:
-                self.version_label.setText(
-                    self._tr("page.servers.changelog.version.preparing", "Подготовка к загрузке...")
-                )
-
-            self.progress_label.setText(f"{self._download_percent}%")
-            if self._download_speed_kb is None:
-                self.speed_label.setText(self._tr("page.servers.changelog.progress.speed_unknown", "Скорость: —"))
-            elif self._download_speed_kb > 1024:
-                self.speed_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.speed_mb_template",
-                        "Скорость: {value:.1f} МБ/с",
-                    ).format(value=self._download_speed_kb / 1024)
-                )
-            else:
-                self.speed_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.speed_kb_template",
-                        "Скорость: {value:.0f} КБ/с",
-                    ).format(value=self._download_speed_kb)
-                )
-
-            if self._download_eta_seconds is None:
-                self.eta_label.setText(self._tr("page.servers.changelog.progress.eta_unknown", "Осталось: —"))
-            elif self._download_eta_seconds < 60:
-                self.eta_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.eta_sec_template",
-                        "Осталось: {seconds} сек",
-                    ).format(seconds=int(self._download_eta_seconds))
-                )
-            else:
-                self.eta_label.setText(
-                    self._tr(
-                        "page.servers.changelog.progress.eta_min_template",
-                        "Осталось: {minutes} мин",
-                    ).format(minutes=int(self._download_eta_seconds / 60))
-                )
-        elif self._mode == "installing":
-            self.title_label.setText(self._tr("page.servers.changelog.title.installing", "Установка..."))
-            self.version_label.setText(
-                self._tr(
-                    "page.servers.changelog.version.installer_starting",
-                    "Запуск установщика, приложение закроется",
-                )
-            )
-        elif self._mode == "failed":
-            self.title_label.setText(
-                self._tr("page.servers.changelog.title.download_error", "Ошибка загрузки")
-            )
-            self.install_btn.setText(self._tr("page.servers.changelog.button.retry", "Повторить"))
-            self.version_label.setText(self._download_error_text)
-
+        plan = UpdatePageViewController.build_changelog_terminal_plan(
+            kind=self._mode if self._mode in {"downloading", "installing", "failed"} else "update",
+            language=self._ui_language,
+            app_version=APP_VERSION,
+            raw_version=self._raw_version,
+            download_error_text=self._download_error_text,
+            download_done_bytes=self._download_done_bytes,
+            download_total_bytes=self._download_total_bytes,
+            download_percent=self._download_percent,
+            download_speed_kb=self._download_speed_kb,
+            download_eta_seconds=self._download_eta_seconds,
+        )
+        self.title_label.setText(plan.title_text)
+        self.version_label.setText(plan.version_text)
+        self.progress_label.setText(plan.progress_label_text)
+        self.speed_label.setText(plan.speed_label_text)
+        self.eta_label.setText(plan.eta_label_text)
+        self.install_btn.setText(plan.install_text)
         self._apply_theme()
 
     def _on_install(self):
@@ -866,25 +670,35 @@ class ServersPage(BasePage):
         )
 
         self._tokens = get_theme_tokens()
-        self._server_status_map: dict[str, dict] = {}
-        self._server_row_map: dict[str, int] = {}
+        self._server_table_state = ServerStatusTableState()
         self._update_controller = UpdatePageController(self)
+        self._runtime_initialized = False
 
-        self.enable_deferred_ui_build()
+        self._build_ui()
+        self._apply_page_theme(force=True)
+        self._run_runtime_init_once()
 
     def _tr(self, key: str, default: str) -> str:
         return tr_catalog(key, language=self._ui_language, default=default)
 
-    def changeEvent(self, event):
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            try:
-                self._apply_theme()
-            except Exception:
-                pass
-        super().changeEvent(event)
+    def _run_runtime_init_once(self) -> None:
+        plan = self._update_controller.build_page_init_plan(
+            runtime_initialized=self._runtime_initialized,
+        )
+        if not plan.should_apply_idle_view_state:
+            return
+        self._runtime_initialized = True
+        QTimer.singleShot(
+            0,
+            lambda action=plan.view_action, elapsed=plan.elapsed_seconds: self._update_controller.apply_idle_view_state(
+                view_action=action,
+                elapsed_seconds=elapsed,
+            ),
+        )
 
-    def _apply_theme(self, theme_name: str | None = None) -> None:
-        self._tokens = get_theme_tokens(theme_name)
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        self._tokens = tokens or get_theme_tokens()
         tokens = self._tokens
 
         if hasattr(self, "servers_table"):
@@ -898,73 +712,28 @@ class ServersPage(BasePage):
                 pass
 
     def _render_server_row(self, row: int, server_name: str, status: dict) -> None:
-        name_item = QTableWidgetItem(server_name)
-        if status.get('is_current'):
-            name_item.setText(f"⭐ {server_name}")
+        plan = UpdatePageViewController.build_server_row_plan(
+            row_server_name=server_name,
+            status=status,
+            channel=CHANNEL,
+            language=self._ui_language,
+        )
+        name_item = QTableWidgetItem(plan.server_text)
+        if plan.server_accent:
             name_item.setForeground(QColor(self._tokens.accent_hex))
         self.servers_table.setItem(row, 0, name_item)
 
-        status_item = QTableWidgetItem()
-        if status.get('status') == 'online':
-            status_item.setText(self._tr("page.servers.table.status.online", "● Онлайн"))
-            status_item.setForeground(QColor(134, 194, 132))
-        elif status.get('status') == 'blocked':
-            status_item.setText(self._tr("page.servers.table.status.blocked", "● Блок"))
-            status_item.setForeground(QColor(230, 180, 100))
-        elif status.get('status') == 'skipped':
-            status_item.setText(self._tr("page.servers.table.status.waiting", "● Ожидание"))
-            status_item.setForeground(QColor(160, 160, 160))
-        else:
-            status_item.setText(self._tr("page.servers.table.status.offline", "● Офлайн"))
-            status_item.setForeground(QColor(220, 130, 130))
+        status_item = QTableWidgetItem(plan.status_text)
+        status_item.setForeground(QColor(*plan.status_color))
         self.servers_table.setItem(row, 1, status_item)
-
-        if status.get('response_time'):
-            time_text = self._tr("page.servers.table.time.ms_template", "{ms}мс").format(
-                ms=f"{status.get('response_time', 0) * 1000:.0f}"
-            )
-        else:
-            time_text = self._tr("page.servers.table.time.empty", "—")
-        self.servers_table.setItem(row, 2, QTableWidgetItem(time_text))
-
-        if server_name == 'Telegram Bot':
-            if status.get('status') == 'online':
-                if is_test_update_channel(CHANNEL):
-                    extra = self._tr("page.servers.table.versions.test_template", "T: {version}").format(
-                        version=status.get('test_version', '—')
-                    )
-                else:
-                    extra = self._tr("page.servers.table.versions.stable_template", "S: {version}").format(
-                        version=status.get('stable_version', '—')
-                    )
-            else:
-                extra = status.get('error', '')[:40]
-        elif server_name == 'GitHub API':
-            if status.get('rate_limit') is not None:
-                extra = self._tr("page.servers.table.versions.rate_limit_template", "Лимит: {remaining}/{limit}").format(
-                    remaining=status['rate_limit'],
-                    limit=status.get('rate_limit_max', 60),
-                )
-            else:
-                extra = status.get('error', '')[:40]
-        elif status.get('status') == 'online':
-            extra = self._tr("page.servers.table.versions.both_template", "S: {stable}, T: {test}").format(
-                stable=status.get('stable_version', '—'),
-                test=status.get('test_version', '—'),
-            )
-        else:
-            extra = status.get('error', '')[:40]
-
-        self.servers_table.setItem(row, 3, QTableWidgetItem(extra))
+        self.servers_table.setItem(row, 2, QTableWidgetItem(plan.time_text))
+        self.servers_table.setItem(row, 3, QTableWidgetItem(plan.extra_text))
 
     def _refresh_server_rows(self) -> None:
-        for server_name, row in self._server_row_map.items():
-            if row < 0 or row >= self.servers_table.rowCount():
+        for entry in self._server_table_state.iter_entries():
+            if entry.row < 0 or entry.row >= self.servers_table.rowCount():
                 continue
-            status = self._server_status_map.get(server_name)
-            if not status:
-                continue
-            self._render_server_row(row, server_name, status)
+            self._render_server_row(entry.row, entry.server_name, entry.status)
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -984,7 +753,19 @@ class ServersPage(BasePage):
         ])
 
         self._settings_card.set_title(self._tr("page.servers.settings.title", "Настройки"))
-        self._toggle_label.setText(self._tr("page.servers.settings.auto_check", "Проверять обновления при запуске"))
+        title_label = getattr(self._settings_card, "titleLabel", None)
+        if title_label is not None:
+            title_label.setText(self._tr("page.servers.settings.title", "Настройки"))
+        if self._toggle_label is not None:
+            self._toggle_label.setText(self._tr("page.servers.settings.auto_check", "Проверять обновления при запуске"))
+        if hasattr(self, "_auto_check_card") and self._auto_check_card is not None:
+            self._auto_check_card.set_texts(
+                self._tr("page.servers.settings.auto_check", "Проверять обновления при запуске"),
+                self._tr(
+                    "page.servers.settings.auto_check.description",
+                    "Автоматически проверять наличие обновлений при старте приложения.",
+                ),
+            )
         self._version_info_label.setText(
             self._tr("page.servers.settings.version_channel_template", "v{version} · {channel}").format(
                 version=APP_VERSION,
@@ -993,12 +774,23 @@ class ServersPage(BasePage):
         )
 
         self._tg_card.set_title(self._tr("page.servers.telegram.title", "Проблемы с обновлением?"))
-        self._tg_info_label.setText(
-            self._tr(
-                "page.servers.telegram.info",
-                "Если возникают трудности с автоматическим обновлением, все версии программы выкладываются в Telegram канале.",
+        if self._tg_info_label is not None:
+            self._tg_info_label.setText(
+                self._tr(
+                    "page.servers.telegram.info",
+                    "Если возникают трудности с автоматическим обновлением, все версии программы выкладываются в Telegram канале.",
+                )
             )
-        )
+        else:
+            try:
+                self._tg_card.setContent(
+                    self._tr(
+                        "page.servers.telegram.info",
+                        "Если возникают трудности с автоматическим обновлением, все версии программы выкладываются в Telegram канале.",
+                    )
+                )
+            except Exception:
+                pass
         self._tg_btn.setText(self._tr("page.servers.telegram.button.open_channel", "Открыть Telegram канал"))
 
         self._refresh_server_rows()
@@ -1093,93 +885,131 @@ class ServersPage(BasePage):
         self.add_widget(self.servers_table, stretch=1)
 
         # Settings card
-        self._settings_card = SettingsCard(self._tr("page.servers.settings.title", "Настройки"))
-        settings_layout = QVBoxLayout()
-        settings_layout.setSpacing(12)
+        if SettingCardGroup is not None and _HAS_FLUENT:
+            self._settings_card = SettingCardGroup(self._tr("page.servers.settings.title", "Настройки"), self.content)
 
-        toggle_row = QHBoxLayout()
-        toggle_row.setSpacing(12)
-
-        self.auto_check_toggle = SwitchButton()
-        self.auto_check_toggle.setChecked(self._update_controller.auto_check_enabled)
-        if _HAS_FLUENT:
-            self.auto_check_toggle.checkedChanged.connect(self._on_auto_check_toggled)
-        else:
-            self.auto_check_toggle.toggled.connect(self._on_auto_check_toggled)
-        toggle_row.addWidget(self.auto_check_toggle)
-
-        self._toggle_label = BodyLabel(
-            self._tr("page.servers.settings.auto_check", "Проверять обновления при запуске")
-        )
-        toggle_row.addWidget(self._toggle_label)
-        toggle_row.addStretch()
-
-        self._version_info_label = CaptionLabel(
-            self._tr("page.servers.settings.version_channel_template", "v{version} · {channel}").format(
-                version=APP_VERSION,
-                channel=CHANNEL,
+            self._auto_check_card = Win11ToggleRow(
+                "fa5s.sync-alt",
+                self._tr("page.servers.settings.auto_check", "Проверять обновления при запуске"),
+                self._tr(
+                    "page.servers.settings.auto_check.description",
+                    "Автоматически проверять наличие обновлений при старте приложения.",
+                ),
+                get_theme_tokens().accent_hex,
             )
-        )
-        toggle_row.addWidget(self._version_info_label)
+            self._auto_check_card.setChecked(self._update_controller.auto_check_enabled, block_signals=True)
+            self._auto_check_card.toggled.connect(self._on_auto_check_toggled)
+            self.auto_check_toggle = self._auto_check_card.toggle
+            self._settings_card.addSettingCard(self._auto_check_card)
 
-        settings_layout.addLayout(toggle_row)
-        self._settings_card.add_layout(settings_layout)
+            version_card = SettingsCard()
+            version_layout = QHBoxLayout()
+            version_layout.setContentsMargins(10, 6, 12, 6)
+            version_layout.setSpacing(8)
+            self._toggle_label = None
+            self._version_info_label = CaptionLabel(
+                self._tr("page.servers.settings.version_channel_template", "v{version} · {channel}").format(
+                    version=APP_VERSION,
+                    channel=CHANNEL,
+                )
+            )
+            version_layout.addWidget(self._version_info_label)
+            version_layout.addStretch()
+            version_card.add_layout(version_layout)
+            self._settings_card.addSettingCard(version_card)
+        else:
+            self._settings_card = SettingsCard(self._tr("page.servers.settings.title", "Настройки"))
+            settings_layout = QVBoxLayout()
+            settings_layout.setSpacing(12)
+
+            toggle_row = QHBoxLayout()
+            toggle_row.setSpacing(12)
+
+            self.auto_check_toggle = SwitchButton()
+            self.auto_check_toggle.setChecked(self._update_controller.auto_check_enabled)
+            if _HAS_FLUENT:
+                self.auto_check_toggle.checkedChanged.connect(self._on_auto_check_toggled)
+            else:
+                self.auto_check_toggle.toggled.connect(self._on_auto_check_toggled)
+            toggle_row.addWidget(self.auto_check_toggle)
+
+            self._toggle_label = BodyLabel(
+                self._tr("page.servers.settings.auto_check", "Проверять обновления при запуске")
+            )
+            toggle_row.addWidget(self._toggle_label)
+            toggle_row.addStretch()
+
+            self._version_info_label = CaptionLabel(
+                self._tr("page.servers.settings.version_channel_template", "v{version} · {channel}").format(
+                    version=APP_VERSION,
+                    channel=CHANNEL,
+                )
+            )
+            toggle_row.addWidget(self._version_info_label)
+
+            settings_layout.addLayout(toggle_row)
+            self._settings_card.add_layout(settings_layout)
         self.add_widget(self._settings_card)
 
         # Telegram card
-        self._tg_card = SettingsCard(self._tr("page.servers.telegram.title", "Проблемы с обновлением?"))
-        tg_layout = QVBoxLayout()
-        tg_layout.setSpacing(12)
-
-        self._tg_info_label = BodyLabel(
-            self._tr(
-                "page.servers.telegram.info",
-                "Если возникают трудности с автоматическим обновлением, все версии программы выкладываются в Telegram канале.",
+        if PushSettingCard is not None and _HAS_FLUENT:
+            self._tg_info_label = None
+            self._tg_card = PushSettingCard(
+                self._tr("page.servers.telegram.button.open_channel", "Открыть Telegram канал"),
+                qta.icon("fa5b.telegram-plane", color=tokens.accent_hex),
+                self._tr("page.servers.telegram.title", "Проблемы с обновлением?"),
+                self._tr(
+                    "page.servers.telegram.info",
+                    "Если возникают трудности с автоматическим обновлением, все версии программы выкладываются в Telegram канале.",
+                ),
             )
-        )
-        self._tg_info_label.setWordWrap(True)
-        tg_layout.addWidget(self._tg_info_label)
+            self._tg_card.clicked.connect(self._open_telegram_channel)
+            self._tg_btn = self._tg_card.button
+        else:
+            self._tg_card = SettingsCard(self._tr("page.servers.telegram.title", "Проблемы с обновлением?"))
+            tg_layout = QVBoxLayout()
+            tg_layout.setSpacing(12)
 
-        tg_btn_row = QHBoxLayout()
-        self._tg_btn = ActionButton(
-            self._tr("page.servers.telegram.button.open_channel", "Открыть Telegram канал"),
-            "fa5b.telegram-plane",
-        )
-        self._tg_btn.clicked.connect(self._open_telegram_channel)
-        tg_btn_row.addWidget(self._tg_btn)
-        tg_btn_row.addStretch()
+            self._tg_info_label = BodyLabel(
+                self._tr(
+                    "page.servers.telegram.info",
+                    "Если возникают трудности с автоматическим обновлением, все версии программы выкладываются в Telegram канале.",
+                )
+            )
+            self._tg_info_label.setWordWrap(True)
+            tg_layout.addWidget(self._tg_info_label)
 
-        tg_layout.addLayout(tg_btn_row)
-        self._tg_card.add_layout(tg_layout)
+            tg_btn_row = QHBoxLayout()
+            self._tg_btn = ActionButton(
+                self._tr("page.servers.telegram.button.open_channel", "Открыть Telegram канал"),
+                "fa5b.telegram-plane",
+            )
+            self._tg_btn.clicked.connect(self._open_telegram_channel)
+            tg_btn_row.addWidget(self._tg_btn)
+            tg_btn_row.addStretch()
+
+            tg_layout.addLayout(tg_btn_row)
+            self._tg_card.add_layout(tg_layout)
         self.add_widget(self._tg_card)
 
-        self._apply_theme()
-
-    def showEvent(self, event):
-        super().showEvent(event)
-
-        if event.spontaneous():
-            return
-
-        self._update_controller.on_page_shown()
+        self._apply_page_theme(force=True)
 
     def get_ui_language(self) -> str:
         return self._ui_language
 
     def reset_server_rows(self) -> None:
         self.servers_table.setRowCount(0)
-        self._server_row_map.clear()
-        self._server_status_map.clear()
+        self._server_table_state.reset()
 
     def upsert_server_status(self, server_name: str, status: dict) -> None:
-        row = self._server_row_map.get(server_name)
-        if row is None:
-            row = self.servers_table.rowCount()
-            self.servers_table.insertRow(row)
-            self._server_row_map[server_name] = row
-
-        self._server_status_map[server_name] = dict(status or {})
-        self._render_server_row(row, server_name, self._server_status_map[server_name])
+        result = self._server_table_state.upsert(
+            server_name,
+            status,
+            next_row=self.servers_table.rowCount(),
+        )
+        if result.created:
+            self.servers_table.insertRow(result.row)
+        self._render_server_row(result.row, server_name, result.status)
 
     def start_checking(self) -> None:
         self.update_card.start_checking()
@@ -1252,7 +1082,21 @@ class ServersPage(BasePage):
         self._update_controller.dismiss_update()
 
     def _open_telegram_channel(self):
-        open_telegram_link("zapretguidev" if is_test_update_channel(CHANNEL) else "zapretnetdiscordyoutube")
+        result = UpdatePageViewController.open_update_channel(CHANNEL)
+        if not result.ok:
+            try:
+                from qfluentwidgets import InfoBar
+            except Exception:
+                InfoBar = None
+            if InfoBar is not None:
+                InfoBar.warning(
+                    title=self._tr("page.servers.telegram.error.title", "Ошибка"),
+                    content=self._tr(
+                        "page.servers.telegram.error.open_channel",
+                        "Не удалось открыть Telegram канал:\n{error}",
+                    ).format(error=result.message),
+                    parent=self.window(),
+                )
 
     def _on_back_to_about(self):
         try:

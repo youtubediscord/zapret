@@ -5,11 +5,12 @@
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
-from PyQt6.QtCore import pyqtSignal, Qt, QEvent
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QCursor
 import qtawesome as qta
 
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 
 try:
     from qfluentwidgets import StrongBodyLabel, HorizontalSeparator
@@ -95,6 +96,7 @@ class CollapsibleServiceHeader(QFrame):
             self._line = QFrame()
             self._line.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(self._line, 1)
+        self._theme_refresh = ThemeRefreshController(self, self._update_chevron)
 
     def _update_chevron(self):
         icon_name = "fa5s.chevron-down" if self._expanded else "fa5s.chevron-right"
@@ -104,11 +106,6 @@ class CollapsibleServiceHeader(QFrame):
         except Exception:
             color = "#808080"
         self._chevron.setPixmap(qta.icon(icon_name, color=color).pixmap(12, 12))
-
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._update_chevron()
-        super().changeEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 import threading
+import qtawesome as qta
 
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QObject, QSize
 from PyQt6.QtGui import QFont, QColor
@@ -14,24 +15,21 @@ from blockcheck.page_controller import BlockcheckPageController
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
 from ui.text_catalog import tr as tr_catalog
 
-try:
-    from qfluentwidgets import (
-        ComboBox, CaptionLabel, BodyLabel, StrongBodyLabel,
-        IndeterminateProgressBar, qconfig, isDarkTheme, themeColor,
-        TableWidget, PushButton, LineEdit, SegmentedWidget,
-    )
-    HAS_FLUENT = True
-except ImportError:
-    HAS_FLUENT = False
-    SegmentedWidget = None
-    from PyQt6.QtWidgets import (
-        QComboBox as ComboBox, QTableWidget as TableWidget,
-        QPushButton as PushButton, QLineEdit as LineEdit,
-    )
-
-from ui.compat_widgets import (
-    SettingsCard, ActionButton, PrimaryActionButton, InfoBarHelper, CheckBox,
+from qfluentwidgets import (
+    ComboBox,
+    CaptionLabel,
+    BodyLabel,
+    StrongBodyLabel,
+    IndeterminateProgressBar,
+    isDarkTheme,
+    themeColor,
+    TableWidget,
+    PushButton,
+    LineEdit,
+    SegmentedWidget,
 )
+
+from ui.compat_widgets import SettingsCard, InfoBarHelper, CheckBox, QuickActionsBar
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +69,7 @@ class _DomainChip(QFrame):
         lay.setContentsMargins(8, 2, 4, 2)
         lay.setSpacing(4)
 
-        lbl = CaptionLabel(domain) if HAS_FLUENT else QLabel(domain)
+        lbl = CaptionLabel(domain)
         lay.addWidget(lbl)
 
         close_btn = PushButton()
@@ -87,7 +85,7 @@ class _DomainChip(QFrame):
         self._apply_chip_style()
 
     def _apply_chip_style(self):
-        dark = isDarkTheme() if HAS_FLUENT else True
+        dark = isDarkTheme()
         bg = "rgba(255,255,255,0.06)" if dark else "rgba(0,0,0,0.05)"
         border = "rgba(255,255,255,0.08)" if dark else "rgba(0,0,0,0.08)"
         self.setStyleSheet(
@@ -234,7 +232,6 @@ class BlockcheckPage(BasePage):
         self.setObjectName("BlockcheckPage")
 
         self._worker: BlockcheckWorker | None = None
-        self._controller = BlockcheckPageController()
         self._last_report = None
         self._run_log_file: str | None = None
         self._tab_widgets: list[QWidget] = []
@@ -244,22 +241,33 @@ class BlockcheckPage(BasePage):
         self.connection_page = None
         self.dns_check_page = None
         self._active_tab_index: int = 0
+        self._pending_tab_key: str | None = None
+        self._pending_diagnostics_start_focus = False
         self._tabs_pivot = None
-        self._tabs_fallback_buttons: list[ActionButton] = []
         self._domains_section_label: QLabel | None = None
         self._tcp_section_label: QLabel | None = None
         self._tcp_table = None
         self._runtime_warnings_seen: set[str] = set()
+        self._actions_title_label = None
+        self._actions_bar = None
         self._prepare_support_btn = None
         self._support_status_label = None
-        self.enable_deferred_ui_build(after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
-        self._connect_theme()
+        self._build_ui()
         try:
             self.set_ui_language(self._ui_language)
         except Exception:
             pass
+
+    def _apply_pending_tab_if_ready(self) -> None:
+        pending_tab_key = str(getattr(self, "_pending_tab_key", "") or "").strip().lower()
+        if pending_tab_key:
+            if not self.is_page_ready():
+                return
+            self._pending_tab_key = None
+            self._switch_tab(self.TAB_ORDER.index(self._normalize_tab_key(pending_tab_key)))
+
+        if self.is_page_ready():
+            self._apply_pending_diagnostics_start_focus()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -267,70 +275,30 @@ class BlockcheckPage(BasePage):
 
     def _build_ui(self):
         # ── Tabs (BlockCheck / Strategy scan / Diagnostics / DNS spoofing) ──
-        if SegmentedWidget is not None:
-            self._tabs_pivot = SegmentedWidget(self)
-            self._tabs_pivot.addItem(
-                self.TAB_BLOCKCHECK,
-                tr_catalog("page.blockcheck.tab.blockcheck", default="BlockCheck"),
-                lambda: self.switch_to_tab(self.TAB_BLOCKCHECK),
-            )
-            self._tabs_pivot.addItem(
-                self.TAB_STRATEGY_SCAN,
-                tr_catalog("page.blockcheck.tab.strategy_scan", default="Подбор стратегии"),
-                lambda: self.switch_to_tab(self.TAB_STRATEGY_SCAN),
-            )
-            self._tabs_pivot.addItem(
-                self.TAB_DIAGNOSTICS,
-                tr_catalog("page.blockcheck.tab.diagnostics", default="Диагностика"),
-                lambda: self.switch_to_tab(self.TAB_DIAGNOSTICS),
-            )
-            self._tabs_pivot.addItem(
-                self.TAB_DNS_SPOOFING,
-                tr_catalog("page.blockcheck.tab.dns_spoofing", default="DNS подмена"),
-                lambda: self.switch_to_tab(self.TAB_DNS_SPOOFING),
-            )
-            self._tabs_pivot.setCurrentItem(self.TAB_BLOCKCHECK)
-            self._tabs_pivot.setItemFontSize(13)
-            self.add_widget(self._tabs_pivot)
-        else:
-            tabs_row = QHBoxLayout()
-            tabs_row.setSpacing(8)
-            blockcheck_tab_btn = ActionButton(
-                tr_catalog("page.blockcheck.tab.blockcheck", default="BlockCheck"),
-                icon_name="fa5s.heartbeat",
-            )
-            strategy_tab_btn = ActionButton(
-                tr_catalog("page.blockcheck.tab.strategy_scan", default="Подбор стратегии"),
-                icon_name="fa5s.search",
-            )
-            diagnostics_tab_btn = ActionButton(
-                tr_catalog("page.blockcheck.tab.diagnostics", default="Диагностика"),
-                icon_name="fa5s.stethoscope",
-            )
-            dns_tab_btn = ActionButton(
-                tr_catalog("page.blockcheck.tab.dns_spoofing", default="DNS подмена"),
-                icon_name="fa5s.globe",
-            )
-            blockcheck_tab_btn.clicked.connect(lambda: self._switch_tab(0))
-            strategy_tab_btn.clicked.connect(lambda: self._switch_tab(1))
-            diagnostics_tab_btn.clicked.connect(lambda: self._switch_tab(2))
-            dns_tab_btn.clicked.connect(lambda: self._switch_tab(3))
-            self._tabs_fallback_buttons = [
-                blockcheck_tab_btn,
-                strategy_tab_btn,
-                diagnostics_tab_btn,
-                dns_tab_btn,
-            ]
-            tabs_row.addWidget(blockcheck_tab_btn)
-            tabs_row.addWidget(strategy_tab_btn)
-            tabs_row.addWidget(diagnostics_tab_btn)
-            tabs_row.addWidget(dns_tab_btn)
-            tabs_row.addStretch()
-
-            tabs_wrap = QWidget()
-            tabs_wrap.setLayout(tabs_row)
-            tabs_wrap.setStyleSheet("background: transparent;")
-            self.add_widget(tabs_wrap)
+        self._tabs_pivot = SegmentedWidget(self)
+        self._tabs_pivot.addItem(
+            self.TAB_BLOCKCHECK,
+            tr_catalog("page.blockcheck.tab.blockcheck", default="BlockCheck"),
+            lambda: self.switch_to_tab(self.TAB_BLOCKCHECK),
+        )
+        self._tabs_pivot.addItem(
+            self.TAB_STRATEGY_SCAN,
+            tr_catalog("page.blockcheck.tab.strategy_scan", default="Подбор стратегии"),
+            lambda: self.switch_to_tab(self.TAB_STRATEGY_SCAN),
+        )
+        self._tabs_pivot.addItem(
+            self.TAB_DIAGNOSTICS,
+            tr_catalog("page.blockcheck.tab.diagnostics", default="Диагностика"),
+            lambda: self.switch_to_tab(self.TAB_DIAGNOSTICS),
+        )
+        self._tabs_pivot.addItem(
+            self.TAB_DNS_SPOOFING,
+            tr_catalog("page.blockcheck.tab.dns_spoofing", default="DNS подмена"),
+            lambda: self.switch_to_tab(self.TAB_DNS_SPOOFING),
+        )
+        self._tabs_pivot.setCurrentItem(self.TAB_BLOCKCHECK)
+        self._tabs_pivot.setItemFontSize(13)
+        self.add_widget(self._tabs_pivot)
 
         # ── Control Card ──
         self._control_card = SettingsCard(
@@ -343,7 +311,7 @@ class BlockcheckPage(BasePage):
         # Mode combo
         mode_label = CaptionLabel(
             tr_catalog("page.blockcheck.mode", default="Режим:")
-        ) if HAS_FLUENT else QLabel(tr_catalog("page.blockcheck.mode", default="Режим:"))
+        )
         ctrl_row.addWidget(mode_label)
 
         self._mode_combo = ComboBox()
@@ -374,26 +342,10 @@ class BlockcheckPage(BasePage):
         )
         ctrl_row.addWidget(self._skip_failed_cb)
 
-        # Buttons
-        self._start_btn = PrimaryActionButton(
-            tr_catalog("page.blockcheck.start", default="Запустить"),
-            icon_name="fa5s.play",
-        )
-        self._start_btn.clicked.connect(self._on_start)
-        ctrl_row.addWidget(self._start_btn)
-
-        self._stop_btn = ActionButton(
-            tr_catalog("page.blockcheck.stop", default="Остановить"),
-            icon_name="fa5s.stop",
-        )
-        self._stop_btn.setEnabled(False)
-        self._stop_btn.clicked.connect(self._on_stop)
-        ctrl_row.addWidget(self._stop_btn)
-
         self._control_card.add_layout(ctrl_row)
 
         # Progress
-        self._progress_bar = IndeterminateProgressBar() if HAS_FLUENT else QWidget()
+        self._progress_bar = IndeterminateProgressBar()
         self._progress_bar.setVisible(False)
         self._progress_bar.setFixedHeight(4)
         self._control_card.add_widget(self._progress_bar)
@@ -401,9 +353,43 @@ class BlockcheckPage(BasePage):
         # Status label
         self._status_label = CaptionLabel(
             tr_catalog("page.blockcheck.ready", default="Готово")
-        ) if HAS_FLUENT else QLabel(tr_catalog("page.blockcheck.ready", default="Готово"))
+        )
         self._control_card.add_widget(self._status_label)
         self._add_tab_widget(self._control_card)
+
+        self._actions_title_label = StrongBodyLabel(
+            tr_catalog("page.blockcheck.actions.title", default="Действия")
+        )
+        self._add_tab_widget(self._actions_title_label)
+
+        self._actions_bar = QuickActionsBar(self.content)
+
+        self._start_btn = PushButton()
+        self._start_btn.setText(tr_catalog("page.blockcheck.start", default="Запустить"))
+        self._start_btn.setIcon(qta.icon("fa5s.play", color="#4CAF50"))
+        self._start_btn.setToolTip(
+            tr_catalog(
+                "page.blockcheck.action.start.description",
+                default="Запустить анализ блокировок и проверку DPI для выбранного режима.",
+            )
+        )
+        self._start_btn.clicked.connect(self._on_start)
+        self._actions_bar.add_button(self._start_btn)
+
+        self._stop_btn = PushButton()
+        self._stop_btn.setText(tr_catalog("page.blockcheck.stop", default="Остановить"))
+        self._stop_btn.setIcon(qta.icon("fa5s.stop", color="#ff9800"))
+        self._stop_btn.setToolTip(
+            tr_catalog(
+                "page.blockcheck.action.stop.description",
+                default="Остановить текущую проверку и вернуть страницу в обычный режим.",
+            )
+        )
+        self._stop_btn.clicked.connect(self._on_stop)
+        self._stop_btn.setEnabled(False)
+        self._actions_bar.add_button(self._stop_btn)
+
+        self._add_tab_widget(self._actions_bar)
 
         # ── Custom Domains Card ──
         self._domains_card = SettingsCard(
@@ -421,10 +407,9 @@ class BlockcheckPage(BasePage):
         self._domain_input.returnPressed.connect(self._on_add_domain)
         domain_input_row.addWidget(self._domain_input)
 
-        self._add_domain_btn = ActionButton(
-            tr_catalog("page.blockcheck.add_domain", default="Добавить"),
-            icon_name="fa5s.plus",
-        )
+        self._add_domain_btn = PushButton()
+        self._add_domain_btn.setText(tr_catalog("page.blockcheck.add_domain", default="Добавить"))
+        self._add_domain_btn.setIcon(qta.icon("fa5s.plus", color=themeColor().name()))
         self._add_domain_btn.clicked.connect(self._on_add_domain)
         domain_input_row.addWidget(self._add_domain_btn)
 
@@ -453,15 +438,10 @@ class BlockcheckPage(BasePage):
                 "page.blockcheck.domains_section",
                 default="Часть 1: Проверка доменов (TLS + HTTP injection)",
             )
-        ) if HAS_FLUENT else QLabel(
-            tr_catalog(
-                "page.blockcheck.domains_section",
-                default="Часть 1: Проверка доменов (TLS + HTTP injection)",
-            )
         )
         self._results_card.add_widget(self._domains_section_label)
 
-        self._table = TableWidget() if HAS_FLUENT else TableWidget()
+        self._table = TableWidget()
         self._table.setColumnCount(8)
         headers = [
             tr_catalog("page.blockcheck.col_target", default="Цель"),
@@ -494,12 +474,10 @@ class BlockcheckPage(BasePage):
 
         self._tcp_section_label = StrongBodyLabel(
             tr_catalog("page.blockcheck.tcp_section", default="Часть 2: Проверка TCP 16-20KB")
-        ) if HAS_FLUENT else QLabel(
-            tr_catalog("page.blockcheck.tcp_section", default="Часть 2: Проверка TCP 16-20KB")
         )
         self._results_card.add_widget(self._tcp_section_label)
 
-        self._tcp_table = TableWidget() if HAS_FLUENT else TableWidget()
+        self._tcp_table = TableWidget()
         self._tcp_table.setColumnCount(5)
         self._tcp_table.setHorizontalHeaderLabels([
             "ID",
@@ -540,15 +518,15 @@ class BlockcheckPage(BasePage):
         self._dpi_badge.setFixedHeight(36)
         self._dpi_card.add_widget(self._dpi_badge)
 
-        self._dpi_detail = BodyLabel() if HAS_FLUENT else QLabel()
+        self._dpi_detail = BodyLabel()
         self._dpi_detail.setWordWrap(True)
         self._dpi_card.add_widget(self._dpi_detail)
 
-        self._dns_summary = CaptionLabel() if HAS_FLUENT else QLabel()
+        self._dns_summary = CaptionLabel()
         self._dns_summary.setWordWrap(True)
         self._dpi_card.add_widget(self._dns_summary)
 
-        self._recommendation = BodyLabel() if HAS_FLUENT else QLabel()
+        self._recommendation = BodyLabel()
         self._recommendation.setWordWrap(True)
         self._dpi_card.add_widget(self._recommendation)
 
@@ -566,17 +544,18 @@ class BlockcheckPage(BasePage):
         self._expand_log_btn.setFixedWidth(120)
         self._expand_log_btn.clicked.connect(self._toggle_log_expand)
         log_header = QHBoxLayout()
-        self._support_status_label = CaptionLabel("") if HAS_FLUENT else QLabel("")
+        self._support_status_label = CaptionLabel("")
         self._support_status_label.setWordWrap(True)
         log_header.addWidget(self._support_status_label, 1)
         log_header.addStretch()
-        self._prepare_support_btn = ActionButton(
+        self._prepare_support_btn = PushButton()
+        self._prepare_support_btn.setText(
             tr_catalog(
                 "page.blockcheck.prepare_support",
                 default="Подготовить обращение",
-            ),
-            icon_name="fa5b.github",
+            )
         )
+        self._prepare_support_btn.setIcon(qta.icon("fa5b.github", color=themeColor().name()))
         self._prepare_support_btn.clicked.connect(self._prepare_support_from_blockcheck)
         log_header.addWidget(self._prepare_support_btn)
         log_header.addWidget(self._expand_log_btn)
@@ -597,12 +576,9 @@ class BlockcheckPage(BasePage):
     # Theme
     # ------------------------------------------------------------------
 
-    def _connect_theme(self):
-        if HAS_FLUENT:
-            qconfig.themeChanged.connect(lambda _: self._apply_theme())
-            qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
-
-    def _apply_theme(self):
+    def _apply_page_theme(self, tokens=None, force: bool = False):
+        _ = tokens
+        _ = force
         """Update DPI badge colors and chip styles on theme change."""
         if self._last_report:
             self._update_dpi_summary(self._last_report)
@@ -684,16 +660,20 @@ class BlockcheckPage(BasePage):
 
     def switch_to_tab(self, key: str) -> None:
         """External API: switch to one of BlockCheck tabs."""
-        self.ensure_deferred_ui_built()
         normalized = self._normalize_tab_key(key)
+        if not self.is_page_ready():
+            self._pending_tab_key = normalized
+            self.run_when_page_ready(self._apply_pending_tab_if_ready)
+            return
+        self._pending_tab_key = None
         self._switch_tab(self.TAB_ORDER.index(normalized))
 
-    def _update_fallback_tab_buttons(self) -> None:
-        """Update fallback tab-button enabled state when SegmentedWidget is unavailable."""
-        if not self._tabs_fallback_buttons:
+    def request_diagnostics_start_focus(self) -> None:
+        self._pending_diagnostics_start_focus = True
+        if not self.is_page_ready():
+            self.run_when_page_ready(self._apply_pending_diagnostics_start_focus)
             return
-        for idx, btn in enumerate(self._tabs_fallback_buttons):
-            btn.setEnabled(idx != self._active_tab_index)
+        self._apply_pending_diagnostics_start_focus()
 
     def _switch_tab(self, index: int) -> None:
         """Switch between BlockCheck, strategy scan and diagnostics tabs."""
@@ -729,7 +709,21 @@ class BlockcheckPage(BasePage):
         if self._dns_spoofing_tab_page is not None:
             self._dns_spoofing_tab_page.setVisible(tab_key == self.TAB_DNS_SPOOFING)
 
-        self._update_fallback_tab_buttons()
+        if tab_key == self.TAB_DIAGNOSTICS:
+            self._apply_pending_diagnostics_start_focus()
+
+    def _apply_pending_diagnostics_start_focus(self) -> None:
+        if not self._pending_diagnostics_start_focus:
+            return
+        self._ensure_diagnostics_tab()
+        page = getattr(self, "connection_page", None)
+        if page is None:
+            return
+        request_focus = getattr(page, "request_start_focus", None)
+        if not callable(request_focus):
+            return
+        self._pending_diagnostics_start_focus = False
+        request_focus()
 
     # ------------------------------------------------------------------
     # Start / Stop
@@ -737,14 +731,14 @@ class BlockcheckPage(BasePage):
 
     def _start_run_log(self, mode: str, extra_domains: list[str]) -> None:
         """Create a dedicated history log for current blockcheck run."""
-        state = self._controller.start_run_log(mode, extra_domains)
+        state = BlockcheckPageController.start_run_log(mode, extra_domains)
         self._run_log_file = state.path
         if not state.created:
             logger.warning("Failed to create blockcheck run log")
 
     def _append_run_log(self, message: str) -> None:
         """Append line(s) to current blockcheck run log."""
-        self._controller.append_run_log(self._run_log_file, message)
+        BlockcheckPageController.append_run_log(self._run_log_file, message)
 
     def _on_start(self):
         if self._worker and self._worker.is_running:
@@ -998,7 +992,7 @@ class BlockcheckPage(BasePage):
         extra_domains = self._get_extra_domains()
 
         try:
-            feedback = self._controller.prepare_support(
+            feedback = BlockcheckPageController.prepare_support(
                 run_log_file=self._run_log_file,
                 mode_label=mode_label,
                 extra_domains=extra_domains,
@@ -1357,7 +1351,7 @@ class BlockcheckPage(BasePage):
         # Badge
         label = _DPI_LABELS_RU.get(cls_value, cls_value)
         fg, bg = _DPI_BADGE_COLORS.get(cls_value, ("#e0a854", "#3a2e1a"))
-        dark = isDarkTheme() if HAS_FLUENT else True
+        dark = isDarkTheme()
         badge_bg = bg if dark else fg
         badge_fg = "#ffffff" if dark else "#ffffff"
         self._dpi_badge.setText(label)
@@ -1490,7 +1484,7 @@ class BlockcheckPage(BasePage):
     def _load_domain_chips(self):
         """Load persisted user domains and create chips."""
         try:
-            for domain in self._controller.load_user_domains():
+            for domain in BlockcheckPageController.load_user_domains():
                 self._add_chip(domain)
         except Exception:
             pass
@@ -1501,7 +1495,7 @@ class BlockcheckPage(BasePage):
         if not text:
             return
         try:
-            normalized = self._controller.add_user_domain(text)
+            normalized = BlockcheckPageController.add_user_domain(text)
             if normalized:
                 self._add_chip(normalized)
                 self._domain_input.clear()
@@ -1522,7 +1516,7 @@ class BlockcheckPage(BasePage):
     def _on_remove_domain(self, domain: str):
         """Remove a domain chip and delete from persistence."""
         try:
-            self._controller.remove_user_domain(domain)
+            BlockcheckPageController.remove_user_domain(domain)
         except Exception:
             pass
         # Remove chip widget
@@ -1580,9 +1574,6 @@ class BlockcheckPage(BasePage):
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
 
-        if self.is_deferred_ui_build_pending():
-            return
-
         try:
             if self._tabs_pivot is not None:
                 self._tabs_pivot.setItemText(
@@ -1601,20 +1592,6 @@ class BlockcheckPage(BasePage):
                     self.TAB_DNS_SPOOFING,
                     tr_catalog("page.blockcheck.tab.dns_spoofing", language=language, default="DNS подмена"),
                 )
-            if len(self._tabs_fallback_buttons) >= 4:
-                self._tabs_fallback_buttons[0].setText(
-                    tr_catalog("page.blockcheck.tab.blockcheck", language=language, default="BlockCheck")
-                )
-                self._tabs_fallback_buttons[1].setText(
-                    tr_catalog("page.blockcheck.tab.strategy_scan", language=language, default="Подбор стратегии")
-                )
-                self._tabs_fallback_buttons[2].setText(
-                    tr_catalog("page.blockcheck.tab.diagnostics", language=language, default="Диагностика")
-                )
-                self._tabs_fallback_buttons[3].setText(
-                    tr_catalog("page.blockcheck.tab.dns_spoofing", language=language, default="DNS подмена")
-                )
-
             self._control_card.set_title(tr_catalog("page.blockcheck.control", language=language, default="Управление"))
             self._domains_card.set_title(tr_catalog("page.blockcheck.custom_domains", language=language, default="Пользовательские домены"))
             self._results_card.set_title(tr_catalog("page.blockcheck.results", language=language, default="Результаты"))
@@ -1659,6 +1636,24 @@ class BlockcheckPage(BasePage):
 
             self._start_btn.setText(tr_catalog("page.blockcheck.start", language=language, default="Запустить"))
             self._stop_btn.setText(tr_catalog("page.blockcheck.stop", language=language, default="Остановить"))
+            if self._actions_title_label is not None:
+                self._actions_title_label.setText(
+                    tr_catalog("page.blockcheck.actions.title", language=language, default="Действия")
+                )
+            self._start_btn.setToolTip(
+                tr_catalog(
+                    "page.blockcheck.action.start.description",
+                    language=language,
+                    default="Запустить анализ блокировок и проверку DPI для выбранного режима.",
+                )
+            )
+            self._stop_btn.setToolTip(
+                tr_catalog(
+                    "page.blockcheck.action.stop.description",
+                    language=language,
+                    default="Остановить текущую проверку и вернуть страницу в обычный режим.",
+                )
+            )
             self._skip_failed_cb.setText(tr_catalog("page.blockcheck.skip_failed", language=language, default="Пропускать проблемные домены"))
             self._add_domain_btn.setText(tr_catalog("page.blockcheck.add_domain", language=language, default="Добавить"))
             self._domain_input.setPlaceholderText(tr_catalog("page.blockcheck.domain_placeholder", language=language, default="example.com"))

@@ -1,13 +1,12 @@
 # ui/pages/base_page.py
 """Базовый класс для страниц — использует qfluentwidgets ScrollArea."""
 
-import sys
-from PyQt6.QtCore import Qt, QEvent, QTimer, pyqtSignal
+import time as _time
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame,
     QSizePolicy, QPlainTextEdit, QTextEdit,
 )
-from PyQt6.QtGui import QFont
 
 try:
     from qfluentwidgets import (ScrollArea as _FluentScrollArea, TitleLabel, BodyLabel, StrongBodyLabel,
@@ -20,64 +19,13 @@ except ImportError:
     _USE_FLUENT = False
 
 from ui.text_catalog import tr as tr_catalog, normalize_language
-
-
-def _apply_widget_smooth_mode(widget, enabled: bool) -> None:
-    try:
-        from PyQt6.QtCore import Qt
-        from qfluentwidgets.common.smooth_scroll import SmoothMode
-
-        mode = SmoothMode.COSINE if enabled else SmoothMode.NO_SMOOTH
-
-        def _apply_delegate_mode(delegate) -> None:
-            if delegate is None:
-                return
-            try:
-                if hasattr(delegate, "useAni"):
-                    if not hasattr(delegate, "_zapret_base_use_ani"):
-                        delegate._zapret_base_use_ani = bool(delegate.useAni)
-                    delegate.useAni = bool(delegate._zapret_base_use_ani) if enabled else False
-            except Exception:
-                pass
-
-            for smooth_attr in ("verticalSmoothScroll", "horizonSmoothScroll"):
-                smooth = getattr(delegate, smooth_attr, None)
-                setter = getattr(smooth, "setSmoothMode", None)
-                if callable(setter):
-                    try:
-                        setter(mode)
-                    except Exception:
-                        pass
-
-            setter = getattr(delegate, "setSmoothMode", None)
-            if callable(setter):
-                try:
-                    setter(mode)
-                except TypeError:
-                    try:
-                        setter(mode, Qt.Orientation.Vertical)
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
-
-        setter = getattr(widget, "setSmoothMode", None)
-        if not callable(setter):
-            _apply_delegate_mode(getattr(widget, "scrollDelegate", None))
-            _apply_delegate_mode(getattr(widget, "scrollDelagate", None))
-            _apply_delegate_mode(getattr(widget, "delegate", None))
-            return
-
-        try:
-            setter(mode, Qt.Orientation.Vertical)
-        except TypeError:
-            setter(mode)
-
-        _apply_delegate_mode(getattr(widget, "scrollDelegate", None))
-        _apply_delegate_mode(getattr(widget, "scrollDelagate", None))
-        _apply_delegate_mode(getattr(widget, "delegate", None))
-    except Exception:
-        pass
+from ui.page_performance import log_page_metric
+from ui.theme_refresh import ThemeRefreshController
+from ui.smooth_scroll import (
+    apply_editor_smooth_scroll_preference,
+    apply_page_smooth_scroll_preference,
+    apply_smooth_scroll_mode,
+)
 
 
 class ScrollBlockingPlainTextEdit(_FluentPlainTextEdit):
@@ -91,14 +39,10 @@ class ScrollBlockingPlainTextEdit(_FluentPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setProperty("noDrag", True)
-        try:
-            from config.reg import get_smooth_scroll_enabled
-            self.set_smooth_scroll_enabled(get_smooth_scroll_enabled())
-        except Exception:
-            pass
+        apply_editor_smooth_scroll_preference(self)
 
     def set_smooth_scroll_enabled(self, enabled: bool) -> None:
-        _apply_widget_smooth_mode(self, enabled)
+        apply_smooth_scroll_mode(self, enabled)
 
     def wheelEvent(self, event):
         # SmoothScrollDelegate поглощает событие когда НЕ у границы (возвращает True),
@@ -112,14 +56,10 @@ class ScrollBlockingTextEdit(_FluentTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setProperty("noDrag", True)
-        try:
-            from config.reg import get_smooth_scroll_enabled
-            self.set_smooth_scroll_enabled(get_smooth_scroll_enabled())
-        except Exception:
-            pass
+        apply_editor_smooth_scroll_preference(self)
 
     def set_smooth_scroll_enabled(self, enabled: bool) -> None:
-        _apply_widget_smooth_mode(self, enabled)
+        apply_smooth_scroll_mode(self, enabled)
 
     def wheelEvent(self, event):
         event.accept()
@@ -133,8 +73,6 @@ class BasePage(_FluentScrollArea):
     self.parent_app, self.title_label, self.subtitle_label) is kept
     backward-compatible so all 40+ pages work without changes.
     """
-
-    ui_built = pyqtSignal()
 
     def __init__(
         self,
@@ -153,10 +91,16 @@ class BasePage(_FluentScrollArea):
         self._title_fallback = title
         self._subtitle_fallback = subtitle
         self._section_title_bindings: list[tuple[object, str, str]] = []
-        self._deferred_ui_build_enabled = False
-        self._deferred_ui_build_done = True
-        self._deferred_ui_build_callable = None
-        self._deferred_ui_after_build = None
+        self._page_registry_name = None
+        self._page_first_activation_done = False
+        self._page_lifecycle_generation = 0
+        self._page_load_generation = 0
+        self._ready_callbacks: list[object] = []
+        self._page_theme_refresh = ThemeRefreshController(
+            self,
+            self._apply_page_theme,
+            is_build_pending=lambda: False,
+        )
 
         # Ensure objectName is set (required by FluentWindow.addSubInterface)
         if not self.objectName():
@@ -175,14 +119,8 @@ class BasePage(_FluentScrollArea):
             "QScrollArea { background-color: transparent; border: none; }"
         )
 
-        # Apply smooth scroll preference from registry
-        try:
-            from config.reg import get_smooth_scroll_enabled
-            from qfluentwidgets.common.smooth_scroll import SmoothMode
-            if not get_smooth_scroll_enabled():
-                self.setSmoothMode(SmoothMode.NO_SMOOTH, Qt.Orientation.Vertical)
-        except Exception:
-            pass
+        # Применяем обычную прокрутку для страниц и списков.
+        apply_page_smooth_scroll_preference(self)
 
         # --- Content container ---
         self.content = QWidget(self)
@@ -227,116 +165,52 @@ class BasePage(_FluentScrollArea):
         else:
             self.subtitle_label = None
 
-    def enable_deferred_ui_build(self, *, build=None, after_build=None) -> None:
-        """Переводит страницу на канонический deferred-build путь.
+    def _set_page_registry_name(self, page_name) -> None:
+        self._page_registry_name = page_name
 
-        После этого основной UI страницы должен собираться не в `__init__`,
-        а при первом реальном показе страницы. Это уменьшает стоимость
-        lazy-инициализации страницы в момент первого клика по навигации.
-        """
-        self._deferred_ui_build_enabled = True
-        self._deferred_ui_build_done = False
-        self._deferred_ui_build_callable = build
-        self._deferred_ui_after_build = after_build
+    def _page_label(self):
+        return self._page_registry_name or self.__class__.__name__
 
-    def is_deferred_ui_build_pending(self) -> bool:
-        return bool(self._deferred_ui_build_enabled) and not bool(self._deferred_ui_build_done)
+    def _resolve_page_budget(self, budget_attr: str) -> int | None:
+        page_name = getattr(self, "_page_registry_name", None)
+        if page_name is None:
+            return None
+        try:
+            from ui.page_registry import get_page_performance_profile
 
-    def ensure_deferred_ui_built(self) -> bool:
-        if not self.is_deferred_ui_build_pending():
+            return int(getattr(get_page_performance_profile(page_name), budget_attr))
+        except Exception:
+            return None
+
+    def on_page_activated(self, first_show: bool) -> None:
+        _ = first_show
+
+    def on_page_hidden(self) -> None:
+        pass
+
+    def invalidate_page_cache(self, reason: str) -> None:
+        self.cancel_page_loads(reason=reason)
+
+    def issue_page_load_token(self, *, reason: str = "") -> int:
+        return self._issue_page_load_token(reason=reason)
+
+    def is_page_load_token_current(self, token: int) -> bool:
+        return self._is_page_load_token_current(token)
+
+    def cancel_page_loads(self, *, reason: str = "") -> None:
+        self._cancel_page_loads(reason=reason)
+
+    def is_page_ready(self) -> bool:
+        return bool(self.isVisible())
+
+    def run_when_page_ready(self, callback) -> bool:
+        if not callable(callback):
             return False
-
-        builder = getattr(self, "_deferred_ui_build_callable", None)
-        if not callable(builder):
-            builder = getattr(self, "_build_ui", None)
-        after_build = getattr(self, "_deferred_ui_after_build", None)
-
-        if not callable(builder):
-            self._deferred_ui_build_done = True
-            return False
-
-        builder()
-        self._deferred_ui_build_done = True
-
-        if callable(after_build):
-            after_build()
-
-        self._postprocess_deferred_ui_build()
-
-        self.ui_built.emit()
-        return True
-
-    def _postprocess_deferred_ui_build(self) -> None:
-        """Доводит тему/шрифты/локализацию после поздней сборки UI.
-
-        При deferred-build часть страниц создаёт виджеты уже после того, как
-        приложение успело применить тему, шрифты и язык интерфейса. Без явной
-        дополировки некоторые страницы могут остаться с сырыми стилями или
-        недообновлёнными подписями.
-        """
-        try:
-            self.ensurePolished()
-        except Exception:
-            pass
-
-        try:
-            content = getattr(self, "content", None)
-            if content is not None:
-                content.ensurePolished()
-        except Exception:
-            pass
-
-        try:
-            self._retranslate_base_texts()
-        except Exception:
-            pass
-
-        set_ui_language = getattr(self, "set_ui_language", None)
-        if callable(set_ui_language):
-            try:
-                set_ui_language(self._ui_language)
-            except Exception:
-                pass
-
-        for method_name in ("_apply_theme", "_apply_theme_styles", "_apply_page_theme"):
-            method = getattr(self, method_name, None)
-            if not callable(method):
-                continue
-            try:
-                try:
-                    method(force=True)
-                except TypeError:
-                    method()
-            except Exception:
-                pass
-
-        try:
-            style = self.style()
-            if style is not None:
-                style.unpolish(self)
-                style.polish(self)
-        except Exception:
-            pass
-
-        try:
-            content = getattr(self, "content", None)
-            if content is not None:
-                style = content.style()
-                if style is not None:
-                    style.unpolish(content)
-                    style.polish(content)
-        except Exception:
-            pass
-
-        try:
-            self.updateGeometry()
-            self.update()
-            content = getattr(self, "content", None)
-            if content is not None:
-                content.updateGeometry()
-                content.update()
-        except Exception:
-            pass
+        if self.is_page_ready():
+            self._schedule_lifecycle_action(callback)
+            return True
+        self._ready_callbacks.append(callback)
+        return False
 
     def _resolve_ui_language(self) -> str:
         try:
@@ -389,13 +263,104 @@ class BasePage(_FluentScrollArea):
         self._ui_language = normalize_language(language)
         self._retranslate_base_texts()
 
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = tokens
+        _ = force
+
+    def _flush_page_theme_refresh(self) -> None:
+        try:
+            self._page_theme_refresh.flush_pending()
+        except Exception:
+            pass
+
     def showEvent(self, event):  # noqa: N802 (Qt override)
         super().showEvent(event)
-        if not bool(getattr(self, "_deferred_ui_build_enabled", False)):
+        is_spontaneous = bool(event is not None and event.spontaneous())
+        if is_spontaneous:
+            self._flush_page_theme_refresh()
             return
-        if event is not None and event.spontaneous():
+        self._flush_ready_callbacks()
+        self._schedule_activation()
+        self._flush_page_theme_refresh()
+
+    def hideEvent(self, event):  # noqa: N802 (Qt override)
+        self._cancel_page_lifecycle(reason="hidden")
+        self.cancel_page_loads(reason="hidden")
+        try:
+            self.on_page_hidden()
+        except Exception:
+            pass
+        super().hideEvent(event)
+
+    def _run_page_activation(self, token: int) -> None:
+        if not self._is_page_lifecycle_token_current(token):
             return
-        self.ensure_deferred_ui_built()
+        if not self.isVisible():
+            return
+
+        first_show = not bool(self._page_first_activation_done)
+        if first_show:
+            self._page_first_activation_done = True
+
+        started_at = _time.perf_counter()
+        try:
+            self.on_page_activated(first_show=first_show)
+        except Exception:
+            pass
+        finally:
+            log_page_metric(
+                self._page_label(),
+                "activation.first" if first_show else "activation.repeat",
+                (_time.perf_counter() - started_at) * 1000,
+                budget_ms=(
+                    self._resolve_page_budget("first_show_budget_ms")
+                    if first_show
+                    else self._resolve_page_budget("repeat_show_budget_ms")
+                ),
+            )
+
+    def _issue_page_lifecycle_token(self, *, reason: str = "") -> int:
+        _ = reason
+        self._page_lifecycle_generation += 1
+        return self._page_lifecycle_generation
+
+    def _schedule_activation(self) -> None:
+        token = self._issue_page_lifecycle_token(reason="show:activate")
+        self._schedule_lifecycle_action(lambda t=token: self._run_page_activation(t))
+
+    def _cancel_page_lifecycle(self, *, reason: str = "") -> int:
+        _ = reason
+        self._page_lifecycle_generation += 1
+        return self._page_lifecycle_generation
+
+    def _is_page_lifecycle_token_current(self, token: int) -> bool:
+        return int(token) == int(self._page_lifecycle_generation)
+
+    def _issue_page_load_token(self, *, reason: str = "") -> int:
+        _ = reason
+        self._page_load_generation += 1
+        return self._page_load_generation
+
+    def _cancel_page_loads(self, *, reason: str = "") -> int:
+        _ = reason
+        self._page_load_generation += 1
+        return self._page_load_generation
+
+    def _is_page_load_token_current(self, token: int) -> bool:
+        return int(token) == int(self._page_load_generation)
+
+    @staticmethod
+    def _schedule_lifecycle_action(callback) -> None:
+        QTimer.singleShot(0, callback)
+
+    def _flush_ready_callbacks(self) -> None:
+        if not self.is_page_ready():
+            return
+        callbacks = list(self._ready_callbacks)
+        self._ready_callbacks.clear()
+        for callback in callbacks:
+            if callable(callback):
+                self._schedule_lifecycle_action(callback)
 
     def _retranslate_base_texts(self) -> None:
         if self._title_key and hasattr(self, "title_label") and self.title_label is not None:

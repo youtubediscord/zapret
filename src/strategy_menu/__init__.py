@@ -45,7 +45,6 @@ def clear_direct_zapret2_orchestra_strategies() -> bool:
     """Очищает все сохранённые стратегии для режима direct_zapret2_orchestra (устанавливает все в 'none')."""
     try:
         from preset_orchestra_zapret2 import ensure_default_preset_exists, PresetManager
-        from legacy_registry_launch.strategies_registry import registry
 
         log("🧹 Очистка стратегий DirectOrchestra (первая инициализация)...", "INFO")
 
@@ -53,10 +52,7 @@ def clear_direct_zapret2_orchestra_strategies() -> bool:
             return False
 
         manager = PresetManager()
-        selections = {target_key: "none" for target_key in registry.get_all_target_keys()}
-        manager.set_strategy_selections(selections, save_and_sync=True)
-        from legacy_registry_launch.selection_store import invalidate_direct_selections_cache
-        invalidate_direct_selections_cache()
+        manager.clear_all_strategy_selections(save_and_sync=True)
 
         log("✅ Все стратегии DirectOrchestra установлены в 'none'", "INFO")
         return True

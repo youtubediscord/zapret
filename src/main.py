@@ -278,9 +278,9 @@ from ui.window_close_controller import WindowCloseController
 from ui.holiday_effects import HolidayEffectsManager
 from ui.window_geometry_controller import WindowGeometryController
 from ui.window_notification_controller import WindowNotificationController
-from ui.main_window_state import AppUiState, MainWindowStateStore
-from managers.app_runtime_state import AppRuntimeState
-from managers.dpi_runtime_service import DpiRuntimeService
+from ui.main_window_state import AppUiState
+from app_context import AppContext, build_app_context
+from core.services import install_app_context
 
 
 from startup.admin_check import is_admin
@@ -434,68 +434,11 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         except Exception as e:
             log(f"Ошибка сохранения геометрии окна при закрытии: {e}", "❌ ERROR")
         
-        # ✅ Очищаем менеджеры через их методы
-        if hasattr(self, 'process_monitor_manager'):
-            self.process_monitor_manager.stop_monitoring()
-        
-        # ✅ Очищаем DNS UI Manager
-        if hasattr(self, 'dns_ui_manager'):
-            self.dns_ui_manager.cleanup()
-        
-        # ✅ Очищаем Theme Manager
-        if hasattr(self, 'theme_handler') and hasattr(self.theme_handler, 'theme_manager'):
-            try:
-                self.theme_handler.theme_manager.cleanup()
-            except Exception as e:
-                log(f"Ошибка при очистке theme_manager: {e}", "DEBUG")
-        
-        # ✅ Очищаем страницы с потоками
-        try:
-            logs_page = self.get_loaded_page(PageName.LOGS)
-            if logs_page is not None and hasattr(logs_page, 'cleanup'):
-                logs_page.cleanup()
+        self._cleanup_support_managers_for_close()
+        self._cleanup_threaded_pages_for_close()
 
-            servers_page = self.get_loaded_page(PageName.SERVERS)
-            if servers_page is not None and hasattr(servers_page, 'cleanup'):
-                servers_page.cleanup()
-
-            blockcheck_page = self.get_loaded_page(PageName.BLOCKCHECK)
-            if blockcheck_page is not None and hasattr(blockcheck_page, 'cleanup'):
-                blockcheck_page.cleanup()
-
-            connection_page = getattr(blockcheck_page, "connection_page", None)
-            if connection_page is not None and hasattr(connection_page, 'cleanup'):
-                connection_page.cleanup()
-
-            dns_check_page = getattr(blockcheck_page, "dns_check_page", None)
-            if dns_check_page is not None and hasattr(dns_check_page, 'cleanup'):
-                dns_check_page.cleanup()
-
-            hosts_page = self.get_loaded_page(PageName.HOSTS)
-            if hosts_page is not None and hasattr(hosts_page, 'cleanup'):
-                hosts_page.cleanup()
-        except Exception as e:
-            log(f"Ошибка при очистке страниц: {e}", "DEBUG")
-
-        # Cleanup Telegram proxy
-        try:
-            from ui.pages.telegram_proxy_page import _get_proxy_manager
-            _get_proxy_manager().cleanup()
-        except Exception:
-            pass
-
-        # Очищаем праздничные оверлеи
-        try:
-            effects = getattr(self, "_holiday_effects", None)
-            if effects is not None:
-                effects.cleanup()
-                self._holiday_effects = None
-        except Exception as e:
-            log(f"Ошибка очистки праздничных эффектов: {e}", "DEBUG")
-        
-        # ✅ Очищаем потоки через контроллер
-        if hasattr(self, 'dpi_controller'):
-            self.dpi_controller.cleanup_threads()
+        self._cleanup_visual_and_proxy_resources_for_close()
+        self._cleanup_runtime_threads_for_close()
 
         # ✅ ВАЖНО: winws/winws2 не должны останавливаться при "Выход" из трея/меню.
         # Останавливаем процессы только если явно запрошен "Выход и остановить DPI".
@@ -509,33 +452,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         else:
             log("Выход без остановки DPI: winws не трогаем", "DEBUG")
 
-        # Останавливаем все асинхронные операции без уведомлений
-        try:
-            if hasattr(self, '_dpi_start_thread') and self._dpi_start_thread:
-                try:
-                    if self._dpi_start_thread.isRunning():
-                        self._dpi_start_thread.quit()
-                        self._dpi_start_thread.wait(1000)
-                except RuntimeError:
-                    pass
-            
-            if hasattr(self, '_dpi_stop_thread') and self._dpi_stop_thread:
-                try:
-                    if self._dpi_stop_thread.isRunning():
-                        self._dpi_stop_thread.quit()
-                        self._dpi_stop_thread.wait(1000)
-                except RuntimeError:
-                    pass
-        except Exception as e:
-            log(f"Ошибка при очистке потоков: {e}", "❌ ERROR")
-
-        try:
-            tray_manager = getattr(self, "tray_manager", None)
-            if tray_manager is not None:
-                tray_manager.cleanup()
-                self.tray_manager = None
-        except Exception as e:
-            log(f"Ошибка очистки системного трея: {e}", "DEBUG")
+        self._cleanup_tray_for_close()
 
         super().closeEvent(event)
 
@@ -684,9 +601,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
             if launch_method == "direct_zapret2":
                 # direct_zapret2 is preset-based; do not show a phantom single-strategy name.
                 try:
-                    from core.services import get_direct_flow_coordinator
-
-                    preset = get_direct_flow_coordinator().get_selected_source_manifest("direct_zapret2")
+                    preset = self.app_context.direct_flow_coordinator.get_selected_source_manifest("direct_zapret2")
                     preset_name = str(getattr(preset, "name", "") or "")
                     display_name = f"Пресет: {preset_name}"
                 except Exception:
@@ -703,9 +618,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
                         display_name = "Оркестратор Z2"
                 elif launch_method == "direct_zapret1":
                     try:
-                        from core.services import get_direct_flow_coordinator
-
-                        preset = get_direct_flow_coordinator().get_selected_source_manifest("direct_zapret1")
+                        preset = self.app_context.direct_flow_coordinator.get_selected_source_manifest("direct_zapret1")
                         preset_name = str(getattr(preset, "name", "") or "")
                         display_name = f"Пресет: {preset_name}"
                     except Exception:
@@ -751,7 +664,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
             log(f"Traceback: {traceback.format_exc()}", "DEBUG")
             self.set_status(f"Ошибка при установке стратегии: {str(e)}")
 
-    def __init__(self, start_in_tray=False):
+    def __init__(self, start_in_tray: bool = False, *, app_context: AppContext):
         # ZapretFluentWindow.__init__ handles: titlebar, icon, dark theme, min size
         super().__init__()
 
@@ -760,6 +673,10 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         log(f"Метод запуска стратегий: {current_method}", "INFO")
 
         self.start_in_tray = start_in_tray
+        self.app_context = app_context
+        self.ui_state_store = app_context.ui_state_store
+        self.app_runtime_state = app_context.app_runtime_state
+        self.dpi_runtime_service = app_context.dpi_runtime_service
 
         # Flags
         self._dpi_autostart_initiated = False
@@ -841,13 +758,6 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         _t_total = _time.perf_counter()
         log("⏱ Startup: deferred init started", "DEBUG")
 
-        self.ui_state_store = MainWindowStateStore(self._build_initial_ui_state())
-        try:
-            self.app_runtime_state = AppRuntimeState(self)
-            self.dpi_runtime_service = DpiRuntimeService(self)
-        except Exception:
-            pass
-
         # Build UI: create the first visible pages and minimum navigation shell.
         # Всё, что не нужно для первого кадра и первого клика, переносим дальше.
         _t_build = _time.perf_counter()
@@ -876,15 +786,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         _t_total = _time.perf_counter()
 
         _t_mgr = _time.perf_counter()
-        from managers.initialization_manager import InitializationManager
-        from managers.subscription_manager import SubscriptionManager
-        from managers.process_monitor_manager import ProcessMonitorManager
-        from managers.ui_manager import UIManager
-
-        self.initialization_manager = InitializationManager(self)
-        self.subscription_manager = SubscriptionManager(self)
-        self.process_monitor_manager = ProcessMonitorManager(self)
-        self.ui_manager = UIManager(self)
+        _manager_bootstrap(self)
         log(f"⏱ Startup: managers init {( _time.perf_counter() - _t_mgr ) * 1000:.0f}ms", "DEBUG")
 
         self.update_title_with_subscription_status(False, None, 0, source="init")
@@ -1097,6 +999,103 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
             log("🎨 Принудительное обновление стилей выполнено после показа окна", "DEBUG")
         except Exception as e:
             log(f"Ошибка обновления стилей: {e}", "DEBUG")
+
+    def _cleanup_loaded_page(self, page_name: PageName) -> None:
+        page = self.get_loaded_page(page_name)
+        if page is None or not hasattr(page, "cleanup"):
+            return
+        try:
+            page.cleanup()
+        except Exception as e:
+            log(f"Ошибка при очистке страницы {page_name}: {e}", "DEBUG")
+
+    def _cleanup_threaded_pages_for_close(self) -> None:
+        try:
+            for page_name in (
+                PageName.LOGS,
+                PageName.SERVERS,
+                PageName.BLOCKCHECK,
+                PageName.HOSTS,
+            ):
+                self._cleanup_loaded_page(page_name)
+        except Exception as e:
+            log(f"Ошибка при очистке страниц: {e}", "DEBUG")
+
+    def _cleanup_support_managers_for_close(self) -> None:
+        try:
+            process_monitor_manager = getattr(self, "process_monitor_manager", None)
+            if process_monitor_manager is not None:
+                process_monitor_manager.stop_monitoring()
+        except Exception as e:
+            log(f"Ошибка остановки process_monitor_manager: {e}", "DEBUG")
+
+        try:
+            dns_ui_manager = getattr(self, "dns_ui_manager", None)
+            if dns_ui_manager is not None:
+                dns_ui_manager.cleanup()
+        except Exception as e:
+            log(f"Ошибка при очистке dns_ui_manager: {e}", "DEBUG")
+
+        try:
+            theme_handler = getattr(self, "theme_handler", None)
+            theme_manager = getattr(theme_handler, "theme_manager", None) if theme_handler is not None else None
+            if theme_manager is not None:
+                theme_manager.cleanup()
+        except Exception as e:
+            log(f"Ошибка при очистке theme_manager: {e}", "DEBUG")
+
+
+    def _cleanup_visual_and_proxy_resources_for_close(self) -> None:
+        try:
+            from ui.pages.telegram_proxy_page import _get_proxy_manager
+
+            _get_proxy_manager().cleanup()
+        except Exception:
+            pass
+
+        try:
+            effects = getattr(self, "_holiday_effects", None)
+            if effects is not None:
+                effects.cleanup()
+                self._holiday_effects = None
+        except Exception as e:
+            log(f"Ошибка очистки праздничных эффектов: {e}", "DEBUG")
+
+    def _cleanup_runtime_threads_for_close(self) -> None:
+        try:
+            dpi_controller = getattr(self, "dpi_controller", None)
+            if dpi_controller is not None:
+                dpi_controller.cleanup_threads()
+        except Exception as e:
+            log(f"Ошибка очистки DPI controller threads: {e}", "DEBUG")
+
+        try:
+            if hasattr(self, '_dpi_start_thread') and self._dpi_start_thread:
+                try:
+                    if self._dpi_start_thread.isRunning():
+                        self._dpi_start_thread.quit()
+                        self._dpi_start_thread.wait(1000)
+                except RuntimeError:
+                    pass
+
+            if hasattr(self, '_dpi_stop_thread') and self._dpi_stop_thread:
+                try:
+                    if self._dpi_stop_thread.isRunning():
+                        self._dpi_stop_thread.quit()
+                        self._dpi_stop_thread.wait(1000)
+                except RuntimeError:
+                    pass
+        except Exception as e:
+            log(f"Ошибка при очистке потоков: {e}", "❌ ERROR")
+
+    def _cleanup_tray_for_close(self) -> None:
+        try:
+            tray_manager = getattr(self, "tray_manager", None)
+            if tray_manager is not None:
+                tray_manager.cleanup()
+                self.tray_manager = None
+        except Exception as e:
+            log(f"Ошибка очистки системного трея: {e}", "DEBUG")
     
     def show_subscription_dialog(self) -> None:
         """Переключается на страницу Premium."""
@@ -1116,22 +1115,11 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
         """Переключает на вкладку диагностики соединений."""
         try:
             if self.show_page(PageName.BLOCKCHECK):
-                blockcheck_page = None
-                try:
-                    blockcheck_page = self.get_loaded_page(PageName.BLOCKCHECK)
-                    if blockcheck_page is not None:
-                        switch_tab = getattr(blockcheck_page, "switch_to_tab", None)
-                        if callable(switch_tab):
-                            switch_tab("diagnostics")
-                except Exception:
-                    pass
-
-                try:
-                    connection_page = getattr(blockcheck_page, "connection_page", None)
-                    if connection_page is not None:
-                        connection_page.start_btn.setFocus()
-                except Exception:
-                    pass
+                self._route_search_result(PageName.BLOCKCHECK, "diagnostics")
+                self._call_loaded_page_method(
+                    PageName.BLOCKCHECK,
+                    "request_diagnostics_start_focus",
+                )
                 log("Открыта вкладка диагностики в BlockCheck", "INFO")
         except Exception as e:
             log(f"Ошибка при открытии вкладки тестирования: {e}", "❌ ERROR")
@@ -1302,12 +1290,11 @@ def set_batfile_association() -> bool:
         log(f"Произошла ошибка: {e}", level="❌ ERROR")
         return False
 
-def main():
-    import sys, ctypes, os, atexit
-    log("=== ЗАПУСК ПРИЛОЖЕНИЯ ===", "🔹 main")
-    log(APP_VERSION, "🔹 main")
+def _shell_bootstrap() -> bool:
+    import atexit
+    import ctypes
+    import sys
 
-    # ---------------- Быстрая обработка специальных аргументов ----------------
     if "--version" in sys.argv:
         ctypes.windll.user32.MessageBoxW(None, APP_VERSION, "Zapret – версия", 0x40)
         sys.exit(0)
@@ -1315,10 +1302,9 @@ def main():
     if "--update" in sys.argv and len(sys.argv) > 3:
         _handle_update_mode()
         sys.exit(0)
-    
+
     start_in_tray = "--tray" in sys.argv
-    
-    # ---------------- Проверка прав администратора ----------------
+
     if not is_admin():
         params = subprocess.list2cmdline(list(sys.argv[1:]))
 
@@ -1338,28 +1324,33 @@ def main():
                 0x10,
             )
         sys.exit(0)
-    
-    # ---------------- Проверка single instance ----------------
+
     from startup.single_instance import create_mutex, release_mutex
     from startup.ipc_manager import IPCManager
-    
+
     mutex_handle, already_running = create_mutex("ZapretSingleInstance")
     if already_running:
         ipc = IPCManager()
         if ipc.send_show_command():
             log("Отправлена команда показать окно запущенному экземпляру", "INFO")
         else:
-            ctypes.windll.user32.MessageBoxW(None, 
-                "Экземпляр Zapret уже запущен, но не удалось показать окно!", "Zapret", 0x40)
+            ctypes.windll.user32.MessageBoxW(
+                None,
+                "Экземпляр Zapret уже запущен, но не удалось показать окно!",
+                "Zapret",
+                0x40,
+            )
         sys.exit(0)
-    
-    atexit.register(lambda: release_mutex(mutex_handle))
 
-    # ---------------- QApplication (уже создан на уровне модуля) ----------------
+    atexit.register(lambda: release_mutex(mutex_handle))
+    return bool(start_in_tray)
+
+
+def _application_bootstrap():
+    import ctypes
+
     app = QApplication.instance()
     try:
-        # На Windows принудительно отключаем "transient/overlay" скроллбары
-        # (иначе они могут не отображаться/быть практически невидимыми).
         try:
             import platform
             if platform.system() == "Windows":
@@ -1377,15 +1368,12 @@ def main():
 
         app.setQuitOnLastWindowClosed(False)
 
-        # Устанавливаем Qt crash handler
         from log.crash_handler import install_qt_crash_handler
         install_qt_crash_handler(app)
 
     except Exception as e:
-        ctypes.windll.user32.MessageBoxW(None,
-            f"Ошибка инициализации Qt: {e}", "Zapret", 0x10)
+        ctypes.windll.user32.MessageBoxW(None, f"Ошибка инициализации Qt: {e}", "Zapret", 0x10)
 
-    # Apply display mode and accent color via native qfluentwidgets API.
     from qfluentwidgets import setTheme, Theme
     from qfluentwidgets.common.config import qconfig
     from PyQt6.QtGui import QColor as _QColor
@@ -1403,10 +1391,13 @@ def main():
     else:
         setTheme(Theme.DARK)
 
-    # Accent color: Windows system accent takes priority, then saved custom, then default.
     try:
-        from config.reg import (get_follow_windows_accent, get_windows_system_accent,
-                                 get_accent_color, set_accent_color)
+        from config.reg import (
+            get_follow_windows_accent,
+            get_windows_system_accent,
+            get_accent_color,
+            set_accent_color,
+        )
         if get_follow_windows_accent():
             _hex = get_windows_system_accent()
         else:
@@ -1420,8 +1411,37 @@ def main():
     except Exception:
         pass
 
-    # СОЗДАЁМ ОКНО
-    window = LupiDPIApp(start_in_tray=start_in_tray)
+    return app
+
+
+def _window_bootstrap(*, start_in_tray: bool) -> tuple[AppContext, "LupiDPIApp"]:
+    app_context = build_app_context(initial_ui_state=LupiDPIApp._build_initial_ui_state())
+    install_app_context(app_context)
+    window = LupiDPIApp(start_in_tray=start_in_tray, app_context=app_context)
+    return app_context, window
+
+
+def _manager_bootstrap(window: "LupiDPIApp") -> None:
+    from managers.initialization_manager import InitializationManager
+    from managers.subscription_manager import SubscriptionManager
+    from managers.process_monitor_manager import ProcessMonitorManager
+    from managers.ui_manager import UIManager
+
+    window.initialization_manager = InitializationManager(window)
+    window.subscription_manager = SubscriptionManager(window)
+    window.process_monitor_manager = ProcessMonitorManager(window)
+    window.ui_manager = UIManager(window)
+
+
+def main():
+    import sys, ctypes, os, atexit
+    from startup.ipc_manager import IPCManager
+    log("=== ЗАПУСК ПРИЛОЖЕНИЯ ===", "🔹 main")
+    log(APP_VERSION, "🔹 main")
+
+    start_in_tray = _shell_bootstrap()
+    app = _application_bootstrap()
+    _app_context, window = _window_bootstrap(start_in_tray=start_in_tray)
 
     # ✅ ПРИМЕНЯЕМ ПРЕСЕТ ФОНА + MICA (amoled / rkn_chan / standard)
     try:

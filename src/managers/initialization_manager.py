@@ -151,11 +151,7 @@ class InitializationManager:
             import time as _t
             t0 = _t.perf_counter()
             try:
-                from legacy_registry_launch.strategies_registry import registry
                 from strategy_menu import get_strategy_launch_method
-
-                # Прогреваем кэш отсортированных ключей
-                registry.get_all_target_keys_sorted()
 
                 method = get_strategy_launch_method()
 
@@ -164,10 +160,16 @@ class InitializationManager:
                     from core.presets.direct_facade import DirectPresetFacade
 
                     DirectPresetFacade.from_launch_method(method).get_strategy_selections()
-                else:
-                    from legacy_registry_launch.selection_store import get_direct_strategy_selections
+                elif method == "direct_zapret2_orchestra":
+                    from preset_orchestra_zapret2 import PresetManager
+                    from preset_orchestra_zapret2.catalog import load_categories
 
-                    get_direct_strategy_selections()
+                    load_categories()
+                    PresetManager().get_strategy_selections()
+                else:
+                    from preset_orchestra_zapret2.catalog import load_categories
+
+                    load_categories()
 
                 log("Кэш стратегий прогрет", "DEBUG")
                 self._log_startup_step(
@@ -407,9 +409,9 @@ class InitializationManager:
 
         # Для orchestra direct-режима пока остаётся legacy selections path.
         elif launch_method == "direct_zapret2_orchestra":
-            from legacy_registry_launch.selection_store import get_direct_strategy_selections
+            from preset_orchestra_zapret2 import PresetManager
 
-            selections = get_direct_strategy_selections()
+            selections = PresetManager().get_strategy_selections() or {}
             has_any = any(v and v != 'none' for v in selections.values())
             if not has_any:
                 self._show_strategy_required_warning(for_bat=False)

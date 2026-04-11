@@ -17,6 +17,8 @@ from qfluentwidgets import (
 from qfluentwidgets.common.style_sheet import FluentStyleSheet
 
 from log import log
+from ui.smooth_scroll import apply_editor_smooth_scroll_preference
+from ui.theme_refresh import ThemeRefreshController
 
 
 class ArgsPreviewDialog(QDialog):
@@ -64,12 +66,7 @@ class ArgsPreviewDialog(QDialog):
         FluentStyleSheet.DIALOG.apply(self)
 
         self._init_ui()
-
-        try:
-            from qfluentwidgets import qconfig
-            qconfig.themeChanged.connect(lambda _: self._refresh_info_label())
-        except Exception:
-            pass
+        self._theme_refresh = ThemeRefreshController(self, self._refresh_info_label)
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
@@ -110,6 +107,7 @@ class ArgsPreviewDialog(QDialog):
         args_layout.addLayout(args_header)
 
         self.args_text = TextEdit()
+        apply_editor_smooth_scroll_preference(self.args_text)
         self.args_text.setReadOnly(True)
         self.args_text.setMinimumHeight(60)
         self.args_text.setMaximumHeight(200)

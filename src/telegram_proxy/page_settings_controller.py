@@ -86,8 +86,9 @@ class TelegramProxySettingsController:
     def build_proxy_url(cls, host: str, port: int) -> str:
         return f"tg://socks?server={cls.normalize_host(host)}&port={cls.normalize_port(port)}"
 
-    def load_state(self, upstream_catalog: UpstreamCatalog) -> TelegramProxySettingsState:
-        state = self.default_state()
+    @classmethod
+    def load_state(cls, upstream_catalog: UpstreamCatalog) -> TelegramProxySettingsState:
+        state = cls.default_state()
 
         try:
             from config.reg import (
@@ -102,10 +103,10 @@ class TelegramProxySettingsController:
                 get_tg_proxy_upstream_user,
             )
 
-            host = self.normalize_host(get_tg_proxy_host())
-            port = self.normalize_port(get_tg_proxy_port())
+            host = cls.normalize_host(get_tg_proxy_host())
+            port = cls.normalize_port(get_tg_proxy_port())
             upstream_host = str(get_tg_proxy_upstream_host() or "").strip()
-            upstream_port = self.normalize_upstream_port(get_tg_proxy_upstream_port())
+            upstream_port = cls.normalize_upstream_port(get_tg_proxy_upstream_port())
             upstream_user = str(get_tg_proxy_upstream_user() or "").strip()
             upstream_password = str(get_tg_proxy_upstream_pass() or "")
             upstream_mode = str(get_tg_proxy_upstream_mode() or "fallback").strip().lower() or "fallback"
@@ -131,7 +132,8 @@ class TelegramProxySettingsController:
         except Exception:
             return state
 
-    def set_autostart(self, enabled: bool) -> None:
+    @staticmethod
+    def set_autostart(enabled: bool) -> None:
         try:
             from config.reg import set_tg_proxy_autostart
 
@@ -139,8 +141,9 @@ class TelegramProxySettingsController:
         except Exception:
             pass
 
-    def set_port(self, port: int) -> int:
-        normalized = self.normalize_port(port)
+    @classmethod
+    def set_port(cls, port: int) -> int:
+        normalized = cls.normalize_port(port)
         try:
             from config.reg import set_tg_proxy_port
 
@@ -149,8 +152,9 @@ class TelegramProxySettingsController:
             pass
         return normalized
 
-    def set_host(self, host: str) -> str:
-        normalized = self.normalize_host(host)
+    @classmethod
+    def set_host(cls, host: str) -> str:
+        normalized = cls.normalize_host(host)
         try:
             from config.reg import set_tg_proxy_host
 
@@ -159,7 +163,8 @@ class TelegramProxySettingsController:
             pass
         return normalized
 
-    def set_proxy_enabled(self, enabled: bool) -> None:
+    @staticmethod
+    def set_proxy_enabled(enabled: bool) -> None:
         try:
             from config.reg import set_tg_proxy_enabled
 
@@ -167,7 +172,8 @@ class TelegramProxySettingsController:
         except Exception:
             pass
 
-    def set_upstream_enabled(self, enabled: bool) -> None:
+    @staticmethod
+    def set_upstream_enabled(enabled: bool) -> None:
         try:
             from config.reg import set_tg_proxy_upstream_enabled
 
@@ -175,7 +181,8 @@ class TelegramProxySettingsController:
         except Exception:
             pass
 
-    def set_upstream_mode(self, always_enabled: bool) -> None:
+    @staticmethod
+    def set_upstream_mode(always_enabled: bool) -> None:
         try:
             from config.reg import set_tg_proxy_upstream_mode
 
@@ -183,7 +190,8 @@ class TelegramProxySettingsController:
         except Exception:
             pass
 
-    def set_upstream_fields(self, host: str, port: int, user: str, password: str) -> None:
+    @classmethod
+    def set_upstream_fields(cls, host: str, port: int, user: str, password: str) -> None:
         try:
             from config.reg import (
                 set_tg_proxy_upstream_host,
@@ -193,13 +201,14 @@ class TelegramProxySettingsController:
             )
 
             set_tg_proxy_upstream_host(str(host or "").strip())
-            set_tg_proxy_upstream_port(self.normalize_upstream_port(port))
+            set_tg_proxy_upstream_port(cls.normalize_upstream_port(port))
             set_tg_proxy_upstream_user(str(user or "").strip())
             set_tg_proxy_upstream_pass(str(password or ""))
         except Exception:
             pass
 
-    def load_upstream_test_target(self) -> tuple[str, int] | None:
+    @classmethod
+    def load_upstream_test_target(cls) -> tuple[str, int] | None:
         try:
             from config.reg import (
                 get_tg_proxy_upstream_enabled,
@@ -211,14 +220,15 @@ class TelegramProxySettingsController:
                 return None
 
             host = str(get_tg_proxy_upstream_host() or "").strip()
-            port = self.normalize_upstream_port(get_tg_proxy_upstream_port())
+            port = cls.normalize_upstream_port(get_tg_proxy_upstream_port())
             if not host or port <= 0:
                 return None
             return host, port
         except Exception:
             return None
 
-    def build_upstream_config(self):
+    @classmethod
+    def build_upstream_config(cls):
         try:
             from telegram_proxy.wss_proxy import UpstreamProxyConfig
             from config.reg import (
@@ -234,7 +244,7 @@ class TelegramProxySettingsController:
                 return None
 
             host = str(get_tg_proxy_upstream_host() or "").strip()
-            port = self.normalize_upstream_port(get_tg_proxy_upstream_port())
+            port = cls.normalize_upstream_port(get_tg_proxy_upstream_port())
             if not host or port <= 0:
                 return None
 
@@ -249,7 +259,8 @@ class TelegramProxySettingsController:
         except Exception:
             return None
 
-    def consume_auto_deeplink_request(self) -> bool:
+    @staticmethod
+    def consume_auto_deeplink_request() -> bool:
         try:
             from config import REGISTRY_PATH
             from config.reg import reg

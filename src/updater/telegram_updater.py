@@ -24,7 +24,7 @@ def _no_proxy_get(url: str, **kwargs) -> requests.Response:
         s.close()
 
 # ────────────────────────────────────────────────────────────────
-#  ТОКЕН TELEGRAM BOT API (из _build_secrets при сборке, иначе env/файл)
+#  ТОКЕН TELEGRAM BOT API (только из generated runtime config)
 # ────────────────────────────────────────────────────────────────
 try:
     from config._build_secrets import TG_UPDATE_BOT_TOKEN as _BUILD_TOKEN
@@ -50,7 +50,7 @@ _API_URL_TEMPLATE = "https://api.telegram.org/bot{value}/{method}"
 
 
 def get_inline_value() -> str:
-    """Возвращает токен бота (из _build_secrets/env/файла)"""
+    """Возвращает токен update-бота только из generated runtime config."""
     global _TOKEN_CACHE
 
     if _TOKEN_CACHE:
@@ -59,21 +59,6 @@ def get_inline_value() -> str:
     if _BUILD_TOKEN:
         _TOKEN_CACHE = _BUILD_TOKEN
         return _TOKEN_CACHE
-
-    env_value = os.getenv('ZAPRET_TG_BOT_TOKEN') or os.getenv('ZAPRET_TG_UPDATE_BOT_TOKEN')
-    if env_value:
-        _TOKEN_CACHE = env_value
-        return _TOKEN_CACHE
-
-    try:
-        from config import LOGS_FOLDER
-        token_file = os.path.join(LOGS_FOLDER, '.tg_bot_token')
-        if os.path.exists(token_file):
-            with open(token_file, 'r') as f:
-                _TOKEN_CACHE = f.read().strip()
-                return _TOKEN_CACHE
-    except Exception:
-        pass
 
     return ""
 
@@ -336,4 +321,3 @@ def _extract_version(file_name: str, text: str) -> Optional[str]:
 def is_telegram_available() -> bool:
     """Проверяет доступность Telegram Bot API"""
     return bool(get_inline_value())
-

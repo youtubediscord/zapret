@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from PyQt6.QtCore import Qt, QModelIndex
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QCompleter, QWidget
 
 from log import log
 from ui.page_names import PageName
-from ui.mode_page_scope import get_sidebar_search_pages_for_method, should_add_nav_page_on_init
-from ui.nav_mode_config import get_nav_visibility
+from ui.router import (
+    get_hidden_pages_for_method,
+    get_nav_visibility,
+    get_page_route_key,
+    get_sidebar_pages_for_method,
+    get_sidebar_search_pages_for_method,
+)
 from ui.text_catalog import (
     find_search_entries,
     format_search_result,
@@ -15,7 +22,13 @@ from ui.text_catalog import (
     normalize_language,
     tr as tr_catalog,
 )
-from ui.main_window_pages import get_eager_page_names, get_page_route_key
+from ui.main_window_pages import get_eager_page_names
+
+
+@dataclass(frozen=True)
+class SidebarSearchTarget:
+    page_name: PageName
+    tab_key: str = ""
 
 
 def add_nav_item(window, page_name: PageName, position, *, initial_visible: bool | None = None) -> None:
@@ -25,7 +38,7 @@ def add_nav_item(window, page_name: PageName, position, *, initial_visible: bool
     if page_name in getattr(window, "_nav_items", {}):
         return
 
-    route_key = get_page_route_key(window, page_name)
+    route_key = get_page_route_key(page_name)
     if not route_key:
         log(f"[NAV] _add {page_name.name}: route key is missing - skip", "DEBUG")
         return
@@ -89,8 +102,6 @@ def init_navigation(window) -> None:
     initial_visibility = get_nav_visibility(current_method)
 
     def _add(page_name, position=pos_scroll):
-        if not should_add_nav_page_on_init(page_name, current_method):
-            return
         add_nav_item(
             window,
             page_name,
@@ -112,68 +123,38 @@ def init_navigation(window) -> None:
             attach_sidebar_search_to_titlebar(window)
             update_titlebar_search_width(window)
 
-    _add(PageName.HOME)
-    _add(PageName.CONTROL)
-    _add(PageName.ZAPRET2_DIRECT_CONTROL)
-    _add(PageName.ZAPRET2_ORCHESTRA_CONTROL)
-    _add(PageName.ZAPRET1_DIRECT_CONTROL)
-    _add(PageName.ORCHESTRA)
+    for page_name in get_sidebar_pages_for_method(current_method, sidebar_group="root"):
+        _add(page_name)
 
     settings_header_key = "nav.header.settings"
     settings_header = nav.addItemHeader(tr_catalog(settings_header_key, language=window._ui_language), pos_scroll)
-    settings_pages = (
-        PageName.HOSTLIST,
-        PageName.ORCHESTRA_SETTINGS,
-        PageName.DPI_SETTINGS,
-    )
+    settings_pages = get_sidebar_pages_for_method(current_method, sidebar_group="settings")
     for page_name in settings_pages:
         _add(page_name)
     window._nav_headers.append((settings_header, settings_pages, settings_header_key))
 
     system_header_key = "nav.header.system"
     system_header = nav.addItemHeader(tr_catalog(system_header_key, language=window._ui_language), pos_scroll)
-    system_pages = (PageName.AUTOSTART, PageName.NETWORK, PageName.TELEGRAM_PROXY)
+    system_pages = get_sidebar_pages_for_method(current_method, sidebar_group="system")
     for page_name in system_pages:
         _add(page_name)
     window._nav_headers.append((system_header, system_pages, system_header_key))
 
     diagnostics_header_key = "nav.header.diagnostics"
     diagnostics_header = nav.addItemHeader(tr_catalog(diagnostics_header_key, language=window._ui_language), pos_scroll)
-    diagnostics_pages = (
-        PageName.HOSTS,
-        PageName.BLOCKCHECK,
-    )
+    diagnostics_pages = get_sidebar_pages_for_method(current_method, sidebar_group="diagnostics")
     for page_name in diagnostics_pages:
         _add(page_name)
     window._nav_headers.append((diagnostics_header, diagnostics_pages, diagnostics_header_key))
 
     appearance_header_key = "nav.header.appearance"
     appearance_header = nav.addItemHeader(tr_catalog(appearance_header_key, language=window._ui_language), pos_scroll)
-    appearance_pages = (
-        PageName.APPEARANCE,
-        PageName.PREMIUM,
-        PageName.LOGS,
-        PageName.ABOUT,
-    )
+    appearance_pages = get_sidebar_pages_for_method(current_method, sidebar_group="appearance")
     for page_name in appearance_pages:
         _add(page_name)
     window._nav_headers.append((appearance_header, appearance_pages, appearance_header_key))
 
-    for hidden in (
-        PageName.ZAPRET2_DIRECT,
-        PageName.ZAPRET2_ORCHESTRA,
-        PageName.ZAPRET2_USER_PRESETS,
-        PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
-        PageName.ZAPRET2_STRATEGY_DETAIL,
-        PageName.ZAPRET2_PRESET_DETAIL,
-        PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
-        PageName.ZAPRET2_ORCHESTRA_PRESET_DETAIL,
-        PageName.BLOBS,
-        PageName.ZAPRET1_DIRECT,
-        PageName.ZAPRET1_USER_PRESETS,
-        PageName.ZAPRET1_STRATEGY_DETAIL,
-        PageName.ZAPRET1_PRESET_DETAIL,
-    ):
+    for hidden in get_hidden_pages_for_method(current_method):
         page = window.pages.get(hidden)
         if page is not None:
             if not page.objectName():
@@ -372,33 +353,118 @@ def update_sidebar_search_suggestions(window) -> None:
         window._sidebar_search_nav_widget.show_completions()
 
 
-def on_sidebar_search_result_activated(window, index: QModelIndex) -> None:
+def _clear_sidebar_search(window) -> None:
+    if window._sidebar_search_nav_widget is not None:
+        window._sidebar_search_nav_widget.clear()
+
+
+def _route_search_result_and_clear(window, page_name: PageName, tab_key: str = "") -> bool:
+    if not route_search_result(window, page_name, tab_key):
+        return False
+    _clear_sidebar_search(window)
+    return True
+
+
+def _build_sidebar_search_target(raw_page_name, tab_key: str | None = "") -> SidebarSearchTarget | None:
+    if not isinstance(raw_page_name, str) or not raw_page_name:
+        return None
+    try:
+        page_name = PageName[raw_page_name]
+    except Exception:
+        return None
+    return SidebarSearchTarget(
+        page_name=page_name,
+        tab_key=str(tab_key or ""),
+    )
+
+
+def _search_target_from_index(index: QModelIndex) -> SidebarSearchTarget | None:
     if not index.isValid():
-        return
+        return None
 
     page_role = int(Qt.ItemDataRole.UserRole)
     tab_role = page_role + 1
+    return _build_sidebar_search_target(
+        index.data(page_role),
+        index.data(tab_role),
+    )
 
-    raw_page_name = index.data(page_role)
-    if not isinstance(raw_page_name, str) or not raw_page_name:
+
+def _search_target_from_item(item: QStandardItem | None) -> SidebarSearchTarget | None:
+    if item is None:
+        return None
+
+    page_role = int(Qt.ItemDataRole.UserRole)
+    tab_role = page_role + 1
+    return _build_sidebar_search_target(
+        item.data(page_role),
+        item.data(tab_role),
+    )
+
+
+def _find_search_item_in_model(model: QStandardItemModel, text_cf: str, *, prefer_first: bool) -> QStandardItem | None:
+    target_item = None
+    for row in range(model.rowCount()):
+        item = model.item(row, 0)
+        if item is None:
+            continue
+        if (item.text() or "").strip().casefold() == text_cf:
+            target_item = item
+            break
+
+    if target_item is None and prefer_first and model.rowCount() > 0:
+        target_item = model.item(0, 0)
+
+    return target_item
+
+
+def _resolve_search_target_from_query(window, text: str, *, prefer_first: bool) -> SidebarSearchTarget | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    query = text
+    text_cf = text.casefold()
+    if " - " in query:
+        query = (query.split(" - ", 1)[0] or "").strip() or query
+
+    visible_pages = get_sidebar_search_pages(window)
+    matches = find_search_entries(
+        query,
+        language=window._ui_language,
+        visible_pages=visible_pages,
+        max_results=10,
+    )
+    selected_match = None
+    for match in matches:
+        title, location = format_search_result(match.entry, language=window._ui_language)
+        display = f"{title} - {location}".strip().casefold()
+        title_cf = (title or "").strip().casefold()
+        if display == text_cf or title_cf == text_cf:
+            selected_match = match
+            break
+
+    if selected_match is None and prefer_first and matches:
+        selected_match = matches[0]
+
+    if selected_match is None:
+        return None
+
+    return SidebarSearchTarget(
+        page_name=selected_match.entry.page_name,
+        tab_key=str(selected_match.entry.tab_key or ""),
+    )
+
+
+def on_sidebar_search_result_activated(window, index: QModelIndex) -> None:
+    target = _search_target_from_index(index)
+    if target is None:
         display_text = index.data(int(Qt.ItemDataRole.DisplayRole))
         if isinstance(display_text, str):
             route_sidebar_search_by_text(window, display_text, prefer_first=False)
         return
 
-    try:
-        page_name = PageName[raw_page_name]
-    except Exception:
-        return
-
-    tab_key = index.data(tab_role)
-    if not isinstance(tab_key, str):
-        tab_key = ""
-
-    route_search_result(window, page_name, tab_key)
-
-    if window._sidebar_search_nav_widget is not None:
-        window._sidebar_search_nav_widget.clear()
+    _route_search_result_and_clear(window, target.page_name, target.tab_key)
 
 
 def on_sidebar_search_result_text_activated(window, text: str) -> None:
@@ -414,86 +480,40 @@ def route_sidebar_search_by_text(window, text: str, prefer_first: bool = False) 
     if model is None:
         return False
 
-    page_role = int(Qt.ItemDataRole.UserRole)
-    tab_role = page_role + 1
-
-    target_item = None
     text_cf = text.casefold()
-    for row in range(model.rowCount()):
-        item = model.item(row, 0)
-        if item is None:
-            continue
-        if (item.text() or "").strip().casefold() == text_cf:
-            target_item = item
-            break
-
-    if target_item is None and prefer_first and model.rowCount() > 0:
-        target_item = model.item(0, 0)
+    target_item = _find_search_item_in_model(model, text_cf, prefer_first=prefer_first)
 
     if target_item is None:
-        query = text
-        if " - " in query:
-            query = (query.split(" - ", 1)[0] or "").strip() or query
-
-        visible_pages = get_sidebar_search_pages(window)
-
-        matches = find_search_entries(
-            query,
-            language=window._ui_language,
-            visible_pages=visible_pages,
-            max_results=10,
-        )
-        selected_match = None
-        for match in matches:
-            title, location = format_search_result(match.entry, language=window._ui_language)
-            display = f"{title} - {location}".strip().casefold()
-            title_cf = (title or "").strip().casefold()
-            if display == text_cf or title_cf == text_cf:
-                selected_match = match
-                break
-        if selected_match is None and prefer_first and matches:
-            selected_match = matches[0]
-
-        if selected_match is None:
+        target = _resolve_search_target_from_query(window, text, prefer_first=prefer_first)
+        if target is None:
             return False
 
-        route_search_result(window, selected_match.entry.page_name, selected_match.entry.tab_key or "")
-        if window._sidebar_search_nav_widget is not None:
-            window._sidebar_search_nav_widget.clear()
+        _route_search_result_and_clear(window, target.page_name, target.tab_key)
         return True
 
-    raw_page_name = target_item.data(page_role)
-    if not isinstance(raw_page_name, str) or not raw_page_name:
+    target = _search_target_from_item(target_item)
+    if target is None:
         return False
 
-    tab_key = target_item.data(tab_role)
-    if not isinstance(tab_key, str):
-        tab_key = ""
-
-    try:
-        page_name = PageName[raw_page_name]
-    except Exception:
-        return False
-
-    route_search_result(window, page_name, tab_key)
-    if window._sidebar_search_nav_widget is not None:
-        window._sidebar_search_nav_widget.clear()
+    _route_search_result_and_clear(window, target.page_name, target.tab_key)
     return True
 
 
-def route_search_result(window, page_name: PageName, tab_key: str = "") -> None:
+def route_search_result(window, page_name: PageName, tab_key: str = "") -> bool:
     if not window.show_page(page_name):
-        return
+        return False
 
     if not tab_key:
-        return
+        return True
 
-    page = window.get_page(page_name)
-    if page is not None and hasattr(page, "switch_to_tab"):
-        try:
-            page.switch_to_tab(tab_key)
-        except Exception:
-            pass
+    call_loaded_page_method = getattr(window, "_call_loaded_page_method", None)
+    if not callable(call_loaded_page_method):
+        return False
+
+    try:
+        return bool(call_loaded_page_method(page_name, "switch_to_tab", tab_key))
+    except Exception:
+        return False
 
 
 def refresh_navigation_texts(window) -> None:
@@ -529,15 +549,6 @@ def on_ui_language_changed(window, language: str) -> None:
 def apply_ui_language_to_page(window, page: QWidget | None) -> None:
     if page is None:
         return
-
-    is_deferred_pending = getattr(page, "is_deferred_ui_build_pending", None)
-    if callable(is_deferred_pending):
-        try:
-            if is_deferred_pending():
-                page._ui_language = window._ui_language
-                return
-        except Exception:
-            pass
 
     for method_name in ("set_ui_language", "retranslate_ui", "apply_ui_language"):
         method = getattr(page, method_name, None)

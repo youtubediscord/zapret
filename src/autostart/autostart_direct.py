@@ -565,12 +565,33 @@ def collect_direct_strategy_args(app_instance) -> tuple[List[str], str, str]:
             log(f"DirectZ1 autostart: используем выбранный source-пресет как @config: {snapshot.preset_path}", "INFO")
             return args_v1, snapshot.display_name, winws_exe
 
-        from legacy_registry_launch.selection_store import get_direct_strategy_selections
+        if launch_method == "direct_zapret2_orchestra":
+            try:
+                from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
+
+                if not ensure_default_preset_exists():
+                    raise RuntimeError("orchestra active preset file is not prepared")
+
+                manager = PresetManager()
+                active_path = manager.get_active_preset_path()
+                preset_name = str(manager.get_active_preset_name() or "").strip() or "Default"
+            except Exception as e:
+                log(f"DirectZ2 orchestra autostart: {e}", "ERROR")
+                return [], "direct_zapret2_orchestra", winws_exe
+
+            if not active_path.exists():
+                log(f"DirectZ2 orchestra autostart: активный orchestra preset не найден: {active_path}", "ERROR")
+                return [], f"Пресет оркестра: {preset_name}", winws_exe
+
+            args_orchestra = [f"@{active_path}"]
+            display_name = f"Пресет оркестра: {preset_name}"
+            log(f"DirectZ2 orchestra autostart: используем active orchestra preset как @config: {active_path}", "INFO")
+            return args_orchestra, display_name, winws_exe
+
         from launcher_common import combine_strategies
 
-        # Out-of-scope legacy/orchestra path still uses category selections.
-        selections = get_direct_strategy_selections()
-        combined = combine_strategies(**selections)
+        # Pure orchestra path still uses legacy combined args.
+        combined = combine_strategies()
 
         # Парсим аргументы (posix=False для Windows чтобы сохранить бэкслеши в путях)
         import shlex

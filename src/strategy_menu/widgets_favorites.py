@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import QToolButton
-from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QPoint
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint
 
 from .widgets import CompactStrategyItem
 from ui.theme import get_theme_tokens
+from ui.theme_refresh import ThemeRefreshController
 from ui.compat_widgets import set_tooltip
 
 
@@ -129,6 +130,7 @@ class FavoriteCompactStrategyItem(CompactStrategyItem):
         # Включаем отслеживание мыши для hover tooltip
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
 
     def _get_rating_style(self):
         """Возвращает стиль на основе рейтинга стратегии"""
@@ -193,14 +195,11 @@ class FavoriteCompactStrategyItem(CompactStrategyItem):
             self._current_fav_style = new_style
             self.favorite_btn.setStyleSheet(new_style)
 
-    def changeEvent(self, event):  # noqa: N802 (Qt override)
-        try:
-            if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-                self._current_fav_style = None
-                self._update_favorite_style()
-        except Exception:
-            pass
-        super().changeEvent(event)
+    def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
+        _ = tokens
+        _ = force
+        self._current_fav_style = None
+        self._update_favorite_style()
     
     def _toggle_favorite(self):
         """Переключает избранное"""

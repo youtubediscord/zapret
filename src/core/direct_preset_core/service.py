@@ -753,7 +753,7 @@ class DirectPresetService:
 
     def _strategy_identity_modes(self, strategy_set: str | None) -> tuple[str, ...]:
         if self._engine == "winws2" and str(strategy_set or "").strip().lower() == "basic":
-            return ("keep_send_syndata",)
+            return ("keep_send_syndata", "helpers_stripped")
         return ("helpers_stripped",)
 
     def _normalized_strategy_identity(

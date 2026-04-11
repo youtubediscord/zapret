@@ -68,10 +68,11 @@ class DpiSettingsPageController:
 
         return f"{REGISTRY_PATH}\\Orchestra"
 
-    def load_orchestra_settings(self) -> DpiOrchestraSettingsState:
+    @classmethod
+    def load_orchestra_settings(cls) -> DpiOrchestraSettingsState:
         from config.reg import reg
 
-        path = self._orchestra_reg_path()
+        path = cls._orchestra_reg_path()
         strict_detection = reg(path, "StrictDetection")
         debug_file = reg(path, "KeepDebugFile")
         auto_restart = reg(path, "AutoRestartOnDiscordFail")
@@ -88,8 +89,9 @@ class DpiSettingsPageController:
             unlock_fails=int(unlock_fails if unlock_fails is not None else 3),
         )
 
-    def get_filter_state(self, kind: str, method: str | None = None) -> bool:
-        facade = self._get_direct_toggle_facade(method)
+    @classmethod
+    def get_filter_state(cls, kind: str, method: str | None = None) -> bool:
+        facade = cls._get_direct_toggle_facade(method)
         if facade is not None:
             if kind == "wssize":
                 return bool(facade.get_wssize_enabled())
@@ -104,8 +106,9 @@ class DpiSettingsPageController:
 
         return bool(get_debug_log_enabled())
 
-    def set_filter_state(self, kind: str, value: bool, method: str | None = None) -> bool:
-        facade = self._get_direct_toggle_facade(method)
+    @classmethod
+    def set_filter_state(cls, kind: str, value: bool, method: str | None = None) -> bool:
+        facade = cls._get_direct_toggle_facade(method)
         if facade is not None:
             if kind == "wssize":
                 return bool(facade.set_wssize_enabled(bool(value)))
@@ -120,20 +123,22 @@ class DpiSettingsPageController:
 
         return bool(set_debug_log_enabled(bool(value)))
 
-    def load_state(self) -> DpiSettingsState:
-        launch_method = self.get_launch_method()
+    @classmethod
+    def load_state(cls) -> DpiSettingsState:
+        launch_method = cls.get_launch_method()
         return DpiSettingsState(
             launch_method=launch_method,
-            discord_restart_enabled=self.get_discord_restart_enabled(),
-            orchestra=self.load_orchestra_settings(),
-            wssize_enabled=self.get_filter_state("wssize", launch_method),
-            debug_log_enabled=self.get_filter_state("debug", launch_method),
-            visibility=self.describe_visibility(launch_method),
+            discord_restart_enabled=cls.get_discord_restart_enabled(),
+            orchestra=cls.load_orchestra_settings(),
+            wssize_enabled=cls.get_filter_state("wssize", launch_method),
+            debug_log_enabled=cls.get_filter_state("debug", launch_method),
+            visibility=cls.describe_visibility(launch_method),
         )
 
-    def apply_launch_method(self, method: str) -> str:
+    @staticmethod
+    def apply_launch_method(method: str) -> str:
+        from core.services import reset_cached_services
         from strategy_menu import get_strategy_launch_method, set_strategy_launch_method
-        from legacy_registry_launch.selection_store import invalidate_direct_selections_cache
 
         previous_method = str(get_strategy_launch_method() or "").strip().lower()
         next_method = str(method or "").strip().lower()
@@ -149,7 +154,7 @@ class DpiSettingsPageController:
         if previous_method in direct_methods or next_method in direct_methods:
             if previous_method != next_method:
                 log(f"Смена метода {previous_method} -> {next_method}, сброс direct-кэша...", "INFO")
-                invalidate_direct_selections_cache()
+                reset_cached_services()
 
         registry_driven_methods = {"direct_zapret2_orchestra", "orchestra"}
         if (
@@ -157,18 +162,19 @@ class DpiSettingsPageController:
             and (previous_method in registry_driven_methods or next_method in registry_driven_methods)
         ):
             try:
-                from legacy_registry_launch.strategies_registry import registry
+                from preset_orchestra_zapret2.catalog import invalidate_categories_cache
 
-                registry.reload_strategies()
+                invalidate_categories_cache()
             except Exception:
                 pass
 
         return next_method
 
-    def set_orchestra_setting(self, key: str, value, *, app=None) -> None:
+    @classmethod
+    def set_orchestra_setting(cls, key: str, value, *, app=None) -> None:
         from config.reg import reg
 
-        path = self._orchestra_reg_path()
+        path = cls._orchestra_reg_path()
         normalized_key = str(key or "").strip().lower()
 
         if normalized_key == "strict_detection":
@@ -210,9 +216,10 @@ class DpiSettingsPageController:
                 runner.unlock_fails_threshold = int(value)
             return
 
-    def _get_direct_toggle_facade(self, method: str | None = None):
+    @classmethod
+    def _get_direct_toggle_facade(cls, method: str | None = None):
         try:
-            resolved_method = str(method or self.get_launch_method()).strip().lower()
+            resolved_method = str(method or cls.get_launch_method()).strip().lower()
             if resolved_method in ("direct_zapret2", "direct_zapret1"):
                 from core.presets.direct_facade import DirectPresetFacade
 

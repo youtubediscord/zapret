@@ -26,6 +26,7 @@ import qtawesome as qta
 
 from ..base_page import BasePage
 from ui.compat_widgets import set_tooltip
+from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
 from log import log
@@ -48,15 +49,17 @@ class OrchestraRatingsPage(BasePage):
         self._no_runner = False
         self._filter_card = None
         self._history_card = None
+        self._runtime_initialized = False
 
-        from qfluentwidgets import qconfig
-        qconfig.themeChanged.connect(lambda _: self._apply_theme())
-        qconfig.themeColorChanged.connect(lambda _: self._apply_theme())
+        self._setup_ui()
+        self._apply_page_theme(force=True)
+        self._run_runtime_init_once()
 
-        self.enable_deferred_ui_build(build=self._setup_ui, after_build=self._after_ui_built)
-
-    def _after_ui_built(self) -> None:
-        self._apply_theme()
+    def _run_runtime_init_once(self) -> None:
+        if self._runtime_initialized:
+            return
+        self._runtime_initialized = True
+        self._refresh_data()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -89,7 +92,7 @@ class OrchestraRatingsPage(BasePage):
                 self.refresh_btn,
                 self._tr("page.orchestra.ratings.button.refresh", "Обновить"),
             )
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _setup_ui(self):
         # === Фильтр ===
@@ -131,37 +134,7 @@ class OrchestraRatingsPage(BasePage):
         self._history_card = history_card
 
         self.history_text = PlainTextEdit()
-        try:
-            from config.reg import get_smooth_scroll_enabled
-            from qfluentwidgets.common.smooth_scroll import SmoothMode
-            from PyQt6.QtCore import Qt
-
-            smooth_enabled = get_smooth_scroll_enabled()
-            mode = SmoothMode.COSINE if smooth_enabled else SmoothMode.NO_SMOOTH
-            delegate = (
-                getattr(self.history_text, "scrollDelegate", None)
-                or getattr(self.history_text, "scrollDelagate", None)
-                or getattr(self.history_text, "delegate", None)
-            )
-            if delegate is not None:
-                if hasattr(delegate, "useAni"):
-                    if not hasattr(delegate, "_zapret_base_use_ani"):
-                        delegate._zapret_base_use_ani = bool(delegate.useAni)
-                    delegate.useAni = bool(delegate._zapret_base_use_ani) if smooth_enabled else False
-                for smooth_attr in ("verticalSmoothScroll", "horizonSmoothScroll"):
-                    smooth = getattr(delegate, smooth_attr, None)
-                    smooth_setter = getattr(smooth, "setSmoothMode", None)
-                    if callable(smooth_setter):
-                        smooth_setter(mode)
-
-            setter = getattr(self.history_text, "setSmoothMode", None)
-            if callable(setter):
-                try:
-                    setter(mode, Qt.Orientation.Vertical)
-                except TypeError:
-                    setter(mode)
-        except Exception:
-            pass
+        apply_editor_smooth_scroll_preference(self.history_text)
         self.history_text.setReadOnly(True)
         self.history_text.setMinimumHeight(300)
         # Styled in _apply_theme()
@@ -178,17 +151,13 @@ class OrchestraRatingsPage(BasePage):
         self._http_data = {}
         self._udp_data = {}
 
-    def _apply_theme(self) -> None:
-        tokens = get_theme_tokens()
+    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        tokens = tokens or get_theme_tokens()
         if hasattr(self, "refresh_btn") and self.refresh_btn is not None:
             icon_name = "mdi.loading" if self._refresh_loading else "mdi.refresh"
             icon_color = tokens.fg_faint if self._refresh_loading else tokens.fg
             self.refresh_btn.setIcon(qta.icon(icon_name, color=icon_color))
-
-    def showEvent(self, event):
-        """При показе страницы загружаем данные"""
-        super().showEvent(event)
-        self._refresh_data()
 
     def _get_runner(self):
         """Получает orchestra_runner из главного окна"""
@@ -327,8 +296,6 @@ class OrchestraRatingsPage(BasePage):
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
-        if self.is_deferred_ui_build_pending():
-            return
 
         if self._filter_card is not None and hasattr(self._filter_card, "_title_label"):
             self._filter_card._title_label.setText(

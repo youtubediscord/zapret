@@ -5,11 +5,12 @@
 """
 
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy
-from PyQt6.QtCore import pyqtSignal, Qt, QEvent
+from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QCursor
 from typing import Optional
 
 from ui.theme import get_theme_tokens, get_cached_qta_pixmap
+from ui.theme_refresh import ThemeRefreshController
 from ui.compat_widgets import set_tooltip
 
 try:
@@ -77,6 +78,7 @@ class StrategyRadioItem(CardWidget):
 
         if self._tooltip:
             set_tooltip(self, self._tooltip.replace('\n', '<br>'))
+        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
 
     def _emit_item_activated(self):
         self.item_activated.emit(self._target_key)
@@ -229,11 +231,11 @@ class StrategyRadioItem(CardWidget):
     def is_active(self) -> bool:
         return self._strategy_id != "none"
 
-    def changeEvent(self, event):  # noqa: N802
-        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
-            self._apply_style()
-            self._apply_icon_color()
-        super().changeEvent(event)
+    def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
+        _ = tokens
+        _ = force
+        self._apply_style()
+        self._apply_icon_color()
 
     def set_visible_by_filter(self, visible: bool):
         self.setVisible(visible)

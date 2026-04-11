@@ -1,10 +1,51 @@
 from __future__ import annotations
 
+import sys
 from typing import Dict, Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .models import PresetManifest
+
+
+def _get_installed_app_context():
+    try:
+        core_services = sys.modules.get("core.services")
+        if core_services is None:
+            import core.services as core_services
+
+        getter = getattr(core_services, "get_installed_app_context", None)
+        if callable(getter):
+            return getter()
+    except Exception:
+        pass
+    return None
+
+
+def _get_preset_repository():
+    app_context = _get_installed_app_context()
+    repository = getattr(app_context, "preset_repository", None)
+    if repository is not None:
+        return repository
+
+    core_services = sys.modules.get("core.services")
+    if core_services is None:
+        import core.services as core_services
+
+    return core_services.get_preset_repository()
+
+
+def _get_selection_service():
+    app_context = _get_installed_app_context()
+    service = getattr(app_context, "preset_selection_service", None)
+    if service is not None:
+        return service
+
+    core_services = sys.modules.get("core.services")
+    if core_services is None:
+        import core.services as core_services
+
+    return core_services.get_selection_service()
 
 
 class DirectRuntimePresetStore(QObject):
@@ -66,17 +107,15 @@ class DirectRuntimePresetStore(QObject):
         self._loaded = False
 
     def _reload_metadata(self) -> None:
-        from core.services import get_preset_repository, get_selection_service
-
         manifests_by_file_name: Dict[str, PresetManifest] = {}
-        for manifest in get_preset_repository().list_manifests(self._engine):
+        for manifest in _get_preset_repository().list_manifests(self._engine):
             file_name = str(getattr(manifest, "file_name", "") or "").strip()
             if file_name:
                 manifests_by_file_name[file_name] = manifest
 
         self._manifests_by_file_name = manifests_by_file_name
         try:
-            self._selected_source_file_name = get_selection_service().get_selected_file_name(self._engine)
+            self._selected_source_file_name = _get_selection_service().get_selected_file_name(self._engine)
         except Exception:
             self._selected_source_file_name = None
         self._loaded = True

@@ -302,7 +302,7 @@ classDiagram
 ```mermaid
 sequenceDiagram
     participant User
-    participant HomePage as home_page.py
+    participant ControlPage as zapret2/direct_control_page.py
     participant DPI_CTRL as dpi_controller.py
     participant Worker as DPIStartWorker
     participant BatStart as bat_start.py
@@ -310,11 +310,11 @@ sequenceDiagram
     participant WinWS as winws2.exe
     participant Killer as process_killer.py
     
-    User->>HomePage: Нажать "Запустить"
-    activate HomePage
-    HomePage->>HomePage: show_loading()
-    HomePage->>DPI_CTRL: start_dpi_async()
-    deactivate HomePage
+    User->>ControlPage: Нажать "Запустить"
+    activate ControlPage
+    ControlPage->>ControlPage: show_loading()
+    ControlPage->>DPI_CTRL: start_dpi_async()
+    deactivate ControlPage
     
     activate DPI_CTRL
     DPI_CTRL->>DPI_CTRL: проверка running
@@ -370,11 +370,11 @@ sequenceDiagram
     deactivate Worker
     
     DPI_CTRL->>DPI_CTRL: _on_dpi_start_finished()
-    DPI_CTRL->>HomePage: update_ui_state(running=True)
-    DPI_CTRL->>HomePage: show_success()
+    DPI_CTRL->>ControlPage: update_ui_state(running=True)
+    DPI_CTRL->>ControlPage: show_success()
     deactivate DPI_CTRL
     
-    HomePage->>User: отображение статуса "Запущен"
+    ControlPage->>User: отображение статуса "Запущен"
 ```
 
 
@@ -383,7 +383,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant User
-    participant OrchestraPage as orchestra_page.py
+    participant OrchestraPage as orchestra/orchestra_page.py
     participant OR as orchestra_runner.py
     participant Parser as log_parser.py
     participant LockedMgr as locked_strategies_manager.py
@@ -969,7 +969,7 @@ classDiagram
         +show_error()
     }
     
-    class HomePage {
+    class ControlPage {
         +update_dpi_status()
         +update_subscription_status()
         +set_status()
@@ -1003,7 +1003,6 @@ classDiagram
     ThemeSubscriptionManager <|-- LupiDPIApp
     MainWindowUI <|-- LupiDPIApp
     
-    BasePage <|-- HomePage
     BasePage <|-- ControlPage
     BasePage <|-- StrategiesPage
     BasePage <|-- AppearancePage
@@ -1015,7 +1014,6 @@ classDiagram
     BasePage <|-- AboutPage
     
     LupiDPIApp --> SideNavBar : содержит
-    LupiDPIApp --> HomePage : содержит
     LupiDPIApp --> ControlPage : содержит
     LupiDPIApp --> StrategiesPage : содержит
 ```

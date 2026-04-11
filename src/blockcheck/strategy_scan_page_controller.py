@@ -166,9 +166,8 @@ class StrategyScanSupportContext:
 
 
 class StrategyScanPageController:
-    def __init__(self) -> None:
-        self._quick_domains_cache: list[str] | None = None
-        self._quick_stun_targets_cache: list[str] | None = None
+    _quick_domains_cache: list[str] | None = None
+    _quick_stun_targets_cache: list[str] | None = None
 
     @staticmethod
     def scan_protocol_from_value(value) -> str:
@@ -184,23 +183,24 @@ class StrategyScanPageController:
         mode_map = {0: "quick", 1: "standard", 2: "full"}
         return mode_map.get(int(index), "quick")
 
+    @classmethod
     def build_selection_state(
-        self,
+        cls,
         *,
         protocol_value,
         udp_scope_value,
         mode_index: int,
     ) -> StrategyScanSelectionState:
-        scan_protocol = self.scan_protocol_from_value(protocol_value)
+        scan_protocol = cls.scan_protocol_from_value(protocol_value)
         udp_games_scope = (
-            self.normalize_udp_games_scope(udp_scope_value)
+            cls.normalize_udp_games_scope(udp_scope_value)
             if scan_protocol == "udp_games"
             else "all"
         )
         return StrategyScanSelectionState(
             scan_protocol=scan_protocol,
             udp_games_scope=udp_games_scope,
-            mode=self.mode_from_index(mode_index),
+            mode=cls.mode_from_index(mode_index),
         )
 
     @staticmethod
@@ -282,17 +282,19 @@ class StrategyScanPageController:
         except Exception:
             return raw.lower()
 
-    def normalize_target_input(self, value: str, scan_protocol: str) -> str:
+    @classmethod
+    def normalize_target_input(cls, value: str, scan_protocol: str) -> str:
         protocol = (scan_protocol or "").strip().lower()
         if protocol in {"stun_voice", "udp_games"}:
-            host, port = self.stun_target_parts(value)
+            host, port = cls.stun_target_parts(value)
             if not host:
                 return ""
-            return self.format_stun_target(host, port)
-        return self.normalize_target_domain(value)
+            return cls.format_stun_target(host, port)
+        return cls.normalize_target_domain(value)
 
-    def resolve_games_ipset_paths(self, udp_games_scope: str = "all") -> list[str]:
-        scope = self.normalize_udp_games_scope(udp_games_scope)
+    @classmethod
+    def resolve_games_ipset_paths(cls, udp_games_scope: str = "all") -> list[str]:
+        scope = cls.normalize_udp_games_scope(udp_games_scope)
 
         explicit_game_files = (
             "ipset-roblox.txt",
@@ -377,9 +379,10 @@ class StrategyScanPageController:
             return ["lists/ipset-roblox.txt"]
         return ["lists/ipset-all.txt"]
 
-    def load_quick_domains(self) -> list[str]:
-        if self._quick_domains_cache is not None:
-            return list(self._quick_domains_cache)
+    @classmethod
+    def load_quick_domains(cls) -> list[str]:
+        if cls._quick_domains_cache is not None:
+            return list(cls._quick_domains_cache)
 
         try:
             from blockcheck.targets import load_domains
@@ -391,18 +394,19 @@ class StrategyScanPageController:
         normalized_domains: list[str] = []
         seen: set[str] = set()
         for raw in raw_domains:
-            domain = self.normalize_target_domain(str(raw))
+            domain = cls.normalize_target_domain(str(raw))
             if not domain or domain in seen:
                 continue
             seen.add(domain)
             normalized_domains.append(domain)
 
-        self._quick_domains_cache = normalized_domains
-        return list(self._quick_domains_cache)
+        cls._quick_domains_cache = normalized_domains
+        return list(cls._quick_domains_cache)
 
-    def load_quick_stun_targets(self) -> list[str]:
-        if self._quick_stun_targets_cache is not None:
-            return list(self._quick_stun_targets_cache)
+    @classmethod
+    def load_quick_stun_targets(cls) -> list[str]:
+        if cls._quick_stun_targets_cache is not None:
+            return list(cls._quick_stun_targets_cache)
 
         try:
             from blockcheck.targets import get_default_stun_targets
@@ -415,16 +419,17 @@ class StrategyScanPageController:
         seen: set[str] = set()
         for item in raw_targets:
             value = str(item.get("value", ""))
-            normalized = self.normalize_target_input(value, "stun_voice")
+            normalized = cls.normalize_target_input(value, "stun_voice")
             if not normalized or normalized in seen:
                 continue
             seen.add(normalized)
             targets.append(normalized)
 
-        self._quick_stun_targets_cache = targets
-        return list(self._quick_stun_targets_cache)
+        cls._quick_stun_targets_cache = targets
+        return list(cls._quick_stun_targets_cache)
 
-    def build_protocol_ui_plan(self, *, scan_protocol: str, current_value: str) -> StrategyScanProtocolUiPlan:
+    @classmethod
+    def build_protocol_ui_plan(cls, *, scan_protocol: str, current_value: str) -> StrategyScanProtocolUiPlan:
         current = str(current_value or "")
         is_udp_games = scan_protocol == "udp_games"
         show_target_controls = scan_protocol != "udp_games"
@@ -432,20 +437,21 @@ class StrategyScanPageController:
         if scan_protocol in {"stun_voice", "udp_games"} and current and ":" not in current and not current.upper().startswith("STUN:"):
             current = ""
 
-        normalized = self.normalize_target_input(current, scan_protocol)
+        normalized = cls.normalize_target_input(current, scan_protocol)
         if not normalized:
-            normalized = self.default_target_for_protocol(scan_protocol)
+            normalized = cls.default_target_for_protocol(scan_protocol)
 
         return StrategyScanProtocolUiPlan(
             scan_protocol=scan_protocol,
             is_udp_games=is_udp_games,
             show_target_controls=show_target_controls,
             normalized_target=normalized,
-            placeholder_text=self.default_target_for_protocol(scan_protocol),
+            placeholder_text=cls.default_target_for_protocol(scan_protocol),
         )
 
+    @classmethod
     def build_udp_scope_hint_plan(
-        self,
+        cls,
         *,
         scan_protocol: str,
         udp_games_scope: str,
@@ -459,7 +465,7 @@ class StrategyScanPageController:
                 tooltip="",
             )
 
-        paths = self.resolve_games_ipset_paths(udp_games_scope)
+        paths = cls.resolve_games_ipset_paths(udp_games_scope)
         scope_label = scope_games_only_label if udp_games_scope == "games_only" else scope_all_label
 
         short_names = [Path(p).name or p for p in paths]
@@ -473,9 +479,10 @@ class StrategyScanPageController:
             tooltip="\n".join(paths),
         )
 
-    def build_quick_target_menu_plan(self, *, scan_protocol: str, current_value: str) -> StrategyScanQuickMenuPlan:
-        current = self.normalize_target_input(current_value, scan_protocol)
-        options = self.load_quick_domains() if scan_protocol == "tcp_https" else self.load_quick_stun_targets()
+    @classmethod
+    def build_quick_target_menu_plan(cls, *, scan_protocol: str, current_value: str) -> StrategyScanQuickMenuPlan:
+        current = cls.normalize_target_input(current_value, scan_protocol)
+        options = cls.load_quick_domains() if scan_protocol == "tcp_https" else cls.load_quick_stun_targets()
         return StrategyScanQuickMenuPlan(
             options=options,
             current_value=current,
@@ -616,8 +623,9 @@ class StrategyScanPageController:
             status_text="Ошибка подготовки",
         )
 
+    @classmethod
     def build_support_context(
-        self,
+        cls,
         *,
         stored_scan_protocol: str,
         stored_scan_target: str,
@@ -627,10 +635,10 @@ class StrategyScanPageController:
         raw_mode_label: str,
         stored_mode: str,
     ) -> StrategyScanSupportContext:
-        scan_protocol = stored_scan_protocol or self.scan_protocol_from_value(raw_protocol_value)
-        target = stored_scan_target or self.normalize_target_input(raw_target_input, scan_protocol)
+        scan_protocol = stored_scan_protocol or cls.scan_protocol_from_value(raw_protocol_value)
+        target = stored_scan_target or cls.normalize_target_input(raw_target_input, scan_protocol)
         if not target:
-            target = self.default_target_for_protocol(scan_protocol)
+            target = cls.default_target_for_protocol(scan_protocol)
 
         protocol_label = str(raw_protocol_label or "").strip() or scan_protocol
         mode_label = str(raw_mode_label or "").strip() or str(stored_mode or "")
@@ -645,22 +653,24 @@ class StrategyScanPageController:
     def count_working_results(result_rows: list[dict]) -> int:
         return sum(1 for row in result_rows if row.get("success"))
 
+    @classmethod
     def build_progress_plan(
-        self,
+        cls,
         *,
         strategy_name: str,
         index: int,
         total: int,
         result_rows: list[dict],
     ) -> StrategyScanProgressPlan:
-        working = self.count_working_results(result_rows)
+        working = cls.count_working_results(result_rows)
         return StrategyScanProgressPlan(
             total=max(0, int(total)),
             working_count=working,
             status_text=f"[{index + 1}/{total}] {strategy_name}  |  {working} рабочих",
         )
 
-    def build_result_presentation(self, result, *, scan_cursor: int) -> StrategyScanResultPresentation:
+    @staticmethod
+    def build_result_presentation(result, *, scan_cursor: int) -> StrategyScanResultPresentation:
         tip_parts = [result.strategy_args]
         if result.error:
             tip_parts.append(f"\n--- Ошибка ---\n{result.error}")
@@ -697,8 +707,9 @@ class StrategyScanPageController:
             },
         )
 
+    @classmethod
     def plan_scan_start(
-        self,
+        cls,
         *,
         raw_target_input: str,
         scan_protocol: str,
@@ -711,14 +722,14 @@ class StrategyScanPageController:
         table_row_count: int,
         starting_status_text: str,
     ) -> StrategyScanStartPlan:
-        target = self.normalize_target_input(raw_target_input, scan_protocol)
+        target = cls.normalize_target_input(raw_target_input, scan_protocol)
         if not target:
-            target = self.default_target_for_protocol(scan_protocol)
+            target = cls.default_target_for_protocol(scan_protocol)
 
-        prev_target_key = self.target_key(previous_target, previous_protocol, previous_scope)
-        target_key = self.target_key(target, scan_protocol, udp_games_scope)
+        prev_target_key = cls.target_key(previous_target, previous_protocol, previous_scope)
+        target_key = cls.target_key(target, scan_protocol, udp_games_scope)
 
-        resume_next_index = self.get_resume_index(target, scan_protocol, udp_games_scope)
+        resume_next_index = cls.get_resume_index(target, scan_protocol, udp_games_scope)
         resume_available = resume_next_index > 0
 
         keep_current_results = (
@@ -782,8 +793,9 @@ class StrategyScanPageController:
 
         return f"{normalized_protocol}|{normalized_target}"
 
-    def load_resume_state(self) -> dict:
-        path = self.resume_state_path()
+    @classmethod
+    def load_resume_state(cls) -> dict:
+        path = cls.resume_state_path()
         empty_state = {"domains": {}}
         try:
             raw = path.read_text(encoding="utf-8")
@@ -805,7 +817,7 @@ class StrategyScanPageController:
                         else:
                             key = raw_key_str
                     else:
-                        key = self.target_key(raw_key_str, "tcp_https")
+                            key = cls.target_key(raw_key_str, "tcp_https")
                     if not key:
                         continue
                     if isinstance(raw_value, dict):
@@ -819,7 +831,7 @@ class StrategyScanPageController:
                     cleaned_domains[key] = {"next_index": next_index}
                 return {"domains": cleaned_domains}
 
-            key = self.target_key(str(data.get("target", "") or ""))
+            key = cls.target_key(str(data.get("target", "") or ""))
             try:
                 next_index = max(0, int(data.get("next_index", 0) or 0))
             except Exception:
@@ -830,19 +842,21 @@ class StrategyScanPageController:
         except Exception:
             return empty_state
 
-    def write_resume_state(self, state: dict) -> None:
-        path = self.resume_state_path()
+    @classmethod
+    def write_resume_state(cls, state: dict) -> None:
+        path = cls.resume_state_path()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:
             pass
 
-    def get_resume_index(self, target: str, scan_protocol: str, udp_games_scope: str = "all") -> int:
-        key = self.target_key(target, scan_protocol, udp_games_scope)
+    @classmethod
+    def get_resume_index(cls, target: str, scan_protocol: str, udp_games_scope: str = "all") -> int:
+        key = cls.target_key(target, scan_protocol, udp_games_scope)
         if not key:
             return 0
-        state = self.load_resume_state()
+        state = cls.load_resume_state()
         domains = state.get("domains", {})
         entry = domains.get(key, {})
 
@@ -858,26 +872,28 @@ class StrategyScanPageController:
         except Exception:
             return 0
 
+    @classmethod
     def save_resume_state(
-        self,
+        cls,
         target: str,
         scan_protocol: str,
         next_index: int,
         udp_games_scope: str = "all",
     ) -> None:
-        key = self.target_key(target, scan_protocol, udp_games_scope)
+        key = cls.target_key(target, scan_protocol, udp_games_scope)
         if not key:
             return
-        state = self.load_resume_state()
+        state = cls.load_resume_state()
         domains = state.setdefault("domains", {})
         domains[key] = {"next_index": max(0, int(next_index))}
-        self.write_resume_state(state)
+        cls.write_resume_state(state)
 
-    def clear_resume_state(self, target: str, scan_protocol: str, udp_games_scope: str = "all") -> None:
-        key = self.target_key(target, scan_protocol, udp_games_scope)
+    @classmethod
+    def clear_resume_state(cls, target: str, scan_protocol: str, udp_games_scope: str = "all") -> None:
+        key = cls.target_key(target, scan_protocol, udp_games_scope)
         if not key:
             return
-        state = self.load_resume_state()
+        state = cls.load_resume_state()
         domains = state.get("domains", {})
         if key in domains:
             del domains[key]
@@ -894,9 +910,9 @@ class StrategyScanPageController:
 
         if domains:
             state["domains"] = domains
-            self.write_resume_state(state)
+            cls.write_resume_state(state)
         else:
-            path = self.resume_state_path()
+            path = cls.resume_state_path()
             try:
                 if path.exists():
                     path.unlink()
@@ -932,27 +948,29 @@ class StrategyScanPageController:
 
         return log_dir
 
+    @classmethod
     def make_run_log_path(
-        self,
+        cls,
         target: str,
         mode: str,
         scan_protocol: str,
         udp_games_scope: str = "all",
     ) -> Path:
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        safe_mode = self._sanitize_slug(mode, "mode")
-        safe_protocol = self._sanitize_slug(scan_protocol, "protocol")
-        safe_scope = self._sanitize_slug(udp_games_scope, "scope")
-        safe_target = self._sanitize_slug(target, "target")
+        safe_mode = cls._sanitize_slug(mode, "mode")
+        safe_protocol = cls._sanitize_slug(scan_protocol, "protocol")
+        safe_scope = cls._sanitize_slug(udp_games_scope, "scope")
+        safe_target = cls._sanitize_slug(target, "target")
         scope_suffix = f"_{safe_scope}" if scan_protocol == "udp_games" else ""
         filename = (
             f"blockcheck_run_{ts}_strategy_scan_{safe_mode}_{safe_protocol}"
             f"{scope_suffix}_{safe_target}.log"
         )
-        return self._resolve_log_dir() / filename
+        return cls._resolve_log_dir() / filename
 
+    @classmethod
     def start_run_log(
-        self,
+        cls,
         *,
         target: str,
         mode: str,
@@ -960,7 +978,7 @@ class StrategyScanPageController:
         resume_index: int,
         udp_games_scope: str = "all",
     ) -> StrategyScanRunLogState:
-        primary_path = self.make_run_log_path(
+        primary_path = cls.make_run_log_path(
             target=target,
             mode=mode,
             scan_protocol=scan_protocol,
@@ -1012,8 +1030,9 @@ class StrategyScanPageController:
         except Exception:
             pass
 
+    @classmethod
     def prepare_support(
-        self,
+        cls,
         *,
         run_log_file: Path | None,
         target: str,
@@ -1026,12 +1045,13 @@ class StrategyScanPageController:
             target=target,
             protocol_label=protocol_label,
             mode_label=mode_label,
-            resume_state_path=self.resume_state_path(),
+            resume_state_path=cls.resume_state_path(),
             scan_protocol=scan_protocol,
         )
 
+    @classmethod
     def finalize_scan_report(
-        self,
+        cls,
         report,
         *,
         scan_target: str,
@@ -1045,7 +1065,7 @@ class StrategyScanPageController:
 
         if report is None:
             if scan_cursor > 0:
-                self.save_resume_state(
+                cls.save_resume_state(
                     scan_target,
                     scan_protocol,
                     scan_cursor,
@@ -1068,14 +1088,14 @@ class StrategyScanPageController:
 
         if report.cancelled:
             if scan_cursor > 0:
-                self.save_resume_state(
+                cls.save_resume_state(
                     scan_target,
                     scan_protocol,
                     scan_cursor,
                     scan_udp_games_scope,
                 )
             else:
-                self.clear_resume_state(
+                cls.clear_resume_state(
                     scan_target,
                     scan_protocol,
                     scan_udp_games_scope,
@@ -1087,13 +1107,13 @@ class StrategyScanPageController:
                 and report.total_tested >= total_available
             )
             if full_scan_completed:
-                self.clear_resume_state(
+                cls.clear_resume_state(
                     scan_target,
                     scan_protocol,
                     scan_udp_games_scope,
                 )
             else:
-                self.save_resume_state(
+                cls.save_resume_state(
                     scan_target,
                     scan_protocol,
                     report.total_tested,
@@ -1128,7 +1148,8 @@ class StrategyScanPageController:
             baseline_variant="stun" if scan_protocol in {"stun_voice", "udp_games"} else "tcp",
         )
 
-    def build_finish_notification_plan(self, finish_plan: StrategyScanFinishPlan, *, scan_protocol: str) -> StrategyScanNotificationPlan:
+    @staticmethod
+    def build_finish_notification_plan(finish_plan: StrategyScanFinishPlan, *, scan_protocol: str) -> StrategyScanNotificationPlan:
         if finish_plan.notification_kind == "baseline_accessible":
             if scan_protocol == "udp_games":
                 title_default = "UDP уже доступен"
@@ -1240,8 +1261,9 @@ class StrategyScanPageController:
 
         return "\n".join(result_lines).rstrip("\n") + "\n"
 
+    @classmethod
     def apply_strategy(
-        self,
+        cls,
         *,
         strategy_args: str,
         strategy_name: str,
@@ -1257,11 +1279,11 @@ class StrategyScanPageController:
         if not selected_file_name:
             raise RuntimeError("Не удалось определить выбранный пресет")
 
-        target = scan_target or self.default_target_for_protocol(scan_protocol)
-        blob_lines = self.generate_blob_lines_for_apply(strategy_args)
+        target = scan_target or cls.default_target_for_protocol(scan_protocol)
+        blob_lines = cls.generate_blob_lines_for_apply(strategy_args)
 
         if scan_protocol == "stun_voice":
-            target_host, target_port = self.stun_target_parts(target)
+            target_host, target_port = cls.stun_target_parts(target)
             if not target_host:
                 target_host = "stun.l.google.com"
                 target_port = 19302
@@ -1272,10 +1294,10 @@ class StrategyScanPageController:
                 "--payload=stun,discord_ip_discovery",
                 strategy_args,
             ]
-            applied_target = f"voice (probe: {self.format_stun_target(target_host, target_port)})"
+            applied_target = f"voice (probe: {cls.format_stun_target(target_host, target_port)})"
         elif scan_protocol == "udp_games":
-            games_ipset_paths = self.resolve_games_ipset_paths(scan_udp_games_scope)
-            probe_host, probe_port = self.stun_target_parts(target)
+            games_ipset_paths = cls.resolve_games_ipset_paths(scan_udp_games_scope)
+            probe_host, probe_port = cls.stun_target_parts(target)
             if not probe_host:
                 probe_host = "stun.cloudflare.com"
                 probe_port = 3478
@@ -1291,10 +1313,10 @@ class StrategyScanPageController:
                 shown_paths += f", ... (+{len(games_ipset_paths) - 3})"
             applied_target = (
                 f"Games UDP ipsets ({shown_paths}), "
-                f"probe {self.format_stun_target(probe_host, probe_port)}"
+                f"probe {cls.format_stun_target(probe_host, probe_port)}"
             )
         else:
-            normalized_target = self.normalize_target_domain(target) or "discord.com"
+            normalized_target = cls.normalize_target_domain(target) or "discord.com"
             new_strategy_lines = [
                 "--filter-tcp=443",
                 f"--hostlist-domains={normalized_target}",
@@ -1304,7 +1326,7 @@ class StrategyScanPageController:
             applied_target = normalized_target
 
         existing_content = facade.read_selected_source_text()
-        updated_content = self.prepend_strategy_block(
+        updated_content = cls.prepend_strategy_block(
             existing_content=existing_content,
             strategy_lines=new_strategy_lines,
             blob_lines=blob_lines,

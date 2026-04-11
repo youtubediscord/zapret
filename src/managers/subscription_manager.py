@@ -29,7 +29,7 @@ class SubscriptionManager:
                     self.progress.emit("Инициализация системы подписок...")
                     
                     # Создаем DonateChecker
-                    from donater import DonateChecker
+                    from donater.donate import DonateChecker
                     donate_checker = DonateChecker()
                     
                     self.progress.emit("Проверка статуса подписки...")

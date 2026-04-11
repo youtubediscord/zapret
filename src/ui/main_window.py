@@ -28,16 +28,8 @@ except ImportError:
     SearchLineEdit = QLineEdit
 
 from ui.page_names import PageName, SectionName
-from ui.page_registry import (
-    EAGER_MODE_ENTRY_PAGE,
-    EAGER_PAGE_NAMES_BASE,
-    PAGE_ALIASES,
-    PAGE_CLASS_SPECS,
-)
-from ui.mode_page_scope import (
-    get_sidebar_search_pages_for_method,
-    should_add_nav_page_on_init,
-)
+from ui.page_registry import PAGE_CLASS_SPECS
+from ui.router import get_page_route_key, resolve_strategy_detail_back_page_for_method, resolve_strategy_page_for_method
 from ui.text_catalog import (
     find_search_entries,
     format_search_result,
@@ -46,8 +38,10 @@ from ui.text_catalog import (
     tr as tr_catalog,
 )
 from ui.main_window_navigation import (
+    open_zapret1_strategy_detail,
     open_zapret1_preset_detail,
     open_zapret2_preset_detail,
+    open_zapret2_strategy_detail,
     navigate_to_control,
     navigate_to_strategies,
     redirect_to_strategies_page_for_method,
@@ -91,11 +85,7 @@ from ui.main_window_pages import (
     ensure_page_in_stacked_widget,
     get_eager_page_names,
     get_loaded_page,
-    get_loaded_strategy_page_for_method,
-    get_page_route_key,
     has_nav_item,
-    resolve_page_name,
-    schedule_idle_page_preload,
     set_stacked_widget_current_page,
 )
 from ui.main_window_mode_switch import (
@@ -125,7 +115,6 @@ from core.runtime.preset_runtime_coordinator import (
 # Navigation icon mapping (SectionName/PageName -> FluentIcon)
 # ---------------------------------------------------------------------------
 _NAV_ICONS = {
-    PageName.HOME: FluentIcon.HOME if HAS_FLUENT else None,
     PageName.CONTROL: FluentIcon.COMMAND_PROMPT if HAS_FLUENT else None,
     PageName.ZAPRET2_DIRECT_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
     PageName.AUTOSTART: FluentIcon.POWER_BUTTON if HAS_FLUENT else None,
@@ -159,7 +148,6 @@ _NAV_ICONS = {
 
 # Russian labels for navigation
 _NAV_LABELS = {
-    PageName.HOME: "Главная",
     PageName.CONTROL: "Управление",
     PageName.ZAPRET2_DIRECT_CONTROL: "Управление Zapret 2",
     PageName.AUTOSTART: "Автозапуск",
@@ -267,10 +255,7 @@ class MainWindowUI:
         resize here, that would overwrite the saved geometry.
         """
         self.pages: dict[PageName, QWidget] = {}
-        self._page_aliases: dict[PageName, PageName] = dict(PAGE_ALIASES)
         self._page_class_specs = PAGE_CLASS_SPECS
-        self._eager_page_names_base = EAGER_PAGE_NAMES_BASE
-        self._eager_mode_entry_page = EAGER_MODE_ENTRY_PAGE
         self._nav_icons = _NAV_ICONS
         self._nav_labels = _NAV_LABELS
         self._default_nav_icon = FluentIcon.APPLICATION if HAS_FLUENT else None
@@ -337,7 +322,6 @@ class MainWindowUI:
         connect_main_window_page_signals(self)
         self._main_window_page_signals_connected = True
         self._log_startup_page_init_summary()
-        schedule_idle_page_preload(self)
 
     @staticmethod
     def _get_current_launch_method_for_preset_runtime() -> str:
@@ -480,9 +464,6 @@ class MainWindowUI:
     def _create_pages(self):
         create_pages(self)
 
-    def _resolve_page_name(self, name: PageName) -> PageName:
-        return resolve_page_name(self, name)
-
     def _connect_signal_once(self, key: str, signal_obj, slot_obj) -> None:
         connect_signal_once(self, key, signal_obj, slot_obj)
 
@@ -518,7 +499,7 @@ class MainWindowUI:
             return False
 
         try:
-            route_key = get_page_route_key(self, name)
+            route_key = get_page_route_key(name)
             if route_key and use_nav_route:
                 self.navigationInterface.setCurrentItem(route_key)
         except Exception:
@@ -552,9 +533,7 @@ class MainWindowUI:
 
     def _on_direct_mode_changed(self, mode: str):
         """Сигнализирует всем direct Z2 страницам, что basic/advanced режим изменился."""
-        page = self.get_loaded_page(PageName.ZAPRET2_DIRECT)
-        if page and hasattr(page, "_strategy_set_snapshot"):
-            page._strategy_set_snapshot = None
+        _ = mode
         try:
             if getattr(self, "ui_state_store", None) is not None:
                 self.ui_state_store.bump_mode_revision()
@@ -623,67 +602,24 @@ class MainWindowUI:
         except Exception:
             pass
 
-    def _on_smooth_scroll_changed(self, enabled: bool):
-        """Toggle smooth scrolling on all existing pages and nested widgets."""
         try:
-            from PyQt6.QtCore import Qt
+            from config.reg import get_editor_smooth_scroll_enabled
+
+            self._on_editor_smooth_scroll_changed(get_editor_smooth_scroll_enabled())
+        except Exception:
+            pass
+
+    def _on_smooth_scroll_changed(self, enabled: bool):
+        """Переключает плавную прокрутку страниц, списков и деревьев, но не редакторов."""
+        try:
             from PyQt6.QtWidgets import QWidget
-            from qfluentwidgets.common.smooth_scroll import SmoothMode
-
-            mode = SmoothMode.COSINE if enabled else SmoothMode.NO_SMOOTH
-
-            def _apply_delegate_mode(delegate) -> None:
-                if delegate is None:
-                    return
-
-                try:
-                    if hasattr(delegate, "useAni"):
-                        if not hasattr(delegate, "_zapret_base_use_ani"):
-                            delegate._zapret_base_use_ani = bool(delegate.useAni)
-                        delegate.useAni = bool(delegate._zapret_base_use_ani) if enabled else False
-                except Exception:
-                    pass
-
-                for smooth_attr in ("verticalSmoothScroll", "horizonSmoothScroll"):
-                    smooth = getattr(delegate, smooth_attr, None)
-                    setter = getattr(smooth, "setSmoothMode", None)
-                    if callable(setter):
-                        try:
-                            setter(mode)
-                        except Exception:
-                            pass
-
-                setter = getattr(delegate, "setSmoothMode", None)
-                if callable(setter):
-                    try:
-                        setter(mode)
-                    except TypeError:
-                        try:
-                            setter(mode, Qt.Orientation.Vertical)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
+            from ui.smooth_scroll import apply_smooth_scroll_mode, is_editor_smooth_scroll_target
 
             def _apply_smooth_mode(target) -> None:
-                setter = getattr(target, "setSmoothMode", None)
-                if callable(setter):
-                    try:
-                        setter(mode, Qt.Orientation.Vertical)
-                    except TypeError:
-                        try:
-                            setter(mode)
-                        except Exception:
-                            pass
-                    except Exception:
-                        pass
+                if is_editor_smooth_scroll_target(target):
+                    return
 
-                _apply_delegate_mode(getattr(target, "scrollDelegate", None))
-                _apply_delegate_mode(getattr(target, "scrollDelagate", None))
-                _apply_delegate_mode(getattr(target, "delegate", None))
-                _apply_delegate_mode(getattr(target, "_presets_scroll_delegate", None))
-                _apply_delegate_mode(getattr(target, "_smooth_scroll_delegate", None))
-
+                apply_smooth_scroll_mode(target, enabled)
                 custom_setter = getattr(target, "set_smooth_scroll_enabled", None)
                 if callable(custom_setter):
                     try:
@@ -695,6 +631,38 @@ class MainWindowUI:
                 _apply_smooth_mode(page)
                 for child in page.findChildren(QWidget):
                     _apply_smooth_mode(child)
+        except Exception:
+            pass
+
+    def _on_editor_smooth_scroll_changed(self, enabled: bool):
+        """Переключает плавную прокрутку только у текстовых редакторов."""
+        try:
+            from PyQt6.QtWidgets import QWidget
+            from ui.smooth_scroll import (
+                apply_smooth_scroll_mode,
+                get_effective_editor_smooth_scroll_enabled,
+                is_editor_smooth_scroll_target,
+            )
+
+            effective_enabled = get_effective_editor_smooth_scroll_enabled(enabled)
+
+            def _apply_editor_smooth_mode(target) -> None:
+                if not is_editor_smooth_scroll_target(target):
+                    return
+
+                apply_smooth_scroll_mode(target, effective_enabled)
+
+                custom_setter = getattr(target, "set_smooth_scroll_enabled", None)
+                if callable(custom_setter):
+                    try:
+                        custom_setter(effective_enabled)
+                    except Exception:
+                        pass
+
+            for page in list(self.pages.values()):
+                _apply_editor_smooth_mode(page)
+                for child in page.findChildren(QWidget):
+                    _apply_editor_smooth_mode(child)
         except Exception:
             pass
 
@@ -720,15 +688,41 @@ class MainWindowUI:
     def _auto_start_after_method_switch(self, method: str):
         auto_start_after_main_window_method_switch(self, method)
 
+    def _get_active_strategy_page_name(self) -> PageName | None:
+        return resolve_strategy_page_for_method(self._get_launch_method())
+
     def _call_loaded_strategy_page_method(self, method_name: str) -> bool:
-        page = get_loaded_strategy_page_for_method(self)
+        page_name = self._get_active_strategy_page_name()
+        if page_name is None:
+            return False
+        return self._call_loaded_page_method(page_name, method_name)
+
+    def _call_loaded_page_method(
+        self,
+        page_name: PageName,
+        method_name: str,
+        *args,
+        delay_ms: int = 0,
+    ) -> bool:
+        page = self.get_loaded_page(page_name)
         if page is None:
             return False
         handler = getattr(page, method_name, None)
         if not callable(handler):
             return False
+
+        def _invoke() -> None:
+            try:
+                handler(*args)
+            except Exception:
+                pass
+
+        if int(delay_ms or 0) > 0:
+            QTimer.singleShot(int(delay_ms), _invoke)
+            return True
+
         try:
-            handler()
+            handler(*args)
             return True
         except Exception:
             return False
@@ -738,6 +732,40 @@ class MainWindowUI:
 
     def _show_active_strategy_page_success(self) -> bool:
         return self._call_loaded_strategy_page_method("show_success")
+
+    def _dispatch_detail_page_result(
+        self,
+        page_name: PageName,
+        method_name: str,
+        *args,
+        delay_ms: int = 0,
+        log_message: str | None = None,
+    ) -> bool:
+        if log_message:
+            from log import log
+
+            log(log_message, "INFO")
+        return self._call_loaded_page_method(
+            page_name,
+            method_name,
+            *args,
+            delay_ms=delay_ms,
+        )
+
+    def _open_strategy_detail_with_logging(
+        self,
+        target_key: str,
+        *,
+        opener,
+        error_prefix: str,
+    ) -> bool:
+        from log import log
+
+        try:
+            return bool(opener(self, target_key))
+        except Exception as e:
+            log(f"{error_prefix}: {e}", "ERROR")
+            return False
 
     def _open_subscription_dialog(self):
         open_subscription_dialog(self)
@@ -766,13 +794,33 @@ class MainWindowUI:
     def _on_subscription_updated(self, is_premium: bool, days_remaining: int):
         on_subscription_updated(self, is_premium, days_remaining)
 
+    def _get_strategy_selection_source_page(self, launch_method: str | None) -> QWidget | None:
+        page_name = resolve_strategy_page_for_method(launch_method)
+        if page_name is None:
+            return None
+        return self.get_loaded_page(page_name)
+
+    def _resolve_strategy_selection_display_name(
+        self,
+        launch_method: str | None,
+        sender,
+        strategy_name: str,
+    ) -> str:
+        normalized = str(launch_method or "").strip().lower()
+        if normalized == "direct_zapret2" and sender is self._get_strategy_selection_source_page(normalized):
+            return self._get_direct_strategy_summary()
+        return strategy_name
+
+    def _notify_parent_strategy_selected(self, strategy_id: str, strategy_name: str) -> None:
+        parent_app = getattr(self, "parent_app", None)
+        handler = getattr(parent_app, "on_strategy_selected_from_dialog", None)
+        if callable(handler):
+            handler(strategy_id, strategy_name)
+
     def _on_strategy_selected_from_page(self, strategy_id: str, strategy_name: str):
         from log import log
-        try:
-            from strategy_menu import get_strategy_launch_method
-            launch_method = get_strategy_launch_method()
-        except Exception:
-            launch_method = "direct_zapret2"
+
+        launch_method = self._get_launch_method()
 
         sender = None
         try:
@@ -780,107 +828,66 @@ class MainWindowUI:
         except Exception:
             sender = None
 
-        z2_page = self.get_loaded_page(PageName.ZAPRET2_DIRECT)
-        if launch_method == "direct_zapret2" and sender is z2_page:
-            display_name = self._get_direct_strategy_summary()
+        display_name = self._resolve_strategy_selection_display_name(
+            launch_method,
+            sender,
+            strategy_name,
+        )
+        if display_name != strategy_name:
             self.update_current_strategy_display(display_name)
             return
 
         log(f"Стратегия выбрана из страницы: {strategy_id} - {strategy_name}", "INFO")
         self.update_current_strategy_display(strategy_name)
-
-        if hasattr(self, 'parent_app') and hasattr(self.parent_app, 'on_strategy_selected_from_dialog'):
-            self.parent_app.on_strategy_selected_from_dialog(strategy_id, strategy_name)
+        self._notify_parent_strategy_selected(strategy_id, strategy_name)
 
     def _on_open_target_detail(self, target_key: str, current_strategy_id: str):
-        from log import log
-
-        try:
-            detail_page = self._ensure_page(PageName.ZAPRET2_STRATEGY_DETAIL)
-            if detail_page and hasattr(detail_page, 'show_target'):
-                detail_page.show_target(target_key)
-
-            self.show_page(PageName.ZAPRET2_STRATEGY_DETAIL)
-
-            try:
-                self._direct_zapret2_last_opened_target_key = target_key
-                self._direct_zapret2_restore_detail_on_open = True
-            except Exception:
-                pass
-        except Exception as e:
-            log(f"Error opening target detail: {e}", "ERROR")
+        _ = current_strategy_id
+        self._open_strategy_detail_with_logging(
+            target_key,
+            opener=open_zapret2_strategy_detail,
+            error_prefix="Error opening target detail",
+        )
 
     def _on_strategy_detail_back(self):
         from strategy_menu import get_strategy_launch_method
         method = get_strategy_launch_method()
-
-        if method == "direct_zapret2_orchestra":
-            self.show_page(PageName.ZAPRET2_ORCHESTRA_CONTROL)
-        elif method == "direct_zapret2":
-            self.show_page(PageName.ZAPRET2_DIRECT)
-        elif method == "direct_zapret1":
-            self.show_page(PageName.ZAPRET1_DIRECT_CONTROL)
-        else:
-            self.show_page(PageName.CONTROL)
+        self.show_page(resolve_strategy_detail_back_page_for_method(method))
 
     def _on_strategy_detail_selected(self, target_key: str, strategy_id: str):
-        from log import log
-        log(f"Strategy selected from detail: {target_key} = {strategy_id}", "INFO")
-        page = self.get_loaded_page(PageName.ZAPRET2_DIRECT)
-        if page and hasattr(page, 'apply_strategy_selection'):
-            page.apply_strategy_selection(target_key, strategy_id)
+        self._dispatch_detail_page_result(
+            PageName.ZAPRET2_DIRECT,
+            "apply_strategy_selection",
+            target_key,
+            strategy_id,
+            log_message=f"Strategy selected from detail: {target_key} = {strategy_id}",
+        )
 
     def _on_strategy_detail_filter_mode_changed(self, target_key: str, filter_mode: str):
-        try:
-            page = self.get_loaded_page(PageName.ZAPRET2_DIRECT)
-            if page and hasattr(page, 'apply_filter_mode_change'):
-                page.apply_filter_mode_change(target_key, filter_mode)
-        except Exception:
-            pass
+        self._dispatch_detail_page_result(
+            PageName.ZAPRET2_DIRECT,
+            "apply_filter_mode_change",
+            target_key,
+            filter_mode,
+        )
 
     # ── Zapret 1 strategy detail ────────────────────────────────────────────
 
     def _open_zapret1_target_detail(self, target_key: str, target_info: dict) -> None:
-        from log import log
-        try:
-            detail_page = self._ensure_page(PageName.ZAPRET1_STRATEGY_DETAIL)
-            if detail_page is None:
-                log("ZAPRET1_STRATEGY_DETAIL page not found", "ERROR")
-                return
-
-            from core.presets.direct_facade import DirectPresetFacade
-
-            def _reload_dpi():
-                try:
-                    from dpi.direct_runtime_apply_policy import request_direct_runtime_content_apply
-
-                    request_direct_runtime_content_apply(
-                        self,
-                        launch_method="direct_zapret1",
-                        reason="target_settings_changed",
-                        target_key=target_key,
-                    )
-                except Exception:
-                    pass
-
-            manager = DirectPresetFacade.from_launch_method(
-                "direct_zapret1",
-                on_dpi_reload_needed=_reload_dpi,
-            )
-            _ = target_info
-            detail_page.show_target(target_key, manager)
-            self.show_page(PageName.ZAPRET1_STRATEGY_DETAIL)
-        except Exception as e:
-            log(f"Error opening V1 target detail: {e}", "ERROR")
+        _ = target_info
+        self._open_strategy_detail_with_logging(
+            target_key,
+            opener=open_zapret1_strategy_detail,
+            error_prefix="Error opening V1 target detail",
+        )
 
     def _on_z1_strategy_detail_selected(self, target_key: str, strategy_id: str) -> None:
-        from log import log
-        log(f"V1 strategy detail selected: {target_key} = {strategy_id}", "INFO")
-        # Обновить подписи на странице списка target'ов
-        page = self.get_loaded_page(PageName.ZAPRET1_DIRECT)
-        if page and hasattr(page, "_refresh_subtitles"):
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(100, page._refresh_subtitles)
+        self._dispatch_detail_page_result(
+            PageName.ZAPRET1_DIRECT,
+            "refresh_strategy_list_state",
+            log_message=f"V1 strategy detail selected: {target_key} = {strategy_id}",
+            delay_ms=100,
+        )
 
     def show_autostart_page(self):
         show_main_window_autostart_page(self)
