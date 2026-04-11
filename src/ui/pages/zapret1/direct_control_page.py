@@ -352,8 +352,8 @@ class Zapret1DirectControlPage(BasePage):
 
         self.auto_dpi_toggle = Win11ToggleRow(
             "fa5s.bolt",
-            tr_catalog("page.z1_control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
-            tr_catalog("page.z1_control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы"),
+            tr_catalog("page.z1_control.setting.autostart.title", language=self._ui_language, default="Автозапуск DPI после старта программы"),
+            tr_catalog("page.z1_control.setting.autostart.desc", language=self._ui_language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим"),
         )
         self.auto_dpi_toggle.toggled.connect(self._on_auto_dpi_toggled)
 
@@ -880,8 +880,8 @@ class Zapret1DirectControlPage(BasePage):
                 tr_catalog("page.z1_control.section.additional", language=self._ui_language, default="Дополнительные действия")
             )
         self.auto_dpi_toggle.set_texts(
-            tr_catalog("page.z1_control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
-            tr_catalog("page.z1_control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы")
+            tr_catalog("page.z1_control.setting.autostart.title", language=self._ui_language, default="Автозапуск DPI после старта программы"),
+            tr_catalog("page.z1_control.setting.autostart.desc", language=self._ui_language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим")
         )
         try:
             if getattr(self, "test_action_card", None) is not None:

@@ -290,8 +290,8 @@ class ControlPage(BasePage):
 
         self.auto_dpi_toggle = Win11ToggleRow(
             "fa5s.bolt",
-            tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
-            tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы"),
+            tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозапуск DPI после старта программы"),
+            tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим"),
         )
         self.auto_dpi_toggle.toggled.connect(self._on_auto_dpi_toggled)
 
@@ -673,8 +673,8 @@ class ControlPage(BasePage):
             )
 
         self.auto_dpi_toggle.set_texts(
-            tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
-            tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="Запускать Zapret автоматически при старте программы"),
+            tr_catalog("page.control.setting.autostart.title", language=self._ui_language, default="Автозапуск DPI после старта программы"),
+            tr_catalog("page.control.setting.autostart.desc", language=self._ui_language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим"),
         )
         self.defender_toggle.set_texts(
             tr_catalog("page.control.setting.defender.title", language=self._ui_language, default="Отключить Windows Defender"),

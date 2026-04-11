@@ -35,6 +35,11 @@ from ui.pages.logs_page_runtime_helpers import (
     set_winws_status,
 )
 from ui.pages.logs_page_send_build import build_logs_send_tab
+from ui.pages.logs_page_support_workflow import (
+    apply_support_feedback,
+    get_orchestra_runner,
+    update_orchestra_indicator,
+)
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from log import log
@@ -657,31 +662,10 @@ class LogsPage(BasePage):
 
     def _get_orchestra_runner(self):
         """Возвращает orchestra_runner из главного окна"""
-        try:
-            app = self.window()
-            runner = getattr(app, 'orchestra_runner', None) if app else None
-            if runner:
-                return runner
-        except Exception:
-            pass
-
-        try:
-            qapp = QApplication.instance()
-            if qapp:
-                active_window_getter = getattr(qapp, 'activeWindow', None)
-                main_window = active_window_getter() if callable(active_window_getter) else None
-                runner = getattr(main_window, 'orchestra_runner', None) if main_window else None
-                if runner:
-                    return runner
-
-                for widget in qapp.topLevelWidgets():
-                    runner = getattr(widget, 'orchestra_runner', None)
-                    if runner:
-                        return runner
-        except Exception:
-            pass
-
-        return None
+        return get_orchestra_runner(
+            window_getter=self.window,
+            qapp_instance_getter=QApplication.instance,
+        )
 
     def _refresh_winws_title(self):
         """Обновляет заголовок панели вывода по текущему методу запуска"""
@@ -732,8 +716,10 @@ class LogsPage(BasePage):
 
     def _update_orchestra_indicator(self):
         """Обновляет видимость индикатора режима оркестратора"""
-        is_orchestra = self._is_orchestra_mode()
-        self.orchestra_mode_container.setVisible(is_orchestra)
+        update_orchestra_indicator(
+            container=getattr(self, "orchestra_mode_container", None),
+            is_orchestra_mode=self._is_orchestra_mode(),
+        )
 
     def _prepare_support_from_logs(self):
         try:
@@ -741,33 +727,33 @@ class LogsPage(BasePage):
                 current_log_file=self.current_log_file,
                 orchestra_runner=self._get_orchestra_runner(),
             )
-
-            if result.zip_path:
-                log(f"Подготовлен архив поддержки: {result.zip_path}", "INFO")
-            feedback = LogsPageController.build_support_feedback(result)
-            self._send_status_text = feedback.status_text
-            self._send_status_tone = feedback.status_tone
-            self._render_send_status_label()
-
-            if InfoBar:
-                InfoBar.success(
-                    title=feedback.infobar_title,
-                    content=feedback.infobar_content,
-                    parent=self.window(),
-                    duration=5000,
-                )
         except Exception as e:
-            log(f"Ошибка подготовки обращения из логов: {e}", "ERROR")
             feedback = LogsPageController.build_support_error_feedback(str(e))
             self._send_status_text = feedback.status_text
             self._send_status_tone = feedback.status_tone
             self._render_send_status_label()
+            log(f"Ошибка подготовки обращения из логов: {e}", "ERROR")
             if InfoBar:
                 InfoBar.warning(
                     title=feedback.infobar_title,
                     content=feedback.infobar_content,
                     parent=self.window(),
                 )
+            return
+
+        apply_support_feedback(
+            result=result,
+            build_feedback_fn=LogsPageController.build_support_feedback,
+            build_error_feedback_fn=LogsPageController.build_support_error_feedback,
+            info_bar=InfoBar,
+            parent=self.window(),
+            log_fn=log,
+            render_status_fn=self._render_send_status_label,
+            status_state_setter=lambda text, tone: (
+                setattr(self, "_send_status_text", text),
+                setattr(self, "_send_status_tone", tone),
+            ),
+        )
         
     def _refresh_logs_list(self, *, run_cleanup: bool = True):
         """Обновляет список доступных лог-файлов"""

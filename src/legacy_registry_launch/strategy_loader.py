@@ -444,17 +444,17 @@ def load_category_strategies(category: str, strategy_set: Optional[str] = None) 
 
     Args:
         category: Имя категории (tcp, udp, http80, discord_voice)
-        strategy_set: Набор стратегий (например: basic/advanced/orchestra, None = стандартный)
+        strategy_set: Набор стратегий (например: basic/advanced, None = стандартный)
 
     Returns:
         Словарь {strategy_id: strategy_dict}
     """
     strategy_set_key = (strategy_set or "").strip().lower()
 
-    # direct_zapret2 Basic/Advanced and direct_zapret2_orchestra: load from a
+    # direct_zapret2 Basic/Advanced: load from a
     # stable per-user directory to avoid
     # depending on the install location / INDEXJSON_FOLDER.
-    if strategy_set_key in ("basic", "advanced", "orchestra"):
+    if strategy_set_key in ("basic", "advanced"):
         strategies: Dict[str, Dict] = {}
 
         try:
@@ -463,10 +463,7 @@ def load_category_strategies(category: str, strategy_set: Optional[str] = None) 
         except Exception:
             base = ""
 
-        if strategy_set_key == "orchestra":
-            mode_dir = Path(base) / "orchestra_zapret2" if base else None
-        else:
-            mode_dir = Path(base) / "direct_zapret2" / f"{strategy_set_key}_strategies" if base else None
+        mode_dir = Path(base) / "direct_zapret2" / f"{strategy_set_key}_strategies" if base else None
         try:
             if mode_dir is not None:
                 mode_dir.mkdir(parents=True, exist_ok=True)

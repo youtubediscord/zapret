@@ -5,8 +5,8 @@ import subprocess
 import logging
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
-from utils import run_hidden, get_system32_path, get_syswow64_path, get_system_exe  # Импортируем нашу обертку для subprocess
-from config import LOGS_FOLDER  # Добавляем импорт
+from utils import get_system32_path, get_syswow64_path
+from config import LOGS_FOLDER
 from dns_checker import DNSChecker
 
 class ConnectionTestWorker(QObject):
@@ -17,15 +17,12 @@ class ConnectionTestWorker(QObject):
     def __init__(self, test_type="all"):
         super().__init__()
         self.test_type = test_type
-        
-        # ✅ ИСПРАВЛЕНИЕ: Создаем лог-файл в папке logs
+
         os.makedirs(LOGS_FOLDER, exist_ok=True)
         self.log_filename = os.path.join(LOGS_FOLDER, "connection_test_temp.log")
-        
-        # ✅ ДОБАВЛЯЕМ ФЛАГ ДЛЯ МЯГКОЙ ОСТАНОВКИ
         self._stop_requested = False
+        self._curl_available = None
         
-        # Настройка логгирования с явным указанием кодировки
         for handler in logging.root.handlers[:]:
             logging.root.removeHandler(handler)
             
@@ -42,7 +39,7 @@ class ConnectionTestWorker(QObject):
         logging.getLogger().handlers = [file_handler]
     
     def stop_gracefully(self):
-        """✅ Мягкая остановка теста"""
+        """Мягкая остановка теста."""
         self._stop_requested = True
         self.log_message("⚠️ Получен запрос на остановку теста...")
     
@@ -104,13 +101,9 @@ class ConnectionTestWorker(QObject):
             
         try:
             self.log_message(f"Проверка доступности для URL: {host}")
-            
-            # Используем run_hidden напрямую
             command = ["ping", "-n", str(count), host]
-            
-            # ✅ ИСПРАВЛЕНИЕ: Используем subprocess напрямую для лучшего контроля
+
             try:
-                # Для Windows используем shell=False и правильную кодировку
                 result = subprocess.run(
                     command,
                     capture_output=True,
@@ -124,68 +117,55 @@ class ConnectionTestWorker(QObject):
             
             if self.is_stop_requested():
                 return False
-            
-            # ✅ ИСПРАВЛЕНИЕ: Пробуем разные кодировки для декодирования
+
             output = ""
             if result and result.stdout:
-                # Пробуем разные кодировки Windows
                 for encoding in ['cp866', 'cp1251', 'utf-8', 'latin-1']:
                     try:
                         output = result.stdout.decode(encoding)
                         break
                     except:
                         continue
-                
-                # Если не удалось декодировать, используем ignore
+
                 if not output:
                     output = result.stdout.decode('utf-8', errors='ignore')
-            
-            # ✅ ОТЛАДКА: Логируем первые 200 символов вывода для диагностики
+
             if output:
                 debug_output = output[:200].replace('\n', ' ').replace('\r', '')
                 self.log_message(f"[DEBUG] Ping output sample: {debug_output}")
-            
-            # ✅ УЛУЧШЕННЫЙ ПАРСИНГ: Более универсальные паттерны
-            # Английские паттерны
+
             en_success_patterns = [
                 "bytes=", "Bytes=", "BYTES=",
                 "time=", "Time=", "TIME=",
                 "TTL=", "ttl=", "Ttl="
             ]
-            
-            # Русские паттерны
+
             ru_success_patterns = [
                 "байт=", "Байт=", "БАЙТ=",
                 "время=", "Время=", "ВРЕМЯ=",
                 "TTL=", "ttl=", "Ttl="
             ]
-            
-            # Паттерны ошибок
+
             fail_patterns = [
-                # Английские
                 "unreachable", "timed out", "could not find", 
                 "100% loss", "Destination host unreachable",
                 "Request timed out", "100% packet loss",
                 "General failure", "Transmit failed",
-                # Русские
                 "недоступен", "превышен", "не удается",
                 "100% потерь", "Заданный узел недоступен",
                 "Превышен интервал", "100% потери",
                 "Общий сбой", "Сбой передачи"
             ]
-            
-            # Проверяем на успешность - ищем любой из паттернов успеха
+
             success_count = 0
             found_success = False
-            
-            # Сначала проверяем английские паттерны
+
             for pattern in en_success_patterns:
                 if pattern in output:
                     success_count = output.count(pattern)
                     found_success = True
                     break
-            
-            # Если не нашли, проверяем русские
+
             if not found_success:
                 for pattern in ru_success_patterns:
                     if pattern in output:
@@ -196,11 +176,6 @@ class ConnectionTestWorker(QObject):
             # Проверяем на ошибки
             is_failed = any(pattern.lower() in output.lower() for pattern in fail_patterns)
             
-            # ✅ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Ищем статистику пакетов
-            # Английская статистика: "Packets: Sent = 4, Received = 4"
-            # Русская статистика: "Пакетов: отправлено = 4, получено = 4"
-            
-            # Паттерн для английской версии
             import re
             en_stats = re.search(r'Packets:\s*Sent\s*=\s*(\d+),\s*Received\s*=\s*(\d+)', output, re.IGNORECASE)
             ru_stats = re.search(r'Пакетов:\s*отправлено\s*=\s*(\d+),\s*получено\s*=\s*(\d+)', output, re.IGNORECASE)
@@ -232,14 +207,10 @@ class ConnectionTestWorker(QObject):
                 else:
                     self.log_message(f"{host}: Отправлено: {count}, Статус неизвестен")
             
-            # Выводим детали если пинг успешен
             if found_success and success_count > 0:
-                # Парсим время отклика
                 latency_found = False
-                
-                # Пробуем найти время отклика
+
                 for line in output.splitlines():
-                    # Английские варианты
                     if "time=" in line or "Time=" in line:
                         match = re.search(r'time[<=](\d+)ms', line, re.IGNORECASE)
                         if match:
@@ -252,8 +223,6 @@ class ConnectionTestWorker(QObject):
                             self.log_message(f"\tДоступен (Latency: <1ms)")
                             latency_found = True
                             break
-                    
-                    # Русские варианты
                     elif "время=" in line or "Время=" in line:
                         match = re.search(r'время[<=](\d+)', line, re.IGNORECASE)
                         if match:
@@ -265,7 +234,6 @@ class ConnectionTestWorker(QObject):
                 if not latency_found:
                     self.log_message(f"\tДоступен")
             elif is_failed:
-                # Определяем тип ошибки
                 if any(x in output.lower() for x in ["could not find", "не удается"]):
                     self.log_message(f"\tНедоступен (DNS не разрешается)")
                 elif any(x in output.lower() for x in ["unreachable", "недоступен"]):
@@ -333,7 +301,6 @@ class ConnectionTestWorker(QObject):
         
         self.log_message("Запуск проверки доступности YouTube:")
 
-        # Добавляем DNS проверку ПЕРЕД основными тестами
         if not self.is_stop_requested():
             self.check_dns_poisoning()
 
@@ -345,14 +312,12 @@ class ConnectionTestWorker(QObject):
             self.log_message("=" * 40)
             self.log_message("Проверка поддоменов googlevideo.com через curl:")
             self.log_message("=" * 40)
-                    
-        # Проверка поддоменов через curl
+
         for domain in curl_test_domains:
             if self.is_stop_requested():
                 break
             self.check_curl_domain(domain)
-        
-        # Остальные проверки с аналогичными проверками остановки
+
         if not self.is_stop_requested():
             self.check_curl_extended()
 
@@ -364,15 +329,13 @@ class ConnectionTestWorker(QObject):
         
         if not self.is_stop_requested():
             self.interpret_youtube_results()
-                
-        # Проверка IP-адресов через ping
+
         for ip in youtube_ips:
             if self.is_stop_requested():
                 break
             self.log_message(f"Проверка доступности для IP: {ip}")
             self.ping(ip)
-        
-        # Проверка стандартных поддоменов через ping
+
         for address in youtube_addresses:
             if self.is_stop_requested():
                 break
@@ -389,12 +352,11 @@ class ConnectionTestWorker(QObject):
         self.log_message("=" * 40)
         self.log_message("Проверка реального доступа к YouTube видео:")
         self.log_message("=" * 40)
-        
-        # Тестовые видео URL с реальными параметрами
+
         test_video_urls = [
-            "https://rr2---sn-axq7sn7z.googlevideo.com/generate_204",  # Endpoint для проверки
-            "https://www.googleapis.com/youtube/v3/videos?id=dQw4w9WgXcQ&key=test",  # API endpoint
-            "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg"  # Thumbnail сервер
+            "https://rr2---sn-axq7sn7z.googlevideo.com/generate_204",
+            "https://www.googleapis.com/youtube/v3/videos?id=dQw4w9WgXcQ&key=test",
+            "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg"
         ]
         
         for url in test_video_urls:
@@ -403,12 +365,11 @@ class ConnectionTestWorker(QObject):
     def check_real_youtube_endpoint(self, url):
         """Проверяет реальный YouTube endpoint"""
         try:
-            domain = url.split('/')[2]  # Извлекаем домен
-            path = '/' + '/'.join(url.split('/')[3:])  # Извлекаем путь
+            domain = url.split('/')[2]
+            path = '/' + '/'.join(url.split('/')[3:])
             
             self.log_message(f"Тест реального endpoint: {domain}{path}")
-            
-            # ✅ ИСПРАВЛЕНИЕ: Ищем curl в разных местах (динамические пути)
+
             curl_paths = [
                 os.path.join(get_system32_path(), "curl.exe"),
                 os.path.join(get_syswow64_path(), "curl.exe"),
@@ -435,7 +396,7 @@ class ConnectionTestWorker(QObject):
             command = [
                 curl_exe, "-I",
                 "--connect-timeout", "5",
-                "--max-time", "10", 
+                "--max-time", "10",
                 "--silent", "--show-error",
                 url
             ]
@@ -443,7 +404,6 @@ class ConnectionTestWorker(QObject):
             result = subprocess.run(command, capture_output=True, timeout=10,
                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
 
-            # ✅ ИСПРАВЛЕНИЕ: Правильно обрабатываем stdout
             if result and result.returncode == 0:
                 output = result.stdout.decode('utf-8', errors='ignore') if result.stdout else ""
                     
@@ -452,7 +412,7 @@ class ConnectionTestWorker(QObject):
                 
                 if "HTTP/" in status_line:
                     status_code = status_line.split()[1] if len(status_line.split()) > 1 else "???"
-                    if status_code in ['200', '204']:  # Успешные коды
+                    if status_code in ['200', '204']:
                         self.log_message(f"  ✅ Реальный YouTube endpoint работает (HTTP {status_code})")
                     elif status_code == '404':
                         self.log_message(f"  ⚠️ Endpoint не найден, но сервер доступен (HTTP {status_code})")
@@ -523,19 +483,13 @@ class ConnectionTestWorker(QObject):
     def _check_ssl_handshake_issues(self):
         """Проверяет наличие проблем с SSL handshake в результатах"""
         try:
-            # Проверяем текущие результаты теста
-            # Это упрощенная проверка - в реальности можно анализировать self.result_text
-            
-            # Читаем лог-файл для анализа
             if os.path.exists(self.log_filename):
                 with open(self.log_filename, 'r', encoding='utf-8') as f:
                     log_content = f.read()
-                    
-                # Ищем признаки SSL проблем
+
                 ssl_timeout_count = log_content.count("SSL handshake неудачен")
                 ssl_error_count = log_content.count("Проблема с SSL/сертификатом")
-                
-                # Если больше 3 SSL ошибок - значит проблема системная
+
                 return ssl_timeout_count >= 3 or ssl_error_count >= 3
                 
         except Exception:
@@ -550,7 +504,6 @@ class ConnectionTestWorker(QObject):
         self.log_message("=" * 40)
         
         try:
-            # Проверяем процесс winws.exe через psutil (быстрее и надежнее tasklist)
             import psutil
             winws_found = False
             for proc in psutil.process_iter(['pid', 'name', 'memory_info']):
@@ -592,8 +545,7 @@ class ConnectionTestWorker(QObject):
             
             if self.is_stop_requested():
                 return
-                
-            # 1. Сначала проверяем доступность 443 порта
+
             self.check_port_443(domain)
             
             if self.is_stop_requested():
@@ -604,12 +556,12 @@ class ConnectionTestWorker(QObject):
             if not curl_exe:
                 self.log_message("  ⚠️ curl не найден")
                 return
-                
+
             command = [
                 curl_exe,
-                "-I",  # Только заголовки
-                "--connect-timeout", "3",  # Уменьшаем таймауты
-                "--max-time", "8", 
+                "-I",
+                "--connect-timeout", "3",
+                "--max-time", "8",
                 "--silent",
                 "--show-error",
                 f"https://{domain}/"
@@ -620,8 +572,7 @@ class ConnectionTestWorker(QObject):
 
             if self.is_stop_requested():
                 return
-            
-            # Анализируем результат
+
             if result and result.returncode == 0:
                 output = result.stdout.decode('utf-8', errors='ignore') if result.stdout else ""
                         
@@ -697,22 +648,19 @@ class ConnectionTestWorker(QObject):
     def check_port_443(self, domain):
         """Проверяет доступность 443 порта через telnet/nc или Python socket."""
         try:
-            # Используем Python socket для проверки порта
             import socket
             
             self.log_message(f"  🔍 Проверка порта 443 для {domain}...")
-            
-            # Создаем сокет и пытаемся подключиться
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)  # 5 секунд таймаут
+            sock.settimeout(5)
             
             try:
                 result = sock.connect_ex((domain, 443))
                 
                 if result == 0:
                     self.log_message(f"  ✅ Порт 443 открыт")
-                    
-                    # Дополнительно проверяем SSL handshake
+
                     try:
                         import ssl
                         context = ssl.create_default_context()
@@ -746,7 +694,6 @@ class ConnectionTestWorker(QObject):
     def check_curl_http(self, domain):
         """Проверка HTTP (без HTTPS)."""
         try:
-            # Добавляем проверку порта 80
             self.check_port_80(domain)
             
             curl_exe = self._get_curl_path()
@@ -789,7 +736,7 @@ class ConnectionTestWorker(QObject):
             self.log_message(f"  🔍 Проверка порта 80 для {domain}...")
             
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(3)  # 3 секунды для HTTP
+            sock.settimeout(3)
             
             try:
                 result = sock.connect_ex((domain, 80))
@@ -813,19 +760,15 @@ class ConnectionTestWorker(QObject):
         self.log_message("Расширенная curl-диагностика:")
         self.log_message("=" * 40)
         
-        # Тест 1: Проверка портов и базовое HTTPS соединение
         self.log_message(f"1. Проверка портов и HTTPS для {test_domain}:")
         self.check_curl_domain(test_domain)
         
-        # Тест 2: HTTP (без шифрования)
         self.log_message(f"2. HTTP тест (без шифрования):")
         self.check_curl_http(test_domain)
         
-        # Тест 3: С игнорированием SSL ошибок
         self.log_message(f"3. HTTPS с игнорированием SSL:")
         self.check_curl_insecure(test_domain)
         
-        # Тест 4: Проверка с различными TLS версиями
         self.log_message(f"4. Тест различных TLS версий:")
         self.check_tls_versions(test_domain)
 
@@ -846,7 +789,7 @@ class ConnectionTestWorker(QObject):
         for version_name, tls_flag in tls_versions:
             try:
                 command = [
-                    curl_exe, "-I", "-k",  # -k игнорирует SSL ошибки
+                    curl_exe, "-I", "-k",
                     "--connect-timeout", "3",
                     "--max-time", "8",
                     "--silent", "--show-error",
@@ -882,8 +825,8 @@ class ConnectionTestWorker(QObject):
                 return
                 
             command = [
-                curl_exe, "-I", "-k",  # -k игнорирует SSL ошибки
-                "--connect-timeout", "5", 
+                curl_exe, "-I", "-k",
+                "--connect-timeout", "5",
                 "--max-time", "10",
                 "--silent", "--show-error",
                 f"https://{domain}/"
@@ -911,7 +854,7 @@ class ConnectionTestWorker(QObject):
     def is_curl_available(self):
         """Проверяет доступность curl в системе."""
         try:
-            if not hasattr(self, '_curl_available'):
+            if self._curl_available is None:
                 self._curl_available = (self._get_curl_path() is not None)
                 
                 if self._curl_available:
@@ -951,5 +894,4 @@ class ConnectionTestWorker(QObject):
             if not self.is_stop_requested():
                 self.log_message(f"❌ Критическая ошибка в тесте: {str(e)}")
         finally:
-            # ✅ ВСЕГДА эмитируем сигнал завершения
             self.finished_signal.emit()

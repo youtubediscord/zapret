@@ -21,7 +21,7 @@ from log import log
 _strategies_cache = {}  # {(strategy_type, strategy_set): strategies_dict} - кешируем по типу и набору
 _imported_types = set()  # Какие (type, set) пары уже загружены
 _logged_missing_strategies = set()  # Чтобы не спамить логи одними и теми же предупреждениями
-_current_strategy_set = None  # Текущий набор стратегий (например: basic/advanced/orchestra/zapret1)
+_current_strategy_set = None  # Текущий набор стратегий (например: basic/advanced/zapret1)
 _failed_import_last_attempt_at = {}  # {(strategy_type, strategy_set): monotonic_time}
 _failed_import_logged = set()  # {(strategy_type, strategy_set)}
 _FAILED_IMPORT_RETRY_SECONDS = 1.0
@@ -32,7 +32,7 @@ def get_current_strategy_set() -> Optional[str]:
     Возвращает текущий набор стратегий на основе метода запуска.
 
     Returns:
-        "basic"/"advanced" для direct_zapret2, "orchestra" для direct_zapret2_orchestra,
+        "basic"/"advanced" для direct_zapret2,
         "zapret1" для direct_zapret1 и т.д.
     """
     from strategy_menu.strategy_set_resolver import get_current_strategy_set as _resolve_current_strategy_set

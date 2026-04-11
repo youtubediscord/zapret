@@ -73,8 +73,8 @@ def combine_strategies(**kwargs) -> dict:
     if launch_method in {"direct_zapret1", "direct_zapret2"}:
         return _combine_direct_source_preset(launch_method)
 
-    if launch_method == "direct_zapret2_orchestra":
-        raise RuntimeError("Режим direct_zapret2_orchestra удалён и больше не поддерживается")
+    if launch_method not in {"orchestra", "direct_zapret1", "direct_zapret2"}:
+        raise RuntimeError("Выбран удалённый или неподдерживаемый метод запуска")
 
     # orchestra пока остаётся на legacy V2 builder.
     is_orchestra = launch_method == "orchestra"

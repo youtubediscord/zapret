@@ -137,14 +137,14 @@ class ControlPageController:
             pass
 
         message = (
-            "DPI будет включаться автоматически при старте программы"
+            "DPI будет запускаться автоматически после старта ZapretGUI"
             if enabled
-            else "Автозагрузка DPI отключена"
+            else "Автозапуск DPI после старта программы отключён"
         )
         return ControlAutoDpiPlan(
             enabled=bool(enabled),
             message=message,
-            title="Автозагрузка DPI",
+            title="Автозапуск DPI после старта программы",
         )
 
     @staticmethod
@@ -262,7 +262,8 @@ class ControlPageController:
         except Exception:
             pass
 
-        if display_name and display_name not in ("Автостарт DPI отключен", not_selected):
+        autostart_disabled_label = "Автозапуск DPI после старта программы отключён"
+        if display_name and display_name not in (autostart_disabled_label, not_selected):
             return ControlStrategyDisplayPlan(
                 title=display_name,
                 description=active_description,

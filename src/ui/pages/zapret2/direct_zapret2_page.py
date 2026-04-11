@@ -675,7 +675,12 @@ class Zapret2StrategiesPageNew(BasePage):
         if not self.isVisible():
             self._preset_refresh_pending = True
             return
-        if name and name != "Автостарт DPI отключен":
+        disabled_label = tr_catalog(
+            "page.strategies_base.strategy.autostart_disabled",
+            language=self._ui_language,
+            default="Автозапуск DPI после старта программы отключён",
+        )
+        if name and name != disabled_label:
             self.current_strategy_label.setText(name)
         else:
             self.current_strategy_label.setText(

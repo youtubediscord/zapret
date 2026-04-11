@@ -188,12 +188,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Active strategy",
     },
     "page.control.setting.autostart.title": {
-        "ru": "Автозагрузка DPI",
-        "en": "DPI Autostart",
+        "ru": "Автозапуск DPI после старта программы",
+        "en": "Auto-start DPI after app launch",
     },
     "page.control.setting.autostart.desc": {
-        "ru": "Запускать Zapret автоматически при старте программы",
-        "en": "Start Zapret automatically on app launch",
+        "ru": "После запуска ZapretGUI автоматически запускать текущий DPI-режим",
+        "en": "Automatically start the current DPI mode after ZapretGUI launches",
     },
     "page.control.setting.defender.title": {
         "ru": "Отключить Windows Defender",
@@ -316,12 +316,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Open",
     },
     "page.z1_control.setting.autostart.title": {
-        "ru": "Автозагрузка DPI",
-        "en": "DPI Autostart",
+        "ru": "Автозапуск DPI после старта программы",
+        "en": "Auto-start DPI after app launch",
     },
     "page.z1_control.setting.autostart.desc": {
-        "ru": "Запускать Zapret автоматически при старте программы",
-        "en": "Start Zapret automatically on app launch",
+        "ru": "После запуска ZapretGUI автоматически запускать текущий DPI-режим",
+        "en": "Automatically start the current DPI mode after ZapretGUI launches",
     },
     "page.z1_control.card.advanced": {
         "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
@@ -5478,8 +5478,8 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "en": "Loading...",
     },
     "page.strategies_base.strategy.autostart_disabled": {
-        "ru": "Автостарт DPI отключен",
-        "en": "Autostart DPI is disabled",
+        "ru": "Автозапуск DPI после старта программы отключён",
+        "en": "Auto-start DPI after app launch is disabled",
     },
     "page.z2_control.mode.dialog.title": {
         "ru": "Режим прямого запуска",
@@ -5506,12 +5506,12 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "en": "Cancel",
     },
     "page.z2_control.setting.autostart.title": {
-        "ru": "Автозагрузка DPI",
-        "en": "DPI Autostart",
+        "ru": "Автозапуск DPI после старта программы",
+        "en": "Auto-start DPI after app launch",
     },
     "page.z2_control.setting.autostart.desc": {
-        "ru": "Запускать Zapret автоматически при старте программы",
-        "en": "Start Zapret automatically on app launch",
+        "ru": "После запуска ZapretGUI автоматически запускать текущий DPI-режим",
+        "en": "Automatically start the current DPI mode after ZapretGUI launches",
     },
     "page.z2_control.setting.defender.title": {
         "ru": "Отключить Windows Defender",
@@ -5562,8 +5562,8 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "en": "Disable MAX Blocking",
     },
     "page.z2_control.strategy.autostart_disabled": {
-        "ru": "Автостарт DPI отключен",
-        "en": "Autostart DPI is disabled",
+        "ru": "Автозапуск DPI после старта программы отключён",
+        "en": "Auto-start DPI after app launch is disabled",
     },
 }
 

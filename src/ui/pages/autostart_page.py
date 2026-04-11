@@ -1,13 +1,11 @@
 # ui/pages/autostart_page.py
 """Страница настроек автозапуска"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
 import qtawesome as qta
-
-from autostart.page_controller import AutostartPageController
 from .base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton
 from ui.theme import (
@@ -29,13 +27,26 @@ try:
         BodyLabel,
         CaptionLabel,
     )
-    _HAS_FLUENT = True
 except ImportError:
     SimpleCardWidget = QWidget  # type: ignore[misc,assignment]
     StrongBodyLabel = QLabel    # type: ignore[misc,assignment]
     BodyLabel = QLabel          # type: ignore[misc,assignment]
     CaptionLabel = QLabel       # type: ignore[misc,assignment]
-    _HAS_FLUENT = False
+
+
+class AutostartDetectorWorker(QThread):
+    """Фоновая проверка канонического GUI-автозапуска."""
+
+    finished = pyqtSignal(bool)
+
+    def run(self):
+        try:
+            from autostart.registry_check import is_autostart_enabled
+
+            self.finished.emit(bool(is_autostart_enabled()))
+        except Exception as exc:
+            log(f"AutostartDetectorWorker error: {exc}", "WARNING")
+            self.finished.emit(False)
 
 class AutostartOptionCard(SimpleCardWidget):
     """Карточка опции автозапуска"""
@@ -233,11 +244,9 @@ class AutostartPage(BasePage):
             subtitle_key="page.autostart.subtitle",
         )
 
-        self._app_instance = None
         self.strategy_name = None
         self._detector_worker = None
         self._detection_pending = False
-        self._current_mode_method = ""
         self._runtime_initialized = False
 
         self._ui_state_store = None
@@ -257,9 +266,7 @@ class AutostartPage(BasePage):
         return text
 
     def _run_runtime_init_once(self) -> None:
-        if not AutostartPageController.should_schedule_initial_detection(
-            runtime_initialized=self._runtime_initialized,
-        ):
+        if self._runtime_initialized:
             return
         self._runtime_initialized = True
         self._schedule_autostart_detection_when_ready(50)
@@ -274,14 +281,13 @@ class AutostartPage(BasePage):
             self.run_when_page_ready(self._start_autostart_detection)
             return
 
-        if not AutostartPageController.should_start_detection(
-            detection_pending=self._detection_pending,
-            worker_running=bool(self._detector_worker is not None and self._detector_worker.isRunning()),
-        ):
+        if self._detection_pending:
+            return
+        if self._detector_worker is not None and self._detector_worker.isRunning():
             return
 
         self._detection_pending = True
-        self._detector_worker = AutostartPageController.create_detector_worker()
+        self._detector_worker = AutostartDetectorWorker()
         self._detector_worker.finished.connect(self._on_autostart_detected)
         self._detector_worker.start()
 
@@ -290,32 +296,6 @@ class AutostartPage(BasePage):
         enabled = bool(enabled)
         log(f"Detected canonical autostart: enabled={enabled}", "DEBUG")
         self._push_autostart_state(enabled, self.strategy_name)
-
-    @property
-    def app_instance(self):
-        if self._app_instance is None:
-            self._auto_init()
-        return self._app_instance
-
-    @app_instance.setter
-    def app_instance(self, value):
-        self._app_instance = value
-
-    def _auto_init(self):
-        try:
-            app_instance, strategy_name, strategy_text = AutostartPageController.resolve_app_init(
-                self.parent(),
-                strategy_name=self.strategy_name,
-                strategy_not_selected_text=self._tr("page.autostart.strategy.not_selected", "Не выбрана"),
-            )
-            self._app_instance = app_instance
-            self.strategy_name = strategy_name
-            self.current_strategy_label.setText(strategy_text)
-        except Exception as exc:
-            log(f"AutostartPage._auto_init ошибка: {exc}", "WARNING")
-
-    def set_app_instance(self, app):
-        self._app_instance = app
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
         if self._ui_state_store is store:
@@ -504,20 +484,18 @@ class AutostartPage(BasePage):
         try:
             from strategy_menu import get_strategy_launch_method
 
-            method = get_strategy_launch_method()
-            self._current_mode_method = str(method or "").strip()
-            if self._current_mode_method == "direct_zapret2":
+            method = str(get_strategy_launch_method() or "").strip()
+            if method == "direct_zapret2":
                 mode_text = "Прямой запуск (Zapret 2)"
-            elif self._current_mode_method == "orchestra":
+            elif method == "orchestra":
                 mode_text = "Оркестр (автообучение)"
-            elif self._current_mode_method:
+            elif method:
                 mode_text = "Классический (BAT файлы)"
             else:
                 mode_text = "Неизвестно"
             self.mode_label.setText(mode_text)
         except Exception as exc:
             log(f"Ошибка обновления режима: {exc}", "WARNING")
-            self._current_mode_method = ""
             self.mode_label.setText(self._tr("page.autostart.mode.unknown", "Неизвестно"))
 
     def _on_mode_card_clicked(self):
@@ -647,7 +625,9 @@ class AutostartPage(BasePage):
 
     def _on_disable_clicked(self):
         try:
-            removed_count = AutostartPageController.disable_autostart()
+            from autostart.autostart_remove import AutoStartCleaner
+
+            removed_count = int(AutoStartCleaner().run(remove_canonical=True, remove_legacy=True) or 0)
             self._push_autostart_state(False)
             self.autostart_disabled.emit()
             if removed_count > 0:
@@ -659,7 +639,9 @@ class AutostartPage(BasePage):
 
     def _on_gui_autostart(self):
         try:
-            ok = AutostartPageController.setup_gui_autostart(status_cb=lambda msg: log(msg, "INFO"))
+            from autostart.autostart_exe import setup_autostart_for_exe
+
+            ok = bool(setup_autostart_for_exe(status_cb=lambda msg: log(msg, "INFO")))
             if not ok:
                 log("Не удалось настроить автозапуск GUI", "ERROR")
                 return

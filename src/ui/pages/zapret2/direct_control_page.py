@@ -537,11 +537,11 @@ class Zapret2DirectControlPage(BasePage):
 
         self.auto_dpi_toggle = Win11ToggleRow(
             "fa5s.bolt",
-            tr_catalog("page.z2_control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
+            tr_catalog("page.z2_control.setting.autostart.title", language=self._ui_language, default="Автозапуск DPI после старта программы"),
             tr_catalog(
                 "page.z2_control.setting.autostart.desc",
                 language=self._ui_language,
-                default="Запускать Zapret автоматически при старте программы",
+                default="После запуска ZapretGUI автоматически запускать текущий DPI-режим",
             ),
         )
         self.auto_dpi_toggle.toggled.connect(self._on_auto_dpi_toggled)
@@ -1162,11 +1162,11 @@ class Zapret2DirectControlPage(BasePage):
             pass
         try:
             self.auto_dpi_toggle.set_texts(
-                tr_catalog("page.z2_control.setting.autostart.title", language=self._ui_language, default="Автозагрузка DPI"),
+                tr_catalog("page.z2_control.setting.autostart.title", language=self._ui_language, default="Автозапуск DPI после старта программы"),
                 tr_catalog(
                     "page.z2_control.setting.autostart.desc",
                     language=self._ui_language,
-                    default="Запускать Zapret автоматически при старте программы",
+                    default="После запуска ZapretGUI автоматически запускать текущий DPI-режим",
                 ),
             )
         except Exception:
