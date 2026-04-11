@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import time
 import re
 from typing import Optional
@@ -13,33 +12,19 @@ from PyQt6.QtCore import (
     pyqtSignal,
     QSize,
     QTimer,
-    QFileSystemWatcher,
-    QAbstractListModel,
-    QModelIndex,
-    QRect,
-    QEvent,
     QPoint,
-    QMimeData,
 )
-from PyQt6.QtGui import QAction, QColor, QPainter, QFontMetrics, QMouseEvent, QHelpEvent, QTransform, QDrag
 from PyQt6.QtWidgets import (
     QWidget,
-    QVBoxLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QLineEdit,
     QFileDialog,
     QListView,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
-    QStyle,
-    QToolTip,
     QSizePolicy,
-    QApplication,
     QFrame,
 )
-from PyQt6.QtGui import QCursor
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
@@ -52,7 +37,6 @@ from ui.pages.direct_user_presets_page_controller import (
     DirectUserPresetsPageControllerConfig,
 )
 from ui.compat_widgets import (
-    ActionButton,
     PrimaryActionButton,
     SettingsCard,
     LineEdit,
@@ -349,21 +333,8 @@ class Zapret1UserPresetsPage(BasePage):
             parent,
             title_key="page.z1_user_presets.title",
         )
-        self._page_api = DirectUserPresetsPageController(
-            DirectUserPresetsPageControllerConfig(
-                launch_method="direct_zapret1",
-                selection_key="winws1",
-                hierarchy_scope="preset_zapret1",
-                empty_not_found_key="page.z1_user_presets.empty.not_found",
-                empty_none_key="page.z1_user_presets.empty.none",
-                list_log_prefix="Z1UserPresetsPage",
-                activate_error_level="warning",
-                activate_error_mode="friendly",
-                copy_hierarchy_meta_on_duplicate=True,
-                get_preset_store=get_preset_store_v1,
-            )
-        ).build_page_api()
-        self._runtime_service = get_user_presets_runtime_service("preset_zapret1")
+        self._page_api = self._build_controller().build_page_api()
+        self._runtime_service = self._build_runtime_service()
         self._runtime_service.attach_page(self, self._build_runtime_adapter())
 
         self._back_btn = None
@@ -415,6 +386,25 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         return _tr_text(key, self._ui_language, default, **kwargs)
+
+    def _build_controller(self):
+        return DirectUserPresetsPageController(
+            DirectUserPresetsPageControllerConfig(
+                launch_method="direct_zapret1",
+                selection_key="winws1",
+                hierarchy_scope="preset_zapret1",
+                empty_not_found_key="page.z1_user_presets.empty.not_found",
+                empty_none_key="page.z1_user_presets.empty.none",
+                list_log_prefix="Z1UserPresetsPage",
+                activate_error_level="warning",
+                activate_error_mode="friendly",
+                copy_hierarchy_meta_on_duplicate=True,
+                get_preset_store=get_preset_store_v1,
+            )
+        )
+
+    def _build_runtime_service(self):
+        return get_user_presets_runtime_service("preset_zapret1")
 
     def _build_runtime_adapter(self) -> UserPresetsRuntimeAdapter:
         return UserPresetsRuntimeAdapter(
@@ -490,8 +480,7 @@ class Zapret1UserPresetsPage(BasePage):
     def _get_hierarchy_store(self):
         return self._storage_api().get_hierarchy_store()
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
         self._resync_layout_metrics()
         if self._runtime_service.is_ui_dirty():
             self.refresh_presets_view_if_possible()

@@ -44,7 +44,7 @@ except ImportError:
     BodyLabel = QLabel
     _HAS_FLUENT = False
 
-from ui.widgets import NotificationBanner
+from ui.widgets.notification_banner import NotificationBanner
 from ui.theme import get_theme_tokens
 from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog

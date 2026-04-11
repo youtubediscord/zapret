@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from ui.main_window_pages import get_loaded_page
 from ui.router import (
-    get_zapret2_navigation_variants,
     resolve_control_page_for_method,
     resolve_zapret1_navigation_pages,
     resolve_zapret2_navigation_pages,
@@ -62,19 +61,15 @@ def _show_static_page(window, page_name: PageName) -> None:
 
 def _get_strategies_context_pages(window) -> set:
     strategies_context_pages = set()
-    z2_direct, z2_orchestra = get_zapret2_navigation_variants()
+    z2_direct = resolve_zapret2_navigation_pages("direct_zapret2")
     for page_name in (
         PageName.DPI_SETTINGS,
         z2_direct.user_presets_page,
         z2_direct.strategies_page,
-        z2_orchestra.user_presets_page,
-        z2_orchestra.strategies_page,
-        z2_orchestra.control_page,
         PageName.ZAPRET1_DIRECT_CONTROL,
         PageName.ZAPRET1_DIRECT,
         PageName.ZAPRET1_USER_PRESETS,
         z2_direct.strategy_detail_page,
-        z2_orchestra.strategy_detail_page,
     ):
         page = get_loaded_page(window, page_name)
         if page is not None:

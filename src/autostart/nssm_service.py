@@ -497,7 +497,7 @@ def start_service_with_nssm(service_name: str) -> bool:
             if "SERVICE_PAUSED" in stderr_text or "already running" in stderr_text:
                 log("💡 SERVICE_PAUSED / already running:", "WARNING")
                 log("   • Уже работает другой winws2.exe с тем же фильтром", "WARNING")
-                log("   • Остановите предыдущий экземпляр: nssm stop ZapretDirectService или taskkill /IM winws2.exe /F", "WARNING")
+                log(f"   • Остановите предыдущий экземпляр: nssm stop {service_name} или taskkill /IM winws2.exe /F", "WARNING")
                 log("   • После остановки запустите службу снова", "WARNING")
             
             # Дополнительная диагностика

@@ -18,7 +18,6 @@ class AppUiState:
     dpi_last_exit_code: int | None = None
     current_strategy_summary: str = ""
     autostart_enabled: bool = False
-    autostart_type: str = ""
     subscription_is_premium: bool = False
     subscription_days_remaining: int | None = None
     garland_enabled: bool = False
@@ -138,12 +137,8 @@ class MainWindowStateStore:
     def set_current_strategy_summary(self, summary: str) -> bool:
         return self.update(current_strategy_summary=str(summary or ""))
 
-    def set_autostart(self, enabled: bool, autostart_type: str | None = None) -> bool:
-        resolved_type = str(autostart_type or "")
-        return self.update(
-            autostart_enabled=bool(enabled),
-            autostart_type=resolved_type if enabled else "",
-        )
+    def set_autostart(self, enabled: bool) -> bool:
+        return self.update(autostart_enabled=bool(enabled))
 
     def set_subscription(self, is_premium: bool, days_remaining: int | None = None) -> bool:
         normalized_days = None if not is_premium else days_remaining

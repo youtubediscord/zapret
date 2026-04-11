@@ -8,7 +8,6 @@ from log import log
 from ui.router import (
     get_eager_page_names_for_method,
     get_page_route_key,
-    get_zapret2_navigation_variants,
     resolve_preset_detail_back_page_for_method,
     resolve_preset_detail_root_page_for_method,
     resolve_strategy_detail_root_page_for_method,
@@ -65,7 +64,7 @@ def get_loaded_page(window, name: PageName) -> QWidget | None:
 
 def get_strategy_page_name_for_method(method: str | None) -> PageName | None:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).strategies_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().strategies_page
@@ -178,7 +177,7 @@ def bind_page_ui_state(window, page: QWidget | None) -> None:
         pass
 
 
-def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z2_direct, z2_orchestra) -> None:
+def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z2_direct) -> None:
     if page_name == PageName.ZAPRET2_DIRECT and hasattr(page, "open_target_detail"):
         connect_signal_once(
             window,
@@ -195,15 +194,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
             window._show_active_zapret2_control_page,
         )
 
-    if page_name == z2_orchestra.user_presets_page and hasattr(page, "back_clicked"):
-        _connect_show_page_signal(
-            window,
-            "back_to_orchestra_control.user_presets",
-            page.back_clicked,
-            z2_orchestra.control_page,
-        )
-
-    if page_name in (z2_direct.user_presets_page, z2_orchestra.user_presets_page) and hasattr(page, "preset_open_requested"):
+    if page_name == z2_direct.user_presets_page and hasattr(page, "preset_open_requested"):
         connect_signal_once(
             window,
             f"{page_name.name}.preset_open_requested",
@@ -226,30 +217,13 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
                 lambda target=resolve_preset_detail_root_page_for_method("direct_zapret2"): window.show_page(target),
             )
 
-    if page_name == z2_orchestra.preset_detail_page and hasattr(page, "back_clicked"):
-        connect_signal_once(
-            window,
-            "z2_orchestra_preset_detail.back_clicked",
-            page.back_clicked,
-            lambda target=resolve_preset_detail_back_page_for_method("direct_zapret2_orchestra"): window.show_page(target),
-        )
-        if hasattr(page, "navigate_to_root"):
-            connect_signal_once(
-                window,
-                "z2_orchestra_preset_detail.navigate_to_root",
-                page.navigate_to_root,
-                lambda target=resolve_preset_detail_root_page_for_method("direct_zapret2_orchestra"): window.show_page(target),
-            )
-
-    if page_name in (z2_direct.control_page, z2_orchestra.control_page):
-        z2_pages = z2_orchestra if page_name == z2_orchestra.control_page else z2_direct
-
+    if page_name == z2_direct.control_page:
         if hasattr(page, "navigate_to_presets"):
             _connect_show_page_signal(
                 window,
                 f"{page_name.name}.navigate_to_presets",
                 page.navigate_to_presets,
-                z2_pages.user_presets_page,
+                z2_direct.user_presets_page,
             )
 
         if hasattr(page, "navigate_to_direct_launch"):
@@ -257,7 +231,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
                 window,
                 f"{page_name.name}.navigate_to_direct_launch",
                 page.navigate_to_direct_launch,
-                z2_pages.strategies_page,
+                z2_direct.strategies_page,
             )
 
         if hasattr(page, "navigate_to_blobs"):
@@ -305,23 +279,6 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
                 page.filter_mode_changed,
                 window._on_strategy_detail_filter_mode_changed,
             )
-
-    if page_name == z2_orchestra.strategy_detail_page:
-        if hasattr(page, "back_clicked"):
-            _connect_show_page_signal(
-                window,
-                "orchestra_strategy_detail.back_clicked",
-                page.back_clicked,
-                z2_orchestra.strategies_page,
-            )
-        if hasattr(page, "navigate_to_root"):
-            _connect_show_page_signal(
-                window,
-                "orchestra_strategy_detail.navigate_to_root",
-                page.navigate_to_root,
-                resolve_strategy_detail_root_page_for_method("direct_zapret2_orchestra"),
-            )
-
 
 def _connect_z1_navigation_signals(window, page_name: PageName, page: QWidget, z1_pages) -> None:
     if page_name in (z1_pages.strategies_page, z1_pages.user_presets_page) and hasattr(page, "back_clicked"):
@@ -400,6 +357,13 @@ def _connect_z1_navigation_signals(window, page_name: PageName, page: QWidget, z
                 "z1_control.navigate_to_presets",
                 page.navigate_to_presets,
                 z1_pages.user_presets_page,
+            )
+        if hasattr(page, "navigate_to_blobs"):
+            _connect_show_page_signal(
+                window,
+                "z1_control.navigate_to_blobs",
+                page.navigate_to_blobs,
+                PageName.BLOBS,
             )
 
 
@@ -532,7 +496,6 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
     if page_name in (
         PageName.ZAPRET1_DIRECT,
         PageName.ZAPRET2_DIRECT,
-        PageName.ZAPRET2_ORCHESTRA,
     ) and hasattr(page, "strategy_selected"):
         connect_signal_once(
             window,
@@ -544,7 +507,6 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
 
 def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> None:
     z1_pages = resolve_zapret1_navigation_pages()
-    z2_direct, z2_orchestra = get_zapret2_navigation_variants()
     _connect_common_page_signals(window, page_name, page)
 
     if page_name == PageName.ZAPRET2_DIRECT and hasattr(page, "open_target_detail"):
@@ -554,7 +516,7 @@ def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> Non
             page.open_target_detail,
             window._on_open_target_detail,
         )
-    _connect_z2_navigation_signals(window, page_name, page, z2_direct, z2_orchestra)
+    _connect_z2_navigation_signals(window, page_name, page, resolve_zapret2_navigation_pages("direct_zapret2"))
     _connect_z1_navigation_signals(window, page_name, page, z1_pages)
 
     if page_name == PageName.ORCHESTRA and hasattr(page, "clear_learned_requested"):

@@ -78,16 +78,6 @@ def complete_main_window_method_switch(window, method: str) -> None:
                 pass
             can_autostart = False
 
-    elif method == "direct_zapret2_orchestra":
-        from preset_orchestra_zapret2 import ensure_default_preset_exists
-        if not ensure_default_preset_exists():
-            log("direct_zapret2_orchestra: preset-zapret2-orchestra.txt не создан", "ERROR")
-            try:
-                window.set_status("Ошибка: отсутствует orchestra Default.txt")
-            except Exception:
-                pass
-            can_autostart = False
-
     elif method == "direct_zapret1":
         try:
             if direct_flow_coordinator is None:
@@ -98,6 +88,13 @@ def complete_main_window_method_switch(window, method: str) -> None:
         except Exception as e:
             log(f"direct_zapret1: ошибка инициализации пресета: {e}", "WARNING")
             can_autostart = False
+    elif method != "orchestra":
+        log(f"Удалённый или неподдерживаемый режим запуска: {method}", "ERROR")
+        try:
+            window.set_status("Ошибка: выбран удалённый или неподдерживаемый режим запуска")
+        except Exception:
+            pass
+        can_autostart = False
 
     try:
         window._preset_runtime_coordinator.setup_active_preset_file_watcher()
@@ -135,7 +132,7 @@ def auto_start_after_main_window_method_switch(window, method: str) -> None:
             log("Автозапуск Оркестр", "INFO")
             window.dpi_controller.start_dpi_async(selected_mode=None, launch_method="orchestra")
 
-        elif method in {"direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"}:
+        elif method in {"direct_zapret2", "direct_zapret1"}:
             from config import get_dpi_autostart
             if not get_dpi_autostart():
                 return

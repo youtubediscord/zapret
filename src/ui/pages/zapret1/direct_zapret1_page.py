@@ -17,7 +17,7 @@ from ui.pages.base_page import BasePage
 from ui.compat_widgets import QuickActionsBar, RefreshButton
 from ui.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
-from ui.widgets import PresetTargetsList
+from ui.widgets.preset_targets_list import PresetTargetsList
 from log import log
 
 from qfluentwidgets import (
@@ -136,8 +136,7 @@ class Zapret1StrategiesPage(BasePage):
             reason="init.initial",
         )
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
         if self._breadcrumb is not None:
             self._rebuild_breadcrumb()
         if self._built and self._preset_refresh_pending:

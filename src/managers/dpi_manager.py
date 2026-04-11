@@ -31,7 +31,6 @@ class DPIManager(QObject):
         supported_methods = {
             "direct_zapret2",
             "direct_zapret1",
-            "direct_zapret2_orchestra",
             "orchestra",
         }
         if resolved_method not in supported_methods:
@@ -60,12 +59,6 @@ class DPIManager(QObject):
 
                 snapshot = get_direct_flow_coordinator().get_startup_snapshot(method)
                 return str(snapshot.display_name or "").strip() or "Пресет"
-
-            if method == "direct_zapret2_orchestra":
-                from preset_orchestra_zapret2 import get_active_preset_name
-
-                preset_name = str(get_active_preset_name() or "").strip() or "Default"
-                return f"Пресет оркестра: {preset_name}"
 
             if method == "orchestra":
                 return "Оркестр"

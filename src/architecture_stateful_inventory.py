@@ -39,15 +39,6 @@ def build_intentionally_stateful_inventory() -> tuple[StatefulLayerDecision, ...
             ),
         ),
         StatefulLayerDecision(
-            key="orchestra_user_presets",
-            target="ui.pages.orchestra_zapret2.user_presets_page_controller.OrchestraZapret2UserPresetsPageController",
-            decision="intentionally_backend_specific",
-            rationale=(
-                "Остаётся orchestra-specific page API controller: держит backend-specific preset/hierarchy "
-                "контракт и shared orchestra manager factory."
-            ),
-        ),
-        StatefulLayerDecision(
             key="window_close_controller",
             target="ui.window_close_controller.WindowCloseController",
             decision="stable_window_infrastructure",

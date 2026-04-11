@@ -24,6 +24,26 @@ class HostsRuntimeState:
 
 
 @dataclass(slots=True)
+class HostsPageRuntimeCache:
+    runtime_state: HostsRuntimeState | None = None
+    active_domains: set[str] | None = None
+
+    def invalidate(self) -> None:
+        self.runtime_state = None
+        self.active_domains = None
+
+    def get_runtime_state(self, hosts_manager) -> HostsRuntimeState:
+        if self.runtime_state is None:
+            self.runtime_state = HostsPageController.read_runtime_state(hosts_manager)
+        return self.runtime_state
+
+    def get_active_domains(self, hosts_manager) -> set[str]:
+        if self.active_domains is None:
+            self.active_domains = set(self.get_runtime_state(hosts_manager).active_domains)
+        return self.active_domains
+
+
+@dataclass(slots=True)
 class HostsOperationCompletionPlan:
     reset_profiles: bool
     clear_error: bool
@@ -254,6 +274,10 @@ class HostsPageController:
             return bool(save_user_hosts_selection(dict(selection)))
         except Exception:
             return False
+
+    @staticmethod
+    def create_runtime_cache() -> HostsPageRuntimeCache:
+        return HostsPageRuntimeCache()
 
     @staticmethod
     def execute_operation(*, hosts_manager, operation: str, payload=None) -> HostsOperationResult:

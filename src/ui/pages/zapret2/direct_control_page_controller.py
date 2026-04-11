@@ -90,7 +90,61 @@ class DirectModeChangePlan:
         self.refresh_mode_label_after = bool(refresh_mode_label_after)
 
 
+class DirectControlRefreshRuntime:
+    def __init__(self) -> None:
+        self.advanced_settings_worker = None
+        self.advanced_settings_request_id = 0
+        self.advanced_settings_dirty = True
+        self.preset_summary_worker = None
+        self.preset_summary_request_id = 0
+        self.preset_summary_dirty = True
+
+    def has_pending_refresh(self) -> bool:
+        return bool(self.advanced_settings_dirty or self.preset_summary_dirty)
+
+    def mark_presets_dirty(self) -> None:
+        self.advanced_settings_dirty = True
+        self.preset_summary_dirty = True
+
+    def mark_advanced_settings_applied(self) -> None:
+        self.advanced_settings_dirty = False
+        self.advanced_settings_worker = None
+
+    def mark_preset_summary_applied(self) -> None:
+        self.preset_summary_dirty = False
+        self.preset_summary_worker = None
+
+    def mark_advanced_settings_written(self) -> None:
+        self.advanced_settings_request_id += 1
+        self.advanced_settings_dirty = False
+        self.advanced_settings_worker = None
+
+    def next_advanced_settings_request_id(self) -> int:
+        self.advanced_settings_request_id += 1
+        return self.advanced_settings_request_id
+
+    def next_preset_summary_request_id(self) -> int:
+        self.preset_summary_request_id += 1
+        return self.preset_summary_request_id
+
+    def accept_advanced_settings_result(self, request_id: int) -> bool:
+        if int(request_id) != int(self.advanced_settings_request_id):
+            return False
+        self.mark_advanced_settings_applied()
+        return True
+
+    def accept_preset_summary_result(self, request_id: int) -> bool:
+        if int(request_id) != int(self.preset_summary_request_id):
+            return False
+        self.mark_preset_summary_applied()
+        return True
+
+
 class Zapret2DirectControlPageController(ControlPageController):
+    @staticmethod
+    def create_refresh_runtime() -> DirectControlRefreshRuntime:
+        return DirectControlRefreshRuntime()
+
     @staticmethod
     def load_advanced_settings_state() -> dict:
         try:
@@ -250,18 +304,6 @@ class Zapret2DirectControlPageController(ControlPageController):
             DirectPresetFacade.from_launch_method("direct_zapret2").set_debug_log_enabled(bool(enabled))
         except Exception:
             pass
-
-    @staticmethod
-    def load_program_settings() -> ControlProgramSettingsPlan:
-        return ControlPageController.load_program_settings()
-
-    @staticmethod
-    def save_auto_dpi(enabled: bool) -> ControlAutoDpiPlan:
-        return ControlPageController.save_auto_dpi(enabled)
-
-    @staticmethod
-    def reset_startup_cache() -> tuple[bool, str]:
-        return ControlPageController.reset_startup_cache()
 
     @staticmethod
     def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
@@ -441,10 +483,6 @@ class Zapret2DirectControlPageController(ControlPageController):
         )
 
     @staticmethod
-    def run_defender_toggle(*, disable: bool, status_callback=None) -> ControlActionResultPlan:
-        return ControlPageController.run_defender_toggle(disable=disable, status_callback=status_callback)
-
-    @staticmethod
     def build_max_block_toggle_start_plan(*, enable: bool, language: str) -> ControlToggleActionStartPlan:
         from ui.text_catalog import tr as tr_catalog
 
@@ -492,6 +530,3 @@ class Zapret2DirectControlPageController(ControlPageController):
             start_status="",
         )
 
-    @staticmethod
-    def run_max_block_toggle(*, enable: bool, status_callback=None) -> ControlActionResultPlan:
-        return ControlPageController.run_max_block_toggle(enable=enable, status_callback=status_callback)

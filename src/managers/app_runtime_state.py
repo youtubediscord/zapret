@@ -47,7 +47,6 @@ class AppRuntimeState:
         self,
         *,
         autostart_enabled: bool | None = None,
-        autostart_type: str | None = None,
     ) -> bool:
         store = self._store()
         if store is None:
@@ -56,19 +55,14 @@ class AppRuntimeState:
         changes: dict[str, object] = {}
 
         if autostart_enabled is not None:
-            enabled = bool(autostart_enabled)
-            changes["autostart_enabled"] = enabled
-            changes["autostart_type"] = str(autostart_type or "") if enabled else ""
+            changes["autostart_enabled"] = bool(autostart_enabled)
 
         if not changes:
             return False
 
         return bool(store.update(**changes))
-    def set_autostart(self, enabled: bool, autostart_type: str | None = None) -> bool:
-        return self.apply_runtime_state(
-            autostart_enabled=enabled,
-            autostart_type=autostart_type,
-        )
+    def set_autostart(self, enabled: bool) -> bool:
+        return self.apply_runtime_state(autostart_enabled=enabled)
 
     def sync_autostart_from_registry(self) -> bool:
         return self.set_autostart(self.detect_autostart_enabled())

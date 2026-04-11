@@ -54,40 +54,6 @@ def _combine_direct_source_preset(launch_method: str) -> dict:
         "_active_targets": active_targets,
     }
 
-
-def _combine_direct_orchestra_source_preset() -> dict:
-    """Собирает direct_zapret2_orchestra из active orchestra preset file."""
-    from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
-
-    if not ensure_default_preset_exists():
-        raise RuntimeError("Active orchestra preset file is not prepared")
-
-    manager = PresetManager()
-    active_path = manager.get_active_preset_path()
-    active_name = str(manager.get_active_preset_name() or "").strip() or "Default"
-    selections = manager.get_strategy_selections() or {}
-    active_targets = sum(1 for strategy_id in selections.values() if (strategy_id or "none") != "none")
-
-    log(f"combine_strategies: using active orchestra preset file: {active_path}", "DEBUG")
-
-    return {
-        "name": f"Пресет оркестра: {active_name}",
-        "description": f"Пресет оркестра: {active_name}",
-        "version": "orchestra-preset",
-        "provider": "preset_orchestra_zapret2",
-        "author": "PresetOrchestraZ2",
-        "updated": "2026",
-        "all_sites": True,
-        "args": f"@{active_path}",
-        "_is_builtin": False,
-        "_is_preset_file": True,
-        "_direct_source_preset": False,
-        "_is_v1": False,
-        "_is_orchestra": True,
-        "_active_targets": active_targets,
-    }
-
-
 def combine_strategies(**kwargs) -> dict:
     """
     Возвращает итоговую конфигурацию запуска для текущего режима.
@@ -108,10 +74,10 @@ def combine_strategies(**kwargs) -> dict:
         return _combine_direct_source_preset(launch_method)
 
     if launch_method == "direct_zapret2_orchestra":
-        return _combine_direct_orchestra_source_preset()
+        raise RuntimeError("Режим direct_zapret2_orchestra удалён и больше не поддерживается")
 
     # orchestra пока остаётся на legacy V2 builder.
-    is_orchestra = launch_method == "direct_zapret2_orchestra"
+    is_orchestra = launch_method == "orchestra"
 
     log(f"combine_strategies: using V2 (winws2.exe), orchestra={is_orchestra}", "DEBUG")
     return combine_legacy_orchestra_strategies(**kwargs)

@@ -18,8 +18,48 @@ class DpiRuntimeSnapshot:
     launch_method: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class DpiRuntimeOwnershipMap:
+    canonical_writers: tuple[str, ...]
+    canonical_readers: tuple[str, ...]
+    allowed_auxiliary_writers: tuple[str, ...]
+    single_source_of_truth: str
+
+
 class DpiRuntimeService:
     """Единственная точка записи runtime-состояния DPI."""
+
+    @staticmethod
+    def build_ownership_map() -> DpiRuntimeOwnershipMap:
+        """Явная карта владения DPI runtime state.
+
+        Здесь фиксируется канонический контракт:
+        - состояние DPI хранится только в `MainWindowStateStore`;
+        - записывать его должен только `DpiRuntimeService`;
+        - страницы direct-control и главное окно должны читать уже готовый snapshot,
+          а не собирать параллельный источник истины локально.
+        """
+
+        return DpiRuntimeOwnershipMap(
+            canonical_writers=(
+                "dpi.dpi_controller.DPIController._begin_runtime_start",
+                "dpi.dpi_controller.DPIController._mark_runtime_running",
+                "dpi.dpi_controller.DPIController._mark_runtime_failed",
+                "dpi.dpi_controller.DPIController._begin_runtime_stop",
+                "dpi.dpi_controller.DPIController._mark_runtime_stopped",
+            ),
+            canonical_readers=(
+                "main.LupiDPIApp._apply_runner_runtime_state_update",
+                "ui.pages.zapret1.direct_control_page.Zapret1DirectControlPage._get_current_dpi_runtime_state",
+                "ui.pages.zapret2.direct_control_page.Zapret2DirectControlPage._apply_runtime_state_snapshot",
+            ),
+            allowed_auxiliary_writers=(
+                "managers.initialization_manager.InitializationManager._init_process_monitor -> bootstrap_probe",
+                "managers.dpi_manager.DPIManager._mark_runtime_stopped",
+                "main.LupiDPIApp._apply_runner_runtime_state_update",
+            ),
+            single_source_of_truth="ui.main_window_state.MainWindowStateStore",
+        )
 
     def __init__(self, app_instance_or_store) -> None:
         self.app = None

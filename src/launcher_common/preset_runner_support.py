@@ -296,7 +296,7 @@ def publish_active_preset_content_changed(path: str) -> None:
 def controller_transition_in_progress(launch_method: str) -> bool:
     """Checks whether the main DPI controller is already applying a runtime transition."""
     method = str(launch_method or "").strip().lower()
-    if method not in {"direct_zapret1", "direct_zapret2", "direct_zapret2_orchestra", "orchestra"}:
+    if method not in {"direct_zapret1", "direct_zapret2", "orchestra"}:
         return False
 
     try:

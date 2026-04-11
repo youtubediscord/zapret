@@ -35,31 +35,9 @@ def get_current_strategy_set() -> Optional[str]:
         "basic"/"advanced" для direct_zapret2, "orchestra" для direct_zapret2_orchestra,
         "zapret1" для direct_zapret1 и т.д.
     """
-    try:
-        from strategy_menu.launch_method_store import get_strategy_launch_method
-        from strategy_menu.ui_prefs_store import get_direct_zapret2_ui_mode
-        method = get_strategy_launch_method()
+    from strategy_menu.strategy_set_resolver import get_current_strategy_set as _resolve_current_strategy_set
 
-        # direct_zapret2 supports an additional UI mode selector (Basic/Advanced)
-        # without changing the launch method itself.
-        if method == "direct_zapret2":
-            try:
-                ui_mode = (get_direct_zapret2_ui_mode() or "").strip().lower()
-            except Exception:
-                ui_mode = ""
-            if ui_mode in ("basic", "advanced"):
-                return ui_mode
-
-        # Маппинг метода запуска на набор стратегий
-        method_to_set = {
-            "direct_zapret2": None,           # стандартный direct набор без отдельного strategy_set
-            "direct_zapret2_orchestra": "orchestra",  # tcp_orchestra.json
-            "direct_zapret1": "zapret1",      # tcp_zapret1.json (Zapret 1 прямой режим)
-            "orchestra": None,        # Orchestra использует свой механизм
-        }
-        return method_to_set.get(method, None)
-    except Exception:
-        return None
+    return _resolve_current_strategy_set()
 
 
 def set_strategy_set(strategy_set: Optional[str]):

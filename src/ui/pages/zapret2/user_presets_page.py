@@ -3,10 +3,8 @@
 
 from __future__ import annotations
 
-import json
 import time
 import re
-from pathlib import Path
 from typing import Optional
 
 from PyQt6.QtCore import (
@@ -14,33 +12,19 @@ from PyQt6.QtCore import (
     pyqtSignal,
     QSize,
     QTimer,
-    QFileSystemWatcher,
-    QAbstractListModel,
-    QModelIndex,
-    QRect,
-    QEvent,
     QPoint,
-    QMimeData,
 )
-from PyQt6.QtGui import QAction, QColor, QPainter, QFontMetrics, QMouseEvent, QHelpEvent, QTransform, QDrag
 from PyQt6.QtWidgets import (
     QWidget,
-    QVBoxLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QLineEdit,
     QFileDialog,
     QListView,
-    QStyledItemDelegate,
-    QStyleOptionViewItem,
-    QStyle,
-    QToolTip,
     QSizePolicy,
-    QApplication,
     QFrame,
 )
-from PyQt6.QtGui import QCursor
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
@@ -53,7 +37,6 @@ from ui.pages.direct_user_presets_page_controller import (
     DirectUserPresetsPageControllerConfig,
 )
 from ui.compat_widgets import (
-    ActionButton,
     PrimaryActionButton,
     SettingsCard,
     LineEdit,
@@ -544,8 +527,7 @@ class BaseZapret2UserPresetsPage(BasePage):
     def _get_hierarchy_store(self) -> PresetHierarchyStore:
         return self._storage_api().get_hierarchy_store()
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
         self._rebuild_breadcrumb()
         self._apply_mode_labels()
         self._resync_layout_metrics()

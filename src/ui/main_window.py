@@ -5,10 +5,9 @@
 Все страницы добавляются через addSubInterface() вместо ручного SideNavBar + QStackedWidget.
 Бизнес-логика (сигналы, обработчики) сохранена без изменений.
 """
-from PyQt6.QtCore import QTimer, QCoreApplication, QEventLoop, pyqtSignal, Qt, QModelIndex
+from PyQt6.QtCore import QTimer, QCoreApplication, QEventLoop, pyqtSignal, QModelIndex
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLineEdit, QCompleter
-from PyQt6.QtGui import QStandardItemModel, QStandardItem
-from importlib import import_module
+from PyQt6.QtGui import QStandardItemModel
 from typing import Any, cast
 
 
@@ -27,16 +26,10 @@ except ImportError:
     FluentIcon = cast(Any, None)
     SearchLineEdit = QLineEdit
 
-from ui.page_names import PageName, SectionName
+from ui.page_names import PageName
 from ui.page_registry import PAGE_CLASS_SPECS
 from ui.router import get_page_route_key, resolve_strategy_detail_back_page_for_method, resolve_strategy_page_for_method
-from ui.text_catalog import (
-    find_search_entries,
-    format_search_result,
-    get_nav_page_label,
-    normalize_language,
-    tr as tr_catalog,
-)
+from ui.text_catalog import tr as tr_catalog
 from ui.main_window_navigation import (
     open_zapret1_strategy_detail,
     open_zapret1_preset_detail,
@@ -137,9 +130,6 @@ _NAV_ICONS = {
     PageName.ORCHESTRA: FluentIcon.MUSIC if HAS_FLUENT else None,
     PageName.ORCHESTRA_SETTINGS: FluentIcon.SETTING if HAS_FLUENT else None,
     PageName.ZAPRET2_DIRECT: FluentIcon.PLAY if HAS_FLUENT else None,
-    PageName.ZAPRET2_ORCHESTRA: FluentIcon.ROBOT if HAS_FLUENT else None,
-    PageName.ZAPRET2_ORCHESTRA_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
-    PageName.ZAPRET2_ORCHESTRA_USER_PRESETS: FluentIcon.FOLDER if HAS_FLUENT else None,
     PageName.ZAPRET1_DIRECT_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
     PageName.ZAPRET1_DIRECT: FluentIcon.PLAY if HAS_FLUENT else None,
     PageName.ZAPRET1_USER_PRESETS: FluentIcon.FOLDER if HAS_FLUENT else None,
@@ -170,9 +160,6 @@ _NAV_LABELS = {
     PageName.ORCHESTRA: "Оркестратор",
     PageName.ORCHESTRA_SETTINGS: "Настройки оркестратора",
     PageName.ZAPRET2_DIRECT: "Прямой запуск",
-    PageName.ZAPRET2_ORCHESTRA: "Прямой запуск",
-    PageName.ZAPRET2_ORCHESTRA_CONTROL: "Управление оркестр. Zapret 2",
-    PageName.ZAPRET2_ORCHESTRA_USER_PRESETS: "Мои пресеты",
     PageName.ZAPRET1_DIRECT_CONTROL: "Управление Zapret 1",
     PageName.ZAPRET1_DIRECT: "Стратегии Z1",
     PageName.ZAPRET1_USER_PRESETS: "Мои пресеты Z1",

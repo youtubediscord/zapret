@@ -3,7 +3,6 @@
 
 Используется в:
 - strategy_menu/strategy_runner.py
-- autostart/autostart_direct.py
 - ui/pages/strategies_page.py
 """
 

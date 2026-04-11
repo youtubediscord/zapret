@@ -10,22 +10,6 @@ def get_direct_strategy_summary(window, max_items: int = 2) -> str:
         from core.presets.direct_facade import DirectPresetFacade
 
         method = (get_strategy_launch_method() or "").strip().lower()
-        if method == "direct_zapret2_orchestra":
-            from preset_orchestra_zapret2 import PresetManager
-
-            selections = PresetManager().get_strategy_selections() or {}
-            active_names = [
-                str(target_key or "").strip()
-                for target_key, strategy_id in selections.items()
-                if str(target_key or "").strip() and (strategy_id or "none") != "none"
-            ]
-
-            if not active_names:
-                return "Не выбрана"
-            if len(active_names) <= max_items:
-                return " • ".join(active_names)
-            return " • ".join(active_names[:max_items]) + f" +{len(active_names) - max_items} ещё"
-
         if method not in ("direct_zapret1", "direct_zapret2"):
             return "Прямой запуск"
 

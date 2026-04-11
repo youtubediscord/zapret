@@ -3,7 +3,7 @@
 
 import sys
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QColor
 import qtawesome as qta
@@ -119,6 +119,8 @@ class AppearancePage(BasePage):
         self._performance_card = None
         self._performance_section_title = None
         self._performance_group = None
+        self._ui_sync_depth = 0
+        self._background_refresh_queued = False
         self._build_ui()
         is_premium, garland_enabled, snowflakes_enabled, window_opacity = self._current_appearance_state()
         try:
@@ -161,6 +163,73 @@ class AppearancePage(BasePage):
         self.set_garland_state(state.garland_enabled)
         self.set_snowflakes_state(state.snowflakes_enabled)
         self.set_opacity_value(state.window_opacity)
+
+    def _begin_ui_sync(self) -> None:
+        self._ui_sync_depth += 1
+
+    def _end_ui_sync(self) -> None:
+        if self._ui_sync_depth > 0:
+            self._ui_sync_depth -= 1
+
+    def _is_ui_syncing(self) -> bool:
+        return self._ui_sync_depth > 0
+
+    def _set_checked_silently(self, widget, value: bool) -> None:
+        if widget is None:
+            return
+        try:
+            widget.setChecked(bool(value), block_signals=True)
+            return
+        except TypeError:
+            pass
+        widget.blockSignals(True)
+        try:
+            widget.setChecked(bool(value))
+        finally:
+            widget.blockSignals(False)
+
+    def _set_current_index_silently(self, widget, index: int) -> None:
+        if widget is None:
+            return
+        widget.blockSignals(True)
+        try:
+            widget.setCurrentIndex(int(index))
+        finally:
+            widget.blockSignals(False)
+
+    def _set_current_item_silently(self, widget, item) -> None:
+        if widget is None:
+            return
+        widget.blockSignals(True)
+        try:
+            widget.setCurrentItem(item)
+        finally:
+            widget.blockSignals(False)
+
+    def _set_slider_value_silently(self, widget, value: int) -> None:
+        if widget is None:
+            return
+        widget.blockSignals(True)
+        try:
+            widget.setValue(int(value))
+        finally:
+            widget.blockSignals(False)
+
+    def _schedule_background_refresh(self) -> None:
+        if self._background_refresh_queued:
+            return
+        self._background_refresh_queued = True
+        QTimer.singleShot(0, self._flush_background_refresh)
+
+    def _flush_background_refresh(self) -> None:
+        self._background_refresh_queued = False
+        self.background_refresh_needed.emit()
+
+    def _emit_accent_update(self, hex_color: str | None = None, *, refresh_background: bool = False) -> None:
+        if hex_color:
+            self.accent_color_changed.emit(hex_color)
+        if refresh_background:
+            self._schedule_background_refresh()
 
     def _build_ui(self):
         # ═══════════════════════════════════════════════════════════
@@ -766,25 +835,29 @@ class AppearancePage(BasePage):
         """Load saved display mode from registry."""
         mode = AppearancePageController.load_display_mode()
         if self._display_mode_seg is not None:
-            self._display_mode_seg.blockSignals(True)
+            self._begin_ui_sync()
             try:
-                self._display_mode_seg.setCurrentItem(mode)
+                self._set_current_item_silently(self._display_mode_seg, mode)
             except Exception:
                 pass
-            self._display_mode_seg.blockSignals(False)
+            finally:
+                self._end_ui_sync()
 
     def _on_display_mode_changed(self, mode: str):
         """Handle display mode toggle."""
+        if self._is_ui_syncing():
+            return
         plan = AppearancePageController.save_display_mode(mode)
         effective_mode = plan.effective_mode
 
         if self._display_mode_seg is not None and effective_mode != mode:
-            self._display_mode_seg.blockSignals(True)
+            self._begin_ui_sync()
             try:
-                self._display_mode_seg.setCurrentItem(effective_mode)
+                self._set_current_item_silently(self._display_mode_seg, effective_mode)
             except Exception:
                 pass
-            self._display_mode_seg.blockSignals(False)
+            finally:
+                self._end_ui_sync()
 
         try:
             from qfluentwidgets import setTheme, Theme
@@ -823,13 +896,16 @@ class AppearancePage(BasePage):
             index = 0
 
         try:
-            self._language_combo.blockSignals(True)
-            self._language_combo.setCurrentIndex(index)
-            self._language_combo.blockSignals(False)
+            self._begin_ui_sync()
+            self._set_current_index_silently(self._language_combo, index)
         except Exception:
             pass
+        finally:
+            self._end_ui_sync()
 
     def _on_ui_language_changed(self, index: int) -> None:
+        if self._is_ui_syncing():
+            return
         if self._language_combo is None:
             return
 
@@ -872,11 +948,12 @@ class AppearancePage(BasePage):
                 normalized = normalize_language(language)
                 idx = self._language_combo.findData(normalized)
                 if idx >= 0:
-                    self._language_combo.blockSignals(True)
-                    self._language_combo.setCurrentIndex(idx)
-                    self._language_combo.blockSignals(False)
+                    self._begin_ui_sync()
+                    self._set_current_index_silently(self._language_combo, idx)
             except Exception:
                 pass
+            finally:
+                self._end_ui_sync()
 
         try:
             title_label = getattr(getattr(self, "_accent_group", None), "titleLabel", None)
@@ -992,9 +1069,7 @@ class AppearancePage(BasePage):
             (self._bg_radio_rkn_chan, "rkn_chan"),
         ]:
             if radio is not None:
-                radio.blockSignals(True)
-                radio.setChecked(key == preset)
-                radio.blockSignals(False)
+                self._set_checked_silently(radio, key == preset)
         self._update_rkn_background_control_state()
         self._update_display_mode_section_state(preset)
 
@@ -1028,38 +1103,41 @@ class AppearancePage(BasePage):
 
         options = get_rkn_background_options()
 
+        self._begin_ui_sync()
         self._rkn_background_combo.blockSignals(True)
         try:
-            self._rkn_background_combo.clear()
-        except Exception:
-            pass
+            try:
+                self._rkn_background_combo.clear()
+            except Exception:
+                pass
 
-        if options:
-            for rel_path, label in options:
-                self._rkn_background_combo.addItem(label, userData=rel_path)
+            if options:
+                for rel_path, label in options:
+                    self._rkn_background_combo.addItem(label, userData=rel_path)
 
-            selected = str(saved_value or "").strip().replace("\\", "/")
-            index = -1
-            if selected:
-                try:
-                    index = self._rkn_background_combo.findData(selected)
-                except Exception:
-                    index = -1
-            if index < 0:
-                index = 0
-            self._rkn_background_combo.setCurrentIndex(index)
+                selected = str(saved_value or "").strip().replace("\\", "/")
+                index = -1
+                if selected:
+                    try:
+                        index = self._rkn_background_combo.findData(selected)
+                    except Exception:
+                        index = -1
+                if index < 0:
+                    index = 0
+                self._rkn_background_combo.setCurrentIndex(index)
 
-            selected_rel = self._rkn_background_combo.itemData(index)
-            if isinstance(selected_rel, str) and selected_rel:
-                AppearancePageController.save_rkn_background(selected_rel)
-        else:
-            self._rkn_background_combo.addItem(
-                tr_catalog("page.appearance.background.rkn.none", language=self._ui_language, default="Фоны не найдены"),
-                userData="",
-            )
-            self._rkn_background_combo.setCurrentIndex(0)
-
-        self._rkn_background_combo.blockSignals(False)
+                selected_rel = self._rkn_background_combo.itemData(index)
+                if isinstance(selected_rel, str) and selected_rel:
+                    AppearancePageController.save_rkn_background(selected_rel)
+            else:
+                self._rkn_background_combo.addItem(
+                    tr_catalog("page.appearance.background.rkn.none", language=self._ui_language, default="Фоны не найдены"),
+                    userData="",
+                )
+                self._rkn_background_combo.setCurrentIndex(0)
+        finally:
+            self._rkn_background_combo.blockSignals(False)
+            self._end_ui_sync()
         self._update_rkn_background_control_state()
 
     def _update_rkn_background_control_state(self):
@@ -1077,6 +1155,8 @@ class AppearancePage(BasePage):
         self._rkn_background_combo.setEnabled(bool(is_premium and is_rkn_selected and has_options))
 
     def _on_rkn_background_changed(self, index: int):
+        if self._is_ui_syncing():
+            return
         if self._rkn_background_combo is None or index < 0:
             return
 
@@ -1091,10 +1171,12 @@ class AppearancePage(BasePage):
         AppearancePageController.save_rkn_background(selected_rel)
 
         if self._bg_radio_rkn_chan is not None and self._bg_radio_rkn_chan.isChecked():
-            self.background_refresh_needed.emit()
+            self._schedule_background_refresh()
 
     def _on_bg_preset_toggled(self, preset: str, checked: bool):
         """Handle background preset RadioButton toggle."""
+        if self._is_ui_syncing():
+            return
         if not checked:
             return
         plan = AppearancePageController.save_background_preset(preset)
@@ -1105,12 +1187,13 @@ class AppearancePage(BasePage):
         if preset in ("amoled", "rkn_chan"):
             self._on_display_mode_changed("dark")
             if self._display_mode_seg is not None:
-                self._display_mode_seg.blockSignals(True)
+                self._begin_ui_sync()
                 try:
-                    self._display_mode_seg.setCurrentItem("dark")
+                    self._set_current_item_silently(self._display_mode_seg, "dark")
                 except Exception:
                     pass
-                self._display_mode_seg.blockSignals(False)
+                finally:
+                    self._end_ui_sync()
         if preset == "rkn_chan":
             self._reload_rkn_background_options()
         self._update_rkn_background_control_state()
@@ -1119,14 +1202,14 @@ class AppearancePage(BasePage):
 
     def _on_mica_changed(self, checked: bool):
         """Handle Mica SwitchButton toggle."""
+        if self._is_ui_syncing():
+            return
         self.mica_changed.emit(checked)
 
     def set_mica_state(self, enabled: bool):
         """Set Mica SwitchButton state without triggering signal."""
         if self._mica_switch:
-            self._mica_switch.blockSignals(True)
-            self._mica_switch.setChecked(enabled)
-            self._mica_switch.blockSignals(False)
+            self._set_checked_silently(self._mica_switch, enabled)
 
     def _load_mica_state(self):
         """Load Mica state from registry."""
@@ -1146,6 +1229,8 @@ class AppearancePage(BasePage):
 
     def _on_opacity_changed(self, value: int):
         """Обработчик изменения прозрачности окна"""
+        if self._is_ui_syncing():
+            return
         # Обновляем лейбл
         if self._opacity_label:
             self._opacity_label.setText(f"{value}%")
@@ -1160,18 +1245,24 @@ class AppearancePage(BasePage):
 
     def _on_snowflakes_changed(self, state):
         """Обработчик изменения состояния снежинок"""
+        if self._is_ui_syncing():
+            return
         enabled = state == Qt.CheckState.Checked.value
         plan = AppearancePageController.save_snowflakes_enabled(enabled)
         self.snowflakes_changed.emit(plan.enabled)
 
     def _on_garland_changed(self, state):
         """Обработчик изменения состояния гирлянды"""
+        if self._is_ui_syncing():
+            return
         enabled = state == Qt.CheckState.Checked.value
         plan = AppearancePageController.save_garland_enabled(enabled)
         self.garland_changed.emit(plan.enabled)
 
     def _on_accent_color_changed(self, color: QColor):
         """Обработчик изменения акцентного цвета через ColorPickerButton."""
+        if self._is_ui_syncing():
+            return
         if not _HAS_COLOR_PICKER:
             return
         try:
@@ -1180,12 +1271,11 @@ class AppearancePage(BasePage):
             pass
         hex_color = color.name()
         plan = AppearancePageController.save_accent_color(hex_color)
-        if plan.hex_color:
-            self.accent_color_changed.emit(plan.hex_color)
-        # If tinted bg is active, trigger window background refresh
         tinted_plan = AppearancePageController.load_tinted_settings()
-        if tinted_plan.tinted_background:
-            self.background_refresh_needed.emit()
+        self._emit_accent_update(
+            plan.hex_color,
+            refresh_background=bool(tinted_plan.tinted_background),
+        )
 
     def _refresh_accent_icons(self, tokens=None):
         """Обновляет иконки страницы при смене акцентного цвета."""
@@ -1210,25 +1300,13 @@ class AppearancePage(BasePage):
         plan = AppearancePageController.load_tinted_settings()
 
         if self._follow_windows_accent_cb is not None:
-            try:
-                self._follow_windows_accent_cb.setChecked(plan.follow_windows_accent, block_signals=True)
-            except TypeError:
-                self._follow_windows_accent_cb.blockSignals(True)
-                self._follow_windows_accent_cb.setChecked(plan.follow_windows_accent)
-                self._follow_windows_accent_cb.blockSignals(False)
+            self._set_checked_silently(self._follow_windows_accent_cb, plan.follow_windows_accent)
 
         if self._tinted_bg_cb is not None:
-            try:
-                self._tinted_bg_cb.setChecked(plan.tinted_background, block_signals=True)
-            except TypeError:
-                self._tinted_bg_cb.blockSignals(True)
-                self._tinted_bg_cb.setChecked(plan.tinted_background)
-                self._tinted_bg_cb.blockSignals(False)
+            self._set_checked_silently(self._tinted_bg_cb, plan.tinted_background)
 
         if self._tinted_intensity_slider is not None:
-            self._tinted_intensity_slider.blockSignals(True)
-            self._tinted_intensity_slider.setValue(plan.tinted_intensity)
-            self._tinted_intensity_slider.blockSignals(False)
+            self._set_slider_value_silently(self._tinted_intensity_slider, plan.tinted_intensity)
 
         if self._tinted_intensity_value_label is not None:
             self._tinted_intensity_value_label.setText(str(plan.tinted_intensity))
@@ -1243,6 +1321,8 @@ class AppearancePage(BasePage):
 
     def _on_follow_windows_accent_changed(self, state):
         """Обработчик переключения 'Акцент из Windows'."""
+        if self._is_ui_syncing():
+            return
         enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
         plan = AppearancePageController.save_follow_windows_accent(enabled)
         if plan.enabled:
@@ -1261,29 +1341,36 @@ class AppearancePage(BasePage):
             if hex_color:
                 color = QColor(hex_color)
                 if color.isValid():
-                    setThemeColor(color)
-                    AppearancePageController.save_accent_color(hex_color)
-                    if self._color_picker_btn is not None:
-                        self._color_picker_btn.setColor(color)
-                    self.accent_color_changed.emit(hex_color)
-                    self.background_refresh_needed.emit()
+                    self._begin_ui_sync()
+                    try:
+                        setThemeColor(color)
+                        AppearancePageController.save_accent_color(hex_color)
+                        if self._color_picker_btn is not None:
+                            self._color_picker_btn.setColor(color)
+                    finally:
+                        self._end_ui_sync()
+                    self._emit_accent_update(hex_color, refresh_background=True)
         except Exception:
             pass
 
     def _on_tinted_bg_changed(self, state):
         """Обработчик переключения 'Тонировать фон'."""
+        if self._is_ui_syncing():
+            return
         enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
         plan = AppearancePageController.save_tinted_background(enabled)
         if self._tinted_intensity_container is not None:
             self._tinted_intensity_container.setVisible(plan.enabled)
-        self.background_refresh_needed.emit()
+        self._schedule_background_refresh()
 
     def _on_tinted_intensity_changed(self, value: int):
         """Обработчик изменения интенсивности тонировки."""
+        if self._is_ui_syncing():
+            return
         plan = AppearancePageController.save_tinted_background_intensity(value)
         if self._tinted_intensity_value_label is not None:
             self._tinted_intensity_value_label.setText(str(plan.value))
-        self.background_refresh_needed.emit()
+        self._schedule_background_refresh()
 
     def _load_accent_color(self):
         """Загружает сохранённый акцентный цвет и применяет его."""
@@ -1294,8 +1381,12 @@ class AppearancePage(BasePage):
         if hex_color:
             color = QColor(hex_color)
             if color.isValid():
-                self._color_picker_btn.setColor(color)
-                setThemeColor(color)
+                self._begin_ui_sync()
+                try:
+                    self._color_picker_btn.setColor(color)
+                    setThemeColor(color)
+                finally:
+                    self._end_ui_sync()
 
     def set_current_theme(self, theme_name: str):
         """No-op: theme selection removed. Kept for backward compatibility."""
@@ -1334,15 +1425,11 @@ class AppearancePage(BasePage):
 
         if self._garland_checkbox:
             self._garland_checkbox.setEnabled(is_premium)
-            self._garland_checkbox.blockSignals(True)
-            self._garland_checkbox.setChecked(premium_plan.garland_checked)
-            self._garland_checkbox.blockSignals(False)
+            self._set_checked_silently(self._garland_checkbox, premium_plan.garland_checked)
 
         if self._snowflakes_checkbox:
             self._snowflakes_checkbox.setEnabled(is_premium)
-            self._snowflakes_checkbox.blockSignals(True)
-            self._snowflakes_checkbox.setChecked(premium_plan.snowflakes_checked)
-            self._snowflakes_checkbox.blockSignals(False)
+            self._set_checked_silently(self._snowflakes_checkbox, premium_plan.snowflakes_checked)
 
         if premium_plan.disable_garland:
             plan = AppearancePageController.save_garland_enabled(False)
@@ -1357,23 +1444,17 @@ class AppearancePage(BasePage):
     def set_garland_state(self, enabled: bool):
         """Устанавливает состояние чекбокса гирлянды (без эмита сигнала)"""
         if self._garland_checkbox:
-            self._garland_checkbox.blockSignals(True)
-            self._garland_checkbox.setChecked(enabled)
-            self._garland_checkbox.blockSignals(False)
+            self._set_checked_silently(self._garland_checkbox, enabled)
 
     def set_snowflakes_state(self, enabled: bool):
         """Устанавливает состояние чекбокса снежинок (без эмита сигнала)"""
         if self._snowflakes_checkbox:
-            self._snowflakes_checkbox.blockSignals(True)
-            self._snowflakes_checkbox.setChecked(enabled)
-            self._snowflakes_checkbox.blockSignals(False)
+            self._set_checked_silently(self._snowflakes_checkbox, enabled)
 
     def set_opacity_value(self, value: int):
         """Устанавливает значение слайдера прозрачности (без эмита сигнала)"""
         if self._opacity_slider:
-            self._opacity_slider.blockSignals(True)
-            self._opacity_slider.setValue(value)
-            self._opacity_slider.blockSignals(False)
+            self._set_slider_value_silently(self._opacity_slider, value)
         if self._opacity_label:
             self._opacity_label.setText(f"{value}%")
 
@@ -1398,6 +1479,8 @@ class AppearancePage(BasePage):
 
     def _on_animations_changed(self, enabled: bool):
         """Handle animations SwitchButton toggle."""
+        if self._is_ui_syncing():
+            return
         plan = AppearancePageController.save_animations_enabled(enabled)
         self.animations_changed.emit(plan.enabled)
         self._sync_performance_dependencies(plan.enabled)
@@ -1407,11 +1490,15 @@ class AppearancePage(BasePage):
 
     def _on_smooth_scroll_changed(self, enabled: bool):
         """Handle smooth scroll SwitchButton toggle."""
+        if self._is_ui_syncing():
+            return
         plan = AppearancePageController.save_smooth_scroll_enabled(enabled)
         self.smooth_scroll_changed.emit(plan.enabled)
 
     def _on_editor_smooth_scroll_changed(self, enabled: bool):
         """Handle editor smooth scroll toggle."""
+        if self._is_ui_syncing():
+            return
         plan = AppearancePageController.save_editor_smooth_scroll_enabled(enabled)
         self.editor_smooth_scroll_changed.emit(plan.enabled)
 
@@ -1426,24 +1513,9 @@ class AppearancePage(BasePage):
         smooth_plan = AppearancePageController.load_smooth_scroll_enabled()
         editor_plan = AppearancePageController.load_editor_smooth_scroll_enabled()
         if self._animations_switch is not None:
-            try:
-                self._animations_switch.setChecked(anim_plan.enabled, block_signals=True)
-            except TypeError:
-                self._animations_switch.blockSignals(True)
-                self._animations_switch.setChecked(anim_plan.enabled)
-                self._animations_switch.blockSignals(False)
+            self._set_checked_silently(self._animations_switch, anim_plan.enabled)
         if self._smooth_scroll_switch is not None:
-            try:
-                self._smooth_scroll_switch.setChecked(smooth_plan.enabled, block_signals=True)
-            except TypeError:
-                self._smooth_scroll_switch.blockSignals(True)
-                self._smooth_scroll_switch.setChecked(smooth_plan.enabled)
-                self._smooth_scroll_switch.blockSignals(False)
+            self._set_checked_silently(self._smooth_scroll_switch, smooth_plan.enabled)
         if self._editor_smooth_scroll_switch is not None:
-            try:
-                self._editor_smooth_scroll_switch.setChecked(editor_plan.enabled, block_signals=True)
-            except TypeError:
-                self._editor_smooth_scroll_switch.blockSignals(True)
-                self._editor_smooth_scroll_switch.setChecked(editor_plan.enabled)
-                self._editor_smooth_scroll_switch.blockSignals(False)
+            self._set_checked_silently(self._editor_smooth_scroll_switch, editor_plan.enabled)
         self._sync_performance_dependencies(anim_plan.enabled)

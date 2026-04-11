@@ -15,14 +15,6 @@ def connect_main_window_page_signals(window) -> None:
         pass
 
     try:
-        from preset_orchestra_zapret2.preset_store import get_preset_store
-
-        orchestra_store = get_preset_store()
-        orchestra_store.preset_switched.connect(window._preset_runtime_coordinator.handle_preset_switched)
-    except Exception:
-        pass
-
-    try:
         from core.services import get_preset_store_v1
         store_v1 = get_preset_store_v1()
         store_v1.preset_switched.connect(window._preset_runtime_coordinator.handle_preset_switched)

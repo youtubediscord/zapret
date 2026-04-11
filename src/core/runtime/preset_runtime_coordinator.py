@@ -162,10 +162,6 @@ def resolve_active_preset_watch_path() -> str:
         method = ""
 
     try:
-        if method == "direct_zapret2_orchestra":
-            from preset_orchestra_zapret2 import get_active_preset_path
-
-            return os.fspath(get_active_preset_path())
         if method == "direct_zapret2":
             from core.services import get_direct_flow_coordinator
 

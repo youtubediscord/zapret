@@ -384,7 +384,7 @@ class PremiumPage(BasePage):
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
-    def on_page_activated(self, first_show: bool) -> None:
+    def on_page_activated(self) -> None:
         self._sync_pairing_status_autopoll()
 
     def on_page_hidden(self) -> None:

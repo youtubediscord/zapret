@@ -6,7 +6,6 @@ from typing import Iterable
 from ui.navigation_targets import (
     Z1NavigationPages,
     Z2NavigationPages,
-    get_zapret2_navigation_variants,
     get_zapret2_strategy_detail_pages,
     resolve_control_page_for_method,
     resolve_preset_detail_back_page_for_method,
@@ -36,7 +35,6 @@ class PageRouteSpec:
 
 _COMMON = ()
 _Z2_DIRECT = ("direct_zapret2",)
-_Z2_ORCHESTRA = ("direct_zapret2_orchestra",)
 _Z1_DIRECT = ("direct_zapret1",)
 _ORCHESTRA = ("orchestra",)
 
@@ -100,66 +98,6 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         is_hidden=True,
         launch_modes=_Z2_DIRECT,
         breadcrumb_parent=PageName.ZAPRET2_USER_PRESETS,
-        sidebar_group=None,
-    ),
-    PageName.ZAPRET2_ORCHESTRA: PageRouteSpec(
-        page_name=PageName.ZAPRET2_ORCHESTRA,
-        attr_name="zapret2_orchestra_strategies_page",
-        module_name="ui.pages.zapret2_orchestra_strategies_page",
-        class_name="Zapret2OrchestraStrategiesPage",
-        route_key="Zapret2OrchestraStrategiesPage",
-        is_top_level=False,
-        is_hidden=True,
-        launch_modes=_Z2_ORCHESTRA,
-        breadcrumb_parent=PageName.ZAPRET2_ORCHESTRA_CONTROL,
-        sidebar_group=None,
-    ),
-    PageName.ZAPRET2_ORCHESTRA_CONTROL: PageRouteSpec(
-        page_name=PageName.ZAPRET2_ORCHESTRA_CONTROL,
-        attr_name="orchestra_zapret2_control_page",
-        module_name="ui.pages.orchestra_zapret2.direct_control_page",
-        class_name="OrchestraZapret2DirectControlPage",
-        route_key="OrchestraZapret2DirectControlPage",
-        is_top_level=True,
-        is_hidden=False,
-        launch_modes=_Z2_ORCHESTRA,
-        breadcrumb_parent=None,
-        sidebar_group="root",
-    ),
-    PageName.ZAPRET2_ORCHESTRA_USER_PRESETS: PageRouteSpec(
-        page_name=PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
-        attr_name="orchestra_zapret2_user_presets_page",
-        module_name="ui.pages.orchestra_zapret2.user_presets_page",
-        class_name="OrchestraZapret2UserPresetsPage",
-        route_key="Zapret2UserPresetsPage_Orchestra",
-        is_top_level=False,
-        is_hidden=True,
-        launch_modes=_Z2_ORCHESTRA,
-        breadcrumb_parent=PageName.ZAPRET2_ORCHESTRA_CONTROL,
-        sidebar_group=None,
-    ),
-    PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL: PageRouteSpec(
-        page_name=PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
-        attr_name="orchestra_strategy_detail_page",
-        module_name="ui.pages.orchestra_zapret2.strategy_detail_page",
-        class_name="OrchestraZapret2StrategyDetailPage",
-        route_key="OrchestraZapret2StrategyDetailPage",
-        is_top_level=False,
-        is_hidden=True,
-        launch_modes=_Z2_ORCHESTRA,
-        breadcrumb_parent=PageName.ZAPRET2_ORCHESTRA,
-        sidebar_group=None,
-    ),
-    PageName.ZAPRET2_ORCHESTRA_PRESET_DETAIL: PageRouteSpec(
-        page_name=PageName.ZAPRET2_ORCHESTRA_PRESET_DETAIL,
-        attr_name="orchestra_zapret2_preset_detail_page",
-        module_name="ui.pages.orchestra_zapret2.preset_detail_page",
-        class_name="OrchestraZapret2PresetDetailPage",
-        route_key="OrchestraZapret2PresetDetailPage",
-        is_top_level=False,
-        is_hidden=True,
-        launch_modes=_Z2_ORCHESTRA,
-        breadcrumb_parent=PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
         sidebar_group=None,
     ),
     PageName.ZAPRET1_DIRECT_CONTROL: PageRouteSpec(
@@ -469,7 +407,6 @@ SIDEBAR_GROUP_ORDER: tuple[str, ...] = ("root", "settings", "system", "diagnosti
 
 MODE_ENTRY_PAGES: dict[str, PageName] = {
     "direct_zapret2": PageName.ZAPRET2_DIRECT_CONTROL,
-    "direct_zapret2_orchestra": PageName.ZAPRET2_ORCHESTRA_CONTROL,
     "direct_zapret1": PageName.ZAPRET1_DIRECT_CONTROL,
     "orchestra": PageName.ORCHESTRA,
 }
@@ -501,7 +438,6 @@ def _is_sidebar_visible_in_method(spec: PageRouteSpec, method: str | None) -> bo
     if spec.page_name == PageName.CONTROL:
         return normalized_method not in {
             "direct_zapret2",
-            "direct_zapret2_orchestra",
             "direct_zapret1",
             "orchestra",
         }

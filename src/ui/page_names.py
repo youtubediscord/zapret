@@ -27,11 +27,6 @@ class PageName(Enum):
     CONTROL = auto()                 # Управление DPI
     ZAPRET2_DIRECT_CONTROL = auto()  # Zapret 2 Direct: управление (главная вкладка в "Стратегии")
     ZAPRET2_DIRECT = auto()          # Zapret 2 Direct стратегии
-    ZAPRET2_ORCHESTRA = auto()       # Zapret 2 Orchestra (direct_zapret2_orchestra режим)
-    ZAPRET2_ORCHESTRA_CONTROL = auto()  # Zapret 2 Orchestra: управление
-    ZAPRET2_ORCHESTRA_USER_PRESETS = auto()  # Zapret 2 Orchestra: пользовательские пресеты
-    ZAPRET2_ORCHESTRA_STRATEGY_DETAIL = auto()  # Zapret 2 Orchestra: детали стратегии
-    ZAPRET2_ORCHESTRA_PRESET_DETAIL = auto()  # Zapret 2 Orchestra: подстраница пресета
     ZAPRET1_DIRECT_CONTROL = auto()  # Zapret 1 Direct: управление (главная вкладка)
     ZAPRET1_DIRECT = auto()          # Zapret 1 Direct стратегии
     ZAPRET1_USER_PRESETS = auto()    # Zapret 1 Direct: пользовательские пресеты
@@ -53,20 +48,15 @@ class PageName(Enum):
     # === Настройки системы ===
     AUTOSTART = auto()               # Автозапуск
     NETWORK = auto()                 # Сеть
-    CONNECTION_TEST = auto()         # Диагностика соединения
     DNS_CHECK = auto()               # DNS подмена
     HOSTS = auto()                   # Разблокировка сервисов
     BLOCKCHECK = auto()              # BlockCheck
-    DIAGNOSTICS_TAB = auto()         # Объединённая страница диагностики (вкладки)
     APPEARANCE = auto()              # Оформление
     PREMIUM = auto()                 # Донат/Premium
     LOGS = auto()                    # Логи
     SERVERS = auto()                 # Серверы обновлений
     ABOUT = auto()                   # О программе
     SUPPORT = auto()                 # Поддержка (GitHub Discussions и каналы сообщества)
-
-    # === Сканер стратегий ===
-    STRATEGY_SCAN = auto()           # Legacy id: standalone route removed, now embedded in BlockCheck tabs
 
     # === Telegram Proxy ===
     TELEGRAM_PROXY = auto()          # Telegram WebSocket Proxy
@@ -197,11 +187,6 @@ STRATEGY_PAGES: set[PageName] = {
     PageName.ZAPRET2_DIRECT,
     PageName.ZAPRET2_USER_PRESETS,
     PageName.ZAPRET2_STRATEGY_DETAIL,
-    PageName.ZAPRET2_ORCHESTRA_CONTROL,
-    PageName.ZAPRET2_ORCHESTRA,
-    PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
-    PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
-    PageName.ZAPRET2_ORCHESTRA_PRESET_DETAIL,
     PageName.ZAPRET2_PRESET_DETAIL,
 
     PageName.ZAPRET1_DIRECT_CONTROL,

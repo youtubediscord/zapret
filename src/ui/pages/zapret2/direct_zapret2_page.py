@@ -17,7 +17,7 @@ from core.runtime.direct_ui_snapshot_service import DirectBasicUiSnapshotWorker
 from ui.pages.base_page import BasePage
 from ui.compat_widgets import QuickActionsBar, RefreshButton
 from ui.main_window_state import AppUiState, MainWindowStateStore
-from ui.widgets import PresetTargetsList
+from ui.widgets.preset_targets_list import PresetTargetsList
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
 from log import log
@@ -156,9 +156,8 @@ class Zapret2StrategiesPageNew(BasePage):
         if key == "control":
             self.back_clicked.emit()
 
-    def on_page_activated(self, first_show: bool) -> None:
+    def on_page_activated(self) -> None:
         """При активации страницы загружаем/обновляем контент."""
-        _ = first_show
         self._rebuild_breadcrumb()  # Fix state if user navigated away via breadcrumb
 
         if self._built and self._preset_refresh_pending:

@@ -7,7 +7,6 @@ from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
 from utils import run_hidden, get_system32_path, get_syswow64_path, get_system_exe  # Импортируем нашу обертку для subprocess
 from config import LOGS_FOLDER  # Добавляем импорт
-from strategy_checker import StrategyChecker  # Добавляем импорт
 from dns_checker import DNSChecker
 
 class ConnectionTestWorker(QObject):
@@ -574,110 +573,10 @@ class ConnectionTestWorker(QObject):
                 self.log_message("❌ Процесс winws.exe НЕ запущен")
                 self.log_message("   Zapret не работает!")
 
-            # ДОБАВЛЯЕМ проверку выбранной стратегии
-            self.check_current_strategy()
-                
         except Exception as e:
             self.log_message(f"❌ Ошибка проверки Zapret: {e}")
             
         self.log_message("")
-
-    def check_current_strategy(self):
-        """Проверяет и выводит информацию о текущей выбранной стратегии"""
-        try:
-            # Используем новый StrategyChecker
-            checker = StrategyChecker()
-            strategy_info = checker.check_current_strategy()
-            
-            # Форматируем и выводим информацию
-            info_lines = checker.format_strategy_info(strategy_info)
-            for line in info_lines:
-                self.log_message(line)
-            
-            # Дополнительно проверяем настройки автозапуска
-            self._check_autostart_settings()
-            
-        except Exception as e:
-            self.log_message(f"❌ Ошибка при проверке стратегии: {e}")
-
-    def _check_autostart_settings(self):
-        """Проверяет настройки автозапуска"""
-        try:
-            from config import get_dpi_autostart
-            
-            self.log_message("⚙️ НАСТРОЙКИ АВТОЗАПУСКА:")
-            
-            # Проверяем автозапуск DPI
-            dpi_autostart = get_dpi_autostart()
-            status_dpi = "✅ Включен" if dpi_autostart else "❌ Отключен"
-            self.log_message(f"   DPI автозапуск: {status_dpi}")
-            
-            # Проверяем системный автозапуск
-            self._check_system_autostart()
-            
-        except Exception as e:
-            self.log_message(f"❌ Ошибка проверки настроек автозапуска: {e}")
-
-    def _check_system_autostart(self):
-        """Проверяет наличие системного автозапуска"""
-        try:
-            # Проверяем автозапуск через планировщик задач
-            command = [
-                "schtasks", "/query", "/tn", "ZapretAutoStart", "/fo", "csv"
-            ]
-
-            result = subprocess.run(command, capture_output=True, text=True, timeout=10,
-                                  encoding='cp866', errors='replace',
-                                  creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-
-            # ✅ ИСПРАВЛЕНИЕ: Правильно обрабатываем результат
-            if result and result.returncode == 0 and result.stdout:
-                if "ZapretAutoStart" in result.stdout:
-                    self.log_message("   Системный автозапуск: ✅ Активен (планировщик задач)")
-                else:
-                    self._check_registry_autostart()
-            else:
-                self._check_registry_autostart()
-                    
-        except Exception as e:
-            self.log_message(f"   Системный автозапуск: ❌ Ошибка проверки ({e})")
-            
-    def _check_registry_autostart(self):
-        """Проверяет автозапуск через реестр"""
-        try:
-            import winreg
-            key_path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-            
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
-                try:
-                    winreg.QueryValueEx(key, "Zapret")
-                    self.log_message("   Системный автозапуск: ✅ Активен (реестр)")
-                except FileNotFoundError:
-                    self.log_message("   Системный автозапуск: ❌ Не настроен")
-                    
-        except Exception:
-            self.log_message("   Системный автозапуск: ❓ Статус неизвестен")
-
-    def get_strategy_info_summary(self):
-        """Возвращает краткую сводку о текущей стратегии для основного лога"""
-        try:
-            checker = StrategyChecker()
-            strategy_info = checker.check_current_strategy()
-            
-            status_icon = "✅" if strategy_info['file_status'] in ['found', 'N/A'] else "❌"
-            
-            # Формируем краткую сводку
-            summary = f"Стратегия: {strategy_info['name']} ({strategy_info['type']})"
-            
-            if strategy_info['type'] == 'combined':
-                details = strategy_info.get('details', {})
-                if details.get('active_categories'):
-                    summary += f" [{', '.join(details['active_categories'])}]"
-            
-            return summary
-            
-        except Exception as e:
-            return f"Ошибка получения информации о стратегии: {e}"
 
     def check_curl_domain(self, domain):
         """Проверяет доступность домена через curl с проверкой остановки."""

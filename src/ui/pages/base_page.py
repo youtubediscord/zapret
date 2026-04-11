@@ -182,8 +182,8 @@ class BasePage(_FluentScrollArea):
         except Exception:
             return None
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
+        pass
 
     def on_page_hidden(self) -> None:
         pass
@@ -304,7 +304,7 @@ class BasePage(_FluentScrollArea):
 
         started_at = _time.perf_counter()
         try:
-            self.on_page_activated(first_show=first_show)
+            self.on_page_activated()
         except Exception:
             pass
         finally:

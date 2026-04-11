@@ -133,8 +133,7 @@ class HostsPage(BasePage):
         self._worker = None
         self._thread = None
         self._applying = False
-        self._active_domains_cache = None  # Кеш активных доменов
-        self._runtime_state_cache = None
+        self._runtime_cache = HostsPageController.create_runtime_cache()
         self._last_error = None  # Последняя ошибка
         self._current_operation = None
         self._startup_initialized = False
@@ -200,8 +199,7 @@ class HostsPage(BasePage):
         except Exception:
             pass
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
         self._install_main_window_event_filter()
         activation_plan = HostsPageController.build_activation_plan(
             catalog_dirty=self._catalog_dirty,
@@ -345,16 +343,10 @@ class HostsPage(BasePage):
 
     def _invalidate_cache(self):
         """Сбрасывает кеш активных доменов"""
-        self._active_domains_cache = None
-        self._runtime_state_cache = None
+        self._runtime_cache.invalidate()
 
     def _get_hosts_runtime_state(self):
-        if self._runtime_state_cache is not None:
-            return self._runtime_state_cache
-
-        state = HostsPageController.read_runtime_state(self.hosts_manager)
-        self._runtime_state_cache = state
-        return state
+        return self._runtime_cache.get_runtime_state(self.hosts_manager)
 
     def _get_hosts_path_str(self) -> str:
         return HostsPageController.get_hosts_path_str()
@@ -419,8 +411,6 @@ class HostsPage(BasePage):
 
     def _get_active_domains(self) -> set:
         """Возвращает активные домены с кешированием (чтобы не читать hosts 28 раз)"""
-        if self._active_domains_cache is not None:
-            return self._active_domains_cache
         state = self._get_hosts_runtime_state()
         if state.error_message:
             self._show_error(
@@ -440,9 +430,7 @@ class HostsPage(BasePage):
         else:
             self._hide_error()
 
-        self._active_domains_cache = set(state.active_domains)
-        return self._active_domains_cache
-        return set()
+        return self._runtime_cache.get_active_domains(self.hosts_manager)
 
     def _build_ui(self):
         # Информационная заметка

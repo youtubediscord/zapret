@@ -5,12 +5,12 @@ from .config import (
     OTHER_BASE_PATH, OTHER_USER_PATH,
     NETROGAT_PATH, NETROGAT2_PATH, STRATEGIES_FOLDER, WIDTH, HEIGHT,
     MIN_WIDTH, MIN_HEIGHT,
-    INDEXJSON_FOLDER, DEFAULT_STRAT, REG_LATEST_STRATEGY, WINDIVERT_FILTER,
+    INDEXJSON_FOLDER, WINDIVERT_FILTER,
     MAX_LOG_FILES, MAX_DEBUG_LOG_FILES, MAIN_DIRECTORY, HELP_FOLDER, APP_CORE_PATH,
     APPDATA_DIR,
     # Пути реестра
-    REGISTRY_PATH, REGISTRY_PATH_AUTOSTART, REGISTRY_PATH_GUI,
-    REGISTRY_PATH_DIRECT, REGISTRY_PATH_STRATEGIES, REGISTRY_PATH_WINDOW,
+    REGISTRY_PATH, REGISTRY_PATH_GUI,
+    REGISTRY_PATH_STRATEGIES, REGISTRY_PATH_WINDOW,
     # Функции окна
     get_window_position, set_window_position, get_window_size, set_window_size,
     get_window_maximized, set_window_maximized,
@@ -18,7 +18,6 @@ from .config import (
     ZAPRET2_MODES, get_winws_exe_for_method, is_zapret2_mode,
     # Paths for per-user presets/lists templates
     get_zapret_presets_v2_dir, get_zapret_userdata_dir, get_zapret_channel_dir_name, get_zapret_presets_v2_template_dir,
-    get_zapret_orchestra_zapret2_dir, get_zapret_orchestra_presets_dir, get_zapret_orchestra_presets_template_dir,
     get_zapret_presets_v1_template_dir,
     get_zapret_lists_template_dir, get_other_template_path,
     get_zapret_lists_backup_dir, get_other_backup_path, get_other_user_backup_path
@@ -48,9 +47,6 @@ __all__ = [
     'get_zapret_userdata_dir',
     'get_zapret_presets_v2_dir',
     'get_zapret_presets_v2_template_dir',
-    'get_zapret_orchestra_zapret2_dir',
-    'get_zapret_orchestra_presets_dir',
-    'get_zapret_orchestra_presets_template_dir',
     'get_zapret_presets_v1_template_dir',
     'get_zapret_lists_template_dir',
     'get_other_template_path',
@@ -59,14 +55,10 @@ __all__ = [
     'get_other_user_backup_path',
     # config.py - пути реестра
     'REGISTRY_PATH',
-    'REGISTRY_PATH_AUTOSTART',
     'REGISTRY_PATH_GUI',
-    'REGISTRY_PATH_DIRECT',
     'REGISTRY_PATH_STRATEGIES',
     'REGISTRY_PATH_WINDOW',
     # config.py - остальное
-    'REG_LATEST_STRATEGY',
-    'DEFAULT_STRAT',
     'WINWS_EXE',
     'WINWS2_EXE',
     'ZAPRET2_MODES',

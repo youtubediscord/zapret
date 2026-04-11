@@ -668,9 +668,8 @@ class OrchestraPage(BasePage):
         if plan.update_timer_interval_ms is None:
             self.update_timer.stop()
 
-    def on_page_activated(self, first_show: bool) -> None:
+    def on_page_activated(self) -> None:
         """Автозапуск мониторинга при активации страницы."""
-        _ = first_show
         if not self._runtime_started:
             self._runtime_started = True
             self.start_monitoring()

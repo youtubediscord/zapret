@@ -4,6 +4,7 @@ import os
 import ipaddress
 import re
 import subprocess
+import threading
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
@@ -20,6 +21,15 @@ class HostlistFolderInfo:
     hostlist_lines: int
     ipset_lines: int
     folder: str
+
+
+@dataclass(slots=True)
+class ListsFolderCategoryInfo:
+    folder_exists: bool
+    files_count: int
+    lines_count: int
+    folder: str
+    category: str
 
 
 @dataclass(slots=True)
@@ -167,6 +177,10 @@ class HostlistActionResult:
 
 
 class HostlistPageController:
+    _FOLDER_INFO_CACHE_LOCK = threading.Lock()
+    _FOLDER_INFO_CACHE: dict[tuple[str, tuple[tuple[str, int, int], ...]], ListsFolderCategoryInfo] = {}
+    _LINE_COUNT_BUFFER_SIZE = 1024 * 1024
+
     @staticmethod
     def split_domains(text: str) -> list[str]:
         parts = re.split(r"[\s,;]+", str(text or ""))
@@ -253,35 +267,180 @@ class HostlistPageController:
         return lower.startswith("ipset-") or "ipset" in lower or "subnet" in lower
 
     @staticmethod
-    def _count_lines(folder: str, file_names: list[str], *, max_files: int, skip_comments: bool) -> int:
+    def _count_plain_lines_fast(path: str) -> int:
         total = 0
-        for file_name in file_names[:max_files]:
+        has_data = False
+        last_byte = b""
+
+        with open(path, "rb") as fh:
+            while True:
+                chunk = fh.read(HostlistPageController._LINE_COUNT_BUFFER_SIZE)
+                if not chunk:
+                    break
+                has_data = True
+                total += chunk.count(b"\n")
+                last_byte = chunk[-1:]
+
+        if has_data and last_byte != b"\n":
+            total += 1
+        return total
+
+    @staticmethod
+    def _count_effective_lines_fast(path: str) -> int:
+        total = 0
+        remainder = b""
+
+        with open(path, "rb") as fh:
+            while True:
+                chunk = fh.read(HostlistPageController._LINE_COUNT_BUFFER_SIZE)
+                if not chunk:
+                    break
+
+                data = remainder + chunk
+                lines = data.split(b"\n")
+                remainder = lines.pop() if lines else b""
+
+                for raw_line in lines:
+                    stripped = raw_line.rstrip(b"\r").strip()
+                    if stripped and not stripped.startswith(b"#"):
+                        total += 1
+
+        if remainder:
+            stripped = remainder.rstrip(b"\r").strip()
+            if stripped and not stripped.startswith(b"#"):
+                total += 1
+
+        return total
+
+    @staticmethod
+    def _count_lines_from_entries(
+        entries: list[tuple[str, str, int, int]],
+        *,
+        max_files: int,
+        skip_comments: bool,
+    ) -> int:
+        total = 0
+        counter = (
+            HostlistPageController._count_effective_lines_fast
+            if skip_comments
+            else HostlistPageController._count_plain_lines_fast
+        )
+
+        for _file_name, path, _mtime_ns, _size in entries[:max_files]:
             try:
-                path = os.path.join(folder, file_name)
-                with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                    if skip_comments:
-                        total += sum(1 for line in fh if line.strip() and not line.startswith("#"))
-                    else:
-                        total += sum(1 for _ in fh)
+                total += counter(path)
             except Exception:
                 continue
         return total
 
     @staticmethod
-    def load_folder_info() -> HostlistFolderInfo:
-        if not os.path.exists(LISTS_FOLDER):
-            return HostlistFolderInfo(False, 0, 0, 0, 0, LISTS_FOLDER)
+    def _scan_lists_folder() -> tuple[bool, list[tuple[str, str, int, int]], list[tuple[str, str, int, int]]]:
+        if not os.path.isdir(LISTS_FOLDER):
+            return False, [], []
 
-        txt_files = [name for name in os.listdir(LISTS_FOLDER) if name.endswith(".txt")]
-        ipset_files = [name for name in txt_files if HostlistPageController._is_ipset_file_name(name)]
-        hostlist_files = [name for name in txt_files if name not in ipset_files]
+        hostlist_files: list[tuple[str, str, int, int]] = []
+        ipset_files: list[tuple[str, str, int, int]] = []
+
+        try:
+            with os.scandir(LISTS_FOLDER) as entries:
+                for entry in entries:
+                    try:
+                        if not entry.is_file():
+                            continue
+                    except OSError:
+                        continue
+
+                    file_name = entry.name
+                    if not file_name.lower().endswith(".txt"):
+                        continue
+
+                    try:
+                        stat = entry.stat()
+                    except OSError:
+                        continue
+
+                    item = (
+                        file_name,
+                        entry.path,
+                        int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+                        int(stat.st_size),
+                    )
+
+                    if HostlistPageController._is_ipset_file_name(file_name):
+                        ipset_files.append(item)
+                    else:
+                        hostlist_files.append(item)
+        except OSError:
+            return False, [], []
+
+        hostlist_files.sort(key=lambda item: item[0].lower())
+        ipset_files.sort(key=lambda item: item[0].lower())
+        return True, hostlist_files, ipset_files
+
+    @staticmethod
+    def _build_lists_folder_category_info(category: str) -> ListsFolderCategoryInfo:
+        folder_exists, hostlist_files, ipset_files = HostlistPageController._scan_lists_folder()
+        if not folder_exists:
+            return ListsFolderCategoryInfo(False, 0, 0, LISTS_FOLDER, category)
+
+        normalized_category = (category or "").strip().lower()
+        if normalized_category == "ipset":
+            entries = ipset_files
+            skip_comments = True
+        else:
+            normalized_category = "hostlist"
+            entries = hostlist_files
+            skip_comments = False
+
+        signature = tuple((name.lower(), mtime_ns, size) for name, _path, mtime_ns, size in entries)
+        cache_key = (normalized_category, signature)
+
+        with HostlistPageController._FOLDER_INFO_CACHE_LOCK:
+            cached = HostlistPageController._FOLDER_INFO_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+        info = ListsFolderCategoryInfo(
+            folder_exists=True,
+            files_count=len(entries),
+            lines_count=HostlistPageController._count_lines_from_entries(
+                entries,
+                max_files=12,
+                skip_comments=skip_comments,
+            ),
+            folder=LISTS_FOLDER,
+            category=normalized_category,
+        )
+
+        with HostlistPageController._FOLDER_INFO_CACHE_LOCK:
+            HostlistPageController._FOLDER_INFO_CACHE[cache_key] = info
+            if len(HostlistPageController._FOLDER_INFO_CACHE) > 8:
+                keys = list(HostlistPageController._FOLDER_INFO_CACHE.keys())[-8:]
+                HostlistPageController._FOLDER_INFO_CACHE = {
+                    key: HostlistPageController._FOLDER_INFO_CACHE[key]
+                    for key in keys
+                }
+        return info
+
+    @staticmethod
+    def load_hostlist_folder_info() -> ListsFolderCategoryInfo:
+        return HostlistPageController._build_lists_folder_category_info("hostlist")
+
+    @staticmethod
+    def load_ipset_folder_info() -> ListsFolderCategoryInfo:
+        return HostlistPageController._build_lists_folder_category_info("ipset")
+
+    @staticmethod
+    def load_folder_info() -> HostlistFolderInfo:
+        hostlist_info = HostlistPageController.load_hostlist_folder_info()
+        ipset_info = HostlistPageController.load_ipset_folder_info()
 
         return HostlistFolderInfo(
-            folder_exists=True,
-            hostlist_files_count=len(hostlist_files),
-            ipset_files_count=len(ipset_files),
-            hostlist_lines=HostlistPageController._count_lines(LISTS_FOLDER, hostlist_files, max_files=12, skip_comments=False),
-            ipset_lines=HostlistPageController._count_lines(LISTS_FOLDER, ipset_files, max_files=12, skip_comments=True),
+            folder_exists=hostlist_info.folder_exists and ipset_info.folder_exists,
+            hostlist_files_count=hostlist_info.files_count,
+            ipset_files_count=ipset_info.files_count,
+            hostlist_lines=hostlist_info.lines_count,
+            ipset_lines=ipset_info.lines_count,
             folder=LISTS_FOLDER,
         )
 

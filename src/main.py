@@ -390,7 +390,6 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
             autostart_pending_methods = {
                 "direct_zapret2",
                 "direct_zapret1",
-                "direct_zapret2_orchestra",
                 "orchestra",
             }
 
@@ -608,15 +607,8 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
                     display_name = "Пресет"
                 strategy_name = display_name
                 log(f"Установлено имя пресета для direct_zapret2: {display_name}", "DEBUG")
-            elif strategy_id == "DIRECT_MODE" or launch_method in ("direct_zapret2_orchestra", "direct_zapret1"):
-                if launch_method == "direct_zapret2_orchestra":
-                    try:
-                        from preset_orchestra_zapret2 import get_active_preset_name
-                        preset_name = get_active_preset_name() or "Default"
-                        display_name = f"Пресет оркестра: {preset_name}"
-                    except Exception:
-                        display_name = "Оркестратор Z2"
-                elif launch_method == "direct_zapret1":
+            elif strategy_id == "DIRECT_MODE" or launch_method == "direct_zapret1":
+                if launch_method == "direct_zapret1":
                     try:
                         preset = self.app_context.direct_flow_coordinator.get_selected_source_manifest("direct_zapret1")
                         preset_name = str(getattr(preset, "name", "") or "")
@@ -624,7 +616,12 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
                     except Exception:
                         display_name = "Пресет"
                 else:
-                    display_name = "Пресет"
+                    log(
+                        f"Выбран неподдерживаемый direct-режим запуска: {launch_method}",
+                        "ERROR",
+                    )
+                    self.set_status("Ошибка: выбран удалённый или неподдерживаемый режим запуска")
+                    return
                 strategy_name = display_name
                 log(f"Установлено простое название для режима {launch_method}: {display_name}", "DEBUG")
 
@@ -633,7 +630,7 @@ class LupiDPIApp(ZapretFluentWindow, MainWindowUI, ThemeSubscriptionManager):
                 self.update_current_strategy_display(strategy_name)
 
             # Direct launch methods now go through one canonical controller path.
-            if launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            if launch_method in ("direct_zapret2", "direct_zapret1"):
                 log(
                     f"Запуск {launch_method} передан в единый DPI controller pipeline",
                     "INFO",

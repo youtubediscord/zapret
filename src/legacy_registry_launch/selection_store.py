@@ -88,22 +88,6 @@ def get_direct_strategy_selections() -> dict:
             except Exception as e:
                 log(f"Ошибка чтения selected source preset для выбора стратегий direct_zapret1: {e}", "DEBUG")
                 selections = {}
-        elif method == "direct_zapret2_orchestra":
-            try:
-                from legacy_registry_launch.strategies_registry import registry
-                from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
-
-                ensure_default_preset_exists()
-                preset_manager = PresetManager()
-                preset_selections = preset_manager.get_strategy_selections() or {}
-                default_selections = registry.get_default_selections()
-                selections = {k: "none" for k in registry.get_all_target_keys()}
-                selections.update({k: (v or "none") for k, v in preset_selections.items()})
-            except Exception as e:
-                log(f"Ошибка чтения preset-zapret2-orchestra.txt для выбора стратегий: {e}", "DEBUG")
-                from legacy_registry_launch.strategies_registry import registry
-
-                selections = {k: "none" for k in registry.get_all_target_keys()}
         else:
             from legacy_registry_launch.strategies_registry import registry
 
@@ -112,9 +96,7 @@ def get_direct_strategy_selections() -> dict:
 
         for key, default_value in default_selections.items():
             if key not in selections:
-                if method == "direct_zapret2_orchestra":
-                    selections[key] = "none"
-                elif method in ("direct_zapret1", "direct_zapret2"):
+                if method in ("direct_zapret1", "direct_zapret2"):
                     continue
                 else:
                     selections[key] = default_value
@@ -168,23 +150,6 @@ def set_direct_strategy_selections(selections: dict) -> bool:
             log("Выборы стратегий сохранены (selected source preset direct_zapret1)", "DEBUG")
             return success
 
-        if method == "direct_zapret2_orchestra":
-            from legacy_registry_launch.strategies_registry import registry
-            from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
-
-            if not ensure_default_preset_exists():
-                return False
-
-            preset_manager = PresetManager()
-            payload = {
-                target_key: (str((selections or {}).get(target_key) or "none").strip() or "none")
-                for target_key in registry.get_all_target_keys()
-            }
-            preset_manager.set_strategy_selections(payload, save_and_sync=True)
-            invalidate_direct_selections_cache()
-            log("Выборы стратегий сохранены (preset-zapret2-orchestra.txt)", "DEBUG")
-            return True
-
         return False
     except Exception as e:
         log(f"Ошибка сохранения выборов: {e}", "❌ ERROR")
@@ -194,7 +159,7 @@ def set_direct_strategy_selections(selections: dict) -> bool:
 def get_direct_strategy_for_target(target_key: str) -> str:
     """Получает выбранную стратегию для конкретного target'а."""
     method = get_strategy_launch_method()
-    if method in ("direct_zapret2", "direct_zapret1", "direct_zapret2_orchestra"):
+    if method in ("direct_zapret2", "direct_zapret1"):
         selections = get_direct_strategy_selections()
         return selections.get(target_key, "none") or "none"
 
@@ -238,21 +203,6 @@ def set_direct_strategy_for_target(target_key: str, strategy_id: str) -> bool:
             return True
         except Exception as e:
             log(f"Ошибка сохранения стратегии в selected source preset direct_zapret1: {e}", "DEBUG")
-            return False
-
-    if method == "direct_zapret2_orchestra":
-        try:
-            from preset_orchestra_zapret2 import PresetManager, ensure_default_preset_exists
-
-            if not ensure_default_preset_exists():
-                return False
-
-            preset_manager = PresetManager()
-            preset_manager.set_strategy_selection(target_key, strategy_id or "none", save_and_sync=True)
-            invalidate_direct_selections_cache()
-            return True
-        except Exception as e:
-            log(f"Ошибка сохранения стратегии в preset-zapret2-orchestra.txt: {e}", "DEBUG")
             return False
 
     return False

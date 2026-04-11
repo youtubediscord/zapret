@@ -16,7 +16,6 @@ from importlib import import_module
 
 _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
     "ControlPage": (".control_page", "ControlPage"),
-    "Zapret2OrchestraStrategiesPage": (".zapret2_orchestra_strategies_page", "Zapret2OrchestraStrategiesPage"),
     "Zapret2DirectControlPage": (".zapret2", "Zapret2DirectControlPage"),
     "Zapret2PresetDetailPage": (".zapret2", "Zapret2PresetDetailPage"),
     "Zapret2StrategiesPageNew": (".zapret2", "Zapret2StrategiesPageNew"),

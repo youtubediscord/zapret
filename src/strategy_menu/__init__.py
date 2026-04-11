@@ -39,28 +39,6 @@ from .marks_store_bridge import (
     toggle_strategy_rating,
     clear_all_strategy_ratings,
 )
-# ==================== ИНИЦИАЛИЗАЦИЯ DIRECT ORCHESTRA ====================
-
-def clear_direct_zapret2_orchestra_strategies() -> bool:
-    """Очищает все сохранённые стратегии для режима direct_zapret2_orchestra (устанавливает все в 'none')."""
-    try:
-        from preset_orchestra_zapret2 import ensure_default_preset_exists, PresetManager
-
-        log("🧹 Очистка стратегий DirectOrchestra (первая инициализация)...", "INFO")
-
-        if not ensure_default_preset_exists():
-            return False
-
-        manager = PresetManager()
-        manager.clear_all_strategy_selections(save_and_sync=True)
-
-        log("✅ Все стратегии DirectOrchestra установлены в 'none'", "INFO")
-        return True
-    except Exception as e:
-        log(f"Ошибка очистки стратегий DirectOrchestra: {e}", "ERROR")
-        return False
-
-
 # ==================== НАСТРОЙКИ DIRECT SOURCE PRESET ====================
 
 def _get_direct_preset_facade():
@@ -106,14 +84,6 @@ def get_debug_log_enabled() -> bool:
             return bool(facade.get_debug_log_enabled())
         except Exception:
             return False
-    try:
-        method = (get_strategy_launch_method() or "").strip().lower()
-        if method == "direct_zapret2_orchestra":
-            from preset_orchestra_zapret2 import PresetManager
-
-            return bool(PresetManager().get_debug_log_enabled())
-    except Exception:
-        return False
     return False
 
 
@@ -125,14 +95,6 @@ def set_debug_log_enabled(enabled: bool) -> bool:
             return bool(facade.set_debug_log_enabled(bool(enabled)))
         except Exception:
             return False
-    try:
-        method = (get_strategy_launch_method() or "").strip().lower()
-        if method == "direct_zapret2_orchestra":
-            from preset_orchestra_zapret2 import PresetManager
-
-            return bool(PresetManager().set_debug_log_enabled(bool(enabled)))
-    except Exception:
-        return False
     return False
 
 
@@ -177,8 +139,7 @@ __all__ = [
     "toggle_strategy_rating",
     "clear_all_strategy_ratings",
 
-    # Direct/orchestra helpers
-    "clear_direct_zapret2_orchestra_strategies",
+    # Direct helpers
     "get_wssize_enabled",
     "set_wssize_enabled",
     "get_debug_log_enabled",

@@ -2,16 +2,31 @@
 
 from __future__ import annotations
 
-import logging
-
-import threading
 import qtawesome as qta
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QObject, QSize
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy, QFrame
+from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
 
 from blockcheck.page_controller import BlockcheckPageController
+from ui.pages.blockcheck_domain_chip import DomainChip
+from ui.pages.blockcheck_page_domains_build import build_blockcheck_domains_ui
+from ui.pages.blockcheck_page_sections_build import build_actions_section, build_results_section
+from ui.pages.blockcheck_page_log_build import build_log_card_section
+from ui.pages.blockcheck_page_summary_build import build_dpi_summary_section
+from ui.pages.blockcheck_page_helpers import (
+    add_domain_chip,
+    build_family_tooltip,
+    build_target_detail_text,
+    collect_extra_domains,
+    format_result_detail,
+    load_domain_chips,
+    remove_domain_chip,
+    result_family_label,
+    sort_results_by_family,
+    truncate_detail,
+)
+from ui.pages.blockcheck_worker import BlockcheckWorker
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
 from ui.text_catalog import tr as tr_catalog
 
@@ -31,9 +46,6 @@ from qfluentwidgets import (
 
 from ui.compat_widgets import SettingsCard, InfoBarHelper, CheckBox, QuickActionsBar
 
-logger = logging.getLogger(__name__)
-
-
 # ---------------------------------------------------------------------------
 # DPI badge colors
 # ---------------------------------------------------------------------------
@@ -51,49 +63,6 @@ _DPI_BADGE_COLORS = {
     "full_block": ("#e05454", "#3a1a1a"),
 }
 
-# ---------------------------------------------------------------------------
-# Domain chip widget
-# ---------------------------------------------------------------------------
-
-class _DomainChip(QFrame):
-    """Small removable domain tag."""
-
-    removed = pyqtSignal(str)  # emits domain name
-
-    def __init__(self, domain: str, parent=None):
-        super().__init__(parent)
-        self._domain = domain
-        self.setFixedHeight(28)
-
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(8, 2, 4, 2)
-        lay.setSpacing(4)
-
-        lbl = CaptionLabel(domain)
-        lay.addWidget(lbl)
-
-        close_btn = PushButton()
-        close_btn.setText("\u2715")
-        close_btn.setFixedSize(20, 20)
-        try:
-            close_btn.setFlat(True)
-        except (AttributeError, TypeError):
-            pass
-        close_btn.clicked.connect(lambda: self.removed.emit(self._domain))
-        lay.addWidget(close_btn)
-
-        self._apply_chip_style()
-
-    def _apply_chip_style(self):
-        dark = isDarkTheme()
-        bg = "rgba(255,255,255,0.06)" if dark else "rgba(0,0,0,0.05)"
-        border = "rgba(255,255,255,0.08)" if dark else "rgba(0,0,0,0.08)"
-        self.setStyleSheet(
-            f"_DomainChip {{ background: {bg}; border: 1px solid {border}; "
-            f"border-radius: 14px; }}"
-        )
-
-
 _DPI_LABELS_RU = {
     "none": "DPI не обнаружен",
     "dns_fake": "DNS подмена",
@@ -106,97 +75,6 @@ _DPI_LABELS_RU = {
     "stun_block": "STUN/UDP блокировка",
     "full_block": "Полная блокировка",
 }
-
-_DETAILS_MAX_LEN = 140
-
-
-# ---------------------------------------------------------------------------
-# Worker (QObject, runs in QThread)
-# ---------------------------------------------------------------------------
-
-class BlockcheckWorker(QObject):
-    """Worker that emits Qt signals from a background daemon thread.
-
-    QObject (not QWidget!) lives on the main thread — signals are cross-thread
-    safe.  The heavy work runs in a plain threading.Thread so the GUI never
-    blocks.
-    """
-
-    target_started = pyqtSignal(str, int, int)    # name, index, total
-    test_result = pyqtSignal(object)              # SingleTestResult
-    target_complete = pyqtSignal(object)          # TargetResult
-    progress = pyqtSignal(int, int, str)          # current, total, message
-    phase_changed = pyqtSignal(str)               # phase description
-    log_message = pyqtSignal(str)                 # log line
-    finished = pyqtSignal(object)                 # BlockcheckReport
-
-    def __init__(self, mode: str = "full", extra_domains: list[str] | None = None,
-                 skip_preflight_failed: bool = False, parent=None):
-        super().__init__(parent)
-        self._mode = mode
-        self._extra_domains = extra_domains
-        self._skip_preflight_failed = skip_preflight_failed
-        self._runner = None
-        self._cancelled = False
-        self._bg_thread: threading.Thread | None = None
-
-    def start(self):
-        """Launch the background thread."""
-        self._cancelled = False
-        self._bg_thread = threading.Thread(
-            target=self._run_in_thread, daemon=True, name="blockcheck-worker",
-        )
-        self._bg_thread.start()
-
-    def _run_in_thread(self):
-        """Entry point running on the daemon thread."""
-        try:
-            from blockcheck.runner import BlockcheckRunner
-            self._runner = BlockcheckRunner(
-                mode=self._mode,
-                callback=self,
-                extra_domains=self._extra_domains,
-                skip_preflight_failed=self._skip_preflight_failed,
-            )
-            report = self._runner.run()
-            self.finished.emit(report)
-        except Exception as e:
-            logger.exception("BlockcheckWorker crashed")
-            self.log_message.emit(f"ERROR: {e}")
-            self.finished.emit(None)
-
-    def stop(self):
-        self._cancelled = True
-        if self._runner:
-            self._runner.cancel()
-
-    @property
-    def is_running(self) -> bool:
-        return self._bg_thread is not None and self._bg_thread.is_alive()
-
-    # --- BlockcheckCallback implementation (called from bg thread) ---
-    # pyqtSignal.emit() is thread-safe — Qt queues cross-thread signals.
-    def on_target_started(self, name, index, total):
-        self.target_started.emit(name, index, total)
-
-    def on_test_result(self, result):
-        self.test_result.emit(result)
-
-    def on_target_complete(self, result):
-        self.target_complete.emit(result)
-
-    def on_progress(self, current, total, message):
-        self.progress.emit(current, total, message)
-
-    def on_phase_change(self, phase):
-        self.phase_changed.emit(phase)
-
-    def on_log(self, message):
-        self.log_message.emit(message)
-
-    def is_cancelled(self):
-        return self._cancelled
-
 
 # ---------------------------------------------------------------------------
 # Page
@@ -357,71 +235,41 @@ class BlockcheckPage(BasePage):
         self._control_card.add_widget(self._status_label)
         self._add_tab_widget(self._control_card)
 
-        self._actions_title_label = StrongBodyLabel(
-            tr_catalog("page.blockcheck.actions.title", default="Действия")
+        actions_widgets = build_actions_section(
+            tr_fn=lambda key, default: tr_catalog(key, default=default),
+            strong_body_label_cls=StrongBodyLabel,
+            quick_actions_bar_cls=QuickActionsBar,
+            content_parent=self.content,
+            push_button_cls=PushButton,
+            qta_module=qta,
+            on_start=self._on_start,
+            on_stop=self._on_stop,
         )
+        self._actions_title_label = actions_widgets.title_label
+        self._actions_bar = actions_widgets.actions_bar
+        self._start_btn = actions_widgets.start_button
+        self._stop_btn = actions_widgets.stop_button
+
         self._add_tab_widget(self._actions_title_label)
-
-        self._actions_bar = QuickActionsBar(self.content)
-
-        self._start_btn = PushButton()
-        self._start_btn.setText(tr_catalog("page.blockcheck.start", default="Запустить"))
-        self._start_btn.setIcon(qta.icon("fa5s.play", color="#4CAF50"))
-        self._start_btn.setToolTip(
-            tr_catalog(
-                "page.blockcheck.action.start.description",
-                default="Запустить анализ блокировок и проверку DPI для выбранного режима.",
-            )
-        )
-        self._start_btn.clicked.connect(self._on_start)
-        self._actions_bar.add_button(self._start_btn)
-
-        self._stop_btn = PushButton()
-        self._stop_btn.setText(tr_catalog("page.blockcheck.stop", default="Остановить"))
-        self._stop_btn.setIcon(qta.icon("fa5s.stop", color="#ff9800"))
-        self._stop_btn.setToolTip(
-            tr_catalog(
-                "page.blockcheck.action.stop.description",
-                default="Остановить текущую проверку и вернуть страницу в обычный режим.",
-            )
-        )
-        self._stop_btn.clicked.connect(self._on_stop)
-        self._stop_btn.setEnabled(False)
-        self._actions_bar.add_button(self._stop_btn)
-
         self._add_tab_widget(self._actions_bar)
 
         # ── Custom Domains Card ──
-        self._domains_card = SettingsCard(
-            tr_catalog("page.blockcheck.custom_domains", default="Пользовательские домены")
+        domains_widgets = build_blockcheck_domains_ui(
+            tr_fn=lambda key, default: tr_catalog(key, default=default),
+            settings_card_cls=SettingsCard,
+            qhbox_layout_cls=QHBoxLayout,
+            qwidget_cls=QWidget,
+            line_edit_cls=LineEdit,
+            push_button_cls=PushButton,
+            qta_module=qta,
+            theme_color_fn=themeColor,
+            on_add=self._on_add_domain,
         )
-
-        domain_input_row = QHBoxLayout()
-        domain_input_row.setSpacing(8)
-
-        self._domain_input = LineEdit()
-        self._domain_input.setPlaceholderText(
-            tr_catalog("page.blockcheck.domain_placeholder", default="example.com")
-        )
-        self._domain_input.setFixedHeight(33)
-        self._domain_input.returnPressed.connect(self._on_add_domain)
-        domain_input_row.addWidget(self._domain_input)
-
-        self._add_domain_btn = PushButton()
-        self._add_domain_btn.setText(tr_catalog("page.blockcheck.add_domain", default="Добавить"))
-        self._add_domain_btn.setIcon(qta.icon("fa5s.plus", color=themeColor().name()))
-        self._add_domain_btn.clicked.connect(self._on_add_domain)
-        domain_input_row.addWidget(self._add_domain_btn)
-
-        self._domains_card.add_layout(domain_input_row)
-
-        # Flow container for domain chips
-        self._domains_flow = QWidget()
-        self._domains_flow_layout = QHBoxLayout(self._domains_flow)
-        self._domains_flow_layout.setContentsMargins(0, 4, 0, 0)
-        self._domains_flow_layout.setSpacing(6)
-        self._domains_flow_layout.addStretch()
-        self._domains_card.add_widget(self._domains_flow)
+        self._domains_card = domains_widgets.card
+        self._domain_input = domains_widgets.input_edit
+        self._add_domain_btn = domains_widgets.add_button
+        self._domains_flow = domains_widgets.flow_widget
+        self._domains_flow_layout = domains_widgets.flow_layout
 
         self._add_tab_widget(self._domains_card)
 
@@ -429,144 +277,55 @@ class BlockcheckPage(BasePage):
         self._load_domain_chips()
 
         # ── Results Table Card ──
-        self._results_card = SettingsCard(
-            tr_catalog("page.blockcheck.results", default="Результаты")
+        results_widgets = build_results_section(
+            tr_fn=lambda key, default: tr_catalog(key, default=default),
+            settings_card_cls=SettingsCard,
+            strong_body_label_cls=StrongBodyLabel,
+            table_widget_cls=TableWidget,
         )
-
-        self._domains_section_label = StrongBodyLabel(
-            tr_catalog(
-                "page.blockcheck.domains_section",
-                default="Часть 1: Проверка доменов (TLS + HTTP injection)",
-            )
-        )
-        self._results_card.add_widget(self._domains_section_label)
-
-        self._table = TableWidget()
-        self._table.setColumnCount(8)
-        headers = [
-            tr_catalog("page.blockcheck.col_target", default="Цель"),
-            "HTTP",
-            "TLS 1.2",
-            "TLS 1.3",
-            tr_catalog("page.blockcheck.col_dns_isp", default="DNS/ISP"),
-            "DPI",
-            "Ping",
-            "Детали",
-        ]
-        self._table.setHorizontalHeaderLabels(headers)
-        self._table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
-        self._table.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
-        self._table.setMinimumHeight(200)
-        self._table.verticalHeader().setVisible(False)
-
-        # Column widths
-        header = self._table.horizontalHeader()
-        try:
-            from PyQt6.QtWidgets import QHeaderView
-            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            for col in range(1, 7):
-                header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-        except Exception:
-            pass
-
-        self._results_card.add_widget(self._table)
-
-        self._tcp_section_label = StrongBodyLabel(
-            tr_catalog("page.blockcheck.tcp_section", default="Часть 2: Проверка TCP 16-20KB")
-        )
-        self._results_card.add_widget(self._tcp_section_label)
-
-        self._tcp_table = TableWidget()
-        self._tcp_table.setColumnCount(5)
-        self._tcp_table.setHorizontalHeaderLabels([
-            "ID",
-            "ASN",
-            tr_catalog("page.blockcheck.col_provider", default="Провайдер"),
-            tr_catalog("page.blockcheck.col_status", default="Статус"),
-            tr_catalog("page.blockcheck.col_error_details", default="Ошибка / Детали"),
-        ])
-        self._tcp_table.setEditTriggers(TableWidget.EditTrigger.NoEditTriggers)
-        self._tcp_table.setSelectionBehavior(TableWidget.SelectionBehavior.SelectRows)
-        self._tcp_table.setMinimumHeight(180)
-        self._tcp_table.verticalHeader().setVisible(False)
-
-        tcp_header = self._tcp_table.horizontalHeader()
-        try:
-            from PyQt6.QtWidgets import QHeaderView
-            tcp_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-            tcp_header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-            tcp_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-            tcp_header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-            tcp_header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        except Exception:
-            pass
-
-        self._tcp_section_label.setVisible(False)
-        self._tcp_table.setVisible(False)
-        self._results_card.add_widget(self._tcp_table)
+        self._results_card = results_widgets.results_card
+        self._domains_section_label = results_widgets.domains_section_label
+        self._table = results_widgets.results_table
+        self._tcp_section_label = results_widgets.tcp_section_label
+        self._tcp_table = results_widgets.tcp_table
         self._add_tab_widget(self._results_card)
 
         # ── DPI Summary Card (hidden until tests complete) ──
-        self._dpi_card = SettingsCard(
-            tr_catalog("page.blockcheck.dpi_summary", default="DPI Анализ")
+        dpi_widgets = build_dpi_summary_section(
+            tr_fn=lambda key, default: tr_catalog(key, default=default),
+            settings_card_cls=SettingsCard,
+            qlabel_cls=QLabel,
+            body_label_cls=BodyLabel,
+            caption_label_cls=CaptionLabel,
+            qt_namespace=Qt,
         )
-        self._dpi_card.setVisible(False)
-
-        self._dpi_badge = QLabel()
-        self._dpi_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._dpi_badge.setFixedHeight(36)
-        self._dpi_card.add_widget(self._dpi_badge)
-
-        self._dpi_detail = BodyLabel()
-        self._dpi_detail.setWordWrap(True)
-        self._dpi_card.add_widget(self._dpi_detail)
-
-        self._dns_summary = CaptionLabel()
-        self._dns_summary.setWordWrap(True)
-        self._dpi_card.add_widget(self._dns_summary)
-
-        self._recommendation = BodyLabel()
-        self._recommendation.setWordWrap(True)
-        self._dpi_card.add_widget(self._recommendation)
-
+        self._dpi_card = dpi_widgets.card
+        self._dpi_badge = dpi_widgets.badge
+        self._dpi_detail = dpi_widgets.detail
+        self._dns_summary = dpi_widgets.dns_summary
+        self._recommendation = dpi_widgets.recommendation
         self._add_tab_widget(self._dpi_card)
 
         # ── Log Card ──
-        self._log_card = SettingsCard(
-            tr_catalog("page.blockcheck.log", default="Подробный лог")
-        )
-
-        # Кнопка "Развернуть / Свернуть"
         self._log_expanded = False
-        self._expand_log_btn = PushButton()
-        self._expand_log_btn.setText("Развернуть")
-        self._expand_log_btn.setFixedWidth(120)
-        self._expand_log_btn.clicked.connect(self._toggle_log_expand)
-        log_header = QHBoxLayout()
-        self._support_status_label = CaptionLabel("")
-        self._support_status_label.setWordWrap(True)
-        log_header.addWidget(self._support_status_label, 1)
-        log_header.addStretch()
-        self._prepare_support_btn = PushButton()
-        self._prepare_support_btn.setText(
-            tr_catalog(
-                "page.blockcheck.prepare_support",
-                default="Подготовить обращение",
-            )
+        log_widgets = build_log_card_section(
+            tr_fn=lambda key, default: tr_catalog(key, default=default),
+            settings_card_cls=SettingsCard,
+            qhbox_layout_cls=QHBoxLayout,
+            caption_label_cls=CaptionLabel,
+            push_button_cls=PushButton,
+            qta_module=qta,
+            theme_color_fn=themeColor,
+            text_edit_cls=ScrollBlockingTextEdit,
+            qfont_cls=QFont,
+            on_toggle_expand=self._toggle_log_expand,
+            on_prepare_support=self._prepare_support_from_blockcheck,
         )
-        self._prepare_support_btn.setIcon(qta.icon("fa5b.github", color=themeColor().name()))
-        self._prepare_support_btn.clicked.connect(self._prepare_support_from_blockcheck)
-        log_header.addWidget(self._prepare_support_btn)
-        log_header.addWidget(self._expand_log_btn)
-        self._log_card.add_layout(log_header)
-
-        self._log_edit = ScrollBlockingTextEdit()
-        self._log_edit.setReadOnly(True)
-        self._log_edit.setMinimumHeight(180)
-        self._log_edit.setMaximumHeight(300)
-        self._log_edit.setFont(QFont("Consolas", 9))
-        self._log_card.add_widget(self._log_edit)
+        self._log_card = log_widgets.card
+        self._expand_log_btn = log_widgets.expand_button
+        self._support_status_label = log_widgets.support_status_label
+        self._prepare_support_btn = log_widgets.prepare_support_button
+        self._log_edit = log_widgets.log_edit
         self._add_tab_widget(self._log_card)
 
         # Strategy scan tab (lazy-created)
@@ -585,7 +344,7 @@ class BlockcheckPage(BasePage):
         # Refresh chip styles
         for i in range(self._domains_flow_layout.count()):
             item = self._domains_flow_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), _DomainChip):
+            if item and item.widget() and isinstance(item.widget(), DomainChip):
                 item.widget()._apply_chip_style()
 
     # ------------------------------------------------------------------
@@ -853,7 +612,7 @@ class BlockcheckPage(BasePage):
             tls13_ok = any(r.status == TestStatus.OK for r in tls13)
             tls12_all_fail = all(r.status != TestStatus.OK for r in tls12)
             if tls12_all_fail and tls13_ok:
-                r12_detail = self._build_family_tooltip(tls12)
+                r12_detail = build_family_tooltip(tls12)
                 r12_detail += "\nDPI блокирует SNI в TLS 1.2; сайт работает через TLS 1.3"
                 item = self._make_item("DPI 1.2")
                 item.setForeground(QColor("#e0a854"))
@@ -899,8 +658,8 @@ class BlockcheckPage(BasePage):
         if stun and not http_tests:
             self._set_status_cell(row, 1, stun[0])
 
-        detail_text = self._build_target_detail_text(tests)
-        detail_cell = self._make_item(self._truncate_detail(detail_text))
+        detail_text = build_target_detail_text(tests)
+        detail_cell = self._make_item(truncate_detail(detail_text))
         detail_cell.setForeground(QColor("#9aa0a6"))
         detail_cell.setToolTip(detail_text)
         self._table.setItem(row, 7, detail_cell)
@@ -1066,62 +825,6 @@ class BlockcheckPage(BasePage):
         return -1
 
     @staticmethod
-    def _truncate_detail(text: str, max_len: int = _DETAILS_MAX_LEN) -> str:
-        clean = (text or "").strip()
-        if len(clean) <= max_len:
-            return clean
-        return clean[: max_len - 1].rstrip() + "..."
-
-    @staticmethod
-    def _format_result_detail(result) -> str:
-        from blockcheck.models import TestStatus
-
-        if result.status == TestStatus.OK:
-            status_text = "OK"
-        elif result.status == TestStatus.TIMEOUT:
-            status_text = "TIMEOUT"
-        elif result.status == TestStatus.UNSUPPORTED:
-            status_text = "UNSUP"
-        else:
-            status_text = result.error_code or result.status.value.upper()
-
-        detail = (result.detail or "").strip()
-        if detail:
-            base = f"{status_text}: {detail}"
-        else:
-            base = status_text
-
-        if result.time_ms:
-            if result.time_ms >= 1000:
-                base += f" | {result.time_ms / 1000:.1f}s"
-            else:
-                base += f" | {result.time_ms:.0f}ms"
-
-        return base
-
-    @staticmethod
-    def _result_family_label(result) -> str:
-        raw = result.raw_data or {}
-        family = str(raw.get("ip_family") or "").strip().lower()
-        if family in ("ipv4", "ip4", "v4", "4"):
-            return "IPv4"
-        if family in ("ipv6", "ip6", "v6", "6"):
-            return "IPv6"
-        return "AUTO"
-
-    @classmethod
-    def _sort_results_by_family(cls, results: list):
-        order = {"IPv4": 0, "IPv6": 1, "AUTO": 2}
-        return sorted(results, key=lambda r: order.get(cls._result_family_label(r), 3))
-
-    def _build_family_tooltip(self, results: list) -> str:
-        lines: list[str] = []
-        for result in self._sort_results_by_family(results):
-            family = self._result_family_label(result)
-            lines.append(f"{family}: {self._format_result_detail(result)}")
-        return "\n".join(lines)
-
-    @staticmethod
     def _result_display_rank(result) -> int:
         from blockcheck.models import TestStatus
 
@@ -1145,7 +848,7 @@ class BlockcheckPage(BasePage):
             self._set_status_cell(row, col, results[0])
             return
 
-        sorted_results = self._sort_results_by_family(results)
+        sorted_results = sort_results_by_family(results)
         ok_results = [r for r in sorted_results if r.status == TestStatus.OK]
         non_ok_results = [r for r in sorted_results if r.status != TestStatus.OK]
 
@@ -1171,7 +874,7 @@ class BlockcheckPage(BasePage):
             item = self._make_item(text)
             item.setForeground(QColor("#e05454"))
 
-        item.setToolTip(self._build_family_tooltip(sorted_results))
+        item.setToolTip(build_family_tooltip(sorted_results))
         self._table.setItem(row, col, item)
 
     def _build_target_detail_text(self, tests: list) -> str:
@@ -1193,7 +896,7 @@ class BlockcheckPage(BasePage):
 
         parts: list[str] = []
         for label, test_type in ordered_types:
-            candidates = self._sort_results_by_family(per_type.get(test_type, []))
+            candidates = sort_results_by_family(per_type.get(test_type, []))
             if not candidates:
                 continue
 
@@ -1201,7 +904,7 @@ class BlockcheckPage(BasePage):
                 chosen = candidates[0]
                 if chosen.status == TestStatus.OK and test_type not in (TestType.TLS_12, TestType.TLS_13):
                     continue
-                parts.append(f"{label}: {self._format_result_detail(chosen)}")
+                parts.append(f"{label}: {format_result_detail(chosen)}")
                 continue
 
             has_non_ok = any(r.status != TestStatus.OK for r in candidates)
@@ -1209,7 +912,7 @@ class BlockcheckPage(BasePage):
                 continue
 
             family_chunks = [
-                f"{self._result_family_label(r)} {self._format_result_detail(r)}"
+                f"{result_family_label(r)} {format_result_detail(r)}"
                 for r in candidates
             ]
             parts.append(f"{label}: {' ; '.join(family_chunks)}")
@@ -1275,14 +978,14 @@ class BlockcheckPage(BasePage):
             status_text, color = self._tcp_status_text_and_color(test)
             status_item = self._make_item(status_text)
             status_item.setForeground(QColor(color))
-            status_item.setToolTip(self._format_result_detail(test))
+            status_item.setToolTip(format_result_detail(test))
             self._tcp_table.setItem(row, 3, status_item)
 
-            detail_text = self._format_result_detail(test)
+            detail_text = format_result_detail(test)
             bytes_received = raw.get("bytes_received")
             if isinstance(bytes_received, int) and bytes_received > 0:
                 detail_text += f" | {bytes_received}B"
-            detail_item = self._make_item(self._truncate_detail(detail_text))
+            detail_item = self._make_item(truncate_detail(detail_text))
             detail_item.setForeground(QColor("#9aa0a6"))
             detail_item.setToolTip(detail_text)
             self._tcp_table.setItem(row, 4, detail_item)
@@ -1483,11 +1186,10 @@ class BlockcheckPage(BasePage):
 
     def _load_domain_chips(self):
         """Load persisted user domains and create chips."""
-        try:
-            for domain in BlockcheckPageController.load_user_domains():
-                self._add_chip(domain)
-        except Exception:
-            pass
+        load_domain_chips(
+            load_domains_fn=BlockcheckPageController.load_user_domains,
+            add_chip_fn=self._add_chip,
+        )
 
     def _on_add_domain(self):
         """Add a domain from the input field."""
@@ -1519,32 +1221,28 @@ class BlockcheckPage(BasePage):
             BlockcheckPageController.remove_user_domain(domain)
         except Exception:
             pass
-        # Remove chip widget
-        for i in range(self._domains_flow_layout.count()):
-            item = self._domains_flow_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), _DomainChip):
-                if item.widget()._domain == domain:
-                    w = item.widget()
-                    self._domains_flow_layout.removeWidget(w)
-                    w.deleteLater()
-                    break
+        remove_domain_chip(
+            domain=domain,
+            flow_layout=self._domains_flow_layout,
+            chip_cls=DomainChip,
+        )
 
     def _add_chip(self, domain: str):
         """Add a chip widget for a domain."""
-        chip = _DomainChip(domain, parent=self._domains_flow)
-        chip.removed.connect(self._on_remove_domain)
-        # Insert before the stretch
-        idx = max(0, self._domains_flow_layout.count() - 1)
-        self._domains_flow_layout.insertWidget(idx, chip)
+        add_domain_chip(
+            domain=domain,
+            flow_widget=self._domains_flow,
+            flow_layout=self._domains_flow_layout,
+            chip_cls=DomainChip,
+            on_removed=self._on_remove_domain,
+        )
 
     def _get_extra_domains(self) -> list[str]:
         """Collect domains from chips to pass to worker."""
-        domains = []
-        for i in range(self._domains_flow_layout.count()):
-            item = self._domains_flow_layout.itemAt(i)
-            if item and item.widget() and isinstance(item.widget(), _DomainChip):
-                domains.append(item.widget()._domain)
-        return domains
+        return collect_extra_domains(
+            flow_layout=self._domains_flow_layout,
+            chip_cls=DomainChip,
+        )
 
     # ------------------------------------------------------------------
     # Cleanup

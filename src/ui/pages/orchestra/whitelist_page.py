@@ -394,8 +394,7 @@ class OrchestraWhitelistPage(BasePage):
 
         self._sync_whitelist_view(refresh=True)
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
         self._sync_whitelist_view(refresh=False)
 
     def _is_orchestra_running(self) -> bool:

@@ -568,8 +568,7 @@ class Zapret1StrategyDetailPage(BasePage):
         self._pending_target_key = ""
         self._request_target_payload(normalized_target_key, refresh=False, reason="show_target")
 
-    def on_page_activated(self, first_show: bool) -> None:
-        _ = first_show
+    def on_page_activated(self) -> None:
         pending_target_key = str(getattr(self, "_pending_target_key", "") or "").strip().lower()
         if pending_target_key:
             self._pending_target_key = ""

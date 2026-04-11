@@ -52,7 +52,7 @@ class DPIStartWorker(QObject):
             if (
                 isinstance(mode_param, dict)
                 and mode_param.get("is_preset_file")
-                and self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1")
+                and self.launch_method in ("direct_zapret2", "direct_zapret1")
             ):
                 return True, str(mode_param.get("preset_path") or "").strip()
         except Exception:
@@ -62,7 +62,7 @@ class DPIStartWorker(QObject):
     def _can_reuse_running_process(self, *, is_preset_file: bool, preset_path: str) -> bool:
         if not is_preset_file or not preset_path:
             return False
-        if self.launch_method not in ("direct_zapret2", "direct_zapret2_orchestra"):
+        if self.launch_method not in ("direct_zapret2",):
             return False
         try:
             from launcher_common import get_strategy_runner
@@ -117,7 +117,7 @@ class DPIStartWorker(QObject):
 
         self.progress.emit("Останавливаем предыдущий процесс...")
 
-        if self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+        if self.launch_method in ("direct_zapret2", "direct_zapret1"):
             from launcher_common import get_strategy_runner
 
             runner = get_strategy_runner(self._get_winws_exe())
@@ -149,7 +149,7 @@ class DPIStartWorker(QObject):
     def _run_launch_method(self) -> bool:
         if self.launch_method == "orchestra":
             return self._start_orchestra()
-        if self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+        if self.launch_method in ("direct_zapret2", "direct_zapret1"):
             return self._start_direct()
         log(f"Неизвестный метод запуска: {self.launch_method}", "❌ ERROR")
         return False
@@ -244,7 +244,7 @@ class DPIStartWorker(QObject):
                 fatal_reason = ""
                 try:
                     mode_param = self.selected_mode
-                    if isinstance(mode_param, dict) and self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+                    if isinstance(mode_param, dict) and self.launch_method in ("direct_zapret2", "direct_zapret1"):
                         if mode_param.get("is_preset_file"):
                             preset_path = (mode_param.get("preset_path") or "").strip()
                             if not preset_path:
@@ -412,7 +412,7 @@ class DPIStopWorker(QObject):
             # Выбираем метод остановки
             if self.launch_method == "orchestra":
                 success = self._stop_orchestra()
-            elif self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            elif self.launch_method in ("direct_zapret2", "direct_zapret1"):
                 success = self._stop_direct()
             else:
                 # Fallback: try direct stop for any unrecognised launch method
@@ -575,7 +575,7 @@ class StopAndExitWorker(QObject):
                 # Дополнительная очистка
                 from utils.process_killer import kill_winws_all
                 kill_winws_all()
-            elif self.launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            elif self.launch_method in ("direct_zapret2", "direct_zapret1"):
                 from launcher_common import get_strategy_runner
                 runner = get_strategy_runner(self._get_winws_exe())
                 runner.stop()
@@ -781,8 +781,6 @@ class DPIController:
             return "оркестр"
         if method == "direct_zapret2":
             return "прямой"
-        if method == "direct_zapret2_orchestra":
-            return "оркестратор Z2"
         if method == "direct_zapret1":
             return "прямой Z1"
         return "классический"
@@ -824,22 +822,6 @@ class DPIController:
             log(f"Используется выбранный source-пресет: {snapshot.preset_path}", "INFO")
             return snapshot.to_selected_mode()
 
-        if method == "direct_zapret2_orchestra":
-            from preset_orchestra_zapret2 import (
-                ensure_default_preset_exists,
-                get_active_preset_path,
-                get_active_preset_name,
-            )
-
-            ensure_default_preset_exists()
-            preset_path = get_active_preset_path()
-            preset_name = get_active_preset_name() or "Default"
-            return {
-                "is_preset_file": True,
-                "name": f"Пресет оркестра: {preset_name}",
-                "preset_path": str(preset_path),
-            }
-
         raise RuntimeError("Неизвестный метод запуска")
 
     @staticmethod
@@ -851,7 +833,7 @@ class DPIController:
 
     def _validate_direct_selected_mode(self, selected_mode, launch_method: str) -> None:
         method = str(launch_method or "").strip().lower()
-        if method not in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+        if method not in ("direct_zapret2", "direct_zapret1"):
             return
         if not isinstance(selected_mode, dict) or not bool(selected_mode.get("is_preset_file")):
             return
@@ -863,26 +845,16 @@ class DPIController:
         try:
             content = preset_path.read_text(encoding="utf-8").strip()
 
-            if method in ("direct_zapret2", "direct_zapret2_orchestra"):
+            if method in ("direct_zapret2",):
                 content_lower = content.lower()
                 if ("unknown.txt" in content_lower) or ("ipset-unknown.txt" in content_lower):
                     try:
-                        if method == "direct_zapret2_orchestra":
-                            from preset_orchestra_zapret2.txt_preset_parser import (
-                                parse_preset_file,
-                                generate_preset_file,
-                            )
+                        from core.direct_preset_core.service import DirectPresetService
+                        from core.services import get_app_paths
 
-                            data = parse_preset_file(preset_path)
-                            if generate_preset_file(data, preset_path, atomic=True):
-                                content = preset_path.read_text(encoding="utf-8").strip()
-                        else:
-                            from core.direct_preset_core.service import DirectPresetService
-                            from core.services import get_app_paths
-
-                            service = DirectPresetService(get_app_paths(), "winws2")
-                            source = service.read_source_preset(preset_path)
-                            if service.remove_placeholder_profiles(source):
+                        service = DirectPresetService(get_app_paths(), "winws2")
+                        source = service.read_source_preset(preset_path)
+                        if service.remove_placeholder_profiles(source):
                                 service.write_source_preset(preset_path, source)
                                 content = preset_path.read_text(encoding="utf-8").strip()
                     except Exception as e:
@@ -1403,8 +1375,6 @@ class DPIController:
             method_name = "оркестр"
         elif launch_method == "direct_zapret2":
             method_name = "прямой"
-        elif launch_method == "direct_zapret2_orchestra":
-            method_name = "оркестратор Z2"
         elif launch_method == "direct_zapret1":
             method_name = "прямой Z1"
         else:

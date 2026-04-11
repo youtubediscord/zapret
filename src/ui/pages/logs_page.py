@@ -1,11 +1,11 @@
 # ui/pages/logs_page.py
 """Страница просмотра логов в реальном времени"""
 
-from PyQt6.QtCore import Qt, QThread, QTimer, QVariantAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, QThread, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QApplication,
-    QSplitter, QTextEdit, QStackedWidget, QLineEdit, QFrame
+    QTextEdit, QStackedWidget
 )
 from qfluentwidgets import (
     BodyLabel,
@@ -18,20 +18,27 @@ from qfluentwidgets import (
     ToolButton,
     InfoBar,
 )
-from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QPixmap, QPainter, QTransform, QIcon
+from PyQt6.QtGui import QFont, QPixmap, QPainter, QTransform, QIcon
 import qtawesome as qta
-import os
 import re
-import queue
-import html
 
 from .base_page import BasePage, ScrollBlockingTextEdit
 from ui.compat_widgets import QuickActionsBar, SettingsCard, set_tooltip
+from ui.pages.logs_page_logs_build import build_logs_tab_ui
+from ui.pages.logs_page_runtime_helpers import (
+    append_error,
+    clear_errors,
+    compute_errors_text_height,
+    format_winws_output_line,
+    render_send_status_label,
+    resolve_winws_status_style,
+    set_winws_status,
+)
+from ui.pages.logs_page_send_build import build_logs_send_tab
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from log import log
 from log.logs_page_controller import LogsPageController
-from log_tail import LogTailWorker
 
 # Паттерны для определения РЕАЛЬНЫХ ошибок (строгие)
 ERROR_PATTERNS = [
@@ -281,56 +288,39 @@ class LogsPage(BasePage):
         )
 
     def _render_send_status_label(self, tokens=None) -> None:
-        label = getattr(self, "send_status_label", None)
-        if label is None:
-            return
-
         theme_tokens = tokens or get_theme_tokens()
-        text = str(getattr(self, "_send_status_text", "") or "")
-        tone = str(getattr(self, "_send_status_tone", "neutral") or "neutral").strip().lower()
-
-        label.setText(text)
-        if not text:
-            label.setStyleSheet("")
-            return
-
-        color = theme_tokens.accent_hex
-        if tone == "error":
-            color = "#f87171" if not theme_tokens.is_light else "#dc2626"
-        label.setStyleSheet(f"color: {color}; font-size: 11px;")
+        render_send_status_label(
+            label=getattr(self, "send_status_label", None),
+            text=str(getattr(self, "_send_status_text", "") or ""),
+            tone=str(getattr(self, "_send_status_tone", "neutral") or "neutral"),
+            theme_tokens=theme_tokens,
+        )
 
     def _update_tab_styles(self) -> None:
         """No-op — Pivot manages its own indicator."""
 
     def _refresh_winws_status_style_only(self) -> None:
         try:
-            cur = (self.winws_status_label.text() or "").strip()
+            current_text = self.winws_status_label.text() or ""
         except Exception:
-            cur = ""
-        if not cur:
-            self._set_winws_status("neutral", "")
-            return
-
-        if "PID:" in cur:
-            self._set_winws_status("running", cur)
-            return
-
-        if "ошиб" in cur.lower():
-            self._set_winws_status("error", cur)
-            return
-
-        self._set_winws_status("neutral", cur)
+            current_text = ""
+        kind, text = resolve_winws_status_style(
+            current_text=current_text,
+            neutral_color=self._winws_status_neutral,
+            running_color=self._winws_status_running,
+            error_color=self._winws_status_error,
+        )
+        self._set_winws_status(kind, text)
 
     def _set_winws_status(self, kind: str, text: str) -> None:
-        if kind == "running":
-            color = self._winws_status_running
-        elif kind == "error":
-            color = self._winws_status_error
-        else:
-            color = self._winws_status_neutral
-
-        self.winws_status_label.setText(text)
-        self.winws_status_label.setStyleSheet(f"color: {color}; font-size: 11px;")
+        set_winws_status(
+            self.winws_status_label,
+            kind=kind,
+            text=text,
+            neutral_color=self._winws_status_neutral,
+            running_color=self._winws_status_running,
+            error_color=self._winws_status_error,
+        )
         
     def _build_ui(self):
         # ═══════════════════════════════════════════════════════════
@@ -543,231 +533,66 @@ class LogsPage(BasePage):
 
     def _build_logs_tab(self, parent_layout):
         """Строит вкладку с логами"""
-        # ═══════════════════════════════════════════════════════════
-        # Панель управления (выбор файла + кнопки в 2 ряда)
-        # ═══════════════════════════════════════════════════════════
-        controls_card = SettingsCard(
-            tr_catalog("page.logs.card.controls", language=self._ui_language, default="Управление логами")
+        logs_widgets = build_logs_tab_ui(
+            parent_layout=parent_layout,
+            content_parent=self.content,
+            ui_language=self._ui_language,
+            tr_catalog_fn=tr_catalog,
+            settings_card_cls=SettingsCard,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qlabel_cls=QLabel,
+            caption_label_cls=CaptionLabel,
+            strong_body_label_cls=StrongBodyLabel,
+            combo_box_cls=ComboBox,
+            tool_button_cls=ToolButton,
+            push_button_cls=PushButton,
+            fluent_push_button_cls=FluentPushButton,
+            text_edit_cls=ScrollBlockingTextEdit,
+            quick_actions_bar_cls=QuickActionsBar,
+            qfont_cls=QFont,
+            qtextedit_cls=QTextEdit,
+            qta_module=qta,
+            get_theme_tokens_fn=get_theme_tokens,
+            errors_text_min_height=self._errors_text_min_height,
+            errors_text_max_height=self._errors_text_max_height,
+            on_log_selected=self._on_log_selected,
+            on_refresh=self._refresh_logs_list,
+            on_spin_tick=self._on_spin_tick,
+            on_copy=self._copy_log,
+            on_clear_view=self._clear_view,
+            on_open_folder=self._open_folder,
+            on_clear_errors=self._clear_errors,
+            on_update_errors_height=self._update_errors_text_height,
+            on_clear_winws_output=self._clear_winws_output,
+            refresh_timer_parent=self,
         )
-        self.controls_card = controls_card
-        controls_main = QVBoxLayout()
-        controls_main.setSpacing(12)
-        
-        # Ряд 1: выбор файла + кнопка обновления
-        row1 = QHBoxLayout()
-        row1.setSpacing(8)
-        
-        self.log_combo = ComboBox()
-        self.log_combo.setMinimumWidth(350)
-        self.log_combo.currentIndexChanged.connect(self._on_log_selected)
-        row1.addWidget(self.log_combo, 1)
-        
-        self.refresh_btn = ToolButton()
-        tokens = get_theme_tokens()
-        self._refresh_icon_normal = qta.icon('fa5s.sync-alt', color=tokens.fg)
-        self._spin_timer = QTimer(self)
-        self._spin_timer.setInterval(33)  # ~30 fps
-        self._spin_angle = 0
-        self._spin_timer.timeout.connect(self._on_spin_tick)
-        self.refresh_btn.setIcon(self._refresh_icon_normal)
-        self.refresh_btn.setFixedSize(36, 36)
-        set_tooltip(
-            self.refresh_btn,
-            tr_catalog("page.logs.tooltip.refresh", language=self._ui_language, default="Обновить список файлов"),
-        )
-        self.refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.refresh_btn.clicked.connect(self._refresh_logs_list)
-        row1.addWidget(self.refresh_btn)
-        
-        controls_main.addLayout(row1)
-        
-        # Информационная строка
-        info_row = QHBoxLayout()
-        info_row.setSpacing(8)
-        info_row.addStretch()
-        self.info_label = CaptionLabel()
-        info_row.addWidget(self.info_label)
-        controls_main.addLayout(info_row)
-        
-        controls_card.add_layout(controls_main)
-        parent_layout.addWidget(controls_card)
+        self.controls_card = logs_widgets.controls_card
+        self.log_combo = logs_widgets.log_combo
+        self.refresh_btn = logs_widgets.refresh_btn
+        self._controls_actions_title = logs_widgets.controls_actions_title
+        self._controls_actions_bar = logs_widgets.controls_actions_bar
+        self.copy_btn = logs_widgets.copy_btn
+        self.clear_btn = logs_widgets.clear_btn
+        self.folder_btn = logs_widgets.folder_btn
+        self.log_card = logs_widgets.log_card
+        self.log_text = logs_widgets.log_text
+        self.stats_label = logs_widgets.stats_label
+        self.errors_card = logs_widgets.errors_card
+        self._warning_icon_label = logs_widgets.warning_icon_label
+        self.errors_title_label = logs_widgets.errors_title_label
+        self.errors_count_label = logs_widgets.errors_count_label
+        self.clear_errors_btn = logs_widgets.clear_errors_btn
+        self.errors_text = logs_widgets.errors_text
+        self.winws_card = logs_widgets.winws_card
+        self._terminal_icon_label = logs_widgets.terminal_icon_label
+        self.winws_title_label = logs_widgets.winws_title_label
+        self.winws_status_label = logs_widgets.winws_status_label
+        self.clear_winws_btn = logs_widgets.clear_winws_btn
+        self.winws_text = logs_widgets.winws_text
 
-        self._controls_actions_title = StrongBodyLabel(
-            tr_catalog("page.logs.actions.title", language=self._ui_language, default="Действия")
-        )
-        parent_layout.addWidget(self._controls_actions_title)
-
-        self._controls_actions_bar = QuickActionsBar(self.content)
-
-        self.copy_btn = PushButton()
-        self.copy_btn.setText(tr_catalog("page.logs.button.copy", language=self._ui_language, default="Копировать"))
-        self.copy_btn.setIcon(qta.icon("fa5s.copy", color=tokens.accent_hex))
-        self.copy_btn.setToolTip(
-            tr_catalog(
-                "page.logs.action.copy.description",
-                language=self._ui_language,
-                default="Скопировать содержимое текущего лога в буфер обмена.",
-            )
-        )
-        self.copy_btn.clicked.connect(self._copy_log)
-        self._controls_actions_bar.add_button(self.copy_btn)
-
-        self.clear_btn = PushButton()
-        self.clear_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
-        self.clear_btn.setIcon(qta.icon("fa5s.eraser", color="#ff9800"))
-        self.clear_btn.setToolTip(
-            tr_catalog(
-                "page.logs.action.clear.description",
-                language=self._ui_language,
-                default="Очистить только текущее окно просмотра, не удаляя файл лога.",
-            )
-        )
-        self.clear_btn.clicked.connect(self._clear_view)
-        self._controls_actions_bar.add_button(self.clear_btn)
-
-        self.folder_btn = PushButton()
-        self.folder_btn.setText(tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка"))
-        self.folder_btn.setIcon(qta.icon("fa5s.folder-open", color=tokens.accent_hex))
-        self.folder_btn.setToolTip(
-            tr_catalog(
-                "page.logs.action.folder.description",
-                language=self._ui_language,
-                default="Открыть папку logs с файлами приложения.",
-            )
-        )
-        self.folder_btn.clicked.connect(self._open_folder)
-        self._controls_actions_bar.add_button(self.folder_btn)
-
-        parent_layout.addWidget(self._controls_actions_bar)
-
-        # ═══════════════════════════════════════════════════════════
-        # Область логов
-        # ═══════════════════════════════════════════════════════════
-        log_card = SettingsCard(
-            tr_catalog("page.logs.card.content", language=self._ui_language, default="Содержимое")
-        )
-        self.log_card = log_card
-        log_layout = QVBoxLayout()
-        
-        # Текстовое поле для логов (блокирует провал прокрутки)
-        self.log_text = ScrollBlockingTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.log_text.setFont(QFont("Consolas", 9))
-        self.log_text.setMinimumHeight(260)
-        log_layout.addWidget(self.log_text)
-        
-        # Статистика внизу лог-карточки
-        self.stats_label = CaptionLabel()
-        log_layout.addWidget(self.stats_label)
-        
-        log_card.add_layout(log_layout)
-        parent_layout.addWidget(log_card)
-
-        # ═══════════════════════════════════════════════════════════
-        # Панель ошибок
-        # ═══════════════════════════════════════════════════════════
-        errors_card = SettingsCard()  # Без заголовка - добавим свой с иконкой
-        errors_layout = QVBoxLayout()
-        
-        # Заголовок с иконкой и кнопкой очистки
-        errors_header = QHBoxLayout()
-        
-        # Иконка предупреждения
-        warning_icon = QLabel()
-        self._warning_icon_label = warning_icon
-        errors_header.addWidget(warning_icon)
-        
-        # Заголовок
-        self.errors_title_label = StrongBodyLabel(
-            tr_catalog("page.logs.errors.title", language=self._ui_language, default="Ошибки и предупреждения")
-        )
-        errors_header.addWidget(self.errors_title_label)
-        errors_header.addSpacing(8)
-
-        self.errors_count_label = CaptionLabel(
-            tr_catalog("page.logs.errors.count", language=self._ui_language, default="Ошибок: {count}").format(count=0)
-        )
-        errors_header.addWidget(self.errors_count_label)
-        
-        errors_header.addStretch()
-        
-        self.clear_errors_btn = FluentPushButton()
-        self.clear_errors_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
-        self.clear_errors_btn.setIcon(qta.icon("fa5s.trash", color=tokens.fg))
-        self.clear_errors_btn.clicked.connect(self._clear_errors)
-        errors_header.addWidget(self.clear_errors_btn)
-        
-        errors_layout.addLayout(errors_header)
-        
-        # Текстовое поле для ошибок (блокирует провал прокрутки)
-        self.errors_text = ScrollBlockingTextEdit()
-        self.errors_text.setReadOnly(True)
-        self.errors_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.errors_text.setFont(QFont("Consolas", 9))
-        self.errors_text.setMinimumHeight(self._errors_text_min_height)
-        self.errors_text.setMaximumHeight(self._errors_text_max_height)
         self.errors_text.document().contentsChanged.connect(self._update_errors_text_height)
         self._update_errors_text_height()
-        errors_layout.addWidget(self.errors_text)
-
-        errors_card.add_layout(errors_layout)
-        self.errors_card = errors_card
-        parent_layout.addWidget(errors_card)
-
-        # ═══════════════════════════════════════════════════════════
-        # Панель вывода winws
-        # ═══════════════════════════════════════════════════════════
-        winws_card = SettingsCard()
-        winws_layout = QVBoxLayout()
-
-        # Заголовок с иконкой
-        winws_header = QHBoxLayout()
-
-        # Иконка терминала
-        terminal_icon = QLabel()
-        self._terminal_icon_label = terminal_icon
-        winws_header.addWidget(terminal_icon)
-
-        # Заголовок
-        self.winws_title_label = StrongBodyLabel(
-            tr_catalog(
-                "page.logs.winws.title_template",
-                language=self._ui_language,
-                default="Вывод {exe_name}",
-            ).format(exe_name="winws.exe")
-        )
-        winws_header.addWidget(self.winws_title_label)
-        winws_header.addSpacing(16)
-
-        # Статус процесса
-        self.winws_status_label = CaptionLabel(
-            tr_catalog("page.logs.winws.status.not_running", language=self._ui_language, default="Процесс не запущен")
-        )
-        winws_header.addWidget(self.winws_status_label)
-
-        winws_header.addStretch()
-
-        # Кнопка очистки
-        self.clear_winws_btn = FluentPushButton()
-        self.clear_winws_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
-        self.clear_winws_btn.setIcon(qta.icon("fa5s.trash", color=tokens.fg))
-        self.clear_winws_btn.clicked.connect(self._clear_winws_output)
-        winws_header.addWidget(self.clear_winws_btn)
-
-        winws_layout.addLayout(winws_header)
-
-        # Текстовое поле для вывода winws
-        self.winws_text = ScrollBlockingTextEdit()
-        self.winws_text.setReadOnly(True)
-        self.winws_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        self.winws_text.setFont(QFont("Consolas", 9))
-        self.winws_text.setFixedHeight(150)
-        winws_layout.addWidget(self.winws_text)
-
-        winws_card.add_layout(winws_layout)
-        self.winws_card = winws_card
-        parent_layout.addWidget(winws_card)
 
         # Счётчик ошибок
         self._errors_count = 0
@@ -782,136 +607,37 @@ class LogsPage(BasePage):
 
     def _build_send_tab(self, parent_layout):
         """Строит вкладку поддержки по логам."""
-        tokens = get_theme_tokens()
-
-        # ═══════════════════════════════════════════════════════════
-        # Форма отправки
-        # ═══════════════════════════════════════════════════════════
-        send_card = SettingsCard(
-            tr_catalog("page.logs.send.card.title", language=self._ui_language, default="Поддержка через GitHub Discussions")
+        send_widgets = build_logs_send_tab(
+            parent_layout=parent_layout,
+            ui_language=self._ui_language,
+            tr_catalog_fn=tr_catalog,
+            settings_card_cls=SettingsCard,
+            qwidget_cls=QWidget,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qlabel_cls=QLabel,
+            body_label_cls=BodyLabel,
+            caption_label_cls=CaptionLabel,
+            strong_body_label_cls=StrongBodyLabel,
+            push_button_cls=PushButton,
+            quick_actions_bar_cls=QuickActionsBar,
+            qta_module=qta,
+            get_theme_tokens_fn=get_theme_tokens,
+            on_prepare_support=self._prepare_support_from_logs,
+            on_open_folder=self._open_folder,
         )
-        self.send_card = send_card
-        send_layout = QVBoxLayout()
-        send_layout.setSpacing(16)
-
-        # Индикатор режима оркестратора (скрыт по умолчанию)
-        self.orchestra_mode_container = QWidget()
-        orchestra_layout = QHBoxLayout(self.orchestra_mode_container)
-        orchestra_layout.setContentsMargins(12, 8, 12, 8)
-        orchestra_layout.setSpacing(8)
-
-        orchestra_icon = QLabel()
-        try:
-            from qfluentwidgets import isDarkTheme as _idt
-            _orch_clr_init = "#a855f7" if _idt() else "#7c3aed"
-        except Exception:
-            _orch_clr_init = "#a855f7"
-        orchestra_icon.setPixmap(qta.icon('fa5s.brain', color=_orch_clr_init).pixmap(16, 16))
-        self._orchestra_icon_label = orchestra_icon
-        orchestra_layout.addWidget(orchestra_icon)
-
-        orchestra_text = BodyLabel(
-            tr_catalog(
-                "page.logs.send.orchestra.active",
-                language=self._ui_language,
-                default="В режиме оркестратора проверьте основной лог и файл orchestra_*.log",
-            )
-        )
-        orchestra_text.setStyleSheet(f"color: {_orch_clr_init}; font-size: 12px; font-weight: 600; background: transparent;")
-        self._orchestra_text_label = orchestra_text
-        orchestra_layout.addWidget(orchestra_text)
-        orchestra_layout.addStretch()
-
-        _orch_bg = "rgba(124, 58, 237, 0.12)" if _orch_clr_init == "#7c3aed" else "rgba(168, 85, 247, 0.15)"
-        self.orchestra_mode_container.setStyleSheet(
-            "QWidget {"
-            f" background-color: {_orch_bg};"
-            " border-radius: 8px;"
-            " }"
-        )
-        self.orchestra_mode_container.setVisible(False)
-        send_layout.addWidget(self.orchestra_mode_container)
-
-        # Описание
-        self.send_desc_label = BodyLabel(
-            tr_catalog(
-                "page.logs.send.desc",
-                language=self._ui_language,
-                default="Нажмите кнопку, чтобы собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
-            )
-        )
-        self.send_desc_label.setWordWrap(True)
-        send_layout.addWidget(self.send_desc_label)
-
-        # Информация
-        info_container = QWidget()
-        info_layout = QHBoxLayout(info_container)
-        info_layout.setContentsMargins(0, 8, 0, 8)
-
-        info_icon = QLabel()
-        self._info_icon_label = info_icon
-        info_layout.addWidget(info_icon)
-
-        self.send_info_label = CaptionLabel(
-            tr_catalog(
-                "page.logs.send.info",
-                language=self._ui_language,
-                default="Будет создан архив в папке logs/support_bundles. Шаблон обращения автоматически попадёт в буфер обмена.",
-            )
-        )
-        self.send_info_label.setWordWrap(True)
-        info_layout.addWidget(self.send_info_label, 1)
-
-        send_layout.addWidget(info_container)
-
-        # Статус отправки
-        self.send_status_label = CaptionLabel()
-        send_layout.addWidget(self.send_status_label)
-
-        send_card.add_layout(send_layout)
-        parent_layout.addWidget(send_card)
-
-        self._send_actions_title = StrongBodyLabel(
-            tr_catalog("page.logs.send.actions.title", language=self._ui_language, default="Действия")
-        )
-        parent_layout.addWidget(self._send_actions_title)
-
-        self._send_actions_bar = QuickActionsBar(self.content)
-
-        self.send_log_btn = PushButton()
-        self.send_log_btn.setText(
-            tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Подготовить обращение")
-        )
-        self.send_log_btn.setIcon(qta.icon("fa5b.github", color=tokens.accent_hex))
-        self.send_log_btn.setToolTip(
-            tr_catalog(
-                "page.logs.send.action.send.description",
-                language=self._ui_language,
-                default="Собрать ZIP из свежих логов, скопировать шаблон обращения и открыть GitHub Discussions.",
-            )
-        )
-        self.send_log_btn.clicked.connect(self._prepare_support_from_logs)
-        self._send_actions_bar.add_button(self.send_log_btn)
-
-        self.open_logs_folder_btn = PushButton()
-        self.open_logs_folder_btn.setText(
-            tr_catalog("page.logs.button.folder", language=self._ui_language, default="Папка")
-        )
-        self.open_logs_folder_btn.setIcon(qta.icon("fa5s.folder-open", color=tokens.accent_hex))
-        self.open_logs_folder_btn.setToolTip(
-            tr_catalog(
-                "page.logs.send.action.folder.description",
-                language=self._ui_language,
-                default="Открыть папку logs, где лежат логи и подготовленные support bundles.",
-            )
-        )
-        self.open_logs_folder_btn.clicked.connect(self._open_folder)
-        self._send_actions_bar.add_button(self.open_logs_folder_btn)
-
-        parent_layout.addWidget(self._send_actions_bar)
-
-        # Растяжка чтобы форма была вверху
-        parent_layout.addStretch()
+        self.send_card = send_widgets.send_card
+        self.orchestra_mode_container = send_widgets.orchestra_mode_container
+        self._orchestra_icon_label = send_widgets.orchestra_icon_label
+        self._orchestra_text_label = send_widgets.orchestra_text_label
+        self._info_icon_label = send_widgets.info_icon_label
+        self.send_desc_label = send_widgets.send_desc_label
+        self.send_info_label = send_widgets.send_info_label
+        self.send_status_label = send_widgets.send_status_label
+        self._send_actions_title = send_widgets.send_actions_title
+        self._send_actions_bar = send_widgets.send_actions_bar
+        self.send_log_btn = send_widgets.send_log_btn
+        self.open_logs_folder_btn = send_widgets.open_logs_folder_btn
 
         # Send tab is lazily built; apply current theme now.
         self._retranslate_send_tab()
@@ -1042,9 +768,6 @@ class LogsPage(BasePage):
                     content=feedback.infobar_content,
                     parent=self.window(),
                 )
-        
-    def on_page_hidden(self) -> None:
-        pass
         
     def _refresh_logs_list(self, *, run_cleanup: bool = True):
         """Обновляет список доступных лог-файлов"""
@@ -1248,16 +971,12 @@ class LogsPage(BasePage):
         """Добавляет вывод winws в текстовое поле"""
         self._winws_lines_count += 1
 
-        # Экранируем HTML-символы
-        safe_text = html.escape(text)
-
-        # Форматируем текст в зависимости от потока
-        if stream_type == 'stderr':
-            # stderr показываем красным
-            formatted = f'<span style="color: {self._winws_stderr_color};">{safe_text}</span>'
-        else:
-            # stdout показываем зелёным
-            formatted = f'<span style="color: {self._winws_stdout_color};">{safe_text}</span>'
+        formatted = format_winws_output_line(
+            text=text,
+            stream_type=stream_type,
+            stdout_color=self._winws_stdout_color,
+            stderr_color=self._winws_stderr_color,
+        )
 
         self.winws_text.append(formatted)
 
@@ -1420,39 +1139,24 @@ class LogsPage(BasePage):
         """Подстраивает высоту панели ошибок под содержимое."""
         if not hasattr(self, "errors_text") or self.errors_text is None:
             return
-
-        try:
-            is_empty = not bool(self.errors_text.toPlainText().strip())
-        except Exception:
-            is_empty = True
-
-        if is_empty:
-            target_height = self._errors_text_min_height
-        else:
-            try:
-                document_height = int(self.errors_text.document().size().height())
-            except Exception:
-                document_height = self._errors_text_min_height
-
-            frame_height = int(self.errors_text.frameWidth()) * 2
-            content_padding = 16
-            target_height = document_height + frame_height + content_padding
-            target_height = max(self._errors_text_min_height, min(self._errors_text_max_height, target_height))
+        target_height = compute_errors_text_height(
+            text_edit=self.errors_text,
+            min_height=self._errors_text_min_height,
+            max_height=self._errors_text_max_height,
+        )
 
         if self.errors_text.height() != target_height:
             self.errors_text.setFixedHeight(target_height)
             
     def _add_error(self, text: str):
         """Добавляет ошибку в панель ошибок"""
-        self._errors_count += 1
-        self.errors_count_label.setText(
-            tr_catalog("page.logs.errors.count", language=self._ui_language, default="Ошибок: {count}").format(
-                count=self._errors_count
-            )
+        self._errors_count = append_error(
+            errors_text=self.errors_text,
+            errors_count_label=self.errors_count_label,
+            tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
+            current_count=self._errors_count,
+            text=text,
         )
-        
-        # Добавляем текст с временной меткой
-        self.errors_text.append(text)
         self._update_errors_text_height()
         
         # Автопрокрутка
@@ -1461,10 +1165,10 @@ class LogsPage(BasePage):
         
     def _clear_errors(self):
         """Очищает панель ошибок"""
-        self.errors_text.clear()
-        self._errors_count = 0
-        self.errors_count_label.setText(
-            tr_catalog("page.logs.errors.count", language=self._ui_language, default="Ошибок: {count}").format(count=0)
+        self._errors_count = clear_errors(
+            errors_text=self.errors_text,
+            errors_count_label=self.errors_count_label,
+            tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
         )
         self._update_errors_text_height()
         self.info_label.setText(

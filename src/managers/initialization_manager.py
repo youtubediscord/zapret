@@ -1,5 +1,6 @@
 # managers/initialization_manager.py
 
+from dataclasses import dataclass
 import threading
 import time as _time
 
@@ -20,6 +21,14 @@ class _PostInitLaunchBridge(QObject):
     launch_requested = pyqtSignal(str)
 
 
+@dataclass(frozen=True, slots=True)
+class InitializationAppStateTouchpoints:
+    ui_state_store_updates: tuple[str, ...]
+    app_runtime_state_updates: tuple[str, ...]
+    runtime_service_calls: tuple[str, ...]
+    infrastructure_calls: tuple[str, ...]
+
+
 class InitializationManager:
     """
     Менеджер запуска приложения.
@@ -33,6 +42,37 @@ class InitializationManager:
     Такой разрез нужен, чтобы GUI перестал держать главный поток занятым
     первые 2-3 секунды после появления окна.
     """
+
+    @staticmethod
+    def build_app_state_touchpoints() -> InitializationAppStateTouchpoints:
+        """Явная карта допустимых app-level интеграций startup-слоя.
+
+        InitializationManager не должен владеть page-level UI state.
+        Его допустимые точки касания ограничены общими app/runtime слоями:
+        - единый ui_state_store для стартового summary;
+        - app_runtime_state для системного runtime статуса;
+        - runtime service слои вроде dpi_runtime_service;
+        - инфраструктурные менеджеры tray/notification/subscription.
+        """
+
+        return InitializationAppStateTouchpoints(
+            ui_state_store_updates=(
+                "_resolve_strategy_cache_summary -> ui_state_store.snapshot().current_strategy_summary",
+                "_apply_strategy_cache_summary -> ui_state_store.set_current_strategy_summary(...)",
+            ),
+            app_runtime_state_updates=(
+                "_finalize_managers_init -> app_runtime_state.apply_runtime_state(autostart_enabled=...)",
+                "_sync_autostart_status -> app_runtime_state.set_autostart(...)",
+            ),
+            runtime_service_calls=(
+                "_init_process_monitor -> dpi_runtime_service.bootstrap_probe(...)",
+            ),
+            infrastructure_calls=(
+                "ensure_tray_initialized -> _init_tray()",
+                "_init_tray -> window_notification_controller.notify(...)",
+                "_init_subscription_check -> subscription_manager.check_and_update_subscription_async(...)",
+            ),
+        )
 
     def __init__(self, app_instance):
         self.app = app_instance
@@ -113,7 +153,6 @@ class InitializationManager:
             self._init_strategy_manager,
             self._init_theme_manager,
             self._init_telegram_proxy_autostart,
-            self._init_service_managers,
             self._init_network_managers,
             self._finalize_managers_init,
         ]
@@ -155,21 +194,13 @@ class InitializationManager:
 
                 method = get_strategy_launch_method()
 
-                # Прогреваем кэш выборов/source preset для текущего режима.
+                # Прогреваем кэш выборов/source preset только для поддерживаемых direct-режимов.
                 if method in ("direct_zapret1", "direct_zapret2"):
                     from core.presets.direct_facade import DirectPresetFacade
 
                     DirectPresetFacade.from_launch_method(method).get_strategy_selections()
-                elif method == "direct_zapret2_orchestra":
-                    from preset_orchestra_zapret2 import PresetManager
-                    from preset_orchestra_zapret2.catalog import load_categories
-
-                    load_categories()
-                    PresetManager().get_strategy_selections()
-                else:
-                    from preset_orchestra_zapret2.catalog import load_categories
-
-                    load_categories()
+                elif method == "orchestra":
+                    pass
 
                 log("Кэш стратегий прогрет", "DEBUG")
                 self._log_startup_step(
@@ -206,14 +237,6 @@ class InitializationManager:
                         f"direct_zapret2: не удалось подготовить выбранный source-пресет: {e}",
                         "ERROR",
                     )
-            elif method == "direct_zapret2_orchestra":
-                from preset_orchestra_zapret2 import ensure_default_preset_exists
-
-                if not ensure_default_preset_exists():
-                    log(
-                        "direct_zapret2_orchestra: не удалось подготовить preset-zapret2-orchestra.txt (нет шаблона Default)",
-                        "ERROR",
-                    )
             elif method == "direct_zapret1":
                 from core.services import get_direct_flow_coordinator
 
@@ -222,7 +245,7 @@ class InitializationManager:
                 except Exception:
                     log("direct_zapret1: не удалось подготовить выбранный source-пресет", "ERROR")
 
-            if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            if method in ("direct_zapret2", "direct_zapret1"):
                 from ui.main_window_display import get_direct_strategy_summary
 
                 return get_direct_strategy_summary(self.app)
@@ -407,16 +430,9 @@ class InitializationManager:
                 self.app.set_status("⚠️ Выберите стратегию для запуска")
                 return
 
-        # Для orchestra direct-режима пока остаётся legacy selections path.
-        elif launch_method == "direct_zapret2_orchestra":
-            from preset_orchestra_zapret2 import PresetManager
-
-            selections = PresetManager().get_strategy_selections() or {}
-            has_any = any(v and v != 'none' for v in selections.values())
-            if not has_any:
-                self._show_strategy_required_warning(for_bat=False)
-                self.app.set_status("⚠️ Выберите стратегию для запуска")
-                return
+        elif launch_method != "orchestra":
+            self.app.set_status("⚠️ Выбран неподдерживаемый режим. Откройте настройки DPI и выберите актуальный режим.")
+            return
 
         # orchestra режим не требует выбора стратегии - работает автоматически
 
@@ -590,32 +606,6 @@ class InitializationManager:
             self.init_tasks_completed.add('theme_manager')
         except Exception as e:
             log(f"❌ Ошибка theme manager: {e}", "ERROR")
-    
-    def _init_service_managers(self):
-        """Инициализация сервисных менеджеров: автозапуск, обновления"""
-        try:
-            import time as _t
-            t0 = _t.perf_counter()
-
-            if getattr(self.app, 'service_manager', None):
-                self.init_tasks_completed.add('service_managers')
-                log("Service managers уже инициализированы, пропускаем", "DEBUG")
-                return
-            
-            # Service Manager (автозапуск)
-            from autostart.checker import CheckerManager
-            from config import WINWS_EXE
-            
-            self.app.service_manager = CheckerManager(
-                winws_exe=WINWS_EXE,
-                status_callback=self.app.set_status
-            )
-            
-            log(f"✅ Service managers: {(_t.perf_counter() - t0)*1000:.0f}ms", "DEBUG")
-            self._log_startup_step("ServiceManagers", f"{(_t.perf_counter() - t0)*1000:.0f}ms")
-            self.init_tasks_completed.add('service_managers')
-        except Exception as e:
-            log(f"❌ Ошибка service managers: {e}", "ERROR")
     
     def _finalize_managers_init(self):
         """Финализация инициализации менеджеров и обновление UI"""

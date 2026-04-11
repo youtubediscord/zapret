@@ -7,7 +7,6 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 from .base_page import BasePage
 from dpi.dpi_settings_page_controller import DpiSettingsPageController
 from ui.compat_widgets import (
-    build_advanced_settings_section,
     SettingsCard,
 )
 from ui.text_catalog import tr as tr_catalog
@@ -33,7 +32,6 @@ class DpiSettingsPage(BasePage):
     """Страница настроек DPI"""
 
     launch_method_changed = pyqtSignal(str)
-    filters_changed = pyqtSignal()  # Сигнал при изменении фильтров
     
     def __init__(self, parent=None):
         super().__init__(
@@ -47,7 +45,7 @@ class DpiSettingsPage(BasePage):
         self._method_desc_label = None
         self._zapret1_header = None
         self._orchestra_label = None
-        self._advanced_notice = None
+        self._orchestra_settings_bound = False
         self._build_ui()
         self._load_settings()
 
@@ -113,19 +111,6 @@ class DpiSettingsPage(BasePage):
         self.method_direct.clicked.connect(lambda: self._select_method("direct_zapret2"))
         method_layout.addWidget(self.method_direct)
 
-        # Оркестратор Zapret 2 (direct с другим набором стратегий)
-        self.method_direct_zapret2_orchestra = Win11RadioOption(
-            self._tr("page.dpi_settings.method.direct_z2_orchestra.title", "Оркестраторный Zapret 2"),
-            self._tr(
-                "page.dpi_settings.method.direct_z2_orchestra.desc",
-                "Запуск Zapret 2 со стратегиями оркестратора внутри каждого профиля. Позволяет настроить для каждого сайта свой оркерстратор. Не сохраняет состояние для повышенной агрессии обхода.",
-            ),
-            icon_name="mdi.brain",
-            icon_color="#9c27b0"
-        )
-        self.method_direct_zapret2_orchestra.clicked.connect(lambda: self._select_method("direct_zapret2_orchestra"))
-        method_layout.addWidget(self.method_direct_zapret2_orchestra)
-
         # Оркестр (auto-learning)
         self.method_orchestra = Win11RadioOption(
             self._tr("page.dpi_settings.method.orchestra.title", "Оркестратор v0.9.6 (Beta)"),
@@ -167,15 +152,6 @@ class DpiSettingsPage(BasePage):
         self.separator2.setFrameShape(QFrame.Shape.HLine)
         self.separator2.setFixedHeight(1)
         method_layout.addWidget(self.separator2)
-
-        # Перезапуск Discord (только для Zapret 1/2)
-        self.discord_restart_toggle = Win11ToggleRow(
-            "mdi.discord",
-            self._tr("page.dpi_settings.discord_restart.title", "Перезапуск Discord"),
-            self._tr("page.dpi_settings.discord_restart.desc", "Автоперезапуск при смене стратегии"),
-            "#7289da",
-        )
-        method_layout.addWidget(self.discord_restart_toggle)
 
         # ─────────────────────────────────────────────────────────────────────
         # НАСТРОЙКИ ОРКЕСТРАТОРА (только в режиме оркестратора)
@@ -259,27 +235,6 @@ class DpiSettingsPage(BasePage):
         method_card.add_layout(method_layout)
         self.layout.addWidget(method_card)
         
-        # ═══════════════════════════════════════════════════════════════════════
-        # ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ
-        # ═══════════════════════════════════════════════════════════════════════
-        self.wssize_toggle = Win11ToggleRow(
-            "fa5s.ruler-horizontal",
-            self._tr("page.dpi_settings.advanced.wssize.title", "Включить --wssize"),
-            self._tr("page.dpi_settings.advanced.wssize.desc", "Добавляет параметр размера окна TCP"),
-        )
-        self.debug_log_toggle = Win11ToggleRow(
-            "mdi.file-document-outline",
-            self._tr("page.dpi_settings.advanced.debug_log.title", "Включить лог-файл (--debug)"),
-            self._tr("page.dpi_settings.advanced.debug_log.desc", "Записывает логи winws в папку logs"),
-        )
-        self.advanced_card, self._advanced_notice = build_advanced_settings_section(
-            title=self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ"),
-            warning_text=self._tr("page.dpi_settings.advanced.warning", "⚠ Изменяйте только если знаете что делаете"),
-            parent=self.content,
-            toggle_rows=[self.wssize_toggle, self.debug_log_toggle],
-        )
-        self.layout.addWidget(self.advanced_card)
-        
         self.layout.addStretch()
 
         # Apply token-driven accents/dividers.
@@ -288,19 +243,10 @@ class DpiSettingsPage(BasePage):
     def _load_settings(self):
         """Загружает настройки"""
         try:
-            state = DpiSettingsPageController.load_state()
-
-            # Устанавливаем выбранный метод
-            self._update_method_selection(state.launch_method)
-
-            # Discord restart setting
-            self._load_discord_restart_setting(state.discord_restart_enabled)
-
-            # Orchestra settings
-            self._load_orchestra_settings(state.orchestra)
-
-            self._update_filters_visibility(state.launch_method)
-            self._load_filter_settings(state)
+            initial = DpiSettingsPageController.load_initial_state()
+            self._update_method_selection(initial.launch_method)
+            self._update_filters_visibility(initial.launch_method)
+            self._sync_visible_settings()
 
         except Exception as e:
             log(f"Ошибка загрузки настроек DPI: {e}", "WARNING")
@@ -308,7 +254,6 @@ class DpiSettingsPage(BasePage):
     def _update_method_selection(self, method: str):
         """Обновляет визуальное состояние выбора метода"""
         self.method_direct.setSelected(method == "direct_zapret2")
-        self.method_direct_zapret2_orchestra.setSelected(method == "direct_zapret2_orchestra")
         self.method_direct_zapret1.setSelected(method == "direct_zapret1")
         self.method_orchestra.setSelected(method == "orchestra")
     
@@ -318,51 +263,29 @@ class DpiSettingsPage(BasePage):
             next_method = DpiSettingsPageController.apply_launch_method(method)
             self._update_method_selection(next_method)
             self._update_filters_visibility(next_method)
+            self._sync_visible_settings()
             self.launch_method_changed.emit(next_method)
         except Exception as e:
             log(f"Ошибка смены метода: {e}", "ERROR")
-    
-    def _load_discord_restart_setting(self, enabled: bool):
-        """Загружает настройку перезапуска Discord"""
-        try:
-            # Загружаем текущее значение (по умолчанию True), блокируя сигналы
-            self.discord_restart_toggle.setChecked(bool(enabled), block_signals=True)
-            
-            # Подключаем сигнал сохранения
-            self.discord_restart_toggle.toggled.connect(self._on_discord_restart_changed)
-            
-        except Exception as e:
-            log(f"Ошибка загрузки настройки Discord: {e}", "WARNING")
-    
-    def _on_discord_restart_changed(self, enabled: bool):
-        """Обработчик изменения настройки перезапуска Discord"""
-        try:
-            DpiSettingsPageController.set_discord_restart_enabled(enabled)
-            status = "включён" if enabled else "отключён"
-            log(f"Автоперезапуск Discord {status}", "INFO")
-        except Exception as e:
-            log(f"Ошибка сохранения настройки Discord: {e}", "ERROR")
 
     def _load_orchestra_settings(self, state):
         """Загружает настройки оркестратора"""
         try:
             self.strict_detection_toggle.setChecked(bool(state.strict_detection), block_signals=True)
-            self.strict_detection_toggle.toggled.connect(self._on_strict_detection_changed)
-
             self.debug_file_toggle.setChecked(bool(state.debug_file), block_signals=True)
-            self.debug_file_toggle.toggled.connect(self._on_debug_file_changed)
-
             self.auto_restart_discord_toggle.setChecked(bool(state.auto_restart_discord), block_signals=True)
-            self.auto_restart_discord_toggle.toggled.connect(self._on_auto_restart_discord_changed)
-
             self.discord_fails_spin.setValue(int(state.discord_fails))
-            self.discord_fails_spin.valueChanged.connect(self._on_discord_fails_changed)
-
             self.lock_successes_spin.setValue(int(state.lock_successes))
-            self.lock_successes_spin.valueChanged.connect(self._on_lock_successes_changed)
-
             self.unlock_fails_spin.setValue(int(state.unlock_fails))
-            self.unlock_fails_spin.valueChanged.connect(self._on_unlock_fails_changed)
+
+            if not self._orchestra_settings_bound:
+                self.strict_detection_toggle.toggled.connect(self._on_strict_detection_changed)
+                self.debug_file_toggle.toggled.connect(self._on_debug_file_changed)
+                self.auto_restart_discord_toggle.toggled.connect(self._on_auto_restart_discord_changed)
+                self.discord_fails_spin.valueChanged.connect(self._on_discord_fails_changed)
+                self.lock_successes_spin.valueChanged.connect(self._on_lock_successes_changed)
+                self.unlock_fails_spin.valueChanged.connect(self._on_unlock_fails_changed)
+                self._orchestra_settings_bound = True
 
         except Exception as e:
             log(f"Ошибка загрузки настроек оркестратора: {e}", "WARNING")
@@ -421,20 +344,6 @@ class DpiSettingsPage(BasePage):
         except Exception as e:
             log(f"Ошибка сохранения настройки UnlockFails: {e}", "ERROR")
     
-    def _load_filter_settings(self, state):
-        """Загружает настройки фильтров"""
-        try:
-            self.wssize_toggle.setChecked(bool(state.wssize_enabled), block_signals=True)
-            self.debug_log_toggle.setChecked(bool(state.debug_log_enabled), block_signals=True)
-
-            self.wssize_toggle.toggled.connect(lambda v: self._on_filter_changed("wssize", v))
-            self.debug_log_toggle.toggled.connect(lambda v: self._on_filter_changed("debug", v))
-
-        except Exception as e:
-            log(f"Ошибка загрузки фильтров: {e}", "WARNING")
-            import traceback
-            log(traceback.format_exc(), "DEBUG")
-
     def update_filter_display(self, filters: dict):
         """
         Совместимость: раньше показывало «Фильтры перехвата трафика» в GUI.
@@ -442,12 +351,6 @@ class DpiSettingsPage(BasePage):
         """
         _ = filters
         return
-                
-    def _on_filter_changed(self, kind: str, value):
-        """Обработчик изменения фильтра"""
-        DpiSettingsPageController.set_filter_state(kind, bool(value))
-
-        self.filters_changed.emit()
         
     def _update_filters_visibility(self, method: str | None = None):
         """Обновляет видимость фильтров и секций"""
@@ -455,34 +358,23 @@ class DpiSettingsPage(BasePage):
             resolved_method = str(method or DpiSettingsPageController.get_launch_method()).strip().lower()
             visibility = DpiSettingsPageController.describe_visibility(resolved_method)
 
-            # For direct_zapret2 these options are shown on the Strategies/Management page
-            # (ui/pages/zapret2/direct_control_page.py), so hide them here.
-            self.advanced_card.setVisible(visibility.show_advanced)
-
-            # If we just made the advanced section visible again, re-sync its state
-            # from the current mode source of truth (preset for direct preset flow).
-            if visibility.show_advanced:
-                try:
-                    self.wssize_toggle.setChecked(bool(DpiSettingsPageController.get_filter_state("wssize", resolved_method)), block_signals=True)
-                    self.debug_log_toggle.setChecked(bool(DpiSettingsPageController.get_filter_state("debug", resolved_method)), block_signals=True)
-                except Exception:
-                    pass
-
-            # Discord restart только для Zapret 1/2 (без оркестратора)
-            self.discord_restart_toggle.setVisible(visibility.show_discord_restart)
-            if visibility.show_discord_restart:
-                try:
-                    self.discord_restart_toggle.setChecked(DpiSettingsPageController.get_discord_restart_enabled(), block_signals=True)
-                except Exception:
-                    pass
-
             # Настройки оркестратора только для Python-оркестратора.
-            # В direct_zapret2_orchestra оркестрация выполняется Lua-модулем circular —
-            # параметры LOCK/UNLOCK/Discord/strict_detection к нему не применяются.
             self.orchestra_settings_container.setVisible(visibility.show_orchestra_settings)
 
         except:
             pass
+
+    def _sync_visible_settings(self) -> None:
+        try:
+            visibility = DpiSettingsPageController.describe_visibility(
+                DpiSettingsPageController.get_launch_method()
+            )
+            if visibility.show_orchestra_settings:
+                self._load_orchestra_settings(
+                    DpiSettingsPageController.load_orchestra_settings()
+                )
+        except Exception as e:
+            log(f"Ошибка синхронизации видимых настроек DPI: {e}", "WARNING")
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -516,13 +408,6 @@ class DpiSettingsPage(BasePage):
             ),
             recommended_badge=self._tr("page.dpi_settings.option.recommended", "рекомендуется"),
         )
-        self.method_direct_zapret2_orchestra.set_texts(
-            self._tr("page.dpi_settings.method.direct_z2_orchestra.title", "Оркестраторный Zapret 2"),
-            self._tr(
-                "page.dpi_settings.method.direct_z2_orchestra.desc",
-                "Запуск Zapret 2 со стратегиями оркестратора внутри каждого профиля. Позволяет настроить для каждого сайта свой оркерстратор. Не сохраняет состояние для повышенной агрессии обхода.",
-            ),
-        )
         self.method_orchestra.set_texts(
             self._tr("page.dpi_settings.method.orchestra.title", "Оркестратор v0.9.6 (Beta)"),
             self._tr(
@@ -536,11 +421,6 @@ class DpiSettingsPage(BasePage):
                 "page.dpi_settings.method.direct_z1.desc",
                 "Режим первой версии Zapret 1 (winws.exe) + готовые пресеты для быстрого запуска. Не использует Lua код, нет понятия блобов.",
             ),
-        )
-
-        self.discord_restart_toggle.set_texts(
-            self._tr("page.dpi_settings.discord_restart.title", "Перезапуск Discord"),
-            self._tr("page.dpi_settings.discord_restart.desc", "Автоперезапуск при смене стратегии"),
         )
 
         self.strict_detection_toggle.set_texts(
@@ -578,30 +458,4 @@ class DpiSettingsPage(BasePage):
                 "page.dpi_settings.orchestra.unlock_fails.desc",
                 "Количество ошибок для автоматической разблокировки стратегии",
             ),
-        )
-
-        if hasattr(self, "advanced_card") and self.advanced_card is not None:
-            try:
-                title_label = getattr(self.advanced_card, "titleLabel", None)
-                if title_label is not None:
-                    title_label.setText(
-                        self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
-                    )
-                else:
-                    self.advanced_card.set_title(
-                        self._tr("page.dpi_settings.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
-                    )
-            except Exception:
-                pass
-        if self._advanced_notice is not None:
-            self._advanced_notice.setText(
-                self._tr("page.dpi_settings.advanced.warning", "⚠ Изменяйте только если знаете что делаете")
-            )
-        self.wssize_toggle.set_texts(
-            self._tr("page.dpi_settings.advanced.wssize.title", "Включить --wssize"),
-            self._tr("page.dpi_settings.advanced.wssize.desc", "Добавляет параметр размера окна TCP"),
-        )
-        self.debug_log_toggle.set_texts(
-            self._tr("page.dpi_settings.advanced.debug_log.title", "Включить лог-файл (--debug)"),
-            self._tr("page.dpi_settings.advanced.debug_log.desc", "Записывает логи winws в папку logs"),
         )

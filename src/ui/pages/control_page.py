@@ -1,15 +1,12 @@
 # ui/pages/control_page.py
 """Страница управления - запуск/остановка DPI"""
 
-import os
-
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, QTimer
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QSizePolicy
 import qtawesome as qta
 
 try:
     from qfluentwidgets import (
-        SubtitleLabel, BodyLabel, StrongBodyLabel, CaptionLabel,
+        SubtitleLabel, StrongBodyLabel, CaptionLabel,
         IndeterminateProgressBar, MessageBox, InfoBar,
         SettingCardGroup, PushSettingCard,
     )
@@ -29,7 +26,6 @@ from ui.compat_widgets import (
     PrimaryActionButton,
     QuickActionsBar,
     ResetActionButton,
-    StatusIndicator,
     enable_setting_card_group_auto_height,
     set_tooltip,
 )
@@ -45,7 +41,7 @@ from ui.window_action_controller import (
 )
 
 try:
-    from qfluentwidgets import themeColor, isDarkTheme
+    from qfluentwidgets import themeColor
     HAS_FLUENT = True
 except ImportError:
     HAS_FLUENT = False

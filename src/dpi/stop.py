@@ -30,7 +30,7 @@ def stop_dpi(app: "LupiDPIApp"):
         from strategy_menu import get_strategy_launch_method
         launch_method = get_strategy_launch_method()
         
-        if launch_method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+        if launch_method in ("direct_zapret2", "direct_zapret1"):
             # Используем новый метод остановки для прямого запуска
             return stop_dpi_direct(app)
         else:

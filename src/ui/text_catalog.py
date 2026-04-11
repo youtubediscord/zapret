@@ -47,10 +47,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Управление Zapret 2",
         "en": "Zapret 2 Control",
     },
-    "nav.page.zapret2_orchestra_control": {
-        "ru": "Управление оркестр. Zapret 2",
-        "en": "Zapret 2 Orchestra Control",
-    },
     "nav.page.zapret1_direct_control": {
         "ru": "Управление Zapret 1",
         "en": "Zapret 1 Control",
@@ -107,15 +103,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Прямой запуск",
         "en": "Direct Launch",
     },
-    "nav.page.zapret2_orchestra": {
-        "ru": "Прямой запуск",
-        "en": "Direct Launch",
-    },
     "nav.page.zapret2_user_presets": {
-        "ru": "Мои пресеты",
-        "en": "My Presets",
-    },
-    "nav.page.zapret2_orchestra_user_presets": {
         "ru": "Мои пресеты",
         "en": "My Presets",
     },
@@ -259,14 +247,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Настройте пресет более тонко через прямой запуск",
         "en": "Fine Tune via Direct Launch",
     },
-    "page.z2_orchestra_control.title": {
-        "ru": "Управление Orchestra Z2",
-        "en": "Orchestra Z2 Control",
-    },
-    "page.z2_orchestra_control.preset": {
-        "ru": "Сменить пресет Orchestra Z2",
-        "en": "Switch Orchestra Z2 Preset",
-    },
     "page.z1_control.title": {
         "ru": "Управление Zapret 1",
         "en": "Zapret 1 Control",
@@ -316,8 +296,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Not selected",
     },
     "page.z1_control.preset.current": {
-        "ru": "Текущий выбранный source-пресет",
-        "en": "Current selected source preset",
+        "ru": "Текущий активный пресет",
+        "en": "Current active preset",
     },
     "page.z1_control.button.my_presets": {
         "ru": "Мои пресеты",
@@ -342,6 +322,74 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z1_control.setting.autostart.desc": {
         "ru": "Запускать Zapret автоматически при старте программы",
         "en": "Start Zapret automatically on app launch",
+    },
+    "page.z1_control.card.advanced": {
+        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "en": "ADVANCED SETTINGS",
+    },
+    "page.z1_control.advanced.warning": {
+        "ru": "Изменяйте только если знаете что делаете",
+        "en": "Change only if you know what you are doing",
+    },
+    "page.z1_control.advanced.discord_restart.title": {
+        "ru": "Перезапуск Discord",
+        "en": "Restart Discord",
+    },
+    "page.z1_control.advanced.discord_restart.desc": {
+        "ru": "Автоперезапуск при смене стратегии",
+        "en": "Auto-restart on strategy change",
+    },
+    "page.z1_control.advanced.wssize.title": {
+        "ru": "Включить --wssize",
+        "en": "Enable --wssize",
+    },
+    "page.z1_control.advanced.wssize.desc": {
+        "ru": "Добавляет параметр размера окна TCP",
+        "en": "Adds TCP window size parameter",
+    },
+    "page.z1_control.advanced.debug_log.title": {
+        "ru": "Включить лог-файл (--debug)",
+        "en": "Enable log file (--debug)",
+    },
+    "page.z1_control.advanced.debug_log.desc": {
+        "ru": "Записывает логи winws в папку logs",
+        "en": "Writes winws logs to the logs folder",
+    },
+    "page.z1_control.blobs.title": {
+        "ru": "Блобы",
+        "en": "Blobs",
+    },
+    "page.z1_control.blobs.desc": {
+        "ru": "Бинарные данные (.bin / hex) для стратегий",
+        "en": "Binary data (.bin / hex) for strategies",
+    },
+    "page.z1_control.section.additional": {
+        "ru": "Дополнительные действия",
+        "en": "Additional actions",
+    },
+    "page.z1_control.button.connection_test": {
+        "ru": "Тест соединения",
+        "en": "Connection test",
+    },
+    "page.z1_control.button.connection_test.desc": {
+        "ru": "Проверить доступность сети и состояние обхода",
+        "en": "Check network reachability and bypass state",
+    },
+    "page.z1_control.button.open_folder": {
+        "ru": "Открыть папку",
+        "en": "Open folder",
+    },
+    "page.z1_control.button.open_folder.desc": {
+        "ru": "Перейти в папку программы и служебных файлов",
+        "en": "Open the app folder and service files",
+    },
+    "page.z1_control.button.documentation": {
+        "ru": "Документация",
+        "en": "Documentation",
+    },
+    "page.z1_control.button.documentation.desc": {
+        "ru": "Открыть справку и описание возможностей",
+        "en": "Open help and feature documentation",
     },
     "page.z1_strategy_detail.args_dialog.title": {
         "ru": "Аргументы стратегии",
@@ -948,8 +996,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Mode",
     },
     "page.autostart.section.select_type": {
-        "ru": "Выберите тип автозапуска",
-        "en": "Choose Autostart Type",
+        "ru": "Автозапуск программы",
+        "en": "Application autostart",
     },
     "page.autostart.section.info": {
         "ru": "Информация",
@@ -968,28 +1016,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Autostart enabled",
     },
     "page.autostart.status.enabled.desc.base": {
-        "ru": "Zapret запускается автоматически",
-        "en": "Zapret starts automatically",
-    },
-    "page.autostart.status.enabled.desc.with_type": {
-        "ru": "{base} {type_desc}",
-        "en": "{base} {type_desc}",
-    },
-    "page.autostart.status.type.service": {
-        "ru": "как служба Windows",
-        "en": "as a Windows service",
-    },
-    "page.autostart.status.type.logon": {
-        "ru": "при входе пользователя",
-        "en": "on user logon",
-    },
-    "page.autostart.status.type.boot": {
-        "ru": "при загрузке системы",
-        "en": "on system boot",
-    },
-    "page.autostart.status.type.gui": {
-        "ru": "программа Zapret",
-        "en": "Zapret application",
+        "ru": "Zapret запускается автоматически при входе в Windows и открывается в трее",
+        "en": "Zapret starts automatically on Windows logon and opens in the tray",
     },
     "page.autostart.button.disable": {
         "ru": "Отключить",
@@ -1011,10 +1039,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Прямой запуск (Zapret 2)",
         "en": "Direct launch (Zapret 2)",
     },
-    "page.autostart.mode.orchestra_zapret2": {
-        "ru": "Оркестратор Zapret 2",
-        "en": "Orchestrator Zapret 2",
-    },
     "page.autostart.mode.orchestra_learning": {
         "ru": "Оркестр (автообучение)",
         "en": "Orchestrator (auto-learning)",
@@ -1031,45 +1055,17 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Не выбрана",
         "en": "Not selected",
     },
-    "page.autostart.option.recommended": {
-        "ru": "Рекомендуется",
-        "en": "Recommended",
-    },
     "page.autostart.option.gui.title": {
         "ru": "Автозапуск программы Zapret",
         "en": "Autostart Zapret application",
     },
     "page.autostart.option.gui.desc": {
-        "ru": "Запускает главное окно программы при входе в Windows. Вы сможете управлять DPI из системного трея.",
-        "en": "Starts the main application window on Windows logon. You can control DPI from the system tray.",
-    },
-    "page.autostart.option.service.title": {
-        "ru": "Служба Windows",
-        "en": "Windows service",
-    },
-    "page.autostart.option.service.desc": {
-        "ru": "Создает настоящую службу Windows для запуска winws.exe. Самый надежный способ — работает даже если никто не вошел в систему.",
-        "en": "Creates a real Windows service to launch winws.exe. Most reliable option - works even when nobody is logged in.",
-    },
-    "page.autostart.option.logon.title": {
-        "ru": "Задача при входе пользователя",
-        "en": "Task on user logon",
-    },
-    "page.autostart.option.logon.desc": {
-        "ru": "Создает задачу планировщика для запуска DPI при входе пользователя в систему.",
-        "en": "Creates a scheduler task to launch DPI when user logs in.",
-    },
-    "page.autostart.option.boot.title": {
-        "ru": "Задача при загрузке системы",
-        "en": "Task on system boot",
-    },
-    "page.autostart.option.boot.desc": {
-        "ru": "Создает задачу планировщика для запуска DPI при загрузке Windows (до входа пользователя).",
-        "en": "Creates a scheduler task to launch DPI on Windows boot (before user logon).",
+        "ru": "Запускает главное окно программы при входе в Windows. Приложение стартует в трее и уже оттуда применяет текущие настройки.",
+        "en": "Starts the main application window on Windows logon. The app launches in the tray and applies the current settings from there.",
     },
     "page.autostart.tip.recommendation": {
-        "ru": "Рекомендация: Для максимальной надежности используйте «Служба Windows» — она запускается раньше всех программ и автоматически перезапускается при сбоях.",
-        "en": "Recommendation: for maximum reliability use \"Windows service\" - it starts before all applications and restarts automatically on failures.",
+        "ru": "Используется один тип автозапуска: запуск самого ZapretGUI в трей через Планировщик заданий Windows.",
+        "en": "Only one autostart type is used: launching ZapretGUI itself in the tray through Windows Task Scheduler.",
     },
     "page.blobs.title": {
         "ru": "Блобы",
@@ -1618,14 +1614,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.dpi_settings.method.direct_z2.desc": {
         "ru": "Режим со второй версией Zapret (winws2.exe) + готовые пресеты для быстрого запуска. Поддерживает кастомный lua-код чтобы писать свои стратегии.",
         "en": "Mode with Zapret v2 (winws2.exe) and ready presets for quick launch. Supports custom Lua code for your own strategies.",
-    },
-    "page.dpi_settings.method.direct_z2_orchestra.title": {
-        "ru": "Оркестраторный Zapret 2",
-        "en": "Orchestrated Zapret 2",
-    },
-    "page.dpi_settings.method.direct_z2_orchestra.desc": {
-        "ru": "Запуск Zapret 2 со стратегиями оркестратора внутри каждого профиля. Позволяет настроить для каждого сайта свой оркерстратор. Не сохраняет состояние для повышенной агрессии обхода.",
-        "en": "Runs Zapret 2 with orchestrator strategies inside each profile. Lets you configure orchestrator behavior per site. Does not persist state for more aggressive bypassing.",
     },
     "page.dpi_settings.method.orchestra.title": {
         "ru": "Оркестратор v0.9.6 (Beta)",
@@ -4211,14 +4199,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Мои пресеты",
         "en": "My Presets",
     },
-    "page.z2_user_presets.title.orchestra": {
-        "ru": "Мои пресеты (Оркестратор Z2)",
-        "en": "My Presets (Orchestrator Z2)",
-    },
-    "page.z2_user_presets.subtitle.orchestra": {
-        "ru": "Управление пресетами для режима direct_zapret2_orchestra",
-        "en": "Manage presets for direct_zapret2_orchestra mode",
-    },
     "page.z2_user_presets.back.control": {
         "ru": "Управление",
         "en": "Control",
@@ -4871,54 +4851,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Сбросить TCP флаги",
         "en": "Unset TCP flags",
     },
-    "page.z2_orchestra_strategies.title": {
-        "ru": "Прямой запуск (Orchestra Z2)",
-        "en": "Direct Launch (Orchestra Z2)",
-    },
-    "page.z2_orchestra_strategies.subtitle": {
-        "ru": "Здесь для каждой категории можно выбрать свою стратегию обхода. После изменения выбор сразу сохраняется в активный orchestra-пресет и применяется к запущенному DPI.",
-        "en": "Select bypass strategy for each category. Changes are saved to active orchestra preset and applied to running DPI immediately.",
-    },
-    "page.z2_orchestra_control.title": {
-        "ru": "Управление Orchestra Z2",
-        "en": "Orchestra Z2 Control",
-    },
-    "page.z2_orchestra_control.subtitle": {
-        "ru": "Управление пресетами и запуском для режима direct_zapret2_orchestra.",
-        "en": "Manage presets and launch flow for direct_zapret2_orchestra mode.",
-    },
-    "page.z2_orchestra_control.section.management": {
-        "ru": "Управление Orchestra Z2",
-        "en": "Orchestra Z2 Control",
-    },
-    "page.z2_orchestra_control.section.preset": {
-        "ru": "Сменить пресет Orchestra Z2",
-        "en": "Switch Orchestra Z2 Preset",
-    },
-    "page.z2_orchestra_control.section.direct_tuning": {
-        "ru": "Тонкая настройка активного пресета",
-        "en": "Fine Tuning Active Preset",
-    },
-    "page.z2_orchestra_control.section.category_editing": {
-        "ru": "Редактирование активного пресета по категориям",
-        "en": "Edit active preset by category",
-    },
-    "page.z2_orchestra_control.button.presets": {
-        "ru": "Пресеты Orchestra",
-        "en": "Orchestra Presets",
-    },
-    "page.z2_orchestra_control.button.direct_open": {
-        "ru": "Прямой запуск",
-        "en": "Direct Launch",
-    },
-    "page.z2_orchestra_control.button.blobs_open": {
-        "ru": "Открыть блобы",
-        "en": "Open Blobs",
-    },
-    "page.z2_orchestra_strategy_detail.title": {
-        "ru": "Детали стратегии Orchestra Z2",
-        "en": "Orchestra Z2 Strategy Details",
-    },
     "page.ipset.title": {
         "ru": "IPset",
         "en": "IPset",
@@ -5489,10 +5421,6 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "ru": "Плавная прокрутка внутри больших текстовых полей и редакторов. Работает только при включённых анимациях интерфейса.",
         "en": "Smooth scrolling inside large text fields and editors. Works only when interface animations are enabled.",
     },
-    "page.autostart.recommended": {
-        "ru": "Рекомендуется",
-        "en": "Recommended",
-    },
     "page.control.dialog.defender_disable.title": {
         "ru": "Отключение Windows Defender",
         "en": "Disable Windows Defender",
@@ -5552,90 +5480,6 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
     "page.strategies_base.strategy.autostart_disabled": {
         "ru": "Автостарт DPI отключен",
         "en": "Autostart DPI is disabled",
-    },
-    "page.z2_orchestra_strategies.empty.no_categories": {
-        "ru": "Категории не найдены",
-        "en": "No categories found",
-    },
-    "page.z2_orchestra_strategies.current.prefix": {
-        "ru": "Текущая:",
-        "en": "Current:",
-    },
-    "page.z2_orchestra_strategies.current.not_selected": {
-        "ru": "Не выбрана",
-        "en": "Not selected",
-    },
-    "page.z2_orchestra_strategies.current.active_count": {
-        "ru": "{count} активных",
-        "en": "{count} active",
-    },
-    "page.z2_orchestra_strategies.button.folder": {
-        "ru": "Папка",
-        "en": "Folder",
-    },
-    "page.z2_orchestra_strategies.button.disable_category": {
-        "ru": "Отключить категорию",
-        "en": "Disable Category",
-    },
-    "page.z2_orchestra_strategies.confirm.disable_category": {
-        "ru": "Установить 'none' для категории?",
-        "en": "Set 'none' for this category?",
-    },
-    "page.z2_orchestra_strategies.button.back_categories": {
-        "ru": "← Категории",
-        "en": "← Categories",
-    },
-    "page.z2_orchestra_strategies.button.disable_all": {
-        "ru": "Выключить",
-        "en": "Disable All",
-    },
-    "page.z2_orchestra_strategies.confirm.disable_all": {
-        "ru": "Установить 'none' для всех категорий?",
-        "en": "Set 'none' for all categories?",
-    },
-    "page.z2_orchestra_strategies.button.reset": {
-        "ru": "Сбросить",
-        "en": "Reset",
-    },
-    "page.z2_orchestra_strategies.confirm.reset": {
-        "ru": "Сбросить к значениям по умолчанию?",
-        "en": "Reset to defaults?",
-    },
-    "page.z2_orchestra_strategies.search.placeholder": {
-        "ru": "Поиск по названию или аргументам",
-        "en": "Search by name or arguments",
-    },
-    "page.z2_orchestra_strategies.sort.recommended": {
-        "ru": "По рекомендации",
-        "en": "Recommended",
-    },
-    "page.z2_orchestra_strategies.sort.alpha_asc": {
-        "ru": "По алфавиту A-Z",
-        "en": "Alphabetical A-Z",
-    },
-    "page.z2_orchestra_strategies.sort.alpha_desc": {
-        "ru": "По алфавиту Z-A",
-        "en": "Alphabetical Z-A",
-    },
-    "page.z2_orchestra_strategies.section.strategies": {
-        "ru": "Стратегии",
-        "en": "Strategies",
-    },
-    "page.z2_orchestra_strategies.strategy.none": {
-        "ru": "Отключено",
-        "en": "Disabled",
-    },
-    "page.z2_orchestra_strategies.strategy.none.description": {
-        "ru": "Отключить стратегию для категории",
-        "en": "Disable strategy for this category",
-    },
-    "page.z2_orchestra_control.mode_label": {
-        "ru": "Orchestra Z2",
-        "en": "Orchestra Z2",
-    },
-    "page.z2_orchestra_control.strategy.no_active_categories": {
-        "ru": "Нет активных категорий",
-        "en": "No active categories",
     },
     "page.z2_control.mode.dialog.title": {
         "ru": "Режим прямого запуска",
@@ -5729,7 +5573,6 @@ TEXTS.update(TEXTS_PAGES_FINAL)
 NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.CONTROL: "nav.page.control",
     PageName.ZAPRET2_DIRECT_CONTROL: "nav.page.zapret2_direct_control",
-    PageName.ZAPRET2_ORCHESTRA_CONTROL: "nav.page.zapret2_orchestra_control",
     PageName.ZAPRET1_DIRECT_CONTROL: "nav.page.zapret1_direct_control",
     PageName.ORCHESTRA: "nav.page.orchestra",
     PageName.HOSTLIST: "nav.page.hostlist",
@@ -5750,11 +5593,8 @@ NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.ABOUT: "nav.page.about",
     PageName.SUPPORT: "page.support.title",
     PageName.ZAPRET2_DIRECT: "nav.page.zapret2_direct",
-    PageName.ZAPRET2_ORCHESTRA: "nav.page.zapret2_orchestra",
     PageName.ZAPRET2_USER_PRESETS: "nav.page.zapret2_user_presets",
-    PageName.ZAPRET2_ORCHESTRA_USER_PRESETS: "nav.page.zapret2_orchestra_user_presets",
     PageName.ZAPRET2_STRATEGY_DETAIL: "page.z2_strategy_detail.title",
-    PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL: "page.z2_orchestra_strategy_detail.title",
     PageName.ZAPRET1_DIRECT: "nav.page.zapret1_direct",
     PageName.ZAPRET1_USER_PRESETS: "nav.page.zapret1_user_presets",
     PageName.ZAPRET1_STRATEGY_DETAIL: "page.z1_strategy_detail.title",
@@ -5789,11 +5629,6 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
     SearchEntry("z2.direct.title", PageName.ZAPRET2_DIRECT, "page.z2_direct.title"),
     SearchEntry("z2.user_presets.title", PageName.ZAPRET2_USER_PRESETS, "page.z2_user_presets.title"),
     SearchEntry("z2.strategy_detail.title", PageName.ZAPRET2_STRATEGY_DETAIL, "page.z2_strategy_detail.title"),
-    SearchEntry("z2.orchestra.title", PageName.ZAPRET2_ORCHESTRA_CONTROL, "page.z2_orchestra_control.title"),
-    SearchEntry("z2.orchestra.preset", PageName.ZAPRET2_ORCHESTRA_CONTROL, "page.z2_orchestra_control.preset", section_key="page.z2_orchestra_control.preset"),
-    SearchEntry("z2.orchestra.direct.title", PageName.ZAPRET2_ORCHESTRA, "page.z2_orchestra_strategies.title"),
-    SearchEntry("z2.orchestra.user_presets.title", PageName.ZAPRET2_ORCHESTRA_USER_PRESETS, "page.z2_user_presets.title.orchestra"),
-    SearchEntry("z2.orchestra.strategy_detail.title", PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL, "page.z2_orchestra_strategy_detail.title"),
     SearchEntry("z1.control.title", PageName.ZAPRET1_DIRECT_CONTROL, "page.z1_control.title"),
     SearchEntry("z1.control.presets", PageName.ZAPRET1_DIRECT_CONTROL, "page.z1_control.presets", section_key="page.z1_control.presets"),
     SearchEntry("z1.direct.title", PageName.ZAPRET1_DIRECT, "page.z1_direct.title"),
@@ -5867,7 +5702,6 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
 _PAGE_SEARCH_EXTRA_PREFIXES: dict[PageName, tuple[str, ...]] = {
     PageName.HOSTLIST: ("page.ipset.",),
     PageName.ZAPRET2_DIRECT: ("page.strategies_base.",),
-    PageName.ZAPRET2_ORCHESTRA: ("page.strategies_base.",),
     PageName.ZAPRET1_DIRECT: ("page.strategies_base.",),
     PageName.BLOCKCHECK: (
         "page.connection.",

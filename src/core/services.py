@@ -151,7 +151,13 @@ def get_direct_ui_snapshot_service():
 
 
 def get_orchestra_whitelist_runtime_service():
+    context_value = _context_attr("orchestra_whitelist_runtime_service")
+    if context_value is not None:
+        return context_value
     return _fallback_orchestra_whitelist_runtime_service()
+
+
+get_orchestra_whitelist_runtime_service.cache_clear = _fallback_orchestra_whitelist_runtime_service.cache_clear
 
 
 def get_program_settings_runtime_service():
@@ -177,6 +183,6 @@ def reset_cached_services() -> None:
     _fallback_preset_store.cache_clear()
     _fallback_preset_store_v1.cache_clear()
     _fallback_direct_ui_snapshot_service.cache_clear()
-    _fallback_orchestra_whitelist_runtime_service.cache_clear()
+    get_orchestra_whitelist_runtime_service.cache_clear()
     _fallback_program_settings_runtime_service.cache_clear()
     _fallback_user_presets_runtime_service.cache_clear()

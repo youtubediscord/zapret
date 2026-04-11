@@ -4,10 +4,9 @@ import re
 import sys
 from collections import OrderedDict
 from dataclasses import dataclass
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, pyqtProperty, QThread, QObject, pyqtSignal
-from PyQt6.QtGui import QPixmap, QPainter, QColor
-from PyQt6.QtWidgets import QApplication, QWidget
-from config import reg, HKCU, THEME_FOLDER
+from PyQt6.QtCore import QThread, QObject, pyqtSignal
+from PyQt6.QtGui import QPixmap, QColor
+from config import reg, THEME_FOLDER
 from log import log
 from typing import Optional, Tuple
 import time
@@ -82,19 +81,6 @@ _THEME_DYNAMIC_LAYER_END = "/* __THEME_DYNAMIC_LAYER_END__ */"
 
 def start_theme_switch_metrics(theme_name: str, *, source: str = "unknown", click_started_at: float | None = None) -> int:
     return 0
-
-
-def bump_theme_refresh_counter(page_name: str) -> None:
-    pass
-
-
-def note_theme_css_apply_duration(elapsed_ms: float) -> None:
-    pass
-
-
-def finish_theme_switch_metrics(switch_id: int | None, *, success: bool, message: str, theme_name: str) -> None:
-    pass
-
 
 
 def get_selected_theme(default: str | None = None, *, log_read: bool = True) -> str | None:
@@ -1872,5 +1858,3 @@ class ThemeHandler:
 
     def update_available_themes(self):
         pass
-
-

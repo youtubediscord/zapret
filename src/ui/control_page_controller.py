@@ -75,7 +75,25 @@ class ControlActionResultPlan:
     final_status: str
 
 
+class ControlPresetNameRuntime:
+    def __init__(self) -> None:
+        self.preset_name_dirty = True
+
+    def mark_dirty(self) -> None:
+        self.preset_name_dirty = True
+
+    def mark_applied(self) -> None:
+        self.preset_name_dirty = False
+
+    def should_refresh(self) -> bool:
+        return bool(self.preset_name_dirty)
+
+
 class ControlPageController:
+    @staticmethod
+    def create_preset_name_runtime() -> ControlPresetNameRuntime:
+        return ControlPresetNameRuntime()
+
     @staticmethod
     def load_program_settings() -> ControlProgramSettingsPlan:
         auto_dpi_enabled = False
@@ -227,21 +245,15 @@ class ControlPageController:
             from strategy_menu import get_strategy_launch_method
 
             method = (get_strategy_launch_method() or "").strip().lower()
-            if method in ("direct_zapret2", "direct_zapret2_orchestra", "direct_zapret1"):
+            if method in ("direct_zapret2", "direct_zapret1"):
                 from ui.main_window_display import get_direct_strategy_summary
 
                 summary = get_direct_strategy_summary(window, max_items=2)
                 display_name = summary or not_selected
 
-                if method in ("direct_zapret2", "direct_zapret1"):
-                    from core.presets.direct_facade import DirectPresetFacade
+                from core.presets.direct_facade import DirectPresetFacade
 
-                    selections = DirectPresetFacade.from_launch_method(method).get_strategy_selections() or {}
-                else:
-                    from preset_orchestra_zapret2 import PresetManager
-
-                    selections = PresetManager().get_strategy_selections() or {}
-
+                selections = DirectPresetFacade.from_launch_method(method).get_strategy_selections() or {}
                 active_count = sum(
                     1 for strategy_id in selections.values() if (strategy_id or "none") != "none"
                 )

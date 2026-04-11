@@ -24,28 +24,12 @@ class Z1NavigationPages:
 
 
 def resolve_zapret2_navigation_pages(method: str | None) -> Z2NavigationPages:
-    normalized = str(method or "").strip().lower()
-    if normalized == "direct_zapret2_orchestra":
-        return Z2NavigationPages(
-            control_page=PageName.ZAPRET2_ORCHESTRA_CONTROL,
-            strategies_page=PageName.ZAPRET2_ORCHESTRA,
-            user_presets_page=PageName.ZAPRET2_ORCHESTRA_USER_PRESETS,
-            preset_detail_page=PageName.ZAPRET2_ORCHESTRA_PRESET_DETAIL,
-            strategy_detail_page=PageName.ZAPRET2_ORCHESTRA_STRATEGY_DETAIL,
-        )
     return Z2NavigationPages(
         control_page=PageName.ZAPRET2_DIRECT_CONTROL,
         strategies_page=PageName.ZAPRET2_DIRECT,
         user_presets_page=PageName.ZAPRET2_USER_PRESETS,
         preset_detail_page=PageName.ZAPRET2_PRESET_DETAIL,
         strategy_detail_page=PageName.ZAPRET2_STRATEGY_DETAIL,
-    )
-
-
-def get_zapret2_navigation_variants() -> tuple[Z2NavigationPages, Z2NavigationPages]:
-    return (
-        resolve_zapret2_navigation_pages("direct_zapret2"),
-        resolve_zapret2_navigation_pages("direct_zapret2_orchestra"),
     )
 
 
@@ -63,7 +47,7 @@ def resolve_control_page_for_method(method: str | None) -> PageName:
     normalized = str(method or "").strip().lower()
     if normalized == "orchestra":
         return PageName.ORCHESTRA
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).control_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().control_page
@@ -72,7 +56,7 @@ def resolve_control_page_for_method(method: str | None) -> PageName:
 
 def resolve_strategy_page_for_method(method: str | None) -> PageName | None:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).strategies_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().strategies_page
@@ -81,7 +65,7 @@ def resolve_strategy_page_for_method(method: str | None) -> PageName | None:
 
 def resolve_user_presets_page_for_method(method: str | None) -> PageName | None:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).user_presets_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().user_presets_page
@@ -90,7 +74,7 @@ def resolve_user_presets_page_for_method(method: str | None) -> PageName | None:
 
 def resolve_preset_detail_page_for_method(method: str | None) -> PageName | None:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).preset_detail_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().preset_detail_page
@@ -99,7 +83,7 @@ def resolve_preset_detail_page_for_method(method: str | None) -> PageName | None
 
 def resolve_strategy_detail_page_for_method(method: str | None) -> PageName | None:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).strategy_detail_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().strategy_detail_page
@@ -110,8 +94,6 @@ def resolve_strategy_detail_back_page_for_method(method: str | None) -> PageName
     normalized = str(method or "").strip().lower()
     if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).strategies_page
-    if normalized == "direct_zapret2_orchestra":
-        return resolve_zapret2_navigation_pages(normalized).control_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().control_page
     if normalized == "orchestra":
@@ -121,7 +103,7 @@ def resolve_strategy_detail_back_page_for_method(method: str | None) -> PageName
 
 def resolve_preset_detail_back_page_for_method(method: str | None) -> PageName | None:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).user_presets_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().user_presets_page
@@ -130,7 +112,7 @@ def resolve_preset_detail_back_page_for_method(method: str | None) -> PageName |
 
 def resolve_preset_detail_root_page_for_method(method: str | None) -> PageName:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).control_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().control_page
@@ -139,7 +121,7 @@ def resolve_preset_detail_root_page_for_method(method: str | None) -> PageName:
 
 def resolve_strategy_detail_root_page_for_method(method: str | None) -> PageName:
     normalized = str(method or "").strip().lower()
-    if normalized in {"direct_zapret2", "direct_zapret2_orchestra"}:
+    if normalized == "direct_zapret2":
         return resolve_zapret2_navigation_pages(normalized).control_page
     if normalized == "direct_zapret1":
         return resolve_zapret1_navigation_pages().control_page
@@ -148,9 +130,5 @@ def resolve_strategy_detail_root_page_for_method(method: str | None) -> PageName
     return PageName.CONTROL
 
 
-def get_zapret2_strategy_detail_pages() -> tuple[PageName, PageName]:
-    z2_direct, z2_orchestra = get_zapret2_navigation_variants()
-    return (
-        z2_direct.strategy_detail_page,
-        z2_orchestra.strategy_detail_page,
-    )
+def get_zapret2_strategy_detail_pages() -> tuple[PageName]:
+    return (resolve_zapret2_navigation_pages("direct_zapret2").strategy_detail_page,)

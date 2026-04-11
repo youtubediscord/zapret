@@ -202,12 +202,7 @@ class Zapret2DirectControlPage(BasePage):
         self._ui_state_unsubscribe = None
         self._program_settings_runtime_attached = False
         self._startup_showevent_profile_logged = False
-        self._advanced_settings_worker = None
-        self._advanced_settings_request_id = 0
-        self._advanced_settings_dirty = True
-        self._preset_summary_worker = None
-        self._preset_summary_request_id = 0
-        self._preset_summary_dirty = True
+        self._refresh_runtime = Zapret2DirectControlPageController.create_refresh_runtime()
         self.deferred_show_requested.connect(
             self._run_deferred_show_work,
             Qt.ConnectionType.QueuedConnection,
@@ -263,7 +258,7 @@ class Zapret2DirectControlPage(BasePage):
         if not self.is_page_ready():
             return
         _t_show = _time.perf_counter()
-        if self._advanced_settings_dirty or self._preset_summary_dirty:
+        if self._refresh_runtime.has_pending_refresh():
             self.deferred_show_requested.emit()
         if not self._startup_showevent_profile_logged:
             self._startup_showevent_profile_logged = True
@@ -316,13 +311,13 @@ class Zapret2DirectControlPage(BasePage):
     def _hydrate_initial_advanced_settings(self) -> None:
         state = Zapret2DirectControlPageController.load_advanced_settings_state()
         plan = Zapret2DirectControlPageController.build_advanced_settings_apply_plan(state if isinstance(state, dict) else {})
-        self._advanced_settings_dirty = False
+        self._refresh_runtime.mark_advanced_settings_applied()
         self._apply_advanced_settings_plan(plan)
 
     def _hydrate_initial_preset_summary(self) -> None:
         payload = Zapret2DirectControlPageController.load_preset_summary_payload()
         plan = Zapret2DirectControlPageController.build_preset_summary_plan(payload, language=self._ui_language)
-        self._preset_summary_dirty = False
+        self._refresh_runtime.mark_preset_summary_applied()
         self.preset_name_label.setText(plan.preset_name_text)
         set_tooltip(self.preset_name_label, plan.preset_name_tooltip)
         self.strategy_label.setText(plan.strategy_text)
@@ -769,13 +764,14 @@ class Zapret2DirectControlPage(BasePage):
             pass
 
     def _schedule_advanced_settings_reload(self, *, force: bool = False) -> None:
-        if not force and not self._advanced_settings_dirty:
+        runtime = self._refresh_runtime
+        if not force and not runtime.advanced_settings_dirty:
             return
         if not self.isVisible():
-            self._advanced_settings_dirty = True
+            runtime.advanced_settings_dirty = True
             self.run_when_page_ready(self._apply_pending_direct_refresh_if_ready)
             return
-        worker = getattr(self, "_advanced_settings_worker", None)
+        worker = runtime.advanced_settings_worker
         if worker is not None:
             try:
                 if worker.isRunning():
@@ -783,29 +779,28 @@ class Zapret2DirectControlPage(BasePage):
             except Exception:
                 pass
 
-        self._advanced_settings_request_id += 1
-        request_id = self._advanced_settings_request_id
+        request_id = runtime.next_advanced_settings_request_id()
         worker = Zapret2DirectControlPageController.create_advanced_settings_worker(request_id, self)
-        self._advanced_settings_worker = worker
+        runtime.advanced_settings_worker = worker
         worker.loaded.connect(self._on_advanced_settings_loaded)
         worker.finished.connect(worker.deleteLater)
         worker.start()
 
     def _on_advanced_settings_loaded(self, request_id: int, state: dict) -> None:
-        if int(request_id) != int(self._advanced_settings_request_id):
+        if not self._refresh_runtime.accept_advanced_settings_result(request_id):
             return
-        self._advanced_settings_dirty = False
         plan = Zapret2DirectControlPageController.build_advanced_settings_apply_plan(state if isinstance(state, dict) else {})
         self._apply_advanced_settings_plan(plan)
 
     def _schedule_preset_summary_reload(self, *, force: bool = False) -> None:
-        if not force and not self._preset_summary_dirty:
+        runtime = self._refresh_runtime
+        if not force and not runtime.preset_summary_dirty:
             return
         if not self.isVisible():
-            self._preset_summary_dirty = True
+            runtime.preset_summary_dirty = True
             self.run_when_page_ready(self._apply_pending_direct_refresh_if_ready)
             return
-        worker = getattr(self, "_preset_summary_worker", None)
+        worker = runtime.preset_summary_worker
         if worker is not None:
             try:
                 if worker.isRunning():
@@ -813,18 +808,16 @@ class Zapret2DirectControlPage(BasePage):
             except Exception:
                 pass
 
-        self._preset_summary_request_id += 1
-        request_id = self._preset_summary_request_id
+        request_id = runtime.next_preset_summary_request_id()
         worker = Zapret2DirectControlPageController.create_preset_summary_worker(request_id, self)
-        self._preset_summary_worker = worker
+        runtime.preset_summary_worker = worker
         worker.loaded.connect(self._on_preset_summary_loaded)
         worker.finished.connect(worker.deleteLater)
         worker.start()
 
     def _on_preset_summary_loaded(self, request_id: int, payload: dict) -> None:
-        if int(request_id) != int(self._preset_summary_request_id):
+        if not self._refresh_runtime.accept_preset_summary_result(request_id):
             return
-        self._preset_summary_dirty = False
         plan = Zapret2DirectControlPageController.build_preset_summary_plan(payload, language=self._ui_language)
         self.preset_name_label.setText(plan.preset_name_text)
         set_tooltip(self.preset_name_label, plan.preset_name_tooltip)
@@ -832,18 +825,15 @@ class Zapret2DirectControlPage(BasePage):
         set_tooltip(self.strategy_label, plan.strategy_tooltip)
 
     def _on_discord_restart_changed(self, enabled: bool) -> None:
-        self._advanced_settings_request_id += 1
-        self._advanced_settings_dirty = False
+        self._refresh_runtime.mark_advanced_settings_written()
         Zapret2DirectControlPageController.save_discord_restart_setting(enabled)
 
     def _on_wssize_toggled(self, enabled: bool) -> None:
-        self._advanced_settings_request_id += 1
-        self._advanced_settings_dirty = False
+        self._refresh_runtime.mark_advanced_settings_written()
         Zapret2DirectControlPageController.save_wssize_enabled(enabled)
 
     def _on_debug_log_toggled(self, enabled: bool) -> None:
-        self._advanced_settings_request_id += 1
-        self._advanced_settings_dirty = False
+        self._refresh_runtime.mark_advanced_settings_written()
         Zapret2DirectControlPageController.save_debug_log_enabled(enabled)
 
     # ==================== Direct mode UI: Basic/Advanced ====================
@@ -1107,8 +1097,7 @@ class Zapret2DirectControlPage(BasePage):
         if "mode_revision" in changed:
             self._sync_direct_launch_mode_from_settings()
         if presets_changed:
-            self._advanced_settings_dirty = True
-            self._preset_summary_dirty = True
+            self._refresh_runtime.mark_presets_dirty()
         if presets_changed and self.isVisible():
             self._schedule_advanced_settings_reload(force=True)
             self._schedule_preset_summary_reload(force=True)
