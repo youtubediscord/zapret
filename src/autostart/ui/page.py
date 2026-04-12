@@ -17,7 +17,7 @@ from ui.theme import (
     get_neutral_card_border_qss,
 )
 from ui.theme_semantic import get_semantic_palette
-from ui.main_window_state import AppUiState, MainWindowStateStore
+from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
 from log import log
 

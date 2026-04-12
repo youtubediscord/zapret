@@ -32,7 +32,7 @@ def start_dpi(source) -> bool:
         handler()
         return True
 
-    controller = getattr(host, "dpi_controller", None)
+    controller = getattr(host, "launch_controller", None)
     if controller is not None:
         controller.start_dpi_async()
         return True
@@ -45,7 +45,7 @@ def stop_dpi(source) -> bool:
     if host is None:
         return False
 
-    controller = getattr(host, "dpi_controller", None)
+    controller = getattr(host, "launch_controller", None)
     if controller is not None:
         controller.stop_dpi_async()
         return True
@@ -66,7 +66,7 @@ def stop_and_exit(source) -> bool:
             request_exit(stop_dpi=True)
             return True
 
-        controller = getattr(host, "dpi_controller", None)
+        controller = getattr(host, "launch_controller", None)
         if controller is not None:
             try:
                 host._closing_completely = True

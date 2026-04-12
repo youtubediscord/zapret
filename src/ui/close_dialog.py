@@ -22,20 +22,20 @@ class CloseDialog(MessageBoxBase):
       - True    -> закрыть GUI + остановить DPI
     """
 
-    def __init__(self, parent=None, *, dpi_running: bool = True):
+    def __init__(self, parent=None, *, launch_running: bool = True):
         if parent and not parent.isWindow():
             parent = parent.window()
         super().__init__(parent)
         self.result_stop_dpi = None
         self.result_tray = False
-        self._dpi_running = bool(dpi_running)
+        self._launch_running = bool(launch_running)
 
         # --- Заголовок и описание ---
         self.titleLabel = SubtitleLabel("Закрыть приложение", self.widget)
         description = (
             "DPI обход (winws) продолжит работать в фоне,\n"
             "если закрыть только GUI или свернуть окно в трей."
-            if self._dpi_running
+            if self._launch_running
             else
             "DPI сейчас не запущен.\n"
             "Вы можете свернуть окно в трей или просто закрыть GUI."
@@ -73,7 +73,7 @@ class CloseDialog(MessageBoxBase):
             danger=True,
         )
         self.stopDpiButton.clicked.connect(self._on_stop_dpi)
-        self.stopDpiButton.setEnabled(self._dpi_running)
+        self.stopDpiButton.setEnabled(self._launch_running)
         self.viewLayout.addWidget(self.stopDpiButton)
 
         # --- Кнопка "Отмена" (прозрачная, по центру) ---
@@ -119,20 +119,20 @@ def ask_close_action(parent=None):
       - True   -> закрыть GUI + остановить DPI
 
     """
-    is_dpi_running = _is_dpi_running(parent)
+    is_launch_running = _is_launch_running(parent)
 
-    dlg = CloseDialog(parent, dpi_running=is_dpi_running)
+    dlg = CloseDialog(parent, launch_running=is_launch_running)
     dlg.exec()
     if dlg.result_tray:
         return "tray"
     return dlg.result_stop_dpi
 
 
-def _is_dpi_running(parent=None) -> bool:
+def _is_launch_running(parent=None) -> bool:
     app_runtime_state = getattr(parent, "app_runtime_state", None)
     if app_runtime_state is None:
         return False
     try:
-        return bool(app_runtime_state.is_dpi_running())
+        return bool(app_runtime_state.is_launch_running())
     except Exception:
         return False

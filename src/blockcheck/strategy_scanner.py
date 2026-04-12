@@ -1513,7 +1513,7 @@ class StrategyScanner:
 
         startupinfo = subprocess.STARTUPINFO()
         try:
-            from launcher_common.constants import STARTF_USESHOWWINDOW, SW_HIDE
+            from direct_launch.runners.constants import STARTF_USESHOWWINDOW, SW_HIDE
             startupinfo.dwFlags = STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = SW_HIDE
         except ImportError:
@@ -1521,7 +1521,7 @@ class StrategyScanner:
             startupinfo.wShowWindow = 0
 
         try:
-            from launcher_common.constants import CREATE_NO_WINDOW
+            from direct_launch.runners.constants import CREATE_NO_WINDOW
             creation_flags = CREATE_NO_WINDOW
         except ImportError:
             creation_flags = 0x08000000

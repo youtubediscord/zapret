@@ -736,9 +736,9 @@ class UpdatePageController:
             return
         try:
             win = self._view.window()
-            if hasattr(win, "dpi_controller") and win.dpi_controller:
+            if hasattr(win, "launch_controller") and win.launch_controller:
                 log("🔄 Перезапуск DPI после скачивания обновления", "🔁 UPDATE")
-                win.dpi_controller.restart_dpi_async()
+                win.launch_controller.restart_dpi_async()
         except Exception as e:
             log(f"Не удалось перезапустить DPI: {e}", "❌ ERROR")
 

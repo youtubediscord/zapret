@@ -7,7 +7,7 @@ from .direct_facade_backend import DirectPresetFacadeBackend
 
 if TYPE_CHECKING:
     from app_context import AppContext
-    from core.direct_flow import DirectFlowCoordinator
+    from direct_launch.flow.direct_flow import DirectFlowCoordinator
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore

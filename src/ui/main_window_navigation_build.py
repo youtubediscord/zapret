@@ -22,6 +22,7 @@ from ui.text_catalog import (
     normalize_language,
     tr as tr_catalog,
 )
+from ui.main_window_page_dispatch import call_loaded_page_method
 from ui.main_window_pages import get_eager_page_names
 
 
@@ -506,12 +507,8 @@ def route_search_result(window, page_name: PageName, tab_key: str = "") -> bool:
     if not tab_key:
         return True
 
-    call_loaded_page_method = getattr(window, "_call_loaded_page_method", None)
-    if not callable(call_loaded_page_method):
-        return False
-
     try:
-        return bool(call_loaded_page_method(page_name, "switch_to_tab", tab_key))
+        return bool(call_loaded_page_method(window, page_name, "switch_to_tab", tab_key))
     except Exception:
         return False
 

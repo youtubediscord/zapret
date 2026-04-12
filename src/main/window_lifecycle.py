@@ -111,14 +111,14 @@ class WindowLifecycleMixin:
             log("Запрошен выход: остановить DPI и выйти", "INFO")
 
             try:
-                if hasattr(self, "dpi_controller") and self.dpi_controller:
-                    self.dpi_controller.stop_and_exit_async()
+                if hasattr(self, "launch_controller") and self.launch_controller:
+                    self.launch_controller.stop_and_exit_async()
                     return
             except Exception as e:
                 log(f"stop_and_exit_async не удалось: {e}", "WARNING")
 
             try:
-                runtime = getattr(self, "dpi_runtime", None)
+                runtime = getattr(self, "launch_runtime_api", None)
                 if runtime is not None:
                     runtime.stop_all_processes()
                     runtime.cleanup_windivert_service()
@@ -285,7 +285,7 @@ class WindowLifecycleMixin:
                 PageName.ZAPRET1_STRATEGY_DETAIL,
                 PageName.ZAPRET1_USER_PRESETS,
                 PageName.NETROGAT,
-                PageName.IPSET,
+                PageName.HOSTLIST,
                 PageName.LOGS,
                 PageName.SERVERS,
                 PageName.ABOUT,
@@ -368,9 +368,9 @@ class WindowLifecycleMixin:
 
     def _cleanup_runtime_threads_for_close(self) -> None:
         try:
-            dpi_controller = getattr(self, "dpi_controller", None)
-            if dpi_controller is not None:
-                dpi_controller.cleanup_threads()
+            launch_controller = getattr(self, "launch_controller", None)
+            if launch_controller is not None:
+                launch_controller.cleanup_threads()
         except Exception as e:
             log(f"Ошибка очистки DPI controller threads: {e}", "DEBUG")
 

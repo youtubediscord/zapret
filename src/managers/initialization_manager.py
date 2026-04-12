@@ -51,7 +51,7 @@ class InitializationManager:
         Его допустимые точки касания ограничены общими app/runtime слоями:
         - единый ui_state_store для стартового summary;
         - app_runtime_state для системного runtime статуса;
-        - runtime service слои вроде dpi_runtime_service;
+        - runtime service слои вроде launch_runtime_service;
         - инфраструктурные менеджеры tray/notification/subscription.
         """
 
@@ -65,7 +65,7 @@ class InitializationManager:
                 "_sync_autostart_status -> app_runtime_state.set_autostart(...)",
             ),
             runtime_service_calls=(
-                "_init_process_monitor -> dpi_runtime_service.bootstrap_probe(...)",
+                "_init_process_monitor -> launch_runtime_service.bootstrap_probe(...)",
             ),
             infrastructure_calls=(
                 "ensure_tray_initialized -> _init_tray()",
@@ -128,8 +128,8 @@ class InitializationManager:
         # Фаза 1: только минимальный контур, который нужен для немедленного
         # взаимодействия с окном. Всё остальное — позже отдельным queued-шагом.
         startup_steps = [
-            self._init_dpi_runtime,
-            self._init_dpi_controller,
+            self._init_launch_runtime_api,
+            self._init_launch_controller,
             self._init_menu,
             self._connect_signals,
         ]
@@ -274,10 +274,10 @@ class InitializationManager:
         except Exception as e:
             log(f"Ошибка применения стартового summary стратегии: {e}", "DEBUG")
 
-    def _init_dpi_runtime(self):
-        """Инициализация DPI runtime API."""
+    def _init_launch_runtime_api(self):
+        """Инициализация launch runtime API."""
         try:
-            from dpi.runtime import DpiRuntimeApi
+            from direct_launch.runtime import DirectLaunchRuntimeApi
             from config import get_winws_exe_for_method, is_zapret2_mode
             from strategy_menu import get_strategy_launch_method
 
@@ -289,16 +289,16 @@ class InitializationManager:
             else:
                 log(f"Используется winws.exe для режима {launch_method}", "INFO")
 
-            self.app.dpi_runtime = DpiRuntimeApi(
+            self.app.launch_runtime_api = DirectLaunchRuntimeApi(
                 expected_exe_path=winws_exe,
                 status_callback=self.app.set_status,
                 app_instance=self.app,
             )
-            log("DPI runtime API инициализирован", "INFO")
-            self.init_tasks_completed.add('dpi_runtime')
+            log("Launch runtime API инициализирован", "INFO")
+            self.init_tasks_completed.add('launch_runtime_api')
         except Exception as e:
-            log(f"Ошибка инициализации DPI runtime API: {e}", "❌ ERROR")
-            self.app.set_status(f"Ошибка DPI: {e}")
+            log(f"Ошибка инициализации launch runtime API: {e}", "❌ ERROR")
+            self.app.set_status(f"Ошибка запуска: {e}")
 
     def _handle_startup_dns_status(self, message: str) -> None:
         """Фильтрует служебные DNS-статусы, чтобы они не выглядели как главный статус приложения."""
@@ -361,15 +361,15 @@ class InitializationManager:
 
         threading.Thread(target=_worker, daemon=True, name="IPsetsCheckWorker").start()
 
-    def _init_dpi_controller(self):
-        """Инициализация DPI контроллера"""
+    def _init_launch_controller(self):
+        """Инициализация launch controller."""
         try:
-            from dpi.runtime import DPIController
-            self.app.dpi_controller = DPIController(self.app)
-            log("DPI Controller инициализирован", "INFO")
-            self.init_tasks_completed.add('dpi_controller')
+            from direct_launch.runtime import DirectLaunchController
+            self.app.launch_controller = DirectLaunchController(self.app)
+            log("Launch controller инициализирован", "INFO")
+            self.init_tasks_completed.add('launch_controller')
         except Exception as e:
-            log(f"Ошибка инициализации DPI Controller: {e}", "❌ ERROR")
+            log(f"Ошибка инициализации launch controller: {e}", "❌ ERROR")
             self.app.set_status(f"Ошибка контроллера: {e}")
 
     def _init_telegram_proxy_autostart(self):
@@ -432,7 +432,7 @@ class InitializationManager:
         # orchestra режим не требует выбора стратегии - работает автоматически
 
         # Запускаем DPI
-        self.app.dpi_controller.start_dpi_async()
+        self.app.launch_controller.start_dpi_async()
 
     def _show_strategy_required_warning(self, for_bat: bool = False) -> None:
         """Показывает popup-предупреждение без смены текущей страницы."""
@@ -475,10 +475,10 @@ class InitializationManager:
             from utils.file_manager import ensure_required_files
             ensure_required_files()
             
-            # DPI Manager
-            if not getattr(self.app, 'dpi_manager', None):
-                from managers.dpi_manager import DPIManager
-                self.app.dpi_manager = DPIManager(self.app)
+            # Launch autostart manager
+            if not getattr(self.app, 'launch_autostart_manager', None):
+                from managers.launch_autostart_manager import LaunchAutostartManager
+                self.app.launch_autostart_manager = LaunchAutostartManager(self.app)
             
             self.app.last_strategy_change_time = __import__('time').time()
             
@@ -497,9 +497,9 @@ class InitializationManager:
                 self.app.process_monitor_manager.initialize_process_monitor()
 
             try:
-                runtime_service = getattr(self.app, "dpi_runtime_service", None)
-                dpi_runtime = getattr(self.app, "dpi_runtime", None)
-                if runtime_service is not None and dpi_runtime is not None:
+                runtime_service = getattr(self.app, "launch_runtime_service", None)
+                launch_runtime_api = getattr(self.app, "launch_runtime_api", None)
+                if runtime_service is not None and launch_runtime_api is not None:
                     from config import get_winws_exe_for_method
                     from strategy_menu import get_strategy_launch_method
                     import os
@@ -512,9 +512,9 @@ class InitializationManager:
                     else:
                         target_exe = get_winws_exe_for_method("direct_zapret2")
 
-                    dpi_runtime.set_expected_exe_path(target_exe)
+                    launch_runtime_api.set_expected_exe_path(target_exe)
                     runtime_service.bootstrap_probe(
-                        dpi_runtime.is_expected_running(silent=True),
+                        launch_runtime_api.is_expected_running(silent=True),
                         launch_method=launch_method,
                         expected_process=expected_process,
                     )
@@ -717,7 +717,7 @@ class InitializationManager:
 
     def _required_components(self):
         """Список требуемых компонентов для успешного старта"""
-        return ['dpi_runtime', 'dpi_controller', 'strategy_manager', 'managers']
+        return ['launch_runtime_api', 'launch_controller', 'strategy_manager', 'managers']
 
     def _check_and_complete_initialization(self) -> bool:
         """
@@ -847,8 +847,8 @@ class InitializationManager:
         self._log_startup_step("PostInitDeferredStart", method or "unknown")
 
         try:
-            if hasattr(self.app, 'dpi_manager'):
-                self.app.dpi_manager.delayed_dpi_start(launch_method=method)
+            if hasattr(self.app, 'launch_autostart_manager'):
+                self.app.launch_autostart_manager.delayed_dpi_start(launch_method=method)
         except Exception as e:
             log(f"Ошибка deferred post-init запуска ({method}): {e}", "ERROR")
             import traceback

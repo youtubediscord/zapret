@@ -6,7 +6,7 @@ import subprocess
 from dataclasses import dataclass
 
 from config import LOGS_FOLDER, MAX_DEBUG_LOG_FILES, MAX_LOG_FILES, get_winws_exe_for_method
-from launcher_common import get_current_runner
+from direct_launch.runners import get_current_runner
 from log import LOG_FILE, cleanup_old_logs, global_logger, log
 from support_request_bundle import prepare_support_request
 
@@ -226,8 +226,6 @@ class LogsPageController:
             current_log_file,
             LogsPageController.get_current_log_file(),
             LogsPageController.get_orchestra_log_path(orchestra_runner),
-            os.path.join(LOGS_FOLDER, "commands_full.log"),
-            os.path.join(LOGS_FOLDER, "last_command.txt"),
         ]
         return prepare_support_request(
             bundle_prefix="support_logs",

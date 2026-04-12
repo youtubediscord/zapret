@@ -4,8 +4,9 @@ import os
 
 from log import log
 from main.runtime_state import startup_elapsed_ms
+from ui.main_window_appearance_flow import on_animations_changed
 from ui.holiday_effects import HolidayEffectsManager
-from ui.main_window_state import AppUiState
+from app_state.main_window_state import AppUiState
 
 
 class WindowStateSyncMixin:
@@ -30,16 +31,16 @@ class WindowStateSyncMixin:
 
             if autostart_enabled and launch_method in autostart_pending_methods:
                 return AppUiState(
-                    dpi_phase="autostart_pending",
-                    dpi_running=False,
-                    dpi_expected_process=expected_process,
+                    launch_phase="autostart_pending",
+                    launch_running=False,
+                    launch_expected_process=expected_process,
                     autostart_enabled=autostart_enabled,
                 )
 
             return AppUiState(
-                dpi_phase="stopped",
-                dpi_running=False,
-                dpi_expected_process=expected_process,
+                launch_phase="stopped",
+                launch_running=False,
+                launch_expected_process=expected_process,
                 autostart_enabled=autostart_enabled,
             )
         except Exception:
@@ -49,7 +50,7 @@ class WindowStateSyncMixin:
         if not isinstance(payload, dict):
             return
 
-        runtime_service = getattr(self, "dpi_runtime_service", None)
+        runtime_service = getattr(self, "launch_runtime_service", None)
         if runtime_service is None:
             return
 
@@ -175,8 +176,8 @@ class WindowStateSyncMixin:
             log(f"🔮 Инициализация: opacity={opacity_saved}%", "DEBUG")
             self.set_window_opacity(opacity_saved)
 
-            if not get_animations_enabled() and hasattr(self, "_on_animations_changed"):
-                self._on_animations_changed(False)
+            if not get_animations_enabled():
+                on_animations_changed(self, False)
 
         except Exception as e:
             log(f"❌ Ошибка загрузки состояния декораций: {e}", "ERROR")

@@ -311,9 +311,6 @@ class LogsPage(BasePage):
             theme_tokens=theme_tokens,
         )
 
-    def _update_tab_styles(self) -> None:
-        """No-op — Pivot manages its own indicator."""
-
     def _refresh_winws_status_style_only(self) -> None:
         try:
             current_text = self.winws_status_label.text() or ""

@@ -176,7 +176,7 @@ def open_zapret1_strategy_detail(window, target_key: str) -> bool:
 
         def _reload_dpi() -> None:
             try:
-                from dpi.policy.direct_runtime_apply_policy import request_direct_runtime_content_apply
+                from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
 
                 request_direct_runtime_content_apply(
                     window,

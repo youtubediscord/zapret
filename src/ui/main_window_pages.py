@@ -5,6 +5,33 @@ from importlib import import_module
 from PyQt6.QtWidgets import QWidget
 
 from log import log
+from ui.main_window_display import (
+    on_autostart_disabled as on_main_window_autostart_disabled,
+    on_autostart_enabled as on_main_window_autostart_enabled,
+    on_subscription_updated as on_main_window_subscription_updated,
+    open_subscription_dialog as open_main_window_subscription_dialog,
+)
+from ui.main_window_appearance_flow import (
+    on_animations_changed,
+    on_background_preset_changed,
+    on_background_refresh_needed,
+    on_editor_smooth_scroll_changed,
+    on_mica_changed,
+    on_opacity_changed,
+    on_smooth_scroll_changed,
+)
+from ui.main_window_mode_switch import handle_main_window_launch_method_changed
+from ui.main_window_orchestra_flow import on_clear_learned_requested
+from ui.main_window_state_flow import on_direct_mode_changed
+from ui.main_window_strategy_detail_flow import (
+    on_open_target_detail,
+    on_strategy_detail_back,
+    on_strategy_detail_filter_mode_changed,
+    on_strategy_detail_selected,
+    on_z1_strategy_detail_selected,
+    open_zapret1_target_detail,
+)
+from ui.main_window_strategy_selection_flow import on_strategy_selected_from_page
 from ui.router import (
     get_eager_page_names_for_method,
     get_page_route_key,
@@ -23,6 +50,25 @@ from ui.window_action_controller import (
     start_dpi,
     stop_dpi,
 )
+from ui.main_window_navigation_build import on_ui_language_changed as on_main_window_ui_language_changed
+
+
+def _show_active_zapret2_control_page(window) -> None:
+    from ui.main_window_navigation import show_active_zapret2_control_page
+
+    show_active_zapret2_control_page(window)
+
+
+def _open_zapret2_preset_detail(window, preset_name: str) -> None:
+    from ui.main_window_navigation import open_zapret2_preset_detail
+
+    open_zapret2_preset_detail(window, preset_name)
+
+
+def _open_zapret1_preset_detail(window, preset_name: str) -> None:
+    from ui.main_window_navigation import open_zapret1_preset_detail
+
+    open_zapret1_preset_detail(window, preset_name)
 
 
 def get_eager_page_names(window) -> tuple[PageName, ...]:
@@ -183,7 +229,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
             window,
             "z2_direct.open_target_detail",
             page.open_target_detail,
-            window._on_open_target_detail,
+            lambda target_key, current_strategy_id, w=window: on_open_target_detail(w, target_key, current_strategy_id),
         )
 
     if page_name in (z2_direct.strategies_page, z2_direct.user_presets_page, PageName.BLOBS) and hasattr(page, "back_clicked"):
@@ -191,7 +237,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
             window,
             f"back_to_control.{page_name.name}",
             page.back_clicked,
-            window._show_active_zapret2_control_page,
+            lambda w=window: _show_active_zapret2_control_page(w),
         )
 
     if page_name == z2_direct.user_presets_page and hasattr(page, "preset_open_requested"):
@@ -199,7 +245,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
             window,
             f"{page_name.name}.preset_open_requested",
             page.preset_open_requested,
-            window._open_zapret2_preset_detail,
+            lambda preset_name, w=window: _open_zapret2_preset_detail(w, preset_name),
         )
 
     if page_name == z2_direct.preset_detail_page and hasattr(page, "back_clicked"):
@@ -247,7 +293,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
                 window,
                 f"{page_name.name}.direct_mode_changed",
                 page.direct_mode_changed,
-                window._on_direct_mode_changed,
+                lambda mode, w=window: on_direct_mode_changed(w, mode),
             )
 
     if page_name == z2_direct.strategy_detail_page:
@@ -256,7 +302,7 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
                 window,
                 "strategy_detail.back_clicked",
                 page.back_clicked,
-                window._on_strategy_detail_back,
+                lambda w=window: on_strategy_detail_back(w),
             )
         if hasattr(page, "navigate_to_root"):
             connect_signal_once(
@@ -270,14 +316,14 @@ def _connect_z2_navigation_signals(window, page_name: PageName, page: QWidget, z
                 window,
                 "strategy_detail.strategy_selected",
                 page.strategy_selected,
-                window._on_strategy_detail_selected,
+                lambda target_key, strategy_id, w=window: on_strategy_detail_selected(w, target_key, strategy_id),
             )
         if hasattr(page, "filter_mode_changed"):
             connect_signal_once(
                 window,
                 "strategy_detail.filter_mode_changed",
                 page.filter_mode_changed,
-                window._on_strategy_detail_filter_mode_changed,
+                lambda target_key, filter_mode, w=window: on_strategy_detail_filter_mode_changed(w, target_key, filter_mode),
             )
 
 def _connect_z1_navigation_signals(window, page_name: PageName, page: QWidget, z1_pages) -> None:
@@ -294,7 +340,7 @@ def _connect_z1_navigation_signals(window, page_name: PageName, page: QWidget, z
             window,
             "z1_user_presets.preset_open_requested",
             page.preset_open_requested,
-            window._open_zapret1_preset_detail,
+            lambda preset_name, w=window: _open_zapret1_preset_detail(w, preset_name),
         )
 
     if page_name == z1_pages.preset_detail_page and hasattr(page, "back_clicked"):
@@ -317,7 +363,7 @@ def _connect_z1_navigation_signals(window, page_name: PageName, page: QWidget, z
             window,
             "z1_direct.target_clicked",
             page.target_clicked,
-            window._open_zapret1_target_detail,
+            lambda target_key, target_info, w=window: open_zapret1_target_detail(w, target_key, target_info),
         )
 
     if page_name == z1_pages.strategy_detail_page:
@@ -340,7 +386,7 @@ def _connect_z1_navigation_signals(window, page_name: PageName, page: QWidget, z
                 window,
                 "z1_strategy_detail.strategy_selected",
                 page.strategy_selected,
-                window._on_z1_strategy_detail_selected,
+                lambda target_key, strategy_id, w=window: on_z1_strategy_detail_selected(w, target_key, strategy_id),
             )
 
     if page_name == z1_pages.control_page:
@@ -374,14 +420,14 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
                 window,
                 "autostart.autostart_enabled",
                 page.autostart_enabled,
-                window._on_autostart_enabled,
+                lambda w=window: on_main_window_autostart_enabled(w),
             )
         if hasattr(page, "autostart_disabled"):
             connect_signal_once(
                 window,
                 "autostart.autostart_disabled",
                 page.autostart_disabled,
-                window._on_autostart_disabled,
+                lambda w=window: on_main_window_autostart_disabled(w),
             )
         if hasattr(page, "navigate_to_dpi_settings"):
             connect_signal_once(
@@ -416,49 +462,56 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
                 window,
                 "appearance.background_refresh_needed",
                 page.background_refresh_needed,
-                window._on_background_refresh_needed,
+                lambda w=window: on_background_refresh_needed(w),
+            )
+        if hasattr(page, "background_preset_changed"):
+            connect_signal_once(
+                window,
+                "appearance.background_preset_changed",
+                page.background_preset_changed,
+                lambda preset, w=window: on_background_preset_changed(w, preset),
             )
         if hasattr(page, "opacity_changed"):
             connect_signal_once(
                 window,
                 "appearance.opacity_changed",
                 page.opacity_changed,
-                window._on_opacity_changed,
+                lambda value, w=window: on_opacity_changed(w, value),
             )
         if hasattr(page, "mica_changed"):
             connect_signal_once(
                 window,
                 "appearance.mica_changed",
                 page.mica_changed,
-                window._on_mica_changed,
+                lambda enabled, w=window: on_mica_changed(w, enabled),
             )
         if hasattr(page, "animations_changed"):
             connect_signal_once(
                 window,
                 "appearance.animations_changed",
                 page.animations_changed,
-                window._on_animations_changed,
+                lambda enabled, w=window: on_animations_changed(w, enabled),
             )
         if hasattr(page, "smooth_scroll_changed"):
             connect_signal_once(
                 window,
                 "appearance.smooth_scroll_changed",
                 page.smooth_scroll_changed,
-                window._on_smooth_scroll_changed,
+                lambda enabled, w=window: on_smooth_scroll_changed(w, enabled),
             )
         if hasattr(page, "editor_smooth_scroll_changed"):
             connect_signal_once(
                 window,
                 "appearance.editor_smooth_scroll_changed",
                 page.editor_smooth_scroll_changed,
-                window._on_editor_smooth_scroll_changed,
+                lambda enabled, w=window: on_editor_smooth_scroll_changed(w, enabled),
             )
         if hasattr(page, "ui_language_changed"):
             connect_signal_once(
                 window,
                 "appearance.ui_language_changed",
                 page.ui_language_changed,
-                window._on_ui_language_changed,
+                lambda language, w=window: on_main_window_ui_language_changed(w, language),
             )
 
     if page_name == PageName.ABOUT:
@@ -467,7 +520,7 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
                 window,
                 "about.open_premium_requested",
                 page.open_premium_requested,
-                window._open_subscription_dialog,
+                lambda w=window: open_main_window_subscription_dialog(w),
             )
         if hasattr(page, "open_updates_requested"):
             _connect_show_page_signal(
@@ -482,7 +535,7 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
             window,
             "premium.subscription_updated",
             page.subscription_updated,
-            window._on_subscription_updated,
+            lambda is_premium, days_remaining, w=window: on_main_window_subscription_updated(w, is_premium, days_remaining),
         )
 
     if page_name == PageName.DPI_SETTINGS and hasattr(page, "launch_method_changed"):
@@ -490,7 +543,7 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
             window,
             "dpi_settings.launch_method_changed",
             page.launch_method_changed,
-            window._on_launch_method_changed,
+            lambda method, w=window: handle_main_window_launch_method_changed(w, method),
         )
 
     if page_name in (
@@ -501,7 +554,7 @@ def _connect_common_page_signals(window, page_name: PageName, page: QWidget) -> 
             window,
             f"strategy_selected.{page_name.name}",
             page.strategy_selected,
-            window._on_strategy_selected_from_page,
+            lambda strategy_id, strategy_name, w=window: on_strategy_selected_from_page(w, strategy_id, strategy_name),
         )
 
 
@@ -514,7 +567,7 @@ def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> Non
             window,
             "z2_direct.open_target_detail",
             page.open_target_detail,
-            window._on_open_target_detail,
+            lambda target_key, current_strategy_id, w=window: on_open_target_detail(w, target_key, current_strategy_id),
         )
     _connect_z2_navigation_signals(window, page_name, page, resolve_zapret2_navigation_pages("direct_zapret2"))
     _connect_z1_navigation_signals(window, page_name, page, z1_pages)
@@ -524,7 +577,7 @@ def connect_lazy_page_signals(window, page_name: PageName, page: QWidget) -> Non
             window,
             "orchestra.clear_learned_requested",
             page.clear_learned_requested,
-            window._on_clear_learned_requested,
+            lambda w=window: on_clear_learned_requested(w),
         )
 
 

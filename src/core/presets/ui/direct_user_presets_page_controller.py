@@ -530,7 +530,7 @@ class DirectUserPresetsPageController:
     @staticmethod
     def open_new_configs_post() -> UserPresetActionResult:
         try:
-            from core.direct_flow import DirectFlowCoordinator
+            from direct_launch.flow.direct_flow import DirectFlowCoordinator
 
             webbrowser.open(DirectFlowCoordinator.PRESETS_DOWNLOAD_URL)
             return UserPresetActionResult(

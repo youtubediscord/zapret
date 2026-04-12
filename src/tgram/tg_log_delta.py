@@ -71,7 +71,6 @@ HOST = platform.node() or "unknown-pc"
 # ---------- Telegram API (только для ручной отправки) -----------------
 API = f"https://api.telegram.org/bot{TOKEN}"
 
-from pathlib import Path
 import requests
 
 def _tg_api(method: str, files=None, data=None):
@@ -79,27 +78,3 @@ def _tg_api(method: str, files=None, data=None):
     r   = requests.post(url, files=files, data=data, timeout=30)
     r.raise_for_status()
     return r.json()
-
-def send_log_to_tg(log_path: str | Path, caption: str = "") -> None:
-    """Ручная отправка текста лога в Telegram (вызывается пользователем из UI)."""
-    path = Path(log_path)
-    text = path.read_text(encoding="utf-8-sig", errors="replace")[-4000:]
-    data = {
-        "chat_id": CHAT_ID,
-        "message_thread_id": TOPIC_ID,
-        "text": (caption + "\n\n" if caption else "") + text,
-        "parse_mode": "HTML"
-    }
-    _tg_api("sendMessage", data=data)
-
-def send_file_to_tg(file_path: str | Path, caption: str = "") -> None:
-    """Ручная отправка файла лога в Telegram (вызывается пользователем из UI)."""
-    path = Path(file_path)
-    with path.open("rb") as fh:
-        files = {"document": fh}
-        data = {
-            "chat_id": CHAT_ID,
-            "message_thread_id": TOPIC_ID,
-            "caption": caption or path.name
-        }
-        _tg_api("sendDocument", files=files, data=data)

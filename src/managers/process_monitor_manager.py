@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QObject
 from log import log
 
-from dpi.runtime import get_canonical_winws_process_pids
+from direct_launch.runtime import get_canonical_winws_process_pids
 
 
 class ProcessMonitorManager(QObject):
@@ -35,7 +35,7 @@ class ProcessMonitorManager(QObject):
         self._process_details = normalized
         self.app.process_details = normalized
 
-        runtime_service = getattr(self.app, "dpi_runtime_service", None)
+        runtime_service = getattr(self.app, "launch_runtime_service", None)
         if runtime_service is not None:
             runtime_service.observe_process_details(normalized)
 

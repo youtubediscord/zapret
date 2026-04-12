@@ -5,9 +5,9 @@ from typing import Callable, Optional
 
 from PyQt6.QtCore import QFileSystemWatcher, QTimer, QObject
 
-from launcher_common.preset_runner_support import publish_active_preset_content_changed
+from direct_launch.flow.preset_switch_policy import request_runtime_preset_switch
+from direct_launch.runners.preset_runner_support import publish_active_preset_content_changed
 from log import log
-from dpi.policy.runtime_preset_switch_policy import request_runtime_preset_switch
 
 
 class PresetRuntimeCoordinator(QObject):

@@ -41,6 +41,12 @@ def _bind_startup_gate(signal, callback, *, is_ready) -> None:
 
 
 def install_post_startup_tasks(window: "LupiDPIApp") -> None:
+    def _window_alive() -> bool:
+        return not bool(
+            getattr(window, "_is_exiting", False)
+            or getattr(window, "_closing_completely", False)
+        )
+
     class _StartupChecksBridge(QObject):
         finished = pyqtSignal(dict)
 
@@ -70,6 +76,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
                 return 0
 
     def _on_startup_checks_finished(payload: dict) -> None:
+        if not _window_alive():
+            return
         try:
             controller = getattr(window, "window_notification_controller", None)
             blocking_notification = payload.get("blocking_notification")
@@ -102,6 +110,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
     startup_bridge.finished.connect(_on_startup_checks_finished)
 
     def _on_deferred_maintenance_finished(payload: dict) -> None:
+        if not _window_alive():
+            return
         try:
             controller = getattr(window, "window_notification_controller", None)
             duration_ms = int(payload.get("duration_ms") or 0)
@@ -270,18 +280,22 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             )
 
     def _start_deferred_maintenance() -> None:
+        if not _window_alive():
+            return
         import threading
 
         window.log_startup_metric("DeferredMaintenanceStarted", "telega_association_worker")
         threading.Thread(target=_deferred_maintenance_worker, daemon=True).start()
 
     def _schedule_deferred_maintenance() -> None:
+        if not _window_alive():
+            return
         delay_ms = 6000
         log(
             f"Проверка Telega Desktop и служебные действия отложены на {delay_ms}ms после post-init",
             "DEBUG",
         )
-        QTimer.singleShot(delay_ms, _start_deferred_maintenance)
+        QTimer.singleShot(delay_ms, lambda: _window_alive() and _start_deferred_maintenance())
 
     _bind_startup_gate(
         window.startup_post_init_ready,
@@ -290,6 +304,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
     )
 
     def _on_update_found(version: str, release_notes: str) -> None:
+        if not _window_alive():
+            return
         try:
             try:
                 window.set_status(f"Доступно обновление v{version}")
@@ -319,6 +335,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             log(f"Ошибка при показе диалога обновления: {exc}", "❌ ERROR")
 
     def _on_no_update(current_version: str) -> None:
+        if not _window_alive():
+            return
         try:
             try:
                 window.set_status(f"Обновлений нет, установлена версия {current_version}")
@@ -342,6 +360,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             log(f"Ошибка при показе InfoBar: {exc}", "❌ ERROR")
 
     def _on_update_check_error(error: str) -> None:
+        if not _window_alive():
+            return
         try:
             window.set_status("Не удалось проверить обновления")
         except Exception:
@@ -370,6 +390,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             log(f"Ошибка воркера проверки обновлений: {exc}", "❌ ERROR")
 
     def _schedule_startup_update_check() -> None:
+        if not _window_alive():
+            return
         try:
             from config import get_auto_update_enabled
 
@@ -387,9 +409,11 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
         threading.Thread(target=_startup_update_worker, daemon=True).start()
 
     def _schedule_startup_update_check_deferred() -> None:
+        if not _window_alive():
+            return
         delay_ms = 12000
         log(f"Автопроверка обновлений отложена на {delay_ms}ms после готовности UI", "DEBUG")
-        QTimer.singleShot(delay_ms, _schedule_startup_update_check)
+        QTimer.singleShot(delay_ms, lambda: _window_alive() and _schedule_startup_update_check())
 
     _bind_startup_gate(
         window.startup_post_init_ready,

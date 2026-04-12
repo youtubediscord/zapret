@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from PyQt6.QtCore import Qt
 
 
 @dataclass(slots=True)
@@ -137,7 +138,7 @@ def build_auto_dns_ui(
 ) -> AutoDnsWidgets:
     auto_card = settings_card_cls()
     auto_card.setObjectName("dnsCard")
-    auto_card.setCursor(on_select["cursor"])
+    auto_card.setCursor(Qt.CursorShape.PointingHandCursor)
     auto_card.setProperty("selected", False)
     auto_layout = qhbox_layout_cls()
     auto_layout.setContentsMargins(10, 6, 12, 6)
@@ -160,7 +161,7 @@ def build_auto_dns_ui(
 
     auto_layout.addStretch()
     auto_card.add_layout(auto_layout)
-    auto_card.mousePressEvent = on_select["handler"]
+    auto_card.mousePressEvent = on_select
 
     return AutoDnsWidgets(
         card=auto_card,

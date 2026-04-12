@@ -6,7 +6,7 @@ import re
 import time as _time
 from typing import Callable, Optional
 
-from core.direct_flow import DirectFlowCoordinator
+from direct_launch.flow.direct_flow import DirectFlowCoordinator
 from core.direct_preset_core.common.source_preset_models import OutRangeSettings, SendSettings, SyndataSettings
 from core.direct_preset_core.service import BasicUiPayload, DirectPresetService, TargetDetailPayload
 from core.paths import AppPaths

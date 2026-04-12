@@ -5,7 +5,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from core.direct_flow import DirectFlowCoordinator
+    from app_state.app_runtime_state import AppRuntimeState
+    from app_state.launch_runtime_service import LaunchRuntimeService
+    from app_state.main_window_state import AppUiState, MainWindowStateStore
+    from direct_launch.flow.direct_flow import DirectFlowCoordinator
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore
@@ -15,11 +18,8 @@ if TYPE_CHECKING:
     from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
-    from managers.app_runtime_state import AppRuntimeState
-    from managers.dpi_runtime_service import DpiRuntimeService
     from core.presets.direct_facade import DirectPresetFacade
     from strategy_menu.marks_store import DirectZapret2FavoritesStore, DirectZapret2MarksStore
-    from ui.main_window_state import AppUiState, MainWindowStateStore
 
 
 _APP_CONTEXT: "AppContext | None" = None
@@ -30,7 +30,7 @@ class AppContext:
     app_paths: AppPaths
     ui_state_store: MainWindowStateStore
     app_runtime_state: AppRuntimeState
-    dpi_runtime_service: DpiRuntimeService
+    launch_runtime_service: LaunchRuntimeService
     direct_flow_coordinator: DirectFlowCoordinator
     preset_selection_service: PresetSelectionService
     preset_file_store: PresetFileStore
@@ -46,8 +46,11 @@ class AppContext:
 
 
 def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppContext:
+    from app_state.app_runtime_state import AppRuntimeState
+    from app_state.launch_runtime_service import LaunchRuntimeService
+    from app_state.main_window_state import AppUiState, MainWindowStateStore
     from config import get_zapret_userdata_dir
-    from core.direct_flow import DirectFlowCoordinator
+    from direct_launch.flow.direct_flow import DirectFlowCoordinator
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore
@@ -57,10 +60,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
-    from managers.app_runtime_state import AppRuntimeState
-    from managers.dpi_runtime_service import DpiRuntimeService
     from strategy_menu.marks_store import DirectZapret2FavoritesStore, DirectZapret2MarksStore
-    from ui.main_window_state import AppUiState, MainWindowStateStore
 
     root = Path(get_zapret_userdata_dir()).resolve()
     app_paths = AppPaths(user_root=root, local_root=root)
@@ -72,7 +72,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     strategy_marks_store = DirectZapret2MarksStore.default()
     strategy_favorites_store = DirectZapret2FavoritesStore.default()
     app_runtime_state = AppRuntimeState(ui_state_store)
-    dpi_runtime_service = DpiRuntimeService(ui_state_store)
+    launch_runtime_service = LaunchRuntimeService(ui_state_store)
     direct_flow_coordinator = DirectFlowCoordinator(app_paths, preset_selection_service, preset_file_store)
 
     def _direct_facade_factory(launch_method: str) -> DirectPresetFacade:
@@ -105,7 +105,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
         app_paths=app_paths,
         ui_state_store=ui_state_store,
         app_runtime_state=app_runtime_state,
-        dpi_runtime_service=dpi_runtime_service,
+        launch_runtime_service=launch_runtime_service,
         direct_flow_coordinator=direct_flow_coordinator,
         preset_selection_service=preset_selection_service,
         preset_file_store=preset_file_store,

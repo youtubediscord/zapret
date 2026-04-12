@@ -44,7 +44,7 @@ from ui.compat_widgets import (
     ResetActionButton,
     enable_setting_card_group_auto_height,
 )
-from ui.main_window_state import AppUiState, MainWindowStateStore
+from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
 from ui.window_action_controller import (
     open_connection_test,
@@ -69,10 +69,6 @@ class BigActionButton(PrimaryActionButton):
 
     def __init__(self, text: str, icon_name: str = None, accent: bool = True, parent=None):
         super().__init__(text, icon_name, parent)
-
-    def _update_style(self):
-        """No-op: qfluentwidgets handles styling."""
-        pass
 
 
 class StopButton(ActionButton):
@@ -425,7 +421,6 @@ class ControlPage(BasePage):
         self.stop_and_exit_btn.setEnabled(not loading)
         
         # Visual disabled state is handled globally in ui/theme.py.
-        self.start_btn._update_style()
         self.stop_winws_btn._update_style()
         self.stop_and_exit_btn._update_style()
 
@@ -443,15 +438,18 @@ class ControlPage(BasePage):
         self._ui_state_store = store
         self._ui_state_unsubscribe = store.subscribe(
             self._on_ui_state_changed,
-            fields={"dpi_phase", "dpi_running", "dpi_busy", "dpi_busy_text", "dpi_last_error", "current_strategy_summary"},
+            fields={"launch_phase", "launch_running", "launch_busy", "launch_busy_text", "launch_last_error", "current_strategy_summary"},
             emit_initial=True,
         )
 
     def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
         if self._cleanup_in_progress:
             return
-        self.set_loading(state.dpi_busy, state.dpi_busy_text)
-        self.update_status(state.dpi_phase or ("running" if state.dpi_running else "stopped"), state.dpi_last_error)
+        self.set_loading(state.launch_busy, state.launch_busy_text)
+        self.update_status(
+            state.launch_phase or ("running" if state.launch_running else "stopped"),
+            state.launch_last_error,
+        )
         self.update_strategy(state.current_strategy_summary or "")
 
     def _get_current_dpi_runtime_state(self) -> tuple[str, str]:

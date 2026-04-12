@@ -45,7 +45,7 @@ class WindowStartupMixin:
         self.app_context = app_context
         self.ui_state_store = app_context.ui_state_store
         self.app_runtime_state = app_context.app_runtime_state
-        self.dpi_runtime_service = app_context.dpi_runtime_service
+        self.launch_runtime_service = app_context.launch_runtime_service
 
         self._dpi_autostart_initiated = False
         self._is_exiting = False

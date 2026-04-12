@@ -195,10 +195,12 @@ class ControlPageController:
     def resolve_runtime_state(*, snapshot_state=None, last_known_dpi_running: bool = False) -> ControlRuntimeState:
         if snapshot_state is not None:
             try:
-                phase = str(snapshot_state.dpi_phase or "").strip().lower() or ("running" if snapshot_state.dpi_running else "stopped")
+                phase = str(snapshot_state.launch_phase or "").strip().lower() or (
+                    "running" if snapshot_state.launch_running else "stopped"
+                )
                 return ControlRuntimeState(
                     phase=phase,
-                    last_error=str(snapshot_state.dpi_last_error or "").strip(),
+                    last_error=str(snapshot_state.launch_last_error or "").strip(),
                 )
             except Exception:
                 pass

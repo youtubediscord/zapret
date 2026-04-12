@@ -29,7 +29,7 @@ from ui.compat_widgets import (
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
 )
-from ui.main_window_state import AppUiState, MainWindowStateStore
+from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_rkn_background_options
 from ui.text_catalog import tr as tr_catalog
 from ui.widgets.win11_controls import Win11ToggleRow

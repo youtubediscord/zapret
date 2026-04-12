@@ -19,7 +19,7 @@ from ui.theme_subscription_manager import ThemeSubscriptionManager
 
 if TYPE_CHECKING:
     from app_context import AppContext
-    from managers.dpi_manager import DPIManager
+    from managers.launch_autostart_manager import LaunchAutostartManager
     from managers.initialization_manager import InitializationManager
     from managers.process_monitor_manager import ProcessMonitorManager
     from managers.subscription_manager import SubscriptionManager
@@ -46,7 +46,7 @@ class LupiDPIApp(
     active_preset_content_changed_requested = pyqtSignal(str)
 
     ui_manager: "UIManager"
-    dpi_manager: "DPIManager"
+    launch_autostart_manager: "LaunchAutostartManager"
     process_monitor_manager: "ProcessMonitorManager"
     subscription_manager: "SubscriptionManager"
     initialization_manager: "InitializationManager"

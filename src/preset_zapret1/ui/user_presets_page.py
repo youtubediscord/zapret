@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import time
 import re
 from typing import Optional
 from PyQt6.QtCore import (
@@ -21,8 +20,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QFileDialog,
     QListView,
-    QSizePolicy,
-    QFrame,
 )
 from ui.pages.base_page import BasePage
 from core.presets.ui.preset_actions_menu import show_preset_actions_menu
@@ -32,20 +29,60 @@ from core.presets.ui.direct_user_presets_page_controller import (
     DirectUserPresetsPageController,
     DirectUserPresetsPageControllerConfig,
 )
-from ui.compat_widgets import (
-    PrimaryActionButton,
-    SettingsCard,
-    set_tooltip,
-    style_semantic_caption_label,
+from preset_zapret1.ui.user_presets_actions_workflow import (
+    import_preset_action,
+    restore_reset_all_button_label,
+    run_reset_all_presets_action,
+    show_inline_action_create,
+    show_inline_action_rename,
+    show_reset_all_result,
 )
-from ui.main_window_state import MainWindowStateStore
-from ui.text_catalog import tr as tr_catalog
+from preset_zapret1.ui.user_presets_build import build_user_presets_page_shell
+from preset_zapret1.ui.user_presets_dialogs import (
+    CreatePresetDialog,
+    RenamePresetDialog,
+    ResetAllPresetsDialog,
+)
+from preset_zapret1.ui.user_presets_item_actions_workflow import (
+    activate_preset_action,
+    delete_preset_action,
+    duplicate_preset_action,
+    export_preset_action,
+    handle_item_dropped_action,
+    move_preset_by_step_action,
+    open_edit_preset_menu_action,
+    open_new_configs_post_action,
+    open_presets_info_action,
+    rename_preset_action,
+    reset_preset_action,
+    restore_deleted_presets_action,
+    show_rating_menu_action,
+    toggle_pin_preset_action,
+)
+from preset_zapret1.ui.user_presets_page_lifecycle import (
+    activate_user_presets_page,
+    after_user_presets_ui_built,
+    apply_user_presets_language,
+    apply_user_presets_page_theme,
+    bind_user_presets_ui_state_store,
+    cleanup_user_presets_page,
+    handle_user_presets_ui_state_changed,
+    resync_user_presets_layout_metrics,
+    schedule_user_presets_layout_resync,
+)
+from preset_zapret1.ui.user_presets_runtime_helpers import (
+    apply_preset_search,
+    rebuild_presets_rows,
+    schedule_preset_search,
+    update_presets_view_height,
+)
+from app_state.main_window_state import MainWindowStateStore
 
 try:
     from qfluentwidgets import (
         BodyLabel, CaptionLabel, StrongBodyLabel, SubtitleLabel,
         PushButton as FluentPushButton, PrimaryPushButton, ToolButton, PrimaryToolButton,
-        MessageBox, InfoBar, MessageBoxBase, TransparentToolButton, TransparentPushButton, FluentIcon,
+        MessageBox, InfoBar, TransparentToolButton, TransparentPushButton, FluentIcon,
         RoundMenu, Action, ListView, LineEdit,
     )
     _HAS_FLUENT_LABELS = True
@@ -61,7 +98,6 @@ except ImportError:
     TransparentPushButton = QPushButton
     MessageBox = None
     InfoBar = None
-    MessageBoxBase = object
     TransparentToolButton = None
     FluentIcon = None
     RoundMenu = None
@@ -82,238 +118,13 @@ _CSS_RGBA_COLOR_RE = re.compile(
     r"^\s*rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*(?:,\s*([0-9]*\.?[0-9]+)\s*)?\)\s*$",
     re.IGNORECASE,
 )
-def _tr_text(key: str, language: str, default: str, **kwargs) -> str:
-    text = tr_catalog(key, language=language, default=default)
-    if kwargs:
-        try:
-            return text.format(**kwargs)
-        except Exception:
-            return text
-    return text
 
 
 from ui.presets_menu import (
-    PresetsToolbarLayout,
-    PresetListModel,
-    LinkedWheelListView,
-    PresetListDelegate,
     fluent_icon,
     make_menu_action,
 )
-
-class _CreatePresetDialog(MessageBoxBase):
-    """Диалог создания нового пресета."""
-
-    def __init__(self, existing_names: list, parent=None, language: str = "ru"):
-        if parent and not parent.isWindow():
-            parent = parent.window()
-        super().__init__(parent)
-        self._ui_language = language
-
-        def _tr(key: str, default: str, **kwargs) -> str:
-            return _tr_text(key, self._ui_language, default, **kwargs)
-
-        self._tr = _tr
-        self._existing_names = list(existing_names)
-        self._source = "current"
-
-        self.titleLabel = SubtitleLabel(
-            self._tr("page.z1_user_presets.dialog.create.title", "Новый пресет"),
-            self.widget,
-        )
-        self.subtitleLabel = BodyLabel(
-            self._tr(
-                "page.z1_user_presets.dialog.create.subtitle",
-                "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между конфигурациями.",
-            ),
-            self.widget,
-        )
-        self.subtitleLabel.setWordWrap(True)
-
-        name_label = BodyLabel(
-            self._tr("page.z1_user_presets.dialog.create.name", "Название"),
-            self.widget,
-        )
-        self.nameEdit = LineEdit(self.widget)
-        self.nameEdit.setPlaceholderText(
-            self._tr(
-                "page.z1_user_presets.dialog.create.placeholder",
-                "Например: Игры / YouTube / Дом",
-            )
-        )
-        self.nameEdit.setClearButtonEnabled(True)
-
-        source_row = QHBoxLayout()
-        source_label = BodyLabel(
-            self._tr("page.z1_user_presets.dialog.create.source", "Создать на основе"),
-            self.widget,
-        )
-        source_row.addWidget(source_label)
-        source_row.addStretch()
-        try:
-            from qfluentwidgets import SegmentedWidget
-            self._source_seg = SegmentedWidget(self.widget)
-            self._source_seg.addItem(
-                "current",
-                self._tr("page.z1_user_presets.dialog.create.source.current", "Текущего активного"),
-            )
-            self._source_seg.addItem(
-                "empty",
-                self._tr("page.z1_user_presets.dialog.create.source.empty", "Пустого"),
-            )
-            self._source_seg.setCurrentItem("current")
-            self._source_seg.currentItemChanged.connect(lambda k: setattr(self, "_source", k))
-            source_row.addWidget(self._source_seg)
-        except Exception:
-            pass
-
-        self.warningLabel = CaptionLabel("", self.widget)
-        style_semantic_caption_label(self.warningLabel, tone="error")
-        self.warningLabel.hide()
-
-        self.viewLayout.addWidget(self.titleLabel)
-        self.viewLayout.addWidget(self.subtitleLabel)
-        self.viewLayout.addWidget(name_label)
-        self.viewLayout.addWidget(self.nameEdit)
-        self.viewLayout.addLayout(source_row)
-        self.viewLayout.addWidget(self.warningLabel)
-
-        self.yesButton.setText(self._tr("page.z1_user_presets.dialog.create.button.create", "Создать"))
-        self.cancelButton.setText(self._tr("page.z1_user_presets.dialog.button.cancel", "Отмена"))
-        self.widget.setMinimumWidth(420)
-
-    def validate(self) -> bool:
-        name = self.nameEdit.text().strip()
-        if not name:
-            self.warningLabel.setText(
-                self._tr("page.z1_user_presets.dialog.validation.enter_name", "Введите название.")
-            )
-            self.warningLabel.show()
-            return False
-        self.warningLabel.hide()
-        return True
-
-
-class _RenamePresetDialog(MessageBoxBase):
-    """Диалог переименования пресета."""
-
-    def __init__(self, current_name: str, existing_names: list, parent=None, language: str = "ru"):
-        if parent and not parent.isWindow():
-            parent = parent.window()
-        super().__init__(parent)
-        self._ui_language = language
-
-        def _tr(key: str, default: str, **kwargs) -> str:
-            return _tr_text(key, self._ui_language, default, **kwargs)
-
-        self._tr = _tr
-        self._current_name = str(current_name or "")
-        self._existing_names = [n for n in existing_names if n != self._current_name]
-
-        self.titleLabel = SubtitleLabel(
-            self._tr("page.z1_user_presets.dialog.rename.title", "Переименовать"),
-            self.widget,
-        )
-        self.subtitleLabel = BodyLabel(
-            self._tr(
-                "page.z1_user_presets.dialog.rename.subtitle",
-                "Имя пресета отображается в списке и используется для переключения.",
-            ),
-            self.widget,
-        )
-        self.subtitleLabel.setWordWrap(True)
-
-        from_label = CaptionLabel(
-            self._tr(
-                "page.z1_user_presets.dialog.rename.current_name",
-                "Текущее имя: {name}",
-                name=self._current_name,
-            ),
-            self.widget,
-        )
-        name_label = BodyLabel(
-            self._tr("page.z1_user_presets.dialog.rename.new_name", "Новое имя"),
-            self.widget,
-        )
-        self.nameEdit = LineEdit(self.widget)
-        self.nameEdit.setText(self._current_name)
-        self.nameEdit.setPlaceholderText(
-            self._tr("page.z1_user_presets.dialog.rename.placeholder", "Новое имя...")
-        )
-        self.nameEdit.selectAll()
-        self.nameEdit.setClearButtonEnabled(True)
-
-        self.warningLabel = CaptionLabel("", self.widget)
-        style_semantic_caption_label(self.warningLabel, tone="error")
-        self.warningLabel.hide()
-
-        self.viewLayout.addWidget(self.titleLabel)
-        self.viewLayout.addWidget(self.subtitleLabel)
-        self.viewLayout.addWidget(from_label)
-        self.viewLayout.addWidget(name_label)
-        self.viewLayout.addWidget(self.nameEdit)
-        self.viewLayout.addWidget(self.warningLabel)
-
-        self.yesButton.setText(self._tr("page.z1_user_presets.dialog.rename.button", "Переименовать"))
-        self.cancelButton.setText(self._tr("page.z1_user_presets.dialog.button.cancel", "Отмена"))
-        self.widget.setMinimumWidth(420)
-
-    def validate(self) -> bool:
-        name = self.nameEdit.text().strip()
-        if not name:
-            self.warningLabel.setText(
-                self._tr("page.z1_user_presets.dialog.validation.enter_name", "Введите название.")
-            )
-            self.warningLabel.show()
-            return False
-        if name == self._current_name:
-            self.warningLabel.hide()
-            return True
-        self.warningLabel.hide()
-        return True
-
-
-class _ResetAllPresetsDialog(MessageBoxBase):
-    """Диалог подтверждения перезаписи пресетов из шаблонов."""
-
-    def __init__(self, parent=None, language: str = "ru"):
-        if parent and not parent.isWindow():
-            parent = parent.window()
-        super().__init__(parent)
-        self._ui_language = language
-        self.titleLabel = SubtitleLabel(
-            _tr_text(
-                "page.z1_user_presets.dialog.reset_all.title",
-                self._ui_language,
-                "Вернуть заводские пресеты",
-            ),
-            self.widget,
-        )
-        self.bodyLabel = BodyLabel(
-            _tr_text(
-                "page.z1_user_presets.dialog.reset_all.body",
-                self._ui_language,
-                "Стандартные пресеты будут восстановлены как после установки.\n"
-                "Ваши изменения в стандартных пресетах будут потеряны.\n"
-                "Пользовательские пресеты с другими именами останутся.\n"
-                "Текущий активный пресет будет применен заново автоматически.",
-            ),
-            self.widget,
-        )
-        self.bodyLabel.setWordWrap(True)
-        self.viewLayout.addWidget(self.titleLabel)
-        self.viewLayout.addWidget(self.bodyLabel)
-        self.yesButton.setText(
-            _tr_text(
-                "page.z1_user_presets.dialog.reset_all.button",
-                self._ui_language,
-                "Вернуть заводские",
-            )
-        )
-        self.cancelButton.setText(
-            _tr_text("page.z1_user_presets.dialog.button.cancel", self._ui_language, "Отмена")
-        )
-        self.widget.setMinimumWidth(380)
+from ui.presets_menu.common import tr_text as _tr_text
 
 
 class Zapret1UserPresetsPage(BasePage):
@@ -437,9 +248,12 @@ class Zapret1UserPresetsPage(BasePage):
         self._runtime_service.on_store_switched(_name)
 
     def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
-        if self._cleanup_in_progress:
-            return
-        self._runtime_service.on_ui_state_changed(state, changed_fields)
+        handle_user_presets_ui_state_changed(
+            cleanup_in_progress=self._cleanup_in_progress,
+            runtime_service=self._runtime_service,
+            state=state,
+            changed_fields=changed_fields,
+        )
 
     def _controller_api(self):
         return self._page_api
@@ -487,14 +301,14 @@ class Zapret1UserPresetsPage(BasePage):
         return self._storage_api().get_hierarchy_store()
 
     def on_page_activated(self) -> None:
-        if self._cleanup_in_progress:
-            return
-        self._resync_layout_metrics()
-        if self._runtime_service.is_ui_dirty():
-            self.refresh_presets_view_if_possible()
-        else:
-            self._update_presets_view_height()
-        self._schedule_layout_resync(include_delayed=True)
+        activate_user_presets_page(
+            cleanup_in_progress=self._cleanup_in_progress,
+            resync_layout_metrics_fn=self._resync_layout_metrics,
+            runtime_service=self._runtime_service,
+            refresh_presets_view_if_possible_fn=self.refresh_presets_view_if_possible,
+            update_presets_view_height_fn=self._update_presets_view_height,
+            schedule_layout_resync_fn=self._schedule_layout_resync,
+        )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -506,57 +320,42 @@ class Zapret1UserPresetsPage(BasePage):
         self._layout_resync_delayed_timer.stop()
 
     def _after_ui_built(self) -> None:
-        started_at = time.perf_counter()
-        self._apply_page_theme(force=True)
-
-        try:
-            store = self._get_preset_store()
-            store.presets_changed.connect(self._on_store_changed)
-            store.preset_switched.connect(self._on_store_switched)
-            store.preset_identity_changed.connect(self._on_store_switched)
-            store.preset_updated.connect(self._on_store_updated)
-        except Exception:
-            pass
-        try:
-            self._start_watching_presets()
-        except Exception:
-            pass
-
-        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-        log(f"Z1UserPresetsPage: lazy ui init {elapsed_ms}ms", "DEBUG")
+        after_user_presets_ui_built(
+            apply_page_theme_fn=self._apply_page_theme,
+            get_preset_store_fn=self._get_preset_store,
+            on_store_changed_fn=self._on_store_changed,
+            on_store_switched_fn=self._on_store_switched,
+            on_store_updated_fn=self._on_store_updated,
+            start_watching_presets_fn=self._start_watching_presets,
+            log_fn=log,
+        )
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
-        if self._ui_state_store is store:
-            return
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-
-        self._ui_state_store = store
-        self._ui_state_unsubscribe = store.subscribe(
-            self._on_ui_state_changed,
-            fields={"preset_structure_revision"},
-            emit_initial=False,
+        bind_user_presets_ui_state_store(
+            current_store=self._ui_state_store,
+            store=store,
+            current_unsubscribe=self._ui_state_unsubscribe,
+            set_store_fn=lambda value: setattr(self, "_ui_state_store", value),
+            set_unsubscribe_fn=lambda value: setattr(self, "_ui_state_unsubscribe", value),
+            on_ui_state_changed_fn=self._on_ui_state_changed,
         )
 
     def _schedule_layout_resync(self, include_delayed: bool = False):
-        if self._cleanup_in_progress:
-            return
-        self._layout_resync_timer.start(0)
-        if include_delayed:
-            self._layout_resync_delayed_timer.start(220)
+        schedule_user_presets_layout_resync(
+            cleanup_in_progress=self._cleanup_in_progress,
+            layout_resync_timer=self._layout_resync_timer,
+            layout_resync_delayed_timer=self._layout_resync_delayed_timer,
+            include_delayed=include_delayed,
+        )
 
     def _resync_layout_metrics(self):
-        if self._cleanup_in_progress:
-            return
-        toolbar_layout = getattr(self, "_toolbar_layout", None)
-        if toolbar_layout is not None:
-            toolbar_layout.refresh_for_viewport(self.viewport().width(), self.layout.contentsMargins())
-        self._update_presets_view_height()
+        resync_user_presets_layout_metrics(
+            cleanup_in_progress=self._cleanup_in_progress,
+            toolbar_layout=getattr(self, "_toolbar_layout", None),
+            viewport=self.viewport(),
+            layout=self.layout,
+            update_presets_view_height_fn=self._update_presets_view_height,
+        )
 
     def set_smooth_scroll_enabled(self, enabled: bool) -> None:
         list_widget = getattr(self, "presets_list", None)
@@ -594,7 +393,6 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _build_ui(self):
         tokens = get_theme_tokens()
-        semantic = get_semantic_palette(tokens.theme_name)
 
         # This page should scroll only inside the presets list.
         # The outer BasePage scroll creates a second scrollbar and makes wheel
@@ -602,150 +400,50 @@ class Zapret1UserPresetsPage(BasePage):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.verticalScrollBar().hide()
 
-        # Presets community link
-        configs_card = SettingsCard()
-        configs_card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        configs_layout = QHBoxLayout()
-        configs_layout.setSpacing(12)
-        self._configs_icon = QLabel()
-        self._configs_icon.setPixmap(get_cached_qta_pixmap("fa5b.github", color=tokens.accent_hex, size=18))
-        configs_layout.addWidget(self._configs_icon)
-        configs_title = StrongBodyLabel(
-            self._tr(
-                "page.z1_user_presets.configs.title",
-                "Обменивайтесь пресетами и категориями в разделе GitHub Discussions",
-            )
+        shell = build_user_presets_page_shell(
+            parent=self,
+            tr_fn=self._tr,
+            tokens=tokens,
+            strong_body_label_cls=StrongBodyLabel,
+            line_edit_cls=LineEdit,
+            primary_tool_button_cls=PrimaryToolButton,
+            fluent_icon=FluentIcon,
+            get_cached_qta_pixmap_fn=get_cached_qta_pixmap,
+            on_open_new_configs_post=self._open_new_configs_post,
+            on_restore_deleted=self._on_restore_deleted,
+            on_create_clicked=self._on_create_clicked,
+            on_import_clicked=self._on_import_clicked,
+            on_reset_all_presets_clicked=self._on_reset_all_presets_clicked,
+            on_open_presets_info=self._open_presets_info,
+            on_info_clicked=self._on_info_clicked,
+            on_preset_search_text_changed=self._on_preset_search_text_changed,
+            on_activate_preset=self._on_activate_preset,
+            on_move_preset_by_step=self._move_preset_by_step,
+            on_item_dropped=self._on_item_dropped,
+            on_preset_context_requested=self._on_preset_context_requested,
+            on_preset_list_action=self._on_preset_list_action,
+            ui_language=self._ui_language,
         )
-        self._configs_title_label = configs_title
-        configs_title.setWordWrap(True)
-        configs_title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        configs_title.setMinimumWidth(0)
-        configs_layout.addWidget(configs_title, 1)
-        get_configs_btn = PrimaryActionButton(
-            self._tr("page.z1_user_presets.configs.button", "Получить конфиги"),
-            "fa5s.external-link-alt",
-        )
-        self._get_configs_btn = get_configs_btn
-        get_configs_btn.setFixedHeight(36)
-        get_configs_btn.clicked.connect(self._open_new_configs_post)
-        configs_layout.addWidget(get_configs_btn)
-        configs_card.add_layout(configs_layout)
-        self.add_widget(configs_card)
+        self._configs_icon = shell.configs_icon
+        self._configs_title_label = shell.configs_title_label
+        self._get_configs_btn = shell.get_configs_btn
+        self._toolbar_layout = shell.toolbar_layout
+        self._restore_deleted_btn = shell.restore_deleted_btn
+        self.create_btn = shell.create_btn
+        self.import_btn = shell.import_btn
+        self.reset_all_btn = shell.reset_all_btn
+        self.presets_info_btn = shell.presets_info_btn
+        self.info_btn = shell.info_btn
+        self._preset_search_input = shell.preset_search_input
+        self.presets_list = shell.presets_list
+        self._presets_model = shell.presets_model
+        self._presets_delegate = shell.presets_delegate
 
-        # Buttons: create + import (above the preset list)
+        self.add_widget(shell.configs_card)
         self.add_spacing(12)
-        toolbar_layout = PresetsToolbarLayout(self)
-        self._toolbar_layout = toolbar_layout
-
-        # "Restore deleted presets" button
-        self._restore_deleted_btn = toolbar_layout.create_action_button(
-            self._tr("page.z1_user_presets.button.restore_deleted", "Восстановить удалённые пресеты"),
-            "fa5s.undo",
-        )
-        self._restore_deleted_btn.clicked.connect(self._on_restore_deleted)
-        self._restore_deleted_btn.setVisible(False)
-
-        self.create_btn = toolbar_layout.create_primary_tool_button(
-            PrimaryToolButton,
-            FluentIcon.ADD if FluentIcon else None,
-        )
-        set_tooltip(
-            self.create_btn,
-            self._tr("page.z1_user_presets.tooltip.create", "Создать новый пресет"),
-        )
-        self.create_btn.clicked.connect(self._on_create_clicked)
-
-        self.import_btn = toolbar_layout.create_action_button(
-            self._tr("page.z1_user_presets.button.import", "Импорт"),
-            "fa5s.file-import",
-        )
-        set_tooltip(
-            self.import_btn,
-            self._tr("page.z1_user_presets.tooltip.import", "Импорт пресета из файла"),
-        )
-        self.import_btn.clicked.connect(self._on_import_clicked)
-
-        self.reset_all_btn = toolbar_layout.create_action_button(
-            self._tr("page.z1_user_presets.button.reset_all", "Вернуть заводские"),
-            "fa5s.undo",
-        )
-        set_tooltip(
-            self.reset_all_btn,
-            self._tr(
-                "page.z1_user_presets.tooltip.reset_all",
-                "Восстанавливает стандартные пресеты. Ваши изменения в стандартных пресетах будут потеряны.",
-            ),
-        )
-        self.reset_all_btn.clicked.connect(self._on_reset_all_presets_clicked)
-
-        self.presets_info_btn = toolbar_layout.create_action_button(
-            self._tr("page.z1_user_presets.button.wiki", "Вики по пресетам"),
-            "fa5s.info-circle",
-        )
-        self.presets_info_btn.clicked.connect(self._open_presets_info)
-
-        self.info_btn = toolbar_layout.create_action_button(
-            self._tr("page.z1_user_presets.button.what_is_this", "Что это такое?"),
-            "fa5s.question-circle",
-        )
-        self.info_btn.clicked.connect(self._on_info_clicked)
-
-        toolbar_layout.set_buttons([
-            self.create_btn,
-            self.import_btn,
-            self._restore_deleted_btn,
-            self.reset_all_btn,
-            self.presets_info_btn,
-            self.info_btn,
-        ])
-        toolbar_layout.refresh_for_viewport(self.viewport().width(), self.layout.contentsMargins())
-        self.add_widget(toolbar_layout.container)
-
+        self.add_widget(self._toolbar_layout.container)
         self.add_spacing(4)
-
-        # Search presets by name (filters the list).
-        self._preset_search_input = LineEdit()
-        self._preset_search_input.setPlaceholderText(
-            self._tr("page.z1_user_presets.search.placeholder", "Поиск пресетов по имени...")
-        )
-        self._preset_search_input.setClearButtonEnabled(True)
-        self._preset_search_input.setFixedHeight(34)
-        self._preset_search_input.setProperty("noDrag", True)
-        self._preset_search_input.textChanged.connect(self._on_preset_search_text_changed)
         self.add_widget(self._preset_search_input)
-
-        self.presets_list = LinkedWheelListView(self, draggable_kinds={"preset", "folder"})
-        self.presets_list.setObjectName("userPresetsList")
-        self.presets_list.setMouseTracking(True)
-        self.presets_list.setSelectionMode(QListView.SelectionMode.SingleSelection)
-        self.presets_list.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
-        self.presets_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.presets_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.presets_list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        self.presets_list.setUniformItemSizes(False)
-        self.presets_list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.presets_list.setProperty("uiList", True)
-        self.presets_list.setProperty("noDrag", True)
-        self.presets_list.viewport().setProperty("noDrag", True)
-        self.presets_list.preset_activated.connect(self._on_activate_preset)
-        self.presets_list.preset_move_requested.connect(self._move_preset_by_step)
-        self.presets_list.item_dropped.connect(self._on_item_dropped)
-        self.presets_list.preset_context_requested.connect(self._on_preset_context_requested)
-        self.presets_list.setDragEnabled(True)
-        self.presets_list.setAcceptDrops(True)
-        self.presets_list.setDropIndicatorShown(True)
-        self.presets_list.setDefaultDropAction(Qt.DropAction.MoveAction)
-        self.presets_list.setDragDropMode(QListView.DragDropMode.DragDrop)
-
-        self._presets_model = PresetListModel(self.presets_list)
-        self._presets_delegate = PresetListDelegate(self.presets_list, language_scope="z1", help_name_role="file_name")
-        self._presets_delegate.set_ui_language(self._ui_language)
-        self._presets_delegate.action_triggered.connect(self._on_preset_list_action)
-        self.presets_list.setModel(self._presets_model)
-        self.presets_list.setItemDelegate(self._presets_delegate)
-        self.presets_list.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self.presets_list.setFrameShape(QFrame.Shape.NoFrame)
-        self.presets_list.verticalScrollBar().setSingleStep(28)
         try:
             from config.reg import get_smooth_scroll_enabled
             smooth_enabled = get_smooth_scroll_enabled()
@@ -774,202 +472,119 @@ class Zapret1UserPresetsPage(BasePage):
             box.exec()
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
-        try:
-            tokens = tokens or get_theme_tokens()
-            theme_key = (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.surface_bg))
-            if not force and theme_key == self._last_page_theme_key:
-                return
-
-            semantic = get_semantic_palette(tokens.theme_name)
-
-            if getattr(self, "_configs_icon", None) is not None:
-                self._configs_icon.setPixmap(get_cached_qta_pixmap("fa5b.github", color=tokens.accent_hex, size=18))
-
-            # _restore_deleted_btn is ActionButton — self-styling, skip explicit update
-
-            # create_btn is PrimaryToolButton — self-styling, skip explicit update
-            # import_btn / presets_info_btn are ActionButton — self-styling, skip explicit update
-
-            if getattr(self, "reset_all_btn", None) is not None:
-                try:
-                    self.reset_all_btn.setIcon(get_themed_qta_icon("fa5s.undo", color=tokens.fg))
-                except Exception:
-                    pass
-
-            if getattr(self, "presets_list", None) is not None:
-                self.presets_list.viewport().update()
-
-            self._last_page_theme_key = theme_key
-            self._schedule_layout_resync()
-
-        except Exception as e:
-            log(f"Ошибка применения темы на странице пресетов: {e}", "DEBUG")
+        self._last_page_theme_key = apply_user_presets_page_theme(
+            get_theme_tokens_fn=lambda: tokens or get_theme_tokens(),
+            get_semantic_palette_fn=get_semantic_palette,
+            get_cached_qta_pixmap_fn=get_cached_qta_pixmap,
+            get_themed_qta_icon_fn=get_themed_qta_icon,
+            schedule_layout_resync_fn=self._schedule_layout_resync,
+            configs_icon=getattr(self, "_configs_icon", None),
+            reset_all_btn=getattr(self, "reset_all_btn", None),
+            presets_list=getattr(self, "presets_list", None),
+            previous_theme_key=self._last_page_theme_key,
+            force=force,
+            log_fn=log,
+        )
 
     def _on_preset_search_text_changed(self, _text: str) -> None:
-        # Debounce to avoid reloading on every keystroke.
-        try:
-            self._preset_search_timer.start(180)
-        except Exception:
-            self._refresh_presets_view_from_cache()
+        schedule_preset_search(
+            preset_search_timer=self._preset_search_timer,
+            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
+        )
 
     def _apply_preset_search(self) -> None:
-        if not self.isVisible():
-            self._runtime_service.set_ui_dirty(True)
-            return
-        self._refresh_presets_view_from_cache()
+        apply_preset_search(
+            is_visible=self.isVisible(),
+            runtime_service=self._runtime_service,
+            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
+        )
 
     def _update_presets_view_height(self):
-        if not self._presets_model or not hasattr(self, "presets_list"):
-            return
-
-        viewport_height = self.viewport().height()
-        if viewport_height <= 0:
-            return
-
-        top = max(0, self.presets_list.geometry().top())
-        bottom_margin = self.layout.contentsMargins().bottom()
-        target_height = max(220, viewport_height - top - bottom_margin)
-
-        if self.presets_list.minimumHeight() != target_height:
-            self.presets_list.setMinimumHeight(target_height)
-        if self.presets_list.maximumHeight() != target_height:
-            self.presets_list.setMaximumHeight(target_height)
+        update_presets_view_height(
+            presets_model=self._presets_model,
+            presets_list=getattr(self, "presets_list", None),
+            viewport=self.viewport(),
+            layout=self.layout,
+        )
 
     def _show_inline_action_create(self):
-        dlg = _CreatePresetDialog([], self.window(), language=self._ui_language)
-        if not dlg.exec():
-            return
-
-        name = dlg.nameEdit.text().strip()
-        from_current = getattr(dlg, "_source", "current") == "current"
-
-        try:
-            result = self._actions_api().create_preset(name=name, from_current=from_current)
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-        except Exception as e:
-            log(f"Ошибка создания пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
-                parent=self.window(),
-            )
+        show_inline_action_create(
+            dialog_cls=CreatePresetDialog,
+            parent_window=self.window(),
+            language=self._ui_language,
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            log_fn=log,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+        )
 
     def _show_inline_action_rename(self, current_name: str):
-        display_name = self._resolve_display_name(current_name)
-        if self._is_builtin_preset_file(current_name):
-            InfoBar.warning(
-                title=self._tr("common.error.title", "Ошибка"),
-                content="Встроенный пресет нельзя переименовать. Можно создать копию и работать уже с ней.",
-                parent=self.window(),
-            )
-            return
-        dlg = _RenamePresetDialog(display_name, [], self.window(), language=self._ui_language)
-        if not dlg.exec():
-            return
-
-        new_name = dlg.nameEdit.text().strip()
-        if not new_name or new_name == display_name:
-            return
-
-        try:
-            result = self._actions_api().rename_preset(current_name=current_name, new_name=new_name)
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-        except Exception as e:
-            log(f"Ошибка переименования пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
-                parent=self.window(),
-            )
+        show_inline_action_rename(
+            current_name=current_name,
+            resolve_display_name_fn=self._resolve_display_name,
+            is_builtin_preset_file_fn=self._is_builtin_preset_file,
+            dialog_cls=RenamePresetDialog,
+            parent_window=self.window(),
+            language=self._ui_language,
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            log_fn=log,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+        )
 
     def _on_create_clicked(self):
         self._show_inline_action_create()
 
     def _on_import_clicked(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            self._tr("page.z1_user_presets.file_dialog.import_title", "Импортировать пресет"),
-            "",
-            "Preset files (*.txt);;All files (*.*)",
+        import_preset_action(
+            file_dialog_cls=QFileDialog,
+            parent=self,
+            parent_window=self.window(),
+            tr_fn=self._tr,
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            log_fn=log,
+            info_bar_cls=InfoBar,
         )
 
-        if not file_path:
-            return
-
-        try:
-            result = self._actions_api().import_preset_from_file(file_path=file_path)
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-            if result.infobar_level == "warning":
-                InfoBar.warning(title=result.infobar_title, content=result.infobar_content, parent=self.window())
-            else:
-                InfoBar.success(title=result.infobar_title, content=result.infobar_content, parent=self.window())
-
-        except Exception as e:
-            log(f"Ошибка импорта пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.import_exception", "Ошибка импорта: {error}", error=e),
-                parent=self.window(),
-            )
-
     def _on_reset_all_presets_clicked(self):
-        dlg = _ResetAllPresetsDialog(self.window(), language=self._ui_language)
-        if not dlg.exec():
-            return
-
-        self._bulk_reset_running = True
-        try:
-            result = self._actions_api().reset_all_presets()
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-            self._show_reset_all_result(result.success_count, result.total_count)
-
-        except Exception as e:
-            log(f"Ошибка массового восстановления пресетов: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr(
-                    "page.z1_user_presets.error.reset_all_exception",
-                    "Ошибка восстановления пресетов: {error}",
-                    error=e,
-                ),
-                parent=self.window(),
-            )
-        finally:
-            self._bulk_reset_running = False
-            if self._runtime_service.is_ui_dirty() and self.isVisible():
-                self.refresh_presets_view_if_possible()
+        run_reset_all_presets_action(
+            dialog_cls=ResetAllPresetsDialog,
+            parent_window=self.window(),
+            language=self._ui_language,
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            log_fn=log,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            show_result_fn=self._show_reset_all_result,
+            is_visible=self.isVisible(),
+            refresh_view_fn=self.refresh_presets_view_if_possible,
+            set_bulk_reset_running_fn=lambda value: setattr(self, "_bulk_reset_running", value),
+        )
 
     def _show_reset_all_result(self, success_count: int, total_count: int) -> None:
-        if self._cleanup_in_progress:
-            return
-        total = int(total_count or 0)
-        ok = int(success_count or 0)
-        try:
-            self.reset_all_btn.setText(f"{ok}/{total}")
-            icon_name = "fa5s.check" if total > 0 and ok >= total else "fa5s.exclamation-triangle"
-            self.reset_all_btn.setIcon(get_themed_qta_icon(icon_name, color=get_theme_tokens().fg))
-        except Exception:
-            pass
-        QTimer.singleShot(3000, lambda: (not self._cleanup_in_progress) and self._restore_reset_all_button_label())
+        show_reset_all_result(
+            cleanup_in_progress=self._cleanup_in_progress,
+            success_count=success_count,
+            total_count=total_count,
+            reset_all_btn=self.reset_all_btn,
+            themed_icon_fn=get_themed_qta_icon,
+            get_theme_tokens_fn=get_theme_tokens,
+            single_shot_fn=QTimer.singleShot,
+            restore_label_fn=lambda: (not self._cleanup_in_progress) and self._restore_reset_all_button_label(),
+        )
 
     def _restore_reset_all_button_label(self) -> None:
-        if self._cleanup_in_progress:
-            return
-        try:
-            self.reset_all_btn.setText(
-                self._tr("page.z1_user_presets.button.reset_all", "Вернуть заводские")
-            )
-            self.reset_all_btn.setIcon(get_themed_qta_icon("fa5s.undo", color=get_theme_tokens().fg))
-        except Exception:
-            pass
+        restore_reset_all_button_label(
+            cleanup_in_progress=self._cleanup_in_progress,
+            reset_all_btn=self.reset_all_btn,
+            tr_fn=self._tr,
+            themed_icon_fn=get_themed_qta_icon,
+            get_theme_tokens_fn=get_theme_tokens,
+        )
 
     def _load_presets(self):
         self._runtime_service.load_presets()
@@ -981,38 +596,22 @@ class Zapret1UserPresetsPage(BasePage):
         self._runtime_service.refresh_presets_view_from_cache()
 
     def _rebuild_presets_rows(self, all_presets: dict[str, dict[str, object]], *, started_at: float | None = None) -> None:
-        try:
-            view_state = self._runtime_service.capture_presets_view_state() if hasattr(self, "presets_list") else {}
-            active_file_name = self._get_selected_source_preset_file_name_light()
-            plan = self._listing_api().build_preset_rows_plan(
-                all_presets=all_presets,
-                query=self._runtime_service.current_search_query(),
-                active_file_name=active_file_name,
-                language=self._ui_language,
-            )
-
-            if self._presets_delegate:
-                self._presets_delegate.reset_interaction_state()
-            if self._presets_model:
-                self._presets_model.set_rows(plan.rows)
-            self._runtime_service.ensure_preset_list_current_index()
-            if view_state:
-                self._runtime_service.restore_presets_view_state(view_state)
-
-            # Update restore-deleted button visibility
-            self._restore_deleted_btn.setVisible(self._storage_api().has_deleted_presets())
-
-            self._update_presets_view_height()
-            self._schedule_layout_resync()
-            if started_at is not None:
-                elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-                log(
-                    f"Z1UserPresetsPage: lightweight list reload {elapsed_ms}ms ({plan.total_presets} presets)",
-                    "DEBUG",
-                )
-
-        except Exception as e:
-            log(f"Ошибка загрузки пресетов: {e}", "ERROR")
+        rebuild_presets_rows(
+            runtime_service=self._runtime_service,
+            listing_api=self._listing_api(),
+            presets_delegate=self._presets_delegate,
+            presets_model=self._presets_model,
+            presets_list=getattr(self, "presets_list", None),
+            get_selected_source_preset_file_name_light_fn=self._get_selected_source_preset_file_name_light,
+            storage_api=self._storage_api(),
+            restore_deleted_btn=self._restore_deleted_btn,
+            ui_language=self._ui_language,
+            schedule_layout_resync_fn=self._schedule_layout_resync,
+            update_presets_view_height_fn=self._update_presets_view_height,
+            log_fn=log,
+            all_presets=all_presets,
+            started_at=started_at,
+        )
 
     def _on_preset_list_action(self, action: str, name: str):
         handlers = {
@@ -1040,253 +639,151 @@ class Zapret1UserPresetsPage(BasePage):
         self._on_edit_preset(name, global_pos=global_pos)
 
     def _on_toggle_pin_preset(self, name: str):
-        try:
-            display_name = self._resolve_display_name(name)
-            pinned = self._storage_api().toggle_preset_pin(name, display_name)
-            log(f"Пресет '{display_name}' {'закреплён' if pinned else 'откреплён'}", "INFO")
-            self._refresh_presets_view_from_cache()
-        except Exception as e:
-            log(f"Ошибка закрепления пресета: {e}", "ERROR")
+        toggle_pin_preset_action(
+            name=name,
+            resolve_display_name_fn=self._resolve_display_name,
+            storage_api=self._storage_api(),
+            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
+            log_fn=log,
+        )
 
     def _on_rate_preset(self, name: str):
         self._show_rating_menu(name)
 
     def _move_preset_by_step(self, name: str, direction: int):
-        try:
-            moved = self._storage_api().move_preset_by_step(
-                name,
-                direction,
-                cached_metadata=self._runtime_service.cached_presets_metadata(),
-            )
-            if moved:
-                self._refresh_presets_view_from_cache()
-        except Exception as e:
-            log(f"Ошибка перестановки пресета: {e}", "ERROR")
+        move_preset_by_step_action(
+            name=name,
+            direction=direction,
+            storage_api=self._storage_api(),
+            runtime_service=self._runtime_service,
+            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
+            log_fn=log,
+        )
 
     def _on_item_dropped(self, source_kind: str, source_id: str, target_kind: str, target_id: str):
-        try:
-            moved = self._storage_api().move_preset_on_drop(
-                source_kind=source_kind,
-                source_id=source_id,
-                target_kind=target_kind,
-                target_id=target_id,
-                cached_metadata=self._runtime_service.cached_presets_metadata(),
-            )
-            if moved:
-                self._refresh_presets_view_from_cache()
-        except Exception as e:
-            log(f"Ошибка перетаскивания элемента: {e}", "ERROR")
+        handle_item_dropped_action(
+            source_kind=source_kind,
+            source_id=source_id,
+            target_kind=target_kind,
+            target_id=target_id,
+            storage_api=self._storage_api(),
+            runtime_service=self._runtime_service,
+            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
+            log_fn=log,
+        )
 
     def _on_activate_preset(self, name: str):
-        display_name = self._resolve_display_name(name)
-        result = self._actions_api().activate_preset(file_name=name, display_name=display_name)
-        log(result.log_message, result.log_level)
-        if result.ok and result.activated_file_name:
-            self._runtime_service.apply_active_preset_marker_for_target(result.activated_file_name)
-            return
-
-        if result.infobar_level == "warning":
-            InfoBar.warning(
-                title=result.infobar_title or self._tr("common.error.title", "Ошибка"),
-                content=result.infobar_content,
-                parent=self.window(),
-            )
+        activate_preset_action(
+            name=name,
+            resolve_display_name_fn=self._resolve_display_name,
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
     def _on_edit_preset(self, name: str, global_pos: QPoint | None = None):
-        is_builtin = self._is_builtin_preset_file(name)
-        chosen = show_preset_actions_menu(
-            self,
+        open_edit_preset_menu_action(
+            page=self,
+            name=name,
             global_pos=global_pos,
-            is_builtin=is_builtin,
-            labels={
-                "open": self._tr("page.z1_user_presets.menu.open", "Открыть"),
-                "rating": self._tr("page.z1_user_presets.menu.rating", "Рейтинг"),
-                "move_up": self._tr("page.z1_user_presets.menu.move_up", "Переместить выше"),
-                "move_down": self._tr("page.z1_user_presets.menu.move_down", "Переместить ниже"),
-                "rename": self._tr("page.z1_user_presets.menu.rename", "Переименовать"),
-                "duplicate": self._tr("page.z1_user_presets.menu.duplicate", "Дублировать"),
-                "export": self._tr("page.z1_user_presets.menu.export", "Экспорт"),
-                "reset": self._tr("page.z1_user_presets.menu.reset", "Сбросить"),
-                "delete": self._tr("page.z1_user_presets.menu.delete", "Удалить"),
-            },
+            is_builtin_preset_file_fn=self._is_builtin_preset_file,
+            tr_fn=self._tr,
             make_menu_action=make_menu_action,
-            icon_resolver=fluent_icon,
+            fluent_icon=fluent_icon,
             round_menu_cls=RoundMenu if RoundMenu is not None and Action is not None else None,
+            on_preset_list_action_fn=self._on_preset_list_action,
+            show_preset_actions_menu_fn=show_preset_actions_menu,
         )
-        if chosen:
-            self._on_preset_list_action(chosen, name)
 
     def _show_rating_menu(self, name: str, global_pos: QPoint | None = None):
-        display_name = self._resolve_display_name(name)
-        show_preset_rating_menu(
-            self,
-            preset_file_name=name,
-            display_name=display_name,
+        show_rating_menu_action(
+            page=self,
+            name=name,
+            global_pos=global_pos,
+            resolve_display_name_fn=self._resolve_display_name,
             hierarchy_store=self._get_hierarchy_store(),
             refresh_callback=lambda: self._refresh_presets_view_from_cache(),
-            clear_label=self._tr("page.z1_user_presets.menu.rating_clear", "Сбросить рейтинг"),
-            global_pos=global_pos,
+            tr_fn=self._tr,
+            show_preset_rating_menu_fn=show_preset_rating_menu,
         )
 
     def _on_rename_preset(self, name: str):
-        if self._is_builtin_preset_file(name):
-            InfoBar.warning(
-                title=self._tr("common.error.title", "Ошибка"),
-                content="Встроенный пресет нельзя переименовать. Создайте копию, если нужен свой вариант.",
-                parent=self.window(),
-            )
-            return
-        self._show_inline_action_rename(name)
-
-    def _on_duplicate_preset(self, name: str):
-        try:
-            display_name = self._resolve_display_name(name)
-            result = self._actions_api().duplicate_preset(file_name=name, display_name=display_name)
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-
-        except Exception as e:
-            log(f"Ошибка дублирования пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
-                parent=self.window(),
-            )
-
-    def _on_reset_preset(self, name: str):
-        try:
-            display_name = self._resolve_display_name(name)
-            if MessageBox:
-                box = MessageBox(
-                    self._tr("page.z1_user_presets.dialog.reset_single.title", "Сбросить пресет?"),
-                    self._tr(
-                        "page.z1_user_presets.dialog.reset_single.body",
-                        "Пресет '{name}' будет перезаписан данными из шаблона.\n"
-                        "Все изменения в этом пресете будут потеряны.\n"
-                        "Этот пресет станет активным и будет применен заново.",
-                        name=display_name,
-                    ),
-                    self.window(),
-                )
-                box.yesButton.setText(
-                    self._tr("page.z1_user_presets.dialog.reset_single.button", "Сбросить")
-                )
-                box.cancelButton.setText(
-                    self._tr("page.z1_user_presets.dialog.button.cancel", "Отмена")
-                )
-                if not box.exec():
-                    return
-
-            result = self._actions_api().reset_preset_to_template(file_name=name, display_name=display_name)
-            log(result.log_message, result.log_level)
-
-        except Exception as e:
-            log(f"Ошибка сброса пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
-                parent=self.window(),
-            )
-
-    def _on_delete_preset(self, name: str):
-        try:
-            display_name = self._resolve_display_name(name)
-            if self._storage_api().is_builtin_preset_file(name):
-                result = self._actions_api().delete_preset(file_name=name, display_name=display_name)
-                if result.infobar_level == "warning":
-                    InfoBar.warning(
-                        title=self._tr("common.error.title", "Ошибка"),
-                        content=result.infobar_content,
-                        parent=self.window(),
-                    )
-                return
-            if MessageBox:
-                box = MessageBox(
-                    self._tr("page.z1_user_presets.dialog.delete_single.title", "Удалить пресет?"),
-                    self._tr(
-                        "page.z1_user_presets.dialog.delete_single.body",
-                        "Пресет '{name}' будет удален из списка пользовательских пресетов.\n"
-                        "Изменения в этом пресете будут потеряны.\n"
-                        "Вернуть его можно только через восстановление удаленных пресетов (если доступен шаблон).",
-                        name=display_name,
-                    ),
-                    self.window(),
-                )
-                box.yesButton.setText(
-                    self._tr("page.z1_user_presets.dialog.delete_single.button", "Удалить")
-                )
-                box.cancelButton.setText(
-                    self._tr("page.z1_user_presets.dialog.button.cancel", "Отмена")
-                )
-                if not box.exec():
-                    return
-
-            result = self._actions_api().delete_preset(file_name=name, display_name=display_name)
-            if result.error_code == "not_found":
-                log(result.log_message, result.log_level)
-                self._runtime_service.recover_missing_deleted_preset(name)
-                return
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-
-        except Exception as e:
-            log(f"Ошибка удаления пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
-                parent=self.window(),
-            )
-
-    def _on_export_preset(self, name: str):
-        display_name = self._resolve_display_name(name)
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            self._tr("page.z1_user_presets.file_dialog.export_title", "Экспортировать пресет"),
-            f"{display_name}.txt",
-            "Preset files (*.txt);;All files (*.*)",
+        rename_preset_action(
+            name=name,
+            is_builtin_preset_file_fn=self._is_builtin_preset_file,
+            show_inline_action_rename_fn=self._show_inline_action_rename,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
         )
 
-        if not file_path:
-            return
+    def _on_duplicate_preset(self, name: str):
+        duplicate_preset_action(
+            name=name,
+            resolve_display_name_fn=self._resolve_display_name,
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
-        try:
-            result = self._actions_api().export_preset(file_name=name, file_path=file_path, display_name=display_name)
-            log(result.log_message, result.log_level)
-            if result.infobar_level == "success":
-                InfoBar.success(title=result.infobar_title, content=result.infobar_content, parent=self.window())
+    def _on_reset_preset(self, name: str):
+        reset_preset_action(
+            name=name,
+            resolve_display_name_fn=self._resolve_display_name,
+            actions_api=self._actions_api(),
+            message_box_cls=MessageBox,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
-        except Exception as e:
-            log(f"Ошибка экспорта пресета: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr("page.z1_user_presets.error.generic", "Ошибка: {error}", error=e),
-                parent=self.window(),
-            )
+    def _on_delete_preset(self, name: str):
+        delete_preset_action(
+            name=name,
+            resolve_display_name_fn=self._resolve_display_name,
+            storage_api=self._storage_api(),
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            message_box_cls=MessageBox,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
+
+    def _on_export_preset(self, name: str):
+        export_preset_action(
+            page=self,
+            name=name,
+            resolve_display_name_fn=self._resolve_display_name,
+            file_dialog_cls=QFileDialog,
+            actions_api=self._actions_api(),
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
     def _on_restore_deleted(self):
-        """Restore all previously deleted presets that have matching templates."""
-        try:
-            result = self._actions_api().restore_deleted_presets()
-            if result.structure_changed:
-                self._runtime_service.mark_presets_structure_changed()
-            log(result.log_message, result.log_level)
-        except Exception as e:
-            log(f"Ошибка восстановления удалённых пресетов: {e}", "ERROR")
-            InfoBar.error(
-                title=self._tr("common.error.title", "Ошибка"),
-                content=self._tr(
-                    "page.z1_user_presets.error.restore_deleted",
-                    "Ошибка восстановления: {error}",
-                    error=e,
-                ),
-                parent=self.window(),
-            )
+        restore_deleted_presets_action(
+            actions_api=self._actions_api(),
+            runtime_service=self._runtime_service,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
     def _on_dpi_reload_needed(self):
         try:
-            from dpi.policy.direct_runtime_apply_policy import request_direct_runtime_content_apply
+            from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
             parent_app = getattr(self, "parent_app", None)
             if parent_app is not None:
                 request_direct_runtime_content_apply(
@@ -1298,106 +795,53 @@ class Zapret1UserPresetsPage(BasePage):
             log(f"Ошибка перезапуска DPI: {e}", "ERROR")
 
     def _open_presets_info(self):
-        """Открывает страницу с информацией о пресетах."""
-        result = self._actions_api().open_presets_info()
-        log(result.log_message, result.log_level)
-        if (not result.ok) and result.infobar_level == "warning":
-            InfoBar.warning(
-                title=result.infobar_title or self._tr("common.error.title", "Ошибка"),
-                content=result.infobar_content,
-                parent=self.window(),
-            )
+        open_presets_info_action(
+            actions_api=self._actions_api(),
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
     def _open_new_configs_post(self):
-        result = self._actions_api().open_new_configs_post()
-        log(result.log_message, result.log_level)
-        if (not result.ok) and result.infobar_level == "warning":
-            InfoBar.warning(
-                title=result.infobar_title or self._tr("common.error.title", "Ошибка"),
-                content=result.infobar_content,
-                parent=self.window(),
-            )
+        open_new_configs_post_action(
+            actions_api=self._actions_api(),
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            log_fn=log,
+        )
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
-
-        if self._back_btn is not None:
-            self._back_btn.setText(self._tr("page.z1_user_presets.back.control", "Управление"))
-
-        if self._configs_title_label is not None:
-            self._configs_title_label.setText(
-                self._tr(
-                    "page.z1_user_presets.configs.title",
-                    "Обменивайтесь пресетами и категориями в разделе GitHub Discussions",
-                )
-            )
-        if self._get_configs_btn is not None:
-            self._get_configs_btn.setText(self._tr("page.z1_user_presets.configs.button", "Получить конфиги"))
-
-        if self._restore_deleted_btn is not None:
-            self._restore_deleted_btn.setText(
-                self._tr("page.z1_user_presets.button.restore_deleted", "Восстановить удалённые пресеты")
-            )
-
-        if self.create_btn is not None:
-            set_tooltip(self.create_btn, self._tr("page.z1_user_presets.tooltip.create", "Создать новый пресет"))
-
-        if self.import_btn is not None:
-            self.import_btn.setText(self._tr("page.z1_user_presets.button.import", "Импорт"))
-            set_tooltip(self.import_btn, self._tr("page.z1_user_presets.tooltip.import", "Импорт пресета из файла"))
-        if self.reset_all_btn is not None:
-            current_text = self.reset_all_btn.text() or ""
-            if "/" not in current_text:
-                self.reset_all_btn.setText(self._tr("page.z1_user_presets.button.reset_all", "Вернуть заводские"))
-            set_tooltip(
-                self.reset_all_btn,
-                self._tr(
-                    "page.z1_user_presets.tooltip.reset_all",
-                    "Восстанавливает стандартные пресеты. Ваши изменения в стандартных пресетах будут потеряны.",
-                ),
-            )
-
-        if self.presets_info_btn is not None:
-            self.presets_info_btn.setText(self._tr("page.z1_user_presets.button.wiki", "Вики по пресетам"))
-        if self.info_btn is not None:
-            self.info_btn.setText(self._tr("page.z1_user_presets.button.what_is_this", "Что это такое?"))
-
-        if self._preset_search_input is not None:
-            self._preset_search_input.setPlaceholderText(
-                self._tr("page.z1_user_presets.search.placeholder", "Поиск пресетов по имени...")
-            )
-
-        if self._presets_delegate is not None:
-            self._presets_delegate.set_ui_language(self._ui_language)
-
-        toolbar_layout = getattr(self, "_toolbar_layout", None)
-        if toolbar_layout is not None:
-            toolbar_layout.refresh_for_viewport(self.viewport().width(), self.layout.contentsMargins())
-        self._refresh_presets_view_from_cache()
+        apply_user_presets_language(
+            tr_fn=self._tr,
+            back_btn=self._back_btn,
+            configs_title_label=self._configs_title_label,
+            get_configs_btn=self._get_configs_btn,
+            restore_deleted_btn=self._restore_deleted_btn,
+            create_btn=self.create_btn,
+            import_btn=self.import_btn,
+            reset_all_btn=self.reset_all_btn,
+            presets_info_btn=self.presets_info_btn,
+            info_btn=self.info_btn,
+            preset_search_input=self._preset_search_input,
+            presets_delegate=self._presets_delegate,
+            ui_language=self._ui_language,
+            viewport=self.viewport(),
+            layout=self.layout,
+            toolbar_layout=getattr(self, "_toolbar_layout", None),
+            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
+        )
 
     def cleanup(self) -> None:
-        self._cleanup_in_progress = True
-
-        for timer in (
-            self._layout_resync_timer,
-            self._layout_resync_delayed_timer,
-            self._preset_search_timer,
-        ):
-            try:
-                timer.stop()
-            except Exception:
-                pass
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-        self._ui_state_unsubscribe = None
-        self._ui_state_store = None
-
-        try:
-            self._runtime_service.stop_watching_presets()
-        except Exception:
-            pass
+        cleanup_user_presets_page(
+            set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
+            layout_resync_timer=self._layout_resync_timer,
+            layout_resync_delayed_timer=self._layout_resync_delayed_timer,
+            preset_search_timer=self._preset_search_timer,
+            current_unsubscribe=self._ui_state_unsubscribe,
+            set_unsubscribe_fn=lambda value: setattr(self, "_ui_state_unsubscribe", value),
+            set_store_fn=lambda value: setattr(self, "_ui_state_store", value),
+            stop_watching_presets_fn=self._runtime_service.stop_watching_presets,
+        )

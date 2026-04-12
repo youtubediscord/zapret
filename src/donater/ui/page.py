@@ -40,6 +40,18 @@ from donater.ui.pairing_workflow import (
     sync_pairing_status_autopoll,
     update_device_info_labels,
 )
+from donater.ui.page_lifecycle import (
+    activate_premium_page,
+    apply_premium_language,
+    apply_subscription_snapshot_ui,
+    bind_premium_ui_state_store,
+    cleanup_premium_page,
+    close_premium_page,
+    handle_premium_ui_state_changed,
+    hide_premium_page,
+    render_activation_status_label,
+    run_premium_runtime_init_once,
+)
 from donater.ui.status_workflow import (
     apply_connection_test_plan,
     apply_reset_plan_ui,
@@ -48,7 +60,7 @@ from donater.ui.status_workflow import (
     apply_status_check_success,
     render_server_status_label,
 )
-from ui.main_window_state import AppUiState, MainWindowStateStore
+from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.theme_semantic import get_semantic_palette
 from ui.text_catalog import tr as tr_catalog
 
@@ -223,61 +235,38 @@ class PremiumPage(BasePage):
         self.activation_status.setText(resolved_text)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
-        if self._ui_state_store is store:
-            return
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-
-        self._ui_state_store = store
-        self._ui_state_unsubscribe = store.subscribe(
-            self._on_ui_state_changed,
-            fields={"subscription_is_premium", "subscription_days_remaining"},
-            emit_initial=True,
+        bind_premium_ui_state_store(
+            current_store=self._ui_state_store,
+            store=store,
+            current_unsubscribe=self._ui_state_unsubscribe,
+            set_store_fn=lambda value: setattr(self, "_ui_state_store", value),
+            set_unsubscribe_fn=lambda value: setattr(self, "_ui_state_unsubscribe", value),
+            on_ui_state_changed_fn=self._on_ui_state_changed,
         )
 
     def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
-        self._apply_subscription_snapshot(
-            state.subscription_is_premium,
-            state.subscription_days_remaining,
+        handle_premium_ui_state_changed(
+            state=state,
+            apply_subscription_snapshot_fn=self._apply_subscription_snapshot,
         )
 
     def _apply_subscription_snapshot(self, is_premium: bool, days_remaining: int | None) -> None:
-        badge_plan, days_plan, _emitted_days = PremiumPageController.build_subscription_snapshot_plan(
+        apply_subscription_snapshot_ui(
             is_premium=is_premium,
             days_remaining=days_remaining,
+            build_subscription_snapshot_plan_fn=PremiumPageController.build_subscription_snapshot_plan,
+            set_status_badge_fn=self._set_status_badge,
+            set_days_state_kind_fn=lambda value: setattr(self, "_days_state_kind", value),
+            set_days_state_value_fn=lambda value: setattr(self, "_days_state_value", value),
+            render_days_label_fn=self._render_days_label,
         )
-        self._set_status_badge(
-            status=badge_plan.status,
-            text_key=badge_plan.text_key,
-            text_default=badge_plan.text_default,
-            text_kwargs=badge_plan.text_kwargs,
-            details_key=badge_plan.details_key,
-            details_default=badge_plan.details_default,
-            details_kwargs=badge_plan.details_kwargs,
-        )
-        self._days_state_kind = days_plan.kind
-        self._days_state_value = days_plan.value
-
-        self._render_days_label()
 
     def _render_activation_status(self) -> None:
-        state = self._activation_status_state
-        text_key = state.get("text_key")
-        if text_key:
-            self.activation_status.setText(
-                self._tr(
-                    text_key,
-                    state.get("text_default") or "",
-                    **(state.get("text_kwargs") or {}),
-                )
-            )
-            return
-        self.activation_status.setText(state.get("text") or "")
+        render_activation_status_label(
+            activation_status_state=self._activation_status_state,
+            tr_fn=self._tr,
+            activation_status_label=self.activation_status,
+        )
 
     def _render_server_status(self) -> None:
         render_server_status_label(
@@ -294,53 +283,46 @@ class PremiumPage(BasePage):
         self._server_status_success = success
 
     def _run_runtime_init_once(self) -> None:
-        plan = PremiumPageController.build_page_init_plan(
+        run_premium_runtime_init_once(
             runtime_initialized=self._runtime_initialized,
+            build_page_init_plan_fn=PremiumPageController.build_page_init_plan,
+            set_runtime_initialized_fn=lambda value: setattr(self, "_runtime_initialized", value),
+            init_checker_fn=self._init_checker,
+            set_server_status_mode_fn=lambda value: setattr(self, "_server_status_mode", value),
+            set_server_status_message_fn=lambda value: setattr(self, "_server_status_message", value),
+            set_server_status_success_fn=lambda value: setattr(self, "_server_status_success", value),
+            render_server_status_fn=self._render_server_status,
         )
-        if not plan.ensure_checker_once:
-            return
-
-        self._runtime_initialized = True
-        self._init_checker()
-        self._server_status_mode = plan.init_server_status_plan.mode
-        self._server_status_message = plan.init_server_status_plan.message
-        self._server_status_success = plan.init_server_status_plan.success
-        self._render_server_status()
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
     def on_page_activated(self) -> None:
-        self._sync_pairing_status_autopoll()
+        activate_premium_page(
+            sync_pairing_status_autopoll_fn=self._sync_pairing_status_autopoll,
+        )
 
     def on_page_hidden(self) -> None:
-        self._stop_pairing_status_autopoll()
+        hide_premium_page(
+            stop_pairing_status_autopoll_fn=self._stop_pairing_status_autopoll,
+        )
 
     def closeEvent(self, event):
-        self._cleanup_in_progress = True
-        plan = PremiumPageController.build_close_plan(
-            thread_running=bool(self.current_thread and self.current_thread.isRunning()),
+        close_premium_page(
+            set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
+            build_close_plan_fn=PremiumPageController.build_close_plan,
+            current_thread=self.current_thread,
+            stop_pairing_status_autopoll_fn=self._stop_pairing_status_autopoll,
+            set_current_thread_fn=lambda value: setattr(self, "current_thread", value),
+            event=event,
         )
-        if plan.stop_autopoll:
-            self._stop_pairing_status_autopoll()
-        if plan.should_quit_thread and self.current_thread and self.current_thread.isRunning():
-            self.current_thread.quit()
-            self.current_thread.wait(plan.wait_timeout_ms)
-            if self.current_thread.isRunning():
-                self.current_thread.terminate()
-                self.current_thread.wait(500)
-        self.current_thread = None
-        event.accept()
 
     def cleanup(self) -> None:
-        self._cleanup_in_progress = True
-        self._stop_pairing_status_autopoll()
-        if self.current_thread and self.current_thread.isRunning():
-            self.current_thread.quit()
-            self.current_thread.wait(1000)
-            if self.current_thread.isRunning():
-                self.current_thread.terminate()
-                self.current_thread.wait(500)
-        self.current_thread = None
+        cleanup_premium_page(
+            set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
+            stop_pairing_status_autopoll_fn=self._stop_pairing_status_autopoll,
+            current_thread=self.current_thread,
+            set_current_thread_fn=lambda value: setattr(self, "current_thread", value),
+        )
 
     # ── initialization ───────────────────────────────────────────────────────
 
@@ -431,59 +413,24 @@ class PremiumPage(BasePage):
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
-
-        self.instructions_label.setText(
-            self._tr(
-                "page.premium.instructions",
-                "1. Нажмите «Создать код»\n2. Отправьте код боту @zapretvpns_bot в Telegram (сообщением)\n3. Вернитесь сюда и нажмите «Проверить статус»",
-            )
+        apply_premium_language(
+            tr_fn=self._tr,
+            activation_in_progress=self._activation_in_progress,
+            connection_test_in_progress=self._connection_test_in_progress,
+            instructions_label=self.instructions_label,
+            key_input=self.key_input,
+            activate_btn=self.activate_btn,
+            open_bot_btn=self.open_bot_btn,
+            refresh_btn=self.refresh_btn,
+            change_key_btn=self.change_key_btn,
+            extend_btn=self.extend_btn,
+            test_btn=self.test_btn,
+            update_device_info_fn=self._update_device_info,
+            render_server_status_fn=self._render_server_status,
+            render_days_label_fn=self._render_days_label,
+            render_status_badge_fn=self._render_status_badge,
+            render_activation_status_fn=self._render_activation_status,
         )
-        self.key_input.setPlaceholderText(self._tr("page.premium.placeholder.pair_code", "ABCD12EF"))
-
-        if self._activation_in_progress:
-            self.activate_btn.setText(self._tr("page.premium.button.create_code.loading", "Создание..."))
-        else:
-            self.activate_btn.setText(self._tr("page.premium.button.create_code", "Создать код"))
-
-        self.open_bot_btn.setText(self._tr("page.premium.button.open_bot", "Открыть бота"))
-        self.refresh_btn.setText(self._tr("page.premium.button.refresh_status", "Обновить статус"))
-        self.change_key_btn.setText(self._tr("page.premium.button.reset_activation", "Сбросить активацию"))
-        self.extend_btn.setText(self._tr("page.premium.button.extend", "Продлить подписку"))
-        self.refresh_btn.setToolTip(
-            self._tr(
-                "page.premium.action.refresh_status.description",
-                "Повторно запросить Premium-статус и обновить данные устройства.",
-            )
-        )
-        self.change_key_btn.setToolTip(
-            self._tr(
-                "page.premium.action.reset_activation.description",
-                "Удалить токен устройства, офлайн-кэш и код привязки на этом компьютере.",
-            )
-        )
-        self.extend_btn.setToolTip(
-            self._tr(
-                "page.premium.action.extend.description",
-                "Открыть Telegram-бота для продления подписки или покупки Premium.",
-            )
-        )
-
-        if self._connection_test_in_progress:
-            self.test_btn.setText(self._tr("page.premium.button.test_connection.loading", "Проверка..."))
-        else:
-            self.test_btn.setText(self._tr("page.premium.button.test_connection", "Проверить соединение"))
-        self.test_btn.setToolTip(
-            self._tr(
-                "page.premium.action.test_connection.description",
-                "Проверить доступность Premium backend и соединение с сервером.",
-            )
-        )
-
-        self._update_device_info()
-        self._render_server_status()
-        self._render_days_label()
-        self._render_status_badge()
-        self._render_activation_status()
 
     # ── helpers ──────────────────────────────────────────────────────────────
 

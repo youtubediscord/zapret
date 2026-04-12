@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QFrame, QHBoxLayout, QVBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor, QBrush
 
-from launcher_common.constants import LABEL_TEXTS, LABEL_COLORS
+from direct_launch.runners.constants import LABEL_TEXTS, LABEL_COLORS
 from ui.theme import get_theme_tokens
 from ui.theme_refresh import ThemeRefreshController
 from ui.compat_widgets import set_tooltip

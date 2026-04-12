@@ -4,6 +4,7 @@ import os
 
 from log import log
 from ui.page_names import PageName
+from ui.main_window_page_dispatch import call_loaded_page_method
 from utils import run_hidden
 
 
@@ -25,8 +26,8 @@ class WindowActionsMixin:
 
     def delayed_dpi_start(self) -> None:
         """Выполняет отложенный запуск DPI с проверкой наличия автозапуска."""
-        if hasattr(self, "dpi_manager"):
-            self.dpi_manager.delayed_dpi_start()
+        if hasattr(self, "launch_autostart_manager"):
+            self.launch_autostart_manager.delayed_dpi_start()
 
     def on_strategy_selected_from_dialog(self, strategy_id: str, strategy_name: str) -> None:
         """Обрабатывает выбор стратегии из диалога."""
@@ -72,7 +73,7 @@ class WindowActionsMixin:
                     f"Запуск {launch_method} передан в единый DPI controller pipeline",
                     "INFO",
                 )
-                self.dpi_controller.start_dpi_async(selected_mode=None, launch_method=launch_method)
+                self.launch_controller.start_dpi_async(selected_mode=None, launch_method=launch_method)
             else:
                 raise RuntimeError(f"Неподдерживаемый метод запуска: {launch_method}")
 
@@ -102,7 +103,8 @@ class WindowActionsMixin:
         try:
             if self.show_page(PageName.BLOCKCHECK):
                 self._route_search_result(PageName.BLOCKCHECK, "diagnostics")
-                self._call_loaded_page_method(
+                call_loaded_page_method(
+                    self,
                     PageName.BLOCKCHECK,
                     "request_diagnostics_start_focus",
                 )

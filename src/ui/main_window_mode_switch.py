@@ -15,18 +15,18 @@ def handle_main_window_launch_method_changed(window, method: str) -> None:
     except Exception:
         pass
 
-    if hasattr(window, 'dpi_runtime') and window.dpi_runtime.is_any_running(silent=True):
+    if hasattr(window, 'launch_runtime_api') and window.launch_runtime_api.is_any_running(silent=True):
         log("Останавливаем все процессы winws*.exe перед переключением режима...", "INFO")
 
         try:
-            runtime_service = getattr(window, "dpi_runtime_service", None)
+            runtime_service = getattr(window, "launch_runtime_service", None)
             if runtime_service is not None:
                 runtime_service.begin_stop()
             killed = kill_winws_all()
             if killed:
                 log("Все процессы winws*.exe остановлены через Win API", "INFO")
-            if hasattr(window, 'dpi_runtime'):
-                window.dpi_runtime.cleanup_windivert_service()
+            if hasattr(window, 'launch_runtime_api'):
+                window.launch_runtime_api.cleanup_windivert_service()
             if runtime_service is not None:
                 runtime_service.mark_stopped(clear_error=True)
             import time
@@ -39,7 +39,7 @@ def handle_main_window_launch_method_changed(window, method: str) -> None:
 
 def complete_main_window_method_switch(window, method: str) -> None:
     from config import get_winws_exe_for_method
-    from launcher_common import invalidate_strategy_runner
+    from direct_launch.runners import invalidate_strategy_runner
     from utils.service_manager import cleanup_windivert_services
 
     direct_flow_coordinator = window.app_context.direct_flow_coordinator
@@ -49,8 +49,8 @@ def complete_main_window_method_switch(window, method: str) -> None:
     except Exception:
         pass
 
-    if hasattr(window, 'dpi_runtime'):
-        window.dpi_runtime.set_expected_exe_path(get_winws_exe_for_method(method))
+    if hasattr(window, 'launch_runtime_api'):
+        window.launch_runtime_api.set_expected_exe_path(get_winws_exe_for_method(method))
 
     try:
         invalidate_strategy_runner()
@@ -102,7 +102,12 @@ def complete_main_window_method_switch(window, method: str) -> None:
         pass
 
     if can_autostart:
-        QTimer.singleShot(500, lambda: auto_start_after_main_window_method_switch(window, method))
+        QTimer.singleShot(
+            500,
+            lambda: (
+                not bool(getattr(window, "_is_exiting", False) or getattr(window, "_closing_completely", False))
+            ) and auto_start_after_main_window_method_switch(window, method),
+        )
 
     try:
         window._redirect_to_strategies_page_for_method(method)
@@ -111,20 +116,22 @@ def complete_main_window_method_switch(window, method: str) -> None:
 
 
 def auto_start_after_main_window_method_switch(window, method: str) -> None:
+    if bool(getattr(window, "_is_exiting", False) or getattr(window, "_closing_completely", False)):
+        return
     try:
-        if not hasattr(window, 'dpi_controller') or not window.dpi_controller:
+        if not hasattr(window, 'launch_controller') or not window.launch_controller:
             return
 
         if method == "orchestra":
             log("Автозапуск Оркестр", "INFO")
-            window.dpi_controller.start_dpi_async(selected_mode=None, launch_method="orchestra")
+            window.launch_controller.start_dpi_async(selected_mode=None, launch_method="orchestra")
 
         elif method in {"direct_zapret2", "direct_zapret1"}:
             from config import get_dpi_autostart
             if not get_dpi_autostart():
                 return
             log(f"Автозапуск после смены режима передан в единый DPI controller pipeline: {method}", "INFO")
-            window.dpi_controller.start_dpi_async(selected_mode=None, launch_method=method)
+            window.launch_controller.start_dpi_async(selected_mode=None, launch_method=method)
 
     except Exception as e:
         log(f"Ошибка автозапуска после переключения режима: {e}", "ERROR")

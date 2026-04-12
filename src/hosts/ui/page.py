@@ -44,6 +44,15 @@ from hosts.ui.operation_workflow import (
     reset_all_service_profiles_ui,
     start_hosts_operation,
 )
+from hosts.ui.page_lifecycle_helpers import (
+    activate_hosts_page,
+    apply_hosts_page_language,
+    apply_hosts_page_theme,
+    cleanup_hosts_page,
+    close_service_combo_popups,
+    install_main_window_event_filter,
+    run_hosts_runtime_init_once,
+)
 from ui.text_catalog import tr as tr_catalog
 
 from log import log
@@ -181,123 +190,54 @@ class HostsPage(BasePage):
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         """Applies theme tokens to widgets that still use raw setStyleSheet."""
         _ = force
-        tokens = tokens or get_theme_tokens()
-
-        # Section title labels (plain QLabel kept for layout/padding control).
-        for label in list(self._services_section_title_labels):
-            try:
-                label.setStyleSheet(
-                    f"color: {tokens.fg_muted}; font-size: 13px; font-weight: 600; padding-top: 8px; padding-bottom: 4px;"
-                )
-            except Exception:
-                pass
-
-        # Chip scroll areas (plain QScrollArea, no Fluent equivalent).
-        chips_qss = (
-            "QScrollArea { background: transparent; border: none; }"
-            "QScrollArea QWidget { background: transparent; }"
-            "QScrollBar:horizontal { height: 4px; background: transparent; margin: 0px; }"
-            f"QScrollBar::handle:horizontal {{ background: {tokens.scrollbar_handle}; border-radius: 2px; min-width: 24px; }}"
-            f"QScrollBar::handle:horizontal:hover {{ background: {tokens.scrollbar_handle_hover}; }}"
-            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; height: 0px; background: transparent; border: none; }"
-            "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }"
+        apply_hosts_page_theme(
+            services_section_title_labels=self._services_section_title_labels,
+            service_group_chips_scrolls=self._service_group_chips_scrolls,
+            service_group_chip_buttons=self._service_group_chip_buttons,
+            get_fluent_chip_style_fn=_get_fluent_chip_style,
+            update_ui_fn=self._update_ui,
+            get_theme_tokens_fn=lambda: tokens or get_theme_tokens(),
         )
-        for scroll in list(self._service_group_chips_scrolls):
-            try:
-                scroll.setStyleSheet(chips_qss)
-            except Exception:
-                pass
-
-        # Chip buttons (plain QPushButton link-style, no direct Fluent equivalent).
-        chip_qss = _get_fluent_chip_style(tokens)
-        for btn in list(self._service_group_chip_buttons):
-            try:
-                btn.setStyleSheet(chip_qss)
-            except Exception:
-                pass
-
-
-        try:
-            self._update_ui()
-        except Exception:
-            pass
 
     def on_page_activated(self) -> None:
-        self._install_main_window_event_filter()
-        activation_plan = HostsPageController.build_activation_plan(
+        activate_hosts_page(
+            install_main_window_event_filter_fn=self._install_main_window_event_filter,
+            build_activation_plan_fn=HostsPageController.build_activation_plan,
             catalog_dirty=self._catalog_dirty,
+            reconcile_hidden_refresh_fn=self._reconcile_catalog_after_hidden_refresh,
+            invalidate_cache_fn=self._invalidate_cache,
+            update_ui_fn=self._update_ui,
         )
-
-        if activation_plan.reconcile_hidden_refresh:
-            self._reconcile_catalog_after_hidden_refresh()
-
-        if activation_plan.invalidate_cache:
-            self._invalidate_cache()
-        if activation_plan.update_ui:
-            self._update_ui()
 
     def _run_runtime_init_once(self) -> None:
-        if self._runtime_initialized:
-            return
-        self._runtime_initialized = True
-        self._install_main_window_event_filter()
-
-        ipv6_catalog_changed, _ = self._ensure_ipv6_catalog_sections()
-        init_plan = HostsPageController.build_page_init_plan(
-            runtime_initialized=False,
+        run_hosts_runtime_init_once(
+            runtime_initialized=self._runtime_initialized,
+            set_runtime_initialized_fn=lambda value: setattr(self, "_runtime_initialized", value),
+            install_main_window_event_filter_fn=self._install_main_window_event_filter,
+            ensure_ipv6_catalog_sections_fn=self._ensure_ipv6_catalog_sections,
+            build_page_init_plan_fn=HostsPageController.build_page_init_plan,
             has_hosts_manager=self.hosts_manager is not None,
-            ipv6_catalog_changed=ipv6_catalog_changed,
+            init_hosts_manager_fn=self._init_hosts_manager,
+            check_access_fn=self._check_hosts_access,
+            rebuild_services_fn=self._rebuild_services_selectors,
+            mark_startup_initialized_fn=lambda: setattr(self, "_startup_initialized", True),
+            invalidate_cache_fn=self._invalidate_cache,
+            update_ui_fn=self._update_ui,
         )
-
-        if init_plan.init_hosts_manager:
-            self._init_hosts_manager()
-        if init_plan.check_access:
-            self._check_hosts_access()
-        if init_plan.rebuild_services:
-            self._rebuild_services_selectors()
-        if init_plan.mark_initialized:
-            self._startup_initialized = True
-
-        if init_plan.invalidate_cache:
-            self._invalidate_cache()
-        if init_plan.update_ui:
-            self._update_ui()
 
     def on_page_hidden(self) -> None:
         self._close_service_combo_popups()
 
     def _install_main_window_event_filter(self) -> None:
-        try:
-            w = self.window()
-        except Exception:
-            w = None
-        if not w or w is self._main_window:
-            return
-
-        if self._main_window is not None:
-            try:
-                self._main_window.removeEventFilter(self)
-            except Exception:
-                pass
-
-        self._main_window = w
-        try:
-            w.installEventFilter(self)
-        except Exception:
-            pass
+        install_main_window_event_filter(
+            page=self,
+            current_main_window=self._main_window,
+            set_main_window_fn=lambda value: setattr(self, "_main_window", value),
+        )
 
     def _close_service_combo_popups(self) -> None:
         """Close all service profile dropdown popups if they are open."""
-        for control in list(self.service_combos.values()):
-            if control is None:
-                continue
-            try:
-                if hasattr(control, "_closeComboMenu"):
-                    control._closeComboMenu()
-                elif hasattr(control, "hidePopup"):
-                    control.hidePopup()
-            except Exception:
-                pass
+        close_service_combo_popups(self.service_combos)
 
     def eventFilter(self, obj, event):  # noqa: N802 (Qt override)
         try:
@@ -316,44 +256,20 @@ class HostsPage(BasePage):
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
-
-        if hasattr(self, "clear_btn") and self.clear_btn is not None:
-            self.clear_btn.setText(self._tr("page.hosts.button.clear", " Очистить"))
-
-        if self._open_hosts_button is not None:
-            self._open_hosts_button.setText(self._tr("page.hosts.button.open", " Открыть"))
-
-        if self._info_text_label is not None:
-            self._info_text_label.setText(
-                self._tr(
-                    "page.hosts.info.note",
-                    "Некоторые сервисы (ChatGPT, Spotify и др.) сами блокируют доступ из России — это не блокировка РКН. Решается не через Zapret, а через проксирование: домены направляются через отдельный прокси-сервер в файле hosts.",
-                )
-            )
-
-        if self._browser_warning_label is not None:
-            self._browser_warning_label.setText(
-                self._tr(
-                    "page.hosts.warning.browser_restart",
-                    "После добавления или удаления доменов необходимо перезапустить браузер, чтобы изменения вступили в силу.",
-                )
-            )
-
-        if self._adobe_desc_label is not None:
-            self._adobe_desc_label.setText(
-                self._tr(
-                    "page.hosts.adobe.description",
-                    "⚠️ Блокирует серверы проверки активации Adobe. Включите, если у вас установлена пиратская версия.",
-                )
-            )
-        if self._adobe_title_label is not None:
-            self._adobe_title_label.setText(self._tr("page.hosts.adobe.title", "Блокировка Adobe"))
-
-        if self._startup_initialized and not self._applying:
-            self._rebuild_services_selectors()
-            self._check_hosts_access()
-
-        self._update_ui()
+        apply_hosts_page_language(
+            tr_fn=self._tr,
+            clear_btn=getattr(self, "clear_btn", None),
+            open_hosts_button=self._open_hosts_button,
+            info_text_label=self._info_text_label,
+            browser_warning_label=self._browser_warning_label,
+            adobe_desc_label=self._adobe_desc_label,
+            adobe_title_label=self._adobe_title_label,
+            startup_initialized=self._startup_initialized,
+            applying=self._applying,
+            rebuild_services_selectors_fn=self._rebuild_services_selectors,
+            check_hosts_access_fn=self._check_hosts_access,
+            update_ui_fn=self._update_ui,
+        )
 
     def _init_hosts_manager(self):
         if self.hosts_manager is not None:
@@ -979,42 +895,19 @@ class HostsPage(BasePage):
 
     def cleanup(self):
         """Очистка потоков при закрытии"""
-        from log import log
         try:
-            self._cleanup_in_progress = True
-            if self._main_window is not None:
-                try:
-                    self._main_window.removeEventFilter(self)
-                except Exception:
-                    pass
-                self._main_window = None
-
-            if self._catalog_watch_timer is not None:
-                try:
-                    self._catalog_watch_timer.stop()
-                    self._catalog_watch_timer.deleteLater()
-                except Exception:
-                    pass
-                self._catalog_watch_timer = None
-
-            if self._thread and self._thread.isRunning():
-                log("Останавливаем hosts worker...", "DEBUG")
-                if self._worker is not None:
-                    stop = getattr(self._worker, "stop", None)
-                    if callable(stop):
-                        try:
-                            stop()
-                        except Exception:
-                            pass
-                self._thread.quit()
-                if not self._thread.wait(2000):
-                    log("⚠ Hosts worker не завершился, принудительно завершаем", "WARNING")
-                    try:
-                        self._thread.terminate()
-                        self._thread.wait(500)
-                    except:
-                        pass
-            self._worker = None
-            self._thread = None
+            cleanup_hosts_page(
+                set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
+                current_main_window=self._main_window,
+                set_main_window_fn=lambda value: setattr(self, "_main_window", value),
+                page=self,
+                catalog_watch_timer=self._catalog_watch_timer,
+                set_catalog_watch_timer_fn=lambda value: setattr(self, "_catalog_watch_timer", value),
+                thread=self._thread,
+                worker=self._worker,
+                set_worker_fn=lambda value: setattr(self, "_worker", value),
+                set_thread_fn=lambda value: setattr(self, "_thread", value),
+                log_fn=log,
+            )
         except Exception as e:
             log(f"Ошибка при очистке hosts_page: {e}", "DEBUG")
