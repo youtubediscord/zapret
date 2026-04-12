@@ -651,8 +651,8 @@ class TelegramProxyPage(BasePage):
             set_generation=lambda value: setattr(self, "_relay_check_gen", value),
             status_label=self._status_label,
             set_relay_diag=lambda value: setattr(self, "_relay_diag", value),
-            get_zapret_running=lambda: (
-                bool(getattr(getattr(getattr(self.window(), "app", None), "launch_runtime_api", None), "is_any_running", lambda silent=True: False)(silent=True))
+            get_zapret_running=lambda: bool(
+                getattr(getattr(self, "launch_runtime_api", None), "is_any_running", lambda silent=True: False)(silent=True)
             ),
             log_warning=lambda text: log(text, "WARNING"),
         )

@@ -663,7 +663,7 @@ class LogsPage(BasePage):
     def _get_launch_method(self) -> str:
         """Возвращает текущий метод запуска"""
         try:
-            from strategy_menu import get_strategy_launch_method
+            from settings.dpi.strategy_settings import get_strategy_launch_method
             return (get_strategy_launch_method() or "").strip().lower()
         except Exception:
             return ""

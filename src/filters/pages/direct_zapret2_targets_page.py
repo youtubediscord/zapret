@@ -9,6 +9,7 @@ import time as _time
 from PyQt6.QtCore import pyqtSignal, QTimer, QEvent
 
 from core.runtime.direct_ui_snapshot_service import DirectBasicUiSnapshotWorker
+from ui.page_dependencies import require_page_app_context
 from ui.pages.base_page import BasePage
 from direct_control.zapret2.strategies_build import build_z2_direct_shell
 from filters.runtime.targets_payload_runtime import (
@@ -60,12 +61,11 @@ class Zapret2StrategiesPageNew(BasePage):
     back_clicked = pyqtSignal()
 
     def _require_app_context(self):
-        app_context = getattr(self.parent(), "app_context", None)
-        if app_context is None:
-            app_context = getattr(self.window(), "app_context", None)
-        if app_context is None:
-            raise RuntimeError("AppContext is required for Zapret2 strategies page")
-        return app_context
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for Zapret2 strategies page",
+        )
 
     def __init__(self, parent=None):
         super().__init__(

@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QMenu
 from blockcheck.strategy_scan_page_controller import StrategyScanPageController
 from blockcheck.strategy_scan_worker import StrategyScanWorker
 from ui.pages.base_page import BasePage
+from ui.page_dependencies import require_page_app_context
 from blockcheck.ui.strategy_scan_page_build import (
     build_strategy_scan_control_section,
     build_strategy_scan_log_section,
@@ -556,7 +557,11 @@ class StrategyScanPage(BasePage):
         """Copy the working strategy into the selected source preset."""
         try:
             result = StrategyScanPageController.apply_strategy(
-                app_context=self.window().app_context,
+                app_context=require_page_app_context(
+                    self,
+                    parent=self.parent(),
+                    error_message="AppContext is required for StrategyScanPage",
+                ),
                 strategy_args=strategy_args,
                 strategy_name=strategy_name,
                 scan_target=self._scan_target,

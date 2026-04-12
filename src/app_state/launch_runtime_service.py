@@ -11,10 +11,8 @@ class LaunchRuntimeSnapshot:
     phase: str = "stopped"
     running: bool = False
     expected_process: str = ""
-    expected_preset_path: str = ""
     pid: int | None = None
     last_error: str = ""
-    last_exit_code: int | None = None
     launch_method: str = ""
 
 
@@ -84,14 +82,12 @@ class LaunchRuntimeService:
         try:
             state = store.snapshot()
             return LaunchRuntimeSnapshot(
+                launch_method=str(state.launch_method or "").strip().lower(),
                 phase=str(state.launch_phase or "stopped").strip().lower() or "stopped",
                 running=bool(state.launch_running),
                 expected_process=str(state.launch_expected_process or "").strip().lower(),
-                expected_preset_path=str(state.launch_expected_preset_path or "").strip(),
                 pid=state.launch_pid if isinstance(state.launch_pid, int) else None,
                 last_error=str(state.launch_last_error or "").strip(),
-                last_exit_code=state.launch_last_exit_code if isinstance(state.launch_last_exit_code, int) else None,
-                launch_method=str(getattr(state, "launch_method", "") or "").strip().lower(),
             )
         except Exception:
             return LaunchRuntimeSnapshot()
@@ -107,16 +103,13 @@ class LaunchRuntimeService:
         *,
         launch_method: str | None = None,
         expected_process: str = "",
-        expected_preset_path: str = "",
     ) -> bool:
         changes = self._runtime_changes(
             phase="starting",
             running=False,
             expected_process=expected_process,
-            expected_preset_path=expected_preset_path,
             pid=None,
             last_error="",
-            last_exit_code=None,
         )
         if launch_method is not None:
             changes["launch_method"] = str(launch_method or "").strip().lower()
@@ -132,10 +125,8 @@ class LaunchRuntimeService:
             phase="autostart_pending",
             running=False,
             expected_process=expected_process,
-            expected_preset_path="",
             pid=None,
             last_error="",
-            last_exit_code=None,
         )
         if launch_method is not None:
             changes["launch_method"] = str(launch_method or "").strip().lower()
@@ -148,10 +139,8 @@ class LaunchRuntimeService:
                 phase="stopping",
                 running=False,
                 expected_process=snap.expected_process,
-                expected_preset_path=snap.expected_preset_path,
                 pid=snap.pid,
                 last_error="",
-                last_exit_code=None,
             )
         )
 
@@ -160,7 +149,6 @@ class LaunchRuntimeService:
         *,
         pid: int | None = None,
         expected_process: str | None = None,
-        expected_preset_path: str | None = None,
     ) -> bool:
         snap = self.snapshot()
         return self._apply(
@@ -168,26 +156,20 @@ class LaunchRuntimeService:
                 phase="running",
                 running=True,
                 expected_process=snap.expected_process if expected_process is None else expected_process,
-                expected_preset_path=(
-                    snap.expected_preset_path if expected_preset_path is None else expected_preset_path
-                ),
                 pid=pid if isinstance(pid, int) else snap.pid,
                 last_error="",
-                last_exit_code=None,
             )
         )
 
-    def mark_start_failed(self, error: str, *, exit_code: int | None = None) -> bool:
+    def mark_start_failed(self, error: str) -> bool:
         snap = self.snapshot()
         return self._apply(
             **self._runtime_changes(
                 phase="failed",
                 running=False,
                 expected_process=snap.expected_process,
-                expected_preset_path=snap.expected_preset_path,
                 pid=None,
                 last_error=error,
-                last_exit_code=exit_code,
             )
         )
 
@@ -198,10 +180,8 @@ class LaunchRuntimeService:
                 phase="stopped",
                 running=False,
                 expected_process="",
-                expected_preset_path="",
                 pid=None,
                 last_error="" if clear_error else snap.last_error,
-                last_exit_code=None if clear_error else snap.last_exit_code,
             )
         )
 
@@ -224,10 +204,8 @@ class LaunchRuntimeService:
             phase=phase,
             running=bool(running),
             expected_process=expected_process if (running or phase == "autostart_pending") else "",
-            expected_preset_path="",
             pid=None,
             last_error="",
-            last_exit_code=None,
         )
         if launch_method is not None:
             changes["launch_method"] = str(launch_method or "").strip().lower()
@@ -256,7 +234,6 @@ class LaunchRuntimeService:
                 return self.mark_running(
                     pid=matched_pid,
                     expected_process=matched_name or expected,
-                    expected_preset_path=snap.expected_preset_path,
                 )
             return False
 
@@ -266,7 +243,6 @@ class LaunchRuntimeService:
                     return self.mark_running(
                         pid=matched_pid,
                         expected_process=matched_name or expected,
-                        expected_preset_path=snap.expected_preset_path,
                     )
                 return False
             if expected:
@@ -281,10 +257,8 @@ class LaunchRuntimeService:
                             phase="stopping",
                             running=False,
                             expected_process=matched_name or expected,
-                            expected_preset_path=snap.expected_preset_path,
                             pid=matched_pid,
                             last_error="",
-                            last_exit_code=None,
                         )
                     )
                 return False
@@ -304,19 +278,15 @@ class LaunchRuntimeService:
         phase: str,
         running: bool,
         expected_process: str,
-        expected_preset_path: str,
         pid: int | None,
         last_error: str,
-        last_exit_code: int | None,
     ) -> dict[str, object]:
         return {
             "launch_phase": str(phase or "stopped").strip().lower() or "stopped",
             "launch_running": bool(running),
             "launch_expected_process": str(expected_process or "").strip().lower(),
-            "launch_expected_preset_path": str(expected_preset_path or "").strip(),
             "launch_pid": int(pid) if isinstance(pid, int) else None,
             "launch_last_error": str(last_error or "").strip(),
-            "launch_last_exit_code": int(last_exit_code) if isinstance(last_exit_code, int) else None,
         }
 
     @staticmethod

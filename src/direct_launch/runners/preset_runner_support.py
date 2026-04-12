@@ -255,23 +255,9 @@ def publish_runner_failure(
     }
 
     try:
-        from PyQt6.QtWidgets import QApplication
+        from ui.app_window_locator import emit_window_signal
 
-        app = QApplication.instance()
-        if app is None:
-            return
-
-        target = app.activeWindow()
-        if target is None or not hasattr(target, "runner_failure_requested"):
-            for widget in app.topLevelWidgets():
-                if hasattr(widget, "runner_failure_requested"):
-                    target = widget
-                    break
-
-        if target is not None and hasattr(target, "runner_failure_requested"):
-            signal = getattr(target, "runner_failure_requested", None)
-            if signal is not None:
-                signal.emit(dict(payload))
+        emit_window_signal("runner_failure_requested", dict(payload))
     except Exception:
         pass
 
@@ -283,23 +269,9 @@ def publish_active_preset_content_changed(path: str) -> None:
         return
 
     try:
-        from PyQt6.QtWidgets import QApplication
+        from ui.app_window_locator import emit_window_signal
 
-        app = QApplication.instance()
-        if app is None:
-            return
-
-        target = app.activeWindow()
-        if target is None or not hasattr(target, "active_preset_content_changed_requested"):
-            for widget in app.topLevelWidgets():
-                if hasattr(widget, "active_preset_content_changed_requested"):
-                    target = widget
-                    break
-
-        if target is not None and hasattr(target, "active_preset_content_changed_requested"):
-            signal = getattr(target, "active_preset_content_changed_requested", None)
-            if signal is not None:
-                signal.emit(normalized_path)
+        emit_window_signal("active_preset_content_changed_requested", normalized_path)
     except Exception:
         pass
 
@@ -311,19 +283,9 @@ def controller_transition_in_progress(launch_method: str) -> bool:
         return False
 
     try:
-        from PyQt6.QtWidgets import QApplication
+        from ui.app_window_locator import find_app_window
 
-        app = QApplication.instance()
-        if app is None:
-            return False
-
-        target = app.activeWindow()
-        if target is None or not hasattr(target, "launch_controller"):
-            for widget in app.topLevelWidgets():
-                if hasattr(widget, "launch_controller"):
-                    target = widget
-                    break
-
+        target = find_app_window("launch_controller")
         if target is None:
             return False
 
@@ -427,19 +389,9 @@ def notify_ui_launch_error(message: str) -> None:
     if not text:
         return
     try:
-        from PyQt6.QtWidgets import QApplication
+        from ui.app_window_locator import find_app_window
 
-        app = QApplication.instance()
-        if app is None:
-            return
-
-        target = app.activeWindow()
-        if target is None or not hasattr(target, "window_notification_controller"):
-            for widget in app.topLevelWidgets():
-                if hasattr(widget, "window_notification_controller"):
-                    target = widget
-                    break
-
+        target = find_app_window("window_notification_controller")
         if target is not None and hasattr(target, "window_notification_controller"):
             controller = getattr(target, "window_notification_controller", None)
             if controller is None:

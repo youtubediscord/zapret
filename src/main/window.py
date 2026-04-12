@@ -14,8 +14,8 @@ from main.window_startup import (
 )
 from main.window_state_sync import WindowStateSyncMixin
 from ui.fluent_app_window import ZapretFluentWindow
-from ui.main_window import MainWindowUI
 from ui.theme_subscription_manager import ThemeSubscriptionManager
+from ui.window_ui_facade import MainWindowUI
 
 if TYPE_CHECKING:
     from app_context import AppContext

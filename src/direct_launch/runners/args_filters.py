@@ -8,7 +8,7 @@ from log import log
 
 def _is_direct_source_preset_launch() -> bool:
     try:
-        from strategy_menu import get_strategy_launch_method
+        from settings.dpi.strategy_settings import get_strategy_launch_method
 
         return (get_strategy_launch_method() or "").strip().lower() in {"direct_zapret1", "direct_zapret2"}
     except Exception:
@@ -62,7 +62,7 @@ def apply_wssize_parameter(args: list) -> list:
     if _is_direct_source_preset_launch():
         return args
 
-    from strategy_menu import get_wssize_enabled
+    from settings.dpi.strategy_settings import get_wssize_enabled
 
     if not get_wssize_enabled():
         return args

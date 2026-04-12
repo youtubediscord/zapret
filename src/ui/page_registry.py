@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
+from ui.navigation.schema import iter_page_specs
 from ui.page_names import PageName
-from ui.router import iter_page_specs
 
 
 PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {

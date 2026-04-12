@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QListView,
 )
 from ui.pages.base_page import BasePage
+from ui.page_dependencies import require_page_app_context
 from core.presets.ui.preset_actions_menu import show_preset_actions_menu
 from core.presets.ui.preset_rating_menu import show_preset_rating_menu
 from core.runtime.user_presets_runtime_service import UserPresetsRuntimeAdapter
@@ -203,12 +204,11 @@ class BaseZapret2UserPresetsPage(BasePage):
         self._after_ui_built()
 
     def _require_app_context(self):
-        app_context = getattr(self.parent(), "app_context", None)
-        if app_context is None:
-            app_context = getattr(self.window(), "app_context", None)
-        if app_context is None:
-            raise RuntimeError("AppContext is required for Zapret2 user presets page")
-        return app_context
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for Zapret2 user presets page",
+        )
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         return _tr_text(key, self._ui_language, default, **kwargs)

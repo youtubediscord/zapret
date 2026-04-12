@@ -50,7 +50,7 @@ from hosts.ui.page_lifecycle_helpers import (
     apply_hosts_page_theme,
     cleanup_hosts_page,
     close_service_combo_popups,
-    install_main_window_event_filter,
+    install_host_window_event_filter,
     run_hosts_runtime_init_once,
 )
 from ui.text_catalog import tr as tr_catalog
@@ -159,7 +159,7 @@ class HostsPage(BasePage):
         self._catalog_sig = None
         self._catalog_dirty = False
         self._catalog_watch_timer = None
-        self._main_window = None
+        self._host_window = None
         self._app_parent = parent
         self._worker = None
         self._thread = None
@@ -201,7 +201,7 @@ class HostsPage(BasePage):
 
     def on_page_activated(self) -> None:
         activate_hosts_page(
-            install_main_window_event_filter_fn=self._install_main_window_event_filter,
+            install_host_window_event_filter_fn=self._install_host_window_event_filter,
             build_activation_plan_fn=HostsPageController.build_activation_plan,
             catalog_dirty=self._catalog_dirty,
             reconcile_hidden_refresh_fn=self._reconcile_catalog_after_hidden_refresh,
@@ -213,7 +213,7 @@ class HostsPage(BasePage):
         run_hosts_runtime_init_once(
             runtime_initialized=self._runtime_initialized,
             set_runtime_initialized_fn=lambda value: setattr(self, "_runtime_initialized", value),
-            install_main_window_event_filter_fn=self._install_main_window_event_filter,
+            install_host_window_event_filter_fn=self._install_host_window_event_filter,
             ensure_ipv6_catalog_sections_fn=self._ensure_ipv6_catalog_sections,
             build_page_init_plan_fn=HostsPageController.build_page_init_plan,
             has_hosts_manager=self.hosts_manager is not None,
@@ -228,11 +228,11 @@ class HostsPage(BasePage):
     def on_page_hidden(self) -> None:
         self._close_service_combo_popups()
 
-    def _install_main_window_event_filter(self) -> None:
-        install_main_window_event_filter(
+    def _install_host_window_event_filter(self) -> None:
+        install_host_window_event_filter(
             page=self,
-            current_main_window=self._main_window,
-            set_main_window_fn=lambda value: setattr(self, "_main_window", value),
+            current_host_window=self._host_window,
+            set_host_window_fn=lambda value: setattr(self, "_host_window", value),
         )
 
     def _close_service_combo_popups(self) -> None:
@@ -241,7 +241,7 @@ class HostsPage(BasePage):
 
     def eventFilter(self, obj, event):  # noqa: N802 (Qt override)
         try:
-            if obj is self._main_window and event is not None:
+            if obj is self._host_window and event is not None:
                 et = event.type()
                 if et in (
                     QEvent.Type.Hide,
@@ -898,8 +898,8 @@ class HostsPage(BasePage):
         try:
             cleanup_hosts_page(
                 set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
-                current_main_window=self._main_window,
-                set_main_window_fn=lambda value: setattr(self, "_main_window", value),
+                current_host_window=self._host_window,
+                set_host_window_fn=lambda value: setattr(self, "_host_window", value),
                 page=self,
                 catalog_watch_timer=self._catalog_watch_timer,
                 set_catalog_watch_timer_fn=lambda value: setattr(self, "_catalog_watch_timer", value),

@@ -46,8 +46,8 @@ from filters.strategy_detail.zapret1.data_helpers import (
     get_target_details_v1,
     load_current_strategy_id_v1,
     load_target_payload_sync_v1,
-    require_app_context_v1,
 )
+from ui.page_dependencies import require_page_app_context
 from filters.strategy_detail.zapret1.feedback_helpers import (
     hide_success_feedback_v1,
     show_loading_feedback_v1,
@@ -90,7 +90,7 @@ from filters.strategy_detail.zapret1.runtime_helpers import (
     update_selected_label,
 )
 from log import log
-from strategy_menu.args_preview_dialog import ArgsPreviewDialog
+from filters.strategy_detail.args_preview_dialog import ArgsPreviewDialog
 
 try:
     from qfluentwidgets import (
@@ -332,7 +332,11 @@ class Zapret1StrategyDetailPage(BasePage):
         )
 
     def _require_app_context(self):
-        return require_app_context_v1(self.window())
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for Zapret1 strategy detail page",
+        )
 
     def _request_target_payload(self, target_key: str, *, refresh: bool, reason: str) -> None:
         request_state = start_target_payload_request_v1(
@@ -780,6 +784,12 @@ class Zapret1StrategyDetailPage(BasePage):
             preview_pinned=self._preview_pinned,
             force=force,
         )
+
+    def close_transient_overlays(self) -> None:
+        try:
+            self._close_preview_dialog(force=True)
+        except Exception:
+            pass
 
     def _on_preview_closed(self) -> None:
         self._preview_dialog = None

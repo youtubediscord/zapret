@@ -26,8 +26,8 @@ def _get_marks_dir() -> Path:
     if not base:
         raise RuntimeError("APPDATA is required for strategy marks storage")
 
-    # Сохраняем существующее расположение direct_zapret2, чтобы пользовательские
-    # файлы оценок и избранного продолжали читаться из прежнего места.
+    # Папка пользовательских данных пока сохранена прежней, чтобы не потерять уже
+    # записанные оценки и избранное после переноса store-слоя из старой архитектуры.
     return Path(base) / "direct_zapret2"
 
 
@@ -51,14 +51,14 @@ def _format_marks_lines(keys: Set[MarkKey]) -> str:
 
 
 @dataclass
-class DirectZapret2MarksStore:
+class StrategyMarksStore:
     work_path: Path
     notwork_path: Path
     _work: Optional[Set[MarkKey]] = None
     _notwork: Optional[Set[MarkKey]] = None
 
     @classmethod
-    def default(cls) -> "DirectZapret2MarksStore":
+    def default(cls) -> "StrategyMarksStore":
         base = _get_marks_dir()
         return cls(work_path=base / "work.txt", notwork_path=base / "notwork.txt")
 
@@ -161,12 +161,12 @@ class DirectZapret2MarksStore:
 
 
 @dataclass
-class DirectZapret2FavoritesStore:
+class StrategyFavoritesStore:
     favorites_path: Path
     _favorites: Optional[Set[MarkKey]] = None
 
     @classmethod
-    def default(cls) -> "DirectZapret2FavoritesStore":
+    def default(cls) -> "StrategyFavoritesStore":
         base = _get_marks_dir()
         return cls(favorites_path=base / "favorites.txt")
 

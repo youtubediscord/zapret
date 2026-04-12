@@ -2,26 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
-DIRECT_ZAPRET2_UI_MODE_DEFAULT = "basic"
-_VALID_DIRECT_ZAPRET2_UI_MODES = frozenset({"basic", "advanced"})
+from settings.dpi.strategy_settings import (
+    DIRECT_UI_MODE_DEFAULT,
+    normalize_direct_ui_mode,
+)
 _UDP_LIKE_PROTOCOL_MARKERS = ("UDP", "QUIC", "L7")
-
-
-def normalize_direct_zapret2_ui_mode(value: object) -> str:
-    mode = str(value or "").strip().lower()
-    if mode in _VALID_DIRECT_ZAPRET2_UI_MODES:
-        return mode
-    return DIRECT_ZAPRET2_UI_MODE_DEFAULT
 
 
 def get_current_direct_zapret2_ui_mode() -> str:
     try:
-        from strategy_menu.ui_prefs_store import get_direct_zapret2_ui_mode
+        from settings.dpi.strategy_settings import get_direct_ui_mode
 
-        return normalize_direct_zapret2_ui_mode(get_direct_zapret2_ui_mode())
+        return normalize_direct_ui_mode(get_direct_ui_mode())
     except Exception:
-        return DIRECT_ZAPRET2_UI_MODE_DEFAULT
+        return DIRECT_UI_MODE_DEFAULT
 
 
 def is_udp_like_protocol(protocol: object) -> bool:
@@ -53,7 +47,7 @@ def build_strategy_detail_mode_policy(
     strategy_set: str | None = None,
     is_circular_preset: bool = False,
 ) -> StrategyDetailModePolicy:
-    resolved_strategy_set = normalize_direct_zapret2_ui_mode(
+    resolved_strategy_set = normalize_direct_ui_mode(
         strategy_set if strategy_set is not None else get_current_direct_zapret2_ui_mode()
     )
     resolved_strategy_type = str(getattr(target_info, "strategy_type", "") or "tcp").strip().lower() or "tcp"

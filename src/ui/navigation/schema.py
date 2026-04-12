@@ -3,19 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-from ui.navigation_targets import (
-    Z1NavigationPages,
-    Z2NavigationPages,
-    get_zapret2_strategy_detail_pages,
-    resolve_control_page_for_method,
-    resolve_preset_detail_back_page_for_method,
-    resolve_preset_detail_root_page_for_method,
-    resolve_strategy_page_for_method,
-    resolve_strategy_detail_back_page_for_method,
-    resolve_strategy_detail_root_page_for_method,
-    resolve_zapret1_navigation_pages,
-    resolve_zapret2_navigation_pages,
-)
 from ui.page_names import PageName
 
 
@@ -405,6 +392,15 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
 
 SIDEBAR_GROUP_ORDER: tuple[str, ...] = ("root", "settings", "system", "diagnostics", "appearance")
 
+DETAIL_PAGE_NAMES: frozenset[PageName] = frozenset(
+    {
+        PageName.ZAPRET2_STRATEGY_DETAIL,
+        PageName.ZAPRET2_PRESET_DETAIL,
+        PageName.ZAPRET1_STRATEGY_DETAIL,
+        PageName.ZAPRET1_PRESET_DETAIL,
+    }
+)
+
 MODE_ENTRY_PAGES: dict[str, PageName] = {
     "direct_zapret2": PageName.ZAPRET2_DIRECT_CONTROL,
     "direct_zapret1": PageName.ZAPRET1_DIRECT_CONTROL,
@@ -445,6 +441,21 @@ def _is_sidebar_visible_in_method(spec: PageRouteSpec, method: str | None) -> bo
     return _matches_method(spec, normalized_method)
 
 
+def is_page_allowed_for_method(page_name: PageName, method: str | None) -> bool:
+    spec = PAGE_ROUTE_SPECS.get(page_name)
+    if spec is None:
+        return False
+    return _matches_method(spec, method)
+
+
+def is_page_direct_open_allowed(page_name: PageName) -> bool:
+    return page_name not in DETAIL_PAGE_NAMES
+
+
+def is_page_search_visible(page_name: PageName) -> bool:
+    return page_name not in DETAIL_PAGE_NAMES
+
+
 def get_page_route_key(page_name: PageName) -> str:
     return str(get_page_spec(page_name).route_key)
 
@@ -456,8 +467,6 @@ def get_mode_entry_page(method: str | None) -> PageName:
 
 def get_eager_page_names_for_method(method: str | None) -> tuple[PageName, ...]:
     return (get_mode_entry_page(method),)
-
-
 
 
 def get_sidebar_pages_for_method(method: str | None, *, sidebar_group: str | None = None) -> tuple[PageName, ...]:
@@ -519,6 +528,29 @@ def get_sidebar_search_pages_for_method(method: str | None, all_pages: set[PageN
         spec = PAGE_ROUTE_SPECS.get(page_name)
         if spec is None:
             continue
-        if _matches_method(spec, method):
+        if _matches_method(spec, method) and is_page_search_visible(page_name):
             allowed_pages.add(page_name)
     return allowed_pages
+
+
+__all__ = [
+    "MODE_ENTRY_PAGES",
+    "PAGE_ROUTE_SPECS",
+    "SIDEBAR_GROUP_ORDER",
+    "PageRouteSpec",
+    "get_breadcrumb_chain",
+    "get_eager_page_names_for_method",
+    "get_hidden_pages_for_method",
+    "get_mode_entry_page",
+    "get_mode_gated_nav_pages",
+    "get_nav_visibility",
+    "get_page_route_key",
+    "get_page_spec",
+    "is_page_allowed_for_method",
+    "is_page_direct_open_allowed",
+    "is_page_search_visible",
+    "get_sidebar_pages_for_method",
+    "get_sidebar_search_pages_for_method",
+    "iter_page_specs",
+    "normalize_launch_method_for_ui",
+]

@@ -7,15 +7,14 @@ from typing import Callable, Iterable
 
 @dataclass(frozen=True, slots=True)
 class AppUiState:
+    launch_method: str = ""
     launch_phase: str = "stopped"
     launch_running: bool = False
     launch_busy: bool = False
     launch_busy_text: str = ""
     launch_expected_process: str = ""
-    launch_expected_preset_path: str = ""
     launch_pid: int | None = None
     launch_last_error: str = ""
-    launch_last_exit_code: int | None = None
     current_strategy_summary: str = ""
     autostart_enabled: bool = False
     subscription_is_premium: bool = False
@@ -27,8 +26,6 @@ class AppUiState:
     preset_content_revision: int = 0
     preset_structure_revision: int = 0
     mode_revision: int = 0
-    status_text: str = ""
-    status_kind: str = "neutral"
 
 
 UiStateCallback = Callable[[AppUiState, frozenset[str]], None]
@@ -96,39 +93,6 @@ class MainWindowStateStore:
 
         return True
 
-    def set_launch_running(self, running: bool) -> bool:
-        return self.update(launch_running=bool(running))
-
-    def set_launch_runtime(
-        self,
-        *,
-        phase: str | None = None,
-        running: bool | None = None,
-        expected_process: str | None = None,
-        expected_preset_path: str | None = None,
-        pid: int | None = None,
-        last_error: str | None = None,
-        last_exit_code: int | None = None,
-    ) -> bool:
-        changes: dict[str, object] = {}
-
-        if phase is not None:
-            changes["launch_phase"] = str(phase or "stopped").strip().lower() or "stopped"
-        if running is not None:
-            changes["launch_running"] = bool(running)
-        if expected_process is not None:
-            changes["launch_expected_process"] = str(expected_process or "").strip().lower()
-        if expected_preset_path is not None:
-            changes["launch_expected_preset_path"] = str(expected_preset_path or "").strip()
-        if pid is not None:
-            changes["launch_pid"] = int(pid) if isinstance(pid, int) else None
-        if last_error is not None:
-            changes["launch_last_error"] = str(last_error or "").strip()
-        if last_exit_code is not None:
-            changes["launch_last_exit_code"] = int(last_exit_code) if isinstance(last_exit_code, int) else None
-
-        return self.update(**changes)
-
     def set_launch_busy(self, busy: bool, text: str = "") -> bool:
         if not busy:
             text = ""
@@ -171,6 +135,3 @@ class MainWindowStateStore:
     def bump_mode_revision(self) -> bool:
         current = self.snapshot().mode_revision
         return self.update(mode_revision=int(current) + 1)
-
-    def set_status_message(self, text: str, kind: str = "neutral") -> bool:
-        return self.update(status_text=str(text or ""), status_kind=str(kind or "neutral"))

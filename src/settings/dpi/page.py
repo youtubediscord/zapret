@@ -293,7 +293,7 @@ class DpiSettingsPage(BasePage):
     def _on_strict_detection_changed(self, enabled: bool):
         """Обработчик изменения строгого режима детекции"""
         try:
-            DpiSettingsPageController.set_orchestra_setting("strict_detection", enabled, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("strict_detection", enabled, app=self)
             log(f"Строгий режим детекции: {'включён' if enabled else 'выключен'}", "INFO")
 
         except Exception as e:
@@ -302,7 +302,7 @@ class DpiSettingsPage(BasePage):
     def _on_debug_file_changed(self, enabled: bool):
         """Обработчик изменения сохранения debug файла"""
         try:
-            DpiSettingsPageController.set_orchestra_setting("debug_file", enabled, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("debug_file", enabled, app=self)
             log(f"Сохранение debug файла: {'включено' if enabled else 'выключено'}", "INFO")
 
         except Exception as e:
@@ -311,7 +311,7 @@ class DpiSettingsPage(BasePage):
     def _on_auto_restart_discord_changed(self, enabled: bool):
         """Обработчик изменения авторестарта при Discord FAIL"""
         try:
-            DpiSettingsPageController.set_orchestra_setting("auto_restart_discord", enabled, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("auto_restart_discord", enabled, app=self)
             log(f"Авторестарт при Discord FAIL: {'включён' if enabled else 'выключен'}", "INFO")
 
         except Exception as e:
@@ -320,7 +320,7 @@ class DpiSettingsPage(BasePage):
     def _on_discord_fails_changed(self, value: int):
         """Обработчик изменения количества фейлов для рестарта Discord"""
         try:
-            DpiSettingsPageController.set_orchestra_setting("discord_fails", value, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("discord_fails", value, app=self)
             log(f"Фейлов для рестарта Discord: {value}", "INFO")
 
         except Exception as e:
@@ -329,7 +329,7 @@ class DpiSettingsPage(BasePage):
     def _on_lock_successes_changed(self, value: int):
         """Обработчик изменения количества успехов для LOCK"""
         try:
-            DpiSettingsPageController.set_orchestra_setting("lock_successes", value, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("lock_successes", value, app=self)
             log(f"Успехов для LOCK: {value}", "INFO")
 
         except Exception as e:
@@ -338,7 +338,7 @@ class DpiSettingsPage(BasePage):
     def _on_unlock_fails_changed(self, value: int):
         """Обработчик изменения количества ошибок для AUTO-UNLOCK"""
         try:
-            DpiSettingsPageController.set_orchestra_setting("unlock_fails", value, app=self.window())
+            DpiSettingsPageController.set_orchestra_setting("unlock_fails", value, app=self)
             log(f"Ошибок для AUTO-UNLOCK: {value}", "INFO")
 
         except Exception as e:

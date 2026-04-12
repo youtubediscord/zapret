@@ -1,4 +1,4 @@
-# strategy_menu/strategies/blobs.py
+# blobs/service.py
 
 """
 Определения блобов для стратегий Zapret 2.

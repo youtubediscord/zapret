@@ -72,7 +72,7 @@ class StrategyTree(QTreeWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("directZapret2StrategiesTree")
+        self.setObjectName("strategyDetailTree")
         self._hover_delay_ms = 180
         self.setColumnCount(2)
         self.setHeaderHidden(True)

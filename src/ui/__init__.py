@@ -23,7 +23,7 @@ __all__ = [
 
 def __getattr__(name):
     if name == 'MainWindowUI':
-        from .main_window import MainWindowUI
+        from .window_ui_facade import MainWindowUI
 
         return MainWindowUI
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

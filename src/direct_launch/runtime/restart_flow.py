@@ -3,11 +3,8 @@ from __future__ import annotations
 from PyQt6.QtCore import QTimer
 
 from log import log
-from strategy_menu import get_strategy_launch_method
-from ui.main_window_page_dispatch import (
-    show_active_strategy_page_loading,
-    show_active_strategy_page_success,
-)
+from settings.dpi.strategy_settings import get_strategy_launch_method
+from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
 from .thread_runtime import start_worker_thread
 from .workers import DirectPresetSwitchWorker
@@ -64,8 +61,9 @@ def process_pending_direct_preset_switch(controller) -> None:
         controller._direct_preset_switch_completed_generation = target_generation
         return
 
-    if hasattr(controller.app, "main_window"):
-        show_active_strategy_page_loading(controller.app.main_window)
+    bridge = ensure_runtime_ui_bridge(controller.app)
+    if bridge is not None:
+        bridge.show_active_strategy_page_loading()
 
     start_worker_thread(
         controller,
@@ -167,8 +165,9 @@ def handle_direct_preset_switch_finished(controller, success, error_message, gen
         if store is not None:
             store.set_launch_busy(False)
 
-        if hasattr(controller.app, "main_window"):
-            show_active_strategy_page_success(controller.app.main_window)
+        bridge = ensure_runtime_ui_bridge(controller.app)
+        if bridge is not None:
+            bridge.show_active_strategy_page_success()
 
         controller._direct_preset_switch_completed_generation = max(
             int(controller._direct_preset_switch_completed_generation or 0),

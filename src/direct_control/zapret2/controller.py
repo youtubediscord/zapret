@@ -119,14 +119,15 @@ class Zapret2DirectControlPageController(ControlPageController):
     @staticmethod
     def get_direct_launch_mode_setting() -> str:
         try:
-            from strategy_menu.ui_prefs_store import get_direct_zapret2_ui_mode
+            from settings.dpi.strategy_settings import (
+                get_direct_ui_mode,
+                normalize_direct_ui_mode,
+            )
 
-            mode = (get_direct_zapret2_ui_mode() or "").strip().lower()
-            if mode in ("basic", "advanced"):
-                return mode
+            return normalize_direct_ui_mode(get_direct_ui_mode())
         except Exception:
             pass
-        return "advanced"
+        return "basic"
 
     @staticmethod
     def build_direct_mode_label_plan(*, language: str) -> DirectModeLabelPlan:
@@ -155,15 +156,15 @@ class Zapret2DirectControlPageController(ControlPageController):
         )
 
     @staticmethod
-    def apply_direct_mode_change(*, wanted_mode: str, parent_app) -> None:
+    def apply_direct_mode_change(*, wanted_mode: str, app_context, reload_host) -> None:
         wanted = str(wanted_mode or "").strip().lower()
         if wanted not in ("basic", "advanced"):
             return
 
         try:
-            from strategy_menu.ui_prefs_store import set_direct_zapret2_ui_mode
+            from settings.dpi.strategy_settings import set_direct_ui_mode
 
-            set_direct_zapret2_ui_mode(wanted)
+            set_direct_ui_mode(wanted)
         except Exception:
             pass
 
@@ -171,11 +172,13 @@ class Zapret2DirectControlPageController(ControlPageController):
             from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
             from core.presets.direct_facade import DirectPresetFacade
 
+            if app_context is None:
+                return
             facade = DirectPresetFacade.from_launch_method(
                 "direct_zapret2",
-                app_context=parent_app.app_context,
+                app_context=app_context,
                 on_dpi_reload_needed=lambda: request_direct_runtime_content_apply(
-                    parent_app,
+                    reload_host,
                     launch_method="direct_zapret2",
                     reason="direct_launch_mode_changed",
                 ),
@@ -221,7 +224,7 @@ class Zapret2DirectControlPageController(ControlPageController):
     @staticmethod
     def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
         try:
-            from strategy_menu.launch_method_store import get_strategy_launch_method
+            from settings.dpi.strategy_settings import get_strategy_launch_method
             from config import get_winws_exe_for_method
             from ui.text_catalog import tr as tr_catalog
 

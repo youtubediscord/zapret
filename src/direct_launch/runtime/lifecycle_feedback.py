@@ -2,86 +2,20 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QTimer
 
-from app_notifications import advisory_notification, notification_action
 from log import log
-from ui.main_window_page_dispatch import show_active_strategy_page_success
-
+from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
 def show_launch_error_top(controller, message: str) -> None:
     """Показывает человеко-понятную ошибку запуска через верхний InfoBar."""
-    text = str(message or "").strip()
-    if not text:
-        return
-    try:
-        while text.startswith(("❌", "⚠️", "⚠")):
-            text = text[1:].strip()
-    except Exception:
-        pass
-    if not text:
-        text = "Не удалось запустить DPI"
-
-    try:
-        notification_controller = getattr(controller.app, "window_notification_controller", None)
-        if notification_controller is not None:
-            auto_fix_action = None
-            if text.startswith("[AUTOFIX:"):
-                end_idx = text.find("]")
-                if end_idx > 0:
-                    auto_fix_action = text[9:end_idx]
-                    text = text[end_idx + 1 :].strip()
-
-            buttons = []
-            duration = 10000
-            if auto_fix_action:
-                buttons.append(notification_action("autofix", "Исправить", value=auto_fix_action))
-                duration = -1
-
-            notification_controller.notify(
-                advisory_notification(
-                    level="error",
-                    title="Ошибка",
-                    content=text,
-                    source="launch.dpi_error",
-                    presentation="infobar",
-                    queue="immediate",
-                    duration=duration,
-                    buttons=buttons,
-                    dedupe_key=f"launch.dpi_error:{' '.join(text.split()).lower()}",
-                )
-            )
-    except Exception as e:
-        log(f"Не удалось показать InfoBar ошибки запуска: {e}", "DEBUG")
+    bridge = ensure_runtime_ui_bridge(controller.app)
+    if bridge is not None:
+        bridge.show_launch_error(message)
 
 
 def show_launch_warning_top(controller, message: str) -> None:
-    text = str(message or "").strip()
-    if not text:
-        return
-    try:
-        while text.startswith(("⚠️", "⚠")):
-            text = text[1:].strip()
-    except Exception:
-        pass
-    if not text:
-        return
-
-    try:
-        notification_controller = getattr(controller.app, "window_notification_controller", None)
-        if notification_controller is not None:
-            notification_controller.notify(
-                advisory_notification(
-                    level="warning",
-                    title="Предупреждение",
-                    content=text,
-                    source="launch.dpi_warning",
-                    presentation="infobar",
-                    queue="immediate",
-                    duration=9000,
-                    dedupe_key=f"launch.dpi_warning:{' '.join(text.split()).lower()}",
-                )
-            )
-    except Exception as e:
-        log(f"Не удалось показать InfoBar предупреждения запуска: {e}", "DEBUG")
+    bridge = ensure_runtime_ui_bridge(controller.app)
+    if bridge is not None:
+        bridge.show_launch_warning(message)
 
 
 def verify_dpi_process_running(controller, verify_gen=None):
@@ -170,8 +104,9 @@ def on_dpi_start_finished(controller, success, error_message):
     """Обрабатывает завершение асинхронного запуска DPI."""
     completed_restart_generation = int(controller._restart_active_start_generation or 0)
     try:
-        if hasattr(controller.app, "main_window"):
-            show_active_strategy_page_success(controller.app.main_window)
+        bridge = ensure_runtime_ui_bridge(controller.app)
+        if bridge is not None:
+            bridge.show_active_strategy_page_success()
 
         if success:
             controller._dpi_start_verify_retry = 0
@@ -207,8 +142,9 @@ def on_dpi_stop_finished(controller, success, error_message):
         if store is not None:
             store.set_launch_busy(False)
 
-        if hasattr(controller.app, "main_window"):
-            show_active_strategy_page_success(controller.app.main_window)
+        bridge = ensure_runtime_ui_bridge(controller.app)
+        if bridge is not None:
+            bridge.show_active_strategy_page_success()
 
         if success:
             is_still_running = controller.app.launch_runtime_api.is_any_running(silent=True)

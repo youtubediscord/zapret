@@ -1,5 +1,6 @@
 from PyQt6.QtCore import QObject
 from log import log
+from ui.window_adapter import ensure_window_adapter
 
 class LaunchAutostartManager(QObject):
     """⚡ Упрощенный менеджер для автозапуска launch-контура."""
@@ -25,7 +26,7 @@ class LaunchAutostartManager(QObject):
             self._mark_runtime_stopped()
             return
 
-        from strategy_menu import get_strategy_launch_method
+        from settings.dpi.strategy_settings import get_strategy_launch_method
         resolved_method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
 
         supported_methods = {
@@ -39,8 +40,8 @@ class LaunchAutostartManager(QObject):
             return
 
         display_name = self._resolve_startup_display_name(resolved_method)
-        if display_name and hasattr(self.app, "update_current_strategy_display"):
-            self.app.update_current_strategy_display(display_name)
+        if display_name:
+            ensure_window_adapter(self.app).update_current_strategy_display(display_name)
 
         log(f"Автозапуск передан в единый DPI controller pipeline: {resolved_method}", "INFO")
         self.app.launch_controller.start_dpi_async(selected_mode=None, launch_method=resolved_method)

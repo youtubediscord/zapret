@@ -168,11 +168,12 @@ class DirectUiSnapshotService:
     @staticmethod
     def _resolve_z2_strategy_set() -> str:
         try:
-            from strategy_menu.ui_prefs_store import get_direct_zapret2_ui_mode
+            from settings.dpi.strategy_settings import (
+                get_direct_ui_mode,
+                normalize_direct_ui_mode,
+            )
 
-            value = str(get_direct_zapret2_ui_mode() or "").strip().lower()
-            if value in ("basic", "advanced"):
-                return value
+            return normalize_direct_ui_mode(get_direct_ui_mode())
         except Exception:
             pass
         return "basic"

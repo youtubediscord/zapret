@@ -359,9 +359,10 @@ class ServersPage(BasePage):
     def _on_back_to_about(self):
         try:
             from ui.page_names import PageName
+            from ui.window_adapter import ensure_window_adapter
             win = self.window()
-            if hasattr(win, 'show_page'):
-                win.show_page(PageName.ABOUT)
+            if win is not None:
+                ensure_window_adapter(win).show_page(PageName.ABOUT)
         except Exception:
             pass
 

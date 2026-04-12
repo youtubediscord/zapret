@@ -20,6 +20,7 @@ except ImportError:
     _HAS_FLUENT_LABELS = False
 
 from .base_page import BasePage
+from ui.page_dependencies import require_page_app_context
 from ui.pages.control_page_program_settings_build import (
     build_control_program_settings_section,
 )
@@ -272,10 +273,11 @@ class ControlPage(BasePage):
         self._on_reset_program_clicked()
 
     def _require_app_context(self):
-        app_context = getattr(self.window(), "app_context", None)
-        if app_context is None:
-            raise RuntimeError("AppContext is required for ControlPage")
-        return app_context
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for ControlPage",
+        )
 
     def _attach_program_settings_runtime(self) -> None:
         if self._program_settings_runtime_attached:
@@ -307,8 +309,9 @@ class ControlPage(BasePage):
 
     def _set_status(self, msg: str) -> None:
         try:
-            if hasattr(self.parent_app, "set_status"):
-                self.parent_app.set_status(msg)
+            status_setter = getattr(self, "set_status", None)
+            if callable(status_setter):
+                status_setter(msg)
         except Exception:
             pass
 

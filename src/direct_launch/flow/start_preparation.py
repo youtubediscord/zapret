@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def resolve_launch_method(launch_method=None) -> str:
-    from strategy_menu import get_strategy_launch_method
+    from settings.dpi.strategy_settings import get_strategy_launch_method
 
     return str(launch_method or get_strategy_launch_method() or "").strip().lower()
 

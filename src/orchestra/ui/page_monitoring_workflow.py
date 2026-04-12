@@ -71,13 +71,9 @@ def stop_monitoring(*, log_queue_timer, update_timer) -> None:
         update_timer.stop()
 
 
-def run_update_cycle(*, app_window, state_idle: str, update_status, update_learned_domains, update_log_history) -> None:
+def run_update_cycle(*, is_runner_alive, state_idle: str, update_status, update_learned_domains, update_log_history) -> None:
     try:
-        runner_alive = False
-        if hasattr(app_window, 'launch_runtime_api') and app_window.launch_runtime_api:
-            runner_alive = bool(app_window.launch_runtime_api.is_any_running(silent=True))
-
-        plan = OrchestraPageController.build_update_cycle_plan(runner_alive=runner_alive)
+        plan = OrchestraPageController.build_update_cycle_plan(runner_alive=bool(is_runner_alive()))
         if plan.next_state == state_idle:
             update_status(state_idle)
         if plan.refresh_learned:

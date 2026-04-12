@@ -3,9 +3,11 @@ from __future__ import annotations
 from PyQt6.QtCore import QTimer
 
 from log import log
+from ui.navigation.navigation_controller import ensure_navigation_controller
+from ui.ui_workflows import ensure_ui_workflows
 
 
-def handle_main_window_launch_method_changed(window, method: str) -> None:
+def handle_launch_method_changed(window, method: str) -> None:
     from utils.process_killer import kill_winws_all
 
     log(f"Метод запуска изменён на: {method}", "INFO")
@@ -34,10 +36,10 @@ def handle_main_window_launch_method_changed(window, method: str) -> None:
         except Exception as e:
             log(f"Ошибка остановки через Win API: {e}", "WARNING")
 
-    complete_main_window_method_switch(window, method)
+    complete_launch_method_switch(window, method)
 
 
-def complete_main_window_method_switch(window, method: str) -> None:
+def complete_launch_method_switch(window, method: str) -> None:
     from config import get_winws_exe_for_method
     from direct_launch.runners import invalidate_strategy_runner
     from utils.service_manager import cleanup_windivert_services
@@ -97,7 +99,7 @@ def complete_main_window_method_switch(window, method: str) -> None:
     log(f"Переключение на режим '{method}' завершено", "INFO")
 
     try:
-        window._sync_nav_visibility(method)
+        ensure_navigation_controller(window).sync_nav_visibility(method)
     except Exception:
         pass
 
@@ -106,16 +108,16 @@ def complete_main_window_method_switch(window, method: str) -> None:
             500,
             lambda: (
                 not bool(getattr(window, "_is_exiting", False) or getattr(window, "_closing_completely", False))
-            ) and auto_start_after_main_window_method_switch(window, method),
+            ) and auto_start_after_method_switch(window, method),
         )
 
     try:
-        window._redirect_to_strategies_page_for_method(method)
+        ensure_ui_workflows(window).redirect_to_strategies_page_for_method(method)
     except Exception:
         pass
 
 
-def auto_start_after_main_window_method_switch(window, method: str) -> None:
+def auto_start_after_method_switch(window, method: str) -> None:
     if bool(getattr(window, "_is_exiting", False) or getattr(window, "_closing_completely", False)):
         return
     try:
@@ -135,3 +137,10 @@ def auto_start_after_main_window_method_switch(window, method: str) -> None:
 
     except Exception as e:
         log(f"Ошибка автозапуска после переключения режима: {e}", "ERROR")
+
+
+__all__ = [
+    "auto_start_after_method_switch",
+    "complete_launch_method_switch",
+    "handle_launch_method_changed",
+]

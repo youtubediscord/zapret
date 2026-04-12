@@ -9,7 +9,7 @@ from PyQt6.QtCore import QObject, QMetaObject, Qt, pyqtSignal
 
 from direct_launch.health.process_health_check import diagnose_startup_error
 from log import log
-from strategy_menu import get_strategy_launch_method
+from settings.dpi.strategy_settings import get_strategy_launch_method
 
 
 @dataclass(frozen=True)

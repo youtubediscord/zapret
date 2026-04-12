@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
     from core.presets.direct_facade import DirectPresetFacade
-    from strategy_menu.marks_store import DirectZapret2FavoritesStore, DirectZapret2MarksStore
+    from app_state.strategy_marks_store import StrategyFavoritesStore, StrategyMarksStore
 
 
 _APP_CONTEXT: "AppContext | None" = None
@@ -36,8 +36,8 @@ class AppContext:
     preset_file_store: PresetFileStore
     preset_store: DirectRuntimePresetStore
     preset_store_v1: DirectRuntimePresetStore
-    strategy_marks_store: DirectZapret2MarksStore
-    strategy_favorites_store: DirectZapret2FavoritesStore
+    strategy_marks_store: StrategyMarksStore
+    strategy_favorites_store: StrategyFavoritesStore
     direct_ui_snapshot_service: DirectUiSnapshotService
     orchestra_whitelist_runtime_service: OrchestraWhitelistRuntimeService
     program_settings_runtime_service: ProgramSettingsRuntimeService
@@ -60,7 +60,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
-    from strategy_menu.marks_store import DirectZapret2FavoritesStore, DirectZapret2MarksStore
+    from app_state.strategy_marks_store import StrategyFavoritesStore, StrategyMarksStore
 
     root = Path(get_zapret_userdata_dir()).resolve()
     app_paths = AppPaths(user_root=root, local_root=root)
@@ -69,8 +69,8 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     preset_selection_service = PresetSelectionService(app_paths, preset_file_store)
     preset_store = DirectRuntimePresetStore("winws2", preset_file_store, preset_selection_service)
     preset_store_v1 = DirectRuntimePresetStore("winws1", preset_file_store, preset_selection_service)
-    strategy_marks_store = DirectZapret2MarksStore.default()
-    strategy_favorites_store = DirectZapret2FavoritesStore.default()
+    strategy_marks_store = StrategyMarksStore.default()
+    strategy_favorites_store = StrategyFavoritesStore.default()
     app_runtime_state = AppRuntimeState(ui_state_store)
     launch_runtime_service = LaunchRuntimeService(ui_state_store)
     direct_flow_coordinator = DirectFlowCoordinator(app_paths, preset_selection_service, preset_file_store)

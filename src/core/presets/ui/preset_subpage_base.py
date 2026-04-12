@@ -10,6 +10,7 @@ from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QFileDialog
 
 from ui.pages.base_page import BasePage
+from ui.page_dependencies import require_page_app_context
 from ui.compat_widgets import style_semantic_caption_label
 from ui.popup_menu import exec_popup_menu
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
@@ -626,10 +627,11 @@ class PresetSubpageBase(BasePage):
             return ""
 
     def _require_app_context(self):
-        app_context = getattr(self.window(), "app_context", None)
-        if app_context is None:
-            raise RuntimeError("AppContext is required for preset subpage")
-        return app_context
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for preset subpage",
+        )
 
     def _get_direct_flow_coordinator(self):
         return self._require_app_context().direct_flow_coordinator

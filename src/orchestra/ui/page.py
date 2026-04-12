@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QAction
 
 from orchestra.page_controller import OrchestraPageController
+from ui.page_dependencies import resolve_page_orchestra_runner
 from ui.pages.base_page import BasePage
 from orchestra.ui.page_build import (
     build_orchestra_log_card,
@@ -389,7 +390,9 @@ class OrchestraPage(BasePage):
         if self._cleanup_in_progress:
             return
         run_update_cycle(
-            app_window=self.window(),
+            is_runner_alive=lambda: bool(
+                getattr(getattr(self, "launch_runtime_api", None), "is_any_running", lambda silent=True: False)(silent=True)
+            ),
             state_idle=self.STATE_IDLE,
             update_status=self._update_status,
             update_learned_domains=self._update_learned_domains,
@@ -449,8 +452,7 @@ class OrchestraPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            app = self.window()
-            runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+            runner = getattr(self, "orchestra_runner", None)
             plan = OrchestraPageController.build_learned_data_plan_from_runner(runner)
             self._update_domains(plan.data)
         except Exception as e:
@@ -506,8 +508,7 @@ class OrchestraPage(BasePage):
         """Запускает мониторинг"""
         if self._cleanup_in_progress:
             return
-        app = self.window()
-        runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+        runner = getattr(self, "orchestra_runner", None)
         start_orchestra_monitoring(
             runner=runner,
             emit_log_callback=self.emit_log,
@@ -571,10 +572,10 @@ class OrchestraPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            app = self.window()
-            if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
+            runner = self._get_runner()
+            if runner is not None:
                 update_log_history_view(
-                    runner=app.orchestra_runner,
+                    runner=runner,
                     tr_fn=self._tr,
                     log_history_list=self.log_history_list,
                 )
@@ -595,9 +596,9 @@ class OrchestraPage(BasePage):
             return
 
         try:
-            app = self.window()
-            if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
-                content = app.orchestra_runner.get_log_content(log_id)
+            runner = self._get_runner()
+            if runner is not None:
+                content = runner.get_log_content(log_id)
                 plan = OrchestraPageController.build_log_history_view_plan(
                     log_id=log_id,
                     has_content=bool(content),
@@ -625,9 +626,9 @@ class OrchestraPage(BasePage):
             return
 
         try:
-            app = self.window()
-            if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
-                deleted = bool(app.orchestra_runner.delete_log(log_id))
+            runner = self._get_runner()
+            if runner is not None:
+                deleted = bool(runner.delete_log(log_id))
                 plan = OrchestraPageController.build_log_history_delete_plan(
                     log_id=log_id,
                     deleted=deleted,
@@ -645,9 +646,9 @@ class OrchestraPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            app = self.window()
-            if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
-                deleted = app.orchestra_runner.clear_all_logs()
+            runner = self._get_runner()
+            if runner is not None:
+                deleted = runner.clear_all_logs()
                 plan = OrchestraPageController.build_log_history_clear_all_plan(
                     deleted_count=deleted,
                 )
@@ -655,6 +656,9 @@ class OrchestraPage(BasePage):
                 self.append_log(plan.message_text)
         except Exception as e:
             log(f"Ошибка очистки истории логов: {e}", "DEBUG")
+
+    def _get_runner(self):
+        return resolve_page_orchestra_runner(self, parent=self.parent())
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
@@ -674,8 +678,7 @@ class OrchestraPage(BasePage):
             pass
 
         try:
-            app = self.window()
-            runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+            runner = self._get_runner()
             if runner is not None:
                 runner.set_output_callback(lambda _text: None)
         except Exception:
@@ -712,9 +715,9 @@ class OrchestraPage(BasePage):
             domain, strategy, protocol = parsed
             is_blocked = False
             try:
-                app = self.window()
-                if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
-                    is_blocked = app.orchestra_runner.blocked_manager.is_blocked(domain, strategy)
+                runner = self._get_runner()
+                if runner is not None:
+                    is_blocked = runner.blocked_manager.is_blocked(domain, strategy)
             except Exception:
                 pass
 
@@ -812,8 +815,7 @@ class OrchestraPage(BasePage):
     def _lock_strategy_from_log(self, domain: str, strategy: int, protocol: str):
         """Залочивает стратегию из контекстного меню лога"""
         try:
-            app = self.window()
-            runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+            runner = self._get_runner()
             plan = OrchestraPageController.lock_strategy(
                 runner,
                 domain=domain,
@@ -832,8 +834,7 @@ class OrchestraPage(BasePage):
     def _block_strategy_from_log(self, domain: str, strategy: int, protocol: str):
         """Блокирует стратегию из контекстного меню лога"""
         try:
-            app = self.window()
-            runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+            runner = self._get_runner()
             plan = OrchestraPageController.block_strategy(
                 runner,
                 domain=domain,
@@ -852,8 +853,7 @@ class OrchestraPage(BasePage):
     def _unblock_strategy_from_log(self, domain: str, strategy: int, protocol: str):
         """Разблокирует стратегию из контекстного меню лога"""
         try:
-            app = self.window()
-            runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+            runner = self._get_runner()
             plan = OrchestraPageController.unblock_strategy(
                 runner,
                 domain=domain,
@@ -871,8 +871,7 @@ class OrchestraPage(BasePage):
     def _add_to_whitelist_from_log(self, domain: str):
         """Добавляет домен в whitelist из контекстного меню лога"""
         try:
-            app = self.window()
-            runner = app.orchestra_runner if hasattr(app, 'orchestra_runner') else None
+            runner = self._get_runner()
             plan = OrchestraPageController.add_to_whitelist(runner, domain=domain)
             for message in plan.messages:
                 self.append_log(message)

@@ -128,7 +128,8 @@ def resolve_strategy_detail_root_page_for_method(method: str | None) -> PageName
     if normalized == "orchestra":
         return PageName.ORCHESTRA
     return PageName.CONTROL
-
-
-def get_zapret2_strategy_detail_pages() -> tuple[PageName]:
-    return (resolve_zapret2_navigation_pages("direct_zapret2").strategy_detail_page,)
+def get_strategy_detail_pages() -> tuple[PageName, ...]:
+    return (
+        resolve_zapret2_navigation_pages("direct_zapret2").strategy_detail_page,
+        resolve_zapret1_navigation_pages().strategy_detail_page,
+    )

@@ -39,6 +39,7 @@ except Exception:
         return None
 
 from ui.popup_menu import exec_popup_menu
+from ui.window_adapter import ensure_window_adapter
 
 
 def _toggle_github_api_removal(*, status_callback=None) -> bool:
@@ -879,20 +880,18 @@ class SystemTrayManager:
 
     def _save_window_geometry(self):
         try:
-            controller = getattr(self.parent, "window_geometry_controller", None)
-            if controller is not None:
-                controller.persist_now(force=True)
+            ensure_window_adapter(self.parent).persist_window_geometry()
         except Exception as e:
             log(f"Ошибка сохранения геометрии окна: {e}", "ERROR")
 
     def _cleanup_loaded_detail_page_overlays(self) -> None:
         try:
-            from ui.router import get_zapret2_strategy_detail_pages
-            from ui.main_window_page_dispatch import call_loaded_page_method
+            from ui.navigation_targets import get_strategy_detail_pages
+            from ui.page_method_dispatch import close_page_transient_overlays
 
-            for page_name in get_zapret2_strategy_detail_pages():
+            for page_name in get_strategy_detail_pages():
                 try:
-                    call_loaded_page_method(self.parent, page_name, "close_transient_overlays")
+                    close_page_transient_overlays(self.parent, page_name)
                 except Exception:
                     pass
         except Exception:
@@ -902,18 +901,6 @@ class SystemTrayManager:
         try:
             from ui.widgets.strategies_tooltip import strategies_tooltip_manager
             strategies_tooltip_manager.hide_immediately()
-        except Exception:
-            pass
-
-        try:
-            from strategy_menu.hover_tooltip import tooltip_manager
-            tooltip_manager.hide_immediately()
-        except Exception:
-            pass
-
-        try:
-            from strategy_menu.args_preview_dialog import preview_manager
-            preview_manager.cleanup()
         except Exception:
             pass
 
@@ -931,13 +918,12 @@ class SystemTrayManager:
             pass
 
         try:
-            if hasattr(self.parent, "_release_input_interaction_states"):
-                self.parent._release_input_interaction_states()
+            ensure_window_adapter(self.parent).release_input_interaction_states()
         except Exception:
             pass
 
         try:
-            self.parent.hide()
+            ensure_window_adapter(self.parent).hide_window()
         except Exception as e:
             log(f"Не удалось скрыть окно в трей: {e}", "WARNING")
             return False
@@ -958,12 +944,10 @@ class SystemTrayManager:
         return True
 
     def exit_only(self):
-        if hasattr(self.parent, "request_exit"):
-            self.parent.request_exit(stop_dpi=False)
+        ensure_window_adapter(self.parent).request_exit(stop_dpi=False)
 
     def exit_and_stop(self):
-        if hasattr(self.parent, "request_exit"):
-            self.parent.request_exit(stop_dpi=True)
+        ensure_window_adapter(self.parent).request_exit(stop_dpi=True)
 
     def show_console(self):
         from discord.discord_restart import toggle_discord_restart
@@ -996,28 +980,8 @@ class SystemTrayManager:
         except Exception:
             pass
 
-        controller = getattr(self.parent, "window_geometry_controller", None)
-        if controller is not None:
-            try:
-                self.parent.show()
-                self.parent.showNormal()
-                controller.request_zoom_state(controller.remembered_zoom_state())
-            except Exception:
-                pass
-        else:
-            try:
-                self.parent.show()
-                self.parent.showNormal()
-            except Exception:
-                pass
-
         try:
-            self.parent.raise_()
-        except Exception:
-            pass
-
-        try:
-            self.parent.activateWindow()
+            ensure_window_adapter(self.parent).show_window()
         except Exception:
             pass
 

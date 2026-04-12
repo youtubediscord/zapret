@@ -52,14 +52,14 @@ def apply_hosts_page_theme(
 
 def activate_hosts_page(
     *,
-    install_main_window_event_filter_fn,
+    install_host_window_event_filter_fn,
     build_activation_plan_fn,
     catalog_dirty: bool,
     reconcile_hidden_refresh_fn,
     invalidate_cache_fn,
     update_ui_fn,
 ) -> None:
-    install_main_window_event_filter_fn()
+    install_host_window_event_filter_fn()
     activation_plan = build_activation_plan_fn(
         catalog_dirty=catalog_dirty,
     )
@@ -76,7 +76,7 @@ def run_hosts_runtime_init_once(
     *,
     runtime_initialized: bool,
     set_runtime_initialized_fn,
-    install_main_window_event_filter_fn,
+    install_host_window_event_filter_fn,
     ensure_ipv6_catalog_sections_fn,
     build_page_init_plan_fn,
     has_hosts_manager: bool,
@@ -90,7 +90,7 @@ def run_hosts_runtime_init_once(
     if runtime_initialized:
         return
     set_runtime_initialized_fn(True)
-    install_main_window_event_filter_fn()
+    install_host_window_event_filter_fn()
 
     ipv6_catalog_changed, _ = ensure_ipv6_catalog_sections_fn()
     init_plan = build_page_init_plan_fn(
@@ -113,26 +113,26 @@ def run_hosts_runtime_init_once(
         update_ui_fn()
 
 
-def install_main_window_event_filter(
+def install_host_window_event_filter(
     *,
     page,
-    current_main_window,
-    set_main_window_fn,
+    current_host_window,
+    set_host_window_fn,
 ) -> None:
     try:
         window = page.window()
     except Exception:
         window = None
-    if not window or window is current_main_window:
+    if not window or window is current_host_window:
         return
 
-    if current_main_window is not None:
+    if current_host_window is not None:
         try:
-            current_main_window.removeEventFilter(page)
+            current_host_window.removeEventFilter(page)
         except Exception:
             pass
 
-    set_main_window_fn(window)
+    set_host_window_fn(window)
     try:
         window.installEventFilter(page)
     except Exception:
@@ -209,8 +209,8 @@ def apply_hosts_page_language(
 def cleanup_hosts_page(
     *,
     set_cleanup_in_progress_fn,
-    current_main_window,
-    set_main_window_fn,
+    current_host_window,
+    set_host_window_fn,
     page,
     catalog_watch_timer,
     set_catalog_watch_timer_fn,
@@ -221,12 +221,12 @@ def cleanup_hosts_page(
     log_fn,
 ) -> None:
     set_cleanup_in_progress_fn(True)
-    if current_main_window is not None:
+    if current_host_window is not None:
         try:
-            current_main_window.removeEventFilter(page)
+            current_host_window.removeEventFilter(page)
         except Exception:
             pass
-        set_main_window_fn(None)
+        set_host_window_fn(None)
 
     if catalog_watch_timer is not None:
         try:

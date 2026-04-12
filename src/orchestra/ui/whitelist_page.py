@@ -35,6 +35,7 @@ except ImportError:
     _HAS_FLUENT = False
 
 from ..base_page import BasePage
+from ui.page_dependencies import require_page_app_context, resolve_page_orchestra_runner
 from ui.compat_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from ui.theme_refresh import ThemeRefreshController
@@ -397,14 +398,15 @@ class OrchestraWhitelistPage(BasePage):
 
     def _is_orchestra_running(self) -> bool:
         """Проверяет, запущен ли оркестратор"""
-        app = self.window()
-        if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
-            return app.orchestra_runner.is_running()
+        runner = resolve_page_orchestra_runner(self, parent=self.parent())
+        if runner is not None:
+            return runner.is_running()
         return False
 
     def _sync_whitelist_view(self, *, refresh: bool) -> None:
-        snapshot = self.window().app_context.orchestra_whitelist_runtime_service.get_snapshot(
-            self.window(),
+        app_context = require_page_app_context(self, parent=self.parent(), error_message="AppContext is required for OrchestraWhitelistPage")
+        snapshot = app_context.orchestra_whitelist_runtime_service.get_snapshot(
+            self,
             refresh=refresh,
         )
         if not refresh and snapshot.revision == self._last_snapshot_revision:
@@ -547,7 +549,8 @@ class OrchestraWhitelistPage(BasePage):
         if not domain:
             return
 
-        if self.window().app_context.orchestra_whitelist_runtime_service.add_domain(self.window(), domain):
+        app_context = require_page_app_context(self, parent=self.parent(), error_message="AppContext is required for OrchestraWhitelistPage")
+        if app_context.orchestra_whitelist_runtime_service.add_domain(self, domain):
             self.domain_input.clear()
             self._refresh_data()
             self._show_restart_warning()
@@ -566,15 +569,17 @@ class OrchestraWhitelistPage(BasePage):
 
     def _on_row_delete_requested(self, domain: str):
         """Удаление при нажатии кнопки X в ряду"""
-        if self.window().app_context.orchestra_whitelist_runtime_service.remove_domain(self.window(), domain):
+        app_context = require_page_app_context(self, parent=self.parent(), error_message="AppContext is required for OrchestraWhitelistPage")
+        if app_context.orchestra_whitelist_runtime_service.remove_domain(self, domain):
             self._refresh_data()
             self._show_restart_warning()
             log(f"Удалён из белого списка: {domain}", "INFO")
 
     def _clear_user_domains(self):
         """Очищает все пользовательские домены из белого списка"""
-        snapshot = self.window().app_context.orchestra_whitelist_runtime_service.get_snapshot(
-            self.window(),
+        app_context = require_page_app_context(self, parent=self.parent(), error_message="AppContext is required for OrchestraWhitelistPage")
+        snapshot = app_context.orchestra_whitelist_runtime_service.get_snapshot(
+            self,
             refresh=True,
         )
         user_domains = [domain for domain, is_default in snapshot.entries if not is_default]
@@ -604,8 +609,8 @@ class OrchestraWhitelistPage(BasePage):
             )
             confirmed = bool(box.exec())
         if confirmed:
-            removed = self.window().app_context.orchestra_whitelist_runtime_service.clear_user_domains(
-                self.window(),
+            removed = app_context.orchestra_whitelist_runtime_service.clear_user_domains(
+                self,
                 user_domains,
             )
             if removed:

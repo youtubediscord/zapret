@@ -161,7 +161,7 @@ def get_current_winws_exe() -> str:
 
     try:
         # Импортируем здесь чтобы избежать циклических зависимостей
-        from strategy_menu import get_strategy_launch_method
+        from settings.dpi.strategy_settings import get_strategy_launch_method
 
         method = get_strategy_launch_method()
         exe_path = get_winws_exe_for_method(method)

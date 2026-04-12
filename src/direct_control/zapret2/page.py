@@ -8,6 +8,7 @@ import webbrowser
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
 from ui.pages.base_page import BasePage
+from ui.page_dependencies import require_page_app_context
 from direct_control.zapret2.build import (
     build_z2_direct_management_section,
     build_z2_direct_preset_section,
@@ -295,10 +296,11 @@ class Zapret2DirectControlPage(BasePage):
         return display_name, display_name
 
     def _require_app_context(self):
-        app_context = getattr(self.window(), "app_context", None)
-        if app_context is None:
-            raise RuntimeError("AppContext is required for Zapret2 direct control page")
-        return app_context
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for Zapret2 direct control page",
+        )
 
     def _get_selection_service(self):
         return self._require_app_context().preset_selection_service
@@ -602,7 +604,8 @@ class Zapret2DirectControlPage(BasePage):
         if plan.should_apply:
             Zapret2DirectControlPageController.apply_direct_mode_change(
                 wanted_mode=wanted,
-                parent_app=self.parent_app,
+                app_context=self._require_app_context(),
+                reload_host=self.parent_app,
             )
         if plan.refresh_strategy_after:
             self.update_strategy("")
@@ -658,8 +661,9 @@ class Zapret2DirectControlPage(BasePage):
 
     def _set_status(self, msg: str) -> None:
         try:
-            if self.parent_app and hasattr(self.parent_app, "set_status"):
-                self.parent_app.set_status(msg)
+            status_setter = getattr(self, "set_status", None)
+            if callable(status_setter):
+                status_setter(msg)
         except Exception:
             pass
 

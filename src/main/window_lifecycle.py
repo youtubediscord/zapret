@@ -9,6 +9,7 @@ from main.runtime_state import (
     startup_elapsed_ms,
 )
 from ui.page_names import PageName
+from ui.window_adapter import ensure_window_adapter
 
 
 class WindowLifecycleMixin:
@@ -201,7 +202,7 @@ class WindowLifecycleMixin:
         """Обновляем геометрию при изменении размера окна."""
         super().resizeEvent(event)
         try:
-            self._update_titlebar_search_width()
+            ensure_window_adapter(self).update_titlebar_search_width()
         except Exception:
             pass
         geometry_controller = getattr(self, "window_geometry_controller", None)
@@ -252,7 +253,7 @@ class WindowLifecycleMixin:
             log(f"Ошибка обновления стилей: {e}", "DEBUG")
 
     def _cleanup_loaded_page(self, page_name: PageName) -> None:
-        page = self.get_loaded_page(page_name)
+        page = ensure_window_adapter(self).get_loaded_page(page_name)
         if page is None or not hasattr(page, "cleanup"):
             return
         try:

@@ -1,4 +1,4 @@
-# strategy_menu/constants.py
+# direct_launch/runners/constants.py
 
 """
 Константы для системы стратегий Zapret

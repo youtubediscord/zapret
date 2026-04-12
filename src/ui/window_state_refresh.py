@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from ui.window_display_state import (
+    get_direct_strategy_summary,
+    update_current_strategy_display,
+)
+
 
 def on_direct_mode_changed(window, mode: str) -> None:
     """Сообщает UI-слою, что direct mode изменился и нужно обновить revision."""
@@ -14,9 +19,9 @@ def on_direct_mode_changed(window, mode: str) -> None:
 def refresh_pages_after_preset_switch(window) -> None:
     """Обновляет краткое отображение активной стратегии после смены source preset."""
     try:
-        display_name = window._get_direct_strategy_summary()
+        display_name = get_direct_strategy_summary(window)
         if display_name:
-            window.update_current_strategy_display(display_name)
+            update_current_strategy_display(window, display_name)
     except Exception as e:
         from log import log
 

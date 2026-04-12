@@ -6,7 +6,7 @@ import os
 import time
 
 from PyQt6.QtCore import QTimer
-from strategy_menu import get_strategy_launch_method
+from settings.dpi.strategy_settings import get_strategy_launch_method
 from log import log
 from direct_launch.health.process_health_check import (
     check_conflicting_processes,
@@ -38,10 +38,7 @@ from .workers import (
     DirectLaunchStopWorker,
     StopAndExitWorker,
 )
-from ui.main_window_page_dispatch import (
-    show_active_strategy_page_loading,
-)
-
+from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
 class DirectLaunchController:
     """Основной orchestrator прямого запуска и остановки обхода."""
@@ -70,6 +67,9 @@ class DirectLaunchController:
 
     def _runtime_service(self):
         return getattr(self.app, "launch_runtime_service", None)
+
+    def _runtime_ui_bridge(self):
+        return ensure_runtime_ui_bridge(self.app)
 
     def transition_pipeline_in_progress(self, launch_method: str | None = None) -> bool:
         method = str(launch_method or "").strip().lower()
@@ -250,7 +250,6 @@ class DirectLaunchController:
             runtime_service.begin_start(
                 launch_method=launch_method,
                 expected_process=self._expected_process_name(launch_method),
-                expected_preset_path=self._expected_preset_path(selected_mode),
             )
 
     def _mark_runtime_running(self) -> None:
@@ -261,7 +260,7 @@ class DirectLaunchController:
     def _mark_runtime_failed(self, error_message: str, *, exit_code: int | None = None) -> None:
         runtime_service = self._runtime_service()
         if runtime_service is not None:
-            runtime_service.mark_start_failed(error_message, exit_code=exit_code)
+            runtime_service.mark_start_failed(error_message)
 
     def _begin_runtime_stop(self) -> None:
         runtime_service = self._runtime_service()
@@ -358,8 +357,9 @@ class DirectLaunchController:
         
         # Показываем индикатор только на уже загруженной странице стратегий
         # для активного метода запуска, без старого обязательного attr-контракта.
-        if hasattr(self.app, 'main_window'):
-            show_active_strategy_page_loading(self.app.main_window)
+        bridge = self._runtime_ui_bridge()
+        if bridge is not None:
+            bridge.show_active_strategy_page_loading()
         
         store = getattr(self.app, "ui_state_store", None)
         if store is not None:
@@ -395,8 +395,9 @@ class DirectLaunchController:
         method_name = resolve_method_name(launch_method)
         self.app.set_status(f"🛑 Остановка DPI ({method_name})...")
         
-        if hasattr(self.app, 'main_window'):
-            show_active_strategy_page_loading(self.app.main_window)
+        bridge = self._runtime_ui_bridge()
+        if bridge is not None:
+            bridge.show_active_strategy_page_loading()
         
         store = getattr(self.app, "ui_state_store", None)
         if store is not None:

@@ -11,6 +11,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtWidgets import QWidget, QHBoxLayout
 
 from core.runtime.direct_ui_snapshot_service import DirectBasicUiSnapshotWorker
+from ui.page_dependencies import require_page_app_context
 from filters.ui import TargetsList
 from filters.runtime.targets_payload_runtime import (
     apply_payload_snapshot,
@@ -58,12 +59,11 @@ class Zapret1StrategiesPage(BasePage):
     back_clicked = pyqtSignal()
 
     def _require_app_context(self):
-        app_context = getattr(self.parent(), "app_context", None)
-        if app_context is None:
-            app_context = getattr(self.window(), "app_context", None)
-        if app_context is None:
-            raise RuntimeError("AppContext is required for Zapret1 strategies page")
-        return app_context
+        return require_page_app_context(
+            self,
+            parent=self.parent(),
+            error_message="AppContext is required for Zapret1 strategies page",
+        )
 
     def __init__(self, parent=None):
         super().__init__(

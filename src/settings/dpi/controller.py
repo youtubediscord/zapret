@@ -37,7 +37,7 @@ class DpiSettingsPageController:
 
     @staticmethod
     def get_launch_method() -> str:
-        from strategy_menu import get_strategy_launch_method
+        from settings.dpi.strategy_settings import get_strategy_launch_method
 
         return str(get_strategy_launch_method() or "").strip().lower()
 
@@ -77,7 +77,7 @@ class DpiSettingsPageController:
 
     @staticmethod
     def apply_launch_method(method: str) -> str:
-        from strategy_menu import get_strategy_launch_method, set_strategy_launch_method
+        from settings.dpi.strategy_settings import get_strategy_launch_method, set_strategy_launch_method
 
         previous_method = str(get_strategy_launch_method() or "").strip().lower()
         next_method = str(method or "").strip().lower()

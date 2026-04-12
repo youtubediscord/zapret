@@ -168,7 +168,7 @@ class ControlPageController:
     @staticmethod
     def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
         try:
-            from strategy_menu import get_strategy_launch_method
+            from settings.dpi.strategy_settings import get_strategy_launch_method
             from config import get_winws_exe_for_method
             from ui.text_catalog import tr as tr_catalog
 
@@ -244,11 +244,11 @@ class ControlPageController:
         tooltip = ""
 
         try:
-            from strategy_menu import get_strategy_launch_method
+            from settings.dpi.strategy_settings import get_strategy_launch_method
 
             method = (get_strategy_launch_method() or "").strip().lower()
             if method in ("direct_zapret2", "direct_zapret1"):
-                from ui.main_window_display import get_direct_strategy_summary
+                from ui.window_display_state import get_direct_strategy_summary
 
                 summary = get_direct_strategy_summary(window, max_items=2)
                 display_name = summary or not_selected

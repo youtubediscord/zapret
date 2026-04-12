@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
 from ui.pages.base_page import BasePage
+from ui.page_dependencies import resolve_page_app_runtime_state
 from ui.compat_widgets import SettingsCard, ActionButton
 from ui.theme import (
     get_cached_qta_pixmap,
@@ -316,7 +317,7 @@ class AutostartPage(BasePage):
         enabled: bool,
         strategy_name: str | None = None,
     ) -> None:
-        app_runtime_state = getattr(self.window(), "app_runtime_state", None)
+        app_runtime_state = resolve_page_app_runtime_state(self, parent=self.parent())
         if self._ui_state_store is not None:
             if strategy_name:
                 self._ui_state_store.set_current_strategy_summary(strategy_name)
@@ -471,7 +472,7 @@ class AutostartPage(BasePage):
 
     def _update_mode(self):
         try:
-            from strategy_menu import get_strategy_launch_method
+            from settings.dpi.strategy_settings import get_strategy_launch_method
 
             method = str(get_strategy_launch_method() or "").strip()
             if method == "direct_zapret2":

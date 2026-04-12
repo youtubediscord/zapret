@@ -2,8 +2,8 @@
 Общая функция для разрешения путей в аргументах командной строки winws/winws2.
 
 Используется в:
-- strategy_menu/strategy_runner.py
-- ui/pages/strategies_page.py
+- direct_launch/runners/*
+- filters/ui/strategy_tree.py и связанные workflow
 """
 
 import os

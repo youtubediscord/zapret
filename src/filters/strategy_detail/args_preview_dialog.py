@@ -16,7 +16,6 @@ from qfluentwidgets import (
 )
 from qfluentwidgets.common.style_sheet import FluentStyleSheet
 
-from log import log
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme_refresh import ThemeRefreshController
 
@@ -58,11 +57,9 @@ class ArgsPreviewDialog(QDialog):
         self._rating_toggler = None
         self._original_args = ""
 
-        # Info label data (kept for theme refresh)
         self._info_strategy_id = None
         self._info_provider = None
 
-        # Let qfluentwidgets manage background and text colors
         FluentStyleSheet.DIALOG.apply(self)
 
         self._init_ui()
@@ -73,22 +70,18 @@ class ArgsPreviewDialog(QDialog):
         layout.setContentsMargins(16, 12, 16, 16)
         layout.setSpacing(8)
 
-        # Title
         self.title_label = StrongBodyLabel()
         layout.addWidget(self.title_label)
 
-        # Author
         self.author_label = CaptionLabel()
         self.author_label.hide()
         layout.addWidget(self.author_label)
 
-        # ID + provider
         self.info_label = BodyLabel()
         self.info_label.setWordWrap(True)
         self.info_label.hide()
         layout.addWidget(self.info_label)
 
-        # Args
         self.args_widget = QWidget()
         args_layout = QVBoxLayout(self.args_widget)
         args_layout.setContentsMargins(0, 4, 0, 0)
@@ -115,7 +108,6 @@ class ArgsPreviewDialog(QDialog):
 
         layout.addWidget(self.args_widget)
 
-        # Rating buttons
         rating_widget = QWidget()
         rating_layout = QHBoxLayout(rating_widget)
         rating_layout.setContentsMargins(0, 4, 0, 0)
@@ -141,15 +133,11 @@ class ArgsPreviewDialog(QDialog):
         self.setMinimumWidth(420)
         self.setMaximumWidth(520)
 
-    # ------------------------------------------------------------------
-    # Публичный интерфейс окна
-    # ------------------------------------------------------------------
-
     def set_pinned(self, pinned: bool) -> None:
-        pass  # always stays open until the user closes it
+        pass
 
     def set_hover_follow(self, enabled: bool, offset=None) -> None:
-        pass  # no cursor tracking
+        pass
 
     def set_strategy_data(
         self,
@@ -192,7 +180,6 @@ class ArgsPreviewDialog(QDialog):
         self.adjustSize()
 
     def _refresh_info_label(self) -> None:
-        """Rebuild info_label rich text with theme-correct colors."""
         if self._info_strategy_id is None and self._info_provider is None:
             return
         _dark = isDarkTheme()
@@ -216,7 +203,6 @@ class ArgsPreviewDialog(QDialog):
             self.info_label.hide()
 
     def show_animated(self, pos=None):
-        """Show the dialog near the given global QPoint (or current cursor)."""
         if pos is None:
             pos = QCursor.pos()
 
@@ -242,7 +228,6 @@ class ArgsPreviewDialog(QDialog):
         self.activateWindow()
 
     def close_dialog(self):
-        """Close the dialog."""
         self.close()
 
     def closeEvent(self, e):
@@ -251,10 +236,6 @@ class ArgsPreviewDialog(QDialog):
             self.closed.emit()
         except Exception:
             pass
-
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
 
     def _update_rating_buttons(self):
         current_rating = None
@@ -290,89 +271,3 @@ class ArgsPreviewDialog(QDialog):
             QApplication.clipboard().setText(self._original_args)
             self.copy_button.setText("✓ Скопировано")
             QTimer.singleShot(1500, lambda: self.copy_button.setText("Копировать"))
-
-
-# ---------------------------------------------------------------------------
-# StrategyPreviewManager — singleton, used by widgets_favorites / widgets / table
-# ---------------------------------------------------------------------------
-
-class StrategyPreviewManager:
-    """Менеджер окна предпросмотра."""
-
-    _instance = None
-    _rating_change_callbacks = []
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.preview_dialog = None
-            cls._instance._rating_change_callbacks = []
-        return cls._instance
-
-    def add_rating_change_callback(self, callback):
-        if callback not in self._rating_change_callbacks:
-            self._rating_change_callbacks.append(callback)
-
-    def remove_rating_change_callback(self, callback):
-        if callback in self._rating_change_callbacks:
-            self._rating_change_callbacks.remove(callback)
-
-    def _on_rating_changed(self, strategy_id, new_rating):
-        for callback in self._rating_change_callbacks:
-            try:
-                callback(strategy_id, new_rating)
-            except Exception as e:
-                log(f"Ошибка в callback рейтинга: {e}", "ERROR")
-
-    def show_preview(
-        self,
-        widget,
-        strategy_id,
-        strategy_data,
-        target_key=None,
-        rating_getter=None,
-        rating_toggler=None,
-    ):
-        try:
-            if self.preview_dialog is not None:
-                try:
-                    self.preview_dialog.close_dialog()
-                except RuntimeError:
-                    pass
-                self.preview_dialog = None
-        except RuntimeError:
-            self.preview_dialog = None
-
-        self.preview_dialog = ArgsPreviewDialog(widget)
-        self.preview_dialog.closed.connect(self._on_preview_closed)
-        self.preview_dialog.rating_changed.connect(self._on_rating_changed)
-        self.preview_dialog.set_strategy_data(
-            strategy_data,
-            strategy_id,
-            source_widget=widget,
-            target_key=target_key,
-            rating_getter=rating_getter,
-            rating_toggler=rating_toggler,
-        )
-        # Open at current cursor position (called from right-click handler)
-        self.preview_dialog.show_animated()
-
-    def _on_preview_closed(self):
-        if self.preview_dialog is not None:
-            try:
-                self.preview_dialog.deleteLater()
-            except RuntimeError:
-                pass
-            self.preview_dialog = None
-
-    def cleanup(self):
-        if self.preview_dialog is not None:
-            try:
-                self.preview_dialog.close_dialog()
-                self.preview_dialog.deleteLater()
-            except RuntimeError:
-                pass
-            self.preview_dialog = None
-
-
-preview_manager = StrategyPreviewManager()

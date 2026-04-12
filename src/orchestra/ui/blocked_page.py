@@ -497,10 +497,7 @@ class OrchestraBlockedPage(BasePage):
 
     def _get_runner(self):
         """Получает orchestra_runner из главного окна"""
-        app = self.window()
-        if hasattr(app, 'orchestra_runner') and app.orchestra_runner:
-            return app.orchestra_runner
-        return None
+        return getattr(self, "orchestra_runner", None)
 
     def _refresh_data(self):
         """Обновляет все данные на странице"""

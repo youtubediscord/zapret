@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from app_notifications import advisory_notification
 from log import is_verbose_logging_enabled, log
 from main.runtime_state import is_cpu_diagnostic_enabled
+from ui.window_adapter import ensure_window_adapter
 
 if TYPE_CHECKING:
     from main import LupiDPIApp
@@ -323,8 +324,9 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             box.cancelButton.setText("Позже")
             if not box.exec():
                 return
-            window.show_page(StartupPageName.SERVERS)
-            page = window.pages.get(StartupPageName.SERVERS)
+            adapter = ensure_window_adapter(window)
+            adapter.show_page(StartupPageName.SERVERS)
+            page = adapter.pages.get(StartupPageName.SERVERS)
             if page is not None:
                 page.present_startup_update(
                     version,

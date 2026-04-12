@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from log import log
 
-from ui.main_window_navigation import (
-    open_zapret1_strategy_detail,
-    open_zapret2_strategy_detail,
-)
-from ui.main_window_page_dispatch import dispatch_detail_page_result
+from ui.page_method_dispatch import dispatch_detail_page_result
+from ui.page_contracts import PageMethodName
+from ui.navigation_targets import resolve_strategy_detail_back_page_for_method
 from ui.page_names import PageName
-from ui.router import resolve_strategy_detail_back_page_for_method
+from ui.ui_workflows import ensure_ui_workflows
+from ui.window_adapter import ensure_window_adapter
 
 
 def open_strategy_detail_with_logging(
@@ -30,23 +29,23 @@ def on_open_target_detail(window, target_key: str, current_strategy_id: str) -> 
     open_strategy_detail_with_logging(
         window,
         target_key,
-        opener=open_zapret2_strategy_detail,
+        opener=lambda w, key: ensure_ui_workflows(w).open_zapret2_strategy_detail(key),
         error_prefix="Error opening target detail",
     )
 
 
 def on_strategy_detail_back(window) -> None:
-    from strategy_menu import get_strategy_launch_method
+    from settings.dpi.strategy_settings import get_strategy_launch_method
 
     method = get_strategy_launch_method()
-    window.show_page(resolve_strategy_detail_back_page_for_method(method))
+    ensure_window_adapter(window).show_page(resolve_strategy_detail_back_page_for_method(method))
 
 
 def on_strategy_detail_selected(window, target_key: str, strategy_id: str) -> bool:
     return dispatch_detail_page_result(
         window,
         PageName.ZAPRET2_DIRECT,
-        "apply_strategy_selection",
+        PageMethodName.APPLY_STRATEGY_SELECTION,
         target_key,
         strategy_id,
         log_message=f"Strategy selected from detail: {target_key} = {strategy_id}",
@@ -57,7 +56,7 @@ def on_strategy_detail_filter_mode_changed(window, target_key: str, filter_mode:
     return dispatch_detail_page_result(
         window,
         PageName.ZAPRET2_DIRECT,
-        "apply_filter_mode_change",
+        PageMethodName.APPLY_FILTER_MODE_CHANGE,
         target_key,
         filter_mode,
     )
@@ -68,7 +67,7 @@ def open_zapret1_target_detail(window, target_key: str, target_info: dict) -> No
     open_strategy_detail_with_logging(
         window,
         target_key,
-        opener=open_zapret1_strategy_detail,
+        opener=lambda w, key: ensure_ui_workflows(w).open_zapret1_strategy_detail(key),
         error_prefix="Error opening V1 target detail",
     )
 
@@ -79,7 +78,7 @@ def on_z1_strategy_detail_selected(window, target_key: str, strategy_id: str) ->
     return dispatch_detail_page_result(
         window,
         PageName.ZAPRET1_DIRECT,
-        "refresh_strategy_list_state",
+        PageMethodName.REFRESH_STRATEGY_LIST_STATE,
         log_message=f"V1 strategy detail selected: {target_key} = {strategy_id}",
         delay_ms=100,
     )

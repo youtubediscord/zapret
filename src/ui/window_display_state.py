@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from log import log
-from ui.page_names import PageName
 
 
 def get_direct_strategy_summary(window, max_items: int = 2) -> str:
     try:
-        from strategy_menu import get_strategy_launch_method
+        from settings.dpi.strategy_settings import get_strategy_launch_method
         from core.presets.direct_facade import DirectPresetFacade
 
         method = (get_strategy_launch_method() or "").strip().lower()
@@ -61,16 +60,6 @@ def update_subscription_display(window, is_premium: bool, days: int = None) -> N
     store = getattr(window, "ui_state_store", None)
     if store is not None:
         store.set_subscription(is_premium, days)
-
-
-def set_status_text(window, text: str, status: str = "neutral") -> None:
-    store = getattr(window, "ui_state_store", None)
-    if store is not None:
-        store.set_status_message(text, status)
-
-
-def open_subscription_dialog(window) -> None:
-    window.show_page(PageName.PREMIUM)
 
 
 def on_autostart_enabled(window) -> None:
