@@ -50,8 +50,8 @@ class DpiRuntimeService:
             ),
             canonical_readers=(
                 "main.LupiDPIApp._apply_runner_failure_update",
-                "ui.pages.zapret1.direct_control_page.Zapret1DirectControlPage._get_current_dpi_runtime_state",
-                "ui.pages.zapret2.direct_control_page.Zapret2DirectControlPage._apply_runtime_state_snapshot",
+                "dpi.ui.direct_zapret1.page.Zapret1DirectControlPage._get_current_dpi_runtime_state",
+                "dpi.ui.direct_zapret2.page.Zapret2DirectControlPage._apply_runtime_state_snapshot",
             ),
             allowed_auxiliary_writers=(
                 "managers.initialization_manager.InitializationManager._init_process_monitor -> bootstrap_probe",

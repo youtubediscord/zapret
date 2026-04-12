@@ -6,12 +6,12 @@ from importlib import import_module
 
 
 _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
-    "OrchestraPage": (".orchestra_page", "OrchestraPage"),
-    "OrchestraSettingsPage": (".orchestra_settings_page", "OrchestraSettingsPage"),
-    "OrchestraLockedPage": (".locked_page", "OrchestraLockedPage"),
-    "OrchestraBlockedPage": (".blocked_page", "OrchestraBlockedPage"),
-    "OrchestraWhitelistPage": (".whitelist_page", "OrchestraWhitelistPage"),
-    "OrchestraRatingsPage": (".ratings_page", "OrchestraRatingsPage"),
+    "OrchestraPage": ("orchestra.ui.page", "OrchestraPage"),
+    "OrchestraSettingsPage": ("orchestra.ui.settings_page", "OrchestraSettingsPage"),
+    "OrchestraLockedPage": ("orchestra.ui.locked_page", "OrchestraLockedPage"),
+    "OrchestraBlockedPage": ("orchestra.ui.blocked_page", "OrchestraBlockedPage"),
+    "OrchestraWhitelistPage": ("orchestra.ui.whitelist_page", "OrchestraWhitelistPage"),
+    "OrchestraRatingsPage": ("orchestra.ui.ratings_page", "OrchestraRatingsPage"),
 }
 
 __all__ = list(_PAGE_EXPORTS)

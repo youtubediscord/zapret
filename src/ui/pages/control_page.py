@@ -70,10 +70,6 @@ class BigActionButton(PrimaryActionButton):
     def __init__(self, text: str, icon_name: str = None, accent: bool = True, parent=None):
         super().__init__(text, icon_name, parent)
 
-    def _update_style(self):
-        """No-op: qfluentwidgets handles styling."""
-        pass
-
 
 class StopButton(ActionButton):
     """Кнопка остановки (нейтральная, не акцентная)"""
@@ -425,7 +421,6 @@ class ControlPage(BasePage):
         self.stop_and_exit_btn.setEnabled(not loading)
         
         # Visual disabled state is handled globally in ui/theme.py.
-        self.start_btn._update_style()
         self.stop_winws_btn._update_style()
         self.stop_and_exit_btn._update_style()
 

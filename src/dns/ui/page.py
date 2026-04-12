@@ -45,6 +45,7 @@ from dns.network_page_controller import NetworkPageController
 from dns.ui.adapters import build_adapter_cards, refresh_adapter_cards
 from dns.ui.cards import DNSProviderCard, AdapterCard
 from dns.ui.dns_build import build_auto_dns_ui, build_custom_dns_ui
+from dns.ui.page_build import build_network_page_shell
 from dns.ui.providers_build import build_provider_cards
 from dns.ui.tools_build import build_tools_card_ui
 from dns.ui.force_dns_ui import (
@@ -54,11 +55,26 @@ from dns.ui.force_dns_ui import (
     update_force_dns_status_label,
 )
 from dns.ui.force_dns_build import build_force_dns_card_ui
+from dns.ui.page_force_dns_workflow import (
+    apply_force_dns_status_state,
+    flush_dns_cache_action,
+    handle_force_dns_toggled_action,
+    reset_dns_to_dhcp_action,
+)
 from dns.ui.isp_warning import (
     build_isp_warning_ui,
     hide_isp_warning_widget,
     insert_isp_warning_widget,
     render_isp_warning_styles,
+)
+from dns.ui.page_diagnostics_warning_workflow import (
+    accept_isp_dns_recommendation,
+    apply_connectivity_test_result,
+    cleanup_network_page,
+    dismiss_isp_dns_warning,
+    render_isp_warning_theme,
+    show_isp_dns_warning,
+    start_connectivity_test,
 )
 from dns.ui.load_workflow import (
     apply_loaded_page_state,
@@ -66,6 +82,11 @@ from dns.ui.load_workflow import (
     handle_loaded_dns_info,
     run_network_runtime_init,
     start_background_loading,
+)
+from dns.ui.page_runtime_helpers import (
+    build_dynamic_network_ui,
+    clear_dns_selection_ui,
+    sync_selected_dns_card_ui,
 )
 from dns.ui.selection import (
     apply_dns_selection_plan_ui,
@@ -75,6 +96,11 @@ from dns.ui.selection import (
     select_provider_dns_ui,
     set_dns_card_selected,
 )
+
+try:
+    import qtawesome as qta
+except ImportError:
+    qta = None  # type: ignore[assignment]
 
 class NetworkPage(BasePage):
     """Страница сетевых настроек с интегрированным DNS"""
@@ -274,8 +300,6 @@ class NetworkPage(BasePage):
         
     def _build_ui(self):
         """Строит интерфейс страницы"""
-        tokens = get_theme_tokens()
-        
         # ═══════════════════════════════════════════════════════════════
         # ПРИНУДИТЕЛЬНЫЙ DNS
         # ═══════════════════════════════════════════════════════════════
@@ -287,104 +311,70 @@ class NetworkPage(BasePage):
         # DNS СЕРВЕРЫ
         # ═══════════════════════════════════════════════════════════════
         self.add_section_title(text_key="page.network.section.dns_servers")
-        
-        # Индикатор загрузки
-        self.loading_card = SettingsCard()
-        loading_layout = QVBoxLayout()
-        loading_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        if _HAS_FLUENT_LABELS:
-            self.loading_label = BodyLabel(self._tr("page.network.loading", "⏳ Загрузка..."))
-        else:
-            self.loading_label = QLabel(self._tr("page.network.loading", "⏳ Загрузка..."))
-        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        loading_layout.addWidget(self.loading_label)
-        
-        self.loading_bar = IndeterminateProgressBar(self)
-        self.loading_bar.setFixedHeight(4)
-        self.loading_bar.setMaximumWidth(150)
-        if _HAS_FLUENT_LABELS:
-            self.loading_bar.start()
-        else:
-            self.loading_bar.setRange(0, 0)
-            self.loading_bar.setTextVisible(False)
-        loading_layout.addWidget(self.loading_bar, alignment=Qt.AlignmentFlag.AlignCenter)
-        
-        self.loading_card.add_layout(loading_layout)
-        self.add_widget(self.loading_card)
-        
-        # Контейнер для DNS карточек
-        self.dns_cards_container = QWidget()
-        self.dns_cards_layout = QVBoxLayout(self.dns_cards_container)
-        self.dns_cards_layout.setContentsMargins(0, 0, 0, 0)
-        self.dns_cards_layout.setSpacing(4)
-        self.dns_cards_container.hide()
-        self.add_widget(self.dns_cards_container)
-        
-        self.add_spacing(6)
-        
-        # Пользовательский DNS
-        custom_widgets = build_custom_dns_ui(
-            tr_fn=self._tr,
-            has_fluent_labels=_HAS_FLUENT_LABELS,
-            settings_card_cls=SettingsCard,
-            qhbox_layout_cls=QHBoxLayout,
-            qframe_cls=QFrame,
-            body_label_cls=BodyLabel if _HAS_FLUENT_LABELS else QLabel,
-            qlabel_cls=QLabel,
-            line_edit_cls=LineEdit,
-            action_button_cls=ActionButton,
-            on_apply=self._apply_custom_dns_quick,
-            indicator_off_qss=DNSProviderCard.indicator_off(),
-        )
-        self.custom_card = custom_widgets.card
-        self.custom_indicator = custom_widgets.indicator
-        self.custom_label = custom_widgets.title_label
-        self.custom_primary = custom_widgets.primary_input
-        self.custom_secondary = custom_widgets.secondary_input
-        self.custom_apply_btn = custom_widgets.apply_button
-        self.add_widget(self.custom_card)
-        
-        self.add_spacing(12)
-        
-        # ═══════════════════════════════════════════════════════════════
-        # СЕТЕВЫЕ АДАПТЕРЫ
-        # ═══════════════════════════════════════════════════════════════
-        self.add_section_title(text_key="page.network.section.adapters")
-        
-        # Контейнер для адаптеров
-        self.adapters_container = QWidget()
-        self.adapters_layout = QVBoxLayout(self.adapters_container)
-        self.adapters_layout.setContentsMargins(0, 0, 0, 0)
-        self.adapters_layout.setSpacing(4)
-        self.adapters_container.hide()
-        self.add_widget(self.adapters_container)
-        
-        self.add_spacing(12)
-        
-        # ═══════════════════════════════════════════════════════════════
-        # ДИАГНОСТИКА
-        # ═══════════════════════════════════════════════════════════════
-        tools_widgets = build_tools_card_ui(
+
+        shell = build_network_page_shell(
+            parent=self,
             content_parent=self.content,
             tr_fn=self._tr,
             add_section_title_fn=self.add_section_title,
             has_fluent_labels=_HAS_FLUENT_LABELS,
-            setting_card_group_cls=SettingCardGroup,
+            body_label_cls=BodyLabel if _HAS_FLUENT_LABELS else QLabel,
+            qlabel_cls=QLabel,
             settings_card_cls=SettingsCard,
-            quick_actions_bar_cls=QuickActionsBar,
-            action_button_cls=ActionButton,
+            qvbox_layout_cls=QVBoxLayout,
             qhbox_layout_cls=QHBoxLayout,
+            qframe_cls=QFrame,
+            line_edit_cls=LineEdit,
+            action_button_cls=ActionButton,
+            indeterminate_progress_bar_cls=IndeterminateProgressBar,
+            setting_card_group_cls=SettingCardGroup,
+            quick_actions_bar_cls=QuickActionsBar,
             insert_widget_into_setting_card_group_fn=insert_widget_into_setting_card_group,
-            on_test=self._test_connection,
-            on_flush_dns=self._confirm_flush_dns_cache,
+            build_custom_dns_ui_fn=build_custom_dns_ui,
+            build_tools_card_ui_fn=build_tools_card_ui,
+            on_apply_custom_dns=self._apply_custom_dns_quick,
+            on_test_connection=self._test_connection,
+            on_flush_dns_cache=self._confirm_flush_dns_cache,
             set_tooltip_fn=set_tooltip,
+            dns_provider_card_cls=DNSProviderCard,
         )
-        self._tools_section_label = tools_widgets.section_label
-        self._tools_card = tools_widgets.card
-        self._tools_actions_bar = tools_widgets.actions_bar
-        self.test_btn = tools_widgets.test_button
-        self.dns_flush_btn = tools_widgets.flush_button
+        self.loading_card = shell.loading_card
+        self.loading_label = shell.loading_label
+        self.loading_bar = shell.loading_bar
+        self.dns_cards_container = shell.dns_cards_container
+        self.dns_cards_layout = shell.dns_cards_layout
+        self.custom_card = shell.custom_card
+        self.custom_indicator = shell.custom_indicator
+        self.custom_label = shell.custom_label
+        self.custom_primary = shell.custom_primary
+        self.custom_secondary = shell.custom_secondary
+        self.custom_apply_btn = shell.custom_apply_btn
+        self.adapters_container = shell.adapters_container
+        self.adapters_layout = shell.adapters_layout
+        self._tools_section_label = shell.tools_section_label
+        self._tools_card = shell.tools_card
+        self._tools_actions_bar = shell.tools_actions_bar
+        self.test_btn = shell.test_btn
+        self.dns_flush_btn = shell.dns_flush_btn
+
+        self.add_widget(self.loading_card)
+        self.add_widget(self.dns_cards_container)
+        self.add_spacing(6)
+        self.add_widget(self.custom_card)
+
+        self.add_spacing(12)
+
+        # ═══════════════════════════════════════════════════════════════
+        # СЕТЕВЫЕ АДАПТЕРЫ
+        # ═══════════════════════════════════════════════════════════════
+        self.add_section_title(text_key="page.network.section.adapters")
+        self.add_widget(self.adapters_container)
+
+        self.add_spacing(12)
+
+        # ═══════════════════════════════════════════════════════════════
+        # ДИАГНОСТИКА
+        # ═══════════════════════════════════════════════════════════════
         self.add_widget(self._tools_card)
         
         # Подключаем сигналы
@@ -441,85 +431,65 @@ class NetworkPage(BasePage):
     
     def _build_dynamic_ui(self):
         """Строит UI после загрузки данных"""
-        if self._cleanup_in_progress:
-            return
-        if self._ui_built:
-            return
-        self._ui_built = True
-        tokens = get_theme_tokens()
-        
         from dns.dns_core import _normalize_alias
-        
-        self._is_loading = False
-        self.loading_card.hide()
-        self.dns_cards_container.show()
-        self.custom_card.show()
-        self.adapters_container.show()
-        
-        # Добавляем "Автоматически (DHCP)"
-        auto_widgets = build_auto_dns_ui(
+        result = build_dynamic_network_ui(
+            cleanup_in_progress=self._cleanup_in_progress,
+            ui_built=self._ui_built,
             tr_fn=self._tr,
             has_fluent_labels=_HAS_FLUENT_LABELS,
             settings_card_cls=SettingsCard,
             qhbox_layout_cls=QHBoxLayout,
             qframe_cls=QFrame,
             strong_body_label_cls=StrongBodyLabel if _HAS_FLUENT_LABELS else QLabel,
+            caption_label_cls=CaptionLabel if _HAS_FLUENT_LABELS else QLabel,
             qlabel_cls=QLabel,
+            dns_provider_card_cls=DNSProviderCard,
+            adapter_card_cls=AdapterCard,
             qta_module=qta,
-            icon_color=tokens.fg_faint,
-            indicator_off_qss=DNSProviderCard.indicator_off(),
-            on_select={
-                "cursor": Qt.CursorShape.PointingHandCursor,
-                "handler": lambda e: self._select_auto_dns(),
-            },
+            get_theme_tokens_fn=get_theme_tokens,
+            build_auto_dns_ui_fn=build_auto_dns_ui,
+            build_provider_cards_fn=build_provider_cards,
+            build_adapter_cards_fn=build_adapter_cards,
+            providers=DNS_PROVIDERS,
+            adapters=self._adapters,
+            dns_info=self._dns_info,
+            dns_cards_layout=self.dns_cards_layout,
+            adapters_layout=self.adapters_layout,
+            on_auto_selected=self._select_auto_dns,
+            on_provider_selected=self._on_dns_selected,
+            on_adapter_state_changed=self._sync_selected_dns_card,
+            normalize_alias_fn=_normalize_alias,
+            ipv6_available=self._ipv6_available,
+            dns_cards_container=self.dns_cards_container,
+            custom_card=self.custom_card,
+            adapters_container=self.adapters_container,
+            sync_selected_dns_card_fn=self._sync_selected_dns_card,
+            check_and_show_isp_dns_warning_fn=self._check_and_show_isp_dns_warning,
+            apply_inline_theme_styles_fn=self._apply_inline_theme_styles,
         )
+        if result is None:
+            return
+        self._ui_built = True
+        self._is_loading = False
+        self.loading_card.hide()
+        auto_widgets = result["auto_widgets"]
         self.auto_card = auto_widgets.card
         self.auto_indicator = auto_widgets.indicator
         self._auto_icon_label = auto_widgets.icon_label
         self.auto_label = auto_widgets.title_label
-        self.dns_cards_layout.addWidget(self.auto_card)
-        
-        # Добавляем провайдеров
-        provider_cards = build_provider_cards(
-            providers_by_category=DNS_PROVIDERS,
-            has_fluent_labels=_HAS_FLUENT_LABELS,
-            caption_label_cls=CaptionLabel if _HAS_FLUENT_LABELS else QLabel,
-            qlabel_cls=QLabel,
-            dns_provider_card_cls=DNSProviderCard,
-            dns_cards_layout=self.dns_cards_layout,
-            show_ipv6=self._ipv6_available,
-            on_selected=self._on_dns_selected,
-        )
+        provider_cards = result["provider_cards"]
         self.dns_cards.update(provider_cards.dns_cards)
         self._dns_category_labels.extend(provider_cards.category_labels)
-        
-        # Адаптеры
-        self.adapter_cards = build_adapter_cards(
-            adapters=self._adapters,
-            dns_info=self._dns_info,
-            adapter_card_cls=AdapterCard,
-            adapters_layout=self.adapters_layout,
-            normalize_alias_fn=_normalize_alias,
-            on_state_changed=self._sync_selected_dns_card,
-        )
-
-        self._sync_selected_dns_card()
-
-        # Проверяем ISP DNS и показываем предупреждение
-        self._check_and_show_isp_dns_warning()
-        self._apply_inline_theme_styles(tokens)
+        self.adapter_cards = result["adapter_cards"]
 
     def _sync_selected_dns_card(self, *_):
-        if not self.adapter_cards:
-            return
-
-        selection_plan = NetworkPageController.build_dns_selection_plan(
-            selected_adapters=self._get_selected_adapters(),
+        self._selected_provider = sync_selected_dns_card_ui(
+            adapter_cards=self.adapter_cards,
             dns_info=self._dns_info,
             providers=DNS_PROVIDERS,
-        )
-        self._selected_provider = apply_dns_selection_plan_ui(
-            selection_plan=selection_plan,
+            build_dns_selection_plan_fn=NetworkPageController.build_dns_selection_plan,
+            get_selected_adapters_fn=self._get_selected_adapters,
+            apply_dns_selection_plan_ui_fn=apply_dns_selection_plan_ui,
             dns_cards=self.dns_cards,
             auto_indicator=getattr(self, 'auto_indicator', None),
             auto_card=getattr(self, 'auto_card', None),
@@ -534,13 +504,14 @@ class NetworkPage(BasePage):
     
     def _clear_selection(self):
         """Сбрасывает все выделения"""
-        clear_dns_selection(
+        clear_dns_selection_ui(
             dns_cards=self.dns_cards,
             auto_indicator=getattr(self, 'auto_indicator', None),
             auto_card=getattr(self, 'auto_card', None),
             custom_indicator=getattr(self, 'custom_indicator', None),
             custom_card=getattr(self, 'custom_card', None),
             indicator_off_qss=DNSProviderCard.indicator_off(),
+            clear_dns_selection_fn=clear_dns_selection,
             set_card_selected_fn=self._set_dns_card_selected,
         )
 
@@ -828,50 +799,20 @@ class NetworkPage(BasePage):
 
     def _on_force_dns_toggled(self, enabled: bool):
         """Обработчик переключения принудительного DNS"""
-        try:
-            current_state = NetworkPageController.get_force_dns_status()
-            if enabled == current_state:
-                self._update_force_dns_status(enabled)
-                self._update_dns_selection_state()
-                return
-            
-            if enabled:
-                success, ok_count, total, message = NetworkPageController.enable_force_dns(include_disconnected=False)
-                log(message, "DNS")
-                plan = NetworkPageController.build_force_dns_toggle_plan(
-                    requested_enabled=True,
-                    success=success,
-                    ok_count=ok_count,
-                    total=total,
-                )
-            else:
-                success, message = NetworkPageController.disable_force_dns(reset_to_auto=False)
-                log(message, "DNS")
-                plan = NetworkPageController.build_force_dns_toggle_plan(
-                    requested_enabled=False,
-                    success=success,
-                )
-            
-            self._force_dns_active = plan.force_dns_active
-            self._set_force_dns_toggle(plan.final_checked)
-            self._update_force_dns_status(
-                plan.force_dns_active,
-                plan.details_key,
-                details_kwargs=plan.details_kwargs,
-                details_fallback=plan.details_fallback,
-            )
-            self._update_dns_selection_state()
-            self._refresh_adapters_dns()
-                    
-        except Exception as e:
-            log(f"Ошибка переключения Force DNS: {e}", "ERROR")
-            plan = NetworkPageController.build_force_dns_toggle_error_plan(requested_enabled=enabled)
-            self._force_dns_active = plan.force_dns_active
-            self._set_force_dns_toggle(plan.final_checked)
-            self._update_force_dns_status(
-                plan.force_dns_active,
-                plan.details_key,
-            )
+        handle_force_dns_toggled_action(
+            enabled=enabled,
+            get_force_dns_status_fn=NetworkPageController.get_force_dns_status,
+            enable_force_dns_fn=NetworkPageController.enable_force_dns,
+            disable_force_dns_fn=NetworkPageController.disable_force_dns,
+            build_toggle_plan_fn=NetworkPageController.build_force_dns_toggle_plan,
+            build_toggle_error_plan_fn=NetworkPageController.build_force_dns_toggle_error_plan,
+            set_force_dns_active_fn=lambda value: setattr(self, "_force_dns_active", value),
+            set_force_dns_toggle_fn=self._set_force_dns_toggle,
+            update_force_dns_status_fn=self._update_force_dns_status,
+            update_dns_selection_state_fn=self._update_dns_selection_state,
+            refresh_adapters_dns_fn=self._refresh_adapters_dns,
+            log_fn=log,
+        )
     
     def _set_force_dns_toggle(self, checked: bool):
         """Устанавливает состояние переключателя без триггера сигналов"""
@@ -886,21 +827,22 @@ class NetworkPage(BasePage):
         details_fallback: str = "",
     ):
         """Обновляет текст статуса для принудительного DNS"""
-        if not hasattr(self, "force_dns_status_label"):
-            return
-
-        self._force_dns_status_enabled = bool(enabled)
-        self._force_dns_status_details_key = details_key
-        self._force_dns_status_details_kwargs = dict(details_kwargs or {})
-        self._force_dns_status_details_fallback = details_fallback or ""
-        update_force_dns_status_label(
-            label=self.force_dns_status_label,
+        apply_force_dns_status_state(
+            has_status_label=hasattr(self, "force_dns_status_label"),
             enabled=enabled,
             details_key=details_key,
             details_kwargs=details_kwargs,
             details_fallback=details_fallback,
-            language=self._ui_language,
-            build_status_plan_fn=NetworkPageController.build_force_dns_status_plan,
+            set_enabled_state_fn=lambda value: setattr(self, "_force_dns_status_enabled", value),
+            set_details_key_fn=lambda value: setattr(self, "_force_dns_status_details_key", value),
+            set_details_kwargs_fn=lambda value: setattr(self, "_force_dns_status_details_kwargs", value),
+            set_details_fallback_fn=lambda value: setattr(self, "_force_dns_status_details_fallback", value),
+            update_force_dns_status_label_fn=lambda **kwargs: update_force_dns_status_label(
+                label=self.force_dns_status_label,
+                language=self._ui_language,
+                build_status_plan_fn=NetworkPageController.build_force_dns_status_plan,
+                **kwargs,
+            ),
         )
     
     def _update_dns_selection_state(self):
@@ -921,18 +863,13 @@ class NetworkPage(BasePage):
     
     def _flush_dns_cache(self):
         """Сбрасывает DNS кэш"""
-        success, message = NetworkPageController.flush_dns_cache()
-        plan = NetworkPageController.build_flush_dns_cache_result_plan(
-            success=success,
-            message=message,
+        flush_dns_cache_action(
+            flush_dns_cache_fn=NetworkPageController.flush_dns_cache,
+            build_result_plan_fn=NetworkPageController.build_flush_dns_cache_result_plan,
             language=self._ui_language,
+            info_bar_cls=InfoBar,
+            parent_window=self.window(),
         )
-        if plan.infobar_level == "warning" and InfoBar:
-            InfoBar.warning(
-                title=plan.title,
-                content=plan.content,
-                parent=self.window(),
-            )
 
     def _confirm_flush_dns_cache(self):
         if not self._confirm_action(
@@ -946,66 +883,31 @@ class NetworkPage(BasePage):
 
     def _reset_dns_to_dhcp(self):
         """Явно сбрасывает DNS на DHCP и отключает Force DNS"""
-        try:
-            success, message = NetworkPageController.disable_force_dns(reset_to_auto=True)
-            log(message, "DNS")
-
-            result_plan = NetworkPageController.build_reset_dhcp_result_plan(
-                success=success,
-                message=message,
-                force_dns_active=NetworkPageController.get_force_dns_status(),
-                language=self._ui_language,
-            )
-
-            self._force_dns_active = result_plan.force_dns_active
-            self._set_force_dns_toggle(self._force_dns_active)
-
-            if result_plan.should_select_auto:
-                select_auto_dns_ui(
-                    dns_cards=self.dns_cards,
-                    auto_indicator=getattr(self, 'auto_indicator', None),
-                    auto_card=getattr(self, 'auto_card', None),
-                    custom_indicator=getattr(self, 'custom_indicator', None),
-                    custom_card=getattr(self, 'custom_card', None),
-                    indicator_on_qss=DNSProviderCard.indicator_on(),
-                    indicator_off_qss=DNSProviderCard.indicator_off(),
-                    set_card_selected_fn=self._set_dns_card_selected,
-                )
-                self._selected_provider = None
-
-            self._update_force_dns_status(
-                result_plan.force_dns_active,
-                result_plan.status_details_key,
-            )
-
-            self._update_dns_selection_state()
-            self._refresh_adapters_dns()
-
-            if InfoBar:
-                if result_plan.infobar_level == "success":
-                    InfoBar.success(
-                        title=result_plan.infobar_title,
-                        content=result_plan.infobar_content,
-                        parent=self.window(),
-                    )
-                else:
-                    InfoBar.warning(
-                        title=result_plan.infobar_title,
-                        content=result_plan.infobar_content,
-                        parent=self.window(),
-                    )
-
-        except Exception as e:
-            log(f"Ошибка сброса DNS на DHCP: {e}", "ERROR")
-            if InfoBar:
-                InfoBar.warning(
-                    title=self._tr("page.network.error.title", "Ошибка"),
-                    content=self._tr(
-                        "page.network.error.reset_dhcp_failed",
-                        "Не удалось сбросить DNS: {error}",
-                    ).format(error=e),
-                    parent=self.window(),
-                )
+        reset_dns_to_dhcp_action(
+            disable_force_dns_fn=NetworkPageController.disable_force_dns,
+            get_force_dns_status_fn=NetworkPageController.get_force_dns_status,
+            build_result_plan_fn=NetworkPageController.build_reset_dhcp_result_plan,
+            language=self._ui_language,
+            set_force_dns_active_fn=lambda value: setattr(self, "_force_dns_active", value),
+            set_force_dns_toggle_fn=self._set_force_dns_toggle,
+            select_auto_dns_ui_fn=select_auto_dns_ui,
+            dns_cards=self.dns_cards,
+            auto_indicator=getattr(self, 'auto_indicator', None),
+            auto_card=getattr(self, 'auto_card', None),
+            custom_indicator=getattr(self, 'custom_indicator', None),
+            custom_card=getattr(self, 'custom_card', None),
+            indicator_on_qss=DNSProviderCard.indicator_on(),
+            indicator_off_qss=DNSProviderCard.indicator_off(),
+            set_card_selected_fn=self._set_dns_card_selected,
+            set_selected_provider_fn=lambda value: setattr(self, "_selected_provider", value),
+            update_force_dns_status_fn=self._update_force_dns_status,
+            update_dns_selection_state_fn=self._update_dns_selection_state,
+            refresh_adapters_dns_fn=self._refresh_adapters_dns,
+            info_bar_cls=InfoBar,
+            parent_window=self.window(),
+            tr_fn=self._tr,
+            log_fn=log,
+        )
 
     def _confirm_reset_dns_to_dhcp(self):
         if not self._confirm_action(
@@ -1019,50 +921,29 @@ class NetworkPage(BasePage):
 
     def _test_connection(self):
         """Тестирует соединение с интернетом"""
-        if self._cleanup_in_progress:
-            return
-        self._test_in_progress = True
-        self._update_test_action_text()
-
-        # Подключаем сигнал (однократно)
-        try:
-            self.test_completed.disconnect()
-        except TypeError:
-            pass
-        self.test_completed.connect(self._on_test_complete)
-        test_plan = NetworkPageController.build_connectivity_test_plan(language=self._ui_language)
-
-        def thread_func():
-            results = NetworkPageController.run_connectivity_test(test_plan.test_hosts)
-            if self._cleanup_in_progress:
-                return
-            self.test_completed.emit(results)
-
-        import threading
-
-        thread = threading.Thread(target=thread_func, daemon=True)
-        thread.start()
+        start_connectivity_test(
+            cleanup_in_progress=self._cleanup_in_progress,
+            set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),
+            update_test_action_text_fn=self._update_test_action_text,
+            test_completed_signal=self.test_completed,
+            on_test_complete_fn=self._on_test_complete,
+            build_connectivity_test_plan_fn=NetworkPageController.build_connectivity_test_plan,
+            run_connectivity_test_fn=NetworkPageController.run_connectivity_test,
+            language=self._ui_language,
+        )
 
     def _on_test_complete(self, results: list):
         """Вызывается из главного потока после завершения теста"""
-        if self._cleanup_in_progress:
-            return
-        self._test_in_progress = False
-        self._update_test_action_text()
-        plan = NetworkPageController.build_connectivity_test_result_plan(results, language=self._ui_language)
-        if InfoBar:
-            if plan.infobar_level == "success":
-                InfoBar.success(
-                    title=plan.title,
-                    content=plan.content,
-                    parent=self.window(),
-                )
-            else:
-                InfoBar.warning(
-                    title=plan.title,
-                    content=plan.content,
-                    parent=self.window(),
-                )
+        apply_connectivity_test_result(
+            cleanup_in_progress=self._cleanup_in_progress,
+            results=results,
+            set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),
+            update_test_action_text_fn=self._update_test_action_text,
+            build_result_plan_fn=NetworkPageController.build_connectivity_test_result_plan,
+            language=self._ui_language,
+            info_bar_cls=InfoBar,
+            parent_window=self.window(),
+        )
 
     # ═══════════════════════════════════════════════════════════════
     # ISP DNS предупреждение
@@ -1075,56 +956,45 @@ class NetworkPage(BasePage):
         отрисован — в реестр пишется ISPDNSInfoShown=1 и повторно он
         больше никогда не появится.
         """
-        if self._cleanup_in_progress:
-            return
-        try:
-            plan = NetworkPageController.build_isp_dns_warning_plan(
-                self._adapters,
-                self._dns_info,
-                force_dns_active=self._force_dns_active,
-                language=self._ui_language,
-            )
-            if not plan.should_show:
-                return
-
-            tokens = get_theme_tokens()
-            warning_widgets = build_isp_warning_ui(
-                parent=self,
-                plan=plan,
-                qframe_cls=QFrame,
-                qvbox_layout_cls=QVBoxLayout,
-                qhbox_layout_cls=QHBoxLayout,
-                qlabel_cls=QLabel,
-                qpush_button_cls=QPushButton,
-                qt_namespace=Qt,
-                on_accept=self._accept_isp_dns_recommendation,
-                on_dismiss=self._dismiss_isp_dns_warning,
-            )
-            self._isp_warning = warning_widgets.frame
-            self._isp_warning_title = warning_widgets.title
-            self._isp_warning_content = warning_widgets.content
-            self._isp_warning_icon = warning_widgets.icon
-            self._isp_warning_accept_btn = warning_widgets.accept_button
-            self._isp_warning_dismiss_btn = warning_widgets.dismiss_button
-
-            NetworkPageController.mark_isp_dns_warning_shown()
-
-            # Вставляем баннер перед секцией DNS-серверов (после Force DNS)
-            insert_isp_warning_widget(
-                layout=self.vBoxLayout,
-                before_widget=self.dns_cards_container,
-                add_widget_fn=self.add_widget,
-                warning_widget=self._isp_warning,
-            )
-
-            self._render_isp_warning_styles(tokens)
-
-        except Exception as e:
-            log(f"Ошибка показа ISP DNS предупреждения: {e}", "DEBUG")
+        show_isp_dns_warning(
+            cleanup_in_progress=self._cleanup_in_progress,
+            adapters=self._adapters,
+            dns_info=self._dns_info,
+            force_dns_active=self._force_dns_active,
+            language=self._ui_language,
+            build_warning_plan_fn=NetworkPageController.build_isp_dns_warning_plan,
+            get_theme_tokens_fn=get_theme_tokens,
+            build_warning_ui_fn=build_isp_warning_ui,
+            insert_warning_widget_fn=insert_isp_warning_widget,
+            mark_warning_shown_fn=NetworkPageController.mark_isp_dns_warning_shown,
+            render_warning_styles_fn=self._render_isp_warning_styles,
+            parent=self,
+            qframe_cls=QFrame,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qlabel_cls=QLabel,
+            qpush_button_cls=QPushButton,
+            qt_namespace=Qt,
+            add_widget_fn=self.add_widget,
+            before_widget=self.dns_cards_container,
+            on_accept=self._accept_isp_dns_recommendation,
+            on_dismiss=self._dismiss_isp_dns_warning,
+            set_warning_widgets_fn=lambda widgets: (
+                setattr(self, "_isp_warning", widgets.frame),
+                setattr(self, "_isp_warning_title", widgets.title),
+                setattr(self, "_isp_warning_content", widgets.content),
+                setattr(self, "_isp_warning_icon", widgets.icon),
+                setattr(self, "_isp_warning_accept_btn", widgets.accept_button),
+                setattr(self, "_isp_warning_dismiss_btn", widgets.dismiss_button),
+            ),
+            log_fn=log,
+        )
 
     def _render_isp_warning_styles(self, tokens=None) -> None:
-        theme_tokens = tokens or get_theme_tokens()
-        render_isp_warning_styles(
+        render_isp_warning_theme(
+            tokens=tokens,
+            get_theme_tokens_fn=get_theme_tokens,
+            render_warning_styles_fn=render_isp_warning_styles,
             warning=getattr(self, "_isp_warning", None),
             icon_label=self._isp_warning_icon,
             title_label=self._isp_warning_title,
@@ -1132,47 +1002,38 @@ class NetworkPage(BasePage):
             accept_button=self._isp_warning_accept_btn,
             dismiss_button=self._isp_warning_dismiss_btn,
             qta_module=qta,
-            theme_tokens=theme_tokens,
         )
 
     def _accept_isp_dns_recommendation(self):
         """Включает Force DNS по рекомендации из баннера"""
-        if self._cleanup_in_progress:
-            return
-        try:
-            plan = NetworkPageController.build_accept_isp_dns_warning_plan()
-            if plan.hide_warning and hasattr(self, "_isp_warning"):
-                hide_isp_warning_widget(warning_widget=self._isp_warning)
-
-            if plan.enable_force_dns:
-                self._set_force_dns_toggle(True)
-                self._on_force_dns_toggled(True)
-        except Exception as e:
-            log(f"Ошибка применения рекомендуемого DNS: {e}", "ERROR")
+        accept_isp_dns_recommendation(
+            cleanup_in_progress=self._cleanup_in_progress,
+            build_accept_plan_fn=NetworkPageController.build_accept_isp_dns_warning_plan,
+            warning=getattr(self, "_isp_warning", None),
+            hide_warning_widget_fn=hide_isp_warning_widget,
+            set_force_dns_toggle_fn=self._set_force_dns_toggle,
+            on_force_dns_toggled_fn=self._on_force_dns_toggled,
+            log_fn=log,
+        )
 
     def _dismiss_isp_dns_warning(self):
         """Скрывает баннер (реестр уже записан при показе)"""
-        if self._cleanup_in_progress:
-            return
-        plan = NetworkPageController.build_dismiss_isp_dns_warning_plan()
-        if plan.hide_warning and hasattr(self, "_isp_warning"):
-            hide_isp_warning_widget(warning_widget=self._isp_warning)
+        dismiss_isp_dns_warning(
+            cleanup_in_progress=self._cleanup_in_progress,
+            build_dismiss_plan_fn=NetworkPageController.build_dismiss_isp_dns_warning_plan,
+            warning=getattr(self, "_isp_warning", None),
+            hide_warning_widget_fn=hide_isp_warning_widget,
+        )
 
     def cleanup(self) -> None:
-        self._cleanup_in_progress = True
-        self._test_in_progress = False
-
-        for signal_name in ("adapters_loaded", "dns_info_loaded", "test_completed"):
-            signal = getattr(self, signal_name, None)
-            if signal is None:
-                continue
-            try:
-                signal.disconnect()
-            except Exception:
-                pass
-
-        if hasattr(self, "_isp_warning") and self._isp_warning is not None:
-            try:
-                hide_isp_warning_widget(warning_widget=self._isp_warning)
-            except Exception:
-                pass
+        cleanup_network_page(
+            set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
+            set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),
+            signal_objects={
+                "adapters_loaded": getattr(self, "adapters_loaded", None),
+                "dns_info_loaded": getattr(self, "dns_info_loaded", None),
+                "test_completed": getattr(self, "test_completed", None),
+            },
+            warning=getattr(self, "_isp_warning", None),
+            hide_warning_widget_fn=hide_isp_warning_widget,
+        )

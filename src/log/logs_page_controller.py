@@ -226,8 +226,6 @@ class LogsPageController:
             current_log_file,
             LogsPageController.get_current_log_file(),
             LogsPageController.get_orchestra_log_path(orchestra_runner),
-            os.path.join(LOGS_FOLDER, "commands_full.log"),
-            os.path.join(LOGS_FOLDER, "last_command.txt"),
         ]
         return prepare_support_request(
             bundle_prefix="support_logs",

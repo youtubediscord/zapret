@@ -102,7 +102,12 @@ def complete_main_window_method_switch(window, method: str) -> None:
         pass
 
     if can_autostart:
-        QTimer.singleShot(500, lambda: auto_start_after_main_window_method_switch(window, method))
+        QTimer.singleShot(
+            500,
+            lambda: (
+                not bool(getattr(window, "_is_exiting", False) or getattr(window, "_closing_completely", False))
+            ) and auto_start_after_main_window_method_switch(window, method),
+        )
 
     try:
         window._redirect_to_strategies_page_for_method(method)
@@ -111,6 +116,8 @@ def complete_main_window_method_switch(window, method: str) -> None:
 
 
 def auto_start_after_main_window_method_switch(window, method: str) -> None:
+    if bool(getattr(window, "_is_exiting", False) or getattr(window, "_closing_completely", False)):
+        return
     try:
         if not hasattr(window, 'dpi_controller') or not window.dpi_controller:
             return

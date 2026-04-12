@@ -44,8 +44,6 @@ def _build_feedback(result: PreparedSupportRequest) -> SupportRequestFeedback:
 def _common_candidate_paths() -> list[str | None]:
     return [
         getattr(global_logger, "log_file", LOG_FILE),
-        os.path.join(LOGS_FOLDER, "commands_full.log"),
-        os.path.join(LOGS_FOLDER, "last_command.txt"),
     ]
 
 

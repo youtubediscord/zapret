@@ -200,25 +200,32 @@ class _SettingCardGroupAutoSizer(QObject):
     def __init__(self, group: QWidget):
         super().__init__(group)
         self._group = group
+        self._cleanup_in_progress = False
         self._refresh_pending = False
         self._watched_widget_ids: set[int] = set()
+        self._watched_widgets: list[QWidget] = []
         self._watch_widget(group)
         self._watch_layout_widgets()
         self.schedule_refresh()
 
     def _watch_widget(self, widget) -> None:
+        if self._cleanup_in_progress:
+            return
         if widget is None:
             return
         widget_id = id(widget)
         if widget_id in self._watched_widget_ids:
             return
         self._watched_widget_ids.add(widget_id)
+        self._watched_widgets.append(widget)
         try:
             widget.installEventFilter(self)
         except Exception:
             pass
 
     def _watch_layout_widgets(self) -> None:
+        if self._cleanup_in_progress:
+            return
         layout = getattr(self._group, "vBoxLayout", None)
         if layout is None:
             return
@@ -231,12 +238,17 @@ class _SettingCardGroupAutoSizer(QObject):
                 self._watch_widget(widget)
 
     def schedule_refresh(self) -> None:
+        if self._cleanup_in_progress:
+            return
         if self._refresh_pending:
             return
         self._refresh_pending = True
-        QTimer.singleShot(0, self.refresh_now)
+        QTimer.singleShot(0, lambda: (not self._cleanup_in_progress) and self.refresh_now())
 
     def refresh_now(self) -> None:
+        if self._cleanup_in_progress:
+            self._refresh_pending = False
+            return
         self._refresh_pending = False
         group = self._group
         if group is None:
@@ -307,6 +319,8 @@ class _SettingCardGroupAutoSizer(QObject):
                 pass
 
     def eventFilter(self, obj, event):  # noqa: N802
+        if self._cleanup_in_progress:
+            return False
         _ = obj
         try:
             if event.type() in self._REFRESH_EVENTS:
@@ -315,6 +329,20 @@ class _SettingCardGroupAutoSizer(QObject):
         except Exception:
             pass
         return super().eventFilter(obj, event)
+
+    def cleanup(self) -> None:
+        if self._cleanup_in_progress:
+            return
+        self._cleanup_in_progress = True
+        self._refresh_pending = False
+        for widget in list(self._watched_widgets):
+            try:
+                widget.removeEventFilter(self)
+            except Exception:
+                pass
+        self._watched_widgets.clear()
+        self._watched_widget_ids.clear()
+        self._group = None
 
 
 def enable_setting_card_group_auto_height(group):
@@ -332,6 +360,10 @@ def enable_setting_card_group_auto_height(group):
         helper = _SettingCardGroupAutoSizer(group)
         try:
             group._setting_group_auto_sizer = helper  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            group.destroyed.connect(lambda *_args, h=helper: h.cleanup())
         except Exception:
             pass
     else:
@@ -738,10 +770,6 @@ class PrimaryActionButton(PrimaryPushButton if HAS_FLUENT else QPushButton):
                 self.setIcon(get_themed_qta_icon(icon_name, color="#ffffff"))
             except Exception:
                 pass
-
-    def _update_style(self):
-        """No-op: qfluentwidgets handles styling."""
-        pass
 
 
 # ---------------------------------------------------------------------------

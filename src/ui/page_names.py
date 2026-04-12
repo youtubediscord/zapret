@@ -35,7 +35,6 @@ class PageName(Enum):
     ZAPRET2_PRESET_DETAIL = auto()   # Zapret 2 Direct: подстраница пресета
     ZAPRET1_PRESET_DETAIL = auto()   # Zapret 1 Direct: подстраница пресета
     HOSTLIST = auto()                # Листы (Hostlist + IPset)
-    IPSET = auto()                   # Legacy alias -> Листы
     BLOBS = auto()                   # Блобы
     DPI_SETTINGS = auto()            # Настройки DPI
     ZAPRET2_USER_PRESETS = auto()      # Zapret 2 Direct: пользовательские пресеты
@@ -81,7 +80,6 @@ class SectionName(Enum):
     # === Стратегии (collapsible группа) ===
     STRATEGIES = auto()              # Заголовок группы (collapsible)
     HOSTLIST = auto()                # - Листы
-    IPSET = auto()                   # - Legacy alias (скрыт в UI)
     BLOBS = auto()                   # - Блобы
     ORCHESTRA_SETTINGS = auto()      # - Настройки оркестратора (вкладки)
     DPI_SETTINGS = auto()            # - Настройки DPI
@@ -119,7 +117,6 @@ SECTION_TO_PAGE: dict[SectionName, Optional[PageName]] = {
     SectionName.CONTROL: PageName.CONTROL,
     SectionName.STRATEGIES: None,  # Collapsible группа, целевая страница определяется по методу запуска
     SectionName.HOSTLIST: PageName.HOSTLIST,
-    SectionName.IPSET: PageName.HOSTLIST,
     SectionName.BLOBS: PageName.BLOBS,
     SectionName.ORCHESTRA_SETTINGS: PageName.ORCHESTRA_SETTINGS,
     SectionName.DPI_SETTINGS: PageName.DPI_SETTINGS,

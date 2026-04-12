@@ -102,7 +102,6 @@ from ui.animation_policy import (
     apply_window_editor_smooth_scroll_policy,
     apply_window_smooth_scroll_policy,
 )
-from ui.main_window_refresh import refresh_main_window_pages_after_preset_switch
 from ui.main_window_signals import connect_main_window_page_signals
 from core.runtime.preset_runtime_coordinator import (
     PresetRuntimeCoordinator,
@@ -580,7 +579,13 @@ class MainWindowUI:
         apply_window_editor_smooth_scroll_policy(self, enabled)
 
     def _refresh_pages_after_preset_switch(self):
-        refresh_main_window_pages_after_preset_switch(self)
+        try:
+            display_name = self._get_direct_strategy_summary()
+            if display_name:
+                self.update_current_strategy_display(display_name)
+        except Exception as e:
+            from log import log
+            log(f"Ошибка обновления display стратегии после смены пресета: {e}", "DEBUG")
 
     def _on_clear_learned_requested(self):
         from log import log
@@ -625,6 +630,8 @@ class MainWindowUI:
             return False
 
         def _invoke() -> None:
+            if bool(getattr(self, "_is_exiting", False) or getattr(self, "_closing_completely", False)):
+                return
             try:
                 handler(*args)
             except Exception:

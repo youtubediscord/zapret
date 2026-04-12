@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict
 
 from log import log
-from config import LOGS_FOLDER
 from .args_filters import apply_all_filters
 from .constants import SW_HIDE, CREATE_NO_WINDOW, STARTF_USESHOWWINDOW
 from .preset_runner_support import wait_for_process_exit
@@ -21,64 +20,6 @@ from utils.service_manager import (
     cleanup_windivert_services, stop_and_delete_service, unload_driver, service_exists
 )
 from utils.process_killer import kill_process_by_name, kill_winws_force
-
-
-def log_full_command(cmd_list: List[str], strategy_name: str):
-    """
-    Writes full command line to a separate file for debugging.
-
-    Args:
-        cmd_list: List of command arguments
-        strategy_name: Strategy name
-    """
-    try:
-        os.makedirs(LOGS_FOLDER, exist_ok=True)
-
-        cmd_log_file = os.path.join(LOGS_FOLDER, "commands_full.log")
-
-        full_cmd_parts = []
-        for i, arg in enumerate(cmd_list):
-            if i == 0:
-                full_cmd_parts.append(arg)
-            else:
-                if arg.startswith('"') and arg.endswith('"'):
-                    full_cmd_parts.append(arg)
-                elif ' ' in arg or '\t' in arg:
-                    full_cmd_parts.append(f'"{arg}"')
-                else:
-                    full_cmd_parts.append(arg)
-
-        full_cmd = ' '.join(full_cmd_parts)
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        separator = "=" * 80
-
-        with open(cmd_log_file, 'a', encoding='utf-8') as f:
-            f.write(f"\n{separator}\n")
-            f.write(f"Timestamp: {timestamp}\n")
-            f.write(f"Strategy: {strategy_name}\n")
-            f.write(f"Command length: {len(full_cmd)} characters\n")
-            f.write(f"Arguments count: {len(cmd_list) - 1}\n")
-            f.write(f"{separator}\n")
-            f.write(f"FULL COMMAND:\n")
-            f.write(f"{full_cmd}\n")
-            f.write(f"{separator}\n")
-
-            f.write(f"ARGUMENTS LIST:\n")
-            for i, arg in enumerate(cmd_list):
-                f.write(f"[{i:3}]: {arg}\n")
-            f.write(f"{separator}\n\n")
-
-        last_cmd_file = os.path.join(LOGS_FOLDER, "last_command.txt")
-        with open(last_cmd_file, 'w', encoding='utf-8') as f:
-            f.write(f"# Last command executed at {timestamp}\n")
-            f.write(f"# Strategy: {strategy_name}\n\n")
-            f.write(full_cmd)
-
-        log(f"Command saved to logs/commands_full.log", "DEBUG")
-
-    except Exception as e:
-        log(f"Error writing command to log: {e}", "DEBUG")
 
 
 class StrategyRunnerBase(ABC):

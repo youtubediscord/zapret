@@ -79,10 +79,6 @@ _THEME_DYNAMIC_LAYER_END = "/* __THEME_DYNAMIC_LAYER_END__ */"
 
 
 
-def start_theme_switch_metrics(theme_name: str, *, source: str = "unknown", click_started_at: float | None = None) -> int:
-    return 0
-
-
 def set_selected_theme(theme_name: str) -> bool:
     """Записывает строку SelectedTheme"""
     from config import REGISTRY_PATH
@@ -985,32 +981,6 @@ def get_card_gradient_qss(theme_name: str | None = None, *, hover: bool = False)
     return build_vertical_gradient_qss(top, bottom)
 
 
-def get_control_gradient_qss(theme_name: str | None = None) -> str:
-    """Returns centralized control/header gradient."""
-    theme = get_theme_tokens(theme_name).theme_name
-    top, bottom = _get_theme_control_gradient_stops(theme)
-    return build_vertical_gradient_qss(top, bottom)
-
-
-def get_list_gradient_qss(theme_name: str | None = None) -> str:
-    """Returns centralized list/tree/table gradient."""
-    theme = get_theme_tokens(theme_name).theme_name
-    top, bottom = _get_theme_list_gradient_stops(theme)
-    return build_vertical_gradient_qss(top, bottom)
-
-
-def get_item_hover_bg_qss(theme_name: str | None = None) -> str:
-    """Returns centralized item hover background color."""
-    theme = get_theme_tokens(theme_name).theme_name
-    return _get_theme_item_hover_bg(theme)
-
-
-def get_item_selected_bg_qss(theme_name: str | None = None) -> str:
-    """Returns centralized item selected background color."""
-    theme = get_theme_tokens(theme_name).theme_name
-    return _get_theme_item_selected_bg(theme)
-
-
 def get_neutral_card_border_qss(
     theme_name: str | None = None,
     *,
@@ -1022,35 +992,11 @@ def get_neutral_card_border_qss(
     return _get_theme_neutral_card_border_color(theme, hover=hover, disabled=disabled)
 
 
-def get_neutral_list_border_qss(theme_name: str | None = None) -> str:
-    """Returns centralized neutral list border color."""
-    theme = get_theme_tokens(theme_name).theme_name
-    return _get_theme_neutral_list_border_color(theme)
-
-
 def get_card_disabled_gradient_qss(theme_name: str | None = None) -> str:
     """Returns centralized disabled card gradient used across framed surfaces."""
     theme = get_theme_tokens(theme_name).theme_name
     top, bottom = _get_theme_card_disabled_gradient_stops(theme)
     return build_vertical_gradient_qss(top, bottom)
-
-
-def get_dns_selected_gradient_qss(theme_name: str | None = None, *, hover: bool = False) -> str:
-    """Returns centralized DNS selected gradient used by DNS cards."""
-    theme = get_theme_tokens(theme_name).theme_name
-    top, bottom = _get_theme_dns_selected_gradient_stops(theme, hover=hover)
-    return build_vertical_gradient_qss(top, bottom)
-
-
-def get_dns_selected_border_qss(theme_name: str | None = None, *, hover: bool = False) -> str:
-    """Returns centralized DNS selected border color."""
-    theme = get_theme_tokens(theme_name).theme_name
-    return _get_theme_dns_selected_border_color(theme, hover=hover)
-
-
-def get_selected_surface_gradient_qss(theme_name: str | None = None, *, hover: bool = False) -> str:
-    """Returns centralized selected/accent surface gradient."""
-    return get_dns_selected_gradient_qss(theme_name, hover=hover)
 
 
 def get_success_surface_gradient_qss(theme_name: str | None = None, *, hover: bool = False) -> str:
@@ -1086,25 +1032,6 @@ def get_tinted_surface_gradient_qss(
     top = _qcolor_to_qss_rgba(QColor(top_rgb[0], top_rgb[1], top_rgb[2], alpha))
     bottom = _qcolor_to_qss_rgba(QColor(bottom_rgb[0], bottom_rgb[1], bottom_rgb[2], alpha))
     return build_vertical_gradient_qss(top, bottom)
-
-
-def get_theme_icon_color(theme_name: str | None = None, muted: bool = False, faint: bool = False) -> str:
-    """Returns global icon color for current theme.
-
-    Light themes -> dark gray icons.
-    Dark themes -> light icons.
-    """
-    tokens = _theme_tokens_for_icons(theme_name)
-    if faint:
-        return tokens.icon_fg_faint
-    if muted:
-        return tokens.icon_fg_muted
-    return tokens.icon_fg
-
-
-def get_theme_accent_foreground(theme_name: str | None = None) -> str:
-    """Returns readable text/icon color for accent-filled controls."""
-    return get_theme_tokens(theme_name).accent_fg
 
 
 def resolve_icon_color(color=None, *, theme_name: str | None = None, muted_fallback: bool = False) -> str:

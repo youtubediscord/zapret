@@ -285,7 +285,7 @@ class WindowLifecycleMixin:
                 PageName.ZAPRET1_STRATEGY_DETAIL,
                 PageName.ZAPRET1_USER_PRESETS,
                 PageName.NETROGAT,
-                PageName.IPSET,
+                PageName.HOSTLIST,
                 PageName.LOGS,
                 PageName.SERVERS,
                 PageName.ABOUT,

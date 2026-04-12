@@ -97,6 +97,7 @@ class StrategyHoverTooltip(QWidget):
         
         self._opacity = 0.0
         self._spinner = None
+        self._cleanup_in_progress = False
         
         self._fade_animation = register_managed_animation(
             QPropertyAnimation(self, b"opacity_value"),
@@ -197,6 +198,8 @@ class StrategyHoverTooltip(QWidget):
     
     def set_data(self, strategy_info, strategy_id):
         """Устанавливает данные"""
+        if self._cleanup_in_progress:
+            return
         self._apply_theme_styles()
         name = strategy_info.get('name') or strategy_id
         self.title_label.setText(name)
@@ -238,6 +241,8 @@ class StrategyHoverTooltip(QWidget):
     
     def show_at(self, pos: QPoint, with_spinner=True):
         """Показывает tooltip"""
+        if self._cleanup_in_progress:
+            return
         screen = QApplication.primaryScreen()
         if screen:
             screen_rect = screen.availableGeometry()
@@ -258,7 +263,7 @@ class StrategyHoverTooltip(QWidget):
             self._spinner.show()
             
             # Скрываем спиннер через 200мс
-            QTimer.singleShot(200, self._hide_spinner)
+            QTimer.singleShot(200, lambda: (not self._cleanup_in_progress) and self._hide_spinner())
         
         self._opacity = 0.0
         self.show()
@@ -269,13 +274,21 @@ class StrategyHoverTooltip(QWidget):
     
     def _hide_spinner(self):
         """Скрывает спиннер"""
+        if self._cleanup_in_progress:
+            return
         if self._spinner:
             self._spinner.stop()
             self._spinner.hide()
     
     def hide_animated(self):
         """Скрывает с анимацией"""
+        if self._cleanup_in_progress:
+            return
         self._hide_spinner()
+        try:
+            self._fade_animation.finished.disconnect(self._on_hide_finished)
+        except Exception:
+            pass
         self._fade_animation.setStartValue(1.0)
         self._fade_animation.setEndValue(0.0)
         self._fade_animation.finished.connect(self._on_hide_finished)
@@ -294,6 +307,8 @@ class StrategyHoverTooltip(QWidget):
     
     @opacity_value.setter
     def opacity_value(self, value):
+        if self._cleanup_in_progress:
+            return
         self._opacity = value
         self.setWindowOpacity(value)
     
@@ -322,6 +337,27 @@ class StrategyHoverTooltip(QWidget):
 
         painter.setPen(QPen(border_color, 1))
         painter.drawPath(path)
+
+    def cleanup(self):
+        if self._cleanup_in_progress:
+            return
+        self._cleanup_in_progress = True
+        try:
+            self._hide_spinner()
+        except Exception:
+            pass
+        try:
+            self._fade_animation.stop()
+        except Exception:
+            pass
+        try:
+            self._theme_refresh.cleanup()
+        except Exception:
+            pass
+        try:
+            self.hide()
+        except Exception:
+            pass
 
 class TooltipManager:
     """Менеджер hover tooltip"""
@@ -418,6 +454,11 @@ class TooltipManager:
         self._show_timer.stop()
         self._hide_timer.stop()
         self._pending_data = None
+        try:
+            if self._tooltip:
+                self._tooltip.cleanup()
+        except Exception:
+            pass
         
         if self._tooltip:
             self._tooltip._hide_spinner()

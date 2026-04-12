@@ -199,8 +199,6 @@ class ConnectionPageController:
                 candidate_paths=[
                     temp_log_path,
                     getattr(global_logger, "log_file", LOG_FILE),
-                    os.path.join(LOGS_FOLDER, "commands_full.log"),
-                    os.path.join(LOGS_FOLDER, "last_command.txt"),
                 ],
                 recent_patterns=("blockcheck_run_*.log",),
                 extra_note="В архив добавлен лог connection_test_temp.log, если он сохранился после теста.",

@@ -24,6 +24,7 @@ class StrategiesListTooltip(QWidget):
         super().__init__(parent)
 
         self._tokens = get_theme_tokens()
+        self._cleanup_in_progress = False
         
         self.setWindowFlags(
             Qt.WindowType.ToolTip |
@@ -157,6 +158,8 @@ class StrategiesListTooltip(QWidget):
         Args:
             strategies: список кортежей (icon_name, icon_color, category_name, strategy_name)
         """
+        if self._cleanup_in_progress:
+            return
         self._strategies = strategies
         self._tokens = get_theme_tokens()
 
@@ -189,6 +192,8 @@ class StrategiesListTooltip(QWidget):
     
     def show_at_cursor(self, follow: bool = True):
         """Показывает tooltip у курсора"""
+        if self._cleanup_in_progress:
+            return
         self._follow_mouse = follow
         
         # Начальная позиция
@@ -210,6 +215,8 @@ class StrategiesListTooltip(QWidget):
     
     def _follow_cursor(self):
         """Плавно следует за курсором"""
+        if self._cleanup_in_progress:
+            return
         if not self.isVisible():
             self._mouse_timer.stop()
             return
@@ -219,6 +226,8 @@ class StrategiesListTooltip(QWidget):
     
     def _position_near_cursor(self, cursor_pos: QPoint):
         """Позиционирует tooltip около курсора с учетом границ экрана"""
+        if self._cleanup_in_progress:
+            return
         target_pos = cursor_pos + self._mouse_offset
         
         # Проверяем границы экрана
@@ -246,6 +255,8 @@ class StrategiesListTooltip(QWidget):
     
     def hide_animated(self):
         """Скрывает с анимацией"""
+        if self._cleanup_in_progress:
+            return
         self._mouse_timer.stop()
         self._follow_mouse = False
         
@@ -269,6 +280,8 @@ class StrategiesListTooltip(QWidget):
     
     def hide_immediately(self):
         """Немедленно скрывает"""
+        if self._cleanup_in_progress:
+            return
         self._mouse_timer.stop()
         self._follow_mouse = False
         self._fade_animation.stop()
@@ -280,8 +293,27 @@ class StrategiesListTooltip(QWidget):
     
     @opacity_value.setter
     def opacity_value(self, value):
+        if self._cleanup_in_progress:
+            return
         self._opacity = value
         self.setWindowOpacity(value)
+
+    def cleanup(self) -> None:
+        if self._cleanup_in_progress:
+            return
+        self._cleanup_in_progress = True
+        try:
+            self._mouse_timer.stop()
+        except Exception:
+            pass
+        try:
+            self._fade_animation.stop()
+        except Exception:
+            pass
+        try:
+            self.hide()
+        except Exception:
+            pass
     
     def paintEvent(self, event):
         """Рисуем Fluent фон с градиентом"""
@@ -363,7 +395,10 @@ class StrategiesTooltipManager:
         """Немедленно скрывает"""
         self._hide_timer.stop()
         if self._tooltip:
-            self._tooltip.hide_immediately()
+            try:
+                self._tooltip.cleanup()
+            except Exception:
+                self._tooltip.hide_immediately()
 
 
 # Глобальный экземпляр менеджера

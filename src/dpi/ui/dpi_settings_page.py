@@ -344,14 +344,6 @@ class DpiSettingsPage(BasePage):
         except Exception as e:
             log(f"Ошибка сохранения настройки UnlockFails: {e}", "ERROR")
     
-    def update_filter_display(self, filters: dict):
-        """
-        Совместимость: раньше показывало «Фильтры перехвата трафика» в GUI.
-        Теперь блок удалён, метод оставлен как no-op для старых вызовов.
-        """
-        _ = filters
-        return
-        
     def _update_filters_visibility(self, method: str | None = None):
         """Обновляет видимость фильтров и секций"""
         try:

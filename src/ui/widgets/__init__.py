@@ -15,11 +15,10 @@ _WIDGET_EXPORTS: dict[str, tuple[str, str]] = {
     "StrategiesListTooltip": (".strategies_tooltip", "StrategiesListTooltip"),
     "NotificationBanner": (".notification_banner", "NotificationBanner"),
     "Win11Spinner": (".win11_spinner", "Win11Spinner"),
-    "FilterButtonGroup": (".filter_chip_button", "FilterButtonGroup"),
-    "CollapsibleGroup": (".collapsible_group", "CollapsibleGroup"),
-    "StrategyRadioItem": (".strategy_radio_item", "StrategyRadioItem"),
-    "PresetTargetsList": (".preset_targets_list", "PresetTargetsList"),
-    "UnifiedStrategiesList": (".unified_strategies_list", "UnifiedStrategiesList"),
+    "FilterButtonGroup": ("filters.ui", "FilterButtonGroup"),
+    "CollapsibleGroup": ("filters.ui", "CollapsibleGroup"),
+    "StrategyRadioItem": ("filters.ui", "StrategyRadioItem"),
+    "TargetsList": ("filters.ui", "TargetsList"),
 }
 
 __all__ = list(_WIDGET_EXPORTS)
