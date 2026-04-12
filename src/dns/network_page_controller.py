@@ -239,12 +239,26 @@ class NetworkPageController:
         return success_count
 
     @classmethod
-    def apply_custom_dns(cls, adapters: list[str], primary: str, secondary: str | None) -> int:
+    def apply_custom_dns(
+        cls,
+        adapters: list[str],
+        primary: str,
+        secondary: str | None,
+        primary_v6: str | None = None,
+        secondary_v6: str | None = None,
+        *,
+        ipv6_available: bool = False,
+    ) -> int:
         dns_manager = cls._get_dns_manager()
         success_count = 0
         for adapter in adapters:
-            ok, _ = dns_manager.set_custom_dns(adapter, primary, secondary, "IPv4")
-            if ok:
+            ok_v4, _ = dns_manager.set_custom_dns(adapter, primary, secondary, "IPv4")
+            ok_v6 = True
+            if ipv6_available and primary_v6:
+                ok_v6, _ = dns_manager.set_custom_dns(
+                    adapter, primary_v6, secondary_v6, "IPv6"
+                )
+            if ok_v4 and ok_v6:
                 success_count += 1
         dns_manager.flush_dns_cache()
         return success_count

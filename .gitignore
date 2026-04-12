@@ -60,3 +60,6 @@ AGENTS.md
 src/config/build_info.py
 /docs/changelog
 .qwen
+
+# Build artifacts
+src/Zapret.spec
