@@ -21,6 +21,9 @@ class CustomDnsWidgets:
     primary_input: object
     secondary_input: object
     apply_button: object
+    ipv6_label: object = None
+    primary_v6_input: object = None
+    secondary_v6_input: object = None
 
 
 def build_custom_dns_ui(
@@ -36,6 +39,7 @@ def build_custom_dns_ui(
     action_button_cls,
     on_apply,
     indicator_off_qss: str,
+    show_ipv6: bool = False,
 ) -> CustomDnsWidgets:
     custom_card = settings_card_cls()
     custom_card.setObjectName("dnsCard")
@@ -72,6 +76,33 @@ def build_custom_dns_ui(
     custom_apply_btn.clicked.connect(on_apply)
     custom_layout.addWidget(custom_apply_btn)
 
+    # IPv6 поля (если включены)
+    ipv6_label = None
+    custom_primary_v6 = None
+    custom_secondary_v6 = None
+    
+    if show_ipv6:
+        # Разделитель между IPv4 и IPv6
+        ipv6_label_text = "IPv6:"
+        if has_fluent_labels:
+            ipv6_label = body_label_cls(ipv6_label_text)
+        else:
+            ipv6_label = qlabel_cls(ipv6_label_text)
+            ipv6_label.setStyleSheet("color: gray; font-size: 12px; margin-left: 8px;")
+        custom_layout.addWidget(ipv6_label)
+
+        custom_primary_v6 = line_edit_cls()
+        custom_primary_v6.setPlaceholderText("2001:4860:4860::8888")
+        custom_primary_v6.setFixedWidth(180)
+        custom_primary_v6.returnPressed.connect(on_apply)
+        custom_layout.addWidget(custom_primary_v6)
+
+        custom_secondary_v6 = line_edit_cls()
+        custom_secondary_v6.setPlaceholderText("2620:119:35::35")
+        custom_secondary_v6.setFixedWidth(180)
+        custom_secondary_v6.returnPressed.connect(on_apply)
+        custom_layout.addWidget(custom_secondary_v6)
+
     custom_layout.addStretch()
 
     custom_card.add_layout(custom_layout)
@@ -84,6 +115,9 @@ def build_custom_dns_ui(
         primary_input=custom_primary,
         secondary_input=custom_secondary,
         apply_button=custom_apply_btn,
+        ipv6_label=ipv6_label,
+        primary_v6_input=custom_primary_v6,
+        secondary_v6_input=custom_secondary_v6,
     )
 
 

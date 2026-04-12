@@ -194,6 +194,8 @@ class NetworkPage(BasePage):
             self.custom_label.setText(self._tr("page.network.custom.label", "Свой:"))
         if hasattr(self, "custom_apply_btn"):
             self.custom_apply_btn.setText(self._tr("page.network.custom.apply", "OK"))
+        if hasattr(self, "ipv6_label"):
+            self.ipv6_label.setText(self._tr("page.network.custom.ipv6.label", "IPv6:"))
 
         self._update_test_action_text()
 
@@ -336,6 +338,7 @@ class NetworkPage(BasePage):
             action_button_cls=ActionButton,
             on_apply=self._apply_custom_dns_quick,
             indicator_off_qss=DNSProviderCard.indicator_off(),
+            show_ipv6=self._ipv6_available,
         )
         self.custom_card = custom_widgets.card
         self.custom_indicator = custom_widgets.indicator
@@ -343,6 +346,15 @@ class NetworkPage(BasePage):
         self.custom_primary = custom_widgets.primary_input
         self.custom_secondary = custom_widgets.secondary_input
         self.custom_apply_btn = custom_widgets.apply_button
+        
+        # IPv6 поля (если доступны)
+        if custom_widgets.ipv6_label is not None:
+            self.ipv6_label = custom_widgets.ipv6_label
+        if custom_widgets.primary_v6_input is not None:
+            self.custom_primary_v6 = custom_widgets.primary_v6_input
+        if custom_widgets.secondary_v6_input is not None:
+            self.custom_secondary_v6 = custom_widgets.secondary_v6_input
+            
         self.add_widget(self.custom_card)
         
         self.add_spacing(12)
@@ -650,13 +662,37 @@ class NetworkPage(BasePage):
         if self._force_dns_active:
             self._highlight_force_dns()
             return
-        
+
+        from utils import IPValidator
+
         primary = self.custom_primary.text().strip()
         if not primary:
             return
-        
+
+        # Валидация IPv4
+        if not IPValidator.is_valid_ipv4(primary):
+            log(f"DNS: Неверный формат IPv4: {primary}", "WARNING")
+            return
+
         secondary = self.custom_secondary.text().strip() or None
-        
+        if secondary and not IPValidator.is_valid_ipv4(secondary):
+            log(f"DNS: Неверный формат IPv4 (вторичный): {secondary}", "WARNING")
+            return
+
+        # Валидация IPv6 (если поля существуют и заполнены)
+        if hasattr(self, 'custom_primary_v6') and self.custom_primary_v6 is not None:
+            primary_v6 = self.custom_primary_v6.text().strip()
+            if primary_v6:
+                if not IPValidator.is_valid_ipv6(primary_v6):
+                    log(f"DNS: Неверный формат IPv6: {primary_v6}", "WARNING")
+                    return
+                
+                if hasattr(self, 'custom_secondary_v6') and self.custom_secondary_v6 is not None:
+                    secondary_v6 = self.custom_secondary_v6.text().strip()
+                    if secondary_v6 and not IPValidator.is_valid_ipv6(secondary_v6):
+                        log(f"DNS: Неверный формат IPv6 (вторичный): {secondary_v6}", "WARNING")
+                        return
+
         select_custom_dns_ui(
             dns_cards=self.dns_cards,
             auto_indicator=getattr(self, 'auto_indicator', None),
