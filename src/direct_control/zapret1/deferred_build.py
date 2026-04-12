@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout, QSizePolicy
 
-from ui.compat_widgets import ActionButton, ResetActionButton, SettingsCard, build_advanced_settings_section, enable_setting_card_group_auto_height
+from direct_control.shared_builders import (
+    build_direct_action_card_common,
+    build_connected_direct_action_card_common,
+    build_direct_extra_buttons_card_common,
+    build_reset_program_action_card_common,
+)
+from ui.compat_widgets import ActionButton, SettingsCard, build_advanced_settings_section, enable_setting_card_group_auto_height
 from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon
 
 
@@ -52,12 +58,10 @@ def build_z1_direct_deferred_sections(
     action_button_cls,
     setting_card_group_cls,
     settings_card_cls,
-    reset_action_button_cls,
     win11_toggle_row_cls,
     on_open_strategies_page,
     on_auto_dpi_toggled,
     on_confirm_reset_program_clicked,
-    on_reset_program_clicked,
     on_discord_restart_changed,
     on_wssize_toggled,
     on_debug_log_toggled,
@@ -66,48 +70,23 @@ def build_z1_direct_deferred_sections(
     on_open_folder,
     on_open_docs,
 ) -> Zapret1DeferredBuildWidgets:
-    if push_setting_card_cls is not None:
-        strategies_card = push_setting_card_cls(
-            tr_fn("page.z1_control.button.open", "Открыть"),
-            get_themed_qta_icon("fa5s.play", color="#60cdff"),
-            tr_fn("page.z1_control.strategies.title", "Стратегии по категориям"),
-            tr_fn("page.z1_control.strategies.desc", "Выбор стратегии для YouTube, Discord и др."),
-            content_parent,
-        )
-        strategies_card.clicked.connect(on_open_strategies_page)
-        strategies_title_label = strategies_card.titleLabel
-        strategies_desc_label = strategies_card.contentLabel
-        open_strat_btn = strategies_card.button
-    else:
-        strategies_card = card_widget_cls()
-        strategies_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        strat_row = QHBoxLayout(strategies_card)
-        strat_row.setContentsMargins(16, 14, 16, 14)
-        strat_row.setSpacing(12)
+    _ = push_setting_card_cls
+    open_strat_btn = action_button_cls(
+        tr_fn("page.z1_control.button.open", "Открыть"),
+        "fa5s.play",
+    )
 
-        strat_icon_lbl = QLabel()
-        strat_icon_lbl.setPixmap(get_cached_qta_pixmap("fa5s.play", color="#60cdff", size=20))
-        strat_icon_lbl.setFixedSize(24, 24)
-        strat_row.addWidget(strat_icon_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
-
-        strat_col = QVBoxLayout()
-        strat_col.setSpacing(2)
-        strategies_title_label = strong_body_label_cls(
-            tr_fn("page.z1_control.strategies.title", "Стратегии по категориям")
-        )
-        strategies_desc_label = caption_label_cls(
-            tr_fn("page.z1_control.strategies.desc", "Выбор стратегии для YouTube, Discord и др.")
-        )
-        strat_col.addWidget(strategies_title_label)
-        strat_col.addWidget(strategies_desc_label)
-        strat_row.addLayout(strat_col, 1)
-
-        open_strat_btn = action_button_cls(
-            tr_fn("page.z1_control.button.open", "Открыть"),
-            "fa5s.play",
-        )
-        open_strat_btn.clicked.connect(on_open_strategies_page)
-        strat_row.addWidget(open_strat_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+    strategies_widgets = build_connected_direct_action_card_common(
+        card_widget_cls=card_widget_cls,
+        strong_body_label_cls=strong_body_label_cls,
+        caption_label_cls=caption_label_cls,
+        button=open_strat_btn,
+        icon_source=get_cached_qta_pixmap("fa5s.play", color="#60cdff", size=20),
+        title_text=tr_fn("page.z1_control.strategies.title", "Стратегии по категориям"),
+        content_text=tr_fn("page.z1_control.strategies.desc", "Выбор стратегии для YouTube, Discord и др."),
+        parent=content_parent,
+        on_click=on_open_strategies_page,
+    )
 
     program_settings_title = tr_fn("page.z1_control.section.program_settings", "Настройки программы")
     if setting_card_group_cls is not None and has_fluent:
@@ -130,39 +109,21 @@ def build_z1_direct_deferred_sections(
     else:
         program_settings_card.add_widget(auto_dpi_toggle)
 
-    reset_program_btn = None
-    reset_program_desc_label = None
-    if callable(add_setting_card) and push_setting_card_cls is not None:
-        reset_program_card = push_setting_card_cls(
-            tr_fn("page.z1_control.button.reset", "Сбросить"),
-            get_themed_qta_icon("fa5s.undo", color="#ff9800"),
-            tr_fn("page.z1_control.setting.reset.title", "Сбросить программу"),
-            tr_fn("page.z1_control.setting.reset.desc", "Очистить кэш проверок запуска (без удаления пресетов/настроек)"),
-        )
-        reset_program_card.clicked.connect(on_confirm_reset_program_clicked)
-        add_setting_card(reset_program_card)
-    else:
-        reset_program_btn = reset_action_button_cls(
-            tr_fn("page.z1_control.button.reset", "Сбросить"),
-            confirm_text=tr_fn("page.z1_control.button.reset_confirm", "Сбросить?"),
-        )
-        reset_program_btn.setProperty("noDrag", True)
-        reset_program_btn.reset_confirmed.connect(on_reset_program_clicked)
-        reset_program_card = settings_card_cls(
-            tr_fn("page.z1_control.setting.reset.title", "Сбросить программу")
-        )
-        reset_program_desc_label = caption_label_cls(
-            tr_fn("page.z1_control.setting.reset.desc", "Очистить кэш проверок запуска (без удаления пресетов/настроек)")
-        ) if has_fluent else QLabel(
-            tr_fn("page.z1_control.setting.reset.desc", "Очистить кэш проверок запуска (без удаления пресетов/настроек)")
-        )
-        reset_program_desc_label.setWordWrap(True)
-        reset_program_card.add_widget(reset_program_desc_label)
-        reset_layout = QHBoxLayout()
-        reset_layout.setSpacing(8)
-        reset_layout.addWidget(reset_program_btn)
-        reset_layout.addStretch()
-        reset_program_card.add_layout(reset_layout)
+    reset_program_card, reset_program_btn, reset_program_desc_label = build_reset_program_action_card_common(
+        tr_fn=tr_fn,
+        has_fluent_labels=has_fluent,
+        caption_label_cls=caption_label_cls,
+        action_button_cls=action_button_cls,
+        settings_card_cls=settings_card_cls,
+        button_key="page.z1_control.button.reset",
+        button_default="Сбросить",
+        button_icon_name="fa5s.undo",
+        title_key="page.z1_control.setting.reset.title",
+        title_default="Сбросить программу",
+        desc_key="page.z1_control.setting.reset.desc",
+        desc_default="Очистить кэш проверок запуска (без удаления пресетов/настроек)",
+        on_confirm_reset_program_clicked=on_confirm_reset_program_clicked,
+    )
 
     enable_setting_card_group_auto_height(program_settings_card)
 
@@ -203,104 +164,129 @@ def build_z1_direct_deferred_sections(
     if debug_log_toggle is not None:
         debug_log_toggle.toggled.connect(on_debug_log_toggled)
 
-    if push_setting_card_cls is not None:
-        blobs_action_card = push_setting_card_cls(
-            tr_fn("page.z1_control.button.open", "Открыть"),
-            get_themed_qta_icon("fa5s.file-archive", color="#ff9800"),
-            tr_fn("page.z1_control.blobs.title", "Блобы"),
-            tr_fn("page.z1_control.blobs.desc", "Бинарные данные (.bin / hex) для стратегий"),
-        )
-        blobs_action_card.clicked.connect(on_navigate_to_blobs)
-        blobs_open_btn = blobs_action_card.button
-    else:
-        blobs_action_card = None
-        blobs_open_btn = None
+    blobs_open_btn = action_button_cls(
+        tr_fn("page.z1_control.button.open", "Открыть"),
+        "fa5s.file-archive",
+    )
+    blobs_widgets = build_connected_direct_action_card_common(
+        card_widget_cls=card_widget_cls,
+        strong_body_label_cls=strong_body_label_cls,
+        caption_label_cls=caption_label_cls,
+        button=blobs_open_btn,
+        icon_source=get_themed_qta_icon("fa5s.file-archive", color="#ff9800"),
+        title_text=tr_fn("page.z1_control.blobs.title", "Блобы"),
+        content_text=tr_fn("page.z1_control.blobs.desc", "Бинарные данные (.bin / hex) для стратегий"),
+        parent=content_parent,
+        on_click=on_navigate_to_blobs,
+    )
 
     advanced_card, advanced_notice = build_advanced_settings_section(
         title=tr_fn("page.z1_control.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ"),
         warning_text=tr_fn("page.z1_control.advanced.warning", "Изменяйте только если знаете что делаете"),
         parent=content_parent,
         toggle_rows=[discord_restart_toggle, wssize_toggle, debug_log_toggle],
-        action_rows=[blobs_action_card],
+        action_rows=[blobs_widgets.card],
     )
 
-    if setting_card_group_cls is not None and push_setting_card_cls is not None and has_fluent:
+    if setting_card_group_cls is not None and has_fluent:
         extra_group = setting_card_group_cls(
             tr_fn("page.z1_control.section.additional", "Дополнительные действия"),
             content_parent,
         )
         extra_card = extra_group
 
-        test_action_card = push_setting_card_cls(
+        test_card_btn = action_button_cls(
             tr_fn("page.z1_control.button.open", "Открыть"),
-            get_themed_qta_icon("fa5s.wifi", color="#60cdff"),
-            tr_fn("page.z1_control.button.connection_test", "Тест соединения"),
-            tr_fn("page.z1_control.button.connection_test.desc", "Проверить доступность сети и состояние обхода"),
+            "fa5s.wifi",
         )
-        test_action_card.clicked.connect(on_open_connection_test)
+        test_widgets = build_connected_direct_action_card_common(
+            card_widget_cls=card_widget_cls,
+            strong_body_label_cls=strong_body_label_cls,
+            caption_label_cls=caption_label_cls,
+            button=test_card_btn,
+            icon_source=get_themed_qta_icon("fa5s.wifi", color="#60cdff"),
+            title_text=tr_fn("page.z1_control.button.connection_test", "Тест соединения"),
+            content_text=tr_fn("page.z1_control.button.connection_test.desc", "Проверить доступность сети и состояние обхода"),
+            parent=content_parent,
+            on_click=on_open_connection_test,
+        )
 
-        folder_action_card = push_setting_card_cls(
+        folder_card_btn = action_button_cls(
             tr_fn("page.z1_control.button.open", "Открыть"),
-            get_themed_qta_icon("fa5s.folder-open", color="#f5c04d"),
-            tr_fn("page.z1_control.button.open_folder", "Открыть папку"),
-            tr_fn("page.z1_control.button.open_folder.desc", "Перейти в папку программы и служебных файлов"),
+            "fa5s.folder-open",
         )
-        folder_action_card.clicked.connect(on_open_folder)
+        folder_widgets = build_connected_direct_action_card_common(
+            card_widget_cls=card_widget_cls,
+            strong_body_label_cls=strong_body_label_cls,
+            caption_label_cls=caption_label_cls,
+            button=folder_card_btn,
+            icon_source=get_themed_qta_icon("fa5s.folder-open", color="#f5c04d"),
+            title_text=tr_fn("page.z1_control.button.open_folder", "Открыть папку"),
+            content_text=tr_fn("page.z1_control.button.open_folder.desc", "Перейти в папку программы и служебных файлов"),
+            parent=content_parent,
+            on_click=on_open_folder,
+        )
 
-        docs_action_card = push_setting_card_cls(
+        docs_card_btn = action_button_cls(
             tr_fn("page.z1_control.button.open", "Открыть"),
-            get_themed_qta_icon("fa5s.book", color="#8ab4f8"),
-            tr_fn("page.z1_control.button.documentation", "Документация"),
-            tr_fn("page.z1_control.button.documentation.desc", "Открыть справку и описание возможностей"),
+            "fa5s.book",
         )
-        docs_action_card.clicked.connect(on_open_docs)
+        docs_widgets = build_connected_direct_action_card_common(
+            card_widget_cls=card_widget_cls,
+            strong_body_label_cls=strong_body_label_cls,
+            caption_label_cls=caption_label_cls,
+            button=docs_card_btn,
+            icon_source=get_themed_qta_icon("fa5s.book", color="#8ab4f8"),
+            title_text=tr_fn("page.z1_control.button.documentation", "Документация"),
+            content_text=tr_fn("page.z1_control.button.documentation.desc", "Открыть справку и описание возможностей"),
+            parent=content_parent,
+            on_click=on_open_docs,
+        )
 
-        extra_group.addSettingCard(test_action_card)
-        extra_group.addSettingCard(folder_action_card)
-        extra_group.addSettingCard(docs_action_card)
+        extra_group.addSettingCard(test_widgets.card)
+        extra_group.addSettingCard(folder_widgets.card)
+        extra_group.addSettingCard(docs_widgets.card)
         enable_setting_card_group_auto_height(extra_group)
 
         test_btn = None
         folder_btn = None
         docs_btn = None
+        test_action_card = test_widgets
+        folder_action_card = folder_widgets
+        docs_action_card = docs_widgets
     else:
-        extra_card = settings_card_cls()
-        extra_layout = QHBoxLayout()
-        extra_layout.setSpacing(8)
-
-        test_btn = action_button_cls(
-            tr_fn("page.z1_control.button.connection_test", "Тест соединения"),
-            "fa5s.wifi",
+        extra_card, buttons = build_direct_extra_buttons_card_common(
+            settings_card_cls=settings_card_cls,
+            action_button_cls=action_button_cls,
+            actions=[
+                (
+                    tr_fn("page.z1_control.button.connection_test", "Тест соединения"),
+                    "fa5s.wifi",
+                    on_open_connection_test,
+                ),
+                (
+                    tr_fn("page.z1_control.button.open_folder", "Открыть папку"),
+                    "fa5s.folder-open",
+                    on_open_folder,
+                ),
+                (
+                    tr_fn("page.z1_control.button.documentation", "Документация"),
+                    "fa5s.book",
+                    on_open_docs,
+                ),
+            ],
         )
-        test_btn.clicked.connect(on_open_connection_test)
-        extra_layout.addWidget(test_btn)
-
-        folder_btn = action_button_cls(
-            tr_fn("page.z1_control.button.open_folder", "Открыть папку"),
-            "fa5s.folder-open",
-        )
-        folder_btn.clicked.connect(on_open_folder)
-        extra_layout.addWidget(folder_btn)
-
-        docs_btn = action_button_cls(
-            tr_fn("page.z1_control.button.documentation", "Документация"),
-            "fa5s.book",
-        )
-        docs_btn.clicked.connect(on_open_docs)
-        extra_layout.addWidget(docs_btn)
-
-        extra_layout.addStretch()
-        extra_card.add_layout(extra_layout)
+        test_btn, folder_btn, docs_btn = buttons
 
         test_action_card = None
         folder_action_card = None
         docs_action_card = None
 
     return Zapret1DeferredBuildWidgets(
-        strategies_card=strategies_card,
-        strategies_title_label=strategies_title_label,
-        strategies_desc_label=strategies_desc_label,
-        open_strat_btn=open_strat_btn,
+        strategies_card=strategies_widgets.card,
+        strategies_title_label=strategies_widgets.title_label,
+        strategies_desc_label=strategies_widgets.content_label,
+        open_strat_btn=strategies_widgets.button,
         program_settings_section_label=program_settings_section_label,
         program_settings_card=program_settings_card,
         auto_dpi_toggle=auto_dpi_toggle,
@@ -312,8 +298,8 @@ def build_z1_direct_deferred_sections(
         discord_restart_toggle=discord_restart_toggle,
         wssize_toggle=wssize_toggle,
         debug_log_toggle=debug_log_toggle,
-        blobs_action_card=blobs_action_card,
-        blobs_open_btn=blobs_open_btn,
+        blobs_action_card=blobs_widgets,
+        blobs_open_btn=blobs_widgets.button,
         extra_card=extra_card,
         test_btn=test_btn,
         folder_btn=folder_btn,

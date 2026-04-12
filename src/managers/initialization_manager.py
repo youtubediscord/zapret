@@ -49,9 +49,9 @@ class InitializationManager:
 
         InitializationManager не должен владеть page-level UI state.
         Его допустимые точки касания ограничены общими app/runtime слоями:
-        - единый ui_state_store для стартового summary;
-        - app_runtime_state для системного runtime статуса;
-        - runtime service слои вроде launch_runtime_service;
+        - `ui_state_store` только для window-level summary/revision state;
+        - `app_runtime_state` только как узкий facade для launch/autostart reads;
+        - `launch_runtime_service` для канонического DPI runtime state;
         - инфраструктурные менеджеры tray/notification/subscription.
         """
 
@@ -61,7 +61,7 @@ class InitializationManager:
                 "_apply_strategy_cache_summary -> ui_state_store.set_current_strategy_summary(...)",
             ),
             app_runtime_state_updates=(
-                "_finalize_managers_init -> app_runtime_state.apply_runtime_state(autostart_enabled=...)",
+                "_finalize_managers_init -> app_runtime_state.set_autostart(...)",
                 "_sync_autostart_status -> app_runtime_state.set_autostart(...)",
             ),
             runtime_service_calls=(
@@ -612,9 +612,7 @@ class InitializationManager:
 
             app_runtime_state = getattr(self.app, "app_runtime_state", None)
             if app_runtime_state is not None:
-                app_runtime_state.apply_runtime_state(
-                    autostart_enabled=bool(autostart_exists),
-                )
+                app_runtime_state.set_autostart(bool(autostart_exists))
 
             self.init_tasks_completed.add('managers')
             self._on_managers_init_done()

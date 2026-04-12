@@ -5,11 +5,12 @@ from ui.page_names import PageName
 
 
 class WindowUiAdapter:
-    """Временный совместимый facade для window-level UI API.
+    """Совместимый facade для window-level UI API.
 
-    Это не второй источник истины и не новая архитектура сам по себе.
-    Он только даёт внешним use-site'ам стабильную точку входа, пока реальным
-    владельцем поведения становятся ui_root/page_host/navigation_controller.
+    Это не второй источник истины и не отдельный state-layer.
+    Он даёт внешним use-site'ам стабильную точку входа к window-level операциям,
+    пока реальным владельцем поведения остаются ui_root/page_host/navigation_controller
+    и связанные window controllers.
     """
 
     def __init__(self, window):
@@ -32,13 +33,6 @@ class WindowUiAdapter:
         if page_host is None:
             return None
         return page_host.get_loaded_page(page_name)
-
-    @property
-    def pages(self):
-        page_host = getattr(self._window, "_page_host", None)
-        if page_host is None:
-            return {}
-        return page_host.pages
 
     def update_titlebar_search_width(self) -> None:
         from ui.navigation.navigation_controller import ensure_navigation_controller

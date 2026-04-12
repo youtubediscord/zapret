@@ -4,47 +4,22 @@ from __future__ import annotations
 
 from ui.text_catalog import tr as tr_catalog
 from direct_control.zapret2.controller import Zapret2DirectControlPageController
-
-
-def set_toggle_checked(toggle, checked: bool) -> None:
-    try:
-        toggle.setChecked(bool(checked), block_signals=True)
-        return
-    except TypeError:
-        pass
-    except Exception:
-        pass
-
-    try:
-        toggle.blockSignals(True)
-    except Exception:
-        pass
-
-    try:
-        if hasattr(toggle, "setChecked"):
-            toggle.setChecked(bool(checked))
-    except Exception:
-        pass
-
-    try:
-        toggle._circle_position = (toggle.width() - 18) if checked else 4.0  # type: ignore[attr-defined]
-        toggle.update()
-    except Exception:
-        pass
-
-    try:
-        toggle.blockSignals(False)
-    except Exception:
-        pass
+from direct_control.ui.control_page_runtime_shared import (
+    apply_program_settings_toggles,
+    apply_status_plan as apply_status_plan_shared,
+    run_confirmation_dialog,
+    set_toggle_checked,
+    show_action_result_plan,
+)
 
 
 def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, defender_toggle, max_block_toggle) -> None:
-    if auto_dpi_toggle is not None:
-        set_toggle_checked(auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
-    if defender_toggle is not None:
-        set_toggle_checked(defender_toggle, getattr(snapshot, "defender_disabled", False))
-    if max_block_toggle is not None:
-        set_toggle_checked(max_block_toggle, getattr(snapshot, "max_blocked", False))
+    apply_program_settings_toggles(
+        snapshot,
+        auto_dpi_toggle=auto_dpi_toggle,
+        defender_toggle=defender_toggle,
+        max_block_toggle=max_block_toggle,
+    )
 
 
 def apply_advanced_settings_plan(plan, *, discord_restart_toggle, wssize_toggle, debug_log_toggle) -> None:
@@ -80,45 +55,17 @@ def sync_direct_mode_label(*, language: str, direct_mode_label) -> None:
     direct_mode_label.setText(plan.label_text)
 
 
-def show_action_result_plan(plan, *, window, set_status, info_bar_cls, toggle=None) -> None:
-    if plan.revert_checked is not None and toggle is not None:
-        set_toggle_checked(toggle, plan.revert_checked)
-
-    if plan.final_status:
-        set_status(plan.final_status)
-
-    if info_bar_cls is None:
-        return
-
-    if plan.level == "success":
-        info_bar_cls.success(title=plan.title, content=plan.content, parent=window)
-    elif plan.level == "warning":
-        info_bar_cls.warning(title=plan.title, content=plan.content, parent=window)
-    else:
-        info_bar_cls.error(title=plan.title, content=plan.content, parent=window)
-
-
-def run_confirmation_dialog(dialog_plan, *, message_box_cls, window, toggle=None) -> bool:
-    box = message_box_cls(dialog_plan.title, dialog_plan.content, window)
-    if box.exec():
-        return True
-    if dialog_plan.revert_checked is not None and toggle is not None:
-        set_toggle_checked(toggle, dialog_plan.revert_checked)
-    return False
-
-
 def apply_status_plan(plan, *, status_title, status_desc, status_dot, start_btn, stop_winws_btn, stop_and_exit_btn, update_stop_button_text) -> None:
-    status_title.setText(plan.title)
-    status_desc.setText(plan.description)
-    status_dot.set_color(plan.dot_color)
-    if plan.pulsing:
-        status_dot.start_pulse()
-    else:
-        status_dot.stop_pulse()
-    start_btn.setVisible(plan.show_start)
-    update_stop_button_text()
-    stop_winws_btn.setVisible(plan.show_stop_only)
-    stop_and_exit_btn.setVisible(plan.show_stop_and_exit)
+    apply_status_plan_shared(
+        plan,
+        status_title=status_title,
+        status_desc=status_desc,
+        status_dot=status_dot,
+        start_btn=start_btn,
+        stop_winws_btn=stop_winws_btn,
+        stop_and_exit_btn=stop_and_exit_btn,
+        update_stop_button_text=update_stop_button_text,
+    )
 
 
 def apply_direct_language(
@@ -220,9 +167,9 @@ def apply_direct_language(
             if button is not None:
                 button.setText(tr_catalog("page.z2_control.button.reset", language=language, default="Сбросить"))
         elif reset_program_btn is not None:
-            reset_program_btn._default_text = tr_catalog("page.z2_control.button.reset", language=language, default="Сбросить")
-            reset_program_btn._confirm_text = tr_catalog("page.z2_control.button.reset_confirm", language=language, default="Сбросить?")
-            reset_program_btn.setText(reset_program_btn._default_text)
+            reset_program_btn.setText(
+                tr_catalog("page.z2_control.button.reset", language=language, default="Сбросить")
+            )
             if reset_program_desc_label is not None:
                 reset_program_desc_label.setText(
                     tr_catalog("page.z2_control.setting.reset.desc", language=language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
@@ -240,10 +187,10 @@ def apply_direct_language(
     except Exception:
         pass
     if blobs_action_card is not None:
-        blobs_action_card.setTitle(
+        blobs_action_card.title_label.setText(
             tr_catalog("page.z2_control.blobs.title", language=language, default="Блобы")
         )
-        blobs_action_card.setContent(
+        blobs_action_card.content_label.setText(
             tr_catalog("page.z2_control.blobs.desc", language=language, default="Бинарные данные (.bin / hex) для стратегий")
         )
         if blobs_open_btn is not None:

@@ -28,26 +28,26 @@ def resolve_mark_rating(mark_state: object) -> str | None:
     return None
 
 
-def get_preview_rating(mark_store, *, strategy_id: str, target_key: str) -> str | None:
+def get_preview_rating(feedback_store, *, strategy_id: str, target_key: str) -> str | None:
     normalized_target = str(target_key or "").strip()
     normalized_strategy = str(strategy_id or "").strip()
     if not normalized_target or not normalized_strategy or normalized_strategy == "none":
         return None
     try:
-        mark_state = mark_store.get_mark(normalized_target, normalized_strategy)
+        mark_state = feedback_store.get_mark(normalized_target, normalized_strategy)
     except Exception:
         return None
     return resolve_mark_rating(mark_state)
 
 
-def toggle_preview_rating(mark_store, *, strategy_id: str, rating: str, target_key: str) -> tuple[bool, object, str | None]:
+def toggle_preview_rating(feedback_store, *, strategy_id: str, rating: str, target_key: str) -> tuple[bool, object, str | None]:
     normalized_target = str(target_key or "").strip()
     normalized_strategy = str(strategy_id or "").strip()
     if not normalized_target or not normalized_strategy or normalized_strategy == "none":
         return False, None, None
 
     try:
-        current = mark_store.get_mark(normalized_target, normalized_strategy)
+        current = feedback_store.get_mark(normalized_target, normalized_strategy)
     except Exception:
         current = None
 
@@ -60,28 +60,28 @@ def toggle_preview_rating(mark_store, *, strategy_id: str, rating: str, target_k
         new_state = None
 
     try:
-        mark_store.set_mark(normalized_target, normalized_strategy, new_state)
+        feedback_store.set_mark(normalized_target, normalized_strategy, new_state)
     except Exception:
         return False, current, resolve_mark_rating(current)
 
     return True, new_state, resolve_mark_rating(new_state)
 
 
-def save_strategy_mark(mark_store, *, strategy_id: str, is_working, target_key: str) -> tuple[bool, object, str | None]:
+def save_strategy_mark(feedback_store, *, strategy_id: str, is_working, target_key: str) -> tuple[bool, object, str | None]:
     normalized_target = str(target_key or "").strip()
     normalized_strategy = str(strategy_id or "").strip()
     if not normalized_target or not normalized_strategy or normalized_strategy == "none":
         return False, None, None
 
     try:
-        mark_store.set_mark(normalized_target, normalized_strategy, is_working)
+        feedback_store.set_mark(normalized_target, normalized_strategy, is_working)
     except Exception:
         return False, None, None
     return True, is_working, resolve_mark_rating(is_working)
 
 
 def toggle_favorite(
-    favorites_store,
+    feedback_store,
     *,
     strategy_id: str,
     is_favorite: bool,
@@ -95,7 +95,7 @@ def toggle_favorite(
         return False, current_ids
 
     try:
-        favorites_store.set_favorite(normalized_target, normalized_strategy, is_favorite)
+        feedback_store.set_favorite(normalized_target, normalized_strategy, is_favorite)
     except Exception:
         return False, current_ids
 

@@ -104,6 +104,10 @@ def on_dpi_start_finished(controller, success, error_message):
     """Обрабатывает завершение асинхронного запуска DPI."""
     completed_restart_generation = int(controller._restart_active_start_generation or 0)
     try:
+        store = getattr(controller.app, "ui_state_store", None)
+        if store is not None:
+            store.set_launch_busy(False)
+
         bridge = ensure_runtime_ui_bridge(controller.app)
         if bridge is not None:
             bridge.show_active_strategy_page_success()
@@ -131,6 +135,9 @@ def on_dpi_start_finished(controller, success, error_message):
 
     except Exception as e:
         log(f"Ошибка при обработке результата запуска DPI: {e}", "❌ ERROR")
+        store = getattr(controller.app, "ui_state_store", None)
+        if store is not None:
+            store.set_launch_busy(False)
         controller.app.set_status(f"Ошибка: {e}")
 
 

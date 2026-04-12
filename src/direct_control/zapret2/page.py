@@ -30,20 +30,18 @@ from direct_control.zapret2.runtime_helpers import (
 from ui.compat_widgets import (
     ActionButton,
     PrimaryActionButton,
-    ResetActionButton,
     SettingsCard,
     enable_setting_card_group_auto_height,
     set_tooltip,
 )
 from app_state.main_window_state import AppUiState, MainWindowStateStore
-from ui.text_catalog import tr as tr_catalog
-from ui.window_action_controller import (
-    open_connection_test,
-    open_folder,
-    start_dpi,
-    stop_and_exit,
-    stop_dpi,
+from direct_control.ui.control_page_shared import (
+    ControlPageActionMixin,
+    attach_program_settings_runtime,
+    bind_control_ui_state_store,
+    cleanup_control_page_subscriptions,
 )
+from ui.text_catalog import tr as tr_catalog
 from direct_control.zapret2.controller import Zapret2DirectControlPageController
 
 try:
@@ -178,7 +176,7 @@ class StopButton(ActionButton):
         super().__init__(text, icon_name, parent=parent)
 
 
-class Zapret2DirectControlPage(BasePage):
+class Zapret2DirectControlPage(ControlPageActionMixin, BasePage):
     """Страница управления для direct_zapret2 (главная вкладка раздела "Стратегии")."""
 
     navigate_to_presets = pyqtSignal()        # → PageName.ZAPRET2_USER_PRESETS
@@ -251,21 +249,6 @@ class Zapret2DirectControlPage(BasePage):
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         _ = (tokens, force)
-
-    def _start_dpi(self) -> None:
-        start_dpi(self)
-
-    def _stop_dpi(self) -> None:
-        stop_dpi(self)
-
-    def _stop_and_exit(self) -> None:
-        stop_and_exit(self)
-
-    def _open_connection_test(self) -> None:
-        open_connection_test(self)
-
-    def _open_folder(self) -> None:
-        open_folder(self)
 
     def _apply_pending_direct_refresh_if_ready(self) -> None:
         if self._cleanup_in_progress:
@@ -452,11 +435,11 @@ class Zapret2DirectControlPage(BasePage):
             caption_label_cls=CaptionLabel,
             push_button_cls=PushButton,
             transparent_push_button_cls=TransparentPushButton,
+            action_button_cls=ActionButton,
             setting_card_group_cls=SettingCardGroup,
             push_setting_card_cls=PushSettingCard,
             card_widget_cls=CardWidget,
             fluent_icon=FluentIcon,
-            reset_action_button_cls=ResetActionButton,
             settings_card_cls=SettingsCard,
             win11_toggle_row_cls=Win11ToggleRow,
             on_open_direct_launch_page=self._open_direct_launch_page,
@@ -465,7 +448,6 @@ class Zapret2DirectControlPage(BasePage):
             on_defender_toggled=self._on_defender_toggled,
             on_max_blocker_toggled=self._on_max_blocker_toggled,
             on_confirm_reset_program_clicked=self._confirm_reset_program_clicked,
-            on_reset_program_clicked=self._on_reset_program_clicked,
             on_discord_restart_changed=self._on_discord_restart_changed,
             on_wssize_toggled=self._on_wssize_toggled,
             on_debug_log_toggled=self._on_debug_log_toggled,
@@ -494,9 +476,7 @@ class Zapret2DirectControlPage(BasePage):
         self.add_spacing(8)
         self.add_spacing(16)
         self.add_widget(self.program_settings_card)
-        if deferred_widgets.program_settings_section_label is not None:
-            pass
-        if deferred_widgets.reset_program_btn is not None:
+        if self.reset_program_card is not None:
             self.add_widget(self.reset_program_card)
         enable_setting_card_group_auto_height(self.program_settings_card)
 
@@ -612,9 +592,6 @@ class Zapret2DirectControlPage(BasePage):
         if plan.refresh_mode_label_after:
             self._sync_direct_launch_mode_from_settings()
 
-    def _set_toggle_checked(self, toggle, checked: bool) -> None:
-        set_toggle_checked(toggle, checked)
-
     def _confirm_reset_program_clicked(self) -> None:
         title = tr_catalog("page.z2_control.button.reset", language=self._ui_language, default="Сбросить")
         confirm_text = tr_catalog(
@@ -636,14 +613,11 @@ class Zapret2DirectControlPage(BasePage):
         self._apply_program_settings_snapshot(snapshot)
 
     def _attach_program_settings_runtime(self) -> None:
-        if self._program_settings_runtime_attached:
-            return
-        if self.auto_dpi_toggle is None:
-            return
-        self._program_settings_runtime_attached = True
-        self._program_settings_runtime_unsubscribe = self._require_app_context().program_settings_runtime_service.subscribe(
-            self._apply_program_settings_snapshot,
-            emit_initial=True,
+        attach_program_settings_runtime(
+            self,
+            require_app_context_fn=self._require_app_context,
+            apply_snapshot_fn=self._apply_program_settings_snapshot,
+            require_attr_name="auto_dpi_toggle",
         )
 
     def _apply_program_settings_snapshot(self, snapshot) -> None:
@@ -658,14 +632,6 @@ class Zapret2DirectControlPage(BasePage):
 
     def _get_program_settings_runtime_service(self):
         return self._require_app_context().program_settings_runtime_service
-
-    def _set_status(self, msg: str) -> None:
-        try:
-            status_setter = getattr(self, "set_status", None)
-            if callable(status_setter):
-                status_setter(msg)
-        except Exception:
-            pass
 
     def _show_action_result_plan(self, plan, toggle=None) -> None:
         show_action_result_plan(
@@ -775,19 +741,10 @@ class Zapret2DirectControlPage(BasePage):
         self.stop_and_exit_btn.setEnabled(not loading)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
-        if self._ui_state_store is store:
-            return
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-
-        self._ui_state_store = store
-        self._ui_state_unsubscribe = store.subscribe(
-            self._on_ui_state_changed,
+        bind_control_ui_state_store(
+            self,
+            store,
+            callback=self._on_ui_state_changed,
             fields={
                 "launch_phase",
                 "launch_running",
@@ -798,7 +755,6 @@ class Zapret2DirectControlPage(BasePage):
                 "active_preset_revision",
                 "mode_revision",
             },
-            emit_initial=True,
         )
 
     def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
@@ -888,20 +844,4 @@ class Zapret2DirectControlPage(BasePage):
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-        self._ui_state_unsubscribe = None
-        self._ui_state_store = None
-
-        unsubscribe_runtime = getattr(self, "_program_settings_runtime_unsubscribe", None)
-        if callable(unsubscribe_runtime):
-            try:
-                unsubscribe_runtime()
-            except Exception:
-                pass
-        self._program_settings_runtime_unsubscribe = None
+        cleanup_control_page_subscriptions(self)

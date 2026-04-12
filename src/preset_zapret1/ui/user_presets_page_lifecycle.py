@@ -121,7 +121,7 @@ def cleanup_user_presets_page(*, set_cleanup_in_progress_fn, layout_resync_timer
         pass
 
 
-def apply_user_presets_language(*, tr_fn, back_btn, configs_title_label, get_configs_btn, restore_deleted_btn, create_btn, import_btn, reset_all_btn, presets_info_btn, info_btn, preset_search_input, presets_delegate, ui_language: str, viewport, layout, toolbar_layout, refresh_presets_view_from_cache_fn) -> None:
+def apply_user_presets_language(*, tr_fn, back_btn, configs_title_label, get_configs_btn, restore_deleted_btn, create_btn, import_btn, open_folder_btn, reset_all_btn, presets_info_btn, info_btn, preset_search_input, presets_delegate, ui_language: str, viewport, layout, toolbar_layout, refresh_presets_view_from_cache_fn) -> None:
     if back_btn is not None:
         back_btn.setText(tr_fn("page.z1_user_presets.back.control", "Управление"))
     if configs_title_label is not None:
@@ -142,6 +142,12 @@ def apply_user_presets_language(*, tr_fn, back_btn, configs_title_label, get_con
     if import_btn is not None:
         import_btn.setText(tr_fn("page.z1_user_presets.button.import", "Импорт"))
         set_tooltip(import_btn, tr_fn("page.z1_user_presets.tooltip.import", "Импорт пресета из файла"))
+    if open_folder_btn is not None:
+        open_folder_btn.setText(tr_fn("page.z1_user_presets.button.open_folder", "Открыть папку"))
+        set_tooltip(
+            open_folder_btn,
+            tr_fn("page.z1_user_presets.tooltip.open_folder", "Открыть папку, где лежат ваши пресеты"),
+        )
     if reset_all_btn is not None:
         current_text = reset_all_btn.text() or ""
         if "/" not in current_text:

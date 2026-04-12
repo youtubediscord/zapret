@@ -218,6 +218,7 @@ def apply_user_presets_language(
     restore_deleted_btn,
     create_btn,
     import_btn,
+    open_folder_btn,
     reset_all_btn,
     presets_info_btn,
     info_btn,
@@ -258,6 +259,13 @@ def apply_user_presets_language(
     if import_btn is not None:
         import_btn.setText(tr_fn("page.z2_user_presets.button.import", "Импорт"))
         set_tooltip(import_btn, tr_fn("page.z2_user_presets.tooltip.import", "Импорт пресета из файла"))
+
+    if open_folder_btn is not None:
+        open_folder_btn.setText(tr_fn("page.z2_user_presets.button.open_folder", "Открыть папку"))
+        set_tooltip(
+            open_folder_btn,
+            tr_fn("page.z2_user_presets.tooltip.open_folder", "Открыть папку, где лежат ваши пресеты"),
+        )
 
     if reset_all_btn is not None:
         current_text = reset_all_btn.text() or ""

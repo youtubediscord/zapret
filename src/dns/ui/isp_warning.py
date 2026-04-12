@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.theme import get_cached_qta_pixmap
+
 
 @dataclass(slots=True)
 class IspWarningWidgets:
@@ -107,7 +109,7 @@ def render_isp_warning_styles(
         """
     )
     if icon_label is not None:
-        icon_label.setPixmap(qta_module.icon("fa5s.exclamation-triangle", color="#ff9800").pixmap(16, 16))
+        icon_label.setPixmap(get_cached_qta_pixmap("fa5s.exclamation-triangle", color="#ff9800", size=16))
         icon_label.setStyleSheet("background: transparent; border: none;")
     if title_label is not None:
         title_label.setStyleSheet(

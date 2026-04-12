@@ -21,17 +21,17 @@ except ImportError:
 
 from .base_page import BasePage
 from ui.page_dependencies import require_page_app_context
-from ui.pages.control_page_program_settings_build import (
+from direct_control.ui.control_page_program_settings_build import (
     build_control_program_settings_section,
 )
-from ui.pages.control_page_runtime_helpers import (
+from direct_control.ui.control_page_runtime_helpers import (
     apply_program_settings_snapshot,
     apply_status_plan,
     apply_strategy_display,
     set_toggle_checked,
     show_action_result_plan,
 )
-from ui.pages.control_page_sections_build import (
+from direct_control.ui.control_page_sections_build import (
     build_control_extra_actions_section,
     build_control_management_section,
     build_control_status_section,
@@ -42,17 +42,15 @@ from ui.compat_widgets import (
     ActionButton,
     PrimaryActionButton,
     QuickActionsBar,
-    ResetActionButton,
     enable_setting_card_group_auto_height,
 )
 from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
-from ui.window_action_controller import (
-    open_connection_test,
-    open_folder,
-    start_dpi,
-    stop_and_exit,
-    stop_dpi,
+from direct_control.ui.control_page_shared import (
+    ControlPageActionMixin,
+    attach_program_settings_runtime,
+    bind_control_ui_state_store,
+    cleanup_control_page_subscriptions,
 )
 
 try:
@@ -62,7 +60,7 @@ except ImportError:
     HAS_FLUENT = False
 
 
-from ui.control_page_controller import ControlPageController
+from direct_control.control_runtime_controller import ControlPageController
 
 
 class BigActionButton(PrimaryActionButton):
@@ -79,7 +77,7 @@ class StopButton(ActionButton):
         super().__init__(text, icon_name, parent=parent)
 
 
-class ControlPage(BasePage):
+class ControlPage(ControlPageActionMixin, BasePage):
     """Страница управления DPI"""
 
     def __init__(self, parent=None):
@@ -107,21 +105,6 @@ class ControlPage(BasePage):
         self._runtime_initialized = True
         self._attach_program_settings_runtime()
         self._update_stop_winws_button_text()
-
-    def _start_dpi(self) -> None:
-        start_dpi(self)
-
-    def _stop_dpi(self) -> None:
-        stop_dpi(self)
-
-    def _stop_and_exit(self) -> None:
-        stop_and_exit(self)
-
-    def _open_connection_test(self) -> None:
-        open_connection_test(self)
-
-    def _open_folder(self) -> None:
-        open_folder(self)
 
     def _build_ui(self):
         # Статус работы
@@ -208,7 +191,7 @@ class ControlPage(BasePage):
             setting_card_group_cls=SettingCardGroup,
             push_setting_card_cls=PushSettingCard,
             settings_card_cls=SettingsCard,
-            reset_action_button_cls=ResetActionButton,
+            action_button_cls=ActionButton,
             win11_toggle_row_cls=Win11ToggleRow,
             caption_label_cls=CaptionLabel,
             fallback_label_cls=QLabel,
@@ -218,7 +201,6 @@ class ControlPage(BasePage):
             on_defender_toggled=self._on_defender_toggled,
             on_max_blocker_toggled=self._on_max_blocker_toggled,
             on_confirm_reset_program_clicked=self._confirm_reset_program_clicked,
-            on_reset_program_clicked=self._on_reset_program_clicked,
         )
         self.program_settings_card = program_settings_widgets.program_settings_card
         self.auto_dpi_toggle = program_settings_widgets.auto_dpi_toggle
@@ -252,10 +234,6 @@ class ControlPage(BasePage):
         self.add_widget(self.additional_section_label)
         self.add_widget(self.extra_actions_group)
 
-    def _set_toggle_checked(self, toggle, checked: bool) -> None:
-        """Устанавливает состояние toggle-карточки или переключателя без лишних сигналов."""
-        set_toggle_checked(toggle, checked)
-
     def _confirm_reset_program_clicked(self) -> None:
         title = tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить")
         confirm_text = tr_catalog(
@@ -280,12 +258,10 @@ class ControlPage(BasePage):
         )
 
     def _attach_program_settings_runtime(self) -> None:
-        if self._program_settings_runtime_attached:
-            return
-        self._program_settings_runtime_attached = True
-        self._program_settings_runtime_unsubscribe = self._require_app_context().program_settings_runtime_service.subscribe(
-            self._apply_program_settings_snapshot,
-            emit_initial=True,
+        attach_program_settings_runtime(
+            self,
+            require_app_context_fn=self._require_app_context,
+            apply_snapshot_fn=self._apply_program_settings_snapshot,
         )
 
     def _apply_program_settings_snapshot(self, snapshot) -> None:
@@ -306,14 +282,6 @@ class ControlPage(BasePage):
 
     def _get_program_settings_runtime_service(self):
         return self._require_app_context().program_settings_runtime_service
-
-    def _set_status(self, msg: str) -> None:
-        try:
-            status_setter = getattr(self, "set_status", None)
-            if callable(status_setter):
-                status_setter(msg)
-        except Exception:
-            pass
 
     def _show_action_result_plan(self, plan, toggle=None) -> None:
         show_action_result_plan(
@@ -428,21 +396,11 @@ class ControlPage(BasePage):
         self.stop_and_exit_btn._update_style()
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
-        if self._ui_state_store is store:
-            return
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-
-        self._ui_state_store = store
-        self._ui_state_unsubscribe = store.subscribe(
-            self._on_ui_state_changed,
+        bind_control_ui_state_store(
+            self,
+            store,
+            callback=self._on_ui_state_changed,
             fields={"launch_phase", "launch_running", "launch_busy", "launch_busy_text", "launch_last_error", "current_strategy_summary"},
-            emit_initial=True,
         )
 
     def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
@@ -526,13 +484,9 @@ class ControlPage(BasePage):
             except Exception:
                 pass
         elif self.reset_program_btn is not None:
-            self.reset_program_btn._default_text = tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить")
-            self.reset_program_btn._confirm_text = tr_catalog(
-                "page.control.button.reset_confirm",
-                language=self._ui_language,
-                default="Сбросить?",
+            self.reset_program_btn.setText(
+                tr_catalog("page.control.button.reset", language=self._ui_language, default="Сбросить")
             )
-            self.reset_program_btn.setText(self.reset_program_btn._default_text)
             if self._reset_program_desc_label is not None:
                 self._reset_program_desc_label.setText(
                     tr_catalog("page.control.setting.reset.desc", language=self._ui_language, default="Очистить кэш проверок запуска (без удаления пресетов/настроек)")
@@ -573,20 +527,4 @@ class ControlPage(BasePage):
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
-
-        unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
-        if callable(unsubscribe):
-            try:
-                unsubscribe()
-            except Exception:
-                pass
-        self._ui_state_unsubscribe = None
-        self._ui_state_store = None
-
-        unsubscribe_runtime = getattr(self, "_program_settings_runtime_unsubscribe", None)
-        if callable(unsubscribe_runtime):
-            try:
-                unsubscribe_runtime()
-            except Exception:
-                pass
-        self._program_settings_runtime_unsubscribe = None
+        cleanup_control_page_subscriptions(self)

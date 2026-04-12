@@ -8,10 +8,10 @@ from typing import Iterable, Optional, Set, Tuple
 from config import get_zapret_userdata_dir
 
 
-MarkKey = Tuple[str, str]  # (target_key, strategy_id)
+FeedbackKey = Tuple[str, str]  # (target_key, strategy_id)
 
 
-def _get_marks_dir() -> Path:
+def _get_feedback_dir() -> Path:
     base = ""
     try:
         base = (get_zapret_userdata_dir() or "").strip()
@@ -24,15 +24,15 @@ def _get_marks_dir() -> Path:
             base = os.path.join(appdata, "zapret")
 
     if not base:
-        raise RuntimeError("APPDATA is required for strategy marks storage")
+        raise RuntimeError("APPDATA is required for strategy feedback storage")
 
     # Папка пользовательских данных пока сохранена прежней, чтобы не потерять уже
     # записанные оценки и избранное после переноса store-слоя из старой архитектуры.
     return Path(base) / "direct_zapret2"
 
 
-def _parse_marks_lines(lines: Iterable[str]) -> Set[MarkKey]:
-    out: Set[MarkKey] = set()
+def _parse_feedback_lines(lines: Iterable[str]) -> Set[FeedbackKey]:
+    out: Set[FeedbackKey] = set()
     for raw in lines:
         line = raw.strip()
         if not line or line.startswith("#") or "\t" not in line:
@@ -45,42 +45,58 @@ def _parse_marks_lines(lines: Iterable[str]) -> Set[MarkKey]:
     return out
 
 
-def _format_marks_lines(keys: Set[MarkKey]) -> str:
+def _format_feedback_lines(keys: Set[FeedbackKey]) -> str:
     parts = [f"{cat}\t{sid}" for cat, sid in sorted(keys, key=lambda x: (x[0].lower(), x[1].lower()))]
     return ("\n".join(parts) + "\n") if parts else ""
 
 
 @dataclass
-class StrategyMarksStore:
+class StrategyFeedbackStore:
     work_path: Path
     notwork_path: Path
-    _work: Optional[Set[MarkKey]] = None
-    _notwork: Optional[Set[MarkKey]] = None
+    favorites_path: Path
+    _work: Optional[Set[FeedbackKey]] = None
+    _notwork: Optional[Set[FeedbackKey]] = None
+    _favorites: Optional[Set[FeedbackKey]] = None
 
     @classmethod
-    def default(cls) -> "StrategyMarksStore":
-        base = _get_marks_dir()
-        return cls(work_path=base / "work.txt", notwork_path=base / "notwork.txt")
+    def default(cls) -> "StrategyFeedbackStore":
+        base = _get_feedback_dir()
+        return cls(
+            work_path=base / "work.txt",
+            notwork_path=base / "notwork.txt",
+            favorites_path=base / "favorites.txt",
+        )
 
     def reset_cache(self) -> None:
         self._work = None
         self._notwork = None
+        self._favorites = None
 
-    def _ensure_loaded(self) -> None:
+    def _ensure_marks_loaded(self) -> None:
         if self._work is not None and self._notwork is not None:
             return
         self._work = set()
         self._notwork = set()
 
         if self.work_path.exists():
-            self._work = _parse_marks_lines(self.work_path.read_text(encoding="utf-8", errors="ignore").splitlines())
+            self._work = _parse_feedback_lines(self.work_path.read_text(encoding="utf-8", errors="ignore").splitlines())
         if self.notwork_path.exists():
-            self._notwork = _parse_marks_lines(self.notwork_path.read_text(encoding="utf-8", errors="ignore").splitlines())
+            self._notwork = _parse_feedback_lines(self.notwork_path.read_text(encoding="utf-8", errors="ignore").splitlines())
 
         self._notwork.difference_update(self._work)
 
+    def _ensure_favorites_loaded(self) -> None:
+        if self._favorites is not None:
+            return
+        self._favorites = set()
+        if self.favorites_path.exists():
+            self._favorites = _parse_feedback_lines(
+                self.favorites_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            )
+
     def get_mark(self, target_key: str, strategy_id: str) -> Optional[bool]:
-        self._ensure_loaded()
+        self._ensure_marks_loaded()
         key = (target_key, strategy_id)
         if key in self._work:
             return True
@@ -106,7 +122,7 @@ class StrategyMarksStore:
         return None
 
     def set_mark(self, target_key: str, strategy_id: str, is_working: Optional[bool]) -> None:
-        self._ensure_loaded()
+        self._ensure_marks_loaded()
         key = (target_key, strategy_id)
         self._work.discard(key)
         self._notwork.discard(key)
@@ -114,7 +130,7 @@ class StrategyMarksStore:
             self._work.add(key)
         elif is_working is False:
             self._notwork.add(key)
-        self._save()
+        self._save_marks()
 
     def set_rating(self, strategy_id: str, rating: str | None, target_key: str | None = None) -> bool:
         normalized_target = str(target_key or "").strip()
@@ -145,7 +161,7 @@ class StrategyMarksStore:
         return current
 
     def export_ratings(self) -> dict[str, dict[str, str]]:
-        self._ensure_loaded()
+        self._ensure_marks_loaded()
         ratings: dict[str, dict[str, str]] = {}
         for cat, sid in self._work:
             ratings.setdefault(cat, {})[sid] = "working"
@@ -153,46 +169,19 @@ class StrategyMarksStore:
             ratings.setdefault(cat, {})[sid] = "broken"
         return ratings
 
-    def _save(self) -> None:
-        base = self.work_path.parent
-        base.mkdir(parents=True, exist_ok=True)
-        self.work_path.write_text(_format_marks_lines(self._work or set()), encoding="utf-8")
-        self.notwork_path.write_text(_format_marks_lines(self._notwork or set()), encoding="utf-8")
-
-
-@dataclass
-class StrategyFavoritesStore:
-    favorites_path: Path
-    _favorites: Optional[Set[MarkKey]] = None
-
-    @classmethod
-    def default(cls) -> "StrategyFavoritesStore":
-        base = _get_marks_dir()
-        return cls(favorites_path=base / "favorites.txt")
-
-    def reset_cache(self) -> None:
-        self._favorites = None
-
-    def _ensure_loaded(self) -> None:
-        if self._favorites is not None:
-            return
-        self._favorites = set()
-        if self.favorites_path.exists():
-            self._favorites = _parse_marks_lines(self.favorites_path.read_text(encoding="utf-8", errors="ignore").splitlines())
-
     def get_favorites(self, target_key: str) -> Set[str]:
-        self._ensure_loaded()
+        self._ensure_favorites_loaded()
         cat = (target_key or "").strip()
         if not cat:
             return set()
         return {sid for c, sid in (self._favorites or set()) if c == cat}
 
     def is_favorite(self, target_key: str, strategy_id: str) -> bool:
-        self._ensure_loaded()
+        self._ensure_favorites_loaded()
         return (target_key, strategy_id) in (self._favorites or set())
 
     def set_favorite(self, target_key: str, strategy_id: str, favorite: bool) -> None:
-        self._ensure_loaded()
+        self._ensure_favorites_loaded()
         key = ((target_key or "").strip(), (strategy_id or "").strip())
         if not key[0] or not key[1]:
             return
@@ -200,14 +189,20 @@ class StrategyFavoritesStore:
             self._favorites.add(key)
         else:
             self._favorites.discard(key)
-        self._save()
+        self._save_favorites()
 
     def toggle_favorite(self, target_key: str, strategy_id: str) -> bool:
         favorite = not self.is_favorite(target_key, strategy_id)
         self.set_favorite(target_key, strategy_id, favorite)
         return favorite
 
-    def _save(self) -> None:
+    def _save_marks(self) -> None:
+        base = self.work_path.parent
+        base.mkdir(parents=True, exist_ok=True)
+        self.work_path.write_text(_format_feedback_lines(self._work or set()), encoding="utf-8")
+        self.notwork_path.write_text(_format_feedback_lines(self._notwork or set()), encoding="utf-8")
+
+    def _save_favorites(self) -> None:
         base = self.favorites_path.parent
         base.mkdir(parents=True, exist_ok=True)
-        self.favorites_path.write_text(_format_marks_lines(self._favorites or set()), encoding="utf-8")
+        self.favorites_path.write_text(_format_feedback_lines(self._favorites or set()), encoding="utf-8")

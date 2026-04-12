@@ -326,7 +326,7 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
                 return
             adapter = ensure_window_adapter(window)
             adapter.show_page(StartupPageName.SERVERS)
-            page = adapter.pages.get(StartupPageName.SERVERS)
+            page = adapter.get_loaded_page(StartupPageName.SERVERS)
             if page is not None:
                 page.present_startup_update(
                     version,

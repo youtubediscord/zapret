@@ -147,8 +147,7 @@ class Zapret1StrategyDetailPage(BasePage):
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
         self._cleanup_in_progress = False
-        self._marks_store = None
-        self._favorites_store = None
+        self._feedback_store = None
         self._favorite_strategy_ids: set[str] = set()
         self._preview_dialog = None
         self._preview_pinned = False
@@ -520,14 +519,13 @@ class Zapret1StrategyDetailPage(BasePage):
         )
 
     def _ensure_interaction_stores(self) -> None:
-        if self._marks_store is not None and self._favorites_store is not None:
+        if self._feedback_store is not None:
             return
         try:
             app_context = self._require_app_context()
         except Exception:
             return
-        self._marks_store = getattr(app_context, "strategy_marks_store", None)
-        self._favorites_store = getattr(app_context, "strategy_favorites_store", None)
+        self._feedback_store = getattr(app_context, "strategy_feedback_store", None)
 
     def _refresh_marks_and_favorites_for_target(self) -> None:
         self._ensure_interaction_stores()
@@ -537,9 +535,9 @@ class Zapret1StrategyDetailPage(BasePage):
             return
 
         favorite_ids: set[str] = set()
-        if self._favorites_store is not None:
+        if self._feedback_store is not None:
             try:
-                favorite_ids = set(self._favorites_store.get_favorites(target_key))
+                favorite_ids = set(self._feedback_store.get_favorites(target_key))
             except Exception:
                 favorite_ids = set()
         self._favorite_strategy_ids = set(favorite_ids)
@@ -547,10 +545,10 @@ class Zapret1StrategyDetailPage(BasePage):
         for strategy_id in list(tree.get_strategy_ids() or []):
             if strategy_id != "none":
                 tree.set_favorite_state(strategy_id, strategy_id in favorite_ids)
-            if self._marks_store is None:
+            if self._feedback_store is None:
                 continue
             try:
-                state = self._marks_store.get_mark(target_key, strategy_id)
+                state = self._feedback_store.get_mark(target_key, strategy_id)
             except Exception:
                 state = None
             tree.set_working_state(strategy_id, state)
@@ -757,19 +755,19 @@ class Zapret1StrategyDetailPage(BasePage):
         )
 
     def _get_preview_rating(self, strategy_id: str, target_key: str):
-        if self._marks_store is None:
+        if self._feedback_store is None:
             return None
         return get_preview_rating(
-            self._marks_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             target_key=target_key,
         )
 
     def _toggle_preview_rating(self, strategy_id: str, rating: str, target_key: str):
-        if self._marks_store is None:
+        if self._feedback_store is None:
             return None
         ok, resulting_state, resulting_rating = toggle_preview_rating(
-            self._marks_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             rating=rating,
             target_key=target_key,
@@ -831,10 +829,10 @@ class Zapret1StrategyDetailPage(BasePage):
         pass
 
     def _on_tree_working_mark_requested(self, strategy_id: str, is_working):
-        if self._marks_store is None or self._tree is None:
+        if self._feedback_store is None or self._tree is None:
             return
         ok, resulting_state, _ = save_strategy_mark(
-            self._marks_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             is_working=is_working,
             target_key=self._target_key,
@@ -843,10 +841,10 @@ class Zapret1StrategyDetailPage(BasePage):
             self._tree.set_working_state(strategy_id, resulting_state)
 
     def _on_favorite_toggled(self, strategy_id: str, is_favorite: bool) -> None:
-        if self._favorites_store is None:
+        if self._feedback_store is None:
             return
         ok, updated_ids = toggle_favorite(
-            self._favorites_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             is_favorite=is_favorite,
             target_key=self._target_key,

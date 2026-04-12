@@ -32,7 +32,7 @@ from ui.window_display_state import get_direct_strategy_summary
 from ui.ui_root import WindowUiRoot
 
 # ---------------------------------------------------------------------------
-# Navigation icon mapping (SectionName/PageName -> FluentIcon)
+# Navigation icon mapping (PageName -> FluentIcon)
 # ---------------------------------------------------------------------------
 _NAV_ICONS = {
     PageName.CONTROL: FluentIcon.COMMAND_PROMPT if HAS_FLUENT else None,

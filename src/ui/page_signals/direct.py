@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QWidget
 
-from ui.mode_switch_workflow import handle_launch_method_changed
+from direct_launch.runtime import handle_launch_method_changed_runtime
 from ui.navigation.navigation_controller import ensure_navigation_controller
 from ui.navigation_targets import (
     resolve_preset_detail_back_page_for_method,
@@ -23,8 +23,7 @@ from ui.strategy_detail_workflow import (
     open_zapret1_target_detail,
 )
 from ui.strategy_selection_workflow import on_strategy_selected_from_page
-from ui.window_adapter import ensure_window_adapter
-from ui.window_state_refresh import on_direct_mode_changed
+from ui.window_display_state import on_direct_mode_changed
 
 from .helpers import (
     connect_page_signal_if_present,
@@ -49,6 +48,40 @@ def _open_zapret1_preset_detail(window, preset_name: str) -> None:
     from ui.ui_workflows import ensure_ui_workflows
 
     ensure_ui_workflows(window).open_zapret1_preset_detail(preset_name)
+
+
+def _on_launch_method_changed(window, method: str) -> None:
+    from ui.ui_workflows import ensure_ui_workflows
+
+    plan = handle_launch_method_changed_runtime(window, method)
+
+    if plan.dispatch_action == "restart":
+        log_text = (
+            f"Метод '{method}' сохранён, дальнейший запуск передан в единый runtime pipeline"
+        )
+    elif plan.dispatch_action == "stop":
+        log_text = (
+            f"Метод '{method}' сохранён, активный DPI будет остановлен через единый runtime pipeline"
+        )
+    else:
+        log_text = f"Метод '{method}' сохранён без немедленного запуска"
+
+    try:
+        from log import log
+
+        log(log_text, "INFO")
+    except Exception:
+        pass
+
+    try:
+        ensure_navigation_controller(window).sync_nav_visibility(method)
+    except Exception:
+        pass
+
+    try:
+        ensure_ui_workflows(window).redirect_to_strategies_page_for_method(method)
+    except Exception:
+        pass
 
 
 def connect_direct_page_signals(window, page_name: PageName, page: QWidget) -> None:
@@ -83,19 +116,20 @@ def connect_direct_page_signals(window, page_name: PageName, page: QWidget) -> N
         )
 
     if page_name == z2_direct.preset_detail_page:
-        connect_page_signal_if_present(
+        connect_show_page_signal_if_present(
             window,
             "z2_preset_detail.back_clicked",
             page,
             PageSignalName.BACK_CLICKED,
-            lambda target=resolve_preset_detail_back_page_for_method("direct_zapret2"), adapter=ensure_window_adapter(window): adapter.show_page(target, allow_internal=True),
+            resolve_preset_detail_back_page_for_method("direct_zapret2"),
+            allow_internal=True,
         )
-        connect_page_signal_if_present(
+        connect_show_page_signal_if_present(
             window,
             "z2_preset_detail.navigate_to_root",
             page,
             PageSignalName.NAVIGATE_TO_ROOT,
-            lambda target=resolve_preset_detail_root_page_for_method("direct_zapret2"), adapter=ensure_window_adapter(window): adapter.show_page(target),
+            resolve_preset_detail_root_page_for_method("direct_zapret2"),
         )
 
     if page_name == z2_direct.control_page:
@@ -121,12 +155,12 @@ def connect_direct_page_signals(window, page_name: PageName, page: QWidget) -> N
 
     if page_name == z2_direct.strategy_detail_page:
         connect_page_signal_if_present(window, "strategy_detail.back_clicked", page, PageSignalName.BACK_CLICKED, lambda w=window: on_strategy_detail_back(w))
-        connect_page_signal_if_present(
+        connect_show_page_signal_if_present(
             window,
             "strategy_detail.navigate_to_root",
             page,
             PageSignalName.NAVIGATE_TO_ROOT,
-            lambda target=resolve_strategy_detail_root_page_for_method("direct_zapret2"), adapter=ensure_window_adapter(window): adapter.show_page(target),
+            resolve_strategy_detail_root_page_for_method("direct_zapret2"),
         )
         connect_page_signal_if_present(
             window,
@@ -185,7 +219,7 @@ def connect_direct_page_signals(window, page_name: PageName, page: QWidget) -> N
         connect_show_page_signal_if_present(window, "z1_control.navigate_to_blobs", page, PageSignalName.NAVIGATE_TO_BLOBS, PageName.BLOBS, allow_internal=True)
 
     if page_name == PageName.DPI_SETTINGS:
-        connect_page_signal_if_present(window, "dpi_settings.launch_method_changed", page, PageSignalName.LAUNCH_METHOD_CHANGED, lambda method, w=window: handle_launch_method_changed(w, method))
+        connect_page_signal_if_present(window, "dpi_settings.launch_method_changed", page, PageSignalName.LAUNCH_METHOD_CHANGED, lambda method, w=window: _on_launch_method_changed(w, method))
 
     if page_name in (PageName.ZAPRET1_DIRECT, PageName.ZAPRET2_DIRECT):
         connect_page_signal_if_present(

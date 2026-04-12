@@ -1,26 +1,26 @@
 from __future__ import annotations
 
 from ui.navigation.schema import is_page_direct_open_allowed
-from ui.navigation_targets import (
-    resolve_control_page_for_method,
-    resolve_zapret1_navigation_pages,
-    resolve_zapret2_navigation_pages,
-)
 from ui.page_names import PageName
+from ui.window_adapter import ensure_window_adapter
 from ui.workflows.common import (
     get_current_launch_method,
-    refresh_or_show_page_after_refresh_if_possible,
     refresh_page_if_possible,
-    show_page,
 )
 from ui.workflows.direct import (
     get_strategies_context_pages,
+    navigate_to_control,
+    navigate_to_strategies,
     open_zapret1_preset_detail,
     open_zapret1_strategy_detail,
     open_zapret2_preset_detail,
     open_zapret2_strategy_detail,
     resolve_navigation_target_for_strategies,
-    resolve_zapret2_user_presets_page,
+    refresh_active_zapret2_user_presets_page,
+    refresh_zapret1_user_presets_page,
+    show_active_zapret2_control_page,
+    show_active_zapret2_user_presets_page,
+    show_zapret1_user_presets_page,
 )
 
 
@@ -35,8 +35,7 @@ class WindowUiWorkflows:
         self._window = window
 
     def _show_page(self, page_name: PageName) -> bool:
-        return show_page(
-            self._window,
+        return ensure_window_adapter(self._window).show_page(
             page_name,
             allow_internal=not is_page_direct_open_allowed(page_name),
         )
@@ -70,38 +69,16 @@ class WindowUiWorkflows:
         )
 
     def show_active_zapret2_user_presets_page(self) -> None:
-        method = get_current_launch_method()
-        refresh_or_show_page_after_refresh_if_possible(
-            self._window,
-            resolve_zapret2_user_presets_page(method),
-            show_page_after_refresh=True,
-            allow_internal=True,
-        )
+        show_active_zapret2_user_presets_page(self._window, allow_internal=True)
 
     def show_zapret1_user_presets_page(self) -> None:
-        refresh_or_show_page_after_refresh_if_possible(
-            self._window,
-            resolve_zapret1_navigation_pages().user_presets_page,
-            show_page_after_refresh=True,
-            allow_internal=True,
-        )
+        show_zapret1_user_presets_page(self._window, allow_internal=True)
 
     def refresh_active_zapret2_user_presets_page(self) -> None:
-        method = get_current_launch_method()
-        refresh_or_show_page_after_refresh_if_possible(
-            self._window,
-            resolve_zapret2_user_presets_page(method),
-            show_page_after_refresh=False,
-            allow_internal=True,
-        )
+        refresh_active_zapret2_user_presets_page(self._window, allow_internal=True)
 
     def refresh_zapret1_user_presets_page(self) -> None:
-        refresh_or_show_page_after_refresh_if_possible(
-            self._window,
-            resolve_zapret1_navigation_pages().user_presets_page,
-            show_page_after_refresh=False,
-            allow_internal=True,
-        )
+        refresh_zapret1_user_presets_page(self._window, allow_internal=True)
 
     def open_zapret2_preset_detail(self, preset_name: str) -> None:
         method = get_current_launch_method()
@@ -149,21 +126,13 @@ class WindowUiWorkflows:
         self._show_static_page(PageName.SERVERS)
 
     def show_active_zapret2_control_page(self) -> None:
-        method = get_current_launch_method(default="direct_zapret2")
-        self._show_page(resolve_zapret2_navigation_pages(method).control_page)
+        show_active_zapret2_control_page(self._window, allow_internal=False)
 
     def navigate_to_control(self) -> None:
-        method = get_current_launch_method()
-        self._show_page(resolve_control_page_for_method(method))
+        navigate_to_control(self._window, allow_internal=False)
 
     def navigate_to_strategies(self) -> None:
-        method = get_current_launch_method(default="direct_zapret2")
-        target_page = resolve_navigation_target_for_strategies(
-            self._window,
-            method,
-            allow_restore_z2_detail=True,
-        )
-        self._show_page(target_page)
+        navigate_to_strategies(self._window, allow_internal=False)
 
 
 def ensure_ui_workflows(window) -> WindowUiWorkflows:

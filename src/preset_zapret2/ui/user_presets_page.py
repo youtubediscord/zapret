@@ -30,6 +30,7 @@ from core.presets.ui.direct_user_presets_page_controller import (
     DirectUserPresetsPageController,
     DirectUserPresetsPageControllerConfig,
 )
+from core.presets.ui.user_presets_page_actions import open_presets_folder_action
 from preset_zapret2.ui.user_presets_build import build_user_presets_page_shell
 from preset_zapret2.ui.user_presets_dialogs import (
     CreatePresetDialog,
@@ -196,6 +197,7 @@ class BaseZapret2UserPresetsPage(BasePage):
         self._preset_search_timer.timeout.connect(self._apply_preset_search)
         self._preset_search_input: Optional[QLineEdit] = None
         self._toolbar_layout: Optional[PresetsToolbarLayout] = None
+        self.open_folder_btn = None
 
         self._ui_state_store: Optional[MainWindowStateStore] = None
         self._ui_state_unsubscribe = None
@@ -465,6 +467,7 @@ class BaseZapret2UserPresetsPage(BasePage):
             on_restore_deleted=self._on_restore_deleted,
             on_create_clicked=self._on_create_clicked,
             on_import_clicked=self._on_import_clicked,
+            on_open_folder_clicked=self._open_presets_folder,
             on_reset_all_presets_clicked=self._on_reset_all_presets_clicked,
             on_open_presets_info=self._open_presets_info,
             on_info_clicked=self._on_info_clicked,
@@ -483,6 +486,7 @@ class BaseZapret2UserPresetsPage(BasePage):
         self._restore_deleted_btn = shell.restore_deleted_btn
         self.create_btn = shell.create_btn
         self.import_btn = shell.import_btn
+        self.open_folder_btn = shell.open_folder_btn
         self.reset_all_btn = shell.reset_all_btn
         self.presets_info_btn = shell.presets_info_btn
         self.info_btn = shell.info_btn
@@ -522,6 +526,18 @@ class BaseZapret2UserPresetsPage(BasePage):
             )
             box.cancelButton.hide()
             box.exec()
+
+    def _open_presets_folder(self) -> None:
+        open_presets_folder_action(
+            get_presets_dir_fn=self._get_presets_dir_light,
+            info_bar_cls=InfoBar,
+            tr_fn=self._tr,
+            parent_window=self.window(),
+            error_key="page.z2_user_presets.error.open_folder",
+            error_default="Не удалось открыть папку пресетов: {error}",
+            log_prefix="Z2UserPresetsPage",
+            log_fn=log,
+        )
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         self._last_page_theme_key = apply_user_presets_page_theme(
@@ -887,6 +903,7 @@ class BaseZapret2UserPresetsPage(BasePage):
             restore_deleted_btn=self._restore_deleted_btn,
             create_btn=self.create_btn,
             import_btn=self.import_btn,
+            open_folder_btn=self.open_folder_btn,
             reset_all_btn=self.reset_all_btn,
             presets_info_btn=self.presets_info_btn,
             info_btn=self.info_btn,

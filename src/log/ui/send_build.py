@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class LogsSendTabWidgets:
@@ -61,7 +63,7 @@ def build_logs_send_tab(
         orchestra_color = "#a855f7" if _is_dark_theme() else "#7c3aed"
     except Exception:
         orchestra_color = "#a855f7"
-    orchestra_icon.setPixmap(qta_module.icon('fa5s.brain', color=orchestra_color).pixmap(16, 16))
+    orchestra_icon.setPixmap(get_cached_qta_pixmap("fa5s.brain", color=orchestra_color, size=16))
     orchestra_layout.addWidget(orchestra_icon)
 
     orchestra_text = body_label_cls(
@@ -132,7 +134,7 @@ def build_logs_send_tab(
     send_log_btn.setText(
         tr_catalog_fn("page.logs.send.button.send", language=ui_language, default="Подготовить обращение")
     )
-    send_log_btn.setIcon(qta_module.icon("fa5b.github", color=tokens.accent_hex))
+    send_log_btn.setIcon(get_themed_qta_icon("fa5b.github", color=tokens.accent_hex))
     send_log_btn.setToolTip(
         tr_catalog_fn(
             "page.logs.send.action.send.description",
@@ -147,7 +149,7 @@ def build_logs_send_tab(
     open_logs_folder_btn.setText(
         tr_catalog_fn("page.logs.button.folder", language=ui_language, default="Папка")
     )
-    open_logs_folder_btn.setIcon(qta_module.icon("fa5s.folder-open", color=tokens.accent_hex))
+    open_logs_folder_btn.setIcon(get_themed_qta_icon("fa5s.folder-open", color=tokens.accent_hex))
     open_logs_folder_btn.setToolTip(
         tr_catalog_fn(
             "page.logs.send.action.folder.description",

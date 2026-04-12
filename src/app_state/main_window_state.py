@@ -12,8 +12,6 @@ class AppUiState:
     launch_running: bool = False
     launch_busy: bool = False
     launch_busy_text: str = ""
-    launch_expected_process: str = ""
-    launch_pid: int | None = None
     launch_last_error: str = ""
     current_strategy_summary: str = ""
     autostart_enabled: bool = False
@@ -32,7 +30,12 @@ UiStateCallback = Callable[[AppUiState, frozenset[str]], None]
 
 
 class MainWindowStateStore:
-    """Единый store состояния окна без зависимости от QWidget/QObject."""
+    """Единый window-level store состояния без зависимости от QWidget/QObject.
+
+    Здесь хранится только та часть состояния, которая действительно нужна
+    подписчикам UI и общим app-level helper'ам. Внутренний process-tracking
+    launch-контура сюда больше не входит.
+    """
 
     def __init__(self, initial_state: AppUiState | None = None) -> None:
         self._state = initial_state or AppUiState()

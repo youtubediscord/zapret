@@ -1,21 +1,30 @@
+"""Helper'ы для page-level dependency resolution.
+
+Здесь важно различать два режима:
+- узкие direct-attrs, которые страницы реально читают как `self.<attr>` или через
+  `getattr(self, "<attr>")` и потому требуют прямой инъекции;
+- общие window/app зависимости, которые можно безопасно получать через
+  `resolve_page_dependency(...)` без предварительного копирования на сам page.
+"""
+
 from __future__ import annotations
 
 
 INJECTABLE_PAGE_ATTRS: tuple[str, ...] = (
-    "app_context",
-    "app_runtime_state",
-    "launch_runtime_service",
     "launch_runtime_api",
-    "launch_controller",
     "process_monitor",
     "set_status",
-    "ui_state_store",
-    "window_notification_controller",
     "orchestra_runner",
 )
 
 
 def inject_page_dependencies(page, window) -> None:
+    """Инжектирует только те зависимости, которые страницы читают напрямую.
+
+    Более широкие app/window зависимости не копируем на page без необходимости:
+    их получают через `resolve_page_dependency(...)`, `require_page_app_context(...)`
+    и похожие helper'ы.
+    """
     for attr_name in INJECTABLE_PAGE_ATTRS:
         try:
             current_value = getattr(page, attr_name, None)

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from direct_control.shared_builders import build_reset_program_action_card_common
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class ControlProgramSettingsWidgets:
@@ -26,7 +29,7 @@ def build_control_program_settings_section(
     setting_card_group_cls,
     push_setting_card_cls,
     settings_card_cls,
-    reset_action_button_cls,
+    action_button_cls,
     win11_toggle_row_cls,
     caption_label_cls,
     fallback_label_cls,
@@ -36,8 +39,9 @@ def build_control_program_settings_section(
     on_defender_toggled,
     on_max_blocker_toggled,
     on_confirm_reset_program_clicked,
-    on_reset_program_clicked,
 ) -> ControlProgramSettingsWidgets:
+    _ = (fallback_label_cls, qhbox_layout_cls, qta_module)
+
     program_settings_title = tr_fn(
         "page.control.section.program_settings",
         "Настройки программы",
@@ -93,40 +97,28 @@ def build_control_program_settings_section(
     if callable(add_setting_card) and push_setting_card_cls is not None:
         reset_program_card = push_setting_card_cls(
             tr_fn("page.control.button.reset", "Сбросить"),
-            qta_module.icon("fa5s.undo", color="#ff9800"),
+            get_themed_qta_icon("fa5s.undo", color="#ff9800"),
             tr_fn("page.control.setting.reset.title", "Сбросить программу"),
             tr_fn("page.control.setting.reset.desc", "Очистить кэш проверок запуска (без удаления пресетов/настроек)"),
         )
         reset_program_card.clicked.connect(on_confirm_reset_program_clicked)
         add_setting_card(reset_program_card)
     else:
-        reset_program_btn = reset_action_button_cls(
-            tr_fn("page.control.button.reset", "Сбросить"),
-            confirm_text=tr_fn("page.control.button.reset_confirm", "Сбросить?"),
+        extra_reset_card, reset_program_btn, reset_program_desc_label = build_reset_program_action_card_common(
+            tr_fn=tr_fn,
+            has_fluent_labels=has_fluent_labels,
+            caption_label_cls=caption_label_cls,
+            action_button_cls=action_button_cls,
+            settings_card_cls=settings_card_cls,
+            button_key="page.control.button.reset",
+            button_default="Сбросить",
+            button_icon_name="fa5s.undo",
+            title_key="page.control.setting.reset.title",
+            title_default="Сбросить программу",
+            desc_key="page.control.setting.reset.desc",
+            desc_default="Очистить кэш проверок запуска (без удаления пресетов/настроек)",
+            on_confirm_reset_program_clicked=on_confirm_reset_program_clicked,
         )
-        reset_program_btn.setProperty("noDrag", True)
-        reset_program_btn.reset_confirmed.connect(on_reset_program_clicked)
-
-        extra_reset_card = settings_card_cls(
-            tr_fn("page.control.setting.reset.title", "Сбросить программу")
-        )
-        reset_program_desc_label = (
-            caption_label_cls(
-                tr_fn("page.control.setting.reset.desc", "Очистить кэш проверок запуска (без удаления пресетов/настроек)")
-            )
-            if has_fluent_labels
-            else fallback_label_cls(
-                tr_fn("page.control.setting.reset.desc", "Очистить кэш проверок запуска (без удаления пресетов/настроек)")
-            )
-        )
-        reset_program_desc_label.setWordWrap(True)
-        extra_reset_card.add_widget(reset_program_desc_label)
-
-        reset_layout = qhbox_layout_cls()
-        reset_layout.setSpacing(8)
-        reset_layout.addWidget(reset_program_btn)
-        reset_layout.addStretch()
-        extra_reset_card.add_layout(reset_layout)
         reset_program_card = extra_reset_card
 
     return ControlProgramSettingsWidgets(

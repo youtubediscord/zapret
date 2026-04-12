@@ -3755,6 +3755,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Импорт",
         "en": "Import",
     },
+    "page.z1_user_presets.button.open_folder": {
+        "ru": "Папка пресетов",
+        "en": "Presets folder",
+    },
     "page.z1_user_presets.button.reset_all": {
         "ru": "Вернуть заводские",
         "en": "Restore defaults",
@@ -3778,6 +3782,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z1_user_presets.tooltip.import": {
         "ru": "Импорт пресета из файла",
         "en": "Import preset from file",
+    },
+    "page.z1_user_presets.tooltip.open_folder": {
+        "ru": "Открыть папку, где лежат ваши пресеты",
+        "en": "Open the folder where your presets are stored",
     },
     "page.z1_user_presets.tooltip.reset_all": {
         "ru": "Восстанавливает стандартные пресеты. Ваши изменения в стандартных пресетах будут потеряны.",
@@ -3974,6 +3982,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z1_user_presets.error.import_exception": {
         "ru": "Ошибка импорта: {error}",
         "en": "Import error: {error}",
+    },
+    "page.z1_user_presets.error.open_folder": {
+        "ru": "Не удалось открыть папку пресетов: {error}",
+        "en": "Could not open presets folder: {error}",
     },
     "page.z1_user_presets.error.export_failed": {
         "ru": "Не удалось экспортировать пресет",
@@ -4211,6 +4223,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Импорт",
         "en": "Import",
     },
+    "page.z2_user_presets.button.open_folder": {
+        "ru": "Папка пресетов",
+        "en": "Presets folder",
+    },
     "page.z2_user_presets.button.reset_all": {
         "ru": "Вернуть заводские",
         "en": "Restore defaults",
@@ -4234,6 +4250,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z2_user_presets.tooltip.import": {
         "ru": "Импорт пресета из файла",
         "en": "Import preset from file",
+    },
+    "page.z2_user_presets.tooltip.open_folder": {
+        "ru": "Открыть папку, где лежат ваши пресеты",
+        "en": "Open the folder where your presets are stored",
     },
     "page.z2_user_presets.tooltip.reset_all": {
         "ru": "Восстанавливает стандартные пресеты. Ваши изменения в стандартных пресетах будут потеряны.",
@@ -4430,6 +4450,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z2_user_presets.error.import_exception": {
         "ru": "Ошибка импорта: {error}",
         "en": "Import error: {error}",
+    },
+    "page.z2_user_presets.error.open_folder": {
+        "ru": "Не удалось открыть папку пресетов: {error}",
+        "en": "Could not open presets folder: {error}",
     },
     "page.z2_user_presets.error.export_failed": {
         "ru": "Не удалось экспортировать пресет",

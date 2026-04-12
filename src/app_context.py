@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
     from core.presets.direct_facade import DirectPresetFacade
-    from app_state.strategy_marks_store import StrategyFavoritesStore, StrategyMarksStore
+    from app_state.strategy_feedback_store import StrategyFeedbackStore
 
 
 _APP_CONTEXT: "AppContext | None" = None
@@ -36,8 +36,7 @@ class AppContext:
     preset_file_store: PresetFileStore
     preset_store: DirectRuntimePresetStore
     preset_store_v1: DirectRuntimePresetStore
-    strategy_marks_store: StrategyMarksStore
-    strategy_favorites_store: StrategyFavoritesStore
+    strategy_feedback_store: StrategyFeedbackStore
     direct_ui_snapshot_service: DirectUiSnapshotService
     orchestra_whitelist_runtime_service: OrchestraWhitelistRuntimeService
     program_settings_runtime_service: ProgramSettingsRuntimeService
@@ -60,7 +59,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
-    from app_state.strategy_marks_store import StrategyFavoritesStore, StrategyMarksStore
+    from app_state.strategy_feedback_store import StrategyFeedbackStore
 
     root = Path(get_zapret_userdata_dir()).resolve()
     app_paths = AppPaths(user_root=root, local_root=root)
@@ -69,8 +68,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     preset_selection_service = PresetSelectionService(app_paths, preset_file_store)
     preset_store = DirectRuntimePresetStore("winws2", preset_file_store, preset_selection_service)
     preset_store_v1 = DirectRuntimePresetStore("winws1", preset_file_store, preset_selection_service)
-    strategy_marks_store = StrategyMarksStore.default()
-    strategy_favorites_store = StrategyFavoritesStore.default()
+    strategy_feedback_store = StrategyFeedbackStore.default()
     app_runtime_state = AppRuntimeState(ui_state_store)
     launch_runtime_service = LaunchRuntimeService(ui_state_store)
     direct_flow_coordinator = DirectFlowCoordinator(app_paths, preset_selection_service, preset_file_store)
@@ -111,8 +109,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
         preset_file_store=preset_file_store,
         preset_store=preset_store,
         preset_store_v1=preset_store_v1,
-        strategy_marks_store=strategy_marks_store,
-        strategy_favorites_store=strategy_favorites_store,
+        strategy_feedback_store=strategy_feedback_store,
         direct_ui_snapshot_service=direct_ui_snapshot_service,
         orchestra_whitelist_runtime_service=orchestra_whitelist_runtime_service,
         program_settings_runtime_service=program_settings_runtime_service,

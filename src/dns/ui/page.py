@@ -32,7 +32,6 @@ from ui.compat_widgets import (
     SettingsCard,
     ActionButton,
     QuickActionsBar,
-    ResetActionButton,
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
     set_tooltip,
@@ -154,21 +153,6 @@ class NetworkPage(BasePage):
     def _tr(self, key: str, default: str) -> str:
         return tr_catalog(key, language=self._ui_language, default=default)
 
-    def _set_reset_button_texts(
-        self,
-        button,
-        text_key: str,
-        text_default: str,
-        confirm_key: str,
-        confirm_default: str,
-    ) -> None:
-        try:
-            button._default_text = self._tr(text_key, text_default)
-            button._confirm_text = self._tr(confirm_key, confirm_default)
-            button.setText(button._default_text)
-        except Exception:
-            pass
-
     def _confirm_action(
         self,
         title_key: str,
@@ -275,12 +259,8 @@ class NetworkPage(BasePage):
                 ),
             )
         if hasattr(self, "force_dns_reset_dhcp_btn"):
-            self._set_reset_button_texts(
-                self.force_dns_reset_dhcp_btn,
-                "page.network.force_dns.reset.button",
-                "Сбросить DNS на DHCP",
-                "page.network.force_dns.reset.confirm",
-                "Отключить Force DNS и сбросить DNS на DHCP для всех адаптеров?",
+            self.force_dns_reset_dhcp_btn.setText(
+                self._tr("page.network.force_dns.reset.button", "Сбросить DNS на DHCP")
             )
             self.force_dns_reset_dhcp_btn.setToolTip(
                 self._tr(
@@ -695,7 +675,7 @@ class NetworkPage(BasePage):
             setting_card_group_cls=SettingCardGroup,
             settings_card_cls=SettingsCard,
             caption_label_cls=CaptionLabel if _HAS_FLUENT_LABELS else QLabel,
-            reset_action_button_cls=ResetActionButton,
+            action_button_cls=ActionButton,
             win11_toggle_row_cls=Win11ToggleRow,
             qwidget_cls=QWidget,
             qvbox_layout_cls=QVBoxLayout,
@@ -704,7 +684,7 @@ class NetworkPage(BasePage):
             insert_widget_into_setting_card_group_fn=insert_widget_into_setting_card_group,
             enable_setting_card_group_auto_height_fn=enable_setting_card_group_auto_height,
             on_toggle=self._on_force_dns_toggled,
-            on_reset=self._reset_dns_to_dhcp,
+            on_confirm_reset=self._confirm_reset_dns_to_dhcp,
         )
         self.force_dns_card = force_dns_widgets.card
         self.force_dns_toggle = force_dns_widgets.toggle

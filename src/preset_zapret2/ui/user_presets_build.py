@@ -26,6 +26,7 @@ class UserPresetsPageBuildWidgets:
     restore_deleted_btn: object
     create_btn: object
     import_btn: object
+    open_folder_btn: object
     reset_all_btn: object
     presets_info_btn: object
     info_btn: object
@@ -50,6 +51,7 @@ def build_user_presets_page_shell(
     on_restore_deleted,
     on_create_clicked,
     on_import_clicked,
+    on_open_folder_clicked,
     on_reset_all_presets_clicked,
     on_open_presets_info,
     on_info_clicked,
@@ -119,6 +121,16 @@ def build_user_presets_page_shell(
     )
     import_btn.clicked.connect(on_import_clicked)
 
+    open_folder_btn = toolbar_layout.create_action_button(
+        tr_fn("page.z2_user_presets.button.open_folder", "Открыть папку"),
+        "fa5s.folder-open",
+    )
+    set_tooltip(
+        open_folder_btn,
+        tr_fn("page.z2_user_presets.tooltip.open_folder", "Открыть папку, где лежат ваши пресеты"),
+    )
+    open_folder_btn.clicked.connect(on_open_folder_clicked)
+
     reset_all_btn = toolbar_layout.create_action_button(
         tr_fn("page.z2_user_presets.button.reset_all", "Вернуть заводские"),
         "fa5s.undo",
@@ -147,6 +159,7 @@ def build_user_presets_page_shell(
     toolbar_layout.set_buttons([
         create_btn,
         import_btn,
+        open_folder_btn,
         restore_deleted_btn,
         reset_all_btn,
         presets_info_btn,
@@ -205,6 +218,7 @@ def build_user_presets_page_shell(
         restore_deleted_btn=restore_deleted_btn,
         create_btn=create_btn,
         import_btn=import_btn,
+        open_folder_btn=open_folder_btn,
         reset_all_btn=reset_all_btn,
         presets_info_btn=presets_info_btn,
         info_btn=info_btn,

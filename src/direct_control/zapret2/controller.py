@@ -4,7 +4,7 @@ import os
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from ui.control_page_controller import (
+from direct_control.control_runtime_controller import (
     ControlActionResultPlan,
     ControlAutoDpiPlan,
     ControlConfirmationDialogPlan,

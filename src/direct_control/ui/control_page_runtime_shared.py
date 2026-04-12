@@ -1,9 +1,4 @@
-"""Runtime-helper слой для Control page."""
-
 from __future__ import annotations
-
-from ui.compat_widgets import set_tooltip
-from ui.control_page_controller import ControlPageController
 
 
 def set_toggle_checked(toggle, checked: bool) -> None:
@@ -39,10 +34,19 @@ def set_toggle_checked(toggle, checked: bool) -> None:
         pass
 
 
-def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, defender_toggle, max_block_toggle) -> None:
-    set_toggle_checked(auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
-    set_toggle_checked(defender_toggle, getattr(snapshot, "defender_disabled", False))
-    set_toggle_checked(max_block_toggle, getattr(snapshot, "max_blocked", False))
+def apply_program_settings_toggles(
+    snapshot,
+    *,
+    auto_dpi_toggle=None,
+    defender_toggle=None,
+    max_block_toggle=None,
+) -> None:
+    if auto_dpi_toggle is not None:
+        set_toggle_checked(auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
+    if defender_toggle is not None:
+        set_toggle_checked(defender_toggle, getattr(snapshot, "defender_disabled", False))
+    if max_block_toggle is not None:
+        set_toggle_checked(max_block_toggle, getattr(snapshot, "max_blocked", False))
 
 
 def show_action_result_plan(plan, *, window, set_status, info_bar_cls, toggle=None) -> None:
@@ -72,7 +76,7 @@ def apply_status_plan(
     start_btn,
     stop_winws_btn,
     stop_and_exit_btn,
-    update_stop_button_text,
+    update_stop_button_text=None,
 ) -> bool:
     status_title.setText(plan.title)
     status_desc.setText(plan.description)
@@ -82,18 +86,18 @@ def apply_status_plan(
     else:
         status_dot.stop_pulse()
     start_btn.setVisible(plan.show_start)
-    update_stop_button_text()
+    if callable(update_stop_button_text):
+        update_stop_button_text()
     stop_winws_btn.setVisible(plan.show_stop_only)
     stop_and_exit_btn.setVisible(plan.show_stop_and_exit)
     return plan.phase == "running"
 
 
-def apply_strategy_display(name: str, *, language: str, window, strategy_label, strategy_desc) -> None:
-    plan = ControlPageController.build_strategy_display_plan(
-        name=name,
-        language=language,
-        window=window,
-    )
-    strategy_label.setText(plan.title)
-    strategy_desc.setText(plan.description)
-    set_tooltip(strategy_label, plan.tooltip)
+def run_confirmation_dialog(dialog_plan, *, message_box_cls, window, toggle=None) -> bool:
+    box = message_box_cls(dialog_plan.title, dialog_plan.content, window)
+    if box.exec():
+        return True
+
+    if dialog_plan.revert_checked is not None and toggle is not None:
+        set_toggle_checked(toggle, dialog_plan.revert_checked)
+    return False

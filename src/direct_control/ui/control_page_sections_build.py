@@ -6,7 +6,11 @@ from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QSizePolicy
 
-from ui.compat_widgets import SettingsCard, QuickActionsBar, PulsingDot
+from direct_control.shared_builders import (
+    build_direct_management_section_common,
+    build_direct_status_section_common,
+)
+from ui.compat_widgets import SettingsCard, QuickActionsBar
 from ui.theme import get_cached_qta_pixmap
 
 
@@ -51,41 +55,16 @@ def build_control_status_section(
     subtitle_label_cls,
     caption_label_cls,
 ) -> ControlStatusWidgets:
-    status_card = SettingsCard()
-
-    status_layout = QHBoxLayout()
-    status_layout.setSpacing(16)
-
-    status_dot = PulsingDot()
-    status_layout.addWidget(status_dot)
-
-    status_text_layout = QVBoxLayout()
-    status_text_layout.setSpacing(2)
-
-    if has_fluent_labels:
-        status_title = subtitle_label_cls(
-            tr_fn("page.control.status.checking", "Проверка...")
-        )
-    else:
-        status_title = QLabel(
-            tr_fn("page.control.status.checking", "Проверка...")
-        )
-        status_title.setStyleSheet("font-size: 15px; font-weight: 600;")
-    status_text_layout.addWidget(status_title)
-
-    if has_fluent_labels:
-        status_desc = caption_label_cls(
-            tr_fn("page.control.status.detecting", "Определение состояния процесса")
-        )
-    else:
-        status_desc = QLabel(
-            tr_fn("page.control.status.detecting", "Определение состояния процесса")
-        )
-        status_desc.setStyleSheet("font-size: 12px;")
-    status_text_layout.addWidget(status_desc)
-
-    status_layout.addLayout(status_text_layout, 1)
-    status_card.add_layout(status_layout)
+    status_card, status_dot, status_title, status_desc = build_direct_status_section_common(
+        tr_fn=tr_fn,
+        has_fluent_labels=has_fluent_labels,
+        strong_body_label_cls=subtitle_label_cls,
+        caption_label_cls=caption_label_cls,
+        checking_key="page.control.status.checking",
+        checking_default="Проверка...",
+        detecting_key="page.control.status.detecting",
+        detecting_default="Определение состояния процесса",
+    )
     return ControlStatusWidgets(
         card=status_card,
         status_dot=status_dot,
@@ -107,49 +86,26 @@ def build_control_management_section(
     on_stop_and_exit,
     parent,
 ) -> ControlManagementWidgets:
-    control_card = SettingsCard()
-
-    buttons_layout = QHBoxLayout()
-    buttons_layout.setSpacing(12)
-
-    start_btn = big_action_button_cls(
-        tr_fn("page.control.button.start", "Запустить Zapret"),
-        "fa5s.play",
-        accent=True,
+    control_card, start_btn, stop_winws_btn, stop_and_exit_btn, progress_bar, loading_label = (
+        build_direct_management_section_common(
+            tr_fn=tr_fn,
+            has_fluent_labels=has_fluent_labels,
+            caption_label_cls=caption_label_cls,
+            indeterminate_progress_bar_cls=indeterminate_progress_bar_cls,
+            big_action_button_cls=big_action_button_cls,
+            stop_button_cls=stop_button_cls,
+            start_key="page.control.button.start",
+            start_default="Запустить Zapret",
+            stop_key="page.control.button.stop_only_winws",
+            stop_default="Остановить только winws.exe",
+            stop_exit_key="page.control.button.stop_and_exit",
+            stop_exit_default="Остановить и закрыть программу",
+            on_start=on_start,
+            on_stop=on_stop_winws,
+            on_stop_and_exit=on_stop_and_exit,
+            parent=parent,
+        )
     )
-    start_btn.clicked.connect(on_start)
-    buttons_layout.addWidget(start_btn)
-
-    stop_winws_btn = stop_button_cls(
-        tr_fn("page.control.button.stop_only_winws", "Остановить только winws.exe"),
-        "fa5s.stop",
-    )
-    stop_winws_btn.clicked.connect(on_stop_winws)
-    stop_winws_btn.setVisible(False)
-    buttons_layout.addWidget(stop_winws_btn)
-
-    stop_and_exit_btn = stop_button_cls(
-        tr_fn("page.control.button.stop_and_exit", "Остановить и закрыть программу"),
-        "fa5s.power-off",
-    )
-    stop_and_exit_btn.clicked.connect(on_stop_and_exit)
-    stop_and_exit_btn.setVisible(False)
-    buttons_layout.addWidget(stop_and_exit_btn)
-
-    buttons_layout.addStretch()
-    control_card.add_layout(buttons_layout)
-
-    progress_bar = indeterminate_progress_bar_cls(parent)
-    progress_bar.setVisible(False)
-    control_card.add_widget(progress_bar)
-
-    if has_fluent_labels:
-        loading_label = caption_label_cls("")
-    else:
-        loading_label = QLabel("")
-        loading_label.setStyleSheet("font-size: 12px;")
-    loading_label.setVisible(False)
-    control_card.add_widget(loading_label)
 
     return ControlManagementWidgets(
         card=control_card,

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel
 
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class BlockcheckActionsWidgets:
@@ -44,7 +46,7 @@ def build_actions_section(
 
     start_btn = push_button_cls()
     start_btn.setText(tr_fn("page.blockcheck.start", "Запустить"))
-    start_btn.setIcon(qta_module.icon("fa5s.play", color="#4CAF50"))
+    start_btn.setIcon(get_themed_qta_icon("fa5s.play", color="#4CAF50"))
     start_btn.setToolTip(
         tr_fn(
             "page.blockcheck.action.start.description",
@@ -56,7 +58,7 @@ def build_actions_section(
 
     stop_btn = push_button_cls()
     stop_btn.setText(tr_fn("page.blockcheck.stop", "Остановить"))
-    stop_btn.setIcon(qta_module.icon("fa5s.stop", color="#ff9800"))
+    stop_btn.setIcon(get_themed_qta_icon("fa5s.stop", color="#ff9800"))
     stop_btn.setToolTip(
         tr_fn(
             "page.blockcheck.action.stop.description",

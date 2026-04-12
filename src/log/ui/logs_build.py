@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class LogsTabWidgets:
@@ -85,7 +87,7 @@ def build_logs_tab_ui(
     row1.addWidget(log_combo, 1)
 
     refresh_btn = tool_button_cls()
-    refresh_icon_normal = qta_module.icon('fa5s.sync-alt', color=tokens.fg)
+    refresh_icon_normal = get_themed_qta_icon("fa5s.sync-alt", color=tokens.fg)
     spin_timer = refresh_timer_parent._spin_timer = refresh_timer_parent._spin_timer if hasattr(refresh_timer_parent, "_spin_timer") else None
     if spin_timer is None:
         from PyQt6.QtCore import QTimer
@@ -121,19 +123,19 @@ def build_logs_tab_ui(
 
     copy_btn = push_button_cls()
     copy_btn.setText(tr_catalog_fn("page.logs.button.copy", language=ui_language, default="Копировать"))
-    copy_btn.setIcon(qta_module.icon("fa5s.copy", color=tokens.accent_hex))
+    copy_btn.setIcon(get_themed_qta_icon("fa5s.copy", color=tokens.accent_hex))
     copy_btn.clicked.connect(on_copy)
     controls_actions_bar.add_button(copy_btn)
 
     clear_btn = push_button_cls()
     clear_btn.setText(tr_catalog_fn("page.logs.button.clear", language=ui_language, default="Очистить"))
-    clear_btn.setIcon(qta_module.icon("fa5s.eraser", color="#ff9800"))
+    clear_btn.setIcon(get_themed_qta_icon("fa5s.eraser", color="#ff9800"))
     clear_btn.clicked.connect(on_clear_view)
     controls_actions_bar.add_button(clear_btn)
 
     folder_btn = push_button_cls()
     folder_btn.setText(tr_catalog_fn("page.logs.button.folder", language=ui_language, default="Папка"))
-    folder_btn.setIcon(qta_module.icon("fa5s.folder-open", color=tokens.accent_hex))
+    folder_btn.setIcon(get_themed_qta_icon("fa5s.folder-open", color=tokens.accent_hex))
     folder_btn.clicked.connect(on_open_folder)
     controls_actions_bar.add_button(folder_btn)
 
@@ -178,7 +180,7 @@ def build_logs_tab_ui(
 
     clear_errors_btn = fluent_push_button_cls()
     clear_errors_btn.setText(tr_catalog_fn("page.logs.button.clear", language=ui_language, default="Очистить"))
-    clear_errors_btn.setIcon(qta_module.icon("fa5s.trash", color=tokens.fg))
+    clear_errors_btn.setIcon(get_themed_qta_icon("fa5s.trash", color=tokens.fg))
     clear_errors_btn.clicked.connect(on_clear_errors)
     errors_header.addWidget(clear_errors_btn)
 
@@ -221,7 +223,7 @@ def build_logs_tab_ui(
 
     clear_winws_btn = fluent_push_button_cls()
     clear_winws_btn.setText(tr_catalog_fn("page.logs.button.clear", language=ui_language, default="Очистить"))
-    clear_winws_btn.setIcon(qta_module.icon("fa5s.trash", color=tokens.fg))
+    clear_winws_btn.setIcon(get_themed_qta_icon("fa5s.trash", color=tokens.fg))
     clear_winws_btn.clicked.connect(on_clear_winws_output)
     winws_header.addWidget(clear_winws_btn)
 

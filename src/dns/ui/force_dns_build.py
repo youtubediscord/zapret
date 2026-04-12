@@ -27,7 +27,7 @@ def build_force_dns_card_ui(
     setting_card_group_cls,
     settings_card_cls,
     caption_label_cls,
-    reset_action_button_cls,
+    action_button_cls,
     win11_toggle_row_cls,
     qwidget_cls,
     qvbox_layout_cls,
@@ -36,7 +36,7 @@ def build_force_dns_card_ui(
     insert_widget_into_setting_card_group_fn,
     enable_setting_card_group_auto_height_fn,
     on_toggle,
-    on_reset,
+    on_confirm_reset,
 ) -> tuple[bool, ForceDnsCardWidgets]:
     tokens = get_theme_tokens_fn()
     force_dns_active = get_force_dns_status_fn()
@@ -80,15 +80,12 @@ def build_force_dns_card_ui(
         except Exception:
             pass
 
-    force_dns_reset_dhcp_btn = reset_action_button_cls(
+    force_dns_reset_dhcp_btn = action_button_cls(
         tr_fn("page.network.force_dns.reset.button", "Сбросить DNS на DHCP"),
-        confirm_text=tr_fn(
-            "page.network.force_dns.reset.confirm",
-            "Отключить Force DNS и сбросить DNS на DHCP для всех адаптеров?",
-        ),
+        "fa5s.undo",
     )
     force_dns_reset_dhcp_btn.setFixedHeight(30)
-    force_dns_reset_dhcp_btn.reset_confirmed.connect(on_reset)
+    force_dns_reset_dhcp_btn.clicked.connect(on_confirm_reset)
     force_dns_reset_dhcp_btn.setToolTip(
         tr_fn(
             "page.network.force_dns.reset.description",

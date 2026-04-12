@@ -2,6 +2,7 @@
 """Объединённая страница «Листы»: обзор hostlist / ipset + редакторы доменов и IP."""
 
 import os
+import qtawesome as qta
 
 from PyQt6.QtCore import QTimer, pyqtSignal
 

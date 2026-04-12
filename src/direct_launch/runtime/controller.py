@@ -227,12 +227,6 @@ class DirectLaunchController:
         self._mark_runtime_failed(text)
 
     @staticmethod
-    def _expected_preset_path(selected_mode) -> str:
-        if isinstance(selected_mode, dict) and bool(selected_mode.get("is_preset_file")):
-            return str(selected_mode.get("preset_path") or "").strip()
-        return ""
-
-    @staticmethod
     def _expected_process_name(launch_method: str) -> str:
         method = str(launch_method or "").strip().lower()
         if method == "orchestra":

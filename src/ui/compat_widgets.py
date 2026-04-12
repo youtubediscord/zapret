@@ -9,7 +9,7 @@ New in this version:
   - Re-exports: SwitchButton, LineEdit, ComboBox, CheckBox, IndeterminateProgressBar
   - InfoBarHelper        — one-liner InfoBar.success/warning/error/info
 """
-from PyQt6.QtCore import Qt, QSize, pyqtSignal, QEvent, QTimer, QObject
+from PyQt6.QtCore import Qt, QSize, QEvent, QTimer, QObject
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QSizePolicy, QPushButton,
@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon, QFont, QColor, QPainter, QPixmap, QTransform
 import qtawesome as qta
 
-from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon
+from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshController
 
 try:
@@ -30,7 +30,6 @@ try:
         ToolTipFilter, ToolTipPosition, FlowLayout,
     )
     HAS_FLUENT = True
-    _FluentPushButton = PushButton
 except ImportError:
     HAS_FLUENT = False
     HeaderCardWidget = QFrame  # type: ignore[assignment,misc]
@@ -39,7 +38,6 @@ except ImportError:
     ToolTipFilter = None    # type: ignore[assignment,misc]
     ToolTipPosition = None  # type: ignore[assignment,misc]
     FlowLayout = None  # type: ignore[assignment,misc]
-    _FluentPushButton = QPushButton  # type: ignore[assignment,misc]
 
 
 # ---------------------------------------------------------------------------
@@ -608,6 +606,22 @@ def build_advanced_settings_section(
 # ActionButton — non-accent PushButton (use PrimaryActionButton for accent)
 # ---------------------------------------------------------------------------
 
+
+def _set_qta_button_icon(button, icon_name: str | None, *, color: str, size: int = 16) -> None:
+    if not icon_name:
+        return
+    try:
+        pixmap = get_cached_qta_pixmap(icon_name, color=color, size=size)
+        if pixmap.isNull():
+            button.setIcon(get_themed_qta_icon(icon_name, color=color))
+            return
+        button.setIcon(QIcon(pixmap))
+    except Exception:
+        try:
+            button.setIcon(get_themed_qta_icon(icon_name, color=color))
+        except Exception:
+            pass
+
 class ActionButton(PushButton if HAS_FLUENT else QPushButton):
     """Non-accent action button using qfluentwidgets PushButton.
 
@@ -635,12 +649,11 @@ class ActionButton(PushButton if HAS_FLUENT else QPushButton):
         """Update icon tint when theme changes."""
         if self._icon_name:
             try:
-                import qtawesome as qta
-                from qfluentwidgets import isDarkTheme as _idt
-                _color = "#cccccc" if _idt() else "#555555"
+                tokens = get_theme_tokens()
+                _color = tokens.icon_fg
                 if _color == self._last_icon_color:
                     return
-                self.setIcon(get_themed_qta_icon(self._icon_name, color=_color))
+                _set_qta_button_icon(self, self._icon_name, color=_color, size=16)
                 self._last_icon_color = _color
             except Exception:
                 pass
@@ -766,8 +779,7 @@ class PrimaryActionButton(PrimaryPushButton if HAS_FLUENT else QPushButton):
         if icon_name:
             self.setIconSize(QSize(16, 16))
             try:
-                import qtawesome as qta
-                self.setIcon(get_themed_qta_icon(icon_name, color="#ffffff"))
+                _set_qta_button_icon(self, icon_name, color="#ffffff", size=16)
             except Exception:
                 pass
 
@@ -1021,28 +1033,3 @@ class InfoBarHelper:
         if HAS_FLUENT:
             InfoBar.info(title, content, duration=duration,
                          position=InfoBarPosition.TOP_RIGHT, parent=parent)
-
-
-class ResetActionButton(_FluentPushButton):
-    """Кнопка с подтверждением через MessageBox."""
-
-    reset_confirmed = pyqtSignal()
-
-    def __init__(self, text: str = "Сбросить", confirm_text: str = "Подтвердить?", parent=None):
-        super().__init__(parent)
-        self._default_text = text
-        self._confirm_text = confirm_text
-        self.setText(text)
-        self.setFixedHeight(32)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.clicked.connect(self._on_clicked)
-
-    def _on_clicked(self):
-        try:
-            from qfluentwidgets import MessageBox
-
-            box = MessageBox(self._default_text, self._confirm_text, self.window())
-            if box.exec():
-                self.reset_confirmed.emit()
-        except Exception:
-            self.reset_confirmed.emit()

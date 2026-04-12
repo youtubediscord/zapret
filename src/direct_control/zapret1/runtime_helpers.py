@@ -3,48 +3,31 @@
 from __future__ import annotations
 
 from ui.text_catalog import tr as tr_catalog
-from ui.control_page_controller import ControlPageController
-
-
-def set_toggle_checked(toggle, checked: bool) -> None:
-    try:
-        toggle.setChecked(bool(checked), block_signals=True)
-        return
-    except TypeError:
-        pass
-    except Exception:
-        pass
-    try:
-        toggle.blockSignals(True)
-    except Exception:
-        pass
-    try:
-        if hasattr(toggle, "setChecked"):
-            toggle.setChecked(bool(checked))
-    except Exception:
-        pass
-    try:
-        toggle.blockSignals(False)
-    except Exception:
-        pass
+from direct_control.control_runtime_controller import ControlPageController
+from direct_control.ui.control_page_runtime_shared import (
+    apply_program_settings_toggles,
+    apply_status_plan as apply_status_plan_shared,
+    set_toggle_checked,
+)
 
 
 def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle) -> None:
-    if auto_dpi_toggle is not None:
-        set_toggle_checked(auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
+    apply_program_settings_toggles(
+        snapshot,
+        auto_dpi_toggle=auto_dpi_toggle,
+    )
 
 
 def apply_status_plan(plan, *, status_title, status_desc, status_dot, start_btn, stop_winws_btn, stop_and_exit_btn) -> None:
-    status_title.setText(plan.title)
-    status_desc.setText(plan.description)
-    status_dot.set_color(plan.dot_color)
-    if plan.pulsing:
-        status_dot.start_pulse()
-    else:
-        status_dot.stop_pulse()
-    start_btn.setVisible(plan.show_start)
-    stop_winws_btn.setVisible(plan.show_stop_only)
-    stop_and_exit_btn.setVisible(plan.show_stop_and_exit)
+    apply_status_plan_shared(
+        plan,
+        status_title=status_title,
+        status_desc=status_desc,
+        status_dot=status_dot,
+        start_btn=start_btn,
+        stop_winws_btn=stop_winws_btn,
+        stop_and_exit_btn=stop_and_exit_btn,
+    )
 
 
 def apply_z1_direct_language(
@@ -110,10 +93,10 @@ def apply_z1_direct_language(
 
     try:
         if test_action_card is not None:
-            test_action_card.setTitle(
+            test_action_card.title_label.setText(
                 tr_catalog("page.z1_control.button.connection_test", language=language, default="Тест соединения")
             )
-            test_action_card.setContent(
+            test_action_card.content_label.setText(
                 tr_catalog("page.z1_control.button.connection_test.desc", language=language, default="Проверить доступность сети и состояние обхода")
             )
             test_action_card.button.setText(
@@ -123,10 +106,10 @@ def apply_z1_direct_language(
             test_btn.setText(tr_catalog("page.z1_control.button.connection_test", language=language, default="Тест соединения"))
 
         if folder_action_card is not None:
-            folder_action_card.setTitle(
+            folder_action_card.title_label.setText(
                 tr_catalog("page.z1_control.button.open_folder", language=language, default="Открыть папку")
             )
-            folder_action_card.setContent(
+            folder_action_card.content_label.setText(
                 tr_catalog("page.z1_control.button.open_folder.desc", language=language, default="Перейти в папку программы и служебных файлов")
             )
             folder_action_card.button.setText(
@@ -136,10 +119,10 @@ def apply_z1_direct_language(
             folder_btn.setText(tr_catalog("page.z1_control.button.open_folder", language=language, default="Открыть папку"))
 
         if docs_action_card is not None:
-            docs_action_card.setTitle(
+            docs_action_card.title_label.setText(
                 tr_catalog("page.z1_control.button.documentation", language=language, default="Документация")
             )
-            docs_action_card.setContent(
+            docs_action_card.content_label.setText(
                 tr_catalog("page.z1_control.button.documentation.desc", language=language, default="Открыть справку и описание возможностей")
             )
             docs_action_card.button.setText(
@@ -191,10 +174,10 @@ def apply_z1_direct_language(
     except Exception:
         pass
     if blobs_action_card is not None:
-        blobs_action_card.setTitle(
+        blobs_action_card.title_label.setText(
             tr_catalog("page.z1_control.blobs.title", language=language, default="Блобы")
         )
-        blobs_action_card.setContent(
+        blobs_action_card.content_label.setText(
             tr_catalog("page.z1_control.blobs.desc", language=language, default="Бинарные данные (.bin / hex) для стратегий")
         )
         if blobs_open_btn is not None:

@@ -14,7 +14,7 @@ from ui.page_registry import PAGE_CLASS_SPECS
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 from ui.ui_workflows import WindowUiWorkflows
 from ui.window_adapter import WindowUiAdapter
-from ui.window_state_refresh import refresh_pages_after_preset_switch
+from ui.window_display_state import refresh_pages_after_preset_switch
 
 
 def initialize_build_ui_state(
