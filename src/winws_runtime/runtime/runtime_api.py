@@ -11,7 +11,11 @@ from .process_probe import (
     get_canonical_winws_process_pids,
     is_expected_winws_running,
 )
-from .system_ops import cleanup_windivert_services_runtime, stop_all_winws_processes
+from .system_ops import (
+    cleanup_windivert_services_runtime,
+    has_any_winws_process,
+    stop_all_winws_processes,
+)
 
 
 class DirectLaunchRuntimeApi:
@@ -67,6 +71,33 @@ class DirectLaunchRuntimeApi:
                 log(f"WinAPI canonical check error: {e}", "DEBUG")
             return False
 
+    def has_residual_processes(self, silent: bool = False) -> bool:
+        """Проверка остаточных winws/winws2 процессов.
+
+        Сначала используем канонический probe именно для процессов текущего проекта.
+        Если он ничего не видит, дополнительно делаем fallback-проверку по имени
+        процесса. Это нужно для stop/restart pipeline: очистка должна быть честной
+        даже в моменты, когда канонический probe ещё не догнал переходное состояние.
+        """
+        canonical_running = bool(self.is_any_running(silent=True))
+        if canonical_running:
+            if not silent:
+                log("Residual winws/winws2 detected via canonical probe", "DEBUG")
+            return True
+
+        try:
+            residual_running = bool(has_any_winws_process())
+            if not silent:
+                log(
+                    f"winws/winws2 residual state → {residual_running} (name fallback)",
+                    "DEBUG",
+                )
+            return residual_running
+        except Exception as e:
+            if not silent:
+                log(f"Residual process fallback error: {e}", "DEBUG")
+            return False
+
     def is_expected_running(self, silent: bool = False) -> bool:
         """
         Проверка только текущего ожидаемого exe из `self.expected_exe_path`.
@@ -103,7 +134,7 @@ class DirectLaunchRuntimeApi:
             log(f"Ошибка остановки через Win API: {e}", "⚠ WARNING")
 
         time.sleep(0.3)
-        ok = not self.is_any_running(silent=True)
+        ok = not self.has_residual_processes(silent=True)
         log("Все процессы остановлены" if ok else "winws/winws2 ещё работает",
             "✅ SUCCESS" if ok else "⚠ WARNING")
         return ok

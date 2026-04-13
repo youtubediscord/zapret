@@ -173,8 +173,14 @@ class StrategyRunnerBase(ABC):
         """Aggressive WinDivert cleanup via Win API - for cases when normal cleanup doesn't help"""
         aggressive_windivert_cleanup_runtime()
 
-    def stop(self) -> bool:
-        """Stops running process"""
+    def stop(self, *, cleanup_services: bool = True) -> bool:
+        """Stops running process.
+
+        `cleanup_services=False` используется для сценариев stop->start внутри
+        одного runtime pipeline. В таких переходах удаление WinDivert service
+        здесь слишком агрессивно: следующий start сам выполняет свою штатную
+        pre-cleanup стадию и должен оставаться единственной точкой этой очистки.
+        """
         try:
             success = True
 
@@ -198,8 +204,9 @@ class StrategyRunnerBase(ABC):
                 log("No running process to stop", "INFO")
 
             # Additional cleanup
-            self._stop_windivert_service()
-            self._stop_monkey_service()
+            if cleanup_services:
+                self._stop_windivert_service()
+                self._stop_monkey_service()
             self._kill_all_winws_processes()
 
             # Clear state

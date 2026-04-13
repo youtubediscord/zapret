@@ -13,13 +13,22 @@ from app_state.main_window_state import AppUiState
 class WindowStateSyncMixin:
     @staticmethod
     def _build_initial_ui_state() -> AppUiState:
-        """Честное стартовое состояние UI до реальной проверки и автозапуска."""
+        """Честное стартовое состояние UI до реальной синхронизации runtime-слоёв.
+
+        Здесь важно не смешивать два разных механизма:
+        - `get_dpi_autostart()` — запуск DPI после старта уже открытого GUI;
+        - `AppUiState.autostart_enabled` — наличие Windows-задачи для автозапуска
+          самого GUI-приложения.
+
+        До реальной проверки Task Scheduler поле `autostart_enabled` оставляем
+        нейтральным, а DPI-autostart используем только для стартовой launch-phase.
+        """
         try:
             from config.reg import get_dpi_autostart
 
             from settings.dpi.strategy_settings import get_strategy_launch_method
 
-            autostart_enabled = bool(get_dpi_autostart())
+            dpi_autostart_enabled = bool(get_dpi_autostart())
             launch_method = str(get_strategy_launch_method() or "").strip().lower()
 
             autostart_pending_methods = {
@@ -28,19 +37,19 @@ class WindowStateSyncMixin:
                 "orchestra",
             }
 
-            if autostart_enabled and launch_method in autostart_pending_methods:
+            if dpi_autostart_enabled and launch_method in autostart_pending_methods:
                 return AppUiState(
                     launch_method=launch_method,
                     launch_phase="autostart_pending",
                     launch_running=False,
-                    autostart_enabled=autostart_enabled,
+                    autostart_enabled=False,
                 )
 
             return AppUiState(
                 launch_method=launch_method,
                 launch_phase="stopped",
                 launch_running=False,
-                autostart_enabled=autostart_enabled,
+                autostart_enabled=False,
             )
         except Exception:
             return AppUiState()

@@ -14,10 +14,10 @@ class MethodSwitchRuntimePlan:
     method: str
     expected_exe_path: str
     expected_process_name: str
-    was_running: bool
     autostart_enabled: bool
     can_autostart: bool
     dispatch_action: str
+    requires_cleanup_stop: bool
 
 
 def handle_launch_method_changed_runtime(window, method: str) -> MethodSwitchRuntimePlan:
@@ -68,32 +68,57 @@ def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntime
         expected_exe_path = str(get_winws_exe_for_method(normalized_method) or "").strip()
         expected_process_name = os.path.basename(expected_exe_path).strip().lower()
 
-    was_running = False
+    residual_runtime_detected = False
     try:
         runtime_api = getattr(window, "launch_runtime_api", None)
         if runtime_api is not None:
-            was_running = bool(runtime_api.is_any_running(silent=True))
+            residual_runtime_detected = bool(runtime_api.has_residual_processes(silent=True))
     except Exception:
-        was_running = False
+        residual_runtime_detected = False
+
+    active_runtime_detected = bool(residual_runtime_detected)
+    try:
+        runtime_service = getattr(window, "launch_runtime_service", None)
+        if runtime_service is not None:
+            snapshot = runtime_service.snapshot()
+            phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
+            active_runtime_detected = bool(
+                active_runtime_detected
+                or getattr(snapshot, "running", False)
+                or phase in {"starting", "running", "stopping"}
+            )
+    except Exception:
+        pass
+
+    try:
+        controller = getattr(window, "launch_controller", None)
+        if controller is not None and controller.transition_pipeline_in_progress():
+            active_runtime_detected = True
+    except Exception:
+        pass
 
     can_autostart = _can_autostart_for_method(window, normalized_method)
     autostart_enabled = bool(get_dpi_autostart())
 
-    if was_running:
+    if active_runtime_detected:
         dispatch_action = "restart" if (autostart_enabled and can_autostart) else "stop"
     elif autostart_enabled and can_autostart:
         dispatch_action = "restart"
     else:
         dispatch_action = "none"
 
+    requires_cleanup_stop = bool(
+        active_runtime_detected and dispatch_action in {"restart", "stop"}
+    )
+
     return MethodSwitchRuntimePlan(
         method=normalized_method,
         expected_exe_path=expected_exe_path,
         expected_process_name=expected_process_name,
-        was_running=was_running,
         autostart_enabled=autostart_enabled,
         can_autostart=can_autostart,
         dispatch_action=dispatch_action,
+        requires_cleanup_stop=requires_cleanup_stop,
     )
 
 
@@ -111,7 +136,7 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
     if runtime_service is not None:
         try:
             if plan.dispatch_action == "restart":
-                if plan.was_running:
+                if plan.requires_cleanup_stop:
                     runtime_service.begin_stop()
                 else:
                     runtime_service.mark_autostart_pending(
@@ -148,7 +173,12 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
             f"Смена метода '{plan.method}' передана в единый restart pipeline",
             "INFO",
         )
-        QTimer.singleShot(0, controller.restart_dpi_async)
+        QTimer.singleShot(
+            0,
+            lambda c=controller, force_stop=plan.requires_cleanup_stop: c.restart_dpi_async(
+                force_full_stop=force_stop,
+            ),
+        )
         return
 
     if plan.dispatch_action == "stop":
@@ -156,7 +186,12 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
             f"Смена метода '{plan.method}' требует остановки активного DPI через общий pipeline",
             "INFO",
         )
-        QTimer.singleShot(0, controller.stop_dpi_async)
+        QTimer.singleShot(
+            0,
+            lambda c=controller, force_cleanup=plan.requires_cleanup_stop: c.stop_dpi_async(
+                force_cleanup=force_cleanup,
+            ),
+        )
 
 
 def _can_autostart_for_method(window, method: str) -> bool:

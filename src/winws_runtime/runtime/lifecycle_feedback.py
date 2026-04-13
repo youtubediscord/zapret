@@ -182,7 +182,7 @@ def on_dpi_stop_finished(controller, success, error_message):
             bridge.show_active_strategy_page_success()
 
         if success:
-            is_still_running = controller.app.launch_runtime_api.is_any_running(silent=True)
+            is_still_running = controller.app.launch_runtime_api.has_residual_processes(silent=True)
 
             if not is_still_running:
                 log("DPI остановлен асинхронно", "INFO")
@@ -191,6 +191,8 @@ def on_dpi_stop_finished(controller, success, error_message):
                 else:
                     controller.app.set_status("✅ DPI успешно остановлен")
                 controller._mark_runtime_stopped()
+                if restart_generation_after_stop >= int(controller._restart_force_stop_generation or 0):
+                    controller._restart_force_stop_generation = 0
 
                 if restart_generation_after_stop > controller._restart_completed_generation:
                     controller._restart_pending_stop_generation = 0
@@ -209,11 +211,13 @@ def on_dpi_stop_finished(controller, success, error_message):
             log(f"Ошибка асинхронной остановки DPI: {error_message}", "❌ ERROR")
             controller.app.set_status(f"❌ Ошибка остановки: {error_message}")
 
-            is_running = controller.app.launch_runtime_api.is_any_running(silent=True)
+            is_running = controller.app.launch_runtime_api.has_residual_processes(silent=True)
             if is_running:
                 controller._mark_runtime_running()
             else:
                 controller._mark_runtime_stopped()
+            if restart_generation_after_stop >= int(controller._restart_force_stop_generation or 0):
+                controller._restart_force_stop_generation = 0
 
             controller._restart_pending_stop_generation = 0
 

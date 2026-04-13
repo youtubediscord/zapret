@@ -632,14 +632,9 @@ class InitializationManager:
     def _finalize_managers_init(self):
         """Финализация инициализации менеджеров и обновление UI"""
         try:
-            # Обновляем UI состояние
-            from autostart.autostart_exe import is_autostart_enabled
-            autostart_exists = is_autostart_enabled()
-
-            app_runtime_state = getattr(self.app, "app_runtime_state", None)
-            if app_runtime_state is not None:
-                app_runtime_state.set_autostart(bool(autostart_exists))
-
+            # Каноническая синхронизация автозапуска выполняется позже в
+            # `_sync_autostart_status()`, поэтому здесь не дублируем тот же
+            # внешний запрос второй раз подряд.
             self.init_tasks_completed.add('managers')
             self._on_managers_init_done()
             log("✅ Managers init finalized", "DEBUG")

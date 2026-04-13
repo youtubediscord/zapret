@@ -102,6 +102,8 @@ def process_pending_restart_request(controller) -> None:
     if target_generation <= int(controller._restart_completed_generation or 0):
         return
 
+    force_full_stop = int(controller._restart_force_stop_generation or 0) == target_generation
+
     method = resolve_launch_method()
     if controller._runner_transition_in_progress(launch_method=method):
         log(
@@ -143,13 +145,23 @@ def process_pending_restart_request(controller) -> None:
     except RuntimeError:
         controller._direct_preset_switch_thread = None
 
-    if controller.is_running():
+    current_running = bool(controller.is_running())
+    if current_running or force_full_stop:
         controller._restart_pending_stop_generation = target_generation
-        log(
-            f"Перезапуск DPI: сначала останавливаем текущий процесс, актуальное поколение {target_generation}",
-            "INFO",
+        if force_full_stop and not current_running:
+            log(
+                f"Перезапуск DPI: смена режима требует полного stop+cleanup, актуальное поколение {target_generation}",
+                "INFO",
+            )
+        else:
+            log(
+                f"Перезапуск DPI: сначала останавливаем текущий процесс, актуальное поколение {target_generation}",
+                "INFO",
+            )
+        controller.stop_dpi_async(
+            force_cleanup=force_full_stop,
+            cleanup_services=False,
         )
-        controller.stop_dpi_async()
         return
 
     controller._restart_active_start_generation = target_generation
@@ -200,8 +212,10 @@ def handle_direct_preset_switch_finished(controller, success, error_message, gen
             QTimer.singleShot(0, controller._process_pending_direct_preset_switch)
 
 
-def restart_dpi_async(controller) -> None:
+def restart_dpi_async(controller, *, force_full_stop: bool = False) -> None:
     controller._restart_request_generation += 1
+    if force_full_stop:
+        controller._restart_force_stop_generation = int(controller._restart_request_generation)
     log(
         f"Перезапуск DPI запросили, актуальное поколение {controller._restart_request_generation}",
         "INFO",

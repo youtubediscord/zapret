@@ -1,7 +1,7 @@
 # autostart/ui/page.py
 """Страница настроек автозапуска"""
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QThread
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
@@ -36,20 +36,6 @@ except ImportError:
     BodyLabel = QLabel          # type: ignore[misc,assignment]
     CaptionLabel = QLabel       # type: ignore[misc,assignment]
 
-
-class AutostartDetectorWorker(QThread):
-    """Фоновая проверка канонического GUI-автозапуска."""
-
-    finished = pyqtSignal(bool)
-
-    def run(self):
-        try:
-            from autostart.autostart_exe import is_autostart_enabled
-
-            self.finished.emit(bool(is_autostart_enabled()))
-        except Exception as exc:
-            log(f"AutostartDetectorWorker error: {exc}", "WARNING")
-            self.finished.emit(False)
 
 class AutostartOptionCard(SimpleCardWidget):
     """Карточка опции автозапуска"""
@@ -236,9 +222,6 @@ class AutostartPage(BasePage):
         )
 
         self.strategy_name = None
-        self._detector_worker = None
-        self._detection_pending = False
-        self._runtime_initialized = False
         self._cleanup_in_progress = False
 
         self._ui_state_store = None
@@ -246,7 +229,6 @@ class AutostartPage(BasePage):
 
         self._build_ui()
         self._apply_page_theme(force=True)
-        self._run_runtime_init_once()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -256,44 +238,6 @@ class AutostartPage(BasePage):
             except Exception:
                 return text
         return text
-
-    def _run_runtime_init_once(self) -> None:
-        if self._runtime_initialized:
-            return
-        self._runtime_initialized = True
-        self._schedule_autostart_detection_when_ready(50)
-
-    def _schedule_autostart_detection_when_ready(self, delay_ms: int) -> None:
-        self.run_when_page_ready(
-            lambda delay=delay_ms: QTimer.singleShot(delay, self._start_autostart_detection)
-        )
-
-    def _start_autostart_detection(self):
-        if self._cleanup_in_progress:
-            return
-        if not self.isVisible():
-            self.run_when_page_ready(self._start_autostart_detection)
-            return
-
-        if self._detection_pending:
-            return
-        if self._detector_worker is not None and self._detector_worker.isRunning():
-            return
-
-        self._detection_pending = True
-        self._detector_worker = AutostartDetectorWorker()
-        self._detector_worker.finished.connect(self._detector_worker.deleteLater)
-        self._detector_worker.finished.connect(self._on_autostart_detected)
-        self._detector_worker.start()
-
-    def _on_autostart_detected(self, enabled: bool):
-        self._detector_worker = None
-        if self._cleanup_in_progress:
-            return
-        self._detection_pending = False
-        enabled = bool(enabled)
-        log(f"Detected canonical autostart: enabled={enabled}", "DEBUG")
-        self._push_autostart_state(enabled, self.strategy_name)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
         if self._ui_state_store is store:
@@ -635,16 +579,3 @@ class AutostartPage(BasePage):
 
     def cleanup(self):
         self._cleanup_in_progress = True
-        self._detection_pending = False
-        if self._detector_worker is not None:
-            try:
-                if self._detector_worker.isRunning():
-                    self._detector_worker.quit()
-                    self._detector_worker.wait(1000)
-                    if self._detector_worker.isRunning():
-                        self._detector_worker.terminate()
-                        self._detector_worker.wait(500)
-                self._detector_worker.deleteLater()
-            except Exception:
-                pass
-            self._detector_worker = None

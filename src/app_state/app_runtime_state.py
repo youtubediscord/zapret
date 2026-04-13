@@ -55,15 +55,3 @@ class AppRuntimeState:
         if store is None:
             return False
         return bool(store.set_autostart(bool(enabled)))
-
-    def sync_autostart_from_registry(self) -> bool:
-        return self.set_autostart(self.detect_autostart_enabled())
-
-    @staticmethod
-    def detect_autostart_enabled() -> bool:
-        try:
-            from autostart.autostart_exe import is_autostart_enabled
-
-            return bool(is_autostart_enabled())
-        except Exception:
-            return False

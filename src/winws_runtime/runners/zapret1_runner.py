@@ -492,7 +492,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
             max_retries=max_retries,
         )
 
-    def stop(self) -> bool:
+    def stop(self, *, cleanup_services: bool = True) -> bool:
         """Stops running process and hot-reload watcher."""
         self._stop_config_watcher()
         with self._state_lock:
@@ -505,7 +505,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
                     reason="public_stop",
                 )
             self._preset_file_path = None
-            success = super().stop()
+            success = super().stop(cleanup_services=cleanup_services)
             self._set_runner_state_locked(
                 PresetRunnerState.IDLE,
                 reason="public_stop_completed",

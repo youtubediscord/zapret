@@ -5,7 +5,6 @@ Zapret Configuration Tester
 
 import socket
 import ssl
-import subprocess
 import time
 import re
 import sys
@@ -13,6 +12,8 @@ import struct
 import secrets
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from utils.windows_icmp import ping_ipv4_host_winapi
 
 
 class Colors:
@@ -305,28 +306,17 @@ def test_https(host: str, port: int = 443, timeout: int = 10, tls_version: str =
 def ping_host(host: str, count: int = 2, timeout: int = 3) -> str:
     """Пингует хост."""
     try:
-        cmd = ["ping", "-n", str(count), "-w", str(timeout * 1000), host]
-        output = subprocess.run(cmd, capture_output=True, timeout=timeout * count + 10, encoding='cp866')
-        text = output.stdout
-
-        match = re.search(r'Среднее\s*=\s*(\d+)\s*мс', text)
-        if match:
-            return f"{match.group(1)}ms"
-
-        match = re.search(r'Average\s*=\s*(\d+)\s*ms', text, re.IGNORECASE)
-        if match:
-            return f"{match.group(1)}ms"
-
-        times = re.findall(r'время[=<](\d+)\s*мс', text)
-        if times:
-            return f"{sum(int(t) for t in times) // len(times)}ms"
-
-        times = re.findall(r'time[=<](\d+)\s*ms', text, re.IGNORECASE)
-        if times:
-            return f"{sum(int(t) for t in times) // len(times)}ms"
-
-        return "Timeout"
-    except:
+        ping_result = ping_ipv4_host_winapi(
+            host,
+            count=count,
+            timeout_ms=int(timeout * 1000),
+        )
+        if ping_result.ok and ping_result.average_ms is not None:
+            return f"{ping_result.average_ms:.0f}ms"
+        if str(ping_result.error_code or "").strip().upper() in {"TIMEOUT", "NO_REPLY"}:
+            return "Timeout"
+        return str(ping_result.detail or "Error")
+    except Exception:
         return "Error"
 
 

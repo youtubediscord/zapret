@@ -64,7 +64,7 @@ def is_any_runtime_running_sync(*, window=None) -> bool:
     if runtime_api is None:
         return False
     try:
-        return bool(runtime_api.is_any_running(silent=True))
+        return bool(runtime_api.has_residual_processes(silent=True))
     except Exception:
         return False
 
@@ -74,6 +74,7 @@ def shutdown_runtime_sync(
     window=None,
     reason: str = "",
     include_cleanup: bool = True,
+    cleanup_services: bool = True,
     update_runtime_state: bool = True,
 ) -> RuntimeShutdownResult:
     target = window or _find_runtime_window()
@@ -88,7 +89,7 @@ def shutdown_runtime_sync(
             still_running=False,
         )
 
-    had_running_processes = bool(runtime_api.is_any_running(silent=True))
+    had_running_processes = bool(runtime_api.has_residual_processes(silent=True))
     stop_ok = True
     cleanup_ok = True
 
@@ -101,7 +102,7 @@ def shutdown_runtime_sync(
         runner = get_current_runner()
         if runner is not None:
             try:
-                stop_ok = bool(runner.stop()) and stop_ok
+                stop_ok = bool(runner.stop(cleanup_services=cleanup_services)) and stop_ok
             except Exception as e:
                 stop_ok = False
                 log(f"Ошибка остановки текущего runner в sync shutdown: {e}", "DEBUG")
@@ -144,7 +145,7 @@ def shutdown_runtime_sync(
             cleanup_ok = False
             log(f"Ошибка cleanup_windivert_service в sync shutdown: {e}", "DEBUG")
 
-    still_running = bool(runtime_api.is_any_running(silent=True))
+    still_running = bool(runtime_api.has_residual_processes(silent=True))
 
     if update_runtime_state:
         try:

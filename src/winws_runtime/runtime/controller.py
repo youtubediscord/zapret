@@ -60,6 +60,7 @@ class DirectLaunchController:
         self._restart_completed_generation = 0
         self._restart_pending_stop_generation = 0
         self._restart_active_start_generation = 0
+        self._restart_force_stop_generation = 0
         self._restart_runner_wait_queued = False
         self._direct_switch_runner_wait_queued = False
         # Generation token for async start verification.
@@ -485,7 +486,12 @@ class DirectLaunchController:
         
         log(f"Запуск асинхронного старта DPI: {request.mode_name} (метод: {request.method_name})", "INFO")
 
-    def stop_dpi_async(self):
+    def stop_dpi_async(
+        self,
+        *,
+        force_cleanup: bool = False,
+        cleanup_services: bool = True,
+    ):
         """Асинхронно останавливает DPI без блокировки UI"""
         # Проверка на уже запущенный поток
         try:
@@ -518,12 +524,17 @@ class DirectLaunchController:
             self,
             thread_attr="_dpi_stop_thread",
             worker_attr="_dpi_stop_worker",
-            worker=DirectLaunchStopWorker(self.app, launch_method),
+            worker=DirectLaunchStopWorker(
+                self.app,
+                launch_method,
+                force_cleanup=force_cleanup,
+                cleanup_services=cleanup_services,
+            ),
             finished_slot=self._on_dpi_stop_finished,
             progress_slot=self.app.set_status,
             cleanup_log_label="потока остановки",
         )
-        
+
         log(f"Запуск асинхронной остановки DPI (метод: {method_name})", "INFO")
     
     def stop_and_exit_async(self):
@@ -571,7 +582,7 @@ class DirectLaunchController:
         """
         return self.app.launch_runtime_api.is_any_running(silent=True)
 
-    def restart_dpi_async(self):
+    def restart_dpi_async(self, *, force_full_stop: bool = False):
         """
         Перезапускает DPI по модели "последний запрос побеждает".
 
@@ -579,4 +590,4 @@ class DirectLaunchController:
         переключает пресеты, мы запоминаем только последнее поколение
         запроса и продолжаем pipeline от него.
         """
-        restart_dpi_async_impl(self)
+        restart_dpi_async_impl(self, force_full_stop=force_full_stop)

@@ -107,7 +107,7 @@ class DirectLaunchStartWorker(QObject):
         return True
 
     def _stop_previous_process_if_needed(self, *, skip_stop: bool) -> None:
-        process_running = self.launch_runtime_api.is_any_running(silent=True)
+        process_running = self.launch_runtime_api.has_residual_processes(silent=True)
         if (not process_running) or skip_stop:
             return
 
@@ -115,7 +115,8 @@ class DirectLaunchStartWorker(QObject):
         shutdown_result = shutdown_runtime_sync(
             window=self.app_instance,
             reason=f"start_worker_prelaunch:{self.launch_method}",
-            include_cleanup=True,
+            include_cleanup=False,
+            cleanup_services=False,
             update_runtime_state=False,
         )
         if not shutdown_result.still_running:
@@ -125,7 +126,7 @@ class DirectLaunchStartWorker(QObject):
         max_wait = 10
         for attempt in range(max_wait):
             time.sleep(0.5)
-            if not self.launch_runtime_api.is_any_running(silent=True):
+            if not self.launch_runtime_api.has_residual_processes(silent=True):
                 log(f"✅ Предыдущий процесс остановлен (попытка {attempt + 1})", "DEBUG")
                 break
         else:
@@ -204,7 +205,7 @@ class DirectLaunchStartWorker(QObject):
             self.progress.emit("Подготовка к запуску...")
 
             is_preset_file, preset_path = self._extract_preset_launch_input()
-            process_running = self.launch_runtime_api.is_any_running(silent=True)
+            process_running = self.launch_runtime_api.has_residual_processes(silent=True)
             skip_stop = process_running and self._can_reuse_running_process(
                 is_preset_file=is_preset_file,
                 preset_path=preset_path,
@@ -364,10 +365,19 @@ class DirectLaunchStopWorker(QObject):
     finished = pyqtSignal(bool, str)
     progress = pyqtSignal(str)
 
-    def __init__(self, app_instance, launch_method):
+    def __init__(
+        self,
+        app_instance,
+        launch_method,
+        *,
+        force_cleanup: bool = False,
+        cleanup_services: bool = True,
+    ):
         super().__init__()
         self.app_instance = app_instance
         self.launch_method = launch_method
+        self.force_cleanup = bool(force_cleanup)
+        self.cleanup_services = bool(cleanup_services)
 
     def _get_winws_exe(self) -> str:
         from config.config import get_winws_exe_for_method
@@ -378,10 +388,13 @@ class DirectLaunchStopWorker(QObject):
         try:
             self.progress.emit("Остановка DPI...")
 
-            if not self.app_instance.launch_runtime_api.is_any_running(silent=True):
+            process_running = self.app_instance.launch_runtime_api.has_residual_processes(silent=True)
+            if (not process_running) and not self.force_cleanup:
                 self.progress.emit("DPI уже остановлен")
                 self.finished.emit(True, "DPI уже был остановлен")
                 return
+            if not process_running and self.force_cleanup:
+                self.progress.emit("Очищаем состояние предыдущего режима...")
 
             self.progress.emit("Завершение процессов...")
 
@@ -423,7 +436,8 @@ class DirectLaunchStopWorker(QObject):
         result = shutdown_runtime_sync(
             window=self.app_instance,
             reason=reason,
-            include_cleanup=True,
+            include_cleanup=self.cleanup_services,
+            cleanup_services=self.cleanup_services,
             update_runtime_state=False,
         )
         return not result.still_running
