@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 from .z2_template_runtime import (
-    clear_all_deleted_presets,
     get_builtin_base_from_copy_name,
     get_category_default_syndata,
     get_default_category_settings,
     get_default_template_content,
-    get_deleted_preset_names,
     get_template_content,
     overwrite_templates_to_presets,
 )
 from .v1_template_runtime import (
-    clear_all_deleted_presets_v1,
     get_builtin_base_from_copy_name_v1,
     get_builtin_preset_content_v1,
     get_default_template_content_v1,
-    get_deleted_preset_names_v1,
     get_template_content_v1,
     overwrite_v1_templates_to_presets,
 )
@@ -63,21 +59,6 @@ def reset_all_templates(launch_method: str) -> tuple[int, int, list[str]]:
     return overwrite_v1_templates_to_presets()
 
 
-def restore_deleted_templates(launch_method: str) -> None:
-    method = str(launch_method or "").strip().lower()
-    if method == "direct_zapret2":
-        from .z2_template_runtime import ensure_templates_copied_to_presets
-
-        clear_all_deleted_presets()
-        ensure_templates_copied_to_presets()
-        return
-
-    from .v1_template_runtime import ensure_v1_templates_copied_to_presets
-
-    clear_all_deleted_presets_v1()
-    ensure_v1_templates_copied_to_presets()
-
-
 def get_default_target_settings_v2(category_key: str | None = None) -> dict:
     if category_key is None:
         return {
@@ -102,11 +83,3 @@ def get_default_target_settings_v2(category_key: str | None = None) -> dict:
     if category_key not in all_defaults:
         return get_default_target_settings_v2(None)
     return get_category_default_syndata(category_key, protocol="tcp")
-
-
-def get_deleted_template_names(launch_method: str) -> set[str]:
-    method = str(launch_method or "").strip().lower()
-    if method == "direct_zapret2":
-        return set(get_deleted_preset_names() or ())
-
-    return set(get_deleted_preset_names_v1() or ())

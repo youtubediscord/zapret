@@ -55,7 +55,8 @@ from hosts.ui.page_lifecycle_helpers import (
 )
 from ui.text_catalog import tr as tr_catalog
 
-from log import log
+from log.log import log
+
 from ui.theme import get_theme_tokens, get_themed_qta_icon
 from ui.theme_semantic import get_semantic_palette
 

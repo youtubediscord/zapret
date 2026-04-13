@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from log import log
+from log.log import log
+
 
 
 def get_direct_strategy_summary(window, max_items: int = 2) -> str:
     try:
         from settings.dpi.strategy_settings import get_strategy_launch_method
-        from core.presets.direct_facade import DirectPresetFacade
+        from direct_preset.facade import DirectPresetFacade
 
         method = (get_strategy_launch_method() or "").strip().lower()
         if method not in ("direct_zapret1", "direct_zapret2"):
@@ -62,16 +63,21 @@ def update_subscription_display(window, is_premium: bool, days: int = None) -> N
         store.set_subscription(is_premium, days)
 
 
-def on_autostart_enabled(window) -> None:
-    log("Автозапуск включён через страницу настроек", "INFO")
-    update_autostart_display(window, True)
+def on_direct_mode_changed(window, mode: str) -> None:
+    """Сообщает UI-слою, что direct mode изменился и нужно обновить revision."""
+    _ = mode
+    try:
+        if getattr(window, "ui_state_store", None) is not None:
+            window.ui_state_store.bump_mode_revision()
+    except Exception:
+        pass
 
 
-def on_autostart_disabled(window) -> None:
-    log("Автозапуск отключён через страницу настроек", "INFO")
-    update_autostart_display(window, False)
-
-
-def on_subscription_updated(window, is_premium: bool, days_remaining: int) -> None:
-    log(f"Статус подписки обновлён: premium={is_premium}, days={days_remaining}", "INFO")
-    update_subscription_display(window, is_premium, days_remaining)
+def refresh_pages_after_preset_switch(window) -> None:
+    """Обновляет краткое отображение активной стратегии после смены source preset."""
+    try:
+        display_name = get_direct_strategy_summary(window)
+        if display_name:
+            update_current_strategy_display(window, display_name)
+    except Exception as e:
+        log(f"Ошибка обновления display стратегии после смены пресета: {e}", "DEBUG")

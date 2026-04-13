@@ -3,8 +3,10 @@ from __future__ import annotations
 import atexit
 import sys
 
-from log import log
-from config import APP_VERSION
+from log.log import log
+
+from config.build_info import APP_VERSION
+
 from startup.ipc_manager import IPCManager
 
 from main.post_startup import install_post_startup_tasks

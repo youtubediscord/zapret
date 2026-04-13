@@ -1,3 +1,1 @@
-from .page import PremiumPage
-
-__all__ = ["PremiumPage"]
+"""UI-пакет Premium. Используйте прямой импорт `donater.ui.page`."""

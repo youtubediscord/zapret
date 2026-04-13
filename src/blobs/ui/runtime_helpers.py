@@ -191,7 +191,8 @@ def reload_blobs_data(
 
 def open_bin_folder_action(*, tr_fn, info_bar_cls, window, log_error) -> None:
     try:
-        from config import BIN_FOLDER
+        from config.config import BIN_FOLDER
+
 
         os.startfile(BIN_FOLDER)
     except Exception as exc:
@@ -205,7 +206,8 @@ def open_bin_folder_action(*, tr_fn, info_bar_cls, window, log_error) -> None:
 
 def open_json_action(*, tr_fn, info_bar_cls, window, log_error) -> None:
     try:
-        from config import INDEXJSON_FOLDER
+        from config.config import INDEXJSON_FOLDER
+
 
         json_path = os.path.join(INDEXJSON_FOLDER, "blobs.json")
         os.startfile(json_path)

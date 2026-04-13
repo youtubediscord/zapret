@@ -23,8 +23,10 @@ import ipaddress
 import os
 from urllib.parse import urlparse
 
-from log import log
-from config import (
+from log.log import log
+
+from config.config import (
+
     LISTS_FOLDER,
     get_zapret_lists_backup_dir,
     get_zapret_lists_template_dir,

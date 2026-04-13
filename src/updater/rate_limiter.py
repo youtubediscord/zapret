@@ -12,8 +12,10 @@ import os
 import json
 import time
 from typing import Optional
-from config import LOGS_FOLDER
-from log import log
+from config.config import LOGS_FOLDER
+
+from log.log import log
+
 
 # Файл для хранения времени последней проверки
 RATE_LIMIT_FILE = os.path.join(LOGS_FOLDER, '.update_rate_limit.json')

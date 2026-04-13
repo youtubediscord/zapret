@@ -8,10 +8,10 @@ import time as _time
 
 from PyQt6.QtCore import pyqtSignal, QTimer, QEvent
 
-from core.runtime.direct_ui_snapshot_service import DirectBasicUiSnapshotWorker
+from direct_preset.runtime import DirectBasicUiSnapshotWorker
 from ui.page_dependencies import require_page_app_context
 from ui.pages.base_page import BasePage
-from direct_control.zapret2.strategies_build import build_z2_direct_shell
+from direct_preset.ui.control.zapret2.strategies_build import build_z2_direct_shell
 from filters.runtime.targets_payload_runtime import (
     apply_payload_snapshot,
     set_payload_loading,
@@ -24,7 +24,8 @@ from filters.pages.direct_zapret2_targets_selection import (
 )
 from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
-from log import log
+from log.log import log
+
 
 from qfluentwidgets import (
     BreadcrumbBar,
@@ -405,7 +406,7 @@ class Zapret2StrategiesPageNew(BasePage):
 
     def _apply_changes(self):
         """Применяет изменения - перезапускает DPI если запущен"""
-        from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
+        from winws_runtime.flow.apply_policy import request_direct_runtime_content_apply
         request_direct_runtime_content_apply(
             self.parent_app,
             launch_method="direct_zapret2",

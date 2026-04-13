@@ -272,14 +272,16 @@ def safe_qta_icon(icon_name: str, color: str = '#f5f5f5', fallback: str = 'fa5s.
     
     # Проверяем префикс
     if not icon_name.startswith(VALID_ICON_PREFIXES):
-        from log import log
+        from log.log import log
+
         log(f"Неизвестный префикс иконки: {icon_name}, используется fallback", "⚠ WARNING")
         icon_name = fallback
     
     try:
         return get_themed_qta_icon(icon_name, color=color)
     except Exception as e:
-        from log import log
+        from log.log import log
+
         log(f"Ошибка создания иконки {icon_name}: {e}", "⚠ WARNING")
         try:
             return get_themed_qta_icon(fallback, color=color)

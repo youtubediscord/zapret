@@ -2,7 +2,8 @@
 import ctypes
 import sys
 import os
-from log import log
+from log.log import log
+
 
 def is_admin():
     """Проверяет, запущено ли приложение с правами администратора"""

@@ -3,7 +3,8 @@
 import socket
 import threading
 import time
-from log import log
+from log.log import log
+
 from PyQt6.QtCore import QObject, pyqtSignal
 
 class IPCManager(QObject):

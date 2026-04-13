@@ -303,7 +303,8 @@ class ConnectionTestPage(BasePage):
     
     def cleanup(self):
         """Очистка потоков при закрытии"""
-        from log import log
+        from log.log import log
+
         try:
             state = cleanup_connection_runtime(
                 cleanup_in_progress=self._cleanup_in_progress,

@@ -4,8 +4,7 @@ from typing import Any
 
 
 _LEVELS = {"success", "info", "warning", "error"}
-_IMPACTS = {"advisory", "blocking"}
-_PRESENTATIONS = {"auto", "infobar", "dialog"}
+_PRESENTATIONS = {"auto", "infobar"}
 _QUEUES = {"auto", "startup", "immediate"}
 
 
@@ -36,7 +35,6 @@ def notification_payload(
     title: str = "",
     content: str = "",
     source: str = "system",
-    impact: str = "advisory",
     presentation: str = "auto",
     queue: str = "auto",
     duration: int = 12000,
@@ -50,13 +48,9 @@ def notification_payload(
     if normalized_level not in _LEVELS:
         normalized_level = "info"
 
-    normalized_impact = _normalize_text(impact, "advisory").lower()
-    if normalized_impact not in _IMPACTS:
-        normalized_impact = "advisory"
-
     normalized_presentation = _normalize_text(presentation, "auto").lower()
     if normalized_presentation not in _PRESENTATIONS:
-        normalized_presentation = "auto"
+        normalized_presentation = "infobar"
 
     normalized_queue = _normalize_text(queue, "auto").lower()
     if normalized_queue not in _QUEUES:
@@ -78,7 +72,6 @@ def notification_payload(
         "title": _normalize_text(title),
         "content": _normalize_text(content),
         "source": _normalize_text(source, "system"),
-        "impact": normalized_impact,
         "presentation": normalized_presentation,
         "queue": normalized_queue,
         "duration": max(-1, int(duration)),
@@ -110,7 +103,6 @@ def advisory_notification(
         title=title,
         content=content,
         source=source,
-        impact="advisory",
         presentation=presentation,
         queue=queue,
         duration=duration,
@@ -119,31 +111,6 @@ def advisory_notification(
         dedupe_window_ms=dedupe_window_ms,
         tray_title=tray_title,
         tray_content=tray_content,
-    )
-
-
-def blocking_notification(
-    *,
-    level: str = "error",
-    title: str = "",
-    content: str = "",
-    source: str = "system",
-    presentation: str = "dialog",
-    dedupe_key: str = "",
-    dedupe_window_ms: int = 0,
-) -> dict[str, Any]:
-    return notification_payload(
-        level=level,
-        title=title,
-        content=content,
-        source=source,
-        impact="blocking",
-        presentation=presentation,
-        queue="immediate",
-        duration=-1,
-        buttons=(),
-        dedupe_key=dedupe_key,
-        dedupe_window_ms=dedupe_window_ms,
     )
 
 
@@ -156,7 +123,6 @@ def normalize_notification_payload(payload: Any) -> dict[str, Any] | None:
         title=str(payload.get("title") or ""),
         content=str(payload.get("content") or ""),
         source=str(payload.get("source") or "system"),
-        impact=str(payload.get("impact") or "advisory"),
         presentation=str(payload.get("presentation") or "auto"),
         queue=str(payload.get("queue") or "auto"),
         duration=int(payload.get("duration", 12000) or 12000),

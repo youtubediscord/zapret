@@ -19,7 +19,8 @@ from ui.pages.about_page_tabs_build import build_about_page_tabs
 from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
-from log import log
+from log.log import log
+
 
 from qfluentwidgets import (
     StrongBodyLabel,
@@ -222,7 +223,8 @@ class AboutPage(BasePage):
 
     def _retranslate_about_tab(self) -> None:
         try:
-            from config import APP_VERSION
+            from config.build_info import APP_VERSION
+
 
             self.about_section_version_label.setText(
                 tr_catalog("page.about.section.version", language=self._ui_language, default="Версия")
@@ -285,7 +287,8 @@ class AboutPage(BasePage):
     # ─────────────────────────────────────────────────────────────────────────
 
     def _build_about_content(self, layout: QVBoxLayout):
-        from config import APP_VERSION
+        from config.build_info import APP_VERSION
+
         tokens = get_theme_tokens()
         widgets = build_about_page_about_content(
             layout,

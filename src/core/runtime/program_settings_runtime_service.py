@@ -29,7 +29,8 @@ class ProgramSettingsRuntimeService:
     @staticmethod
     def _read_auto_dpi_enabled() -> bool:
         try:
-            from config import get_dpi_autostart
+            from config.reg import get_dpi_autostart
+
 
             return bool(get_dpi_autostart())
         except Exception:

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from log import log
+from log.log import log
+
 
 
 @dataclass(slots=True)
@@ -50,7 +51,8 @@ class DpiSettingsPageController:
 
     @staticmethod
     def _orchestra_reg_path() -> str:
-        from config import REGISTRY_PATH
+        from config.config import REGISTRY_PATH
+
 
         return f"{REGISTRY_PATH}\\Orchestra"
 

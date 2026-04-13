@@ -1,5 +1,4 @@
-"""Detail-страницы, общие helper-ы и общий preview-диалог для filter-domain."""
+"""Пакет деталей стратегий.
 
-from .args_preview_dialog import ArgsPreviewDialog
-
-__all__ = ["ArgsPreviewDialog"]
+Используйте прямые импорты из конкретных модулей `filters.strategy_detail.*`.
+"""

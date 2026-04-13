@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class DomainsPanelWidgets:
@@ -101,7 +103,7 @@ def build_domains_panel_ui(
     add_row.addWidget(input_edit, 1)
     add_button = primary_push_button_cls()
     add_button.setText(tr_fn("page.hostlist.button.add", "Добавить"))
-    add_button.setIcon(qta_module.icon("fa5s.plus", color=tokens.accent_hex))
+    add_button.setIcon(get_themed_qta_icon("fa5s.plus", color=tokens.accent_hex))
     add_button.setFixedHeight(38)
     add_button.clicked.connect(on_add)
     add_row.addWidget(add_button)
@@ -253,7 +255,7 @@ def build_ips_panel_ui(
     add_row.addWidget(input_edit, 1)
     add_button = primary_push_button_cls()
     add_button.setText(tr_fn("page.hostlist.button.add", "Добавить"))
-    add_button.setIcon(qta_module.icon("fa5s.plus", color=tokens.accent_hex))
+    add_button.setIcon(get_themed_qta_icon("fa5s.plus", color=tokens.accent_hex))
     add_button.setFixedHeight(38)
     add_button.clicked.connect(on_add)
     add_row.addWidget(add_button)

@@ -4,7 +4,8 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 
-from log import global_logger
+from log.log import global_logger
+
 from ui.support_request_actions import prepare_blockcheck_support_request
 
 
@@ -37,7 +38,8 @@ class BlockcheckPageController:
 
     @staticmethod
     def make_run_log_path(mode: str) -> str:
-        from config import LOGS_FOLDER
+        from config.config import LOGS_FOLDER
+
 
         log_dir = LOGS_FOLDER
         try:

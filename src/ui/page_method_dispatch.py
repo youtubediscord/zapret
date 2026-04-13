@@ -6,25 +6,6 @@ from ui.navigation_targets import resolve_strategy_page_for_method
 from ui.page_contracts import PageMethodName, get_page_method
 from ui.page_names import PageName
 
-
-def _get_loaded_page(window, page_name: PageName):
-    page_host = getattr(window, "_page_host", None)
-    if page_host is None:
-        return None
-    return page_host.get_loaded_page(page_name)
-
-
-def get_active_strategy_page_name(window) -> PageName | None:
-    return resolve_strategy_page_for_method(window._get_launch_method())
-
-
-def call_loaded_strategy_page_method(window, method_name: str) -> bool:
-    page_name = get_active_strategy_page_name(window)
-    if page_name is None:
-        return False
-    return call_loaded_page_method(window, page_name, method_name)
-
-
 def call_loaded_page_method(
     window,
     page_name: PageName,
@@ -32,7 +13,11 @@ def call_loaded_page_method(
     *args,
     delay_ms: int = 0,
 ) -> bool:
-    page = _get_loaded_page(window, page_name)
+    page_host = getattr(window, "_page_host", None)
+    if page_host is None:
+        return False
+
+    page = page_host.get_loaded_page(page_name)
     if page is None:
         return False
 
@@ -60,11 +45,17 @@ def call_loaded_page_method(
 
 
 def show_active_strategy_page_loading(window) -> bool:
-    return call_loaded_strategy_page_method(window, PageMethodName.SHOW_LOADING)
+    page_name = resolve_strategy_page_for_method(window._get_launch_method())
+    if page_name is None:
+        return False
+    return call_loaded_page_method(window, page_name, PageMethodName.SHOW_LOADING)
 
 
 def show_active_strategy_page_success(window) -> bool:
-    return call_loaded_strategy_page_method(window, PageMethodName.SHOW_SUCCESS)
+    page_name = resolve_strategy_page_for_method(window._get_launch_method())
+    if page_name is None:
+        return False
+    return call_loaded_page_method(window, page_name, PageMethodName.SHOW_SUCCESS)
 
 
 def switch_page_tab(window, page_name: PageName, tab_key: str) -> bool:
@@ -101,7 +92,8 @@ def dispatch_detail_page_result(
     log_message: str | None = None,
 ) -> bool:
     if log_message:
-        from log import log
+        from log.log import log
+
 
         log(log_message, "INFO")
 

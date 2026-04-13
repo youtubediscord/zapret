@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QWidget
 
-from log import log
-from ui.navigation.navigation_controller import ensure_navigation_controller
+from log.log import log
+
+from ui.navigation.text_sync import apply_ui_language_to_page
 from ui.page_dependencies import inject_page_dependencies
 from ui.navigation.schema import (
     get_page_route_key,
@@ -136,7 +137,7 @@ class WindowPageHost:
         page = self.pages.get(page_name)
         if page is not None:
             inject_page_dependencies(page, self._window)
-            ensure_navigation_controller(self._window).apply_ui_language_to_page(page)
+            apply_ui_language_to_page(self._window, page)
             self.bind_page_ui_state(page)
             if bool(getattr(self._window, "_page_signal_bootstrap_complete", False)):
                 self.ensure_page_in_stacked_widget(page)
@@ -151,7 +152,7 @@ class WindowPageHost:
         setattr(self._window, created_page.attr_name, page)
 
         inject_page_dependencies(page, self._window)
-        ensure_navigation_controller(self._window).apply_ui_language_to_page(page)
+        apply_ui_language_to_page(self._window, page)
         self.bind_page_ui_state(page)
 
         if bool(getattr(self._window, "_page_signal_bootstrap_complete", False)):

@@ -54,7 +54,8 @@ def stop_dpi(source) -> bool:
 
 
 def stop_and_exit(source) -> bool:
-    from log import log
+    from log.log import log
+
     from PyQt6.QtWidgets import QApplication
 
     host = resolve_action_host(source)

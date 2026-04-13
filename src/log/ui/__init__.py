@@ -1,3 +1,1 @@
-from .page import LogsPage
-
-__all__ = ["LogsPage"]
+"""UI-пакет логов. Используйте прямой импорт `log.ui.page`."""

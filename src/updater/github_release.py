@@ -13,14 +13,16 @@ import time
 import json
 import os
 import requests
-from log import log
+from log.log import log
+
 from .channel_utils import (
     normalize_update_channel,
     is_test_release_asset_name,
 )
 from .network_hints import maybe_log_disable_dpi_for_update
 from .proxy_bypass import request_get_bypass_proxy
-from config import LOGS_FOLDER
+from config.config import LOGS_FOLDER
+
 
 # ────────────────────────────────────────────────────────────────
 #  GITHUB ТОКЕН (из _build_secrets при сборке, иначе env)

@@ -14,7 +14,8 @@ import re
 import os
 import json
 
-from log import log
+from log.log import log
+
 
 # Примечание: blobs.json находится в /home/privacy/zapret/json/blobs.json
 # (не в папке проекта zapretgui, а в родительской папке zapret)
@@ -91,7 +92,8 @@ def _get_blobs_json_path() -> str:
     """Возвращает путь к JSON файлу блобов"""
     global _BLOBS_JSON_PATH
     if _BLOBS_JSON_PATH is None:
-        from config import INDEXJSON_FOLDER
+        from config.config import INDEXJSON_FOLDER
+
         _BLOBS_JSON_PATH = os.path.join(INDEXJSON_FOLDER, "blobs.json")
     return _BLOBS_JSON_PATH
 
@@ -104,7 +106,8 @@ def _load_blobs_from_json() -> dict:
     Returns:
         Словарь {имя_блоба: значение_для_командной_строки}
     """
-    from config import BIN_FOLDER
+    from config.config import BIN_FOLDER
+
 
     json_path = _get_blobs_json_path()
     result = {}
@@ -207,7 +210,8 @@ def get_system_blobs_info() -> dict:
             }
         }
     """
-    from config import BIN_FOLDER
+    from config.config import BIN_FOLDER
+
 
     # Парсим HARDCODED_BLOBS строку
     # Формат: "--blob=name:value --blob=name2:value2 ..."
@@ -250,7 +254,8 @@ def _load_user_blobs_info() -> dict:
     Returns:
         dict: Словарь с информацией о пользовательских блобах
     """
-    from config import BIN_FOLDER
+    from config.config import BIN_FOLDER
+
 
     json_path = _get_blobs_json_path()
     result = {}
@@ -618,7 +623,8 @@ def get_user_blobs_args() -> str:
         Строка с --blob=name:value для каждого пользовательского блоба,
         или пустая строка если пользовательских блобов нет.
     """
-    from config import BIN_FOLDER
+    from config.config import BIN_FOLDER
+
 
     json_path = _get_blobs_json_path()
     user_blobs_parts = []

@@ -262,7 +262,8 @@ class TelegramProxySettingsController:
     @staticmethod
     def consume_auto_deeplink_request() -> bool:
         try:
-            from config import REGISTRY_PATH
+            from config.config import REGISTRY_PATH
+
             from config.reg import reg
 
             if reg(REGISTRY_PATH, "TgProxyDeeplinkDone"):

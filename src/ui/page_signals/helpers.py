@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ui.page_contracts import get_page_signal
 from ui.page_names import PageName
-from ui.window_adapter import ensure_window_adapter
+from ui.window_adapter import show_page
 
 
 def connect_signal_once(window, key: str, signal_obj, slot_obj) -> None:
@@ -28,7 +28,8 @@ def connect_show_page_signal(window, key: str, signal_obj, target_page: PageName
         window,
         key,
         signal_obj,
-        lambda target=target_page, adapter=ensure_window_adapter(window), internal=allow_internal: adapter.show_page(
+        lambda target=target_page, current_window=window, internal=allow_internal: show_page(
+            current_window,
             target,
             allow_internal=internal,
         ),

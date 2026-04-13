@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from log import log
+from log.log import log
+
 
 
 def on_clear_learned_requested(window) -> None:

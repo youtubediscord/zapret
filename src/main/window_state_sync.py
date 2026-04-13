@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 
-from log import log
+from log.log import log
+
 from main.runtime_state import startup_elapsed_ms
 from ui.window_appearance_state import on_animations_changed
 from ui.holiday_effects import HolidayEffectsManager
@@ -14,14 +15,12 @@ class WindowStateSyncMixin:
     def _build_initial_ui_state() -> AppUiState:
         """Честное стартовое состояние UI до реальной проверки и автозапуска."""
         try:
-            from config import get_dpi_autostart, get_winws_exe_for_method
+            from config.reg import get_dpi_autostart
+
             from settings.dpi.strategy_settings import get_strategy_launch_method
 
             autostart_enabled = bool(get_dpi_autostart())
             launch_method = str(get_strategy_launch_method() or "").strip().lower()
-            expected_process = ""
-            if launch_method and launch_method != "orchestra":
-                expected_process = os.path.basename(get_winws_exe_for_method(launch_method)).strip().lower()
 
             autostart_pending_methods = {
                 "direct_zapret2",
@@ -34,7 +33,6 @@ class WindowStateSyncMixin:
                     launch_method=launch_method,
                     launch_phase="autostart_pending",
                     launch_running=False,
-                    launch_expected_process=expected_process,
                     autostart_enabled=autostart_enabled,
                 )
 
@@ -42,7 +40,6 @@ class WindowStateSyncMixin:
                 launch_method=launch_method,
                 launch_phase="stopped",
                 launch_running=False,
-                launch_expected_process=expected_process,
                 autostart_enabled=autostart_enabled,
             )
         except Exception:

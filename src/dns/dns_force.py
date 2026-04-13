@@ -9,8 +9,10 @@ import time
 from typing import List, Tuple, Optional, Dict
 import socket
 
-from log import log
-from config import REGISTRY_PATH
+from log.log import log
+
+from config.config import REGISTRY_PATH
+
 from .dns_core import DNSManager, DEFAULT_EXCLUSIONS, _normalize_alias
 
 # ──────────────────────────────────────────────────────────────────────

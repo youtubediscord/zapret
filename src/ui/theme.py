@@ -6,8 +6,11 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QIcon
-from config import reg, THEME_FOLDER
-from log import log
+from config.reg import reg
+from config.config import THEME_FOLDER
+
+from log.log import log
+
 from typing import Optional, Tuple
 import time
 
@@ -81,8 +84,10 @@ _THEME_DYNAMIC_LAYER_END = "/* __THEME_DYNAMIC_LAYER_END__ */"
 
 def set_selected_theme(theme_name: str) -> bool:
     """Записывает строку SelectedTheme"""
-    from config import REGISTRY_PATH
-    from log import log
+    from config.config import REGISTRY_PATH
+
+    from log.log import log
+
     result = reg(REGISTRY_PATH, "SelectedTheme", theme_name)
     log(f"💾 Сохранение темы в реестр [{REGISTRY_PATH}]: '{theme_name}' -> {result}", "DEBUG")
     return result

@@ -4,7 +4,14 @@ from app_state.main_window_state import AppUiState, MainWindowStateStore
 
 
 class AppRuntimeState:
-    """Единая точка записи и чтения runtime-состояния GUI."""
+    """Узкий facade поверх window-level runtime state.
+
+    Этот слой больше не притворяется универсальным writer-ом для всего UI state.
+    Его роль сейчас простая и честная:
+    - дать внешним use-site'ам безопасные read-helper'ы для launch/autostart state;
+    - дать один явный writer для `autostart_enabled`;
+    - не подменять собой `MainWindowStateStore` и не дублировать `LaunchRuntimeService`.
+    """
 
     def __init__(self, app_instance_or_store) -> None:
         self.app = None
@@ -43,27 +50,11 @@ class AppRuntimeState:
     def is_autostart_enabled(self) -> bool:
         return bool(self.snapshot().autostart_enabled)
 
-    def apply_runtime_state(
-        self,
-        *,
-        autostart_enabled: bool | None = None,
-    ) -> bool:
+    def set_autostart(self, enabled: bool) -> bool:
         store = self._store()
         if store is None:
             return False
-
-        changes: dict[str, object] = {}
-
-        if autostart_enabled is not None:
-            changes["autostart_enabled"] = bool(autostart_enabled)
-
-        if not changes:
-            return False
-
-        return bool(store.update(**changes))
-
-    def set_autostart(self, enabled: bool) -> bool:
-        return self.apply_runtime_state(autostart_enabled=enabled)
+        return bool(store.set_autostart(bool(enabled)))
 
     def sync_autostart_from_registry(self) -> bool:
         return self.set_autostart(self.detect_autostart_enabled())

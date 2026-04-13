@@ -4,9 +4,34 @@
 неофициальная модификация Telegram, которая может перехватывать переписку.
 """
 from __future__ import annotations
-import os
 
 from app_notifications import advisory_notification, notification_action
+from utils.windows_process_probe import iter_process_names_winapi, iter_uninstall_display_names
+
+
+_TELEGA_PROCESS_NAMES = frozenset({"telega.exe"})
+_TELEGA_DISPLAY_NAME_MARKERS = (
+    "telega desktop",
+    "telegadesktop",
+)
+
+
+def _detect_telega_evidence() -> str | None:
+    """Возвращает сильный признак установки/работы Telega без опоры на папки и ярлыки."""
+    try:
+        for process_name in iter_process_names_winapi():
+            normalized = str(process_name or "").strip().casefold()
+            if normalized in _TELEGA_PROCESS_NAMES:
+                return f"Запущенный процесс: {process_name}"
+
+        for display_name in iter_uninstall_display_names():
+            normalized = str(display_name or "").strip().casefold()
+            if any(marker in normalized for marker in _TELEGA_DISPLAY_NAME_MARKERS):
+                return f"Установленное приложение: {display_name}"
+    except Exception:
+        return None
+
+    return None
 
 
 def _check_telega_installed() -> str | None:
@@ -14,71 +39,10 @@ def _check_telega_installed() -> str | None:
     Проверяет наличие «Telega Desktop» в системе.
 
     Returns:
-        Путь к обнаруженному файлу/папке, или None если не найдено.
+        Строку с подтверждённым признаком установки/запуска, или None если не найдено.
     """
     try:
-        appdata_roaming = os.environ.get("APPDATA", "")
-        appdata_local = os.environ.get("LOCALAPPDATA", "")
-        user_profile = os.environ.get("USERPROFILE", "")
-
-        # Папки и exe, которые может создать Telega Desktop
-        check_paths = []
-
-        for base in (appdata_roaming, appdata_local):
-            if not base:
-                continue
-            check_paths += [
-                os.path.join(base, "Telega Desktop", "Telega.exe"),
-                os.path.join(base, "Telega Desktop"),
-                os.path.join(base, "TelegaDesktop", "Telega.exe"),
-                os.path.join(base, "TelegaDesktop"),
-            ]
-
-        # Ярлыки в меню «Пуск»
-        if appdata_roaming:
-            start_menu = os.path.join(
-                appdata_roaming, "Microsoft", "Windows", "Start Menu", "Programs"
-            )
-            check_paths += [
-                os.path.join(start_menu, "Telega Desktop", "Telega.lnk"),
-                os.path.join(start_menu, "Telega Desktop"),
-                os.path.join(start_menu, "TelegaDesktop", "Telega.lnk"),
-                os.path.join(start_menu, "TelegaDesktop"),
-            ]
-
-        # Ярлык на рабочем столе
-        if user_profile:
-            desktop = os.path.join(user_profile, "Desktop")
-            check_paths += [
-                os.path.join(desktop, "Telega.lnk"),
-                os.path.join(desktop, "Telega Desktop.lnk"),
-            ]
-
-        # Program Files (на случай системной установки)
-        for pf in (r"C:\Program Files", r"C:\Program Files (x86)"):
-            check_paths += [
-                os.path.join(pf, "Telega Desktop", "Telega.exe"),
-                os.path.join(pf, "Telega Desktop"),
-            ]
-
-        for path in check_paths:
-            if os.path.exists(path):
-                return path
-
-        # Дополнительно: проверяем запущенные процессы
-        try:
-            import psutil
-            for proc in psutil.process_iter(["name"]):
-                try:
-                    name = proc.info["name"]
-                    if name and name.lower() == "telega.exe":
-                        return f"Процесс: {name}"
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except Exception:
-            pass
-
-        return None
+        return _detect_telega_evidence()
     except Exception:
         return None
 
@@ -123,12 +87,12 @@ def build_telega_notification(found_path: str = "") -> dict | None:
     if _check_telega_warning_disabled():
         return None
 
-    path_line = f"\nОбнаружено: {found_path}" if found_path else ""
+    path_line = f"\nПодтверждено: {found_path}" if found_path else ""
     return advisory_notification(
         level="error",
         title="Обнаружена Telega Desktop",
         content=(
-            "Обнаружена программа Telega Desktop.\n"
+            "Обнаружена установленная или запущенная Telega Desktop.\n"
             "Это неофициальная модификация Telegram, которая может читать переписку."
             f"{path_line}\n"
             "Рекомендуется удалить её, поставить официальный Telegram и завершить сторонние сессии."

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import time as _time
 
-from filters.ui import TargetsList
-from log import log
+from filters.ui.targets_list import TargetsList
+from log.log import log
+
 
 
 def build_list_structure_signature(payload) -> tuple:

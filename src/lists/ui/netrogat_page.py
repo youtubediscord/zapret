@@ -39,7 +39,8 @@ from ui.compat_widgets import (
 )
 from ui.theme import get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
-from log import log
+from log.log import log
+
 
 
 class NetrogatPage(BasePage):

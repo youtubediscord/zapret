@@ -58,8 +58,9 @@ except ImportError:
     _HAS_FLUENT = False
 
 
-from log import log
-from orchestra import MAX_ORCHESTRA_LOGS
+from log.log import log
+
+from orchestra.orchestra_runner import MAX_ORCHESTRA_LOGS
 from orchestra.ignored_targets import is_orchestra_ignored_target
 
 

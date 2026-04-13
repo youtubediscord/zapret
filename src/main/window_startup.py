@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from app_context import build_app_context, install_app_context
-from config import APP_VERSION, HEIGHT, MIN_WIDTH, WIDTH
-from log import log
+from config.build_info import APP_VERSION
+from config.config import HEIGHT, MIN_WIDTH, WIDTH
+
+from log.log import log
+
 from main.runtime_state import (
     log_startup_metric as emit_startup_metric,
     startup_elapsed_ms,

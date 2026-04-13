@@ -28,7 +28,8 @@ from ui.compat_widgets import set_tooltip
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme import get_theme_tokens, get_themed_qta_icon
 from ui.text_catalog import tr as tr_catalog
-from log import log
+from log.log import log
+
 
 
 class OrchestraRatingsPage(BasePage):

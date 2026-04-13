@@ -3,13 +3,15 @@ from __future__ import annotations
 from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from log import global_logger, log
+from log.log import global_logger, log
+
 from main.runtime_state import (
     log_startup_metric as emit_startup_metric,
     startup_elapsed_ms,
 )
+from ui.navigation.schema import iter_page_names_for_cleanup
 from ui.page_names import PageName
-from ui.window_adapter import ensure_window_adapter
+from ui.window_adapter import sync_titlebar_search_width
 
 
 class WindowLifecycleMixin:
@@ -202,7 +204,7 @@ class WindowLifecycleMixin:
         """Обновляем геометрию при изменении размера окна."""
         super().resizeEvent(event)
         try:
-            ensure_window_adapter(self).update_titlebar_search_width()
+            sync_titlebar_search_width(self)
         except Exception:
             pass
         geometry_controller = getattr(self, "window_geometry_controller", None)
@@ -252,15 +254,6 @@ class WindowLifecycleMixin:
         except Exception as e:
             log(f"Ошибка обновления стилей: {e}", "DEBUG")
 
-    def _cleanup_loaded_page(self, page_name: PageName) -> None:
-        page = ensure_window_adapter(self).get_loaded_page(page_name)
-        if page is None or not hasattr(page, "cleanup"):
-            return
-        try:
-            page.cleanup()
-        except Exception as e:
-            log(f"Ошибка при очистке страницы {page_name}: {e}", "DEBUG")
-
     def _iter_loaded_pages_for_close(self):
         loaded_pages = getattr(self, "pages", {}) or {}
         for page_name, page in loaded_pages.items():
@@ -270,42 +263,18 @@ class WindowLifecycleMixin:
 
     def _cleanup_threaded_pages_for_close(self) -> None:
         try:
-            seen: set[PageName] = set()
-            priority_pages = (
-                PageName.AUTOSTART,
-                PageName.BLOBS,
-                PageName.CONTROL,
-                PageName.CUSTOM_DOMAINS,
-                PageName.CUSTOM_IPSET,
-                PageName.ZAPRET2_DIRECT_CONTROL,
-                PageName.ZAPRET2_DIRECT,
-                PageName.ZAPRET2_STRATEGY_DETAIL,
-                PageName.ZAPRET2_USER_PRESETS,
-                PageName.ZAPRET1_DIRECT_CONTROL,
-                PageName.ZAPRET1_DIRECT,
-                PageName.ZAPRET1_STRATEGY_DETAIL,
-                PageName.ZAPRET1_USER_PRESETS,
-                PageName.NETROGAT,
-                PageName.HOSTLIST,
-                PageName.LOGS,
-                PageName.SERVERS,
-                PageName.ABOUT,
-                PageName.BLOCKCHECK,
-                PageName.HOSTS,
-                PageName.NETWORK,
-                PageName.ORCHESTRA,
-                PageName.ORCHESTRA_SETTINGS,
-                PageName.APPEARANCE,
-                PageName.PREMIUM,
-                PageName.TELEGRAM_PROXY,
+            loaded_pages = list(self._iter_loaded_pages_for_close())
+            page_order = iter_page_names_for_cleanup(
+                page_name for page_name, _page in loaded_pages
             )
+            pages_by_name = {
+                page_name: page
+                for page_name, page in loaded_pages
+            }
 
-            for page_name in priority_pages:
-                self._cleanup_loaded_page(page_name)
-                seen.add(page_name)
-
-            for page_name, page in self._iter_loaded_pages_for_close():
-                if page_name in seen or not hasattr(page, "cleanup"):
+            for page_name in page_order:
+                page = pages_by_name.get(page_name)
+                if page is None or not hasattr(page, "cleanup"):
                     continue
                 try:
                     page.cleanup()

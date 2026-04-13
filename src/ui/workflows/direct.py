@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 from ui.navigation_targets import (
-    resolve_control_page_for_method,
     resolve_zapret1_navigation_pages,
     resolve_zapret2_navigation_pages,
 )
 from ui.page_contracts import PageMethodName
 from ui.page_names import PageName
+from ui.window_adapter import ensure_page, get_loaded_page, show_page
 from ui.workflows.common import (
     call_page_method,
-    ensure_page,
-    get_loaded_page,
+    get_current_launch_method,
     open_preset_detail_page,
-    show_page,
 )
-
-
-def resolve_zapret2_user_presets_page(method: str | None) -> PageName:
-    return resolve_zapret2_navigation_pages(method).user_presets_page
 
 
 def resolve_zapret2_preset_detail_page(method: str | None) -> PageName:
@@ -100,11 +94,11 @@ def open_zapret1_strategy_detail(
         return False
 
     try:
-        from core.presets.direct_facade import DirectPresetFacade
+        from direct_preset.facade import DirectPresetFacade
 
         def _reload_dpi() -> None:
             try:
-                from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
+                from winws_runtime.flow.apply_policy import request_direct_runtime_content_apply
 
                 request_direct_runtime_content_apply(
                     window,
@@ -148,7 +142,7 @@ def resolve_navigation_target_for_strategies(
         return target_page
 
     try:
-        from core.presets.direct_facade import DirectPresetFacade
+        from direct_preset.facade import DirectPresetFacade
 
         facade = DirectPresetFacade.from_launch_method("direct_zapret2", app_context=window.app_context)
         if facade.get_target_ui_item(last_key) and open_zapret2_strategy_detail(
@@ -166,7 +160,13 @@ def resolve_navigation_target_for_strategies(
     return z2_direct.control_page
 
 
-def open_zapret2_preset_detail(window, method: str | None, preset_name: str, *, allow_internal: bool) -> None:
+def open_zapret2_preset_detail_for_method(
+    window,
+    method: str | None,
+    preset_name: str,
+    *,
+    allow_internal: bool,
+) -> None:
     open_preset_detail_page(
         window,
         resolve_zapret2_preset_detail_page(method),
@@ -184,16 +184,49 @@ def open_zapret1_preset_detail(window, preset_name: str, *, allow_internal: bool
     )
 
 
+def redirect_to_strategies_page_for_method(window, method: str) -> None:
+    current = None
+    try:
+        current = window.stackedWidget.currentWidget() if hasattr(window, "stackedWidget") else None
+    except Exception:
+        current = None
+
+    strategies_context_pages = get_strategies_context_pages(window)
+
+    if current is not None and current not in strategies_context_pages:
+        return
+
+    show_page(
+        window,
+        resolve_navigation_target_for_strategies(
+            window,
+            method,
+            allow_restore_z2_detail=False,
+        ),
+        allow_internal=True,
+    )
+
+
+def show_active_zapret2_control_page(window, *, allow_internal: bool) -> None:
+    method = get_current_launch_method(default="direct_zapret2")
+    show_page(
+        window,
+        resolve_zapret2_navigation_pages(method).control_page,
+        allow_internal=allow_internal,
+    )
+
+
 __all__ = [
     "clear_remembered_z2_detail_target",
     "get_remembered_z2_detail_target",
     "get_strategies_context_pages",
     "open_zapret1_preset_detail",
     "open_zapret1_strategy_detail",
-    "open_zapret2_preset_detail",
+    "open_zapret2_preset_detail_for_method",
     "open_zapret2_strategy_detail",
     "remember_z2_detail_target",
+    "redirect_to_strategies_page_for_method",
     "resolve_navigation_target_for_strategies",
     "resolve_zapret2_preset_detail_page",
-    "resolve_zapret2_user_presets_page",
+    "show_active_zapret2_control_page",
 ]

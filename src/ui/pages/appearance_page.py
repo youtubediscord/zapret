@@ -838,7 +838,8 @@ class AppearancePage(BasePage):
         # Уведомляем главное окно
         self.opacity_changed.emit(opacity_plan.value)
 
-        from log import log
+        from log.log import log
+
         log(f"Прозрачность окна: {opacity_plan.value}%", "DEBUG")
 
     def _on_snowflakes_changed(self, state):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable
 
 from ui.page_names import PageName
@@ -18,6 +18,7 @@ class PageRouteSpec:
     breadcrumb_parent: PageName | None
     sidebar_group: str | None
     attr_name: str
+    cleanup_priority: int = 10_000
 
 
 _COMMON = ()
@@ -42,7 +43,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET2_DIRECT_CONTROL: PageRouteSpec(
         page_name=PageName.ZAPRET2_DIRECT_CONTROL,
         attr_name="zapret2_direct_control_page",
-        module_name="direct_control.zapret2.page",
+        module_name="direct_preset.ui.control.zapret2.page",
         class_name="Zapret2DirectControlPage",
         route_key="Zapret2DirectControlPage",
         is_top_level=True,
@@ -78,7 +79,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET2_PRESET_DETAIL: PageRouteSpec(
         page_name=PageName.ZAPRET2_PRESET_DETAIL,
         attr_name="zapret2_preset_detail_page",
-        module_name="preset_zapret2.ui.preset_detail_page",
+        module_name="direct_preset.ui.zapret2.preset_detail_page",
         class_name="Zapret2PresetDetailPage",
         route_key="Zapret2PresetDetailPage",
         is_top_level=False,
@@ -90,7 +91,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET1_DIRECT_CONTROL: PageRouteSpec(
         page_name=PageName.ZAPRET1_DIRECT_CONTROL,
         attr_name="zapret1_direct_control_page",
-        module_name="direct_control.zapret1.page",
+        module_name="direct_preset.ui.control.zapret1.page",
         class_name="Zapret1DirectControlPage",
         route_key="Zapret1DirectControlPage",
         is_top_level=True,
@@ -114,7 +115,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET1_USER_PRESETS: PageRouteSpec(
         page_name=PageName.ZAPRET1_USER_PRESETS,
         attr_name="zapret1_user_presets_page",
-        module_name="preset_zapret1.ui.user_presets_page",
+        module_name="direct_preset.ui.zapret1.user_presets_page",
         class_name="Zapret1UserPresetsPage",
         route_key="Zapret1UserPresetsPage",
         is_top_level=False,
@@ -138,7 +139,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET1_PRESET_DETAIL: PageRouteSpec(
         page_name=PageName.ZAPRET1_PRESET_DETAIL,
         attr_name="zapret1_preset_detail_page",
-        module_name="preset_zapret1.ui.preset_detail_page",
+        module_name="direct_preset.ui.zapret1.preset_detail_page",
         class_name="Zapret1PresetDetailPage",
         route_key="Zapret1PresetDetailPage",
         is_top_level=False,
@@ -186,7 +187,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET2_USER_PRESETS: PageRouteSpec(
         page_name=PageName.ZAPRET2_USER_PRESETS,
         attr_name="zapret2_user_presets_page",
-        module_name="preset_zapret2.ui.user_presets_page",
+        module_name="direct_preset.ui.zapret2.user_presets_page",
         class_name="Zapret2UserPresetsPage",
         route_key="Zapret2UserPresetsPage_Direct",
         is_top_level=False,
@@ -389,6 +390,53 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     ),
 }
 
+PAGE_CLEANUP_ORDER: tuple[PageName, ...] = (
+    PageName.AUTOSTART,
+    PageName.BLOBS,
+    PageName.CONTROL,
+    PageName.CUSTOM_DOMAINS,
+    PageName.CUSTOM_IPSET,
+    PageName.ZAPRET2_DIRECT_CONTROL,
+    PageName.ZAPRET2_DIRECT,
+    PageName.ZAPRET2_STRATEGY_DETAIL,
+    PageName.ZAPRET2_USER_PRESETS,
+    PageName.ZAPRET1_DIRECT_CONTROL,
+    PageName.ZAPRET1_DIRECT,
+    PageName.ZAPRET1_STRATEGY_DETAIL,
+    PageName.ZAPRET1_USER_PRESETS,
+    PageName.NETROGAT,
+    PageName.HOSTLIST,
+    PageName.LOGS,
+    PageName.SERVERS,
+    PageName.ABOUT,
+    PageName.BLOCKCHECK,
+    PageName.HOSTS,
+    PageName.NETWORK,
+    PageName.ORCHESTRA,
+    PageName.ORCHESTRA_SETTINGS,
+    PageName.APPEARANCE,
+    PageName.PREMIUM,
+    PageName.TELEGRAM_PROXY,
+)
+
+_PAGE_CLEANUP_PRIORITY_OVERRIDES: dict[PageName, int] = {
+    page_name: index
+    for index, page_name in enumerate(PAGE_CLEANUP_ORDER)
+}
+
+_DEFAULT_CLEANUP_PRIORITY_BASE = 10_000
+
+PAGE_ROUTE_SPECS = {
+    page_name: replace(
+        spec,
+        cleanup_priority=_PAGE_CLEANUP_PRIORITY_OVERRIDES.get(
+            page_name,
+            _DEFAULT_CLEANUP_PRIORITY_BASE + index,
+        ),
+    )
+    for index, (page_name, spec) in enumerate(PAGE_ROUTE_SPECS.items())
+}
+
 
 SIDEBAR_GROUP_ORDER: tuple[str, ...] = ("root", "settings", "system", "diagnostics", "appearance")
 
@@ -414,6 +462,21 @@ def get_page_spec(page_name: PageName) -> PageRouteSpec:
 
 def iter_page_specs() -> Iterable[PageRouteSpec]:
     return PAGE_ROUTE_SPECS.values()
+
+
+def get_page_cleanup_priority(page_name: PageName) -> int:
+    spec = PAGE_ROUTE_SPECS.get(page_name)
+    if spec is None:
+        return _DEFAULT_CLEANUP_PRIORITY_BASE * 2
+    return int(spec.cleanup_priority)
+
+
+def iter_page_names_for_cleanup(page_names: Iterable[PageName]) -> tuple[PageName, ...]:
+    indexed_page_names = list(enumerate(page_names))
+    indexed_page_names.sort(
+        key=lambda item: (get_page_cleanup_priority(item[1]), item[0])
+    )
+    return tuple(page_name for _index, page_name in indexed_page_names)
 
 
 def normalize_launch_method_for_ui(method: str | None) -> str:
@@ -535,10 +598,12 @@ def get_sidebar_search_pages_for_method(method: str | None, all_pages: set[PageN
 
 __all__ = [
     "MODE_ENTRY_PAGES",
+    "PAGE_CLEANUP_ORDER",
     "PAGE_ROUTE_SPECS",
     "SIDEBAR_GROUP_ORDER",
     "PageRouteSpec",
     "get_breadcrumb_chain",
+    "get_page_cleanup_priority",
     "get_eager_page_names_for_method",
     "get_hidden_pages_for_method",
     "get_mode_entry_page",
@@ -549,6 +614,7 @@ __all__ = [
     "is_page_allowed_for_method",
     "is_page_direct_open_allowed",
     "is_page_search_visible",
+    "iter_page_names_for_cleanup",
     "get_sidebar_pages_for_method",
     "get_sidebar_search_pages_for_method",
     "iter_page_specs",

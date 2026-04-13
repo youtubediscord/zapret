@@ -9,7 +9,8 @@ selections — these entries are always active and never toggled by the user.
 
 from __future__ import annotations
 
-from log import log
+from log.log import log
+
 
 TELEGRAM_RELAY_IP = "149.154.167.220"
 

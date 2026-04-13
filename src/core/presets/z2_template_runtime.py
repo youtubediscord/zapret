@@ -1,24 +1,21 @@
 from __future__ import annotations
 
-import configparser
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from safe_construct import safe_construct
+from direct_preset.common.circular_preset_support import resolve_transport_settings
+from direct_preset.common.source_preset_models import SendSettings, SyndataSettings
+from direct_preset.engines import winws2_parser, winws2_rules
+from log.log import log
 
-from core.direct_preset_core.common.circular_preset_support import resolve_transport_settings
-from core.direct_preset_core.common.source_preset_models import SendSettings, SyndataSettings
-from core.direct_preset_core.engines import winws2_parser, winws2_rules
-from log import log
 
 
 _TEMPLATES_CACHE: Optional[dict[str, str]] = None
 _TEMPLATE_BY_KEY: Optional[dict[str, str]] = None
 _CANONICAL_NAME_BY_KEY: Optional[dict[str, str]] = None
 _DEFAULT_SETTINGS_CACHE = None
-_DELETED_SECTION = "deleted"
 _BUILTIN_VERSION_RE = re.compile(r"^\s*#\s*BuiltinVersion:\s*(.+?)\s*$", re.IGNORECASE)
 
 
@@ -73,73 +70,10 @@ def get_builtin_base_from_copy_name(name: str) -> Optional[str]:
         return None
     return get_template_canonical_name(base)
 
-
-def get_deleted_preset_names() -> set[str]:
-    path = _deleted_presets_ini_path()
-    try:
-        if not path.exists():
-            return set()
-        cfg = safe_construct(configparser.ConfigParser)
-        cfg.read(path, encoding="utf-8")
-        if not cfg.has_section(_DELETED_SECTION):
-            return set()
-        return {key for key, value in cfg.items(_DELETED_SECTION) if value.strip() == "1"}
-    except Exception:
-        return set()
-
-
-def mark_preset_deleted(name: str) -> bool:
-    path = _deleted_presets_ini_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        cfg = safe_construct(configparser.ConfigParser)
-        if path.exists():
-            cfg.read(path, encoding="utf-8")
-        if not cfg.has_section(_DELETED_SECTION):
-            cfg.add_section(_DELETED_SECTION)
-        cfg.set(_DELETED_SECTION, name, "1")
-        with path.open("w", encoding="utf-8") as handle:
-            cfg.write(handle)
-        return True
-    except Exception:
-        return False
-
-
-def unmark_preset_deleted(name: str) -> bool:
-    path = _deleted_presets_ini_path()
-    try:
-        if not path.exists():
-            return True
-        cfg = safe_construct(configparser.ConfigParser)
-        cfg.read(path, encoding="utf-8")
-        if cfg.has_section(_DELETED_SECTION):
-            cfg.remove_option(_DELETED_SECTION, name)
-        with path.open("w", encoding="utf-8") as handle:
-            cfg.write(handle)
-        return True
-    except Exception:
-        return False
-
-
-def clear_all_deleted_presets() -> bool:
-    path = _deleted_presets_ini_path()
-    try:
-        if not path.exists():
-            return True
-        cfg = safe_construct(configparser.ConfigParser)
-        cfg.read(path, encoding="utf-8")
-        if cfg.has_section(_DELETED_SECTION):
-            cfg.remove_section(_DELETED_SECTION)
-        with path.open("w", encoding="utf-8") as handle:
-            cfg.write(handle)
-        return True
-    except Exception:
-        return False
-
-
 def ensure_templates_copied_to_presets() -> bool:
     try:
-        from config import get_zapret_presets_v2_dir
+        from config.config import get_zapret_presets_v2_dir
+
 
         templates = _load_template_contents()
         if not templates:
@@ -148,12 +82,10 @@ def ensure_templates_copied_to_presets() -> bool:
         presets_dir = Path(get_zapret_presets_v2_dir())
         presets_dir.mkdir(parents=True, exist_ok=True)
         backups_dir = presets_dir / "_builtin_version_backups"
-        deleted_lower = {name.lower() for name in get_deleted_preset_names()}
 
         for name, content in templates.items():
             dest = presets_dir / f"{name}.txt"
             template_version = _extract_builtin_version(content)
-            was_deleted = name.lower() in deleted_lower
 
             needs_write = False
             updated = False
@@ -192,12 +124,6 @@ def ensure_templates_copied_to_presets() -> bool:
                         f"to {template_version or 'none'}: {dest}",
                         "DEBUG",
                     )
-
-            if was_deleted:
-                try:
-                    unmark_preset_deleted(name)
-                except Exception:
-                    pass
         return True
     except Exception:
         return False
@@ -205,7 +131,8 @@ def ensure_templates_copied_to_presets() -> bool:
 
 def overwrite_templates_to_presets() -> tuple[int, int, list[str]]:
     try:
-        from config import get_zapret_presets_v2_dir
+        from config.config import get_zapret_presets_v2_dir
+
     except Exception:
         return (0, 0, [])
 
@@ -226,7 +153,6 @@ def overwrite_templates_to_presets() -> tuple[int, int, list[str]]:
         try:
             dest.write_text(templates[name], encoding="utf-8")
             copied += 1
-            unmark_preset_deleted(name)
         except Exception:
             failed.append(name)
     return (copied, len(templates), failed)
@@ -469,16 +395,6 @@ def _normalize_template_header_v2(content: str, preset_name: str) -> str:
         out_header.insert(insert_at, f"# TemplateOrigin: {name}")
 
     return "\n".join(out_header + body).rstrip("\n") + "\n"
-
-
-def _deleted_presets_ini_path() -> Path:
-    try:
-        from config import get_zapret_presets_v2_dir
-
-        return Path(get_zapret_presets_v2_dir()) / "deleted_presets.ini"
-    except Exception:
-        return Path("__missing_deleted_presets__.ini")
-
 
 def _extract_builtin_version(content: str) -> Optional[str]:
     for raw in (content or "").splitlines():

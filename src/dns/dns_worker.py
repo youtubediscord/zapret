@@ -3,7 +3,8 @@
 Воркеры для DNS операций (упрощенная Win32 версия)
 """
 from PyQt6.QtCore import QThread, pyqtSignal, QTimer
-from log import log
+from log.log import log
+
 import time
 
 # ══════════════════════════════════════════════════════════════════════

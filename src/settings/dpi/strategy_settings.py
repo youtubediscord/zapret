@@ -5,8 +5,10 @@ import json
 import os
 from pathlib import Path
 
-from config import APPDATA_DIR, get_zapret_userdata_dir
-from log import log
+from config.config import APPDATA_DIR, get_zapret_userdata_dir
+
+from log.log import log
+
 from safe_construct import safe_construct
 
 _LAUNCH_METHOD_FILE = os.path.join(APPDATA_DIR, "strategy_Launch_method.ini")
@@ -136,7 +138,7 @@ def _get_direct_preset_facade(*, app_context=None):
     try:
         method = (get_strategy_launch_method() or "").strip().lower()
         if method in ("direct_zapret2", "direct_zapret1") and app_context is not None:
-            from core.presets.direct_facade import DirectPresetFacade
+            from direct_preset.facade import DirectPresetFacade
 
             return DirectPresetFacade.from_launch_method(
                 method,

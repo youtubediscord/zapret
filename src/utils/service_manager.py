@@ -11,7 +11,8 @@ from .winapi_service_types import SERVICE_STATUS
 
 # Безопасный импорт log
 try:
-    from log import log
+    from log.log import log
+
 except ImportError:
     def log(msg, level="INFO"):
         print(f"[{level}] {msg}")

@@ -1,3 +1,1 @@
-from .page import HostsPage
-
-__all__ = ["HostsPage"]
+"""UI-пакет hosts. Используйте прямой импорт `hosts.ui.page`."""

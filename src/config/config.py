@@ -155,7 +155,8 @@ def get_current_winws_exe() -> str:
         Если метод известен заранее, используйте get_winws_exe_for_method(method).
     """
     try:
-        from log import log
+        from log.log import log
+
     except ImportError:
         log = lambda msg, level="DEBUG": print(f"[{level}] {msg}")
 
@@ -308,7 +309,8 @@ def get_window_position():
     """Получает сохраненную позицию окна из реестра"""
     try:
         import winreg
-        from log import log
+        from log.log import log
+
 
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ)
         try:
@@ -333,7 +335,8 @@ def set_window_position(x, y):
     """Сохраняет позицию окна в реестр"""
     try:
         import winreg
-        from log import log
+        from log.log import log
+
 
         # REG_DWORD is unsigned; store signed 32-bit coordinates as two's complement.
         def _to_dword_signed(v):
@@ -356,7 +359,8 @@ def get_window_size():
     """Получает сохраненный размер окна из реестра"""
     try:
         import winreg
-        from log import log
+        from log.log import log
+
 
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ)
         try:
@@ -375,7 +379,8 @@ def set_window_size(width, height):
     """Сохраняет размер окна в реестр"""
     try:
         import winreg
-        from log import log
+        from log.log import log
+
         
         key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
         winreg.SetValueEx(key, "WindowWidth", 0, winreg.REG_DWORD, int(width))
@@ -391,7 +396,8 @@ def get_window_maximized():
     """Получает сохранённое состояние "окно развернуто" из реестра"""
     try:
         import winreg
-        from log import log
+        from log.log import log
+
 
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ)
         try:
@@ -409,7 +415,8 @@ def set_window_maximized(maximized: bool):
     """Сохраняет состояние "окно развернуто" в реестр"""
     try:
         import winreg
-        from log import log
+        from log.log import log
+
 
         key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
         winreg.SetValueEx(key, "WindowMaximized", 0, winreg.REG_DWORD, int(bool(maximized)))

@@ -7,7 +7,7 @@ from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QListWidgetItem
 
 from orchestra.page_controller import OrchestraPageController
-from orchestra import MAX_ORCHESTRA_LOGS
+from orchestra.orchestra_runner import MAX_ORCHESTRA_LOGS
 from ui.compat_widgets import set_tooltip
 
 

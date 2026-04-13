@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 import re
 
-from log import log
+from log.log import log
+
 
 
 _INLINE_OUT_RANGE_RE = re.compile(r":out_range=-[nd]\d+(?=(:|\s|$))", re.IGNORECASE)

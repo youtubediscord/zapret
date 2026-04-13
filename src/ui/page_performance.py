@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from ui.page_names import PageName
-from log import log
+from log.log import log
+
 
 
 def _resolve_page_label(page_name: PageName | str | None) -> str:

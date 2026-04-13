@@ -4,7 +4,8 @@
 from PyQt6.QtCore import QThread, QObject, pyqtSignal, QThreadPool, QRunnable
 import subprocess
 from typing import Optional, Callable, List, Tuple
-from log import log
+from log.log import log
+
 
 class AsyncCommand(QRunnable):
     """Базовый класс для асинхронного выполнения команд"""

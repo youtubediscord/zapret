@@ -6,11 +6,25 @@ from pathlib import Path
 import re
 from typing import Callable, Iterable
 
-from config import get_zapret_userdata_dir
+from config.config import get_zapret_userdata_dir
 
 
-def _safe_scope_name(scope_key: str) -> str:
+
+_SCOPE_KEY_ALIASES = {
+    "preset_zapret1": "direct_preset_winws1",
+    "preset_zapret2": "direct_preset_winws2",
+}
+
+
+def _canonical_scope_key(scope_key: str) -> str:
     raw = str(scope_key or "").strip().lower()
+    if not raw:
+        return ""
+    return _SCOPE_KEY_ALIASES.get(raw, raw)
+
+
+def _safe_scope_name(scope_key: str, *, canonicalize: bool = True) -> str:
+    raw = _canonical_scope_key(scope_key) if canonicalize else str(scope_key or "").strip().lower()
     if not raw:
         raw = "default"
     raw = re.sub(r"[^a-z0-9_.-]+", "_", raw)
@@ -60,14 +74,47 @@ class PresetHierarchyStore:
     _display_name_by_key: dict[str, str] | None = None
 
     @property
+    def canonical_scope_key(self) -> str:
+        return _canonical_scope_key(self.scope_key) or "default"
+
+    @property
     def state_path(self) -> Path:
-        return _storage_dir() / f"{_safe_scope_name(self.scope_key)}.json"
+        return _storage_dir() / f"{_safe_scope_name(self.canonical_scope_key)}.json"
+
+    def _legacy_state_paths(self) -> list[Path]:
+        canonical = self.canonical_scope_key
+        legacy: list[Path] = []
+        for alias, target in _SCOPE_KEY_ALIASES.items():
+            if target != canonical:
+                continue
+            legacy.append(_storage_dir() / f"{_safe_scope_name(alias, canonicalize=False)}.json")
+        return legacy
+
+    def _migrate_legacy_state_if_needed(self) -> None:
+        path = self.state_path
+        if path.exists():
+            return
+        for legacy_path in self._legacy_state_paths():
+            if not legacy_path.exists():
+                continue
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                legacy_path.replace(path)
+            except Exception:
+                try:
+                    path.write_text(legacy_path.read_text(encoding="utf-8"), encoding="utf-8")
+                    legacy_path.unlink()
+                except Exception:
+                    pass
+            if path.exists():
+                return
 
     def _ensure_loaded(self) -> None:
         if self._state is not None:
             return
 
         path = self.state_path
+        self._migrate_legacy_state_if_needed()
         state = _default_state()
         if path.exists():
             try:

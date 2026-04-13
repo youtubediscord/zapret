@@ -15,60 +15,90 @@ PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {
 
 @dataclass(frozen=True, slots=True)
 class PagePerformanceProfile:
-    page_kind: str
     first_show_budget_ms: int
     repeat_show_budget_ms: int
 
 
-def _profile(kind: str, first_show_budget_ms: int, repeat_show_budget_ms: int = 40) -> PagePerformanceProfile:
+def _profile(first_show_budget_ms: int, repeat_show_budget_ms: int = 40) -> PagePerformanceProfile:
     return PagePerformanceProfile(
-        page_kind=kind,
         first_show_budget_ms=int(first_show_budget_ms),
         repeat_show_budget_ms=int(repeat_show_budget_ms),
     )
 
 
-PAGE_PERFORMANCE_PROFILES: dict[PageName, PagePerformanceProfile] = {
-    PageName.CONTROL: _profile("heavy_list", 200),
-    PageName.ZAPRET2_DIRECT_CONTROL: _profile("heavy_list", 200),
-    PageName.ZAPRET2_DIRECT: _profile("heavy_list", 200),
-    PageName.ZAPRET2_STRATEGY_DETAIL: _profile("heavy_list", 200),
-    PageName.ZAPRET2_PRESET_DETAIL: _profile("heavy_list", 200),
-    PageName.ZAPRET1_DIRECT_CONTROL: _profile("heavy_list", 200),
-    PageName.ZAPRET1_DIRECT: _profile("heavy_list", 200),
-    PageName.ZAPRET1_USER_PRESETS: _profile("heavy_list", 200),
-    PageName.ZAPRET1_STRATEGY_DETAIL: _profile("heavy_list", 200),
-    PageName.ZAPRET1_PRESET_DETAIL: _profile("heavy_list", 200),
-    PageName.HOSTLIST: _profile("data", 120),
-    PageName.BLOBS: _profile("data", 120),
-    PageName.DPI_SETTINGS: _profile("static", 120),
-    PageName.ZAPRET2_USER_PRESETS: _profile("heavy_list", 200),
-    PageName.NETROGAT: _profile("data", 120),
-    PageName.CUSTOM_DOMAINS: _profile("data", 120),
-    PageName.CUSTOM_IPSET: _profile("data", 120),
-    PageName.AUTOSTART: _profile("live", 160),
-    PageName.NETWORK: _profile("data", 120),
-    PageName.HOSTS: _profile("live", 160),
-    PageName.BLOCKCHECK: _profile("live", 160),
-    PageName.APPEARANCE: _profile("static", 120),
-    PageName.PREMIUM: _profile("data", 120),
-    PageName.LOGS: _profile("live", 160),
-    PageName.SERVERS: _profile("live", 160),
-    PageName.ABOUT: _profile("static", 120),
-    PageName.SUPPORT: _profile("static", 120),
-    PageName.ORCHESTRA: _profile("live", 160),
-    PageName.ORCHESTRA_SETTINGS: _profile("static", 120),
-    PageName.TELEGRAM_PROXY: _profile("live", 160),
+DEFAULT_PAGE_PERFORMANCE_PROFILE = _profile(120)
+
+
+def _profiles_for(
+    page_names: tuple[PageName, ...],
+    profile: PagePerformanceProfile,
+) -> dict[PageName, PagePerformanceProfile]:
+    return {
+        page_name: profile
+        for page_name in page_names
+    }
+
+
+PAGE_PERFORMANCE_PROFILE_OVERRIDES: dict[PageName, PagePerformanceProfile] = {
+    **_profiles_for(
+        (
+            PageName.CONTROL,
+            PageName.ZAPRET2_DIRECT_CONTROL,
+            PageName.ZAPRET2_DIRECT,
+            PageName.ZAPRET2_STRATEGY_DETAIL,
+            PageName.ZAPRET2_PRESET_DETAIL,
+            PageName.ZAPRET1_DIRECT_CONTROL,
+            PageName.ZAPRET1_DIRECT,
+            PageName.ZAPRET1_USER_PRESETS,
+            PageName.ZAPRET1_STRATEGY_DETAIL,
+            PageName.ZAPRET1_PRESET_DETAIL,
+            PageName.ZAPRET2_USER_PRESETS,
+        ),
+        _profile(200),
+    ),
+    **_profiles_for(
+        (
+            PageName.HOSTLIST,
+            PageName.BLOBS,
+            PageName.NETROGAT,
+            PageName.CUSTOM_DOMAINS,
+            PageName.CUSTOM_IPSET,
+            PageName.NETWORK,
+            PageName.PREMIUM,
+        ),
+        _profile(120),
+    ),
+    **_profiles_for(
+        (
+            PageName.AUTOSTART,
+            PageName.HOSTS,
+            PageName.BLOCKCHECK,
+            PageName.LOGS,
+            PageName.SERVERS,
+            PageName.ORCHESTRA,
+            PageName.TELEGRAM_PROXY,
+        ),
+        _profile(160),
+    ),
 }
 
 
+_UNKNOWN_PAGE_PROFILE_OVERRIDES = tuple(
+    page_name
+    for page_name in PAGE_PERFORMANCE_PROFILE_OVERRIDES
+    if page_name not in PAGE_CLASS_SPECS
+)
+if _UNKNOWN_PAGE_PROFILE_OVERRIDES:
+    raise RuntimeError(
+        f"Unknown page performance profile overrides: {_UNKNOWN_PAGE_PROFILE_OVERRIDES!r}"
+    )
+
+
 def get_page_performance_profile(page_name: PageName) -> PagePerformanceProfile:
-    return PAGE_PERFORMANCE_PROFILES[page_name]
-
-
-_MISSING_PAGE_PROFILES = tuple(name for name in PAGE_CLASS_SPECS if name not in PAGE_PERFORMANCE_PROFILES)
-if _MISSING_PAGE_PROFILES:
-    raise RuntimeError(f"Missing page performance profiles: {_MISSING_PAGE_PROFILES!r}")
+    return PAGE_PERFORMANCE_PROFILE_OVERRIDES.get(
+        page_name,
+        DEFAULT_PAGE_PERFORMANCE_PROFILE,
+    )
 
 
 def iter_lazy_page_modules() -> tuple[str, ...]:

@@ -1,4 +1,4 @@
-from .controller import ConnectionPageController
-from .worker import ConnectionTestWorker
+"""Пакет диагностики.
 
-__all__ = ["ConnectionPageController", "ConnectionTestWorker"]
+Используйте прямые импорты из конкретных модулей `diagnostics.*`.
+"""

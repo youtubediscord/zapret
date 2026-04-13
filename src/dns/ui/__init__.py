@@ -1,4 +1,1 @@
-from .page import NetworkPage
-from .dns_check_page import DNSCheckPage
-
-__all__ = ["NetworkPage", "DNSCheckPage"]
+"""UI-пакет DNS. Используйте прямые импорты из `dns.ui.page` и `dns.ui.dns_check_page`."""

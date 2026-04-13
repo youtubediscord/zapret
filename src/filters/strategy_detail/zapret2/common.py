@@ -6,7 +6,8 @@ from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from log import log
+from log.log import log
+
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_themed_qta_icon
 

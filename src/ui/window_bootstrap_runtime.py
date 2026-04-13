@@ -1,20 +1,15 @@
 from __future__ import annotations
 
 from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
-from ui.page_signals import connect_lazy_page_signals
+from ui.navigation.text_sync import resolve_ui_language
+from ui.page_signals.registry import connect_lazy_page_signals
 from ui.startup_ui_metrics import log_startup_page_init_summary
 from ui.window_signal_bindings import connect_window_page_signals
-from ui.navigation.navigation_controller import (
-    WindowNavigationController,
-    resolve_window_ui_language,
-)
 from ui.page_factory import UiPageFactory
 from ui.page_host import WindowPageHost
 from ui.page_registry import PAGE_CLASS_SPECS
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
-from ui.ui_workflows import WindowUiWorkflows
-from ui.window_adapter import WindowUiAdapter
-from ui.window_state_refresh import refresh_pages_after_preset_switch
+from ui.window_display_state import refresh_pages_after_preset_switch
 
 
 def initialize_build_ui_state(
@@ -27,8 +22,6 @@ def initialize_build_ui_state(
     nav_scroll_position,
     sidebar_search_widget_cls,
 ) -> None:
-    window._navigation_controller = WindowNavigationController(window)
-    window._ui_workflows = WindowUiWorkflows(window)
     window._page_factory = UiPageFactory(window, PAGE_CLASS_SPECS)
     window._page_host = WindowPageHost(
         window,
@@ -36,7 +29,6 @@ def initialize_build_ui_state(
         connect_page_signals=connect_lazy_page_signals,
     )
     window.runtime_ui_bridge = ensure_runtime_ui_bridge(window)
-    window._window_ui_adapter = WindowUiAdapter(window)
     window.pages = window._page_host.pages
     window._page_class_specs = window._page_factory.page_class_specs
     window._nav_icons = nav_icons
@@ -54,7 +46,7 @@ def initialize_build_ui_state(
     window._sidebar_search_model = None
     window._sidebar_search_completer = None
     window._sidebar_search_titlebar_attached = False
-    window._ui_language = resolve_window_ui_language(window)
+    window._ui_language = resolve_ui_language(window)
     window._startup_page_init_metrics = []
 
 

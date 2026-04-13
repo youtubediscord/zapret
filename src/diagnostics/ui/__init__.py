@@ -1,3 +1,1 @@
-from .page import ConnectionTestPage
-
-__all__ = ["ConnectionTestPage"]
+"""UI-пакет диагностики. Используйте прямой импорт `diagnostics.ui.page`."""

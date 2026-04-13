@@ -33,8 +33,10 @@ from .channel_utils import (
 )
 from .network_hints import maybe_log_disable_dpi_for_update
 from .proxy_bypass import request_get_bypass_proxy
-from log import log
-from config import LOGS_FOLDER
+from log.log import log
+
+from config.config import LOGS_FOLDER
+
 
 # Отключаем предупреждения SSL для самоподписанных сертификатов
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

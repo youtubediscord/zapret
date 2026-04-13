@@ -2,8 +2,10 @@
 
 import os
 
-from config import LISTS_FOLDER
-from log import log
+from config.config import LISTS_FOLDER
+
+from log.log import log
+
 
 
 def ensure_required_files():

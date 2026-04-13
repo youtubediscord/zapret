@@ -293,7 +293,8 @@ class AddBlobDialog(MessageBoxBase):
             )
 
     def _browse_file(self):
-        from config import BIN_FOLDER
+        from config.config import BIN_FOLDER
+
 
         file_path, _ = QFileDialog.getOpenFileName(
             self,

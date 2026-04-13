@@ -1,0 +1,88 @@
+# Broad target metadata configuration
+version = 1.0
+description = Встроенные metadata записи для broad/special UI entities direct_preset
+
+[ipset]
+full_name = IPset TCP (Games)
+description = Блокировка по IP адресам (все порты)
+tooltip = 🔢 Блокировка по IP адресам (все порты)\nОбходит блокировку сервисов по их IP адресам через TCP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.network-wired
+icon_color = #FFA500
+base_filter = --filter-tcp=80,443-65535 --ipset=russia-youtube-rtmps.txt --ipset=ipset-all.txt --ipset=ipset-discord.txt
+strategy_type = tcp
+requires_all_ports = true
+strip_payload = true
+
+
+[ipset_all]
+full_name = ALL TCP
+description = Позволяет включить Zapret для всех IP-адресов (без ipset или hostlist)
+tooltip = 🔢 Блокировка по IP адресам (все порты)\nОбходит блокировку сервисов по их IP адресам через TCP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.network-wired
+icon_color = #FFA500
+base_filter = --filter-tcp=80,443-65535 --ipset-exclude=ipset-ru.txt --ipset-exclude=ipset-dns.txt --ipset-exclude=ipset-exclude.txt
+strategy_type = tcp
+requires_all_ports = true
+strip_payload = true
+
+
+[ipset_udp_all]
+full_name = ALL UDP
+description = Позволяет включить Zapret для всех IP-адресов (без ipset или hostlist)
+tooltip = 🔢 Блокировка по IP адресам (UDP для игр)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #006eff
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = false
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #D49B00
+base_filter = --filter-udp=80,443-65535 --ipset-exclude=ipset-ru.txt --ipset-exclude=ipset-dns.txt --ipset-exclude=ipset-exclude.txt
+strategy_type = udp
+requires_all_ports = true
+strip_payload = true
+
+
+[quic_all]
+full_name = ALL QUIC
+description = Весь QUIC трафик (UDP порт 443) без привязки к доменам или IP
+tooltip = 🌐 Весь QUIC трафик (UDP порт 443)\nОбходит блокировку QUIC/HTTP3 протокола для всех сайтов.\nНе использует hostlist или ipset — работает по exclude-списку.\nПолезно когда провайдер блокирует QUIC протокол целиком.
+color = #00bcd4
+default_strategy = none
+ports = 443
+protocol = QUIC/UDP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.bolt
+icon_color = #00BCD4
+base_filter = --filter-udp=443 --ipset-exclude=ipset-exclude.txt --ipset-exclude=ipset-ru.txt --ipset-exclude=ipset-dns.txt
+strategy_type = udp
+
+
+[tcp_all]
+full_name = ALL TCP (80, 443)
+description = Весь TCP трафик (порты 80, 443) без привязки к доменам или IP
+tooltip = 🌐 Весь TCP трафик (порты 80, 443)\nОбходит блокировку TCP для всех сайтов по exclude-списку.\nНе использует hostlist или ipset.\nПолезно когда провайдер блокирует по SNI/HTTP Host для широкого круга сайтов.
+color = #ff9800
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.globe
+icon_color = #FF9800
+base_filter = --filter-tcp=80,443 --ipset-exclude=ipset-exclude.txt --ipset-exclude=ipset-ru.txt --ipset-exclude=ipset-dns.txt
+strategy_type = tcp

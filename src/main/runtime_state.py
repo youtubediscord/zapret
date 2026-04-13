@@ -37,7 +37,8 @@ def is_cpu_diagnostic_enabled() -> bool:
 
 
 def log_startup_metric(marker: str, details: str = "") -> None:
-    from log import log
+    from log.log import log
+
 
     suffix = f" | {details}" if details else ""
     log(f"⏱ Startup {marker}: {startup_elapsed_ms()}ms{suffix}", "⏱ STARTUP")

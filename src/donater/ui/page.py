@@ -335,7 +335,8 @@ class PremiumPage(BasePage):
                 raise RuntimeError("premium checker init failed")
             self._update_device_info()
         except Exception as e:
-            from log import log
+            from log.log import log
+
             log(f"Ошибка инициализации PremiumPage checker: {e}", "ERROR")
 
     # ── UI construction ──────────────────────────────────────────────────────
@@ -491,7 +492,8 @@ class PremiumPage(BasePage):
 
     def _update_device_info(self):
         def _on_error(exc: Exception) -> None:
-            from log import log
+            from log.log import log
+
 
             log(f"Ошибка обновления информации об устройстве: {exc}", "DEBUG")
 

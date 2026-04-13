@@ -26,12 +26,14 @@ from collections import deque
 from typing import Optional, Callable, Dict, List
 from datetime import datetime
 
-from log import log
+from log.log import log
+
 from utils.circular_strategy_numbering import (
     renumber_circular_strategies,
     strip_strategy_tags,
 )
-from config import MAIN_DIRECTORY, EXE_FOLDER, LUA_FOLDER, LOGS_FOLDER, BIN_FOLDER, REGISTRY_PATH, LISTS_FOLDER
+from config.config import MAIN_DIRECTORY, EXE_FOLDER, LUA_FOLDER, LOGS_FOLDER, BIN_FOLDER, REGISTRY_PATH, LISTS_FOLDER
+
 from config.reg import reg, reg_delete_value
 from orchestra.ignored_targets import (
     get_orchestra_ignored_exact_domains,

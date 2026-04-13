@@ -67,7 +67,7 @@ def show_target_v1(
         set_direct_facade_fn(direct_facade)
     elif current_direct_facade is None:
         try:
-            from core.presets.direct_facade import DirectPresetFacade
+            from direct_preset.facade import DirectPresetFacade
 
             resolved = DirectPresetFacade.from_launch_method(
                 "direct_zapret1",

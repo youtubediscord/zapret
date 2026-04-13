@@ -48,7 +48,8 @@ from log.ui.worker_workflow import (
 )
 from ui.text_catalog import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
-from log import log
+from log.log import log
+
 from log.logs_page_controller import LogsPageController
 
 # Паттерны для определения РЕАЛЬНЫХ ошибок (строгие)

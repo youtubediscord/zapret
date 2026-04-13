@@ -13,7 +13,7 @@ import sys
 from datetime import datetime
 from typing import Any, Callable, Optional
 
-from utils import get_system_exe
+from utils.subproc import get_system_exe
 
 TASK_NAME = "ZapretGUI_AutoStart"
 

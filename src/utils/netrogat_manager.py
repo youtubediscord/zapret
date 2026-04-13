@@ -2,8 +2,10 @@ import os
 import re
 from typing import List, Tuple
 
-from config import LISTS_FOLDER, NETROGAT_PATH
-from log import log
+from config.config import LISTS_FOLDER, NETROGAT_PATH
+
+from log.log import log
+
 
 
 NETROGAT_BASE_PATH = os.path.join(LISTS_FOLDER, "netrogat.base.txt")

@@ -5,23 +5,37 @@ from typing import Any, Mapping
 
 from app_state.main_window_state import MainWindowStateStore
 
+_UNSET = object()
+
 
 @dataclass(frozen=True, slots=True)
 class LaunchRuntimeSnapshot:
     phase: str = "stopped"
     running: bool = False
-    expected_process: str = ""
-    pid: int | None = None
     last_error: str = ""
     launch_method: str = ""
 
 
 @dataclass(frozen=True, slots=True)
 class LaunchRuntimeOwnershipMap:
+    """Документирует честный контракт launch runtime state после чистки слоя."""
+
     canonical_writers: tuple[str, ...]
     canonical_readers: tuple[str, ...]
     allowed_auxiliary_writers: tuple[str, ...]
     single_source_of_truth: str
+
+
+@dataclass(slots=True)
+class _LaunchRuntimeTrackingState:
+    """Приватный tracking state сервиса.
+
+    Эти данные нужны только для внутреннего мониторинга процесса и не являются
+    частью общего window-level UI state.
+    """
+
+    expected_process: str = ""
+    pid: int | None = None
 
 
 class LaunchRuntimeService:
@@ -32,24 +46,31 @@ class LaunchRuntimeService:
         """Явная карта владения DPI runtime state.
 
         Здесь фиксируется канонический контракт:
-        - состояние DPI хранится только в `MainWindowStateStore`;
-        - записывать его должен только `LaunchRuntimeService`;
-        - страницы direct-control и главное окно должны читать уже готовый snapshot,
-          а не собирать параллельный источник истины локально.
+        - window-level состояние DPI хранится только в `MainWindowStateStore`;
+        - писать в него должен `LaunchRuntimeService`, а не страницы и не window mixin;
+        - публичный snapshot сервиса содержит только поля, реально нужные внешним читателям:
+          `launch_method`, `phase`, `running`, `last_error`;
+        - технические поля мониторинга процесса (`expected_process`, `pid`) живут только
+          во внутреннем tracking state сервиса и не экспортируются в общий UI store;
+        - UI читает уже готовое состояние из store/AppRuntimeState и не собирает
+          параллельный источник истины локально.
         """
 
         return LaunchRuntimeOwnershipMap(
             canonical_writers=(
-                "direct_launch.runtime.controller.DirectLaunchController._begin_runtime_start",
-                "direct_launch.runtime.controller.DirectLaunchController._mark_runtime_running",
-                "direct_launch.runtime.controller.DirectLaunchController._mark_runtime_failed",
-                "direct_launch.runtime.controller.DirectLaunchController._begin_runtime_stop",
-                "direct_launch.runtime.controller.DirectLaunchController._mark_runtime_stopped",
+                "winws_runtime.runtime.controller.DirectLaunchController._begin_runtime_start",
+                "winws_runtime.runtime.controller.DirectLaunchController._mark_runtime_running",
+                "winws_runtime.runtime.controller.DirectLaunchController._mark_runtime_failed",
+                "winws_runtime.runtime.controller.DirectLaunchController._begin_runtime_stop",
+                "winws_runtime.runtime.controller.DirectLaunchController._mark_runtime_stopped",
             ),
             canonical_readers=(
                 "main.LupiDPIApp._apply_runner_failure_update",
-                "direct_control.zapret1.page.Zapret1DirectControlPage._get_current_dpi_runtime_state",
-                "direct_control.zapret2.page.Zapret2DirectControlPage._apply_runtime_state_snapshot",
+                "winws_runtime.runtime.lifecycle_feedback.verify_dpi_process_running",
+                "direct_preset.ui.control.zapret1.page.Zapret1DirectControlPage._get_current_dpi_runtime_state",
+                "ui.pages.control_page.ControlPage._get_current_dpi_runtime_state",
+                "direct_preset.ui.control.zapret2.page.Zapret2DirectControlPage._on_ui_state_changed",
+                "tray.SystemTrayManager._is_launch_running/_launch_phase via AppRuntimeState",
             ),
             allowed_auxiliary_writers=(
                 "managers.initialization_manager.InitializationManager._init_process_monitor -> bootstrap_probe",
@@ -62,6 +83,7 @@ class LaunchRuntimeService:
     def __init__(self, app_instance_or_store) -> None:
         self.app = None
         self._direct_store = None
+        self._tracking_state = _LaunchRuntimeTrackingState()
         if isinstance(app_instance_or_store, MainWindowStateStore):
             self._direct_store = app_instance_or_store
         else:
@@ -76,6 +98,11 @@ class LaunchRuntimeService:
         return None
 
     def snapshot(self) -> LaunchRuntimeSnapshot:
+        """Возвращает только публичную часть launch runtime state.
+
+        Важно: внутренний process-tracking (`expected_process`, `pid`) здесь намеренно
+        не экспортируется. Для внешнего кода это не часть общего UI/runtime контракта.
+        """
         store = self._store()
         if store is None:
             return LaunchRuntimeSnapshot()
@@ -85,8 +112,6 @@ class LaunchRuntimeService:
                 launch_method=str(state.launch_method or "").strip().lower(),
                 phase=str(state.launch_phase or "stopped").strip().lower() or "stopped",
                 running=bool(state.launch_running),
-                expected_process=str(state.launch_expected_process or "").strip().lower(),
-                pid=state.launch_pid if isinstance(state.launch_pid, int) else None,
                 last_error=str(state.launch_last_error or "").strip(),
             )
         except Exception:
@@ -104,11 +129,10 @@ class LaunchRuntimeService:
         launch_method: str | None = None,
         expected_process: str = "",
     ) -> bool:
+        self._set_tracking_state(expected_process=expected_process, pid=None)
         changes = self._runtime_changes(
             phase="starting",
             running=False,
-            expected_process=expected_process,
-            pid=None,
             last_error="",
         )
         if launch_method is not None:
@@ -121,11 +145,10 @@ class LaunchRuntimeService:
         launch_method: str | None = None,
         expected_process: str = "",
     ) -> bool:
+        self._set_tracking_state(expected_process=expected_process, pid=None)
         changes = self._runtime_changes(
             phase="autostart_pending",
             running=False,
-            expected_process=expected_process,
-            pid=None,
             last_error="",
         )
         if launch_method is not None:
@@ -133,13 +156,10 @@ class LaunchRuntimeService:
         return self._apply(**changes)
 
     def begin_stop(self) -> bool:
-        snap = self.snapshot()
         return self._apply(
             **self._runtime_changes(
                 phase="stopping",
                 running=False,
-                expected_process=snap.expected_process,
-                pid=snap.pid,
                 last_error="",
             )
         )
@@ -150,37 +170,35 @@ class LaunchRuntimeService:
         pid: int | None = None,
         expected_process: str | None = None,
     ) -> bool:
-        snap = self.snapshot()
+        tracked = self._tracking_state
+        next_expected_process = tracked.expected_process if expected_process is None else str(expected_process or "").strip().lower()
+        next_pid = pid if isinstance(pid, int) else tracked.pid
+        self._set_tracking_state(expected_process=next_expected_process, pid=next_pid)
         return self._apply(
             **self._runtime_changes(
                 phase="running",
                 running=True,
-                expected_process=snap.expected_process if expected_process is None else expected_process,
-                pid=pid if isinstance(pid, int) else snap.pid,
                 last_error="",
             )
         )
 
     def mark_start_failed(self, error: str) -> bool:
-        snap = self.snapshot()
+        self._set_tracking_state(pid=None)
         return self._apply(
             **self._runtime_changes(
                 phase="failed",
                 running=False,
-                expected_process=snap.expected_process,
-                pid=None,
                 last_error=error,
             )
         )
 
     def mark_stopped(self, *, clear_error: bool = True) -> bool:
         snap = self.snapshot()
+        self._set_tracking_state(expected_process="", pid=None)
         return self._apply(
             **self._runtime_changes(
                 phase="stopped",
                 running=False,
-                expected_process="",
-                pid=None,
                 last_error="" if clear_error else snap.last_error,
             )
         )
@@ -192,6 +210,10 @@ class LaunchRuntimeService:
         launch_method: str | None = None,
         expected_process: str = "",
     ) -> bool:
+        self._set_tracking_state(
+            expected_process=expected_process if (running or self.current_phase() == "autostart_pending") else "",
+            pid=None,
+        )
         current_phase = self.current_phase()
         if running:
             phase = "running"
@@ -203,8 +225,6 @@ class LaunchRuntimeService:
         changes = self._runtime_changes(
             phase=phase,
             running=bool(running),
-            expected_process=expected_process if (running or phase == "autostart_pending") else "",
-            pid=None,
             last_error="",
         )
         if launch_method is not None:
@@ -214,8 +234,9 @@ class LaunchRuntimeService:
     def observe_process_details(self, details: Mapping[str, Any] | None) -> bool:
         normalized = self._normalize_process_details(details)
         snap = self.snapshot()
+        tracked = self._tracking_state
 
-        expected = snap.expected_process
+        expected = str(tracked.expected_process or "").strip().lower()
         matched_name = expected
         matched_pids = normalized.get(expected, [])
 
@@ -239,7 +260,7 @@ class LaunchRuntimeService:
 
         if snap.phase == "running":
             if matched_pid is not None:
-                if matched_pid != snap.pid:
+                if matched_pid != tracked.pid:
                     return self.mark_running(
                         pid=matched_pid,
                         expected_process=matched_name or expected,
@@ -251,13 +272,12 @@ class LaunchRuntimeService:
 
         if snap.phase == "stopping":
             if matched_pid is not None:
-                if matched_pid != snap.pid:
+                if matched_pid != tracked.pid:
+                    self._set_tracking_state(expected_process=matched_name or expected, pid=matched_pid)
                     return self._apply(
                         **self._runtime_changes(
                             phase="stopping",
                             running=False,
-                            expected_process=matched_name or expected,
-                            pid=matched_pid,
                             last_error="",
                         )
                     )
@@ -277,17 +297,24 @@ class LaunchRuntimeService:
         *,
         phase: str,
         running: bool,
-        expected_process: str,
-        pid: int | None,
         last_error: str,
     ) -> dict[str, object]:
         return {
             "launch_phase": str(phase or "stopped").strip().lower() or "stopped",
             "launch_running": bool(running),
-            "launch_expected_process": str(expected_process or "").strip().lower(),
-            "launch_pid": int(pid) if isinstance(pid, int) else None,
             "launch_last_error": str(last_error or "").strip(),
         }
+
+    def _set_tracking_state(
+        self,
+        *,
+        expected_process: str | None = None,
+        pid: int | None | object = _UNSET,
+    ) -> None:
+        if expected_process is not None:
+            self._tracking_state.expected_process = str(expected_process or "").strip().lower()
+        if pid is not _UNSET:
+            self._tracking_state.pid = int(pid) if isinstance(pid, int) else None
 
     @staticmethod
     def _normalize_process_details(details: Mapping[str, Any] | None) -> dict[str, list[int]]:

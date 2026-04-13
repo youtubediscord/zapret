@@ -13,7 +13,8 @@ import os
 import subprocess
 import time
 from typing import List, Optional
-from log import log
+from log.log import log
+
 
 
 def kill_winws_processes() -> bool:
@@ -55,7 +56,8 @@ def get_nssm_path() -> Optional[str]:
         
         # 1. Через config (работает в exe)
         try:
-            from config import EXE_FOLDER
+            from config.config import EXE_FOLDER
+
             possible_paths.append(os.path.join(EXE_FOLDER, "nssm.exe"))
         except:
             pass
@@ -375,7 +377,8 @@ def create_service_with_nssm(
             configs.append(("Description", description))
         
         # Настройка логирования
-        from config import LOGS_FOLDER
+        from config.config import LOGS_FOLDER
+
         os.makedirs(LOGS_FOLDER, exist_ok=True)
         
         log_file = os.path.join(LOGS_FOLDER, f"{service_name}.log")

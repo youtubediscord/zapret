@@ -27,12 +27,11 @@ except ImportError:
 
 from ui.page_names import PageName
 from ui.text_catalog import tr as tr_catalog
-from ui.navigation.navigation_controller import ensure_navigation_controller
 from ui.window_display_state import get_direct_strategy_summary
 from ui.ui_root import WindowUiRoot
 
 # ---------------------------------------------------------------------------
-# Navigation icon mapping (SectionName/PageName -> FluentIcon)
+# Navigation icon mapping (PageName -> FluentIcon)
 # ---------------------------------------------------------------------------
 _NAV_ICONS = {
     PageName.CONTROL: FluentIcon.COMMAND_PROMPT if HAS_FLUENT else None,

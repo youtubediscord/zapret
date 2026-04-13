@@ -70,7 +70,8 @@ class PremiumService:
         with self._lock:
             device_id = PremiumStorage.get_device_id()
             try:
-                from log import log
+                from log.log import log
+
 
                 log(
                     f"PremiumService.pair_start begin: api_base={self._api.base_url!r}, device_id={device_id[:12]}...",
@@ -82,7 +83,8 @@ class PremiumService:
             raw, nonce = self._api.post_pair_start(device_id=device_id, device_name=device_name)
             if not raw:
                 try:
-                    from log import log
+                    from log.log import log
+
 
                     log("PremiumService.pair_start: raw response is empty", "WARNING")
                 except Exception:
@@ -92,7 +94,8 @@ class PremiumService:
             signed = verify_signed_response(raw, expected_device_id=device_id, expected_nonce=nonce)
             if not signed or signed.get("type") != "zapret_pair_start":
                 try:
-                    from log import log
+                    from log.log import log
+
 
                     log(
                         "PremiumService.pair_start invalid signed response: "
@@ -124,7 +127,8 @@ class PremiumService:
 
             if not code or expires_at_i <= 0:
                 try:
-                    from log import log
+                    from log.log import log
+
 
                     log(
                         f"PremiumService.pair_start bad payload: code={code!r}, expires_at={expires_at!r}",
@@ -136,7 +140,8 @@ class PremiumService:
 
             stored = PremiumStorage.set_pair_code(code=code, expires_at=expires_at_i)
             try:
-                from log import log
+                from log.log import log
+
 
                 log(
                     f"PremiumService.pair_start success: code={code}, expires_at={expires_at_i}, stored={stored}",
@@ -186,7 +191,8 @@ class PremiumService:
                     allow_network = False
                     network_cooldown_active = True
                     try:
-                        from log import log
+                        from log.log import log
+
 
                         remaining = AUTO_NETWORK_RETRY_COOLDOWN_SEC - max(0, now_ts - last_failure_ts)
                         log(
@@ -267,7 +273,8 @@ class PremiumService:
             if not device_token:
                 if pair_error_message:
                     try:
-                        from log import log
+                        from log.log import log
+
 
                         log(f"Premium pairing not complete: {pair_error_message}", "INFO")
                     except Exception:
@@ -409,7 +416,8 @@ class PremiumService:
 
             if api_error_message:
                 try:
-                    from log import log
+                    from log.log import log
+
 
                     log(f"Premium API check failed: {api_error_message}", "WARNING")
                 except Exception:

@@ -203,7 +203,7 @@ class AppearancePageController:
 
             enabled = bool(get_smooth_scroll_enabled())
         except Exception:
-            enabled = True
+            enabled = False
         return AppearanceTogglePlan(enabled=enabled)
 
     @staticmethod

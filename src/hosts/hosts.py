@@ -10,7 +10,8 @@ from .proxy_domains import (
     get_service_domain_names,
 )
 from .adobe_domains import ADOBE_DOMAINS
-from log import log
+from log.log import log
+
 
 def _get_hosts_path_from_env() -> Path:
     """
@@ -461,7 +462,8 @@ class HostsManager:
     def apply_hosts_bootstrap_if_needed(self):
         """Единоразово применяет bootstrap hosts для текущей сигнатуры."""
         try:
-            from config import get_remove_github_api
+            from config.reg import get_remove_github_api
+
             from config.reg import (
                 get_hosts_bootstrap_signature,
                 set_hosts_bootstrap_signature,

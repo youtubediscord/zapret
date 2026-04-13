@@ -14,7 +14,9 @@ from typing import Iterable, Sequence
 
 from PyQt6.QtWidgets import QApplication
 
-from config import APP_VERSION, LOGS_FOLDER
+from config.build_info import APP_VERSION
+from config.config import LOGS_FOLDER
+
 from config.urls import SUPPORT_DISCUSSIONS_URL
 
 

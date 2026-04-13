@@ -9,8 +9,10 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
 
-from config import LISTS_FOLDER, NETROGAT_PATH, OTHER_USER_PATH
-from log import log
+from config.config import LISTS_FOLDER, NETROGAT_PATH, OTHER_USER_PATH
+
+from log.log import log
+
 
 
 @dataclass(slots=True)

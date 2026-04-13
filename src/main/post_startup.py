@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import atexit
-import ctypes
 import sys
 import time
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication
 
 from app_notifications import advisory_notification
-from log import is_verbose_logging_enabled, log
+from log.log import is_verbose_logging_enabled, log
+
 from main.runtime_state import is_cpu_diagnostic_enabled
-from ui.window_adapter import ensure_window_adapter
+from ui.window_adapter import get_loaded_page, show_page
 
 if TYPE_CHECKING:
-    from main import LupiDPIApp
+    from main.window import LupiDPIApp
 
 
 def _bind_startup_gate(signal, callback, *, is_ready) -> None:
@@ -65,41 +65,16 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
 
     update_bridge = _UpdateCheckBridge()
 
-    def _native_message_safe(title: str, message: str, flags: int) -> int:
-        try:
-            from startup.check_start import _native_message
-
-            return int(_native_message(title, message, flags))
-        except Exception:
-            try:
-                return int(ctypes.windll.user32.MessageBoxW(None, str(message), str(title), int(flags)))
-            except Exception:
-                return 0
-
     def _on_startup_checks_finished(payload: dict) -> None:
         if not _window_alive():
             return
         try:
             controller = getattr(window, "window_notification_controller", None)
-            blocking_notification = payload.get("blocking_notification")
             notifications = payload.get("notifications") or []
             duration_ms = int(payload.get("duration_ms") or 0)
 
             if duration_ms > 0:
                 window.log_startup_metric("StartupChecksFinished", f"{duration_ms}ms")
-
-            if blocking_notification:
-                if controller is not None:
-                    controller.notify(blocking_notification)
-                else:
-                    title = str(blocking_notification.get("title") or "Ошибка")
-                    content = str(blocking_notification.get("content") or "")
-                    try:
-                        QMessageBox.critical(window, title, content)
-                    except Exception:
-                        _native_message_safe(title, content, 0x10)
-                QApplication.quit()
-                return
 
             if controller is not None:
                 controller.notify_many([item for item in notifications if isinstance(item, dict)])
@@ -133,7 +108,6 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             from startup.check_start import collect_startup_notifications, check_goodbyedpi, check_mitmproxy
 
             notifications: list[dict] = []
-            blocking_notification: dict | None = None
 
             preload_service_status("BFE")
 
@@ -143,12 +117,11 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             if not bfe_ok:
                 log("BFE не запущен, продолжаем работу после предупреждения", "⚠ WARNING")
 
-            startup_notifications, blocking_notification = collect_startup_notifications()
+            startup_notifications = collect_startup_notifications()
             notifications.extend(startup_notifications or [])
             log(
                 "Startup notifications collected: "
-                f"count={len(startup_notifications or [])}, "
-                f"blocking={'yes' if blocking_notification else 'no'}",
+                f"count={len(startup_notifications or [])}",
                 "⏱ STARTUP",
             )
 
@@ -209,7 +182,6 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             startup_bridge.finished.emit(
                 {
                     "notifications": notifications,
-                    "blocking_notification": blocking_notification,
                     "duration_ms": int((time.perf_counter() - started_at) * 1000),
                 }
             )
@@ -223,7 +195,6 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             startup_bridge.finished.emit(
                 {
                     "notifications": [],
-                    "blocking_notification": None,
                     "duration_ms": int((time.perf_counter() - started_at) * 1000),
                 }
             )
@@ -324,9 +295,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
             box.cancelButton.setText("Позже")
             if not box.exec():
                 return
-            adapter = ensure_window_adapter(window)
-            adapter.show_page(StartupPageName.SERVERS)
-            page = adapter.pages.get(StartupPageName.SERVERS)
+            show_page(window, StartupPageName.SERVERS)
+            page = get_loaded_page(window, StartupPageName.SERVERS)
             if page is not None:
                 page.present_startup_update(
                     version,
@@ -395,7 +365,8 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
         if not _window_alive():
             return
         try:
-            from config import get_auto_update_enabled
+            from config.reg import get_auto_update_enabled
+
 
             if not get_auto_update_enabled():
                 log("Автопроверка обновлений при запуске отключена", "🔁 UPDATE")

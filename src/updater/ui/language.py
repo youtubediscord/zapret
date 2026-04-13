@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from config import APP_VERSION, CHANNEL
+from config.build_info import APP_VERSION, CHANNEL
+
 
 from updater.ui.table_workflow import apply_server_table_headers
 

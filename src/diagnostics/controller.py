@@ -187,8 +187,10 @@ class ConnectionPageController:
 
     @staticmethod
     def prepare_support_request_for_connection(*, selection: str) -> ConnectionSupportPlan:
-        from config import LOGS_FOLDER
-        from log import global_logger, LOG_FILE
+        from config.config import LOGS_FOLDER
+
+        from log.log import global_logger, LOG_FILE
+
         from support_request_bundle import prepare_support_request
 
         temp_log_path = os.path.join(LOGS_FOLDER, "connection_test_temp.log")

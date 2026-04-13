@@ -5,7 +5,8 @@ from importlib import import_module
 
 from PyQt6.QtWidgets import QWidget
 
-from log import log
+from log.log import log
+
 from ui.navigation.schema import get_page_route_key
 from ui.page_names import PageName
 

@@ -17,7 +17,8 @@ from ui.widgets.win11_controls import (
     Win11RadioOption,
     Win11ToggleRow,
 )
-from log import log
+from log.log import log
+
 
 try:
     from qfluentwidgets import StrongBodyLabel, CaptionLabel as _CaptionLabel, SettingCardGroup

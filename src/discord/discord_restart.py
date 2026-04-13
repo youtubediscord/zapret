@@ -1,7 +1,7 @@
 # discord_restart.py
 
 from PyQt6.QtWidgets import QMessageBox
-from config import reg                       # ← единый helper
+from config.reg import reg                       # ← единый helper
 
 # ----------------------------------------------------------------------
 # 1.  Чтение / запись настройки в реестре

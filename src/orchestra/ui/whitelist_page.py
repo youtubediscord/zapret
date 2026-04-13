@@ -40,7 +40,8 @@ from ui.compat_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from ui.theme_refresh import ThemeRefreshController
 from ui.text_catalog import tr as tr_catalog
-from log import log
+from log.log import log
+
 
 
 class WhitelistDomainRow(QFrame):

@@ -6,8 +6,9 @@
 import ctypes
 from ctypes import wintypes
 from typing import Optional, Tuple
-from log import log
-from utils import get_system_exe
+from log.log import log
+
+from utils.subproc import get_system_exe
 from utils.winapi_service_types import SERVICE_STATUS
 
 # ============================================================================

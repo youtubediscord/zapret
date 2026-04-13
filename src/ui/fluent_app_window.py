@@ -13,8 +13,11 @@ from PyQt6.QtWidgets import QApplication, QWidget, QLabel
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from PyQt6.QtCore import Qt
 
-from config import APP_VERSION, ICON_PATH, ICON_TEST_PATH, CHANNEL
-from log import log
+from config.build_info import APP_VERSION, CHANNEL
+from config.config import ICON_PATH, ICON_TEST_PATH
+
+from log.log import log
+
 
 
 class ZapretFluentWindow(FluentWindow):

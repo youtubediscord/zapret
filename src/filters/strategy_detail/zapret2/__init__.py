@@ -1,4 +1,1 @@
-from .page import StrategyDetailPage
-
-__all__ = ["StrategyDetailPage"]
-
+"""Пакет деталей стратегий Zapret2. Используйте прямой импорт `...page`."""

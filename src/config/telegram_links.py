@@ -3,7 +3,8 @@
 
 import webbrowser
 import winreg
-from log import log
+from log.log import log
+
 
 
 def is_telegram_installed() -> bool:

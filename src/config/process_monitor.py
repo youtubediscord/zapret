@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from direct_launch.runtime import get_canonical_winws_process_pids
+from winws_runtime.runtime.process_probe import get_canonical_winws_process_pids
 
 
 class ProcessMonitorThread(QThread):
@@ -46,7 +46,7 @@ class ProcessMonitorThread(QThread):
 
     # ------------------------- ОСНОВНОЙ ЦИКЛ --------------------------
     def run(self):
-        from log import log            # импорт здесь, чтобы не было циклических импортов
+        from log.log import log            # импорт здесь, чтобы не было циклических импортов
         log("Process-monitor thread started (WinAPI canonical mode)", level="INFO")
 
         while self._running:
@@ -72,7 +72,8 @@ class ProcessMonitorThread(QThread):
                     self.processStatusChanged.emit(is_running)
 
             except Exception as e:
-                from log import log
+                from log.log import log
+
                 log(f"Ошибка в потоке мониторинга: {e}", level="❌ ERROR")
                 self.checkingFinished.emit()  # На случай ошибки тоже завершаем
 

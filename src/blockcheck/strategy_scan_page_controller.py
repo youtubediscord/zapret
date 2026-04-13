@@ -314,7 +314,8 @@ class StrategyScanPageController:
             )
 
         try:
-            from config import APPDATA_DIR, get_zapret_userdata_dir
+            from config.config import APPDATA_DIR, get_zapret_userdata_dir
+
 
             app_channel_dir = (APPDATA_DIR or "").strip()
             if app_channel_dir:
@@ -327,7 +328,8 @@ class StrategyScanPageController:
             pass
 
         try:
-            from config import MAIN_DIRECTORY
+            from config.config import MAIN_DIRECTORY
+
 
             list_dirs.append(Path(MAIN_DIRECTORY) / "lists")
         except Exception:
@@ -754,12 +756,14 @@ class StrategyScanPageController:
     @staticmethod
     def resume_state_path() -> Path:
         try:
-            from config import APPDATA_DIR
+            from config.config import APPDATA_DIR
+
 
             base_dir = Path(APPDATA_DIR)
         except Exception:
             try:
-                from config import MAIN_DIRECTORY
+                from config.config import MAIN_DIRECTORY
+
 
                 base_dir = Path(MAIN_DIRECTORY)
             except Exception:
@@ -903,14 +907,16 @@ class StrategyScanPageController:
     @staticmethod
     def _resolve_log_dir() -> Path:
         try:
-            from config import LOGS_FOLDER
+            from config.config import LOGS_FOLDER
+
 
             log_dir = Path(LOGS_FOLDER)
         except Exception:
             log_dir = Path.cwd() / "logs"
 
         try:
-            from log import global_logger
+            from log.log import global_logger
+
 
             active_log = getattr(global_logger, "log_file", None)
             if isinstance(active_log, str) and active_log.strip():
@@ -961,7 +967,8 @@ class StrategyScanPageController:
         candidates = [primary_path]
 
         try:
-            from config import APPDATA_DIR
+            from config.config import APPDATA_DIR
+
 
             candidates.append(Path(APPDATA_DIR) / "logs" / primary_path.name)
         except Exception:
@@ -1248,7 +1255,7 @@ class StrategyScanPageController:
         scan_protocol: str,
         scan_udp_games_scope: str,
     ) -> StrategyApplyResult:
-        from core.presets.direct_facade import DirectPresetFacade
+        from direct_preset.facade import DirectPresetFacade
 
         facade = DirectPresetFacade.from_launch_method(
             "direct_zapret2",

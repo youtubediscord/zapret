@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import requests
 from typing import Optional, Dict, Any
-from log import log
+from log.log import log
+
 
 
 def session_bypass_proxy() -> requests.Session:

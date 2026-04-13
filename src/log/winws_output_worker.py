@@ -4,7 +4,8 @@ import threading
 
 from PyQt6.QtCore import QThread, pyqtSignal, QObject
 
-from log import log
+from log.log import log
+
 
 
 class WinwsOutputWorker(QObject):

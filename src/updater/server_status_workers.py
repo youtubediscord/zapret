@@ -3,8 +3,10 @@ from datetime import datetime
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-from config import CHANNEL
-from log import log
+from config.build_info import CHANNEL
+
+from log.log import log
+
 from ui.text_catalog import tr as tr_catalog
 from updater.channel_utils import normalize_update_channel
 from updater.github_release import normalize_version

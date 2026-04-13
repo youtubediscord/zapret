@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import configparser
-import os
 import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from log import log
+from log.log import log
+
 
 
 _DEFAULT_TEMPLATE_CONTENT = """\
@@ -18,47 +17,6 @@ _DEFAULT_TEMPLATE_CONTENT = """\
 --wf-tcp=443
 --wf-udp=443
 """
-
-_DELETED_SECTION = "deleted"
-
-
-def get_deleted_preset_names_v1() -> set[str]:
-    path = _deleted_presets_ini_path()
-    try:
-        if not path.exists():
-            return set()
-        cfg = configparser.ConfigParser()
-        cfg.read(path, encoding="utf-8")
-        if not cfg.has_section(_DELETED_SECTION):
-            return set()
-        return {key for key, value in cfg.items(_DELETED_SECTION) if value.strip() == "1"}
-    except Exception:
-        return set()
-
-
-def mark_preset_deleted_v1(name: str) -> bool:
-    return _write_deleted_flag(name, present=True)
-
-
-def unmark_preset_deleted_v1(name: str) -> bool:
-    return _write_deleted_flag(name, present=False)
-
-
-def clear_all_deleted_presets_v1() -> bool:
-    path = _deleted_presets_ini_path()
-    try:
-        if not path.exists():
-            return True
-        cfg = configparser.ConfigParser()
-        cfg.read(path, encoding="utf-8")
-        if cfg.has_section(_DELETED_SECTION):
-            cfg.remove_section(_DELETED_SECTION)
-        with path.open("w", encoding="utf-8") as handle:
-            cfg.write(handle)
-        return True
-    except Exception:
-        return False
-
 
 def get_template_content_v1(name: str) -> Optional[str]:
     key = str(name or "").strip().lower()
@@ -124,19 +82,15 @@ def ensure_v1_templates_copied_to_presets() -> int:
         return 0
 
     presets_dir = _presets_dir_v1()
-    deleted_lower = {name.lower() for name in get_deleted_preset_names_v1()}
     copied = 0
 
     for name, content in templates.items():
-        if name.lower() in deleted_lower:
-            continue
         dest = presets_dir / f"{name}.txt"
         if dest.exists():
             continue
         try:
             dest.write_text(content, encoding="utf-8")
             copied += 1
-            unmark_preset_deleted_v1(name)
         except Exception as exc:
             log(f"Failed to copy V1 template '{name}' to presets: {exc}", "DEBUG")
 
@@ -203,7 +157,6 @@ def overwrite_v1_templates_to_presets() -> tuple[int, int, list[str]]:
         try:
             dest.write_text(templates[name], encoding="utf-8")
             copied += 1
-            unmark_preset_deleted_v1(name)
         except Exception as exc:
             failed.append(name)
             log(f"Failed to overwrite V1 preset '{name}' from template: {exc}", "DEBUG")
@@ -222,30 +175,10 @@ def ensure_default_preset_exists_v1() -> bool:
         log(f"Error ensuring V1 default preset: {exc}", "DEBUG")
         return False
 
-
-def _write_deleted_flag(name: str, *, present: bool) -> bool:
-    path = _deleted_presets_ini_path()
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        cfg = configparser.ConfigParser()
-        if path.exists():
-            cfg.read(path, encoding="utf-8")
-        if present:
-            if not cfg.has_section(_DELETED_SECTION):
-                cfg.add_section(_DELETED_SECTION)
-            cfg.set(_DELETED_SECTION, name, "1")
-        elif cfg.has_section(_DELETED_SECTION):
-            cfg.remove_option(_DELETED_SECTION, name)
-        with path.open("w", encoding="utf-8") as handle:
-            cfg.write(handle)
-        return True
-    except Exception:
-        return False
-
-
 def _presets_dir_v1() -> Path:
     try:
-        from config import get_zapret_userdata_dir
+        from config.config import get_zapret_userdata_dir
+
 
         base = (get_zapret_userdata_dir() or "").strip()
         if base:
@@ -255,10 +188,6 @@ def _presets_dir_v1() -> Path:
     except Exception:
         pass
     raise RuntimeError("Canonical userdata root is required for presets_v1 directory")
-
-
-def _deleted_presets_ini_path() -> Path:
-    return _presets_dir_v1() / "deleted_presets.ini"
 
 
 def _load_template_contents() -> dict[str, str]:

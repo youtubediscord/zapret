@@ -37,7 +37,8 @@ def _get_crash_logs_folder() -> Path:
         return Path(CRASH_LOGS_FOLDER)
     
     try:
-        from config import LOGS_FOLDER
+        from config.config import LOGS_FOLDER
+
         folder = Path(LOGS_FOLDER) / "crashes"
     except ImportError:
         # Fallback если config не доступен
@@ -154,7 +155,8 @@ def _log_crash(report: str, filepath: str = None):
     """Логирует краш через основной логгер и в консоль"""
     # Пытаемся использовать основной логгер
     try:
-        from log import log
+        from log.log import log
+
         log(f"🔴 CRASH DETECTED! Report saved to: {filepath}", "CRITICAL")
         # Логируем первые 2000 символов отчёта
         log(report[:2000] + ("..." if len(report) > 2000 else ""), "CRITICAL")
@@ -289,7 +291,8 @@ def install_crash_handler():
     
     # Логируем установку
     try:
-        from log import log
+        from log.log import log
+
         log("🛡️ Crash handler установлен (faulthandler + Python exceptions)", "INFO")
     except Exception:
         print("[INFO] Crash handler installed", file=sys.stderr)
@@ -334,7 +337,8 @@ Threads:
             
             elif msg_type == QtMsgType.QtCriticalMsg:
                 try:
-                    from log import log
+                    from log.log import log
+
                     log(f"Qt Critical: {message}", "ERROR")
                 except Exception:
                     print(f"[Qt Critical] {message}", file=sys.stderr)
@@ -348,7 +352,8 @@ Threads:
                 ]
                 if not any(p in message for p in ignore_patterns):
                     try:
-                        from log import log
+                        from log.log import log
+
                         log(f"Qt Warning: {message}", "DEBUG")
                     except Exception:
                         pass
@@ -373,7 +378,8 @@ Threads:
         pass  # Qt message handler достаточно для отлова ошибок
         
         try:
-            from log import log
+            from log.log import log
+
             log("🛡️ Qt crash handler установлен", "INFO")
         except Exception:
             print("[INFO] Qt crash handler installed", file=sys.stderr)

@@ -8,10 +8,12 @@ import ctypes
 import subprocess
 from pathlib import Path
 from typing import Optional, Callable, List, Tuple
-from log import log
+from log.log import log
+
 
 # Ключ в реестре для хранения настройки
-from config import REGISTRY_PATH_GUI
+from config.config import REGISTRY_PATH_GUI
+
 REGISTRY_KEY_MAX_BLOCKED = "MaxBlocked"
 
 # Путь к политикам Explorer для блокировки запуска

@@ -21,6 +21,7 @@ import struct
 import subprocess
 import threading
 import time
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from blockcheck.config import (
@@ -478,7 +479,9 @@ class StrategyScanner:
     def _select_strategies(self, mode: str, start_index: int = 0) -> tuple[list[dict], int, int]:
         """Select strategy batch for mode and resume cursor.
 
-        All modes load from the selected strategy catalog (tcp/udp basic set).
+        All modes load from the canonical direct-preset catalog for the selected
+        protocol. The scanner works with the same strategy definitions as the
+        direct preset editor instead of the removed legacy z2 catalog layer.
         - quick:    30 strategies from cursor
         - standard: 80 strategies from cursor
         - full:     all remaining strategies from cursor
@@ -507,20 +510,29 @@ class StrategyScanner:
     def _load_catalog_strategies(self) -> list[dict]:
         """Load catalog strategies for current scan protocol."""
         try:
-            from strategy_catalog import load_strategy_catalog
+            from config.config import MAIN_DIRECTORY, get_zapret_userdata_dir
+            from core.paths import AppPaths
+            from direct_preset.catalog_provider import load_strategy_catalogs
+
             if self._scan_protocol == _PROTOCOL_STUN_VOICE:
-                strategy_type = "discord_voice"
+                catalog_name = "voice"
             elif self._scan_protocol == _PROTOCOL_UDP_GAMES:
-                strategy_type = "udp"
+                catalog_name = "udp"
             else:
-                strategy_type = "tcp"
-            raw = load_strategy_catalog(strategy_type, "basic")
+                catalog_name = "tcp"
+
+            user_root = Path((get_zapret_userdata_dir() or "").strip() or self._work_dir)
+            local_root = Path((MAIN_DIRECTORY or "").strip() or self._work_dir)
+            app_paths = AppPaths(user_root=user_root, local_root=local_root)
+            catalogs = load_strategy_catalogs(app_paths, "winws2")
+            entries = catalogs.get(catalog_name, {})
+
             result = []
-            for strat_id, data in raw.items():
+            for strat_id, entry in entries.items():
                 result.append({
-                    "name": data.get("name", strat_id),
+                    "name": getattr(entry, "name", strat_id) or strat_id,
                     "id": strat_id,
-                    "args": data.get("args", ""),
+                    "args": getattr(entry, "args", "") or "",
                 })
             return result
         except Exception as e:
@@ -1513,7 +1525,7 @@ class StrategyScanner:
 
         startupinfo = subprocess.STARTUPINFO()
         try:
-            from direct_launch.runners.constants import STARTF_USESHOWWINDOW, SW_HIDE
+            from winws_runtime.runners.constants import STARTF_USESHOWWINDOW, SW_HIDE
             startupinfo.dwFlags = STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = SW_HIDE
         except ImportError:
@@ -1521,7 +1533,7 @@ class StrategyScanner:
             startupinfo.wShowWindow = 0
 
         try:
-            from direct_launch.runners.constants import CREATE_NO_WINDOW
+            from winws_runtime.runners.constants import CREATE_NO_WINDOW
             creation_flags = CREATE_NO_WINDOW
         except ImportError:
             creation_flags = 0x08000000

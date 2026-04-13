@@ -5,8 +5,9 @@ import subprocess
 import logging
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
-from utils import get_system32_path, get_syswow64_path
-from config import LOGS_FOLDER
+from utils.subproc import get_system32_path, get_syswow64_path
+from config.config import LOGS_FOLDER
+
 from dns_checker import DNSChecker
 
 class ConnectionTestWorker(QObject):

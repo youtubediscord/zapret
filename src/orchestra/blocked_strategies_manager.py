@@ -25,8 +25,10 @@
 import json
 from typing import Dict, List, Callable, Optional, Set
 
-from log import log
-from config import REGISTRY_PATH
+from log.log import log
+
+from config.config import REGISTRY_PATH
+
 from config.reg import reg, reg_enumerate_values, reg_delete_all_values, reg_delete_value
 from orchestra.ignored_targets import is_orchestra_ignored_target
 

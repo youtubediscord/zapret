@@ -6,7 +6,8 @@ import re
 from typing import Callable, Optional
 import weakref
 
-from log import log
+from log.log import log
+
 from ui.theme import get_theme_tokens
 
 

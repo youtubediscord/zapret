@@ -58,7 +58,8 @@ from ui.compat_widgets import (
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
 )
-from log import log
+from log.log import log
+
 from telegram_proxy.page_actions_controller import TelegramProxyPageActionsController
 from telegram_proxy.diagnostics_controller import TelegramProxyDiagnosticsController
 from telegram_proxy.page_runtime_controller import TelegramProxyRuntimeController

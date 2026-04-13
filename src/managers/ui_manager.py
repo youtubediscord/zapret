@@ -1,6 +1,7 @@
 # managers/ui_manager.py
 
-from log import log
+from log.log import log
+
 
 class UIManager:
     """Менеджер UI-вещей, не связанных с runtime-состоянием запуска."""
@@ -12,7 +13,8 @@ class UIManager:
                                             days_remaining: int, source: str = "api") -> None:
         """⚡ Обновляет заголовок окна с информацией о подписке"""
         try:
-            from config import APP_VERSION
+            from config.build_info import APP_VERSION
+
             base_title = f"Zapret2 v{APP_VERSION}"
             
             # Формируем статус премиума

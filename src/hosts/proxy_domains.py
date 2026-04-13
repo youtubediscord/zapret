@@ -39,7 +39,7 @@ class _CaseConfigParser(configparser.ConfigParser):
 def _log(msg: str, level: str = "INFO") -> None:
     """Отложенный импорт log (PyQt6) чтобы модуль можно было импортировать без GUI."""
     try:
-        from log import log as _log_impl  # type: ignore
+        from log.log import log as _log_impl  # type: ignore
         _log_impl(msg, level)
     except Exception:
         print(f"[{level}] {msg}")

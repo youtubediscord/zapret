@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
-from log import log
+from log.log import log
+
 
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.text_catalog import tr as tr_catalog

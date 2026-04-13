@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from log import log
+from log.log import log
+
 
 from ui.page_method_dispatch import dispatch_detail_page_result
 from ui.page_contracts import PageMethodName
 from ui.navigation_targets import resolve_strategy_detail_back_page_for_method
 from ui.page_names import PageName
-from ui.ui_workflows import ensure_ui_workflows
-from ui.window_adapter import ensure_window_adapter
+from ui.workflows.direct import (
+    open_zapret1_strategy_detail,
+    open_zapret2_strategy_detail,
+)
+from ui.window_adapter import show_page
 
 
 def open_strategy_detail_with_logging(
@@ -29,7 +33,7 @@ def on_open_target_detail(window, target_key: str, current_strategy_id: str) -> 
     open_strategy_detail_with_logging(
         window,
         target_key,
-        opener=lambda w, key: ensure_ui_workflows(w).open_zapret2_strategy_detail(key),
+        opener=lambda w, key: open_zapret2_strategy_detail(w, key),
         error_prefix="Error opening target detail",
     )
 
@@ -38,7 +42,7 @@ def on_strategy_detail_back(window) -> None:
     from settings.dpi.strategy_settings import get_strategy_launch_method
 
     method = get_strategy_launch_method()
-    ensure_window_adapter(window).show_page(resolve_strategy_detail_back_page_for_method(method))
+    show_page(window, resolve_strategy_detail_back_page_for_method(method))
 
 
 def on_strategy_detail_selected(window, target_key: str, strategy_id: str) -> bool:
@@ -67,7 +71,7 @@ def open_zapret1_target_detail(window, target_key: str, target_info: dict) -> No
     open_strategy_detail_with_logging(
         window,
         target_key,
-        opener=lambda w, key: ensure_ui_workflows(w).open_zapret1_strategy_detail(key),
+        opener=lambda w, key: open_zapret1_strategy_detail(w, key),
         error_prefix="Error opening V1 target detail",
     )
 

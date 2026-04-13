@@ -11,8 +11,10 @@ import random
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any
 
-from log import log
-from config import LOGS_FOLDER
+from log.log import log
+
+from config.config import LOGS_FOLDER
+
 
 from .server_config import (
     VPS_SERVERS,

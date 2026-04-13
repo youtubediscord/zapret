@@ -8,7 +8,8 @@ import socket
 import subprocess
 import re, sys
 from typing import Dict, Optional
-from log import log
+from log.log import log
+
 from blockcheck.config import KNOWN_BLOCK_IPS
 
 

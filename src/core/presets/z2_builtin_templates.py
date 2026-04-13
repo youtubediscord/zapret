@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from .builtin_template_sync import (
     is_builtin_preset_file_name as _is_builtin_preset_file_name,
     load_repo_builtin_templates,
 )
-from .package_assets import package_dir
 from .z2_template_runtime import (
     _normalize_template_header_v2,
 )
@@ -27,4 +28,4 @@ def is_builtin_preset_file_name_v2(file_name: str) -> bool:
 
 
 def _repo_builtin_templates_dir_v2() -> Path:
-    return package_dir("preset_zapret2") / "builtin_presets"
+    return Path(__file__).resolve().parent / "builtin" / "winws2"

@@ -16,8 +16,10 @@ import os
 import subprocess
 import winreg
 from typing import Callable, Optional, List, Tuple
-from log import log
-from config import REGISTRY_PATH
+from log.log import log
+
+from config.config import REGISTRY_PATH
+
 
 def set_defender_disabled(enabled: bool):
     """Сохраняет настройку отключения Windows Defender"""
@@ -25,7 +27,8 @@ def set_defender_disabled(enabled: bool):
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
             winreg.SetValueEx(key, "DefenderDisabled", 0, winreg.REG_DWORD, int(enabled))
     except Exception as e:
-        from log import log
+        from log.log import log
+
         log(f"Ошибка при сохранении настройки Defender: {e}", "❌ ERROR")
 
 class WindowsDefenderManager:

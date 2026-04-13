@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import os
 
-from log import log
-from config import (
+from log.log import log
+
+from config.config import (
+
     OTHER_PATH,
     OTHER_BASE_PATH,
     OTHER_USER_PATH,

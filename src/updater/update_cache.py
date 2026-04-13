@@ -7,8 +7,10 @@ import json
 import os
 import time
 from typing import Optional, Dict, Any
-from config import LOGS_FOLDER
-from log import log
+from config.config import LOGS_FOLDER
+
+from log.log import log
+
 from .channel_utils import normalize_update_channel
 
 CACHE_FILE = os.path.join(LOGS_FOLDER, '.update_cache.json')

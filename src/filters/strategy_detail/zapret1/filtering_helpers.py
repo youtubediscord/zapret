@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from filters.ui import StrategyTreeRow
+from filters.ui.strategy_tree import StrategyTreeRow
 
 
 def normalize_search_text(text: str) -> str:

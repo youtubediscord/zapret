@@ -6,7 +6,7 @@ from __future__ import annotations
 def prepare_target_payload_apply_ui(
     *,
     normalized_key: str,
-    favorites_store,
+    feedback_store,
     close_preview_fn,
     settings_host,
     toolbar_frame,
@@ -27,7 +27,7 @@ def prepare_target_payload_apply_ui(
         visible=True,
     )
     try:
-        favorite_ids = favorites_store.get_favorites(normalized_key)
+        favorite_ids = feedback_store.get_favorites(normalized_key)
     except Exception:
         favorite_ids = set()
 

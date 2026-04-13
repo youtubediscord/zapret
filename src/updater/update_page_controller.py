@@ -4,8 +4,10 @@ from typing import Protocol
 
 from PyQt6.QtCore import QThread, QTimer
 
-from config import CHANNEL
-from log import log
+from config.build_info import CHANNEL
+
+from log.log import log
+
 from updater.rate_limiter import UpdateRateLimiter
 
 
@@ -114,7 +116,8 @@ class UpdatePageController:
         self._download_state = UpdateDownloadState()
 
         try:
-            from config import get_auto_update_enabled
+            from config.reg import get_auto_update_enabled
+
 
             self._auto_check_enabled = bool(get_auto_update_enabled())
         except Exception:
@@ -359,7 +362,8 @@ class UpdatePageController:
         self._auto_check_enabled = bool(enabled)
 
         try:
-            from config import set_auto_update_enabled
+            from config.reg import set_auto_update_enabled
+
 
             set_auto_update_enabled(bool(enabled))
         except Exception:
@@ -750,7 +754,8 @@ class UpdatePageController:
 
     @staticmethod
     def _app_version() -> str:
-        from config import APP_VERSION
+        from config.build_info import APP_VERSION
+
 
         return APP_VERSION
 

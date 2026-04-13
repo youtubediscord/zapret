@@ -6,7 +6,8 @@ updater/startup_update_check.py
 """
 from __future__ import annotations
 
-from log import log
+from log.log import log
+
 
 
 def check_for_update_sync() -> dict:
@@ -21,7 +22,8 @@ def check_for_update_sync() -> dict:
         release_info : dict|None — полный release_info (для передачи в UpdateWorker)
     """
     try:
-        from config import CHANNEL, APP_VERSION
+        from config.build_info import CHANNEL, APP_VERSION
+
         from updater.release_manager import get_latest_release
         from updater.github_release import normalize_version
         from updater.update import compare_versions

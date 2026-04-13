@@ -2,25 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from settings.dpi.strategy_settings import (
+from direct_preset.modes import (
     DIRECT_UI_MODE_DEFAULT,
-    normalize_direct_ui_mode,
+    get_direct_preset_mode_adapter,
+    is_udp_like_protocol,
+    load_current_direct_ui_mode,
+    normalize_direct_ui_mode_for_engine,
 )
-_UDP_LIKE_PROTOCOL_MARKERS = ("UDP", "QUIC", "L7")
 
 
 def get_current_direct_zapret2_ui_mode() -> str:
-    try:
-        from settings.dpi.strategy_settings import get_direct_ui_mode
-
-        return normalize_direct_ui_mode(get_direct_ui_mode())
-    except Exception:
-        return DIRECT_UI_MODE_DEFAULT
-
-
-def is_udp_like_protocol(protocol: object) -> bool:
-    protocol_text = str(protocol or "").upper()
-    return any(marker in protocol_text for marker in _UDP_LIKE_PROTOCOL_MARKERS)
+    resolved = load_current_direct_ui_mode("winws2")
+    return resolved or DIRECT_UI_MODE_DEFAULT
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,21 +40,25 @@ def build_strategy_detail_mode_policy(
     strategy_set: str | None = None,
     is_circular_preset: bool = False,
 ) -> StrategyDetailModePolicy:
-    resolved_strategy_set = normalize_direct_ui_mode(
-        strategy_set if strategy_set is not None else get_current_direct_zapret2_ui_mode()
+    resolved_strategy_set = normalize_direct_ui_mode_for_engine(
+        "winws2",
+        strategy_set if strategy_set is not None else get_current_direct_zapret2_ui_mode(),
     )
     resolved_strategy_type = str(getattr(target_info, "strategy_type", "") or "tcp").strip().lower() or "tcp"
     resolved_protocol = str(getattr(target_info, "protocol", "") or "").strip()
-    is_basic_direct = resolved_strategy_set == "basic"
+    mode_adapter = get_direct_preset_mode_adapter("winws2", resolved_strategy_set)
+    is_basic_direct = mode_adapter.is_basic_direct
     is_udp_like = is_udp_like_protocol(resolved_protocol)
-    tcp_phase_mode = (
-        resolved_strategy_type == "tcp"
-        and not is_udp_like
-        and not is_basic_direct
+    tcp_phase_mode = mode_adapter.tcp_phase_mode(
+        strategy_type=resolved_strategy_type,
+        protocol=resolved_protocol,
     )
     has_ipset = bool(str(getattr(target_info, "base_filter_ipset", "") or "").strip())
     has_hostlist = bool(str(getattr(target_info, "base_filter_hostlist", "") or "").strip())
-    show_advanced_transport_controls = (not is_basic_direct) and (not is_udp_like) and (not is_circular_preset)
+    show_advanced_transport_controls = mode_adapter.show_advanced_transport_controls(
+        protocol=resolved_protocol,
+        is_circular_preset=bool(is_circular_preset),
+    )
 
     return StrategyDetailModePolicy(
         strategy_set=resolved_strategy_set,
@@ -75,7 +72,7 @@ def build_strategy_detail_mode_policy(
         show_filter_mode_frame=has_ipset and has_hostlist,
         show_send_frame=show_advanced_transport_controls,
         show_syndata_frame=show_advanced_transport_controls,
-        show_reset_row=(not is_basic_direct) and is_udp_like,
-        force_disable_send=is_udp_like,
-        force_disable_syndata=is_udp_like,
+        show_reset_row=mode_adapter.show_reset_row(protocol=resolved_protocol),
+        force_disable_send=mode_adapter.force_disable_send(protocol=resolved_protocol),
+        force_disable_syndata=mode_adapter.force_disable_syndata(protocol=resolved_protocol),
     )

@@ -7,14 +7,14 @@ from ui.window_display_state import (
     update_current_strategy_display,
 )
 from ui.navigation_targets import resolve_strategy_page_for_method
-from ui.window_adapter import ensure_window_adapter
+from ui.window_adapter import get_loaded_page
 
 
 def get_strategy_selection_source_page(window, launch_method: str | None) -> QWidget | None:
     page_name = resolve_strategy_page_for_method(launch_method)
     if page_name is None:
         return None
-    return ensure_window_adapter(window).get_loaded_page(page_name)
+    return get_loaded_page(window, page_name)
 
 
 def resolve_strategy_selection_display_name(
@@ -30,7 +30,8 @@ def resolve_strategy_selection_display_name(
 
 
 def on_strategy_selected_from_page(window, strategy_id: str, strategy_name: str) -> None:
-    from log import log
+    from log.log import log
+
 
     launch_method = window._get_launch_method()
 

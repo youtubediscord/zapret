@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QWidget
 
-from ui.navigation.navigation_controller import ensure_navigation_controller
+from ui.navigation.text_sync import on_ui_language_changed
 from ui.page_contracts import PageSignalName, get_page_signal
 from ui.page_names import PageName
-from ui.window_adapter import ensure_window_adapter
 from ui.window_appearance_state import (
     on_animations_changed,
     on_background_preset_changed,
@@ -16,9 +15,8 @@ from ui.window_appearance_state import (
     on_smooth_scroll_changed,
 )
 from ui.window_display_state import (
-    on_autostart_disabled,
-    on_autostart_enabled,
-    on_subscription_updated,
+    update_autostart_display,
+    update_subscription_display,
 )
 
 from .helpers import connect_page_signal_if_present, connect_show_page_signal_if_present
@@ -26,14 +24,26 @@ from .helpers import connect_page_signal_if_present, connect_show_page_signal_if
 
 def connect_common_page_signals(window, page_name: PageName, page: QWidget) -> None:
     if page_name == PageName.AUTOSTART:
-        connect_page_signal_if_present(window, "autostart.autostart_enabled", page, PageSignalName.AUTOSTART_ENABLED, lambda w=window: on_autostart_enabled(w))
-        connect_page_signal_if_present(window, "autostart.autostart_disabled", page, PageSignalName.AUTOSTART_DISABLED, lambda w=window: on_autostart_disabled(w))
         connect_page_signal_if_present(
+            window,
+            "autostart.autostart_enabled",
+            page,
+            PageSignalName.AUTOSTART_ENABLED,
+            lambda w=window: update_autostart_display(w, True),
+        )
+        connect_page_signal_if_present(
+            window,
+            "autostart.autostart_disabled",
+            page,
+            PageSignalName.AUTOSTART_DISABLED,
+            lambda w=window: update_autostart_display(w, False),
+        )
+        connect_show_page_signal_if_present(
             window,
             "autostart.navigate_to_dpi_settings",
             page,
             PageSignalName.NAVIGATE_TO_DPI_SETTINGS,
-            lambda adapter=ensure_window_adapter(window): adapter.show_page(PageName.DPI_SETTINGS),
+            PageName.DPI_SETTINGS,
         )
 
     if page_name == PageName.APPEARANCE:
@@ -59,7 +69,7 @@ def connect_common_page_signals(window, page_name: PageName, page: QWidget) -> N
             "appearance.ui_language_changed",
             page,
             PageSignalName.UI_LANGUAGE_CHANGED,
-            lambda language, w=window: ensure_navigation_controller(w).on_ui_language_changed(language),
+            lambda language, w=window: on_ui_language_changed(w, language),
         )
 
     if page_name == PageName.ABOUT:
@@ -72,7 +82,7 @@ def connect_common_page_signals(window, page_name: PageName, page: QWidget) -> N
             "premium.subscription_updated",
             page,
             PageSignalName.SUBSCRIPTION_UPDATED,
-            lambda is_premium, days_remaining, w=window: on_subscription_updated(w, is_premium, days_remaining),
+            lambda is_premium, days_remaining, w=window: update_subscription_display(w, is_premium, days_remaining),
         )
 
 

@@ -1,3 +1,1 @@
-from .page import AutostartPage
-
-__all__ = ["AutostartPage"]
+"""UI-пакет автозапуска. Используйте прямой импорт `autostart.ui.page`."""

@@ -1,4 +1,4 @@
-# preset_zapret2/ui/strategy_detail/page.py
+# direct_preset/ui/zapret2/strategy_detail/page.py
 """
 Страница детального просмотра стратегий для выбранного target'а.
 Открывается при клике на target в Zapret2StrategiesPageNew.
@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QFrame, QMenu,
 )
 
-from core.runtime.direct_ui_snapshot_service import DirectTargetDetailSnapshotWorker
+from direct_preset.runtime import DirectTargetDetailSnapshotWorker
 from ui.page_dependencies import require_page_app_context
 try:
     from qfluentwidgets import (
@@ -22,7 +22,7 @@ try:
         ToolButton, TransparentToolButton, SwitchButton, SegmentedWidget, TogglePushButton,
         PixmapLabel,
         TitleLabel, TransparentPushButton, IndeterminateProgressRing, RoundMenu, Action,
-        InfoBar, FluentIcon, SettingCardGroup,
+        InfoBar, FluentIcon, SettingCardGroup, MessageBox,
     )
     _HAS_FLUENT = True
 except ImportError:
@@ -49,6 +49,7 @@ except ImportError:
     InfoBar = None
     FluentIcon = None
     SettingCardGroup = None
+    MessageBox = None
     _HAS_FLUENT = False
 
 try:
@@ -58,14 +59,15 @@ except ImportError:
 
 from ui.pages.base_page import BasePage
 from app_state.main_window_state import AppUiState, MainWindowStateStore
-from ui.compat_widgets import ActionButton, ResetActionButton, SettingsRow, set_tooltip, SettingsCard
+from ui.compat_widgets import ActionButton, SettingsRow, set_tooltip, SettingsCard
 from ui.widgets.win11_controls import Win11ToggleRow, Win11ComboRow, Win11NumberRow
-from filters.ui import StrategyTree, StrategyTreeRow
+from filters.ui.strategy_tree import StrategyTree, StrategyTreeRow
 from ui.popup_menu import exec_popup_menu
 from filters.strategy_detail.args_preview_dialog import ArgsPreviewDialog
 from blobs.service import get_blobs_info
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
-from log import log
+from log.log import log
+
 from filters.strategy_detail.zapret2.controller import StrategyDetailPageController
 from filters.strategy_detail.zapret2.apply import (
     apply_args_editor_state,
@@ -109,7 +111,7 @@ from filters.strategy_detail.zapret2.common import (
     tr_text as _tr_text,
 )
 from filters.strategy_detail.zapret2.mode_policy import StrategyDetailModePolicy
-from preset_zapret2.ui.preset_dialogs import PresetNameDialog
+from direct_preset.ui.zapret2.preset_dialogs import PresetNameDialog
 from filters.strategy_detail.zapret2.args_editor import (
     hide_args_editor_state,
     open_args_editor_dialog,
@@ -257,15 +259,14 @@ class StrategyDetailPage(BasePage):
         )
 
         # Direct preset facade for target settings storage
-        from core.presets.direct_facade import DirectPresetFacade
+        from direct_preset.facade import DirectPresetFacade
 
         self._direct_facade = DirectPresetFacade.from_launch_method(
             "direct_zapret2",
             app_context=app_context,
             on_dpi_reload_needed=self._on_dpi_reload_needed,
         )
-        self._marks_store = app_context.strategy_marks_store
-        self._favorites_store = app_context.strategy_favorites_store
+        self._feedback_store = app_context.strategy_feedback_store
         self._favorite_strategy_ids = set()
         self._preview_dialog = None
         self._preview_pinned = False
@@ -523,7 +524,7 @@ class StrategyDetailPage(BasePage):
             self.show_loading()
         except Exception:
             pass
-        from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
+        from winws_runtime.flow.apply_policy import request_direct_runtime_content_apply
         if self.parent_app:
             request_direct_runtime_content_apply(
                 self.parent_app,
@@ -988,11 +989,11 @@ class StrategyDetailPage(BasePage):
 
         reset_row.addStretch()
 
-        self._reset_settings_btn = ResetActionButton(
+        self._reset_settings_btn = ActionButton(
             self._tr("page.z2_strategy_detail.button.reset_settings", "Сбросить настройки"),
-            confirm_text=self._tr("page.z2_strategy_detail.button.reset_settings.confirm", "Сбросить все?"),
+            "fa5s.undo",
         )
-        self._reset_settings_btn.reset_confirmed.connect(self._on_reset_settings_confirmed)
+        self._reset_settings_btn.clicked.connect(self._confirm_reset_settings_clicked)
         reset_row.addWidget(self._reset_settings_btn)
         self._reset_row_widget.setVisible(False)
 
@@ -1340,7 +1341,7 @@ class StrategyDetailPage(BasePage):
         self._selected_strategy_id = apply_plan.selected_strategy_id
         self._favorite_strategy_ids = prepare_target_payload_apply_ui(
             normalized_key=normalized_key,
-            favorites_store=self._favorites_store,
+            feedback_store=self._feedback_store,
             close_preview_fn=self._close_preview_dialog,
             settings_host=self._settings_host,
             toolbar_frame=self._toolbar_frame,
@@ -1684,7 +1685,7 @@ class StrategyDetailPage(BasePage):
         is_working = None
         if self._target_key and strategy_id not in ("none", CUSTOM_STRATEGY_ID):
             try:
-                is_working = self._marks_store.get_mark(self._target_key, strategy_id)
+                is_working = self._feedback_store.get_mark(self._target_key, strategy_id)
             except Exception:
                 is_working = None
 
@@ -1817,7 +1818,7 @@ class StrategyDetailPage(BasePage):
             target_key=self._target_key,
             strategy_ids=list(self._strategies_tree.get_strategy_ids() or []),
             custom_strategy_id=CUSTOM_STRATEGY_ID,
-            mark_getter=lambda strategy_id: self._marks_store.get_mark(self._target_key, strategy_id),
+            mark_getter=lambda strategy_id: self._feedback_store.get_mark(self._target_key, strategy_id),
         )
         apply_working_mark_updates(
             self._strategies_tree,
@@ -1833,14 +1834,14 @@ class StrategyDetailPage(BasePage):
 
     def _get_preview_rating(self, strategy_id: str, target_key: str):
         return StrategyDetailPageController.get_preview_rating(
-            self._marks_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             target_key=target_key,
         )
 
     def _toggle_preview_rating(self, strategy_id: str, rating: str, target_key: str):
         result = StrategyDetailPageController.toggle_preview_rating(
-            self._marks_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             rating=rating,
             target_key=target_key,
@@ -1918,7 +1919,7 @@ class StrategyDetailPage(BasePage):
 
     def _on_tree_working_mark_requested(self, strategy_id: str, is_working):
         result = StrategyDetailPageController.save_strategy_mark(
-            self._marks_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             is_working=is_working,
             target_key=self._target_key,
@@ -2172,6 +2173,20 @@ class StrategyDetailPage(BasePage):
             self._refresh_args_editor_state()
         if plan.should_refresh_target_enabled_ui:
             self._set_target_enabled_ui((self._selected_strategy_id or "none") != "none")
+
+    def _confirm_reset_settings_clicked(self) -> None:
+        if MessageBox is not None:
+            try:
+                box = MessageBox(
+                    self._tr("page.z2_strategy_detail.button.reset_settings", "Сбросить настройки"),
+                    self._tr("page.z2_strategy_detail.button.reset_settings.confirm", "Сбросить все?"),
+                    self.window(),
+                )
+                if not box.exec():
+                    return
+            except Exception:
+                pass
+        self._on_reset_settings_confirmed()
 
     def _on_row_clicked(self, strategy_id: str):
         """Обработчик клика по строке стратегии - выбор активной"""
@@ -2662,7 +2677,7 @@ class StrategyDetailPage(BasePage):
     def _on_favorite_toggled(self, strategy_id: str, is_favorite: bool) -> None:
         """Called when user clicks the favorite star in the UI."""
         result = StrategyDetailPageController.toggle_favorite(
-            self._favorites_store,
+            self._feedback_store,
             strategy_id=strategy_id,
             is_favorite=is_favorite,
             target_key=self._target_key,
@@ -2721,7 +2736,8 @@ class StrategyDetailPage(BasePage):
         """Loads the last selected TCP phase tab for a target (persisted in registry)."""
         try:
             from config.reg import reg
-            from config import REGISTRY_PATH_GUI
+            from config.config import REGISTRY_PATH_GUI
+
         except Exception:
             return None
 
@@ -2746,7 +2762,8 @@ class StrategyDetailPage(BasePage):
         """Saves the last selected TCP phase tab for a target (best-effort)."""
         try:
             from config.reg import reg
-            from config import REGISTRY_PATH_GUI
+            from config.config import REGISTRY_PATH_GUI
+
         except Exception:
             return
 
@@ -3392,12 +3409,6 @@ class StrategyDetailPage(BasePage):
             self._reset_settings_btn.setText(
                 self._tr("page.z2_strategy_detail.button.reset_settings", "Сбросить настройки")
             )
-            try:
-                self._reset_settings_btn._confirm_text = self._tr(
-                    "page.z2_strategy_detail.button.reset_settings.confirm", "Сбросить все?"
-                )
-            except Exception:
-                pass
 
         updater = getattr(self, "_update_header_labels", None)
         if callable(updater):

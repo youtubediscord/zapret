@@ -12,7 +12,8 @@ from PyQt6.QtGui import (QColor, QPainter, QPainterPath, QBrush,
                          QPen, QLinearGradient, QCursor, QPixmap)
 import qtawesome as qta
 
-from log import log
+from log.log import log
+
 from ui.animation_policy import register_managed_animation, start_managed_animation
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 

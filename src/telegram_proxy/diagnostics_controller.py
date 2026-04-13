@@ -9,7 +9,8 @@ from base64 import b64encode
 from collections.abc import Callable
 from os import urandom
 
-from log import log
+from log.log import log
+
 from telegram_proxy.page_settings_controller import TelegramProxySettingsController
 
 

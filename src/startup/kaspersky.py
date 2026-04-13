@@ -4,6 +4,7 @@ import os
 import sys
 
 from app_notifications import advisory_notification, notification_action
+from utils.windows_process_probe import iter_process_names_winapi, iter_uninstall_display_names
 
 
 def _resolve_kaspersky_paths() -> tuple[str, str]:
@@ -18,65 +19,32 @@ def _resolve_kaspersky_paths() -> tuple[str, str]:
         base_dir = os.path.dirname(exe_path)
     return exe_path, base_dir
 
+_KASPERSKY_PROCESS_NAMES = frozenset(
+    {
+        "avp.exe",
+        "kavfs.exe",
+        "klnagent.exe",
+        "ksde.exe",
+        "kavfswp.exe",
+        "kavfswh.exe",
+        "kavfsslp.exe",
+    }
+)
+
+
 def _check_kaspersky_antivirus() -> bool:
-    """
-    Проверяет наличие антивируса Касперского в системе.
-    
-    Returns:
-        bool: True если Касперский обнаружен, False если нет
-    """
-    #return True # для тестирования
+    """Проверяет наличие Kaspersky через WinAPI-процессы и uninstall-реестр."""
     try:
-        import subprocess
-        import os
-        
-        # Проверяем наличие процессов Касперского
-        kaspersky_processes = [
-            'avp.exe', 'kavfs.exe', 'klnagent.exe', 'ksde.exe',
-            'kavfswp.exe', 'kavfswh.exe', 'kavfsslp.exe'
-        ]
-        
-        # Получаем список запущенных процессов через psutil (быстрее и надежнее)
-        try:
-            import psutil
-            for proc in psutil.process_iter(['name']):
-                try:
-                    proc_name = proc.info['name']
-                    if proc_name and proc_name.lower() in kaspersky_processes:
-                        return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-        except Exception:
-            pass
-        
-        # Проверяем папки установки Касперского
-        kaspersky_paths = [
-            r'C:\Program Files\Kaspersky Lab',
-            r'C:\Program Files (x86)\Kaspersky Lab',
-            r'C:\Program Files\Kaspersky Security',
-            r'C:\Program Files (x86)\Kaspersky Security'
-        ]
-        
-        for path in kaspersky_paths:
-            if os.path.exists(path) and os.path.isdir(path):
-                try:
-                    # Проверяем, что папка не пустая
-                    dir_contents = os.listdir(path)
-                    if dir_contents:
-                        # Дополнительно проверяем наличие исполняемых файлов или подпапок
-                        for item in dir_contents:
-                            item_path = os.path.join(path, item)
-                            if os.path.isdir(item_path) or item.lower().endswith(('.exe', '.dll')):
-                                return True
-                except (PermissionError, OSError):
-                    # Если нет доступа к папке, но она существует - считаем что Касперский есть
-                    return True
-        
-        # Если ни один процесс не найден и папки пустые/не найдены, считаем что Касперского нет
+        for process_name in iter_process_names_winapi():
+            if str(process_name or "").strip().casefold() in _KASPERSKY_PROCESS_NAMES:
+                return True
+
+        for product_name in iter_uninstall_display_names():
+            normalized = str(product_name or "").casefold()
+            if "kaspersky" in normalized or "каспер" in normalized:
+                return True
         return False
-        
     except Exception:
-        # В случае ошибки считаем, что Касперского нет
         return False
 
 def _check_kaspersky_warning_disabled():

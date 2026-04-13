@@ -9,7 +9,8 @@ Telegram log helpers.
 from __future__ import annotations
 import os, sys, uuid, platform, pathlib, winreg
 from typing import Optional
-from config import APP_VERSION, CHANNEL
+from config.build_info import APP_VERSION, CHANNEL
+
 
 # ───────────── определяем, test это или нет ─────────────
 IS_DEV_BUILD = True if CHANNEL == "test" else False
@@ -37,7 +38,8 @@ MAX_CHUNK = 3500
 
 # ---------- Client-ID ------------------------------------------------
 def _reg_get() -> Optional[str]:
-    from config import REGISTRY_PATH
+    from config.config import REGISTRY_PATH
+
     try:
         k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
         cid, _ = winreg.QueryValueEx(k, "ClientID")
@@ -46,7 +48,8 @@ def _reg_get() -> Optional[str]:
         return None
 
 def _reg_set(cid: str):
-    from config import REGISTRY_PATH
+    from config.config import REGISTRY_PATH
+
     k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
     winreg.SetValueEx(k, "ClientID", 0, winreg.REG_SZ, cid)
 

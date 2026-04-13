@@ -2,13 +2,14 @@
 Общая функция для разрешения путей в аргументах командной строки winws/winws2.
 
 Используется в:
-- direct_launch/runners/*
+- winws_runtime/runners/*
 - filters/ui/strategy_tree.py и связанные workflow
 """
 
 import os
 from typing import List, Optional
-from log import log
+from log.log import log
+
 
 
 # Префиксы для файлов из папки lists/

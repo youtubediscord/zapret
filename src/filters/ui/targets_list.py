@@ -12,7 +12,8 @@ from .filter_chip_button import FilterButtonGroup
 from .collapsible_group import CollapsibleGroup
 from .strategy_radio_item import StrategyRadioItem
 from ui.theme import get_theme_tokens
-from log import log
+from log.log import log
+
 
 
 class TargetsList(QWidget):

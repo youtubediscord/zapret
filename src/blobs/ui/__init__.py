@@ -1,3 +1,1 @@
-from .page import BlobsPage
-
-__all__ = ["BlobsPage"]
+"""UI-пакет blobs. Используйте прямой импорт `blobs.ui.page`."""

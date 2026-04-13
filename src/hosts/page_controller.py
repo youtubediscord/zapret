@@ -3,8 +3,9 @@ from dataclasses import dataclass
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from log import log
-from utils import get_system32_path
+from log.log import log
+
+from utils.subproc import get_system32_path
 
 
 @dataclass(slots=True)

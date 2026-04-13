@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class ServersSettingsWidgets:
@@ -133,7 +135,7 @@ def build_servers_telegram_section(
         tg_info_label = None
         tg_card = push_setting_card_cls(
             tr_fn("page.servers.telegram.button.open_channel", "Открыть Telegram канал"),
-            qta_module.icon("fa5b.telegram-plane", color=accent_hex),
+            get_themed_qta_icon("fa5b.telegram-plane", color=accent_hex),
             tr_fn("page.servers.telegram.title", "Проблемы с обновлением?"),
             tr_fn(
                 "page.servers.telegram.info",

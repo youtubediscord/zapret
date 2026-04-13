@@ -4,10 +4,11 @@ import time
 import webbrowser
 
 from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt, QTimer, pyqtSlot
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication
 
 from app_notifications import advisory_notification, normalize_notification_payload
-from log import global_logger, log
+from log.log import global_logger, log
+
 
 
 class WindowNotificationController(QObject):
@@ -82,7 +83,6 @@ class WindowNotificationController(QObject):
                 "Notification received: "
                 f"source={normalized.get('source', '')}, "
                 f"level={normalized.get('level', '')}, "
-                f"impact={normalized.get('impact', '')}, "
                 f"queue={normalized.get('queue', '')}",
                 "⏱ STARTUP",
             )
@@ -202,9 +202,6 @@ class WindowNotificationController(QObject):
             )
 
     def _should_enqueue_for_startup(self, payload: dict) -> bool:
-        if str(payload.get("impact") or "").lower() == "blocking":
-            return False
-
         queue_mode = str(payload.get("queue") or "auto").lower()
         if queue_mode == "immediate":
             return False
@@ -218,41 +215,19 @@ class WindowNotificationController(QObject):
         return False
 
     def _present_notification(self, payload: dict) -> None:
-        impact = str(payload.get("impact") or "advisory").lower()
         presentation = str(payload.get("presentation") or "auto").lower()
 
         try:
             log(
                 "Notification presenting: "
                 f"source={payload.get('source', '')}, "
-                f"presentation={presentation}, "
-                f"impact={impact}",
+                f"presentation={presentation}",
                 "⏱ STARTUP",
             )
         except Exception:
             pass
 
-        if impact == "blocking" or presentation == "dialog":
-            self._show_dialog_notification(payload)
-            return
-
         self._show_infobar_notification(payload)
-
-    def _show_dialog_notification(self, payload: dict) -> None:
-        title = str(payload.get("title") or "Ошибка").strip() or "Ошибка"
-        content = str(payload.get("content") or "").strip()
-        level = str(payload.get("level") or "error").strip().lower()
-        parent = self.host if self._window_available_for_parenting() else None
-
-        try:
-            if level == "warning":
-                QMessageBox.warning(parent, title, content)
-            elif level == "info":
-                QMessageBox.information(parent, title, content)
-            else:
-                QMessageBox.critical(parent, title, content)
-        except Exception as e:
-            log(f"Не удалось показать dialog уведомление: {e}", "DEBUG")
 
     def _show_infobar_notification(self, payload: dict) -> None:
         try:
@@ -325,6 +300,29 @@ class WindowNotificationController(QObject):
         if kind == "open_url":
             return lambda: webbrowser.open(str(action.get("value") or ""))
 
+        if kind == "open_strategy_page":
+            return lambda: self._open_strategy_page_for_method(str(action.get("value") or ""), bar)
+
+        if kind == "launch_conflict_kill_start":
+            return lambda: self._run_launch_conflict_action(
+                request_id=int(action.get("value") or 0),
+                close_conflicts=True,
+                bar=bar,
+            )
+
+        if kind == "launch_conflict_ignore_start":
+            return lambda: self._run_launch_conflict_action(
+                request_id=int(action.get("value") or 0),
+                close_conflicts=False,
+                bar=bar,
+            )
+
+        if kind == "launch_conflict_cancel":
+            return lambda: self._cancel_launch_conflict_action(
+                request_id=int(action.get("value") or 0),
+                bar=bar,
+            )
+
         if kind == "disable_proxy":
             return self._disable_proxy_with_feedback
 
@@ -362,6 +360,98 @@ class WindowNotificationController(QObject):
                 dedupe_key="startup.proxy.action",
             )
         )
+
+    def _run_launch_conflict_action(self, *, request_id: int, close_conflicts: bool, bar=None) -> None:
+        controller = getattr(self.host, "launch_controller", None)
+        if controller is None:
+            self.notify(
+                advisory_notification(
+                    level="warning",
+                    title="Не удалось продолжить запуск",
+                    content="Контроллер запуска DPI недоступен.",
+                    source="launch.conflicting_processes.action",
+                    presentation="infobar",
+                    queue="immediate",
+                    duration=7000,
+                    dedupe_key="launch.conflicting_processes.action",
+                )
+            )
+            return
+
+        try:
+            if bar is not None:
+                bar.close()
+        except Exception:
+            pass
+
+        try:
+            controller._resume_start_after_conflict_resolution(
+                int(request_id or 0),
+                close_conflicts=bool(close_conflicts),
+            )
+        except Exception as e:
+            log(f"Не удалось обработать действие по конфликтующим процессам: {e}", "DEBUG")
+            self.notify(
+                advisory_notification(
+                    level="warning",
+                    title="Не удалось продолжить запуск",
+                    content="Во время обработки конфликтующих процессов произошла ошибка.",
+                    source="launch.conflicting_processes.action",
+                    presentation="infobar",
+                    queue="immediate",
+                    duration=7000,
+                    dedupe_key="launch.conflicting_processes.action",
+                )
+            )
+
+    def _cancel_launch_conflict_action(self, *, request_id: int, bar=None) -> None:
+        controller = getattr(self.host, "launch_controller", None)
+        if controller is None:
+            return
+
+        try:
+            if bar is not None:
+                bar.close()
+        except Exception:
+            pass
+
+        try:
+            controller._cancel_start_after_conflict_prompt(int(request_id or 0))
+        except Exception as e:
+            log(f"Не удалось отменить запуск после предупреждения о конфликтах: {e}", "DEBUG")
+
+    def _open_strategy_page_for_method(self, method: str, bar=None) -> None:
+        try:
+            from ui.navigation_targets import resolve_strategy_page_for_method
+            from ui.window_adapter import show_page
+
+            target_page = resolve_strategy_page_for_method(str(method or "").strip().lower())
+            if target_page is None:
+                raise RuntimeError("Не удалось определить страницу стратегий для текущего режима")
+
+            ok = bool(show_page(self.host, target_page, allow_internal=True))
+            if not ok:
+                raise RuntimeError("Не удалось открыть страницу стратегий")
+
+            try:
+                if bar is not None:
+                    bar.close()
+            except Exception:
+                pass
+        except Exception as e:
+            log(f"Не удалось открыть страницу стратегий: {e}", "DEBUG")
+            self.notify(
+                advisory_notification(
+                    level="warning",
+                    title="Не удалось открыть раздел",
+                    content="Не удалось перейти в раздел стратегий автоматически.",
+                    source="navigation.strategy_page",
+                    presentation="infobar",
+                    queue="immediate",
+                    duration=7000,
+                    dedupe_key="navigation.strategy_page",
+                )
+            )
 
     def _disable_kaspersky_warning_forever(self, bar=None) -> None:
         try:
@@ -432,7 +522,7 @@ class WindowNotificationController(QObject):
             return
 
         try:
-            from direct_launch.health.process_health_check import execute_windivert_auto_fix
+            from winws_runtime.health.process_health_check import execute_windivert_auto_fix
 
             ok, message = execute_windivert_auto_fix(action)
             try:

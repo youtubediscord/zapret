@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from log import log
-from utils import get_system_exe, run_hidden
+from log.log import log
+
+from utils.subproc import get_system_exe, run_hidden
 
 
 CANONICAL_TASK_NAME = "ZapretGUI_AutoStart"

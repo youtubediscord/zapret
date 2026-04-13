@@ -19,8 +19,8 @@ def apply_strategy_selection(
     log_error,
 ) -> tuple[dict, bool]:
     try:
-        from core.presets.direct_facade import DirectPresetFacade
-        from direct_launch.flow.apply_policy import request_direct_runtime_content_apply
+        from direct_preset.facade import DirectPresetFacade
+        from winws_runtime.flow.apply_policy import request_direct_runtime_content_apply
 
         if (strategy_id or "").strip().lower() == "custom":
             new_selections = dict(target_selections or {})

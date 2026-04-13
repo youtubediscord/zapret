@@ -6,7 +6,7 @@ import time
 
 import psutil
 
-from utils import run_hidden  # Импортируем нашу обертку для subprocess
+from utils.subproc import run_hidden  # Импортируем нашу обертку для subprocess
 
 
 def _path_basename(path):
@@ -180,7 +180,8 @@ class DiscordManager:
         return any(True for _ in self._iter_discord_processes())
     
     def _restart_discord_thread(self):
-        from log import log
+        from log.log import log
+
         """Фоновый поток для перезапуска Discord"""
         try:
             discord_path = self.find_discord_path()

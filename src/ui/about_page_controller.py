@@ -5,7 +5,8 @@ import subprocess
 import webbrowser
 from dataclasses import dataclass
 
-from log import log
+from log.log import log
+
 
 
 @dataclass(slots=True)
@@ -152,7 +153,8 @@ class AboutPageController:
 
     @staticmethod
     def open_help_folder() -> AboutActionResult:
-        from config import HELP_FOLDER
+        from config.config import HELP_FOLDER
+
 
         try:
             if os.path.exists(HELP_FOLDER):

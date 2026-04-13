@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ui.navigation.sidebar_builder import init_navigation
 from ui.window_bootstrap_runtime import (
     create_preset_runtime_coordinator,
     ensure_session_memory_defaults,
@@ -8,7 +9,6 @@ from ui.window_bootstrap_runtime import (
     initialize_build_ui_state,
 )
 from ui.navigation.schema import get_eager_page_names_for_method
-from ui.navigation.navigation_controller import ensure_navigation_controller
 from ui.page_names import PageName
 
 
@@ -57,7 +57,7 @@ class WindowUiRoot:
         if page_host is not None:
             page_host.create_eager_pages(get_eager_page_names_for_method(launch_method))
 
-        ensure_navigation_controller(self._window).init_navigation()
+        init_navigation(self._window)
         finalize_page_signal_bootstrap(self._window)
         ensure_session_memory_defaults(self._window)
 

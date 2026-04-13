@@ -2,6 +2,7 @@
 """Объединённая страница «Листы»: обзор hostlist / ipset + редакторы доменов и IP."""
 
 import os
+import qtawesome as qta
 
 from PyQt6.QtCore import QTimer, pyqtSignal
 
@@ -30,7 +31,8 @@ from ui.compat_widgets import (
 )
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
-from log import log
+from log.log import log
+
 from lists.ui.hostlist_page_editors_build import build_domains_panel_ui, build_ips_panel_ui
 from lists.ui.hostlist_page_exclusions_build import build_exclusions_panel_ui
 from lists.ui.hostlist_page_exclusions_workflow import (

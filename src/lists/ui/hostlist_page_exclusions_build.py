@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class ExclusionsPanelWidgets:
@@ -108,7 +110,7 @@ def build_exclusions_panel_ui(
     add_row.addWidget(excl_input, 1)
     excl_add_btn = primary_push_button_cls()
     excl_add_btn.setText(tr_fn("page.hostlist.button.add", "Добавить"))
-    excl_add_btn.setIcon(qta_module.icon("fa5s.plus", color=tokens.accent_hex))
+    excl_add_btn.setIcon(get_themed_qta_icon("fa5s.plus", color=tokens.accent_hex))
     excl_add_btn.setFixedHeight(38)
     excl_add_btn.clicked.connect(on_excl_add)
     add_row.addWidget(excl_add_btn)
@@ -236,7 +238,7 @@ def build_exclusions_panel_ui(
     ipru_add_row.addWidget(ipru_input, 1)
     ipru_add_btn = primary_push_button_cls()
     ipru_add_btn.setText(tr_fn("page.hostlist.button.add", "Добавить"))
-    ipru_add_btn.setIcon(qta_module.icon("fa5s.plus", color=tokens.accent_hex))
+    ipru_add_btn.setIcon(get_themed_qta_icon("fa5s.plus", color=tokens.accent_hex))
     ipru_add_btn.setFixedHeight(38)
     ipru_add_btn.clicked.connect(on_ipru_add)
     ipru_add_row.addWidget(ipru_add_btn)

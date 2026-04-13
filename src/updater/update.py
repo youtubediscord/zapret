@@ -13,8 +13,10 @@ from packaging import version
 from .release_manager import get_latest_release
 from .github_release import normalize_version
 from .channel_utils import is_test_update_channel
-from config import CHANNEL, APP_VERSION
-from log import log
+from config.build_info import CHANNEL, APP_VERSION
+
+from log.log import log
+
 from .rate_limiter import UpdateRateLimiter
 from .network_hints import maybe_log_disable_dpi_for_update
 

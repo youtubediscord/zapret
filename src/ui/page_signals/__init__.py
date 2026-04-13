@@ -1,6 +1,5 @@
-from __future__ import annotations
+"""Пакет wiring-а сигналов страниц.
 
-from .helpers import connect_signal_once
-from .registry import connect_lazy_page_signals
-
-__all__ = ["connect_lazy_page_signals", "connect_signal_once"]
+Корневой пакет оставляем тонким. Используйте прямые импорты из
+`ui.page_signals.registry` и `ui.page_signals.helpers`.
+"""

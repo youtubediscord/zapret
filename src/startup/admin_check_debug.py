@@ -1,8 +1,9 @@
 # admin_check_debug.py
 import os, ctypes
 from ctypes import wintypes
-from log import log
-from utils import get_system32_path
+from log.log import log
+
+from utils.subproc import get_system32_path
 
 def debug_admin_status():
     """Детальная диагностика прав администратора"""

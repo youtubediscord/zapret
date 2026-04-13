@@ -1,3 +1,4 @@
-from .controller import HostlistPageController
+"""Пакет списков.
 
-__all__ = ["HostlistPageController"]
+Используйте прямые импорты из конкретных модулей `lists.*`.
+"""

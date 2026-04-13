@@ -8,10 +8,12 @@ import subprocess
 import sys
 import time
 
-from config import APP_VERSION
-from log import log
+from config.build_info import APP_VERSION
+
+from log.log import log
+
 from startup.admin_check import is_admin
-from utils import run_hidden
+from utils.subproc import run_hidden
 
 
 def handle_update_mode(argv: list[str] | None = None) -> None:

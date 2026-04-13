@@ -95,7 +95,7 @@ def get_page_smooth_scroll_enabled() -> bool:
 
         return bool(get_scroll_flag())
     except Exception:
-        return True
+        return False
 
 
 def get_editor_smooth_scroll_enabled() -> bool:

@@ -381,7 +381,8 @@ class DNSCheckPage(BasePage):
     
     def cleanup(self):
         """Очистка потоков при закрытии"""
-        from log import log
+        from log.log import log
+
         try:
             self._cleanup_in_progress = True
             cleanup_plan = DNSCheckPageController.build_cleanup_plan(

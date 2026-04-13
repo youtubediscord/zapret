@@ -90,7 +90,8 @@ class PremiumApiClient:
         nonce = secrets.token_urlsafe(16)
         try:
             try:
-                from log import log
+                from log.log import log
+
 
                 log(
                     f"Premium pair_start request: base_url={self.base_url!r}, device_id={device_id[:12]}..., nonce={nonce[:8]}...",
@@ -106,7 +107,8 @@ class PremiumApiClient:
             )
             data = self._response_to_dict(r, nonce=nonce)
             try:
-                from log import log
+                from log.log import log
+
 
                 log(
                     "Premium pair_start response: "
@@ -123,7 +125,8 @@ class PremiumApiClient:
         except Exception as e:
             data = self._exception_to_dict(e, nonce=nonce)
             try:
-                from log import log
+                from log.log import log
+
 
                 log(
                     f"Premium pair_start exception: base_url={self.base_url!r}, error={data.get('detail')!r}",

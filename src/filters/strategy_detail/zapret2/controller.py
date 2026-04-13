@@ -936,20 +936,20 @@ class StrategyDetailPageController:
         return None
 
     @staticmethod
-    def get_preview_rating(mark_store, *, strategy_id: str, target_key: str) -> str | None:
+    def get_preview_rating(feedback_store, *, strategy_id: str, target_key: str) -> str | None:
         normalized_target = str(target_key or "").strip()
         normalized_strategy = str(strategy_id or "").strip()
         if not normalized_target or not normalized_strategy or normalized_strategy == "none":
             return None
         try:
-            mark_state = mark_store.get_mark(normalized_target, normalized_strategy)
+            mark_state = feedback_store.get_mark(normalized_target, normalized_strategy)
         except Exception:
             return None
         return StrategyDetailPageController.resolve_strategy_mark_rating(mark_state)
 
     @staticmethod
     def toggle_preview_rating(
-        mark_store,
+        feedback_store,
         *,
         strategy_id: str,
         rating: str,
@@ -967,7 +967,7 @@ class StrategyDetailPageController:
             )
 
         try:
-            current = mark_store.get_mark(normalized_target, normalized_strategy)
+            current = feedback_store.get_mark(normalized_target, normalized_strategy)
         except Exception:
             current = None
 
@@ -980,7 +980,7 @@ class StrategyDetailPageController:
             new_state = None
 
         try:
-            mark_store.set_mark(normalized_target, normalized_strategy, new_state)
+            feedback_store.set_mark(normalized_target, normalized_strategy, new_state)
         except Exception:
             return StrategyDetailMarkResult(
                 ok=False,
@@ -1000,7 +1000,7 @@ class StrategyDetailPageController:
 
     @staticmethod
     def save_strategy_mark(
-        mark_store,
+        feedback_store,
         *,
         strategy_id: str,
         is_working,
@@ -1018,7 +1018,7 @@ class StrategyDetailPageController:
             )
 
         try:
-            mark_store.set_mark(normalized_target, normalized_strategy, is_working)
+            feedback_store.set_mark(normalized_target, normalized_strategy, is_working)
         except Exception:
             return StrategyDetailMarkResult(
                 ok=False,
@@ -1038,7 +1038,7 @@ class StrategyDetailPageController:
 
     @staticmethod
     def toggle_favorite(
-        favorites_store,
+        feedback_store,
         *,
         strategy_id: str,
         is_favorite: bool,
@@ -1055,7 +1055,7 @@ class StrategyDetailPageController:
             )
 
         try:
-            favorites_store.set_favorite(normalized_target, normalized_strategy, is_favorite)
+            feedback_store.set_favorite(normalized_target, normalized_strategy, is_favorite)
         except Exception:
             return StrategyDetailFavoriteToggleResult(
                 ok=False,

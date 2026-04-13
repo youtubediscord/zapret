@@ -1,0 +1,1004 @@
+# Target metadata configuration
+version = 1.0
+description = Встроенные metadata записи для canonical target_key direct_preset
+
+[googlevideo_tcp]
+full_name = googlevideo.com (CDN сервера)
+description = YouTube видео с CDN серверов GoogleVideo
+tooltip = 🎬 YouTube видео с CDN серверов GoogleVideo\nОбходит блокировку видеопотоков с серверов *.googlevideo.com (порт 443).\nЭто серверы доставки контента (CDN), откуда загружаются сами видеофайлы YouTube.\nНужно включать если видео не загружаются при работающем основном YouTube.
+color = #ff9900
+default_strategy = none
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = youtube
+icon_name = fa5b.youtube
+icon_color = #FF0000
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-googlevideo.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist-domains=googlevideo.com
+strategy_type = tcp
+
+[youtube_tcp]
+full_name = youtube.com (интерфейс)
+description = YouTube через TCP протокол (порты 80, 443)
+tooltip = 🎬 YouTube через TCP протокол (порты 80, 443)\nОбходит блокировку обычного YouTube трафика через стандартные веб-порты.\nНЕ обходит Google Video трафик!\nTCP - это надежный протокол передачи данных, используется для загрузки веб-страниц и видео.\nРаботает с youtube.com и youtu.be.
+color = #ff6666
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = youtube
+icon_name = fa5b.youtube
+icon_color = #FF0000
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-youtube.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=youtube.txt
+strategy_type = tcp
+
+[youtube_udp]
+full_name = youtube.com
+description = YouTube через QUIC/UDP протокол (порт 443)
+tooltip = 🎬 YouTube через QUIC/UDP протокол (порт 443)\nОбходит блокировку YouTube при использовании современного протокола QUIC (HTTP/3).\nQUIC работает поверх UDP и обеспечивает более быструю загрузку видео.\nМногие браузеры автоматически используют QUIC для YouTube.
+color = #ff3c00
+default_strategy = none
+ports = 443
+protocol = QUIC/UDP
+needs_new_separator = true
+command_group = youtube
+icon_name = fa5b.youtube
+icon_color = #FF0000
+base_filter = --filter-udp=443 --ipset=ipset-youtube.txt
+strategy_type = udp
+
+[google_tcp]
+full_name = Google (сервисы)
+description = Google сервисы через TCP (порты 80, 443)
+tooltip = 🔍 Google сервисы через TCP протокол\nОбходит блокировку Google-сервисов через стандартные веб-порты.\nИспользуется в пресетах с отдельным hostlist для Google.
+color = #4285F4
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = youtube
+icon_name = fa5b.google
+icon_color = #4285F4
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=google.txt
+strategy_type = tcp
+
+[discord_update_tcp]
+full_name = updates.discord.com
+description = Обновления Discord мессенджер (порт 443)
+tooltip = 💬 Пробивает прицельно отдельно апдейт дискорда. Полезно когда сайт discord.com грузится, а приложение Windows постоянно ищет обновления.
+color = #7289da
+default_strategy = none
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = discord
+icon_name = fa5b.discord
+icon_color = #7289DA
+base_filter = --filter-tcp=443 --hostlist-domains=updates.discord.com
+strategy_type = tcp
+aliases = updates_tcp
+
+[discord_media_tcp]
+full_name = discord.media
+description = Discord голосовые сервера (порты 80, 443)
+tooltip = 💬 Discord голосовые сервера (порты 80, 443)\nОбходит блокировку текстовых чатов и загрузки файлов в Discord.\nРаботает с основным трафиком Discord через TCP протокол.\nВключите если не работают текстовые сообщения и картинки.
+color = #7289da
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = discord
+icon_name = fa5b.discord
+icon_color = #7289DA
+base_filter = --filter-tcp=80,443,1080,2053,2083,2087,2096,8443 --hostlist-domains=discord.media
+strategy_type = tcp
+
+[discord_tcp]
+full_name = discord.com
+description = Discord мессенджер (порты 80, 443)
+tooltip = 💬 Discord мессенджер (порты 80, 443)\nОбходит блокировку текстовых чатов и загрузки файлов в Discord.\nРаботает с основным трафиком Discord через TCP протокол.\nВключите если не работают текстовые сообщения и картинки.
+color = #7289da
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = discord
+icon_name = fa5b.discord
+icon_color = #7289DA
+base_filter_ipset = --filter-tcp=80,443,1080,2053,2083,2087,2096,8443 --ipset=ipset-discord.txt
+base_filter_hostlist = --filter-tcp=80,443,1080,2053,2083,2087,2096,8443 --hostlist=discord.txt
+strategy_type = tcp
+
+[7tv_tcp]
+full_name = 7tv (10tv)
+description = 7tv популярное расширение, которое добавляет поддержку смайликов (эмоций)
+tooltip = 7tv популярное расширение, которое добавляет поддержку смайликов (эмоций)
+color = #48e9e1ff
+default_strategy = hostfakesplit_multi_syndata
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = streaming
+icon_name = fa5s.smile
+icon_color = #48e9e1ff
+base_filter = --filter-tcp=80,443 --hostlist-domains=7tv.app,7tv.io,10tv.app
+strategy_type = tcp
+
+[obsidian_tcp]
+full_name = obsidian.md
+description = Obsidian markdown (порты 80, 443)
+tooltip = 💎 Obsidian markdown (порты 80, 443)\nОбходит блокировку вики по Obsidian.\nВключите если не работает вики по Zapret GUI.
+color = #9974F8
+default_strategy = hostfakesplit_multi_syndata
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = obsidian
+icon_name = fa5s.file-alt
+icon_color = #9974F8
+base_filter = --filter-tcp=80,443 --hostlist-domains=obsidian.md
+strategy_type = tcp
+
+[discord_voice_udp]
+full_name = Голосовые звонки/чаты
+description = Голосовые звонки и демонстрация экрана для Discord, Telegram и WhatsApp (stun трафик)
+tooltip = 🔊 Голосовые звонки и демонстрация экрана для Discord, Telegram и WhatsApp (stun трафик)
+color = #9b59b6
+default_strategy = fake_x6_stun_discord
+ports = stun ports
+protocol = UDP
+needs_new_separator = true
+command_group = discord
+icon_name = fa5s.microphone
+icon_color = #7289DA
+base_filter = --filter-l7=stun,discord --payload=stun,discord_ip_discovery
+strategy_type = discord_voice
+
+[discord_udp]
+full_name = Discord
+description = UDP протокол Discord мессенджер (порт 443)
+tooltip = 💬 UDP для веб интерфейса дискорда, обычно не нужен но пусть будет.
+color = #7289da
+default_strategy = none
+ports = 443
+protocol = UDP
+needs_new_separator = true
+command_group = discord
+icon_name = fa5b.discord
+icon_color = #7289DA
+base_filter = --filter-udp=443 --ipset=ipset-discord.txt
+strategy_type = udp
+
+[telegram_tcp]
+full_name = Доступен только web.telegram.org - включите во вкладке hosts обход
+description = ⛔ Telegram (443 порт)
+tooltip = ✈ Telegram (веб версия и сайты)\nОбходит ТОЛЬКО блокировку веб Telegram (НЕ ПРИЛОЖЕНИЯ! ПРИЛОЖЕНИЕ НЕДОСТУПНО ДЛЯ ОБХОДА ЧЕРЕЗ ЗАПРЕТ!)\nВключите если не работают сайты telegram.org и другие.
+color = #9b59b6
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = telegram
+icon_name = fa5b.telegram
+icon_color = #3CA7FF
+base_filter_ipset = --filter-tcp=80,443,5222 --ipset=ipset-telegram.txt --payload=all
+base_filter_hostlist = --filter-tcp=80,443,5222 --hostlist=telegram.txt --payload=all
+strategy_type = tcp
+strip_payload = true
+
+[whatsapp_tcp]
+full_name = ⛔ WhatsApp (БАН ПО IPv4! Используйте t.me/zapretvpns_bot)
+description = WhatsApp интерфейс (порты 80, 443)
+tooltip = ЗАБЛОКИРОВАН ПО IP И БОЛЬШЕ НЕ ПРОБИВАЕТСЯ ЧЕРЕЗ ZAPRET!
+color = #25D366
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = messengers
+icon_name = fa5b.whatsapp
+icon_color = #25D366
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-whatsapp.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=whatsapp.txt
+strategy_type = tcp
+
+[facebook_tcp]
+full_name = Facebook
+description = Facebook (порты 80, 443)
+tooltip = 📘 Facebook (порты 80, 443)\nОбходит блокировку Facebook через стандартные веб-порты.\nПодходит для web и приложения.
+color = #1877f2
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = social
+icon_name = fa5b.facebook
+icon_color = #1877F2
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-facebook.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=facebook.txt
+strategy_type = tcp
+
+[instagram_tcp]
+full_name = Instagram
+description = Instagram (порты 80, 443)
+tooltip = 📸 Instagram (порты 80, 443)\nОбходит блокировку Instagram через стандартные веб-порты.\nПодходит для web и приложения.
+color = #e1306c
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = social
+icon_name = fa5b.instagram
+icon_color = #E1306C
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-instagram.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=instagram.txt
+strategy_type = tcp
+
+[twitter_tcp]
+full_name = Twitter/X
+description = Twitter/X (порты 80, 443)
+tooltip = 🐦 Twitter/X (порты 80, 443)\nОбходит блокировку Twitter/X через стандартные веб-порты.\nПодходит для web и приложения.
+color = #1da1f2
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = social
+icon_name = fa5b.twitter
+icon_color = #1DA1F2
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-twitter.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=twitter.txt
+strategy_type = tcp
+aliases = x_tcp,t_tcp
+
+[soundcloud_tcp]
+full_name = SoundCloud
+description = SoundCloud (порт 443)
+tooltip = 🎵 SoundCloud (порт 443)\nОбходит блокировку SoundCloud через стандартные веб-порты.\nРаботает с основным трафиком SoundCloud через TCP протокол.
+color = #ff5500
+default_strategy = multidisorder_legacy_midsld
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = music
+icon_name = fa5b.soundcloud
+icon_color = #FF5500
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-soundcloud.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=soundcloud.txt
+strategy_type = tcp
+
+[github_tcp]
+full_name = GitHub
+description = GitHub (порты 80, 443)
+tooltip = 🐙 GitHub (порты 80, 443)\nОбходит блокировку GitHub через стандартные веб-порты.\nРаботает с основным трафиком GitHub через TCP протокол.
+color = #808080
+default_strategy = multidisorder_legacy_midsld
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = github
+icon_name = fa5b.github
+icon_color = #FCFCFC
+base_filter_ipset = --filter-tcp=443 --ipset=ipset-github.txt
+base_filter_hostlist = --filter-tcp=443 --hostlist=github.txt
+strategy_type = tcp
+
+[anydesk_tcp]
+full_name = AnyDesk TCP
+description = AnyDesk (порты 443, 6568)
+tooltip = 🖥️ AnyDesk (порты 443, 6568)\nОбходит блокировку AnyDesk через основные порты.\nРаботает с трафиком удалённого доступа AnyDesk через TCP протокол.
+color = #EF443B
+default_strategy = none
+ports = 443, 6568
+protocol = TCP
+needs_new_separator = true
+command_group = remote
+icon_name = fa5s.desktop
+icon_color = #EF443B
+base_filter = --filter-tcp=80,443,6568 --ipset=ipset-anydesk.txt
+strategy_type = tcp
+strip_payload = true
+
+[anydesk_udp]
+full_name = AnyDesk UDP
+description = AnyDesk (порты 443, 6568)
+tooltip = 🖥️ AnyDesk (порты 443, 6568)\nОбходит блокировку AnyDesk через основные порты.\nРаботает с трафиком удалённого доступа AnyDesk через TCP протокол.
+color = #EF443B
+default_strategy = none
+ports = 443, 6568
+protocol = UDP
+needs_new_separator = true
+command_group = remote
+icon_name = fa5s.desktop
+icon_color = #EF443B
+base_filter = --filter-udp=80,443,6568,50000-51000 --ipset=ipset-anydesk.txt
+strategy_type = udp
+strip_payload = true
+requires_all_ports = true
+
+[rutracker_tcp]
+full_name = rutracker.org
+description = Rutracker (порты 80, 443)
+tooltip = 🛠 Rutracker (порты 80, 443)\nОбходит блокировку торрент-трекера Rutracker через стандартные веб-порты.\nРаботает с основным трафиком Rutracker через TCP протокол.
+color = #6c5ce7
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = trackers
+icon_name = fa5s.download
+icon_color = #457AEB
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-rutracker.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=rutracker.txt
+strategy_type = tcp
+
+[rutor_tcp]
+full_name = rutor.info (.is)
+description = Rutor.info (порты 80, 443)
+tooltip = 🛠 Rutor.info (порты 80, 443)\nОбходит блокировку торрент-трекера Rutor.info через стандартные веб-порты.\nРаботает с основным трафиком Rutor.info через TCP протокол.
+color = #6c5ce7
+default_strategy = multisplit_split_pos_1
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = trackers
+icon_name = fa5s.download
+icon_color = #457AEB
+base_filter = --filter-tcp=80,443 --hostlist=rutor.txt
+strategy_type = tcp
+
+[ntcparty_tcp]
+full_name = ntc.party
+description = NtcParty (порты 80, 443)
+tooltip = 🛠 NtcParty (порты 80, 443)\nОбходит блокировку технического форума NtcParty отдельно от основных хостлистов.\nРаботает с основным трафиком NtcParty через TCP протокол.
+color = #d9d8e0
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = trackers
+icon_name = fa5s.tools
+icon_color = #6C5CE7
+base_filter = --filter-tcp=80,443 --hostlist-domains=ntc.party
+strategy_type = tcp
+aliases = ntc_tcp
+
+[twitch_tcp]
+full_name = Twitch
+description = Twitch стриминг (порты 80, 443)
+tooltip = 🎙 Twitch стриминг (порты 80, 443)\nОбходит блокировку Twitch стримов через стандартные веб-порты.\nРаботает с основным трафиком Twitch через TCP протокол.\nВключите если не работают стримы на Twitch.
+color = #9146ff
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = streaming
+icon_name = fa5b.twitch
+icon_color = #9146FF
+base_filter_ipset = --filter-tcp=443 --ipset=ipset-twitch.txt
+base_filter_hostlist = --filter-tcp=443 --hostlist=twitch.txt
+strategy_type = tcp
+
+[speedtest_tcp]
+full_name = Speedtest
+description = Speedtest (порт 443)
+tooltip = 🌐 Speedtest (порт 443)\nОбходит блокировку Speedtest через стандартные веб-порты.\nРаботает с основным трафиком Speedtest через TCP протокол.
+color = #9146ff
+default_strategy = other_seqovl
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5s.tachometer-alt
+icon_color = #4671FF
+base_filter = --filter-tcp=443,8080 --hostlist=speedtest.txt
+strategy_type = tcp
+aliases = ooklaserver_tcp,psts_tcp
+
+[steam_tcp]
+full_name = Steam
+description = Steam (порты 80, 443)
+tooltip = 🎮 Steam (порты 80, 443)\nОбходит блокировку Steam через стандартные веб-порты.\nРаботает с основным трафиком Steam через TCP протокол.
+color = #9146ff
+default_strategy = multidisorder_legacy_midsld
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.steam
+icon_color = #7390F0
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-steam.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=steam.txt
+strategy_type = tcp
+
+[itch_tcp]
+full_name = itch.io
+description = Itch.io (порты 80, 443)
+tooltip = 🎮 Itch.io (порты 80, 443)\nОбходит блокировку Itch.io через стандартные веб-порты.\nРаботает с основным трафиком Itch.io через TCP протокол.
+color = #ff4757
+default_strategy = disorder2_badseq_tls_google
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = games
+icon_name = fa5b.itch-io
+icon_color = #FA5C5C
+base_filter = --filter-tcp=443 --hostlist=itch.txt
+strategy_type = tcp
+
+[amazon_tcp]
+full_name = Amazon TCP
+description = Amazon TCP (порты 80, 443-65535)
+tooltip = 📦 Amazon TCP (порты 80, 443-65535)\nОбходит блокировку сервисов Amazon (AWS, Prime, Twitch и др.) через TCP.\nРаботает по хостлисту amazon.txt.
+color = #FF9900
+default_strategy = none
+ports = 80, 443-65535
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.amazon
+icon_color = #FF9900
+base_filter = --filter-tcp=80,443-65535 --hostlist=amazon.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[amazon_udp]
+full_name = Amazon UDP
+description = Amazon UDP (порты 443-65535)
+tooltip = 📦 Amazon UDP (порты 443-65535)\nОбходит блокировку сервисов Amazon (AWS, Prime, игровые сервера) через UDP.\nРаботает по IP-диапазонам Amazon AWS.
+color = #FF9900
+default_strategy = none
+ports = 443-65535
+protocol = UDP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5b.amazon
+icon_color = #FF9900
+base_filter = --filter-udp=443-65535 --ipset=ipset-amazon.txt
+strategy_type = udp
+requires_all_ports = true
+
+[roblox_tcp]
+full_name = Roblox TCP
+description = Roblox TCP (порты 80, 443)
+tooltip = 🎮 Roblox TCP (порты 80, 443)\nОбходит блокировку Roblox через стандартные веб-порты.\nРаботает с основным трафиком Roblox через TCP протокол.
+color = #4285F4
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.gamepad
+icon_color = #7390F0
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-roblox.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=roblox.txt
+strategy_type = tcp
+
+[roblox_udp]
+full_name = Roblox UDP
+description = Roblox UDP (порты 49152-65535)
+tooltip = 🎮 Roblox UDP (порты 49152-65535)\nОбходит блокировку Roblox через игровые порты.\nРаботает с основным трафиком Roblox через UDP протокол.
+color = #4285F4
+default_strategy = none
+ports = 49152-65535
+protocol = UDP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.gamepad
+icon_color = #7390F0
+base_filter = --filter-udp=443,49152-65535 --ipset=ipset-roblox.txt
+strategy_type = udp
+
+[phasmophobia_udp]
+full_name = Phasmophobia UDP
+description = Phasmophobia UDP (порты 5056, 27002)
+tooltip = 🎮 Phasmophobia UDP (порты 5056, 27002)\nОбходит блокировку Phasmophobia через игровые порты.\nРаботает с основным трафиком Phasmophobia через UDP протокол.
+color = #ff4757
+default_strategy = none
+ports = 5056, 27002
+protocol = UDP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.ghost
+icon_color = #8B4789
+base_filter = --filter-udp=5056,27002
+strategy_type = udp
+requires_all_ports = true
+
+[battlefield_6_udp]
+full_name = Battlefield 6 UDP
+description = Battlefield 6 UDP (порты 21000-21999)
+tooltip = 🎮 Battlefield UDP (порты 21000-21999)\nОбходит блокировку Battlefield через игровые порты.\nРаботает с основным трафиком Battlefield через UDP протокол.
+color = #ff4757
+default_strategy = none
+ports = 21000-21999
+protocol = UDP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.fighter-jet
+icon_color = #8B4789
+base_filter = --filter-udp=21000-21999
+strategy_type = udp
+requires_all_ports = true
+
+[warp_tcp]
+full_name = Warp TCP
+description = Warp TCP (порты 443, 853)
+tooltip = 🎮 Warp TCP (порты 443, 853)\nОбходит блокировку Warp через стандартные веб-порты.\nРаботает с основным трафиком Warp через UDP протокол.
+color = #ff4757
+default_strategy = none
+ports = 443, 853
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.cloudflare
+icon_color = #FD7A3E
+base_filter = --filter-tcp=443,853 --ipset=ipset-warp.txt
+strategy_type = tcp
+strip_payload = true
+requires_all_ports = true
+
+[claude_tcp]
+full_name = Claude AI TCP
+description = Claude TCP (порты 443, 853)
+tooltip = Claude TCP (порты 443, 853)\nОбходит блокировку Claude через стандартные веб-порты.\nРаботает с основным трафиком Claude через TCP протокол.
+color = #ff4757
+default_strategy = none
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5s.brain
+icon_color = #DA6B46
+base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-claude.txt
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=claude.txt
+strategy_type = tcp
+strip_payload = true
+requires_all_ports = false
+
+[general_tcp]
+full_name = General (общий список)
+description = Объединённый hostlist для general-пресетов (порты 80, 443)
+tooltip = 🌐 General (общий список)\nОбъединённый hostlist для general-пресетов.\nСодержит общий набор заблокированных доменов для базовых пресетов.
+color = #4CAF50
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.chrome
+icon_color = #4CAF50
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=list-general.txt
+strategy_type = tcp
+
+[russia_youtube_tcp]
+full_name = YouTube (Russia CDN)
+description = YouTube через российские CDN серверы (порты 80, 443)
+tooltip = 🎬 YouTube через российские CDN серверы\nОбходит блокировку YouTube видеопотоков через российские CDN.\nИспользует отдельный hostlist russia-youtube.txt.
+color = #ff6666
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = youtube
+icon_name = fa5b.youtube
+icon_color = #FF0000
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=russia-youtube.txt
+strategy_type = tcp
+
+[lol_ru_tcp]
+full_name = League of Legends (RU)
+description = League of Legends российские серверы (порты 80, 443-65535)
+tooltip = 🎮 League of Legends (RU)\nОбходит блокировку российских серверов League of Legends.\nРаботает по ipset-lol-ru.txt.
+color = #C8AA6E
+default_strategy = none
+ports = 80, 443-65535
+protocol = TCP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.gamepad
+icon_color = #C8AA6E
+base_filter = --filter-tcp=80,443-65535 --ipset=ipset-lol-ru.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[lol_euw_tcp]
+full_name = League of Legends (EUW)
+description = League of Legends европейские серверы (порты 80, 443-65535)
+tooltip = 🎮 League of Legends (EUW)\nОбходит блокировку европейских серверов League of Legends.\nРаботает по ipset-lol-euw.txt.
+color = #C8AA6E
+default_strategy = none
+ports = 80, 443-65535
+protocol = TCP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.gamepad
+icon_color = #C8AA6E
+base_filter = --filter-tcp=80,443-65535 --ipset=ipset-lol-euw.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[timeweb_tcp]
+full_name = Timeweb
+description = Timeweb хостинг (порты 80, 443-65535)
+tooltip = 🌐 Timeweb хостинг\nОбходит блокировку сервисов хостинга Timeweb.\nРаботает по ipset-timeweb.txt.
+color = #2196F3
+default_strategy = none
+ports = 80, 443-65535
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5s.server
+icon_color = #2196F3
+base_filter = --filter-tcp=80,443-65535 --ipset=ipset-timeweb.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[valorant_tcp]
+full_name = Valorant / Riot Games
+description = Valorant и Riot Games (порт 443)
+tooltip = 🎮 Valorant / Riot Games\nОбходит блокировку Valorant и сервисов Riot Games.\nРаботает с доменами riotgames.com, valorant.com, riotcdn.net.
+color = #FF4655
+default_strategy = none
+ports = 443
+protocol = TCP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.gamepad
+icon_color = #FF4655
+base_filter = --filter-tcp=443 --hostlist-domains=riotgames.com,valorant.com,riotcdn.net
+strategy_type = tcp
+
+[ubisoft_tcp]
+full_name = Ubisoft
+description = Ubisoft сервисы (порты 80, 443)
+tooltip = 🎮 Ubisoft\nОбходит блокировку Ubisoft, Uplay и связанных сервисов.\nРаботает с доменами ubisoft.com, uplay.com, ubi.com.
+color = #0070FF
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = games
+icon_name = fa5s.gamepad
+icon_color = #0070FF
+base_filter = --filter-tcp=80,443 --hostlist-domains=ubisoft.com,uplay.com,ubi.com
+strategy_type = tcp
+
+[deepseek_tcp]
+full_name = DeepSeek AI
+description = DeepSeek AI (порты 80, 443)
+tooltip = 🤖 DeepSeek AI\nОбходит блокировку DeepSeek AI через стандартные веб-порты.\nРаботает с chat.deepseek.com и api.deepseek.com.
+color = #4A6CF7
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5s.brain
+icon_color = #4A6CF7
+base_filter = --filter-tcp=80,443 --hostlist-domains=chat.deepseek.com,api.deepseek.com
+strategy_type = tcp
+
+[twimg_tcp]
+full_name = Twitter Images (twimg.com)
+description = Twitter/X изображения и медиа (порты 80, 443)
+tooltip = 🐦 Twitter/X изображения и медиа\nОбходит блокировку CDN Twitter/X для загрузки изображений и медиа.\nРаботает с доменом twimg.com.
+color = #1da1f2
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = social
+icon_name = fa5b.twitter
+icon_color = #1DA1F2
+base_filter = --filter-tcp=80,443 --hostlist-domains=twimg.com
+strategy_type = tcp
+
+[other_tcp]
+full_name = Hostlist (HTTPS)
+description = Заблокированные сайты из списка (порты 80, 443)
+tooltip = 🌐 Заблокированные сайты из списка (порты 80, 443)\nОбходит блокировку сайтов из файла other.txt через TCP.\nВключает сотни популярных заблокированных сайтов и сервисов.
+color = #66ff66
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.chrome
+icon_color = #2696F1
+base_filter_ipset = 
+base_filter_hostlist = --filter-tcp=443 --hostlist-exclude=netrogat.txt --hostlist=other.txt
+strategy_type = tcp
+strip_payload = true
+
+[russia_blacklist_tcp]
+full_name = Russia blacklist (HTTPS)
+description = Россия blacklist (HTTPS)
+tooltip = 🌐 Russia blacklist (HTTPS)\nОтдельный target для списка russia-blacklist.txt.
+color = #66ff66
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.chrome
+icon_color = #2696F1
+base_filter_ipset = 
+base_filter_hostlist = --filter-tcp=443 --hostlist=russia-blacklist.txt
+strategy_type = tcp
+strip_payload = true
+
+[porn_tcp]
+full_name = Porn (HTTP)
+description = Порно-сайты через HTTP (порт 80)
+tooltip = 🔞 Порно-сайты через HTTP (порт 80)\nОбходит блокировку порно-сайтов работающих по HTTP протоколу.\nМногие порно-сайты используют HTTP вместо HTTPS.\nМожно редактировать список сайтов в ipset-porn.txt.
+color = #ff69b4
+default_strategy = http_aggressive
+ports = 80
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.ban
+icon_color = #FF69B4
+base_filter = --filter-tcp=80,443 --ipset=ipset-porn.txt
+strategy_type = http80
+strip_payload = true
+
+[resources_tcp]
+full_name = TankiX resources
+description = TankiX через HTTP (порт 80)
+tooltip = TankiX через HTTP (порт 80)\nОбходит блокировку TankiX работающих по HTTP протоколу.\nМногие TankiX используют HTTP вместо HTTPS.\nМожно редактировать список сайтов в ipset-porn.txt.
+color = #ff69b4
+default_strategy = none
+ports = 80
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #FF69B4
+base_filter = --filter-tcp=80,443 --hostlist-domains=resources.txrevive.com
+strategy_type = http80
+strip_payload = true
+
+[main_tcp]
+full_name = TankiX main
+description = TankiX через HTTP (порт 80)
+tooltip = TankiX через HTTP (порт 80)\nОбходит блокировку TankiX работающих по HTTP протоколу.\nМногие TankiX используют HTTP вместо HTTPS.\nМожно редактировать список сайтов в ipset-porn.txt.
+color = #ff69b4
+default_strategy = none
+ports = 80
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #FF69B4
+base_filter = --filter-tcp=80,443 --hostlist-domains=main.txrevive.com
+strategy_type = http80
+strip_payload = true
+
+[all_tcp]
+full_name = All
+description = All (HTTP)
+tooltip = 🌐 All (HTTP)\nTarget для ipset-all.txt на 80 порту.
+color = #00ffcc
+default_strategy = none
+ports = 80
+protocol = TCP
+needs_new_separator = true
+command_group = hostlists
+icon_name = fa5b.chrome
+icon_color = #2696F1
+base_filter = --filter-tcp=80 --ipset=ipset-all.txt
+strategy_type = http80
+strip_payload = true
+
+[cloudflare_ipset_tcp]
+full_name = Cloudflare Ipset
+description = Сервера CloudFlare (все порты)
+tooltip = ☁️ Используйте если нужно разблокировать сервера этого ресурса
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5b.cloudflare
+icon_color = #FFA500
+base_filter = --filter-tcp=80,443-65535 --ipset=cloudflare-ipset.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[cloudflare_ipset_v6_tcp]
+full_name = Cloudflare Ipset V6
+description = Сервера CloudFlare (все порты)
+tooltip = ☁️ Используйте если нужно разблокировать сервера этого ресурса
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5b.cloudflare
+icon_color = #FFA500
+base_filter = --filter-tcp=80,443-65535 --ipset=cloudflare-ipset_v6.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[cloudflare1_tcp]
+full_name = Cloudflare1
+description = Сервера CloudFlare (все порты)
+tooltip = ☁️ Используйте если нужно разблокировать сервера этого ресурса
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5b.cloudflare
+icon_color = #FFA500
+base_filter = --filter-tcp=80,443-65535 --ipset=ipset-cloudflare1.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[cloudflare_tcp]
+full_name = Cloudflare
+description = Сервера CloudFlare (все порты)
+tooltip = ☁️ Используйте если нужно разблокировать сервера этого ресурса
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5b.cloudflare
+icon_color = #FFA500
+base_filter = --filter-tcp=80,443-65535 --ipset=ipset-cloudflare.txt
+strategy_type = tcp
+requires_all_ports = true
+
+[zapretkvn_tcp]
+full_name = ZapretKVN
+description = Сервера ZapretKVN (все порты)
+tooltip = 🐋 Сервера ZapretKVN (все порты)\nОбходит блокировку сервисов ZapretKVN через TCP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов ZapretKVN.\n📝 Стратегии применяются ко ВСЕМУ трафику (без фильтра payload)
+color = #6fa8dc
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5b.docker
+icon_color = #6fa8dc
+base_filter = --ipset=ipset-zapretkvn.txt
+strategy_type = tcp
+requires_all_ports = true
+strip_payload = true
+
+[russia_youtube_rtmps_tcp]
+full_name = Russia YouTube RTMPS
+description = YouTube RTMPS через российский ipset
+tooltip = 🎬 YouTube RTMPS через российский ipset.
+color = #ffa500
+default_strategy = none
+ports = all ports
+protocol = TCP
+needs_new_separator = true
+command_group = youtube
+icon_name = fa5b.youtube
+icon_color = #FF0000
+base_filter = --filter-tcp=80,443-65535 --ipset=russia-youtube-rtmps.txt
+strategy_type = tcp
+requires_all_ports = true
+strip_payload = true
+
+[ovh_udp]
+full_name = OVH UDP
+description = OVH UDP (игровые сервера провайдера ОВХ)
+tooltip = 🛡 OVH UDP (игровые сервера провайдера ОВХ)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #e69f08
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #F1BB25
+base_filter = --filter-udp=80,443-65535 --ipset=ipset-ovh.txt
+strategy_type = udp
+requires_all_ports = true
+
+[ovh_tcp]
+full_name = OVH TCP
+description = OVH TCP (игровые сервера провайдера ОВХ)
+tooltip = 🛡 OVH TCP (игровые сервера провайдера ОВХ)\nОбходит блокировку сервисов по их IP адресам через TCP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #e69f08
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #F1BB25
+base_filter = --filter-tcp=80,443 --ipset=ipset-ovh.txt
+strategy_type = tcp
+
+[all_udp]
+full_name = All UDP
+description = Блокировка по IP адресам (UDP для игр)
+tooltip = 🔢 Блокировка по IP адресам (UDP для игр)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #006eff
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = false
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #D49B00
+base_filter = --filter-udp=80,443-65535 --ipset=ipset-all.txt
+strategy_type = udp
+requires_all_ports = true
+
+[cloudflare_ipset_udp]
+full_name = Cloudflare Ipset UDP
+description = Блокировка по IP адресам (UDP для игр)
+tooltip = 🔢 Блокировка по IP адресам (UDP для игр)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #006eff
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = false
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #D49B00
+base_filter = --filter-udp=80,443-65535 --ipset=cloudflare-ipset.txt
+strategy_type = udp
+requires_all_ports = true
+
+[cloudflare_ipset_v6_udp]
+full_name = Cloudflare Ipset V6 UDP
+description = Блокировка по IP адресам (UDP для игр)
+tooltip = 🔢 Блокировка по IP адресам (UDP для игр)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #006eff
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = false
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #D49B00
+base_filter = --filter-udp=80,443-65535 --ipset=cloudflare-ipset_v6.txt
+strategy_type = udp
+requires_all_ports = true
+
+[cloudflare1_udp]
+full_name = Cloudflare1 UDP
+description = Блокировка по IP адресам (UDP для игр)
+tooltip = 🔢 Блокировка по IP адресам (UDP для игр)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #006eff
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = false
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #D49B00
+base_filter = --filter-udp=80,443-65535 --ipset=ipset-cloudflare1.txt
+strategy_type = udp
+requires_all_ports = true
+
+[cloudflare_udp]
+full_name = Cloudflare UDP
+description = Блокировка по IP адресам (UDP для игр)
+tooltip = 🔢 Блокировка по IP адресам (UDP для игр)\nОбходит блокировку сервисов по их IP адресам через UDP.\nРаботает когда провайдер блокирует не домены, а конкретные IP.\nПолезно для сервисов с фиксированными IP адресами.
+color = #006eff
+default_strategy = none
+ports = all ports
+protocol = UDP
+needs_new_separator = false
+command_group = ipsets
+icon_name = fa5s.gamepad
+icon_color = #D49B00
+base_filter = --filter-udp=80,443-65535 --ipset=ipset-cloudflare.txt
+strategy_type = udp
+requires_all_ports = true

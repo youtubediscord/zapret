@@ -3,8 +3,10 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 
-from config import REGISTRY_PATH
-from log import log
+from config.config import REGISTRY_PATH
+
+from log.log import log
+
 from ui.text_catalog import tr as tr_catalog
 
 

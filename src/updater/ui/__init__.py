@@ -1,3 +1,1 @@
-from .page import ServersPage
-
-__all__ = ["ServersPage"]
+"""UI-пакет обновлений. Используйте прямой импорт `updater.ui.page`."""

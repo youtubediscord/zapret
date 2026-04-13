@@ -19,7 +19,8 @@ from ui.pages.base_page import BasePage
 from ui.compat_widgets import SettingsCard, ActionButton, QuickActionsBar, insert_widget_into_setting_card_group, set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.text_catalog import tr as tr_catalog
-from log import log
+from log.log import log
+
 
 
 class IpsetPage(BasePage):
@@ -208,7 +209,8 @@ class IpsetPage(BasePage):
     def _open_ipset_folder(self):
         """Открывает папку IP-сетов"""
         try:
-            from config import LISTS_FOLDER
+            from config.config import LISTS_FOLDER
+
             import os
             os.startfile(LISTS_FOLDER)
         except Exception as e:
@@ -230,7 +232,8 @@ class IpsetPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            from config import LISTS_FOLDER
+            from config.config import LISTS_FOLDER
+
             import os
             
             if not os.path.exists(LISTS_FOLDER):

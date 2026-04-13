@@ -9,7 +9,8 @@ import ctypes, socket, struct, platform, sys, winreg
 from ctypes import wintypes, windll, POINTER, Structure, c_ulong, c_wchar_p
 from functools import lru_cache
 from typing import List, Tuple, Dict, Optional
-from log import log
+from log.log import log
+
 
 # ──────────────────────────────────────────────────────────────────────
 #  Win32 API структуры и константы

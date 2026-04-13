@@ -9,7 +9,8 @@ import glob
 # This file is imported very early (via log/__init__.py → crash_handler)
 # BEFORE QApplication exists. Qt imports are deferred to LogViewerDialog.
 
-from config import LOGS_FOLDER, MAX_LOG_FILES, MAX_DEBUG_LOG_FILES
+from config.config import LOGS_FOLDER, MAX_LOG_FILES, MAX_DEBUG_LOG_FILES
+
 
 MAX_BLOCKCHECK_LOG_FILES = 200
 
@@ -134,7 +135,8 @@ class Logger:
         base_dir = os.path.dirname(
             os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__)
         )
-        from config import LOGS_FOLDER
+        from config.config import LOGS_FOLDER
+
 
         # Используем глобальную переменную LOG_FILE если не передан путь
         self.log_file = log_file_path or LOG_FILE

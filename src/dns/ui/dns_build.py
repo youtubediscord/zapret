@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 
+from ui.theme import get_cached_qta_pixmap
+
 
 @dataclass(slots=True)
 class AutoDnsWidgets:
@@ -150,7 +152,7 @@ def build_auto_dns_ui(
     auto_layout.addWidget(auto_indicator)
 
     auto_icon = qlabel_cls()
-    auto_icon.setPixmap(qta_module.icon('fa5s.sync', color=icon_color).pixmap(16, 16))
+    auto_icon.setPixmap(get_cached_qta_pixmap("fa5s.sync", color=icon_color, size=16))
     auto_layout.addWidget(auto_icon)
 
     if has_fluent_labels:

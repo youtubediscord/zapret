@@ -4,7 +4,8 @@ from typing import Any, Dict, Optional
 
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from app_notifications import advisory_notification
-from log import log
+from log.log import log
+
 
 
 class SubscriptionManager:

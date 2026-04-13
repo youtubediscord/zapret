@@ -3,9 +3,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from config import LOGS_FOLDER
+from config.config import LOGS_FOLDER
+
 from config.urls import BLOCKCHECK_DISCUSSIONS_URL
-from log import global_logger, LOG_FILE
+from log.log import global_logger, LOG_FILE
+
 from support_request_bundle import PreparedSupportRequest, prepare_support_request
 
 

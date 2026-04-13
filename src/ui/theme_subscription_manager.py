@@ -6,8 +6,10 @@
 
 from typing import Optional
 from PyQt6.QtWidgets import QWidget
-from log import log
-from config import APP_VERSION
+from log.log import log
+
+from config.build_info import APP_VERSION
+
 
 class ThemeSubscriptionManager:
     """

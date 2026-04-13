@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Set
 
-from log import log
+from log.log import log
+
 
 
 # Показываем подсказку не чаще 1 раза на "сценарий", чтобы не засорять логи.

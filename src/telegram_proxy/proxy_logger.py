@@ -14,7 +14,8 @@ from collections import deque
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
-from config import LOGS_FOLDER
+from config.config import LOGS_FOLDER
+
 
 _LOG_FILENAME = "tg_proxy.log"
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB

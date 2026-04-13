@@ -24,6 +24,8 @@ except Exception:
     TransparentPushButton = QPushButton  # type: ignore[assignment]
     TitleLabel = QLabel  # type: ignore[assignment]
 
+from ui.theme import get_themed_qta_icon
+
 
 @dataclass(slots=True)
 class ServersHeaderWidgets:
@@ -47,7 +49,7 @@ def build_servers_header_widgets(*, tr_fn, qta_module, parent, on_back_clicked) 
 
     back_btn = TransparentPushButton(parent=parent)
     back_btn.setText(tr_fn("page.servers.back.about", "О программе"))
-    back_btn.setIcon(qta_module.icon("fa5s.chevron-left", color="#888"))
+    back_btn.setIcon(get_themed_qta_icon("fa5s.chevron-left", color="#888"))
     back_btn.setIconSize(QSize(12, 12))
     back_btn.clicked.connect(on_back_clicked)
     back_row.addWidget(back_btn)

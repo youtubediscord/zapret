@@ -10,7 +10,8 @@ import re
 import time as _time
 import requests
 from typing import Optional, Dict, Any
-from log import log
+from log.log import log
+
 from .network_hints import maybe_log_disable_dpi_for_update
 from .proxy_bypass import session_bypass_proxy
 

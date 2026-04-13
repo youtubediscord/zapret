@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from app_notifications import advisory_notification, notification_action
-from log import log
+from log.log import log
+
 from ui.page_method_dispatch import (
     show_active_strategy_page_loading,
     show_active_strategy_page_success,
