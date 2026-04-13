@@ -313,10 +313,10 @@ class DirectLaunchController:
                 expected_process=self._expected_process_name(launch_method),
             )
 
-    def _mark_runtime_running(self) -> None:
+    def _mark_runtime_running(self, pid: int | None = None) -> None:
         runtime_service = self._runtime_service()
         if runtime_service is not None:
-            runtime_service.mark_running()
+            runtime_service.mark_running(pid=pid)
 
     def _mark_runtime_failed(self, error_message: str, *, exit_code: int | None = None) -> None:
         runtime_service = self._runtime_service()

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 INJECTABLE_PAGE_ATTRS: tuple[str, ...] = (
     "launch_runtime_api",
-    "process_monitor",
     "set_status",
     "orchestra_runner",
 )

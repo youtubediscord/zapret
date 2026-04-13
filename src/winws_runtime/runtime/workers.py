@@ -9,6 +9,8 @@ from PyQt6.QtCore import QObject, QMetaObject, Qt, pyqtSignal
 
 from winws_runtime.health.process_health_check import diagnose_startup_error
 from log.log import log
+from winws_runtime.runtime.system_ops import force_kill_all_winws_processes
+from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
 from settings.dpi.strategy_settings import get_strategy_launch_method
 
@@ -110,28 +112,15 @@ class DirectLaunchStartWorker(QObject):
             return
 
         self.progress.emit("Останавливаем предыдущий процесс...")
-
-        if self.launch_method in ("direct_zapret2", "direct_zapret1"):
-            from winws_runtime.runners.runner_factory import get_strategy_runner
-
-            runner = get_strategy_runner(self._get_winws_exe())
-            runner.stop()
-        else:
-            if hasattr(self.app_instance, "orchestra_runner") and self.app_instance.orchestra_runner:
-                try:
-                    self.app_instance.orchestra_runner.stop()
-                except Exception as e:
-                    log(f"Ошибка остановки orchestra_runner перед новым стартом: {e}", "DEBUG")
-            try:
-                from utils.process_killer import kill_winws_force
-
-                kill_winws_force()
-            except Exception as e:
-                log(f"Ошибка low-level остановки перед новым стартом: {e}", "DEBUG")
-            try:
-                self.app_instance.launch_runtime_api.cleanup_windivert_service()
-            except Exception as e:
-                log(f"Ошибка cleanup_windivert_service перед новым стартом: {e}", "DEBUG")
+        shutdown_result = shutdown_runtime_sync(
+            window=self.app_instance,
+            reason=f"start_worker_prelaunch:{self.launch_method}",
+            include_cleanup=True,
+            update_runtime_state=False,
+        )
+        if not shutdown_result.still_running:
+            time.sleep(0.5)
+            return
 
         max_wait = 10
         for attempt in range(max_wait):
@@ -142,9 +131,7 @@ class DirectLaunchStartWorker(QObject):
         else:
             log("⚠️ Процесс не остановился за 5 секунд, принудительное завершение...", "WARNING")
             try:
-                from utils.process_killer import kill_winws_force
-
-                kill_winws_force()
+                force_kill_all_winws_processes()
                 time.sleep(1)
             except Exception as e:
                 log(f"Ошибка kill_winws_force: {e}", "DEBUG")
@@ -418,17 +405,7 @@ class DirectLaunchStopWorker(QObject):
 
     def _stop_direct(self):
         try:
-            from winws_runtime.runners.runner_factory import get_strategy_runner
-            from utils.process_killer import kill_winws_all
-
-            runner = get_strategy_runner(self._get_winws_exe())
-            success = runner.stop()
-
-            if not success or self.app_instance.launch_runtime_api.is_any_running(silent=True):
-                kill_winws_all()
-
-            self.app_instance.launch_runtime_api.cleanup_windivert_service()
-            return not self.app_instance.launch_runtime_api.is_any_running(silent=True)
+            return self._shutdown_runtime(reason=f"direct_stop_worker:{self.launch_method}")
 
         except Exception as e:
             log(f"Ошибка прямой остановки: {e}", "❌ ERROR")
@@ -436,23 +413,20 @@ class DirectLaunchStopWorker(QObject):
 
     def _stop_orchestra(self):
         try:
-            from utils.process_killer import kill_winws_all
-
-            if hasattr(self.app_instance, "orchestra_runner") and self.app_instance.orchestra_runner:
-                self.app_instance.orchestra_runner.stop()
-
-                if hasattr(self.app_instance, "orchestra_page"):
-                    self.app_instance.orchestra_page.stop_monitoring()
-
-            if self.app_instance.launch_runtime_api.is_any_running(silent=True):
-                kill_winws_all()
-
-            self.app_instance.launch_runtime_api.cleanup_windivert_service()
-            return not self.app_instance.launch_runtime_api.is_any_running(silent=True)
+            return self._shutdown_runtime(reason="orchestra_stop_worker")
 
         except Exception as e:
             log(f"Ошибка остановки оркестратора: {e}", "❌ ERROR")
             return False
+
+    def _shutdown_runtime(self, *, reason: str) -> bool:
+        result = shutdown_runtime_sync(
+            window=self.app_instance,
+            reason=reason,
+            include_cleanup=True,
+            update_runtime_state=False,
+        )
+        return not result.still_running
 
 
 class DirectPresetSwitchWorker(QObject):
@@ -546,23 +520,12 @@ class StopAndExitWorker(QObject):
     def run(self):
         try:
             self.progress.emit("Остановка DPI перед закрытием...")
-
-            if self.launch_method == "orchestra":
-                if hasattr(self.app_instance, "orchestra_runner") and self.app_instance.orchestra_runner:
-                    self.app_instance.orchestra_runner.stop()
-                from utils.process_killer import kill_winws_all
-
-                kill_winws_all()
-            elif self.launch_method in ("direct_zapret2", "direct_zapret1"):
-                from winws_runtime.runners.runner_factory import get_strategy_runner
-
-                runner = get_strategy_runner(self._get_winws_exe())
-                runner.stop()
-                self.app_instance.launch_runtime_api.stop_all_processes()
-                self.app_instance.launch_runtime_api.cleanup_windivert_service()
-            else:
-                self.app_instance.launch_runtime_api.stop_all_processes()
-                self.app_instance.launch_runtime_api.cleanup_windivert_service()
+            shutdown_runtime_sync(
+                window=self.app_instance,
+                reason=f"stop_and_exit_worker:{self.launch_method}",
+                include_cleanup=True,
+                update_runtime_state=True,
+            )
 
             self.progress.emit("Завершение работы...")
             self.finished.emit()

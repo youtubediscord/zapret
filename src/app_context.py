@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from app_state.app_runtime_state import AppRuntimeState
-    from app_state.launch_runtime_service import LaunchRuntimeService
     from app_state.main_window_state import AppUiState, MainWindowStateStore
     from winws_runtime.flow.direct_flow import DirectFlowCoordinator
+    from winws_runtime.state import LaunchRuntimeService
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore
@@ -46,11 +46,11 @@ class AppContext:
 
 def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppContext:
     from app_state.app_runtime_state import AppRuntimeState
-    from app_state.launch_runtime_service import LaunchRuntimeService
     from app_state.main_window_state import AppUiState, MainWindowStateStore
     from config.config import get_zapret_userdata_dir
 
     from winws_runtime.flow.direct_flow import DirectFlowCoordinator
+    from winws_runtime.state import LaunchRuntimeService
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore

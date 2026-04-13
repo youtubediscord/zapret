@@ -405,15 +405,15 @@ class UpdateWorker(QObject):
 
     def _stop_dpi_for_download(self) -> bool:
         """Останавливает winws/winws2 если запущены. Возвращает True если что-то остановили."""
-        from utils.process_killer import is_process_running, kill_winws_force
+        from winws_runtime.runtime.sync_shutdown import is_any_runtime_running_sync, shutdown_runtime_sync
 
-        if not is_process_running("winws.exe") and not is_process_running("winws2.exe"):
+        if not is_any_runtime_running_sync():
             return False
 
         log("⚠️ DPI (winws) мешает скачиванию — временно останавливаем", "🔁 UPDATE")
         self._emit("Остановка DPI для скачивания...")
 
-        kill_winws_force()
+        shutdown_runtime_sync(reason="updater_download_connectivity", include_cleanup=True)
         time.sleep(0.5)
         return True
 

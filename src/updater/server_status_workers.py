@@ -187,11 +187,11 @@ class ServerCheckWorker(QThread):
                 verify_ssl=should_verify_ssl(),
             )
             if data is None:
-                from utils.process_killer import is_process_running, kill_winws_force
+                from winws_runtime.runtime.sync_shutdown import is_any_runtime_running_sync, shutdown_runtime_sync
 
-                if is_process_running("winws.exe") or is_process_running("winws2.exe"):
+                if is_any_runtime_running_sync():
                     log("⚠️ DPI мешает проверке серверов — временно останавливаем", "🔄 UPDATE")
-                    kill_winws_force()
+                    shutdown_runtime_sync(reason="server_status_probe", include_cleanup=True)
                     _time.sleep(0.5)
                     dpi_was_stopped = True
 

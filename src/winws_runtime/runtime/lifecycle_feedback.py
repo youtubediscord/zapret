@@ -6,6 +6,32 @@ from log.log import log
 
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
+
+def _runner_start_pid(controller) -> int | None:
+    try:
+        from winws_runtime.runners.runner_factory import get_current_runner
+
+        runner = get_current_runner()
+        if runner is None:
+            return None
+
+        snapshot_getter = getattr(runner, "get_runner_state_snapshot", None)
+        if callable(snapshot_getter):
+            snapshot = snapshot_getter()
+            state_value = str(getattr(snapshot, "state", "") or "").strip().lower()
+            pid = getattr(snapshot, "pid", None)
+            if state_value == "running" and isinstance(pid, int):
+                return pid
+
+        process = getattr(runner, "running_process", None)
+        pid = getattr(process, "pid", None)
+        if isinstance(pid, int):
+            return pid
+    except Exception:
+        return None
+    return None
+
+
 def show_launch_error_top(controller, message: str) -> None:
     """Показывает человеко-понятную ошибку запуска через верхний InfoBar."""
     bridge = ensure_runtime_ui_bridge(controller.app)
@@ -78,7 +104,7 @@ def on_dpi_process_confirmed(controller, running: bool, verify_gen=None):
     if running:
         log("DPI запущен асинхронно", "INFO")
         controller.app.set_status("✅ DPI успешно запущен")
-        controller._mark_runtime_running()
+        controller._mark_runtime_running(pid=_runner_start_pid(controller))
         controller.app.intentional_start = True
         controller._maybe_restart_discord_after_runtime_apply(skip_first_start=True)
 
@@ -114,6 +140,7 @@ def on_dpi_start_finished(controller, success, error_message):
             bridge.show_active_strategy_page_success()
 
         if success:
+            controller._mark_runtime_running(pid=_runner_start_pid(controller))
             controller._dpi_start_verify_retry = 0
             verify_gen = controller._dpi_start_verify_generation
             verify_dpi_process_running(controller, verify_gen)

@@ -1578,10 +1578,11 @@ class StrategyScanner:
         # Fallback: force-kill all winws processes if graceful kill failed
         if not killed_cleanly:
             try:
-                from utils.process_killer import kill_winws_force
-                kill_winws_force()
+                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+
+                shutdown_runtime_sync(reason="blockcheck_kill_fallback", include_cleanup=True)
             except Exception as e:
-                logger.debug("kill_winws_force fallback failed: %s", e)
+                logger.debug("canonical runtime shutdown fallback failed: %s", e)
 
     def _pre_scan_cleanup(self) -> None:
         """Kill any running winws and clean WinDivert before scanning."""
@@ -1589,20 +1590,14 @@ class StrategyScanner:
         errors = []
 
         try:
-            from utils.process_killer import kill_winws_force
-            if not kill_winws_force():
-                errors.append("kill_winws_force returned False")
-        except Exception as e:
-            errors.append(f"kill_winws_force: {e}")
-            logger.debug("kill_winws_force failed: %s", e)
+            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
-        try:
-            from utils.service_manager import cleanup_windivert_services
-            if not cleanup_windivert_services():
-                errors.append("cleanup_windivert returned False")
+            result = shutdown_runtime_sync(reason="blockcheck_pre_scan", include_cleanup=True)
+            if result.still_running:
+                errors.append("runtime still running after canonical shutdown")
         except Exception as e:
-            errors.append(f"cleanup_windivert: {e}")
-            logger.debug("cleanup_windivert_services failed: %s", e)
+            errors.append(f"canonical_runtime_shutdown: {e}")
+            logger.debug("canonical runtime shutdown failed: %s", e)
 
         # Clean stale temp files from a previous crashed scan
         self._cleanup_temp_files()

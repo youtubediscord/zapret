@@ -44,10 +44,14 @@ class WindowLifecycleMixin:
 
         if getattr(self, "_stop_dpi_on_exit", False):
             try:
-                from utils.process_killer import kill_winws_force
+                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
-                kill_winws_force()
-                log("Процессы winws завершены при закрытии приложения (stop_dpi_on_exit=True)", "DEBUG")
+                result = shutdown_runtime_sync(window=self, reason="close_event stop_dpi_on_exit", include_cleanup=True)
+                log(
+                    f"Процессы winws завершены при закрытии приложения "
+                    f"(running={result.had_running_processes}, still_running={result.still_running})",
+                    "DEBUG",
+                )
             except Exception as e:
                 log(f"Ошибка остановки winws при закрытии: {e}", "DEBUG")
         else:
@@ -121,10 +125,9 @@ class WindowLifecycleMixin:
                 log(f"stop_and_exit_async не удалось: {e}", "WARNING")
 
             try:
-                runtime = getattr(self, "launch_runtime_api", None)
-                if runtime is not None:
-                    runtime.stop_all_processes()
-                    runtime.cleanup_windivert_service()
+                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+
+                shutdown_runtime_sync(window=self, reason="request_exit fallback", include_cleanup=True)
             except Exception as e:
                 log(f"Ошибка остановки DPI перед выходом: {e}", "WARNING")
 

@@ -36,6 +36,7 @@ from winws_runtime.health.process_health_check import (
     check_common_crash_causes,
     diagnose_startup_error
 )
+from winws_runtime.runtime.system_ops import get_process_pids_by_name
 
 
 class StrategyRunnerV1(StrategyRunnerBase):
@@ -232,9 +233,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
 
                 if not cleanup_needed:
                     try:
-                        from utils.process_killer import get_process_pids
-
-                        cleanup_needed = bool(get_process_pids(os.path.basename(self.winws_exe)))
+                        cleanup_needed = bool(get_process_pids_by_name(os.path.basename(self.winws_exe)))
                     except Exception:
                         cleanup_needed = False
 

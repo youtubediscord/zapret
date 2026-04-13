@@ -45,6 +45,7 @@ from .constants import CREATE_NO_WINDOW
 from winws_runtime.health.process_health_check import (
     diagnose_startup_error
 )
+from winws_runtime.runtime.system_ops import get_all_winws_process_pids, get_process_pids_by_name
 
 
 _WINDOWS_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
@@ -565,21 +566,25 @@ class StrategyRunnerV2(StrategyRunnerBase):
                     self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
                 return
 
-            self._stop_process_only_locked()
+            cleanup_required = self._stop_process_only_locked()
+            if cleanup_required:
+                self._perform_standard_windivert_cleanup()
             self._spawn_process_locked(
                 artifact,
                 strategy_name,
                 hot_reload=True,
             )
 
-    def _stop_process_only_locked(self) -> None:
+    def _stop_process_only_locked(self) -> bool:
         """
         Stops the process without stopping the config watcher.
         Used for hot-reload to keep monitoring the config file.
         """
         try:
             cleanup_needed = False
+            had_running_process = False
             if self.running_process and self.is_running():
+                had_running_process = True
                 pid = self.running_process.pid
                 strategy_name = self.current_launch_label or "unknown"
                 self._set_runner_state_locked(
@@ -612,18 +617,17 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
                 if not cleanup_needed:
                     try:
-                        from utils.process_killer import get_process_pids
-
-                        cleanup_needed = bool(get_process_pids(os.path.basename(self.winws_exe)))
+                        cleanup_needed = bool(get_process_pids_by_name(os.path.basename(self.winws_exe)))
                     except Exception:
                         cleanup_needed = False
 
             if cleanup_needed:
                 log("Hot-reload fallback cleanup: detected lingering winws process", "DEBUG")
                 self._kill_all_winws_processes()
-
+            return had_running_process or cleanup_needed
         except Exception as e:
             log(f"Error stopping process for hot-reload: {e}", "ERROR")
+            return False
 
     def _clear_process_state_locked(self) -> None:
         self.running_process = None
@@ -827,7 +831,9 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 return False
 
             if self.running_process and self.is_running():
-                self._stop_process_only_locked()
+                cleanup_required = self._stop_process_only_locked()
+                if cleanup_required:
+                    self._perform_standard_windivert_cleanup()
 
             self._preset_file_path = preset_path
             success = self._spawn_process_locked(
@@ -865,8 +871,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
         Returns:
             True if strategy started successfully
         """
-        from utils.process_killer import kill_winws_force, get_process_pids
-
         if not os.path.exists(preset_path):
             log(f"Preset file not found: {preset_path}", "ERROR")
             self._set_last_error(f"Preset файл не найден: {preset_path}")
@@ -881,15 +885,12 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 strategy_name,
                 force_cleanup=bool(_force_cleanup),
                 retry_count=int(_retry_count),
-                kill_winws_force=kill_winws_force,
-                get_process_pids=get_process_pids,
             )
 
     def _resolve_cleanup_required_before_spawn(
         self,
         *,
         force_cleanup: bool,
-        get_process_pids,
     ) -> bool:
         cleanup_required = bool(force_cleanup)
 
@@ -899,7 +900,7 @@ class StrategyRunnerV2(StrategyRunnerBase):
             cleanup_required = True
 
         try:
-            active_winws_pids = get_process_pids("winws.exe") + get_process_pids("winws2.exe")
+            active_winws_pids = get_all_winws_process_pids()
         except Exception:
             active_winws_pids = []
 
@@ -921,8 +922,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
         *,
         cleanup_required: bool,
         retry_count: int,
-        kill_winws_force,
-        get_process_pids,
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
@@ -942,8 +941,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 strategy_name,
                 force_cleanup=True,
                 retry_count=1,
-                kill_winws_force=kill_winws_force,
-                get_process_pids=get_process_pids,
             )
 
         return False
@@ -955,8 +952,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
         *,
         force_cleanup: bool,
         retry_count: int,
-        kill_winws_force,
-        get_process_pids,
     ) -> bool:
         artifact = self._compile_preset_artifact(preset_path)
         if not artifact.validation_ok:
@@ -978,7 +973,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
         cleanup_required = self._resolve_cleanup_required_before_spawn(
             force_cleanup=force_cleanup,
-            get_process_pids=get_process_pids,
         )
         self._perform_cleanup_before_spawn_locked(cleanup_required=cleanup_required)
 
@@ -997,8 +991,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
             strategy_name,
             cleanup_required=cleanup_required,
             retry_count=retry_count,
-            kill_winws_force=kill_winws_force,
-            get_process_pids=get_process_pids,
         )
 
     def find_running_preset_pid(self, preset_path: str) -> Optional[int]:

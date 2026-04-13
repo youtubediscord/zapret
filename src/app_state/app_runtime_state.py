@@ -10,7 +10,7 @@ class AppRuntimeState:
     Его роль сейчас простая и честная:
     - дать внешним use-site'ам безопасные read-helper'ы для launch/autostart state;
     - дать один явный writer для `autostart_enabled`;
-    - не подменять собой `MainWindowStateStore` и не дублировать `LaunchRuntimeService`.
+    - не подменять собой `MainWindowStateStore` и не дублировать `winws_runtime.state.LaunchRuntimeService`.
     """
 
     def __init__(self, app_instance_or_store) -> None:

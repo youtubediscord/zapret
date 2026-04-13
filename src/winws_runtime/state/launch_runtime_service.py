@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from app_state.main_window_state import MainWindowStateStore
+from winws_runtime.runtime.process_probe import is_winws_process_pid_alive
 
 _UNSET = object()
 
@@ -36,6 +37,7 @@ class _LaunchRuntimeTrackingState:
 
     expected_process: str = ""
     pid: int | None = None
+    missing_probe_count: int = 0
 
 
 class LaunchRuntimeService:
@@ -129,7 +131,7 @@ class LaunchRuntimeService:
         launch_method: str | None = None,
         expected_process: str = "",
     ) -> bool:
-        self._set_tracking_state(expected_process=expected_process, pid=None)
+        self._set_tracking_state(expected_process=expected_process, pid=None, missing_probe_count=0)
         changes = self._runtime_changes(
             phase="starting",
             running=False,
@@ -145,7 +147,7 @@ class LaunchRuntimeService:
         launch_method: str | None = None,
         expected_process: str = "",
     ) -> bool:
-        self._set_tracking_state(expected_process=expected_process, pid=None)
+        self._set_tracking_state(expected_process=expected_process, pid=None, missing_probe_count=0)
         changes = self._runtime_changes(
             phase="autostart_pending",
             running=False,
@@ -173,7 +175,11 @@ class LaunchRuntimeService:
         tracked = self._tracking_state
         next_expected_process = tracked.expected_process if expected_process is None else str(expected_process or "").strip().lower()
         next_pid = pid if isinstance(pid, int) else tracked.pid
-        self._set_tracking_state(expected_process=next_expected_process, pid=next_pid)
+        self._set_tracking_state(
+            expected_process=next_expected_process,
+            pid=next_pid,
+            missing_probe_count=0,
+        )
         return self._apply(
             **self._runtime_changes(
                 phase="running",
@@ -183,7 +189,7 @@ class LaunchRuntimeService:
         )
 
     def mark_start_failed(self, error: str) -> bool:
-        self._set_tracking_state(pid=None)
+        self._set_tracking_state(pid=None, missing_probe_count=0)
         return self._apply(
             **self._runtime_changes(
                 phase="failed",
@@ -194,7 +200,7 @@ class LaunchRuntimeService:
 
     def mark_stopped(self, *, clear_error: bool = True) -> bool:
         snap = self.snapshot()
-        self._set_tracking_state(expected_process="", pid=None)
+        self._set_tracking_state(expected_process="", pid=None, missing_probe_count=0)
         return self._apply(
             **self._runtime_changes(
                 phase="stopped",
@@ -213,6 +219,7 @@ class LaunchRuntimeService:
         self._set_tracking_state(
             expected_process=expected_process if (running or self.current_phase() == "autostart_pending") else "",
             pid=None,
+            missing_probe_count=0,
         )
         current_phase = self.current_phase()
         if running:
@@ -265,6 +272,14 @@ class LaunchRuntimeService:
                         pid=matched_pid,
                         expected_process=matched_name or expected,
                     )
+                self._set_tracking_state(missing_probe_count=0)
+                return False
+            tracked_pid = tracked.pid
+            if tracked_pid is not None and is_winws_process_pid_alive(tracked_pid, expected or matched_name):
+                self._set_tracking_state(missing_probe_count=0)
+                return False
+            miss_count = self._increment_missing_probe_count()
+            if miss_count < 3:
                 return False
             if expected:
                 return self.mark_start_failed(f"{expected} не найден среди активных процессов")
@@ -310,11 +325,19 @@ class LaunchRuntimeService:
         *,
         expected_process: str | None = None,
         pid: int | None | object = _UNSET,
+        missing_probe_count: int | None = None,
     ) -> None:
         if expected_process is not None:
             self._tracking_state.expected_process = str(expected_process or "").strip().lower()
         if pid is not _UNSET:
             self._tracking_state.pid = int(pid) if isinstance(pid, int) else None
+        if missing_probe_count is not None:
+            self._tracking_state.missing_probe_count = max(0, int(missing_probe_count))
+
+    def _increment_missing_probe_count(self) -> int:
+        next_value = int(getattr(self._tracking_state, "missing_probe_count", 0) or 0) + 1
+        self._set_tracking_state(missing_probe_count=next_value)
+        return next_value
 
     @staticmethod
     def _normalize_process_details(details: Mapping[str, Any] | None) -> dict[str, list[int]]:

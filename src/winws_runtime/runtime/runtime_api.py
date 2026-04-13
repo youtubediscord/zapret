@@ -7,11 +7,11 @@ if TYPE_CHECKING:
 
 from log.log import log
 
-from utils.subproc import get_system32_path, run_hidden
 from .process_probe import (
     get_canonical_winws_process_pids,
     is_expected_winws_running,
 )
+from .system_ops import cleanup_windivert_services_runtime, stop_all_winws_processes
 
 
 class DirectLaunchRuntimeApi:
@@ -86,37 +86,19 @@ class DirectLaunchRuntimeApi:
             return False
 
     def cleanup_windivert_service(self) -> bool:
-        """Очистка службы через PowerShell - без окон"""
-        ps_script = """
-        $service = Get-Service -Name windivert -ErrorAction SilentlyContinue
-        if ($service) {
-            Stop-Service -Name windivert -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-            sc.exe delete windivert | Out-Null
-            Stop-Service -Name Monkey -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-            sc.exe delete Monkey | Out-Null
-        }
-        """
-
+        """Очистка служб WinDivert через internal runtime ops."""
         try:
-            ps_exe = os.path.join(get_system32_path(), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-            run_hidden(
-                [ps_exe, '-WindowStyle', 'Hidden', '-NoProfile', '-Command', ps_script],
-                wait=True
-            )
-            return True
+            return bool(cleanup_windivert_services_runtime())
         except Exception as e:
             log(f"Ошибка очистки службы: {e}", "⚠ WARNING")
-            return True
+            return False
 
     def stop_all_processes(self) -> bool:
         """Останавливает все процессы DPI через Win API"""
         log("Останавливаем все процессы winws через Win API...", "INFO")
 
         try:
-            from utils.process_killer import kill_winws_all
-            kill_winws_all()
+            stop_all_winws_processes()
         except Exception as e:
             log(f"Ошибка остановки через Win API: {e}", "⚠ WARNING")
 

@@ -237,7 +237,6 @@ class StrategyDetailPage(BasePage):
         self._tcp_hide_fake_phase = False
         self._tcp_last_enabled_args_by_target: dict[str, str] = {}
         self._waiting_for_process_start = False  # Флаг ожидания запуска DPI
-        self._process_monitor_connected = False  # Флаг подключения к process_monitor
         self._apply_feedback_timer = None  # Быстрый таймер: убрать спиннер после apply
         self._strategies_load_runtime = StrategyDetailPageController.create_strategies_load_runtime()
         self._loaded_strategy_type = None
@@ -295,8 +294,6 @@ class StrategyDetailPage(BasePage):
         # Close hover/pinned preview when the main window hides/deactivates (e.g. tray).
         QTimer.singleShot(0, lambda: (not self._cleanup_in_progress) and self._install_host_window_event_filter())
 
-        # Подключаемся к process_monitor для отслеживания статуса DPI
-        self._connect_process_monitor()
         self._apply_pending_target_request_if_ready()
 
     def _install_host_window_event_filter(self) -> None:
@@ -1490,12 +1487,28 @@ class StrategyDetailPage(BasePage):
         self._ui_state_store = store
         self._ui_state_unsubscribe = store.subscribe(
             self._on_ui_state_changed,
-            fields={"active_preset_revision", "preset_content_revision", "preset_structure_revision", "mode_revision"},
+            fields={
+                "active_preset_revision",
+                "preset_content_revision",
+                "preset_structure_revision",
+                "mode_revision",
+                "launch_running",
+                "launch_phase",
+            },
             emit_initial=False,
         )
 
-    def _on_ui_state_changed(self, _state: AppUiState, changed_fields: frozenset[str]) -> None:
+    def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
         if self._cleanup_in_progress:
+            return
+        if (
+            ("launch_running" in changed_fields or "launch_phase" in changed_fields)
+            and self._waiting_for_process_start
+            and bool(state.launch_running)
+            and str(state.launch_phase or "").strip().lower() == "running"
+        ):
+            log("StrategyDetailPage: launch state перешёл в running, показываем галочку", "DEBUG")
+            self.show_success()
             return
         if "mode_revision" in changed_fields:
             self.reload_for_mode_change()
@@ -2247,9 +2260,6 @@ class StrategyDetailPage(BasePage):
             loading=True,
         )
         self._waiting_for_process_start = True  # Ждём запуска DPI
-        # Убедимся, что мы подключены к process_monitor
-        if not self._process_monitor_connected:
-            self._connect_process_monitor()
         # В direct_zapret2 режимах "apply" часто не меняет состояние процесса (hot-reload),
         # поэтому даём быстрый таймаут, чтобы UI не зависал на спиннере.
         self._start_apply_feedback_timer()
@@ -2308,35 +2318,6 @@ class StrategyDetailPage(BasePage):
             success_pixmap=get_cached_qta_pixmap('fa5s.check-circle', color='#4ade80', size=16),
         )
 
-    def _connect_process_monitor(self):
-        """Подключается к сигналу processStatusChanged от ProcessMonitorThread"""
-        if self._cleanup_in_progress or self._process_monitor_connected:
-            return  # Уже подключены
-
-        try:
-            process_monitor = getattr(self, "process_monitor", None)
-            if process_monitor is not None:
-                process_monitor.processStatusChanged.connect(self._on_process_status_changed)
-                self._process_monitor_connected = True
-                log("StrategyDetailPage: подключен к processStatusChanged", "DEBUG")
-        except Exception as e:
-            log(f"StrategyDetailPage: ошибка подключения к process_monitor: {e}", "DEBUG")
-
-    def _on_process_status_changed(self, is_running: bool):
-        """
-        Обработчик изменения статуса процесса DPI.
-        Вызывается когда winws.exe/winws2.exe запускается или останавливается.
-        """
-        if self._cleanup_in_progress:
-            return
-        try:
-            if is_running and self._waiting_for_process_start:
-                # DPI запустился и мы ждали этого - показываем галочку
-                log("StrategyDetailPage: DPI запущен, показываем галочку", "DEBUG")
-                self.show_success()
-        except Exception as e:
-            log(f"StrategyDetailPage._on_process_status_changed error: {e}", "DEBUG")
-
     def _on_args_changed(self, strategy_id: str, args: list):
         """Обработчик изменения аргументов стратегии"""
         if self._cleanup_in_progress:
@@ -2385,14 +2366,6 @@ class StrategyDetailPage(BasePage):
         except Exception:
             pass
         self._host_window = None
-
-        try:
-            process_monitor = getattr(self, "process_monitor", None)
-            if self._process_monitor_connected and process_monitor is not None:
-                process_monitor.processStatusChanged.disconnect(self._on_process_status_changed)
-        except Exception:
-            pass
-        self._process_monitor_connected = False
 
     def _get_target_details(self, target_key: str | None = None):
         key = str(target_key or self._target_key or "").strip().lower()
