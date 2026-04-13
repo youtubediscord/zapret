@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from filters.strategy_detail.zapret2.apply import apply_loading_indicator_state
+from filters.ui.strategy_detail.zapret2.apply import apply_loading_indicator_state
 
 
 def show_loading_feedback_v1(

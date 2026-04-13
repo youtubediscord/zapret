@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from filters.strategy_detail.shared import ensure_preview_dialog, show_strategy_preview_dialog
+from filters.ui.strategy_detail.shared import ensure_preview_dialog, show_strategy_preview_dialog
 
 
 def build_preview_strategy_data(*, strategy_id: str, strategy_data: dict | None) -> dict:

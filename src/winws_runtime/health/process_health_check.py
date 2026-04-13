@@ -1065,7 +1065,21 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             "enable_driver",
         )
 
-    # Check 5: Antivirus
+    # Check 5: Driver installed but not yet ready after cleanup/restart.
+    try:
+        from winws_runtime.runtime.system_ops import probe_windivert_state_runtime
+
+        probe = probe_windivert_state_runtime()
+        if probe.installed and not probe.ready:
+            return (
+                "WinDivert ещё не готов после предыдущего запуска или очистки",
+                "Подождите пару секунд и попробуйте снова. Если повторяется — перезапустите программу или ПК",
+                None,
+            )
+    except Exception:
+        pass
+
+    # Check 6: Antivirus
     av = _detect_active_antivirus()
     if av:
         return (
@@ -1074,7 +1088,7 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             None,
         )
 
-    # Check 6: Network adapters. This check must be late because Win32 1058
+    # Check 7: Network adapters. This check must be late because Win32 1058
     # is a generic service-disabled error and otherwise easily turns into a
     # ложный диагноз про адаптеры.
     if not _check_network_adapters():

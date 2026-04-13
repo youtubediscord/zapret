@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from direct_preset.facade import DirectPresetFacade
+
 if TYPE_CHECKING:
     from app_state.app_runtime_state import AppRuntimeState
     from app_state.main_window_state import AppUiState, MainWindowStateStore
@@ -18,7 +20,6 @@ if TYPE_CHECKING:
     from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
-    from direct_preset.facade import DirectPresetFacade
     from app_state.strategy_feedback_store import StrategyFeedbackStore
 
 

@@ -8,7 +8,7 @@ from settings.dpi.strategy_settings import get_strategy_launch_method
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
 from .thread_runtime import start_worker_thread
-from .workers import DirectPresetSwitchWorker
+from .control_workers import DirectPresetSwitchWorker
 from winws_runtime.flow.start_preparation import resolve_launch_method
 
 

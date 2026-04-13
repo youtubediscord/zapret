@@ -33,7 +33,7 @@ def on_open_target_detail(window, target_key: str, current_strategy_id: str) -> 
     open_strategy_detail_with_logging(
         window,
         target_key,
-        opener=lambda w, key: open_zapret2_strategy_detail(w, key),
+        opener=lambda w, key: open_zapret2_strategy_detail(w, key, allow_internal=True),
         error_prefix="Error opening target detail",
     )
 

@@ -1,4 +1,4 @@
-# dpi/ui/direct_zapret2/strategies_page.py
+# filters/ui/filter_list/zapret2/targets_page.py
 """
 Страница выбора стратегий для режима direct_zapret2 (preset-based).
 При клике на target открывается отдельная страница StrategyDetailPage.
@@ -16,7 +16,7 @@ from filters.runtime.targets_payload_runtime import (
     apply_payload_snapshot,
     set_payload_loading,
 )
-from filters.pages.direct_zapret2_targets_selection import (
+from filters.ui.filter_list.zapret2.targets_selection import (
     apply_direct_z2_language,
     apply_filter_mode_change,
     apply_strategy_selection,

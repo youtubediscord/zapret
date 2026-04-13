@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
-from filters.strategy_detail.shared_filter_mode import apply_filter_mode_selector_texts
+from filters.ui.strategy_detail.filter_mode_ui import apply_filter_mode_selector_texts
 
 
 @dataclass(slots=True)

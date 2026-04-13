@@ -308,7 +308,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Automatically start the current DPI mode after ZapretGUI launches",
     },
     "page.z1_control.card.advanced": {
-        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "ru": "Дополнительные настройки",
         "en": "ADVANCED SETTINGS",
     },
     "page.z1_control.advanced.warning": {
@@ -778,14 +778,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.about.button.update_settings": {
         "ru": "Настройка обновлений",
         "en": "Update Settings",
-    },
-    "page.about.device.id": {
-        "ru": "ID устройства",
-        "en": "Device ID",
-    },
-    "page.about.button.copy_id": {
-        "ru": "Копировать ID",
-        "en": "Copy ID",
     },
     "page.about.subscription.free": {
         "ru": "Free версия",
@@ -1672,12 +1664,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Number of errors to auto-unlock strategy",
     },
     "page.dpi_settings.card.advanced": {
-        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "ru": "Дополнительные настройки",
         "en": "ADVANCED SETTINGS",
     },
     "page.dpi_settings.advanced.warning": {
-        "ru": "⚠ Изменяйте только если знаете что делаете",
-        "en": "⚠ Change only if you know what you are doing",
+        "ru": "Изменяйте только если знаете что делаете",
+        "en": "Change only if you know what you are doing",
     },
     "page.dpi_settings.advanced.wssize.title": {
         "ru": "Включить --wssize",
@@ -4016,7 +4008,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "",
     },
     "page.z2_control.subtitle": {
-        "ru": "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, а при необходимости выполните тонкую настройку для каждой категории в разделе «Прямой запуск».",
+        "ru": "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, а при необходимости выполните тонкую настройку для каждого фильтра в разделе «Прямой запуск».",
         "en": "Configure and launch Zapret 2. Choose ready presets and fine-tune categories in Direct Launch.",
     },
     "page.z2_control.section.status": {
@@ -4120,12 +4112,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Current selected source preset",
     },
     "page.z2_control.card.advanced": {
-        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "ru": "Дополнительные настройки",
         "en": "ADVANCED SETTINGS",
     },
     "page.z2_control.advanced.warning": {
-        "ru": "⚠ Изменяйте только если знаете что делаете",
-        "en": "⚠ Change only if you know what you are doing",
+        "ru": "Изменяйте только если знаете что делаете",
+        "en": "Change only if you know what you are doing",
     },
     "page.z2_control.blobs.title": {
         "ru": "Блобы",

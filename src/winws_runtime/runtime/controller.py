@@ -35,10 +35,12 @@ from .lifecycle_feedback import (
     show_launch_warning_top,
 )
 from .thread_runtime import start_worker_thread
-from .workers import (
-    DirectLaunchStartWorker,
+from .control_workers import (
     DirectLaunchStopWorker,
     StopAndExitWorker,
+)
+from .start_workers import (
+    DirectLaunchStartWorker,
 )
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
@@ -580,7 +582,35 @@ class DirectLaunchController:
         Returns:
             True если процесс запущен, False иначе
         """
-        return self.app.launch_runtime_api.is_any_running(silent=True)
+        try:
+            runtime_service = getattr(self.app, "launch_runtime_service", None)
+            if runtime_service is not None:
+                snapshot = runtime_service.snapshot()
+                phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
+                if bool(getattr(snapshot, "running", False)) and phase == "running":
+                    return True
+        except Exception:
+            pass
+
+        try:
+            from winws_runtime.runners.runner_factory import get_current_runner
+
+            runner = get_current_runner()
+            if runner is not None:
+                snapshot_getter = getattr(runner, "get_runner_state_snapshot", None)
+                if callable(snapshot_getter):
+                    snapshot = snapshot_getter()
+                    state_value = str(getattr(snapshot, "state", "") or "").strip().lower()
+                    if state_value == "running":
+                        return True
+
+                is_runner_running = getattr(runner, "is_running", None)
+                if callable(is_runner_running) and bool(is_runner_running()):
+                    return True
+        except Exception:
+            pass
+
+        return bool(self.app.launch_runtime_api.is_any_running(silent=True))
 
     def restart_dpi_async(self, *, force_full_stop: bool = False):
         """

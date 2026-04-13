@@ -15,6 +15,7 @@ from .system_ops import (
     cleanup_windivert_services_runtime,
     has_any_winws_process,
     stop_all_winws_processes,
+    wait_for_windivert_cleanup_settle_runtime,
 )
 
 
@@ -119,7 +120,15 @@ class DirectLaunchRuntimeApi:
     def cleanup_windivert_service(self) -> bool:
         """Очистка служб WinDivert через internal runtime ops."""
         try:
-            return bool(cleanup_windivert_services_runtime())
+            cleaned = bool(cleanup_windivert_services_runtime())
+            settled = bool(
+                wait_for_windivert_cleanup_settle_runtime(
+                    max_wait_seconds=5.0,
+                    poll_interval=0.25,
+                    retry_cleanup=True,
+                )
+            )
+            return bool(cleaned and settled)
         except Exception as e:
             log(f"Ошибка очистки службы: {e}", "⚠ WARNING")
             return False

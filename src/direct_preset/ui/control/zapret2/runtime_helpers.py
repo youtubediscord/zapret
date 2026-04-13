@@ -130,7 +130,7 @@ def apply_direct_language(
         tr_catalog("page.z2_control.setting.max_block.desc", language=language, default="Блокирует запуск/установку MAX и домены в hosts"),
     )
     advanced_card.titleLabel.setText(
-        tr_catalog("page.z2_control.card.advanced", language=language, default="ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
+        tr_catalog("page.z2_control.card.advanced", language=language, default="Дополнительные настройки")
     )
     if blobs_action_card is not None:
         blobs_action_card.setTitle(

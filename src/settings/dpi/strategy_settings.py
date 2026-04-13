@@ -134,23 +134,61 @@ def set_direct_ui_mode(mode: str) -> bool:
     return ok
 
 
-def _get_direct_preset_facade(*, app_context=None):
+def _build_direct_runtime_reload_callback(*, launch_method: str, app_context, reason: str):
+    method = str(launch_method or "").strip().lower()
+    if method not in ("direct_zapret2", "direct_zapret1") or app_context is None:
+        return None
+
+    def _reload() -> None:
+        try:
+            from ui.app_window_locator import find_app_window
+            from winws_runtime.flow.apply_policy import request_direct_runtime_content_apply
+
+            host = find_app_window("launch_controller", "app_context")
+            if host is None:
+                return
+
+            host_context = getattr(host, "app_context", None)
+            if host_context is not None and host_context is not app_context:
+                return
+
+            request_direct_runtime_content_apply(
+                host,
+                launch_method=method,
+                reason=str(reason or "").strip() or "settings_changed",
+            )
+        except Exception:
+            return
+
+    return _reload
+
+
+def _get_direct_preset_facade(*, app_context=None, launch_method: str | None = None, reload_reason: str | None = None):
     try:
-        method = (get_strategy_launch_method() or "").strip().lower()
+        method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
         if method in ("direct_zapret2", "direct_zapret1") and app_context is not None:
             from direct_preset.facade import DirectPresetFacade
+
+            reload_callback = None
+            if reload_reason:
+                reload_callback = _build_direct_runtime_reload_callback(
+                    launch_method=method,
+                    app_context=app_context,
+                    reason=str(reload_reason or "").strip(),
+                )
 
             return DirectPresetFacade.from_launch_method(
                 method,
                 app_context=app_context,
+                on_dpi_reload_needed=reload_callback,
             )
     except Exception:
         pass
     return None
 
 
-def get_wssize_enabled(*, app_context=None) -> bool:
-    facade = _get_direct_preset_facade(app_context=app_context)
+def get_wssize_enabled(*, app_context=None, launch_method: str | None = None) -> bool:
+    facade = _get_direct_preset_facade(app_context=app_context, launch_method=launch_method)
     if facade is not None:
         try:
             return bool(facade.get_wssize_enabled())
@@ -159,8 +197,12 @@ def get_wssize_enabled(*, app_context=None) -> bool:
     return False
 
 
-def set_wssize_enabled(enabled: bool, *, app_context=None) -> bool:
-    facade = _get_direct_preset_facade(app_context=app_context)
+def set_wssize_enabled(enabled: bool, *, app_context=None, launch_method: str | None = None) -> bool:
+    facade = _get_direct_preset_facade(
+        app_context=app_context,
+        launch_method=launch_method,
+        reload_reason="wssize_toggled",
+    )
     if facade is not None:
         try:
             return bool(facade.set_wssize_enabled(bool(enabled)))
@@ -169,8 +211,8 @@ def set_wssize_enabled(enabled: bool, *, app_context=None) -> bool:
     return False
 
 
-def get_debug_log_enabled(*, app_context=None) -> bool:
-    facade = _get_direct_preset_facade(app_context=app_context)
+def get_debug_log_enabled(*, app_context=None, launch_method: str | None = None) -> bool:
+    facade = _get_direct_preset_facade(app_context=app_context, launch_method=launch_method)
     if facade is not None:
         try:
             return bool(facade.get_debug_log_enabled())
@@ -179,8 +221,12 @@ def get_debug_log_enabled(*, app_context=None) -> bool:
     return False
 
 
-def set_debug_log_enabled(enabled: bool, *, app_context=None) -> bool:
-    facade = _get_direct_preset_facade(app_context=app_context)
+def set_debug_log_enabled(enabled: bool, *, app_context=None, launch_method: str | None = None) -> bool:
+    facade = _get_direct_preset_facade(
+        app_context=app_context,
+        launch_method=launch_method,
+        reload_reason="debug_log_toggled",
+    )
     if facade is not None:
         try:
             return bool(facade.set_debug_log_enabled(bool(enabled)))
@@ -189,8 +235,8 @@ def set_debug_log_enabled(enabled: bool, *, app_context=None) -> bool:
     return False
 
 
-def get_debug_log_file(*, app_context=None) -> str:
-    facade = _get_direct_preset_facade(app_context=app_context)
+def get_debug_log_file(*, app_context=None, launch_method: str | None = None) -> str:
+    facade = _get_direct_preset_facade(app_context=app_context, launch_method=launch_method)
     if facade is not None:
         try:
             return str(facade.get_debug_log_file() or "")

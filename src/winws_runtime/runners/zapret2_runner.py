@@ -530,6 +530,25 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
         return artifact
 
+    def _is_circular_preset_path(self, preset_path: str) -> bool:
+        p = str(preset_path or "").strip()
+        if not p or not os.path.exists(p):
+            return False
+
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                source_content = f.read()
+        except Exception:
+            return False
+
+        try:
+            from direct_preset.engines import winws2_parser
+
+            normalized = self._normalize_preset_text(source_content)
+            return bool(is_circular_source_preset(winws2_parser.parse(normalized)))
+        except Exception:
+            return False
+
     def _on_config_changed(self):
         """
         Called when config file changes.
@@ -811,6 +830,26 @@ class StrategyRunnerV2(StrategyRunnerBase):
         self._set_last_error(None)
         self._stop_config_watcher()
 
+        current_preset_path = str(self._preset_file_path or "").strip()
+        if current_preset_path and current_preset_path != str(preset_path or "").strip():
+            try:
+                current_is_circular = self._is_circular_preset_path(current_preset_path)
+                target_is_circular = self._is_circular_preset_path(preset_path)
+                if current_is_circular != target_is_circular:
+                    log(
+                        "Preset switch crosses circular/non-circular boundary; using full restart path",
+                        "INFO",
+                    )
+                    with self._state_lock:
+                        return self._start_from_preset_file_locked(
+                            preset_path,
+                            strategy_name,
+                            force_cleanup=True,
+                            retry_count=0,
+                        )
+            except Exception:
+                pass
+
         with self._state_lock:
             artifact = self._compile_preset_artifact(preset_path)
             if not artifact.validation_ok:
@@ -841,6 +880,17 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 strategy_name,
                 hot_reload=True,
             )
+            if not success:
+                log(
+                    "Fast preset switch failed, retrying via full start path with cleanup",
+                    "WARNING",
+                )
+                success = self._start_from_preset_file_locked(
+                    preset_path,
+                    strategy_name,
+                    force_cleanup=True,
+                    retry_count=0,
+                )
         if success:
             self._start_config_watcher()
         return success
@@ -926,6 +976,23 @@ class StrategyRunnerV2(StrategyRunnerBase):
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
 
+        if self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+            max_retry_count=1,
+        ):
+            log(
+                "Transient WinDivert service error detected, retrying with aggressive cleanup",
+                "WARNING",
+            )
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                force_cleanup=True,
+                retry_count=retry_count + 1,
+            )
+
         if self._is_windivert_system_error(stderr_output, exit_code):
             log("WinDivert system error detected — retry will not help", "WARNING")
             return False
@@ -975,6 +1042,8 @@ class StrategyRunnerV2(StrategyRunnerBase):
             force_cleanup=force_cleanup,
         )
         self._perform_cleanup_before_spawn_locked(cleanup_required=cleanup_required)
+        if retry_count > 0:
+            self._wait_after_aggressive_windivert_cleanup()
 
         self._preset_file_path = preset_path
         success = self._spawn_process_locked(

@@ -310,8 +310,6 @@ class DirectUserPresetsPageController:
         facade = self._get_direct_facade()
         updated = facade.rename_by_file_name(current_name, new_name)
         switched_file_name = updated.file_name if facade.is_selected_file_name(updated.file_name) else None
-        if switched_file_name:
-            facade.notify_preset_identity_changed(switched_file_name)
 
         return UserPresetActionResult(
             ok=True,
@@ -358,8 +356,6 @@ class DirectUserPresetsPageController:
         facade = self._get_direct_facade()
         success_count, total, failed = facade.reset_all_to_templates()
         selected_file_name = facade.get_selected_file_name()
-        if selected_file_name:
-            facade.notify_preset_saved(selected_file_name)
 
         failed_count = len(failed or [])
         if failed_count:
@@ -405,7 +401,6 @@ class DirectUserPresetsPageController:
     def reset_preset_to_template(self, *, file_name: str, display_name: str) -> UserPresetActionResult:
         facade = self._get_direct_facade()
         facade.reset_to_template_by_file_name(file_name)
-        facade.notify_preset_saved(file_name)
 
         return UserPresetActionResult(
             ok=True,

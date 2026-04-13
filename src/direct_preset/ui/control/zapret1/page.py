@@ -286,10 +286,13 @@ class Zapret1DirectControlPage(ControlPageActionMixin, BasePage):
 
     def _load_preset_name(self) -> tuple[str, str]:
         try:
-            selection_service = self._require_app_context().preset_selection_service
-            file_name = str(selection_service.get_selected_file_name("winws1") or "").strip()
+            selected_manifest = self._require_app_context().direct_flow_coordinator.get_selected_source_manifest(
+                "direct_zapret1"
+            )
+            file_name = str(getattr(selected_manifest, "file_name", "") or "").strip()
             if file_name:
-                display_name = os.path.splitext(os.path.basename(file_name))[0].strip() or file_name
+                display_name = str(getattr(selected_manifest, "name", "") or "").strip()
+                display_name = display_name or os.path.splitext(os.path.basename(file_name))[0].strip() or file_name
                 return display_name, display_name
         except Exception:
             pass
@@ -363,24 +366,26 @@ class Zapret1DirectControlPage(ControlPageActionMixin, BasePage):
 
     def _on_wssize_toggled(self, enabled: bool) -> None:
         try:
-            from direct_preset.facade import DirectPresetFacade
+            from settings.dpi.strategy_settings import set_wssize_enabled
 
-            DirectPresetFacade.from_launch_method(
-                "direct_zapret1",
+            set_wssize_enabled(
+                bool(enabled),
                 app_context=self._require_app_context(),
-            ).set_wssize_enabled(bool(enabled))
+                launch_method="direct_zapret1",
+            )
             self._advanced_settings_dirty = False
         except Exception:
             pass
 
     def _on_debug_log_toggled(self, enabled: bool) -> None:
         try:
-            from direct_preset.facade import DirectPresetFacade
+            from settings.dpi.strategy_settings import set_debug_log_enabled
 
-            DirectPresetFacade.from_launch_method(
-                "direct_zapret1",
+            set_debug_log_enabled(
+                bool(enabled),
                 app_context=self._require_app_context(),
-            ).set_debug_log_enabled(bool(enabled))
+                launch_method="direct_zapret1",
+            )
             self._advanced_settings_dirty = False
         except Exception:
             pass

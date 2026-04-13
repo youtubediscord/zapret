@@ -6,6 +6,7 @@ from threading import RLock
 from typing import Callable, Generic, TypeVar
 
 from PyQt6.QtCore import QThread, pyqtSignal
+from log.log import log
 
 from direct_preset.service import BasicUiPayload, TargetDetailPayload
 from core.presets.cache_signatures import path_cache_signature
@@ -223,7 +224,12 @@ class DirectUiSnapshotService:
 
         try:
             payload = self._facade(method).get_target_detail_payload(normalized_key)
-        except Exception:
+        except Exception as exc:
+            log(
+                f"DirectUiSnapshotService[{method}]: failed to build target detail payload "
+                f"for '{normalized_key}': {exc}",
+                "ERROR",
+            )
             payload = None
 
         with self._lock:

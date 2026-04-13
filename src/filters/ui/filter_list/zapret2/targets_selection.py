@@ -1,4 +1,4 @@
-"""Selection/language helper слой для страницы direct target'ов Zapret 2."""
+"""Selection/language helper слой для filter-domain страницы target'ов Zapret 2."""
 
 from __future__ import annotations
 

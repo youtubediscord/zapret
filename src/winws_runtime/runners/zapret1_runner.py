@@ -389,6 +389,17 @@ class StrategyRunnerV1(StrategyRunnerBase):
 
             self._preset_file_path = preset_path
             success = self._spawn_process_locked(artifact, strategy_name)
+            if not success:
+                log(
+                    "Fast preset switch failed, retrying via full start path with cleanup",
+                    "WARNING",
+                )
+                success = self._start_from_preset_file_locked(
+                    preset_path,
+                    strategy_name,
+                    retry_count=0,
+                    max_retries=2,
+                )
         if success:
             self._start_config_watcher(preset_path)
         return success
@@ -420,6 +431,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
     def _prepare_cleanup_before_spawn_locked(self, *, retry_count: int) -> None:
         if retry_count > 0:
             self._aggressive_windivert_cleanup()
+            self._wait_after_aggressive_windivert_cleanup()
         else:
             self._perform_standard_windivert_cleanup()
 
@@ -433,6 +445,23 @@ class StrategyRunnerV1(StrategyRunnerBase):
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
+
+        if self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+            max_retry_count=1,
+        ):
+            log(
+                "Transient WinDivert service error detected, retrying with aggressive cleanup",
+                "WARNING",
+            )
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                retry_count=retry_count + 1,
+                max_retries=max_retries,
+            )
 
         if self._is_windivert_system_error(stderr_output, exit_code):
             log("WinDivert system error — retry will not help", "WARNING")

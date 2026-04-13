@@ -176,10 +176,11 @@ class ChangelogCard(CardWidget):
 
         layout.addWidget(self.buttons_widget)
 
-        self._apply_page_theme(force=True)
+        self._apply_theme(force=True)
 
-    def _apply_theme(self, theme_name: str | None = None) -> None:
-        self._tokens = get_theme_tokens(theme_name)
+    def _apply_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        self._tokens = tokens or get_theme_tokens()
         tokens = self._tokens
 
         self.title_label.setStyleSheet(f"color: {tokens.accent_hex};")

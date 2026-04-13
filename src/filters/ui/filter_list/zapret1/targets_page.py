@@ -1,4 +1,4 @@
-# filters/pages/direct_zapret1_targets_page.py
+# filters/ui/filter_list/zapret1/targets_page.py
 """Zapret 1 target page with Zapret 2-style interface."""
 
 from __future__ import annotations

@@ -243,16 +243,6 @@ class AboutPage(BasePage):
                 tr_catalog("page.about.button.update_settings", language=self._ui_language, default="Настройка обновлений")
             )
 
-            self.about_section_device_label.setText(
-                tr_catalog("page.about.section.device", language=self._ui_language, default="Устройство")
-            )
-            self.device_title_label.setText(
-                tr_catalog("page.about.device.id", language=self._ui_language, default="ID устройства")
-            )
-            self.copy_btn.setText(
-                tr_catalog("page.about.button.copy_id", language=self._ui_language, default="Копировать ID")
-            )
-
             self.about_section_subscription_label.setText(
                 tr_catalog("page.about.section.subscription", language=self._ui_language, default="Подписка")
             )
@@ -295,29 +285,19 @@ class AboutPage(BasePage):
             tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
             tokens=tokens,
             app_version=APP_VERSION,
-            client_id=AboutPageController.get_client_id(),
             make_section_label=lambda text: _make_section_label(text),
             on_open_updates=self.open_updates_requested.emit,
-            on_copy_client_id=self._copy_client_id,
             on_open_premium=self.open_premium_requested.emit,
         )
         self.about_section_version_label = widgets.about_section_version_label
         self.about_app_name_label = widgets.about_app_name_label
         self.about_version_value_label = widgets.about_version_value_label
         self.update_btn = widgets.update_btn
-        self.about_section_device_label = widgets.about_section_device_label
-        self.device_title_label = widgets.device_title_label
-        self.client_id_label = widgets.client_id_label
-        self.copy_btn = widgets.copy_btn
         self.about_section_subscription_label = widgets.about_section_subscription_label
         self.sub_status_icon = widgets.sub_status_icon
         self.sub_status_label = widgets.sub_status_label
         self.sub_desc_label = widgets.sub_desc_label
         self.premium_btn = widgets.premium_btn
-
-    def _copy_client_id(self) -> None:
-        cid = self.client_id_label.text().strip() if hasattr(self, "client_id_label") else ""
-        AboutPageController.copy_client_id(cid)
 
     def update_subscription_status(self, is_premium: bool, days: int | None = None):
         """Обновляет отображение статуса подписки"""

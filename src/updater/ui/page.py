@@ -2,6 +2,7 @@
 """Страница мониторинга серверов обновлений"""
 
 from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel,
 )

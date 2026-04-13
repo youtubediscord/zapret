@@ -169,6 +169,7 @@ def rename_by_file_name(backend, file_name: str, new_name: str):
     )
     if was_selected:
         backend.preset_selection_service.select_preset(backend.engine, updated.file_name)
+        backend.notify_preset_identity_changed(updated.file_name)
         backend._refresh_selected_launch_profile_from_source()
     return updated
 
@@ -241,6 +242,7 @@ def reset_to_template_by_file_name(backend, file_name: str):
         preset_kind=_header_preset_kind(manifest.kind),
     )
     updated = backend.preset_file_store.update_preset(backend.engine, manifest.file_name, rewritten, None)
+    backend.notify_preset_saved(updated.file_name)
     if backend.is_selected_file_name(manifest.file_name):
         backend._refresh_selected_launch_profile_from_source()
     return updated
@@ -250,6 +252,7 @@ def reset_all_to_templates(backend) -> tuple[int, int, list[str]]:
     result = _template_support_reset_all_templates(backend.launch_method)
     selected_file_name = backend.get_selected_file_name()
     if selected_file_name and backend.get_manifest_by_file_name(selected_file_name) is not None:
+        backend.notify_preset_saved(selected_file_name)
         backend._refresh_selected_launch_profile_from_source()
     return result
 

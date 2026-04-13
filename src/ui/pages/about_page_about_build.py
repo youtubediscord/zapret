@@ -5,11 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout
 
 from ui.compat_widgets import SettingsCard
-from qfluentwidgets import SubtitleLabel, BodyLabel, StrongBodyLabel, CaptionLabel, PushButton, PrimaryPushButton
+from qfluentwidgets import SubtitleLabel, StrongBodyLabel, CaptionLabel, PushButton, PrimaryPushButton
 from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon
 
 
@@ -19,10 +18,6 @@ class AboutPageAboutWidgets:
     about_app_name_label: object
     about_version_value_label: object
     update_btn: object
-    about_section_device_label: object
-    device_title_label: object
-    client_id_label: object
-    copy_btn: object
     about_section_subscription_label: object
     sub_status_icon: QLabel
     sub_status_label: object
@@ -36,10 +31,8 @@ def build_about_page_about_content(
     tr_fn: Callable[[str, str], str],
     tokens,
     app_version: str,
-    client_id: str,
     make_section_label: Callable[[str], object],
     on_open_updates,
-    on_copy_client_id,
     on_open_premium,
 ) -> AboutPageAboutWidgets:
     about_section_version_label = make_section_label(
@@ -79,42 +72,6 @@ def build_about_page_about_content(
 
     version_card.add_layout(version_layout)
     layout.addWidget(version_card)
-    layout.addSpacing(16)
-
-    about_section_device_label = make_section_label(
-        tr_fn("page.about.section.device", "Устройство")
-    )
-    layout.addWidget(about_section_device_label)
-
-    device_card = SettingsCard()
-    device_layout = QHBoxLayout()
-    device_layout.setSpacing(16)
-
-    device_icon = QLabel()
-    device_icon.setPixmap(get_cached_qta_pixmap('fa5s.key', color=tokens.accent_hex, size=20))
-    device_icon.setFixedSize(24, 24)
-    device_layout.addWidget(device_icon)
-
-    device_text_layout = QVBoxLayout()
-    device_text_layout.setSpacing(2)
-    device_title_label = BodyLabel(tr_fn("page.about.device.id", "ID устройства"))
-    client_id_label = CaptionLabel(client_id or "—")
-    client_id_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    device_text_layout.addWidget(device_title_label)
-    device_text_layout.addWidget(client_id_label)
-    device_layout.addLayout(device_text_layout, 1)
-
-    copy_btn = PushButton()
-    copy_btn.setText(
-        tr_fn("page.about.button.copy_id", "Копировать ID")
-    )
-    copy_btn.setIcon(get_themed_qta_icon("fa5s.copy", color=tokens.accent_hex))
-    copy_btn.setFixedHeight(36)
-    copy_btn.clicked.connect(on_copy_client_id)
-    device_layout.addWidget(copy_btn)
-
-    device_card.add_layout(device_layout)
-    layout.addWidget(device_card)
     layout.addSpacing(16)
 
     about_section_subscription_label = make_section_label(
@@ -171,10 +128,6 @@ def build_about_page_about_content(
         about_app_name_label=about_app_name_label,
         about_version_value_label=about_version_value_label,
         update_btn=update_btn,
-        about_section_device_label=about_section_device_label,
-        device_title_label=device_title_label,
-        client_id_label=client_id_label,
-        copy_btn=copy_btn,
         about_section_subscription_label=about_section_subscription_label,
         sub_status_icon=sub_status_icon,
         sub_status_label=sub_status_label,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from filters.strategy_detail.shared_filter_mode import apply_filter_mode_selector_state as _apply_filter_mode_selector_state
+from filters.ui.strategy_detail.filter_mode_ui import apply_filter_mode_selector_state as _apply_filter_mode_selector_state
 
 
 def apply_strategies_summary_label(label, text: str, *, previous_text: str | None = None) -> tuple[bool, str]:

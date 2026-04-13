@@ -197,24 +197,26 @@ class Zapret2DirectControlPageController(ControlPageController):
     @staticmethod
     def save_wssize_enabled(enabled: bool, *, app_context) -> None:
         try:
-            from direct_preset.facade import DirectPresetFacade
+            from settings.dpi.strategy_settings import set_wssize_enabled
 
-            DirectPresetFacade.from_launch_method(
-                "direct_zapret2",
+            set_wssize_enabled(
+                bool(enabled),
                 app_context=app_context,
-            ).set_wssize_enabled(bool(enabled))
+                launch_method="direct_zapret2",
+            )
         except Exception:
             pass
 
     @staticmethod
     def save_debug_log_enabled(enabled: bool, *, app_context) -> None:
         try:
-            from direct_preset.facade import DirectPresetFacade
+            from settings.dpi.strategy_settings import set_debug_log_enabled
 
-            DirectPresetFacade.from_launch_method(
-                "direct_zapret2",
+            set_debug_log_enabled(
+                bool(enabled),
                 app_context=app_context,
-            ).set_debug_log_enabled(bool(enabled))
+                launch_method="direct_zapret2",
+            )
         except Exception:
             pass
 

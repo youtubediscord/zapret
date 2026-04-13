@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from filters.strategy_detail.shared_filter_mode import (
+from filters.ui.strategy_detail.filter_mode_ui import (
     apply_filter_mode_selector_texts,
     sync_basic_target_controls,
 )

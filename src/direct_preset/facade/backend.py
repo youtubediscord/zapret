@@ -348,6 +348,7 @@ class DirectPresetFacadeBackend:
             raise ValueError(f"Preset not found: {file_name}")
         normalized = _normalize_direct_preset_source_text(source_text)
         updated = self.preset_file_store.update_preset(self.engine, manifest.file_name, normalized, None)
+        self.notify_preset_saved(updated.file_name)
         if self.is_selected_file_name(updated.file_name):
             self.direct_flow_coordinator.refresh_selected_launch_profile(self.launch_method)
         return updated
@@ -380,7 +381,9 @@ class DirectPresetFacadeBackend:
         self.direct_flow_coordinator.refresh_selected_launch_profile(self.launch_method)
 
     def select_file_name(self, file_name: str):
-        return self.direct_flow_coordinator.select_preset_file_name(self.launch_method, file_name)
+        profile = self.direct_flow_coordinator.select_preset_file_name(self.launch_method, file_name)
+        self.notify_preset_switched(profile.preset_file_name)
+        return profile
 
     def rename_by_file_name(self, file_name: str, new_name: str) -> PresetManifest:
         return _rename_by_file_name(self, file_name, new_name)
@@ -560,6 +563,7 @@ class DirectPresetFacadeBackend:
             return False
         source_text = _normalize_direct_preset_source_text(self._service()._serializer().serialize(preset))
         self.preset_file_store.update_preset(self.engine, selected_manifest.file_name, source_text, selected_manifest.name)
+        self.notify_preset_saved(selected_manifest.file_name)
         self._refresh_selected_launch_profile_from_source()
         if self.on_dpi_reload_needed:
             self.on_dpi_reload_needed()

@@ -14,7 +14,8 @@ from .constants import SW_HIDE, CREATE_NO_WINDOW, STARTF_USESHOWWINDOW
 from .preset_runner_support import wait_for_process_exit
 from winws_runtime.health.process_health_check import (
     check_process_health, get_last_crash_info, check_common_crash_causes,
-    check_conflicting_processes, get_conflicting_processes_report, diagnose_startup_error
+    check_conflicting_processes, get_conflicting_processes_report, diagnose_startup_error,
+    diagnose_winws_exit,
 )
 from winws_runtime.runtime.system_ops import (
     aggressive_windivert_cleanup_runtime,
@@ -25,6 +26,9 @@ from winws_runtime.runtime.system_ops import (
     unload_known_windivert_drivers_runtime,
 )
 from utils.args_resolver import resolve_args_paths
+
+
+_AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS = 1.8
 
 
 class StrategyRunnerBase(ABC):
@@ -172,6 +176,65 @@ class StrategyRunnerBase(ABC):
     def _aggressive_windivert_cleanup(self):
         """Aggressive WinDivert cleanup via Win API - for cases when normal cleanup doesn't help"""
         aggressive_windivert_cleanup_runtime()
+
+    def _wait_after_aggressive_windivert_cleanup(self, *, seconds: float = _AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS) -> None:
+        """Даём Windows время после тяжёлой очистки WinDivert.
+
+        Практически это нужно именно для плавающих 1058/34 случаев: сразу после
+        aggressive cleanup драйвер/SCM ещё могут не успеть полностью освободить
+        filter handle, и мгновенный повторный spawn просто ловит ту же ошибку.
+        """
+        cooldown = max(0.0, float(seconds))
+        if cooldown <= 0:
+            return
+        log(f"Waiting {cooldown:.1f}s for WinDivert cleanup to settle", "DEBUG")
+        time.sleep(cooldown)
+
+    def _should_retry_transient_windivert_service_error(
+        self,
+        stderr: str,
+        exit_code: int,
+        *,
+        retry_count: int,
+        max_retry_count: int = 1,
+    ) -> bool:
+        """Разрешает один retry для плавающего WinDivert service error.
+
+        WinDivert code 1058/34 у нас иногда всплывает как остаточная гонка
+        после stop/start, а не как реальное отключение BFE/службы/драйвера.
+        Для таких случаев разрешаем один повтор через более тяжёлый cleanup.
+
+        При явных системных причинах retry запрещён:
+        - BFE реально выключен
+        - служба WinDivert реально disabled
+        - файлов драйвера нет
+        - Secure Boot / подпись / политика безопасности
+        """
+        if retry_count >= max_retry_count:
+            return False
+
+        try:
+            diag = diagnose_winws_exit(exit_code, stderr)
+        except Exception:
+            diag = None
+
+        win32_error = int(getattr(diag, "win32_error", exit_code) or exit_code)
+        if win32_error != 1058:
+            return False
+
+        cause = str(getattr(diag, "cause", "") or "").strip().lower()
+        hard_no_retry_markers = (
+            "base filtering engine",
+            "служба windivert отключена",
+            "отсутствуют файлы windivert",
+            "secure boot",
+            "подпись драйвера",
+            "политика безопасности",
+        )
+        if any(marker in cause for marker in hard_no_retry_markers):
+            return False
+
+        return True
 
     def stop(self, *, cleanup_services: bool = True) -> bool:
         """Stops running process.
