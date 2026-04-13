@@ -67,6 +67,7 @@ def request_target_payload(page, target_key: str, *, refresh: bool, reason: str)
         current_request_id=page._target_payload_runtime.current_request_id(),
         build_request_plan_fn=StrategyDetailPageController.build_target_payload_request_plan,
         issue_page_load_token_fn=page.issue_page_load_token,
+        snapshot_service=page._require_app_context().direct_ui_snapshot_service,
         prepare_request_fn=lambda normalized_key: prepare_target_payload_request_ui(page, normalized_key),
         now_fn=_time.perf_counter,
         worker_cls=DirectTargetDetailSnapshotWorker,
@@ -230,10 +231,11 @@ def show_target(page, target_key: str) -> None:
     if prev_key:
         page._save_scroll_state(prev_key)
 
-    # Не форсируем sync build тяжёлого detail-shell во время навигации.
-    # Если страница ещё не собрана или пока скрыта, просто запоминаем target
-    # и запрашиваем payload уже в обычном activation lifecycle.
-    if not (page.isVisible() and getattr(page, "_content_built", False)):
+    # Канонический shell detail-страницы строится в конструкторе.
+    # Поэтому для обычного перехода нам не нужно ждать фактической видимости
+    # страницы: если shell уже построен, payload можно запросить сразу.
+    # В pending-режиме остаётся только действительно неготовая страница.
+    if not bool(getattr(page, "_content_built", False)):
         page._target_payload_runtime.remember_pending_target(normalized_target_key)
         return
 

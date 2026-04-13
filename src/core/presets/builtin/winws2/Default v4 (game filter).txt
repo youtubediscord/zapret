@@ -1,6 +1,6 @@
 # Preset: Default v4 (game filter)
 # TemplateOrigin: Default v4 (game filter)
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua
@@ -89,7 +89,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-n4
 --lua-desync=send:repeats=1
 --lua-desync=syndata:blob=tls_max
@@ -115,7 +115,7 @@
 --new
 
 --filter-tcp=443
---hostlist-domains=updates.discord.com
+--hostlist=lists/discord-updates.txt
 --out-range=-d2
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
@@ -136,7 +136,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=obsidian.md
+--hostlist=lists/obsidian.txt
 --out-range=-n8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=stun_pat

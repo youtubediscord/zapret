@@ -29,16 +29,28 @@ try:
     )
     HAS_FLUENT = True
 except ImportError:
-    from PyQt6.QtWidgets import QCheckBox as PushButton, QFrame as CardWidget, QProgressBar
+    from PyQt6.QtWidgets import QFrame as CardWidget, QProgressBar, QPushButton
 
     BodyLabel = QLabel
     CaptionLabel = QLabel
     StrongBodyLabel = QLabel
-    TransparentToolButton = PushButton
-    PrimaryActionButton = PushButton
     ProgressBar = QProgressBar
     IndeterminateProgressBar = QProgressBar
     HAS_FLUENT = False
+
+    class PushButton(QPushButton):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+
+    class TransparentToolButton(QPushButton):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+
+    class PrimaryActionButton(QPushButton):
+        def __init__(self, text: str = "", icon_name: str | None = None, parent=None):
+            super().__init__(parent)
+            self.setText(text)
+            _ = icon_name
 
 
 class ChangelogCard(CardWidget):

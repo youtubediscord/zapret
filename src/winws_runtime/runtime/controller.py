@@ -492,7 +492,7 @@ class DirectLaunchController:
         self,
         *,
         force_cleanup: bool = False,
-        cleanup_services: bool = True,
+        cleanup_services: bool = False,
     ):
         """Асинхронно останавливает DPI без блокировки UI"""
         # Проверка на уже запущенный поток

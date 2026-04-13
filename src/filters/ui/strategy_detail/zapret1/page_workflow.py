@@ -51,9 +51,7 @@ def show_target_v1(
     direct_facade,
     current_direct_facade,
     require_app_context_fn,
-    is_visible: bool,
     set_direct_facade_fn,
-    set_pending_target_key_fn,
     request_target_payload_fn,
 ) -> None:
     if cleanup_in_progress:
@@ -77,21 +75,14 @@ def show_target_v1(
             resolved = None
         set_direct_facade_fn(resolved)
 
-    if not is_visible:
-        set_pending_target_key_fn(normalized_target_key)
-        return
-
-    set_pending_target_key_fn("")
     request_target_payload_fn(normalized_target_key, refresh=False, reason="show_target")
 
 
 def activate_page_v1(
     *,
     cleanup_in_progress: bool,
-    pending_target_key: str,
     target_key: str,
     preset_refresh_pending: bool,
-    set_pending_target_key_fn,
     clear_preset_refresh_pending_fn,
     request_target_payload_fn,
     rebuild_breadcrumb_fn,
@@ -99,12 +90,6 @@ def activate_page_v1(
     refresh_from_preset_switch_fn,
 ) -> None:
     if cleanup_in_progress:
-        return
-
-    normalized_pending_target_key = str(pending_target_key or "").strip().lower()
-    if normalized_pending_target_key:
-        set_pending_target_key_fn("")
-        request_target_payload_fn(normalized_pending_target_key, refresh=False, reason="show_target")
         return
 
     rebuild_breadcrumb_fn()
@@ -176,7 +161,6 @@ def handle_ui_state_changed_v1(
 def cleanup_page_v1(
     *,
     set_cleanup_in_progress_fn,
-    set_pending_target_key_fn,
     clear_preset_refresh_pending_fn,
     increment_request_id_fn,
     success_timer,
@@ -185,7 +169,6 @@ def cleanup_page_v1(
     set_store_fn,
 ) -> None:
     set_cleanup_in_progress_fn(True)
-    set_pending_target_key_fn("")
     clear_preset_refresh_pending_fn()
     increment_request_id_fn()
     success_timer.stop()

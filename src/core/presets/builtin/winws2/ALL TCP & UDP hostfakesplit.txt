@@ -1,6 +1,6 @@
 # Preset: ALL TCP & UDP hostfakesplit
 # TemplateOrigin: ALL TCP & UDP hostfakesplit
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

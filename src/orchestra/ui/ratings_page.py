@@ -23,7 +23,7 @@ except ImportError:
     StrongBodyLabel = QLabel
     _HAS_FLUENT = False
 
-from ..base_page import BasePage
+from ui.pages.base_page import BasePage
 from ui.compat_widgets import set_tooltip
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme import get_theme_tokens, get_themed_qta_icon

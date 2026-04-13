@@ -264,10 +264,13 @@ def unload_driver(driver_name: str) -> bool:
     Выгружает драйвер через Win API / Service Control Manager.
 
     Для текущего проекта WinDivert/Monkey представлены как driver-service
-    записи SCM. Поэтому лучший "чистый" путь здесь — не внешний `fltmc`, а:
+    записи SCM. Для обычного runtime-cleanup здесь нельзя удалять service entry:
+    это делает следующий запуск зависимым от повторной авто-установки драйвера.
+    Поэтому "выгрузка" в стандартном пути означает:
     - остановить driver service;
-    - удалить service entry;
-    - дождаться, пока служба перестанет быть доступной или хотя бы уйдёт в STOPPED.
+    - дождаться состояния STOPPED.
+
+    Полное удаление service entry оставляем только для явно агрессивной cleanup-ветки.
     
     Args:
         driver_name: Имя драйвера
@@ -280,7 +283,8 @@ def unload_driver(driver_name: str) -> bool:
             log(f"Драйвер {driver_name} уже отсутствует в SCM", "DEBUG")
             return True
 
-        stop_and_delete_service(driver_name, retry_count=3)
+        if not stop_service(driver_name):
+            return False
 
         deadline = time.time() + 5.0
         last_state = None
@@ -289,7 +293,11 @@ def unload_driver(driver_name: str) -> bool:
             state = get_service_state(driver_name)
             last_state = state
 
-            if (not exists) or state is None or state == SERVICE_STOPPED:
+            if exists and state == SERVICE_STOPPED:
+                log(f"✅ Драйвер {driver_name} остановлен через Win API", "DEBUG")
+                return True
+
+            if (not exists) or state is None:
                 log(f"✅ Драйвер {driver_name} выгружен через Win API", "DEBUG")
                 return True
 

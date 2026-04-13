@@ -1,6 +1,6 @@
 # Preset: Default v5
 # TemplateOrigin: Default v5
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua
@@ -82,7 +82,7 @@
 --blob=hex_00:0x00
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=multisplit:pos=sniext+1,midsld:seqovl=652
 
@@ -105,7 +105,7 @@
 --new
 
 --filter-tcp=443
---hostlist-domains=updates.discord.com
+--hostlist=lists/discord-updates.txt
 --out-range=-d10
 --lua-desync=send:repeats=3
 --lua-desync=syndata:blob=tls_google

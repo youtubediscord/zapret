@@ -75,8 +75,11 @@ def open_zapret2_strategy_detail(
         if not show_page(window, PageName.ZAPRET2_STRATEGY_DETAIL, allow_internal=allow_internal):
             return False
 
-    if not call_page_method(detail_page, PageMethodName.SHOW_TARGET, target_key):
+    handler = getattr(detail_page, PageMethodName.SHOW_TARGET, None)
+    if not callable(handler):
         return False
+
+    handler(target_key)
 
     if remember:
         remember_z2_detail_target(window, target_key)

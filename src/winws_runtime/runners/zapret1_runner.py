@@ -502,6 +502,11 @@ class StrategyRunnerV1(StrategyRunnerBase):
             self._stop_process_only_locked()
 
         self._prepare_cleanup_before_spawn_locked(retry_count=retry_count)
+        if not self._ensure_windivert_ready_before_spawn():
+            self._last_spawn_exit_code = 34
+            self._last_spawn_stderr = "windivert: readiness probe failed before spawn"
+            self._set_last_error("WinDivert ещё не готов к открытию фильтра")
+            return False
 
         if not os.path.exists(self.winws_exe):
             log(f"winws.exe disappeared: {self.winws_exe}", "ERROR")

@@ -86,6 +86,22 @@ def cleanup_windivert_services_runtime() -> bool:
         return False
 
 
+def stop_known_windivert_services_runtime() -> bool:
+    ok = True
+    try:
+        from utils.service_manager import stop_service
+
+        for service_name in _KNOWN_WINDIVERT_SERVICES:
+            try:
+                ok = bool(stop_service(service_name)) and ok
+            except Exception:
+                ok = False
+    except Exception as e:
+        log(f"Ошибка остановки WinDivert service без удаления: {e}", "DEBUG")
+        return False
+    return ok
+
+
 def get_known_windivert_service_states_runtime() -> dict[str, int | None]:
     try:
         from utils.service_manager import get_service_state
@@ -196,20 +212,7 @@ def probe_windivert_state_runtime() -> WinDivertRuntimeProbeResult:
         layer=_WINDIVERT_LAYER_REFLECT,
         flags=_WINDIVERT_FLAG_SNIFF | _WINDIVERT_FLAG_RECV_ONLY | _WINDIVERT_FLAG_NO_INSTALL,
     )
-    if not installed_ok:
-        if int(installed_error or 0) == 1060:
-            return WinDivertRuntimeProbeResult(
-                installed=False,
-                ready=False,
-                error_code=1060,
-                stage="reflect_no_install",
-            )
-        return WinDivertRuntimeProbeResult(
-            installed=True,
-            ready=False,
-            error_code=installed_error,
-            stage="reflect_no_install",
-        )
+    installed = bool(installed_ok or int(installed_error or 0) != 1060)
 
     ready_ok, ready_error = _probe_windivert_open_runtime(
         dll,
@@ -218,7 +221,7 @@ def probe_windivert_state_runtime() -> WinDivertRuntimeProbeResult:
         flags=_WINDIVERT_FLAG_SNIFF,
     )
     return WinDivertRuntimeProbeResult(
-        installed=True,
+        installed=installed,
         ready=bool(ready_ok),
         error_code=None if ready_ok else ready_error,
         stage="network_open",
@@ -334,9 +337,7 @@ def wait_for_windivert_cleanup_settle_runtime(
             for name, state in service_states.items()
             if state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
         }
-        probe = probe_windivert_state_runtime()
-
-        if not process_pids and not busy_services and probe.ready:
+        if not process_pids and not busy_services:
             stable_checks += 1
             if stable_checks >= 2:
                 return True
@@ -358,15 +359,42 @@ def wait_for_windivert_cleanup_settle_runtime(
         for name, state in service_states.items()
         if state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
     }
-    probe = probe_windivert_state_runtime()
     log(
         "WinDivert cleanup settle timeout: "
         f"pids={process_pids or []}, "
-        f"busy_services={busy_services or {}}, "
-        f"driver_installed={probe.installed}, "
-        f"driver_ready={probe.ready}, "
-        f"driver_error={probe.error_code}, "
-        f"driver_stage={probe.stage}",
+        f"busy_services={busy_services or {}}",
         "WARNING",
     )
     return False
+
+
+def wait_for_windivert_spawn_ready_runtime(
+    *,
+    max_wait_seconds: float = 4.0,
+    poll_interval: float = 0.25,
+) -> WinDivertRuntimeProbeResult:
+    """Ждёт, пока WinDivert будет готов к обычному NETWORK-open перед spawn.
+
+    В отличие от cleanup-settle, здесь `probe.ready` уже является главным
+    условием, потому что сейчас нас интересует именно готовность к новому
+    запуску, а не просто завершённость stop/cleanup.
+    """
+    deadline = time.monotonic() + max(0.0, float(max_wait_seconds))
+    interval = max(0.05, float(poll_interval))
+    last_probe = WinDivertRuntimeProbeResult(installed=True, ready=True, error_code=None, stage="initial")
+
+    while time.monotonic() < deadline:
+        last_probe = probe_windivert_state_runtime()
+        if last_probe.ready:
+            return last_probe
+        time.sleep(interval)
+
+    log(
+        "WinDivert spawn readiness timeout: "
+        f"installed={last_probe.installed}, "
+        f"ready={last_probe.ready}, "
+        f"error={last_probe.error_code}, "
+        f"stage={last_probe.stage}",
+        "WARNING",
+    )
+    return last_probe

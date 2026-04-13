@@ -24,11 +24,14 @@ from winws_runtime.runtime.system_ops import (
     standard_windivert_cleanup_runtime,
     stop_and_delete_named_service,
     unload_known_windivert_drivers_runtime,
+    WinDivertRuntimeProbeResult,
+    wait_for_windivert_spawn_ready_runtime,
 )
 from utils.args_resolver import resolve_args_paths
 
 
 _AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS = 1.8
+_WINDIVERT_PRESPAWN_WAIT_SECONDS = 3.0
 
 
 class StrategyRunnerBase(ABC):
@@ -189,6 +192,58 @@ class StrategyRunnerBase(ABC):
             return
         log(f"Waiting {cooldown:.1f}s for WinDivert cleanup to settle", "DEBUG")
         time.sleep(cooldown)
+
+    def _ensure_windivert_ready_before_spawn(self, *, max_wait_seconds: float = _WINDIVERT_PRESPAWN_WAIT_SECONDS) -> bool:
+        """Проверяет готовность WinDivert прямо перед новым spawn."""
+        try:
+            probe = wait_for_windivert_spawn_ready_runtime(
+                max_wait_seconds=max_wait_seconds,
+                poll_interval=0.25,
+            )
+        except Exception:
+            return True
+
+        if probe.ready:
+            return True
+
+        recovery_probe = self._retry_windivert_spawn_readiness_after_recovery(probe)
+        if recovery_probe.ready:
+            return True
+
+        log(
+            "WinDivert pre-spawn readiness check failed: "
+            f"installed={recovery_probe.installed}, error={recovery_probe.error_code}, stage={recovery_probe.stage}",
+            "WARNING",
+        )
+        return False
+
+    def _retry_windivert_spawn_readiness_after_recovery(
+        self,
+        probe: WinDivertRuntimeProbeResult,
+    ) -> WinDivertRuntimeProbeResult:
+        """Один recovery-цикл для pre-spawn readiness.
+
+        Нужен для плавающих случаев, когда stop/cleanup уже завершён, но
+        WinDivert ещё не готов открыть NETWORK layer. Не бесконечный retry:
+        делаем один контролируемый цикл и возвращаем итоговый probe.
+        """
+        transient_codes = {1058, 1060, 1753}
+        if probe.ready or int(probe.error_code or 0) not in transient_codes:
+            return probe
+
+        log(
+            "WinDivert pre-spawn readiness transient failure, performing one recovery cycle",
+            "WARNING",
+        )
+        try:
+            self._aggressive_windivert_cleanup()
+            self._wait_after_aggressive_windivert_cleanup()
+            return wait_for_windivert_spawn_ready_runtime(
+                max_wait_seconds=_WINDIVERT_PRESPAWN_WAIT_SECONDS,
+                poll_interval=0.25,
+            )
+        except Exception:
+            return probe
 
     def _should_retry_transient_windivert_service_error(
         self,

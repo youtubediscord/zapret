@@ -70,8 +70,8 @@ class CollapsibleServiceHeader(QFrame):
         """)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 0, 8, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setSpacing(4)
 
         # Chevron
         self._chevron = QLabel()

@@ -67,7 +67,7 @@
 --new
 
 --filter-tcp=443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --dpi-desync=multidisorder
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2

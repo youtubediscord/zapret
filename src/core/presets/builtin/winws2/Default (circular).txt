@@ -1,5 +1,5 @@
 # Preset: Default (circular)
-# BuiltinVersion: 2.11
+# BuiltinVersion: 2.19
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua

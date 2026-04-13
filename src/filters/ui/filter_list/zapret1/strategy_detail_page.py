@@ -142,7 +142,6 @@ class Zapret1StrategyDetailPage(BasePage):
         self._target_payload = None
         self._target_payload_worker = None
         self._target_payload_request_id = 0
-        self._pending_target_key: str = ""
         self._preset_refresh_pending = False
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -610,7 +609,6 @@ class Zapret1StrategyDetailPage(BasePage):
             pass
         cleanup_page_v1(
             set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
-            set_pending_target_key_fn=lambda value: setattr(self, "_pending_target_key", value),
             clear_preset_refresh_pending_fn=lambda: setattr(self, "_preset_refresh_pending", False),
             increment_request_id_fn=lambda: setattr(self, "_target_payload_request_id", self._target_payload_request_id + 1),
             success_timer=self._success_timer,

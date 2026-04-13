@@ -25,7 +25,7 @@
 # === Googlevideo ===
 --new
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --dpi-desync=multidisorder
 --dpi-desync-split-pos=1,host+2,sld+2,endhost-2
 --dpi-desync-split-seqovl=1
@@ -33,7 +33,7 @@
 # === Discord updates ===
 --new
 --filter-tcp=443
---hostlist-domains=updates.discord.com
+--hostlist=lists/discord-updates.txt
 --dpi-desync=fake,split2
 --dpi-desync-repeats=6
 --dpi-desync-fooling=md5sig

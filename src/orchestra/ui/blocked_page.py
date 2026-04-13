@@ -42,7 +42,7 @@ except ImportError:
     BodyLabel = QLabel
     _HAS_FLUENT = False
 
-from ..base_page import BasePage
+from ui.pages.base_page import BasePage
 from ui.compat_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from ui.theme_refresh import ThemeRefreshController
@@ -287,7 +287,7 @@ class OrchestraBlockedPage(BasePage):
                 self.refresh_btn,
                 self._tr("page.orchestra.blocked.button.refresh.tooltip", "Обновить"),
             )
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _setup_ui(self):
         # === Карточка добавления ===
@@ -669,7 +669,7 @@ class OrchestraBlockedPage(BasePage):
         self._update_count()
         self._apply_filter()
 
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _filter_list(self, text: str):
         """Фильтрует список по введённому тексту"""

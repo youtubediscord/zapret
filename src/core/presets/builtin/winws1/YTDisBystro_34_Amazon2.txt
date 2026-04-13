@@ -17,7 +17,7 @@
 # === HTTPS YouTube ===
 --new
 --filter-tcp=443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --hostlist=lists/russia-youtube.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=sld+1

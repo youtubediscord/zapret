@@ -41,11 +41,11 @@ try:
     )
     _HAS_FLUENT = True
 except ImportError:
-    from PyQt6.QtWidgets import QPushButton
+    from PyQt6.QtWidgets import QPushButton, QCheckBox
     BodyLabel = QLabel
     CaptionLabel = QLabel
     PushButton = QPushButton
-    SwitchButton = None  # type: ignore[assignment]
+    SwitchButton = QCheckBox  # type: ignore[assignment]
     PushSettingCard = None  # type: ignore[assignment]
     SettingCardGroup = None  # type: ignore[assignment]
     _HAS_FLUENT = False

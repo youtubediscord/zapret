@@ -1076,6 +1076,12 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
                 "Подождите пару секунд и попробуйте снова. Если повторяется — перезапустите программу или ПК",
                 None,
             )
+        if not probe.installed and not probe.ready:
+            return (
+                "WinDivert ещё не установился или не готов к открытию фильтра",
+                "Подождите пару секунд и попробуйте снова. Если повторяется — перезапустите программу или проверьте файлы WinDivert",
+                None,
+            )
     except Exception:
         pass
 

@@ -1,6 +1,6 @@
 # Preset: special for loop-uh
 # TemplateOrigin: special for loop-uh
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua

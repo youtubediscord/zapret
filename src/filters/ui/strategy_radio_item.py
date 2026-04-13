@@ -3,7 +3,7 @@
 Карточка target для выбора стратегии.
 
 Новая раскладка намеренно разделена на две смысловые зоны:
-- слева идентичность target'а: иконка, название, описание, badge;
+- слева идентичность target'а: иконка, название, inline-метаинформация, badge;
 - справа статус и выбранная стратегия.
 
 Это делает строку устойчивой к длинным названиям и не позволяет ей
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QCursor, QResizeEvent
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
@@ -37,19 +37,40 @@ except ImportError:
 class ElidedTextLabel(QLabel):
     """QLabel с аккуратным обрезанием текста многоточием по текущей ширине."""
 
-    def __init__(self, text: str = "", parent=None):
+    def __init__(self, text: str = "", parent=None, *, tooltip_mode: str = "elided"):
         super().__init__(parent)
         self._full_text = ""
+        self._display_text = ""
+        self._tooltip_mode = str(tooltip_mode or "elided").strip().lower() or "elided"
         self.setMinimumWidth(0)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.setText(text)
 
     def setText(self, text: str) -> None:  # noqa: N802
         self._full_text = str(text or "")
+        super().setText(self._full_text)
         self._apply_elided_text()
+        self.updateGeometry()
+        self.update()
 
     def fullText(self) -> str:
         return self._full_text
+
+    def text(self) -> str:  # noqa: N802
+        return self._full_text
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        metrics = self.fontMetrics()
+        margins = self.contentsMargins()
+        width = metrics.horizontalAdvance(self._full_text)
+        height = metrics.height()
+        return QSize(
+            max(0, width + margins.left() + margins.right() + 2),
+            max(super().sizeHint().height(), height + margins.top() + margins.bottom()),
+        )
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return QSize(0, self.sizeHint().height())
 
     def resizeEvent(self, event: QResizeEvent) -> None:  # noqa: N802
         super().resizeEvent(event)
@@ -66,11 +87,25 @@ class ElidedTextLabel(QLabel):
                 Qt.TextElideMode.ElideRight,
                 available_width,
             )
-        super().setText(shown_text)
-        if self._full_text:
+        self._display_text = shown_text
+        if self._tooltip_mode == "none":
+            set_tooltip(self, "")
+            return
+        if self._tooltip_mode == "always":
+            set_tooltip(self, self._full_text.replace("\n", "<br>") if self._full_text else "")
+            return
+        if self._full_text and shown_text != self._full_text:
             set_tooltip(self, self._full_text.replace("\n", "<br>"))
         else:
             set_tooltip(self, "")
+
+    def paintEvent(self, event):  # noqa: N802
+        original_text = QLabel.text(self)
+        try:
+            QLabel.setText(self, self._display_text)
+            super().paintEvent(event)
+        finally:
+            QLabel.setText(self, original_text)
 
 
 class StrategyRadioItem(CardWidget):
@@ -130,13 +165,13 @@ class StrategyRadioItem(CardWidget):
         return self._target_key
 
     def _build_ui(self):
-        self.setMinimumHeight(56)
+        self.setMinimumHeight(42)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         root_layout = QHBoxLayout(self)
-        root_layout.setContentsMargins(12, 8, 12, 8)
-        root_layout.setSpacing(10)
+        root_layout.setContentsMargins(12, 5, 12, 5)
+        root_layout.setSpacing(8)
         self._layout = root_layout
 
         if self._icon_name:
@@ -144,51 +179,54 @@ class StrategyRadioItem(CardWidget):
                 self._icon_label = QLabel()
                 self._icon_label.setFixedSize(18, 18)
                 self._icon_label.setStyleSheet("background: transparent;")
-                root_layout.addWidget(self._icon_label, 0, Qt.AlignmentFlag.AlignTop)
+                root_layout.addWidget(self._icon_label, 0, Qt.AlignmentFlag.AlignVCenter)
             except Exception:
                 pass
 
         left_widget = QWidget(self)
         left_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        left_layout = QVBoxLayout(left_widget)
+        left_layout = QHBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(2)
+        left_layout.setSpacing(4)
+        self._top_row_layout = left_layout
 
-        top_row = QWidget(left_widget)
-        top_row_layout = QHBoxLayout(top_row)
-        top_row_layout.setContentsMargins(0, 0, 0, 0)
-        top_row_layout.setSpacing(8)
-        self._top_row_layout = top_row_layout
-
-        self._name_label = ElidedTextLabel(self._name, top_row)
-        top_row_layout.addWidget(self._name_label, 1)
-
-        if self._list_type:
-            self._ensure_list_badge(parent=top_row)
-
-        left_layout.addWidget(top_row)
+        self._name_label = ElidedTextLabel(self._name, left_widget, tooltip_mode="none")
+        self._name_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        left_layout.addWidget(self._name_label, 0)
 
         if self._description:
-            self._desc_label = ElidedTextLabel(self._description, left_widget)
+            self._desc_label = CaptionLabel(self._description, left_widget)
             self._desc_label.setProperty("tone", "muted")
-            left_layout.addWidget(self._desc_label)
+            self._desc_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+            try:
+                self._desc_label.setWordWrap(False)
+            except Exception:
+                pass
+            left_layout.addWidget(self._desc_label, 0)
 
-        root_layout.addWidget(left_widget, 1)
+        if self._list_type:
+            self._ensure_list_badge(parent=left_widget)
+
+        left_layout.addStretch(1)
+
+        root_layout.addWidget(left_widget, 1, Qt.AlignmentFlag.AlignVCenter)
 
         right_widget = QWidget(self)
         right_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
-        right_widget.setMaximumWidth(320)
         right_layout = QHBoxLayout(right_widget)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(6)
+        right_layout.setSpacing(4)
+
+        right_layout.addStretch(1)
 
         self._status_dot = QLabel("●")
         self._status_dot.setStyleSheet("background: transparent; color: #888888;")
         right_layout.addWidget(self._status_dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self._strategy_label = ElidedTextLabel("Отключено", right_widget)
+        self._strategy_label = ElidedTextLabel("Отключено", right_widget, tooltip_mode="elided")
         self._strategy_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        right_layout.addWidget(self._strategy_label, 1)
+        self._strategy_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        right_layout.addWidget(self._strategy_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         root_layout.addWidget(right_widget, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -245,13 +283,44 @@ class StrategyRadioItem(CardWidget):
         self._list_badge.show()
 
     def _apply_style(self):
+        tokens = None
+        try:
+            tokens = get_theme_tokens()
+        except Exception:
+            tokens = None
+
+        if self._name_label is not None:
+            try:
+                name_color = getattr(tokens, "fg", "#f3f3f3")
+                self._name_label.setStyleSheet(f"background: transparent; color: {name_color};")
+            except Exception:
+                pass
+
+        if self._desc_label is not None:
+            try:
+                desc_color = getattr(tokens, "fg_muted", "#b7bec8")
+                self._desc_label.setStyleSheet(f"background: transparent; color: {desc_color};")
+            except Exception:
+                pass
+
+        if self._strategy_label is not None:
+            try:
+                strategy_color = getattr(tokens, "fg_muted", "#b7bec8")
+                if self.is_active():
+                    strategy_color = getattr(tokens, "fg", "#f3f3f3")
+                self._strategy_label.setStyleSheet(
+                    f"background: transparent; color: {strategy_color};"
+                )
+            except Exception:
+                pass
+
         if self.is_active():
             self._status_dot.setStyleSheet("background: transparent; color: #6ccb5f;")
         else:
             try:
-                tokens = get_theme_tokens()
+                faint_color = getattr(tokens, "fg_faint", "#888888")
                 self._status_dot.setStyleSheet(
-                    f"background: transparent; color: {tokens.fg_faint};"
+                    f"background: transparent; color: {faint_color};"
                 )
             except Exception:
                 self._status_dot.setStyleSheet("background: transparent; color: #888888;")
@@ -281,6 +350,9 @@ class StrategyRadioItem(CardWidget):
         self._strategy_label.setText(strategy_name)
         self._apply_icon_color()
         self._apply_style()
+
+    def strategy_name(self) -> str:
+        return str(self._strategy_name or "")
 
     def set_list_type(self, list_type: str | None):
         self._list_type = list_type

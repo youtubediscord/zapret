@@ -59,6 +59,14 @@ class StrategyDetailSettingsSection:
     reset_settings_btn: object
 
 
+def _connect_boolean_changed(widget, callback) -> None:
+    signal = getattr(widget, "checkedChanged", None)
+    if signal is None:
+        signal = getattr(widget, "toggled", None)
+    if signal is not None:
+        signal.connect(callback)
+
+
 def build_settings_section(
     *,
     page,
@@ -113,7 +121,8 @@ def build_settings_section(
         ipset_text=tr("page.z2_strategy_detail.filter.ipset", "IPset"),
         hostlist_text=tr("page.z2_strategy_detail.filter.hostlist", "Hostlist"),
     )
-    filter_mode_selector.checkedChanged.connect(
+    _connect_boolean_changed(
+        filter_mode_selector,
         lambda checked: on_filter_mode_changed("ipset" if checked else "hostlist")
     )
     filter_mode_frame.set_control(filter_mode_selector)
@@ -247,7 +256,7 @@ def build_settings_section(
         ),
     )
     send_badsum_check = switch_button_cls()
-    send_badsum_check.checkedChanged.connect(on_schedule_syndata_settings_save)
+    _connect_boolean_changed(send_badsum_check, on_schedule_syndata_settings_save)
     send_badsum_frame.set_control(send_badsum_check)
     send_settings_layout.addWidget(send_badsum_frame)
 

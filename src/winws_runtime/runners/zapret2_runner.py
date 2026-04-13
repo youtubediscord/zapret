@@ -1044,6 +1044,11 @@ class StrategyRunnerV2(StrategyRunnerBase):
         self._perform_cleanup_before_spawn_locked(cleanup_required=cleanup_required)
         if retry_count > 0:
             self._wait_after_aggressive_windivert_cleanup()
+        if not self._ensure_windivert_ready_before_spawn():
+            self._last_spawn_exit_code = 34
+            self._last_spawn_stderr = "windivert: readiness probe failed before spawn"
+            self._set_last_error("WinDivert ещё не готов к открытию фильтра")
+            return False
 
         self._preset_file_path = preset_path
         success = self._spawn_process_locked(

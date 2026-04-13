@@ -34,7 +34,7 @@ except ImportError:
     CaptionLabel = QLabel
     _HAS_FLUENT = False
 
-from ..base_page import BasePage
+from ui.pages.base_page import BasePage
 from ui.page_dependencies import require_page_app_context, resolve_page_orchestra_runner
 from ui.compat_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
@@ -526,7 +526,7 @@ class OrchestraWhitelistPage(BasePage):
         )
         self._apply_filter()
 
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _filter_list(self, text: str):
         """Фильтрует список по введённому тексту"""

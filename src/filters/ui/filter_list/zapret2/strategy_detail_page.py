@@ -27,7 +27,7 @@ try:
 except ImportError:
     from PyQt6.QtWidgets import (
         QComboBox as ComboBox, QSpinBox as SpinBox,
-        QLineEdit as LineEdit, QTextEdit as TextEdit, QPushButton,
+        QLineEdit as LineEdit, QTextEdit as TextEdit, QPushButton, QCheckBox,
     )
     BodyLabel = QLabel
     CaptionLabel = QLabel
@@ -36,7 +36,7 @@ except ImportError:
     TitleLabel = QLabel
     ToolButton = QPushButton
     TransparentToolButton = QPushButton
-    SwitchButton = QPushButton
+    SwitchButton = QCheckBox
     TransparentPushButton = QPushButton
     SegmentedWidget = QWidget
     TogglePushButton = QPushButton

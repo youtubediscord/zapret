@@ -22,11 +22,12 @@ try:
     )
     HAS_FLUENT = True
 except ImportError:
-    from PyQt6.QtWidgets import QFrame as CardWidget, QPushButton
+    from PyQt6.QtWidgets import QFrame as CardWidget, QPushButton as _QPushButton
 
     CaptionLabel = QLabel
     StrongBodyLabel = QLabel
     IndeterminateProgressRing = None
+    PushButton = _QPushButton
     HAS_FLUENT = False
 
 

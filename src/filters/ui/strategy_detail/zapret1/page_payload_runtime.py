@@ -128,9 +128,7 @@ def show_target_runtime_v1(page, target_key: str, direct_facade=None) -> None:
         direct_facade=direct_facade,
         current_direct_facade=page._direct_facade,
         require_app_context_fn=page._require_app_context,
-        is_visible=page.isVisible(),
         set_direct_facade_fn=lambda value: setattr(page, "_direct_facade", value),
-        set_pending_target_key_fn=lambda value: setattr(page, "_pending_target_key", value),
         request_target_payload_fn=page._request_target_payload,
     )
 
@@ -138,10 +136,8 @@ def show_target_runtime_v1(page, target_key: str, direct_facade=None) -> None:
 def activate_page_runtime_v1(page) -> None:
     activate_page_v1(
         cleanup_in_progress=page._cleanup_in_progress,
-        pending_target_key=page._pending_target_key,
         target_key=page._target_key,
         preset_refresh_pending=page._preset_refresh_pending,
-        set_pending_target_key_fn=lambda value: setattr(page, "_pending_target_key", value),
         clear_preset_refresh_pending_fn=lambda: setattr(page, "_preset_refresh_pending", False),
         request_target_payload_fn=page._request_target_payload,
         rebuild_breadcrumb_fn=page._rebuild_breadcrumb,

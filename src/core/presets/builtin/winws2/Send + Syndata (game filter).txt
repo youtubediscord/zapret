@@ -1,6 +1,6 @@
 # Preset: Send + Syndata (game filter)
 # TemplateOrigin: Send + Syndata (game filter)
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # IconColor: #a8c5ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -98,7 +98,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=tls7
@@ -106,7 +106,7 @@
 --new
 
 --filter-tcp=443
---hostlist-domains=updates.discord.com
+--hostlist=lists/discord-updates.txt
 --out-range=-d10
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=tls7
