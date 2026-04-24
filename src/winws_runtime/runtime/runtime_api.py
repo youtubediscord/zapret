@@ -7,10 +7,17 @@ if TYPE_CHECKING:
 
 from log.log import log
 
-from utils.subproc import get_system32_path, run_hidden
 from .process_probe import (
     get_canonical_winws_process_pids,
     is_expected_winws_running,
+)
+from .system_ops import (
+    cleanup_windivert_services_runtime,
+    has_any_winws_process,
+    stop_known_windivert_services_runtime,
+    stop_all_winws_processes,
+    wait_for_windivert_cleanup_settle_runtime,
+    unload_known_windivert_drivers_runtime,
 )
 
 
@@ -67,6 +74,33 @@ class DirectLaunchRuntimeApi:
                 log(f"WinAPI canonical check error: {e}", "DEBUG")
             return False
 
+    def has_residual_processes(self, silent: bool = False) -> bool:
+        """Проверка остаточных winws/winws2 процессов.
+
+        Сначала используем канонический probe именно для процессов текущего проекта.
+        Если он ничего не видит, дополнительно делаем fallback-проверку по имени
+        процесса. Это нужно для stop/restart pipeline: очистка должна быть честной
+        даже в моменты, когда канонический probe ещё не догнал переходное состояние.
+        """
+        canonical_running = bool(self.is_any_running(silent=True))
+        if canonical_running:
+            if not silent:
+                log("Residual winws/winws2 detected via canonical probe", "DEBUG")
+            return True
+
+        try:
+            residual_running = bool(has_any_winws_process())
+            if not silent:
+                log(
+                    f"winws/winws2 residual state → {residual_running} (name fallback)",
+                    "DEBUG",
+                )
+            return residual_running
+        except Exception as e:
+            if not silent:
+                log(f"Residual process fallback error: {e}", "DEBUG")
+            return False
+
     def is_expected_running(self, silent: bool = False) -> bool:
         """
         Проверка только текущего ожидаемого exe из `self.expected_exe_path`.
@@ -86,42 +120,38 @@ class DirectLaunchRuntimeApi:
             return False
 
     def cleanup_windivert_service(self) -> bool:
-        """Очистка службы через PowerShell - без окон"""
-        ps_script = """
-        $service = Get-Service -Name windivert -ErrorAction SilentlyContinue
-        if ($service) {
-            Stop-Service -Name windivert -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-            sc.exe delete windivert | Out-Null
-            Stop-Service -Name Monkey -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-            sc.exe delete Monkey | Out-Null
-        }
-        """
+        """Мягкая stop-cleanup стадия для обычного stop/restart.
 
+        Здесь нельзя деинсталлировать WinDivert из SCM на каждом обычном stop.
+        Иначе следующий старт зависит от повторной авто-установки драйвера и
+        начинает сам себе создавать плавающие 1060/1058 гонки.
+        """
         try:
-            ps_exe = os.path.join(get_system32_path(), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-            run_hidden(
-                [ps_exe, '-WindowStyle', 'Hidden', '-NoProfile', '-Command', ps_script],
-                wait=True
+            stopped = bool(stop_known_windivert_services_runtime())
+            unloaded = bool(unload_known_windivert_drivers_runtime())
+            settled = bool(
+                wait_for_windivert_cleanup_settle_runtime(
+                    max_wait_seconds=5.0,
+                    poll_interval=0.25,
+                    retry_cleanup=False,
+                )
             )
-            return True
+            return bool(stopped and unloaded and settled)
         except Exception as e:
             log(f"Ошибка очистки службы: {e}", "⚠ WARNING")
-            return True
+            return False
 
     def stop_all_processes(self) -> bool:
         """Останавливает все процессы DPI через Win API"""
         log("Останавливаем все процессы winws через Win API...", "INFO")
 
         try:
-            from utils.process_killer import kill_winws_all
-            kill_winws_all()
+            stop_all_winws_processes()
         except Exception as e:
             log(f"Ошибка остановки через Win API: {e}", "⚠ WARNING")
 
         time.sleep(0.3)
-        ok = not self.is_any_running(silent=True)
+        ok = not self.has_residual_processes(silent=True)
         log("Все процессы остановлены" if ok else "winws/winws2 ещё работает",
             "✅ SUCCESS" if ok else "⚠ WARNING")
         return ok

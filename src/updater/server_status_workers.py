@@ -4,6 +4,7 @@ from datetime import datetime
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from config.build_info import CHANNEL
+from config.config import CHANNEL_DEV, CHANNEL_STABLE
 
 from log.log import log
 
@@ -101,19 +102,19 @@ class ServerCheckWorker(QThread):
                 tg_info = get_telegram_version_info(tg_channel)
                 response_time = _time.time() - start_time
 
-                stable_version = tg_info.get("version") if tg_channel == "stable" and tg_info else "—"
-                test_version = tg_info.get("version") if tg_channel == "test" and tg_info else "—"
-                stable_notes = tg_info.get("release_notes") if tg_channel == "stable" and tg_info else ""
-                test_notes = tg_info.get("release_notes") if tg_channel == "test" and tg_info else ""
+                stable_version = tg_info.get("version") if tg_channel == CHANNEL_STABLE and tg_info else "—"
+                dev_version = tg_info.get("version") if tg_channel == CHANNEL_DEV and tg_info else "—"
+                stable_notes = tg_info.get("release_notes") if tg_channel == CHANNEL_STABLE and tg_info else ""
+                dev_notes = tg_info.get("release_notes") if tg_channel == CHANNEL_DEV and tg_info else ""
 
                 if tg_info and tg_info.get("version"):
                     tg_status = {
                         "status": "online",
                         "response_time": response_time,
                         "stable_version": stable_version,
-                        "test_version": test_version,
+                        "dev_version": dev_version,
                         "stable_notes": stable_notes,
-                        "test_notes": test_notes,
+                        "dev_notes": dev_notes,
                         "is_current": True,
                     }
                     self._first_online_server_id = "telegram"
@@ -187,11 +188,11 @@ class ServerCheckWorker(QThread):
                 verify_ssl=should_verify_ssl(),
             )
             if data is None:
-                from utils.process_killer import is_process_running, kill_winws_force
+                from winws_runtime.runtime.sync_shutdown import is_any_runtime_running_sync, shutdown_runtime_sync
 
-                if is_process_running("winws.exe") or is_process_running("winws2.exe"):
+                if is_any_runtime_running_sync():
                     log("⚠️ DPI мешает проверке серверов — временно останавливаем", "🔄 UPDATE")
-                    kill_winws_force()
+                    shutdown_runtime_sync(reason="server_status_probe", include_cleanup=True)
                     _time.sleep(0.5)
                     dpi_was_stopped = True
 
@@ -249,7 +250,7 @@ class ServerCheckWorker(QThread):
 
                 if data:
                     stable_notes = data.get("stable", {}).get("release_notes", "")
-                    test_notes = data.get("test", {}).get("release_notes", "")
+                    dev_notes = data.get("dev", {}).get("release_notes", "")
 
                     is_first_online = self._first_online_server_id is None
                     if is_first_online:
@@ -259,9 +260,9 @@ class ServerCheckWorker(QThread):
                         "status": "online",
                         "response_time": response_time,
                         "stable_version": data.get("stable", {}).get("version", "—"),
-                        "test_version": data.get("test", {}).get("version", "—"),
+                        "dev_version": data.get("dev", {}).get("version", "—"),
                         "stable_notes": stable_notes,
-                        "test_notes": test_notes,
+                        "dev_notes": dev_notes,
                         "is_current": is_first_online,
                     }
 
@@ -368,7 +369,7 @@ class VersionCheckWorker(QThread):
                     break
 
         if not all_versions:
-            for channel in ["stable", "test"]:
+            for channel in [CHANNEL_STABLE, CHANNEL_DEV]:
                 if self.is_stop_requested():
                     break
                 try:
@@ -382,7 +383,7 @@ class VersionCheckWorker(QThread):
             self.complete.emit()
             return
 
-        for ui_channel, api_channel in {"stable": "stable", "test": "test"}.items():
+        for ui_channel, api_channel in {CHANNEL_STABLE: CHANNEL_STABLE, CHANNEL_DEV: CHANNEL_DEV}.items():
             if self.is_stop_requested():
                 break
             data = all_versions.get(api_channel, {})

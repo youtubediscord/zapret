@@ -24,6 +24,8 @@ try:
         InfoLevel as _InfoLevel,
         SettingCard as FluentSettingCard,
         SwitchSettingCard,
+        SwitchButton,
+        IndicatorPosition,
         StrongBodyLabel,
         BodyLabel as _BodyLabel,
         CaptionLabel as _CaptionLabel,
@@ -38,6 +40,8 @@ except ImportError:
     SpinBox = QSpinBox  # type: ignore[assignment,misc]
     FluentSettingCard = None  # type: ignore[assignment,misc]
     SwitchSettingCard = None  # type: ignore[assignment,misc]
+    SwitchButton = None  # type: ignore[assignment,misc]
+    IndicatorPosition = None  # type: ignore[assignment,misc]
     StrongBodyLabel = QLabel  # type: ignore[assignment,misc]
     _BodyLabel = QLabel  # type: ignore[assignment,misc]
     _CaptionLabel = QLabel  # type: ignore[assignment,misc]
@@ -147,8 +151,11 @@ class _ToggleProxy:
 
     def __init__(self, switch_button) -> None:
         self._switch_button = switch_button
-        self.checkedChanged = getattr(switch_button, "checkedChanged", None)
-        self.toggled = getattr(switch_button, "checkedChanged", None)
+        primary_signal = getattr(switch_button, "checkedChanged", None)
+        if primary_signal is None:
+            primary_signal = getattr(switch_button, "toggled", None)
+        self.checkedChanged = primary_signal
+        self.toggled = primary_signal
 
     def setChecked(self, checked: bool) -> None:
         self._switch_button.setChecked(bool(checked))
@@ -169,7 +176,7 @@ class _ToggleProxy:
         return getattr(self._switch_button, name)
 
 
-class Win11ToggleRow(SwitchSettingCard if _HAS_FLUENT else QWidget):
+class Win11ToggleRow(FluentSettingCard if _HAS_FLUENT else QWidget):
     """Строка с toggle switch в стиле Windows 11."""
 
     toggled = pyqtSignal(bool)
@@ -184,21 +191,39 @@ class Win11ToggleRow(SwitchSettingCard if _HAS_FLUENT else QWidget):
 
         if _HAS_FLUENT:
             initial_tokens = get_theme_tokens()
-            super().__init__(
+            FluentSettingCard.__init__(
+                self,
                 self._build_icon(initial_tokens),
                 title,
                 description or None,
                 parent=parent,
             )
-            self.setIconSize(18, 18)
+            try:
+                self.setIconSize(18, 18)
+            except Exception:
+                pass
             self._icon_label = getattr(self, "iconLabel", None)
             self._title_label = getattr(self, "titleLabel", None)
             self._desc_label = getattr(self, "contentLabel", None)
-            self._switch_button = getattr(self, "switchButton", None)
+
+            try:
+                self._switch_button = Win11ToggleSwitch(self)
+            except Exception:
+                self._switch_button = None
+
+            if self._switch_button is not None:
+                try:
+                    self.hBoxLayout.addWidget(self._switch_button, 0, Qt.AlignmentFlag.AlignRight)
+                    self.hBoxLayout.addSpacing(16)
+                except Exception:
+                    pass
+
             self.toggle = _ToggleProxy(self._switch_button) if self._switch_button is not None else None
             if self._switch_button is not None:
                 try:
-                    self._switch_button.checkedChanged.connect(self.toggled.emit)
+                    signal = getattr(self._switch_button, "toggled", None) or getattr(self._switch_button, "checkedChanged", None)
+                    if signal is not None:
+                        signal.connect(self.toggled.emit)
                 except Exception:
                     pass
         else:

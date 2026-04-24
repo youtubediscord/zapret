@@ -1,5 +1,5 @@
 # lists/ui/custom_domains_page.py
-"""Страница управления пользовательскими доменами (other.user.txt)."""
+"""Страница управления пользовательскими доменами (lists/user/other.txt)."""
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -82,7 +82,7 @@ class CustomDomainsPage(BasePage):
         self._desc_label = BodyLabel(
             self._tr(
                 "page.custom_domains.description",
-                "Здесь редактируется файл other.user.txt (только ваши домены). Системная база берётся из шаблона и отдельно хранится в other.base.txt, а общий other.txt собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
+                "Здесь редактируется пользовательский список доменов `lists/user/other.txt`. Системная база лежит в `lists/base/other.txt`, а итоговый `lists/other.txt` собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
             )
         )
         try:
@@ -130,7 +130,7 @@ class CustomDomainsPage(BasePage):
         self.open_file_btn.clicked.connect(self._open_file)
         set_tooltip(
             self.open_file_btn,
-            self._tr("page.custom_domains.tooltip.open_file", "Сохраняет изменения и открывает other.user.txt в проводнике"),
+            self._tr("page.custom_domains.tooltip.open_file", "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике"),
         )
 
         self.reset_btn = ActionButton(
@@ -142,7 +142,7 @@ class CustomDomainsPage(BasePage):
             self.reset_btn,
             self._tr(
                 "page.custom_domains.tooltip.reset_file",
-                "Очищает other.user.txt (мои домены) и пересобирает other.txt из системной базы",
+                "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
             ),
         )
 
@@ -155,7 +155,7 @@ class CustomDomainsPage(BasePage):
             self.clear_btn,
             self._tr(
                 "page.custom_domains.tooltip.clear_all",
-                "Удаляет только пользовательские домены. Базовые домены из шаблона останутся",
+                "Удаляет только пользовательские домены. Системная база из `lists/base/other.txt` останется",
             ),
         )
 
@@ -164,7 +164,7 @@ class CustomDomainsPage(BasePage):
         self.layout.addWidget(self._actions_group)
         
         # Текстовый редактор (вместо списка)
-        self._editor_card = SettingsCard(self._tr("page.custom_domains.card.editor", "other.user.txt (редактор)"))
+        self._editor_card = SettingsCard(self._tr("page.custom_domains.card.editor", "lists/user/other.txt (редактор)"))
         editor_layout = QVBoxLayout()
         editor_layout.setSpacing(8)
         
@@ -271,7 +271,7 @@ class CustomDomainsPage(BasePage):
             self.text_edit.blockSignals(False)
             
             self._update_status()
-            log(f"Загружено {state.lines_count} строк из other.user.txt", "INFO")
+            log(f"Загружено {state.lines_count} строк из lists/user/other.txt", "INFO")
 
         except Exception as e:
             log(f"Ошибка загрузки доменов: {e}", "ERROR")
@@ -317,7 +317,7 @@ class CustomDomainsPage(BasePage):
                 self.text_edit.setTextCursor(cursor)
                 self.text_edit.blockSignals(False)
             
-            log(f"Сохранено {state.saved_count} строк в other.user.txt", "SUCCESS")
+            log(f"Сохранено {state.saved_count} строк в lists/user/other.txt", "SUCCESS")
             self.domains_changed.emit()
             
         except Exception as e:
@@ -403,7 +403,7 @@ class CustomDomainsPage(BasePage):
         self._clear_all()
 
     def _reset_file(self):
-        """Очищает other.user.txt и пересобирает other.txt из базы."""
+        """Очищает lists/user/other.txt и пересобирает lists/other.txt из базы."""
         try:
             if HostlistPageController.reset_domains_file():
                 self._load_domains()
@@ -456,7 +456,7 @@ class CustomDomainsPage(BasePage):
         self._desc_label.setText(
             self._tr(
                 "page.custom_domains.description",
-                "Здесь редактируется файл other.user.txt (только ваши домены). Системная база берётся из шаблона и отдельно хранится в other.base.txt, а общий other.txt собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
+                "Здесь редактируется пользовательский список доменов `lists/user/other.txt`. Системная база лежит в `lists/base/other.txt`, а итоговый `lists/other.txt` собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
             )
         )
         self._add_card.set_title(self._tr("page.custom_domains.card.add", "Добавить домен"))
@@ -467,7 +467,7 @@ class CustomDomainsPage(BasePage):
                 self._actions_group.titleLabel.setText(self._tr("page.custom_domains.card.actions", "Действия"))
             except Exception:
                 pass
-        self._editor_card.set_title(self._tr("page.custom_domains.card.editor", "other.user.txt (редактор)"))
+        self._editor_card.set_title(self._tr("page.custom_domains.card.editor", "lists/user/other.txt (редактор)"))
 
         self.domain_input.setPlaceholderText(
             self._tr(
@@ -480,7 +480,7 @@ class CustomDomainsPage(BasePage):
             self.open_file_btn.setText(self._tr("page.custom_domains.button.open_file", "Открыть файл"))
             set_tooltip(
                 self.open_file_btn,
-                self._tr("page.custom_domains.tooltip.open_file", "Сохраняет изменения и открывает other.user.txt в проводнике"),
+                self._tr("page.custom_domains.tooltip.open_file", "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике"),
             )
         if self.reset_btn is not None:
             self.reset_btn.setText(self._tr("page.custom_domains.button.reset_file", "Сбросить файл"))
@@ -488,7 +488,7 @@ class CustomDomainsPage(BasePage):
                 self.reset_btn,
                 self._tr(
                     "page.custom_domains.tooltip.reset_file",
-                    "Очищает other.user.txt (мои домены) и пересобирает other.txt из системной базы",
+                    "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
                 ),
             )
         if self.clear_btn is not None:
@@ -497,7 +497,7 @@ class CustomDomainsPage(BasePage):
                 self.clear_btn,
                 self._tr(
                     "page.custom_domains.tooltip.clear_all",
-                    "Удаляет только пользовательские домены. Базовые домены из шаблона останутся",
+                    "Удаляет только пользовательские домены. Системная база из `lists/base/other.txt` останется",
                 ),
             )
         self.text_edit.setPlaceholderText(

@@ -68,7 +68,7 @@ class UpdateCache:
         Возвращает закэшированный релиз если он актуален
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             
         Returns:
             Dict с информацией о релизе или None
@@ -107,7 +107,7 @@ class UpdateCache:
         Сохраняет информацию о релизе в кэш
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             release_info: Информация о релизе
         """
         try:
@@ -174,7 +174,7 @@ class UpdateCache:
         Возвращает возраст кэша в секундах
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             
         Returns:
             Возраст в секундах или None если кэша нет
@@ -202,7 +202,7 @@ class UpdateCache:
         Возвращает подробную информацию о кэше
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             
         Returns:
             Dict с информацией о кэше или None

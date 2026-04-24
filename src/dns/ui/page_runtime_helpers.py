@@ -35,7 +35,6 @@ def build_dynamic_network_ui(
     dns_cards_container,
     custom_card,
     adapters_container,
-    sync_selected_dns_card_fn,
     check_and_show_isp_dns_warning_fn,
     apply_inline_theme_styles_fn,
 ) -> object | None:
@@ -83,7 +82,6 @@ def build_dynamic_network_ui(
         on_state_changed=on_adapter_state_changed,
     )
 
-    sync_selected_dns_card_fn()
     check_and_show_isp_dns_warning_fn()
     apply_inline_theme_styles_fn(tokens)
 
@@ -92,50 +90,6 @@ def build_dynamic_network_ui(
         "provider_cards": provider_cards,
         "adapter_cards": adapter_cards,
     }
-
-
-def sync_selected_dns_card_ui(
-    *,
-    adapter_cards: list,
-    dns_info: dict,
-    providers,
-    build_dns_selection_plan_fn,
-    get_selected_adapters_fn,
-    apply_dns_selection_plan_ui_fn,
-    dns_cards: dict,
-    auto_indicator,
-    auto_card,
-    custom_indicator,
-    custom_card,
-    custom_primary,
-    custom_secondary,
-    indicator_on_qss: str,
-    indicator_off_qss: str,
-    set_card_selected_fn,
-) -> str | None:
-    if not adapter_cards:
-        return None
-
-    selection_plan = build_dns_selection_plan_fn(
-        selected_adapters=get_selected_adapters_fn(),
-        dns_info=dns_info,
-        providers=providers,
-    )
-    return apply_dns_selection_plan_ui_fn(
-        selection_plan=selection_plan,
-        dns_cards=dns_cards,
-        auto_indicator=auto_indicator,
-        auto_card=auto_card,
-        custom_indicator=custom_indicator,
-        custom_card=custom_card,
-        custom_primary=custom_primary,
-        custom_secondary=custom_secondary,
-        indicator_on_qss=indicator_on_qss,
-        indicator_off_qss=indicator_off_qss,
-        set_card_selected_fn=set_card_selected_fn,
-    )
-
-
 def clear_dns_selection_ui(
     *,
     dns_cards: dict,

@@ -59,7 +59,7 @@ AGENTS.md
 .editorconfig
 src/config/build_info.py
 /docs/changelog
-.qwen
-
-# Build artifacts
-src/Zapret.spec
+docs/gui_preset_profile_architecture_plan.md
+www_youtube_com.txt
+/.codex
+/docs

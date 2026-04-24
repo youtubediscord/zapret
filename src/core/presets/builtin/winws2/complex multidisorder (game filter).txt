@@ -1,6 +1,6 @@
 # Preset: complex multidisorder (game filter)
 # TemplateOrigin: complex multidisorder (game filter)
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # Description: 
 
 --lua-init=@lua/zapret-lib.lua
@@ -82,7 +82,7 @@
 --blob=hex_00:0x00
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
 

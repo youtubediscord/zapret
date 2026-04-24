@@ -8,10 +8,11 @@ import sys
 from pathlib import Path
 
 from blockcheck.config import TCP_TARGET_MAX_COUNT, TCP_TARGETS_PER_PROVIDER
+from config.config import MAIN_DIRECTORY
 
 logger = logging.getLogger(__name__)
 
-# User domains file — stored in working directory (writable, survives updates)
+# User domains file — stored next to the installed program
 USER_DOMAINS_FILE = "blockcheck_user_domains.txt"
 
 
@@ -22,7 +23,7 @@ def _data_dir() -> Path:
 
 def _user_data_path() -> Path:
     """Return path to user domains file (writable)."""
-    return Path(os.getcwd()) / USER_DOMAINS_FILE
+    return Path(MAIN_DIRECTORY) / USER_DOMAINS_FILE
 
 
 def _iter_data_file_candidates(filename: str, filepath: str | Path | None = None) -> list[Path]:
@@ -30,20 +31,12 @@ def _iter_data_file_candidates(filename: str, filepath: str | Path | None = None
     if filepath is not None:
         return [Path(filepath)]
 
-    cwd = Path(os.getcwd())
-    candidates: list[Path] = [
-        cwd / "blockcheck" / "data" / filename,
-        cwd / "data" / filename,
-    ]
+    app_dir = Path(MAIN_DIRECTORY)
 
-    try:
-        exe_dir = Path(sys.executable).resolve().parent
-        candidates.extend([
-            exe_dir / "blockcheck" / "data" / filename,
-            exe_dir / "data" / filename,
-        ])
-    except Exception:
-        pass
+    candidates: list[Path] = [
+        app_dir / "blockcheck" / "data" / filename,
+        app_dir / "data" / filename,
+    ]
 
     candidates.append(_data_dir() / filename)
 

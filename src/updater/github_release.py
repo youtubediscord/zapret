@@ -17,7 +17,7 @@ from log.log import log
 
 from .channel_utils import (
     normalize_update_channel,
-    is_test_release_asset_name,
+    is_dev_release_asset_name,
 )
 from .network_hints import maybe_log_disable_dpi_for_update
 from .proxy_bypass import request_get_bypass_proxy
@@ -283,7 +283,7 @@ def get_all_releases_with_exe() -> List[Dict[str, Any]]:
     ✅ ОПТИМИЗИРОВАНО: 
     - Кэширует полный результат на 10 минут
     - НЕ делает отдельный запрос check_rate_limit()
-    - Максимум 2 страницы для test канала (200 релизов = достаточно)
+    - Максимум 2 страницы для dev канала (200 релизов = достаточно)
     """
     global _all_releases_cache
     
@@ -399,7 +399,7 @@ def get_latest_release(channel: str) -> Optional[dict]:
     """
     Получает информацию о последнем релизе с GitHub.
     Для stable канала использует /releases/latest.
-    Для test канала ищет самую новую тестовую версию среди ALL релизов с .exe файлами.
+    Для dev канала ищет самую новую dev-версию среди ALL релизов с .exe файлами.
     """
     # Загружаем кэш при первом запуске
     if not _github_cache:
@@ -435,8 +435,8 @@ def get_latest_release(channel: str) -> Optional[dict]:
                 "published_at": release.get("published_at", "")
             }
         else:
-            # Для test канала получаем все релизы и отбираем только test-кандидаты.
-            log("🔍 Получение всех test релизов для поиска самого нового...", "🔁 UPDATE")
+            # Для dev канала получаем все релизы и отбираем только dev-кандидаты.
+            log("🔍 Получение всех dev релизов для поиска самого нового...", "🔁 UPDATE")
             
             all_releases = get_all_releases_with_exe()
             if not all_releases:
@@ -445,13 +445,13 @@ def get_latest_release(channel: str) -> Optional[dict]:
 
             filtered_releases = [
                 rel for rel in all_releases
-                if rel.get("prerelease") or is_test_release_asset_name(rel.get("file_name", ""))
+                if rel.get("prerelease") or is_dev_release_asset_name(rel.get("file_name", ""))
             ]
             if not filtered_releases:
-                log("❌ Не найдено test релизов с .exe файлом", "🔁 UPDATE")
+                log("❌ Не найдено dev релизов с .exe файлом", "🔁 UPDATE")
                 return None
             
-            log(f"📦 Найдено {len(filtered_releases)} test релизов с .exe файлами", "🔁 UPDATE")
+            log(f"📦 Найдено {len(filtered_releases)} dev релизов с .exe файлами", "🔁 UPDATE")
             
             # Сортируем по версии (от новой к старой)
             def version_key(rel):
@@ -470,7 +470,7 @@ def get_latest_release(channel: str) -> Optional[dict]:
             
             # Возвращаем самый новый
             latest = filtered_releases[0]
-            log(f"✅ Выбран самый новый test релиз: {latest['version']} (prerelease: {latest.get('prerelease', False)})", "🔁 UPDATE")
+            log(f"✅ Выбран самый новый dev релиз: {latest['version']} (prerelease: {latest.get('prerelease', False)})", "🔁 UPDATE")
             
             return latest
             

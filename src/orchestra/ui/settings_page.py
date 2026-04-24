@@ -127,7 +127,7 @@ class OrchestraSettingsPage(QWidget):
 
     def _resolve_ui_language(self) -> str:
         try:
-            from config.reg import get_ui_language
+            from settings.store import get_ui_language
 
             return normalize_language(get_ui_language())
         except Exception:

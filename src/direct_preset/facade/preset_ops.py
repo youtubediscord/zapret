@@ -169,6 +169,7 @@ def rename_by_file_name(backend, file_name: str, new_name: str):
     )
     if was_selected:
         backend.preset_selection_service.select_preset(backend.engine, updated.file_name)
+        backend.notify_preset_identity_changed(updated.file_name)
         backend._refresh_selected_launch_profile_from_source()
     return updated
 
@@ -230,6 +231,18 @@ def reset_to_template_by_file_name(backend, file_name: str):
     manifest = backend.get_manifest_by_file_name(file_name)
     if manifest is None:
         raise ValueError(f"Preset not found: {file_name}")
+    builtin_path = backend.app_paths.engine_paths(backend.engine).ensure_directories().builtin_presets_dir / manifest.file_name
+    if str(manifest.kind or "").strip().lower() == "builtin":
+        return manifest
+    if builtin_path.exists():
+        backend.preset_file_store.delete_preset(backend.engine, manifest.file_name)
+        updated = backend.get_manifest_by_file_name(manifest.file_name)
+        if updated is None:
+            raise ValueError("Built-in preset not found after reset")
+        backend.notify_preset_saved(updated.file_name)
+        if backend.is_selected_file_name(manifest.file_name):
+            backend._refresh_selected_launch_profile_from_source()
+        return updated
     template_key = str(manifest.template_origin or manifest.name or "").strip()
     template_content = _resolve_reset_template(backend.launch_method, template_key)
     if not template_content:
@@ -241,6 +254,7 @@ def reset_to_template_by_file_name(backend, file_name: str):
         preset_kind=_header_preset_kind(manifest.kind),
     )
     updated = backend.preset_file_store.update_preset(backend.engine, manifest.file_name, rewritten, None)
+    backend.notify_preset_saved(updated.file_name)
     if backend.is_selected_file_name(manifest.file_name):
         backend._refresh_selected_launch_profile_from_source()
     return updated
@@ -250,6 +264,7 @@ def reset_all_to_templates(backend) -> tuple[int, int, list[str]]:
     result = _template_support_reset_all_templates(backend.launch_method)
     selected_file_name = backend.get_selected_file_name()
     if selected_file_name and backend.get_manifest_by_file_name(selected_file_name) is not None:
+        backend.notify_preset_saved(selected_file_name)
         backend._refresh_selected_launch_profile_from_source()
     return result
 

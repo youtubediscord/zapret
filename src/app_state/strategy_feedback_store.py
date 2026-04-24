@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from pathlib import Path
 from typing import Iterable, Optional, Set, Tuple
 
-from config.config import get_zapret_userdata_dir
+from config.config import MAIN_DIRECTORY
 
 
 
@@ -13,23 +12,7 @@ FeedbackKey = Tuple[str, str]  # (target_key, strategy_id)
 
 
 def _get_feedback_dir() -> Path:
-    base = ""
-    try:
-        base = (get_zapret_userdata_dir() or "").strip()
-    except Exception:
-        base = ""
-
-    if not base:
-        appdata = (os.environ.get("APPDATA") or "").strip()
-        if appdata:
-            base = os.path.join(appdata, "zapret")
-
-    if not base:
-        raise RuntimeError("APPDATA is required for strategy feedback storage")
-
-    # Папка пользовательских данных пока сохранена прежней, чтобы не потерять уже
-    # записанные оценки и избранное после переноса store-слоя из старой архитектуры.
-    return Path(base) / "direct_zapret2"
+    return Path(MAIN_DIRECTORY) / "direct_zapret2"
 
 
 def _parse_feedback_lines(lines: Iterable[str]) -> Set[FeedbackKey]:

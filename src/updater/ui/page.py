@@ -2,6 +2,7 @@
 """Страница мониторинга серверов обновлений"""
 
 from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel,
 )
@@ -40,11 +41,11 @@ try:
     )
     _HAS_FLUENT = True
 except ImportError:
-    from PyQt6.QtWidgets import QPushButton
+    from PyQt6.QtWidgets import QPushButton, QCheckBox
     BodyLabel = QLabel
     CaptionLabel = QLabel
     PushButton = QPushButton
-    SwitchButton = None  # type: ignore[assignment]
+    SwitchButton = QCheckBox  # type: ignore[assignment]
     PushSettingCard = None  # type: ignore[assignment]
     SettingCardGroup = None  # type: ignore[assignment]
     _HAS_FLUENT = False

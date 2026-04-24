@@ -29,16 +29,28 @@ try:
     )
     HAS_FLUENT = True
 except ImportError:
-    from PyQt6.QtWidgets import QCheckBox as PushButton, QFrame as CardWidget, QProgressBar
+    from PyQt6.QtWidgets import QFrame as CardWidget, QProgressBar, QPushButton
 
     BodyLabel = QLabel
     CaptionLabel = QLabel
     StrongBodyLabel = QLabel
-    TransparentToolButton = PushButton
-    PrimaryActionButton = PushButton
     ProgressBar = QProgressBar
     IndeterminateProgressBar = QProgressBar
     HAS_FLUENT = False
+
+    class PushButton(QPushButton):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+
+    class TransparentToolButton(QPushButton):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+
+    class PrimaryActionButton(QPushButton):
+        def __init__(self, text: str = "", icon_name: str | None = None, parent=None):
+            super().__init__(parent)
+            self.setText(text)
+            _ = icon_name
 
 
 class ChangelogCard(CardWidget):
@@ -176,10 +188,11 @@ class ChangelogCard(CardWidget):
 
         layout.addWidget(self.buttons_widget)
 
-        self._apply_page_theme(force=True)
+        self._apply_theme(force=True)
 
-    def _apply_theme(self, theme_name: str | None = None) -> None:
-        self._tokens = get_theme_tokens(theme_name)
+    def _apply_theme(self, tokens=None, force: bool = False) -> None:
+        _ = force
+        self._tokens = tokens or get_theme_tokens()
         tokens = self._tokens
 
         self.title_label.setStyleSheet(f"color: {tokens.accent_hex};")

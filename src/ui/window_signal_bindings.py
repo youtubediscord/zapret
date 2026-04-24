@@ -32,13 +32,13 @@ def connect_window_page_signals(window) -> None:
         pass
 
     try:
-        from config.reg import get_smooth_scroll_enabled
+        from settings.store import get_smooth_scroll_enabled
         on_smooth_scroll_changed(window, get_smooth_scroll_enabled())
     except Exception:
         pass
 
     try:
-        from config.reg import get_editor_smooth_scroll_enabled
+        from settings.store import get_editor_smooth_scroll_enabled
 
         on_editor_smooth_scroll_changed(window, get_editor_smooth_scroll_enabled())
     except Exception:

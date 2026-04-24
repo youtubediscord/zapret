@@ -16,58 +16,54 @@ try:
 except ImportError:
     CHANNEL = "stable"
 
-# App core path (where Zapret.exe lives).
-APP_CORE_PATH = MAIN_DIRECTORY
+CHANNEL_STABLE = "stable"
+CHANNEL_DEV = "dev"
+INSTALL_DIR_STABLE = "Stable"
+INSTALL_DIR_DEV = "Dev"
+
+def get_system_drive() -> str:
+    """Возвращает системный диск Windows, обычно `C:`."""
+    return (os.environ.get("SystemDrive") or "C:").strip() or "C:"
 
 
-def get_roaming_appdata_dir() -> str:
-    """Returns %APPDATA% (Roaming) on Windows, or empty string."""
-    return os.environ.get("APPDATA", "")
+def is_dev_build_channel() -> bool:
+    """True для dev-канала сборки."""
+    return str(CHANNEL or "").strip().lower() == CHANNEL_DEV
 
 
-def get_zapret_channel_dir_name() -> str:
-    """Returns the per-channel userdata leaf directory name."""
-    return "dev" if str(CHANNEL or "").strip().lower() == "test" else "stable"
+def get_install_dir_name() -> str:
+    """Возвращает имя папки установки по каналу: `Dev` или `Stable`."""
+    return INSTALL_DIR_DEV if is_dev_build_channel() else INSTALL_DIR_STABLE
 
 
-def get_zapret_userdata_dir() -> str:
-    """Returns the canonical per-channel user-data root for Zapret.
-
-    Primary target (Windows): %APPDATA%\\zapret\\stable or %APPDATA%\\zapret\\dev
-    Fallback (non-Windows/dev): MAIN_DIRECTORY
-    """
-    base = get_roaming_appdata_dir()
-    if base:
-        return os.path.join(base, "zapret", get_zapret_channel_dir_name())
-    return MAIN_DIRECTORY
+def get_default_install_dir() -> str:
+    """Возвращает базовый путь установки по каналу."""
+    return os.path.join(get_system_drive(), "Zapret", get_install_dir_name())
 
 
-def get_zapret_presets_v2_dir() -> str:
-    """Returns V2 presets root directory: <userdata>/zapret/presets_v2."""
-    return os.path.join(get_zapret_userdata_dir(), "presets_v2")
+def get_presets_root_dir() -> str:
+    """Возвращает общий корень всех пресетов рядом с программой."""
+    return os.path.join(MAIN_DIRECTORY, "presets")
 
 
-def get_zapret_lists_template_dir() -> str:
-    """Returns lists templates directory: <userdata>/zapret/lists_template."""
-    return os.path.join(get_zapret_userdata_dir(), "lists_template")
+def get_presets_v1_dir() -> str:
+    """Возвращает пользовательскую папку пресетов Zapret 1."""
+    return os.path.join(get_presets_root_dir(), "presets_v1")
 
 
-def get_zapret_lists_backup_dir() -> str:
-    """Returns lists backup directory: <userdata>/zapret/lists_backup.
-
-    Used to persist user-edited list files across app updates.
-    """
-    return os.path.join(get_zapret_userdata_dir(), "lists_backup")
+def get_presets_v2_dir() -> str:
+    """Возвращает пользовательскую папку пресетов Zapret 2."""
+    return os.path.join(get_presets_root_dir(), "presets_v2")
 
 
-def get_other_user_backup_path() -> str:
-    """Returns backup path for user-edited other.user.txt."""
-    return os.path.join(get_zapret_lists_backup_dir(), "other.user.txt")
+def get_builtin_presets_v1_dir() -> str:
+    """Возвращает системную папку встроенных пресетов Zapret 1."""
+    return os.path.join(get_presets_root_dir(), "presets_v1_builtin")
 
 
-def get_other_template_path() -> str:
-    """Returns path to canonical other.txt template in user data."""
-    return os.path.join(get_zapret_lists_template_dir(), "other.txt")
+def get_builtin_presets_v2_dir() -> str:
+    """Возвращает системную папку встроенных пресетов Zapret 2."""
+    return os.path.join(get_presets_root_dir(), "presets_v2_builtin")
 
 # ═══════════════════════════════════════════════════════════════════
 
@@ -77,7 +73,6 @@ INDEXJSON_FOLDER = os.path.join(MAIN_DIRECTORY, "json")
 EXE_FOLDER = os.path.join(MAIN_DIRECTORY, "exe")
 LUA_FOLDER = os.path.join(MAIN_DIRECTORY, "lua")  # Lua библиотеки для Zapret 2
 ICO_FOLDER = os.path.join(MAIN_DIRECTORY, "ico")
-LISTS_FOLDER = os.path.join(MAIN_DIRECTORY, "lists")
 THEME_FOLDER = os.path.join(MAIN_DIRECTORY, "themes")
 LOGS_FOLDER = os.path.join(MAIN_DIRECTORY, "logs")
 HELP_FOLDER = os.path.join(MAIN_DIRECTORY, "help")
@@ -180,116 +175,7 @@ def get_current_winws_exe() -> str:
 # ═══════════════════════════════════════════════════════════════════
 
 ICON_PATH = os.path.join(ICO_FOLDER, "Zapret2.ico")
-ICON_TEST_PATH = os.path.join(ICO_FOLDER, "ZapretDevLogo4.ico")
-
-OTHER_PATH = os.path.join(LISTS_FOLDER, "other.txt")
-OTHER_BASE_PATH = os.path.join(LISTS_FOLDER, "other.base.txt")
-OTHER_USER_PATH = os.path.join(LISTS_FOLDER, "other.user.txt")
-NETROGAT_PATH = os.path.join(LISTS_FOLDER, "netrogat.txt")
-NETROGAT2_PATH = os.path.join(LISTS_FOLDER, "netrogat2.txt")
-
-# ═══════════════════════════════════════════════════════════════════
-# APPDATA — файловое хранилище настроек
-# ═══════════════════════════════════════════════════════════════════
-APPDATA_DIR = get_zapret_userdata_dir()
-
-# ═══════════════════════════════════════════════════════════════════
-# ПУТИ РЕЕСТРА (все в одном месте)
-# ═══════════════════════════════════════════════════════════════════
-# Базовый путь зависит от канала сборки (stable/test)
-REGISTRY_PATH = r"Software\Zapret2DevReg" if CHANNEL == "test" else r"Software\Zapret2Reg"
-
-# Подпути внутри базового пути
-REGISTRY_PATH_GUI = rf"{REGISTRY_PATH}\GUI"                     # Настройки GUI (MAX blocker, donate и т.д.)
-REGISTRY_PATH_STRATEGIES = rf"{REGISTRY_PATH}\Strategies"       # Настройки стратегий
-REGISTRY_PATH_WINDOW = rf"{REGISTRY_PATH}\Window"               # Позиция и размер окна
-# ═══════════════════════════════════════════════════════════════════
-
-BASE_WIDTH = 1000  # Базовый размер для бокового меню в стиле Windows 11
-BASE_HEIGHT = 950  # Базовая высота для нового интерфейса
-MIN_WIDTH = 680    # Минимальная ширина (уменьшено для экранов 1366x768)
-MIN_HEIGHT = 580   # Минимальная высота (уменьшено для экранов 1366x768)
-
-def get_display_scale():
-    """Получает масштабирование экрана Windows (например, 1.0, 1.25, 1.5, 1.75, 2.0)"""
-    try:
-        import ctypes
-        # Включаем DPI awareness для получения реального масштаба
-        try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except:
-            pass
-        
-        # Получаем DPI экрана
-        hdc = ctypes.windll.user32.GetDC(0)
-        dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX = 88
-        ctypes.windll.user32.ReleaseDC(0, hdc)
-        
-        # Стандартный DPI = 96, масштаб = DPI / 96
-        scale = dpi / 96.0
-        return scale
-    except Exception:
-        return 1.0
-
-def get_screen_resolution():
-    """Получает реальное разрешение экрана в пикселях"""
-    try:
-        import ctypes
-        user32 = ctypes.windll.user32
-        # Включаем DPI awareness для получения реального разрешения
-        try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        except:
-            pass
-        screen_width = user32.GetSystemMetrics(0)   # SM_CXSCREEN
-        screen_height = user32.GetSystemMetrics(1)  # SM_CYSCREEN
-        return screen_width, screen_height
-    except Exception:
-        return 1920, 1080  # Значение по умолчанию
-
-def get_scaled_window_size():
-    """Возвращает размер окна с учетом масштабирования и разрешения экрана"""
-    scale = get_display_scale()
-    screen_width, screen_height = get_screen_resolution()
-    
-    # Базовое разрешение для которого оптимизированы размеры окна
-    REFERENCE_WIDTH = 1920
-    REFERENCE_HEIGHT = 1080
-    
-    # Начинаем с базовых размеров
-    width = BASE_WIDTH
-    height = BASE_HEIGHT
-    
-    # Учитываем DPI масштабирование (при масштабе > 100% уменьшаем окно)
-    if scale > 1.0:
-        reduction = 1.0 / scale
-        width = int(width * reduction)
-        height = int(height * reduction)
-    
-    # Учитываем разрешение экрана если оно меньше 1920x1080
-    if screen_width < REFERENCE_WIDTH or screen_height < REFERENCE_HEIGHT:
-        # Вычисляем коэффициенты масштабирования по ширине и высоте
-        width_ratio = screen_width / REFERENCE_WIDTH
-        height_ratio = screen_height / REFERENCE_HEIGHT
-
-        # Используем меньший коэффициент для сохранения пропорций
-        # и чтобы окно гарантированно поместилось на экране
-        screen_scale = min(width_ratio, height_ratio)
-
-        # Применяем масштабирование, оставляя немного места для панели задач и рамок
-        # Для маленьких экранов (1366x768) используем больший коэффициент
-        margin_factor = 0.92 if screen_height <= 768 else 0.9
-        width = int(BASE_WIDTH * screen_scale * margin_factor)
-        height = int(BASE_HEIGHT * screen_scale * margin_factor)
-    
-    # Гарантируем минимальные размеры
-    width = max(width, MIN_WIDTH)
-    height = max(height, MIN_HEIGHT)
-    
-    return width, height
-
-# Получаем актуальные размеры с учетом масштабирования
-WIDTH, HEIGHT = get_scaled_window_size()
+ICON_DEV_PATH = os.path.join(ICO_FOLDER, "ZapretDevLogo4.ico")
 
 # Discord TCP конфигурации
 
@@ -303,126 +189,3 @@ if __name__ == "__main__":
     print(f"MAIN_DIRECTORY: {MAIN_DIRECTORY}")
     print(f"EXE_FOLDER: {EXE_FOLDER}")
     print(f"Существует EXE_FOLDER: {os.path.exists(EXE_FOLDER)}")
-
-
-def get_window_position():
-    """Получает сохраненную позицию окна из реестра"""
-    try:
-        import winreg
-        from log.log import log
-
-
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ)
-        try:
-            x = winreg.QueryValueEx(key, "WindowX")[0]
-            y = winreg.QueryValueEx(key, "WindowY")[0]
-            winreg.CloseKey(key)
-            # Values are stored as DWORD. Decode signed 32-bit so multi-monitor
-            # setups (negative coordinates) work correctly.
-            if isinstance(x, int) and x >= 0x80000000:
-                x -= 0x100000000
-            if isinstance(y, int) and y >= 0x80000000:
-                y -= 0x100000000
-            return (x, y)
-        except FileNotFoundError:
-            winreg.CloseKey(key)
-            return None
-    except Exception as e:
-        log(f"Ошибка чтения позиции окна: {e}", "DEBUG")
-        return None
-
-def set_window_position(x, y):
-    """Сохраняет позицию окна в реестр"""
-    try:
-        import winreg
-        from log.log import log
-
-
-        # REG_DWORD is unsigned; store signed 32-bit coordinates as two's complement.
-        def _to_dword_signed(v):
-            try:
-                return int(v) & 0xFFFFFFFF
-            except Exception:
-                return 0
-
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
-        winreg.SetValueEx(key, "WindowX", 0, winreg.REG_DWORD, _to_dword_signed(x))
-        winreg.SetValueEx(key, "WindowY", 0, winreg.REG_DWORD, _to_dword_signed(y))
-        winreg.CloseKey(key)
-        log(f"Позиция окна сохранена: ({x}, {y})", "DEBUG")
-        return True
-    except Exception as e:
-        log(f"Ошибка сохранения позиции окна: {e}", "❌ ERROR")
-        return False
-
-def get_window_size():
-    """Получает сохраненный размер окна из реестра"""
-    try:
-        import winreg
-        from log.log import log
-
-
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ)
-        try:
-            width = winreg.QueryValueEx(key, "WindowWidth")[0]
-            height = winreg.QueryValueEx(key, "WindowHeight")[0]
-            winreg.CloseKey(key)
-            return (width, height)
-        except FileNotFoundError:
-            winreg.CloseKey(key)
-            return None
-    except Exception as e:
-        log(f"Ошибка чтения размера окна: {e}", "DEBUG")
-        return None
-
-def set_window_size(width, height):
-    """Сохраняет размер окна в реестр"""
-    try:
-        import winreg
-        from log.log import log
-
-        
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
-        winreg.SetValueEx(key, "WindowWidth", 0, winreg.REG_DWORD, int(width))
-        winreg.SetValueEx(key, "WindowHeight", 0, winreg.REG_DWORD, int(height))
-        winreg.CloseKey(key)
-        log(f"Размер окна сохранен: ({width}x{height})", "DEBUG")
-        return True
-    except Exception as e:
-        log(f"Ошибка сохранения размера окна: {e}", "❌ ERROR")
-        return False
-
-def get_window_maximized():
-    """Получает сохранённое состояние "окно развернуто" из реестра"""
-    try:
-        import winreg
-        from log.log import log
-
-
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ)
-        try:
-            maximized = winreg.QueryValueEx(key, "WindowMaximized")[0]
-            winreg.CloseKey(key)
-            return bool(int(maximized))
-        except FileNotFoundError:
-            winreg.CloseKey(key)
-            return None
-    except Exception as e:
-        log(f"Ошибка чтения состояния maximized: {e}", "DEBUG")
-        return None
-
-def set_window_maximized(maximized: bool):
-    """Сохраняет состояние "окно развернуто" в реестр"""
-    try:
-        import winreg
-        from log.log import log
-
-
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH)
-        winreg.SetValueEx(key, "WindowMaximized", 0, winreg.REG_DWORD, int(bool(maximized)))
-        winreg.CloseKey(key)
-        log(f"Состояние maximized сохранено: {bool(maximized)}", "DEBUG")
-        return True
-    except Exception as e:
-        log(f"Ошибка сохранения состояния maximized: {e}", "❌ ERROR")
-        return False

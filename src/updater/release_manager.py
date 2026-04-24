@@ -28,7 +28,7 @@ from .github_release import (
 )
 from .channel_utils import (
     normalize_update_channel,
-    is_test_update_channel,
+    is_dev_update_channel,
     get_channel_installer_name,
 )
 from .network_hints import maybe_log_disable_dpi_for_update
@@ -155,7 +155,7 @@ class ReleaseManager:
         3. VPS серверы (резерв)
 
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
 
         Returns:
             Dict с информацией о релизе или None
@@ -190,7 +190,7 @@ class ReleaseManager:
         Пытается получить информацию о релизе из Telegram
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             
         Returns:
             Dict с информацией о релизе или None
@@ -224,7 +224,7 @@ class ReleaseManager:
                     "update_url": f"telegram://{info['channel']}",
                     "file_name": file_name,
                     "release_notes": "",
-                    "prerelease": is_test_update_channel(channel),
+                    "prerelease": is_dev_update_channel(channel),
                     "name": f"Zapret {version} ({channel})",
                     "published_at": info.get('date', ''),
                     "source": info['source'],
@@ -246,7 +246,7 @@ class ReleaseManager:
         Перебирает все доступные серверы, пропуская заблокированные.
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             
         Returns:
             Dict с информацией о релизе или None
@@ -319,7 +319,7 @@ class ReleaseManager:
         Пытается получить релиз с конкретного URL
         
         Args:
-            channel: "stable" или "test"
+            channel: "stable" или "dev"
             server: Информация о сервере из пула
             url: Базовый URL сервера
             protocol: "HTTPS" или "HTTP"
@@ -476,7 +476,7 @@ class ReleaseManager:
             if file_path:
                 file_name = PurePosixPath(file_path).name
         if not file_name:
-            file_name = f"Zapret2Setup{'_TEST' if api_channel == 'test' else ''}.exe"
+            file_name = f"Zapret2Setup{'_DEV' if api_channel == 'dev' else ''}.exe"
         download_url = f"{url}/download/{file_name}"
         
         # Определяем verify_ssl для результата
@@ -491,7 +491,7 @@ class ReleaseManager:
             "update_url": download_url,
             "file_name": file_name,
             "release_notes": data.get("release_notes", ""),
-            "prerelease": is_test_update_channel(channel),
+            "prerelease": is_dev_update_channel(channel),
             "name": f"Zapret {data.get('version', '0.0.0')} ({api_channel})",
             "published_at": data.get("date", ""),
             "source": server_name,
@@ -659,7 +659,7 @@ def get_latest_release(channel: str, use_cache: bool = True) -> Optional[Dict[st
     Получает информацию о последнем релизе с поддержкой кэширования
     
     Args:
-        channel: "stable" или "test"
+        channel: "stable" или "dev"
         use_cache: Использовать кэш (False для принудительной проверки)
         
     Returns:
@@ -714,7 +714,7 @@ def get_cache_info(channel: str) -> Optional[Dict[str, Any]]:
     Возвращает информацию о состоянии кэша
     
     Args:
-        channel: "stable" или "test"
+        channel: "stable" или "dev"
         
     Returns:
         Dict с информацией о кэше или None

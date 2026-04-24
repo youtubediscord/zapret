@@ -1,6 +1,6 @@
 # Preset: general ALT9 1.9.5
 # TemplateOrigin: general ALT9 1.9.5
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # IconColor: #e6c300ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -105,7 +105,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=hostfakesplit:host=www.google.com:repeats=4:tcp_ts=-600000
 

@@ -6,6 +6,12 @@ import time as _time
 from typing import TYPE_CHECKING, Callable, Optional
 
 from direct_preset.common.source_preset_models import OutRangeSettings, SendSettings, SyndataSettings
+from direct_preset.common.out_range import (
+    build_simple_out_range_expression,
+    is_valuefree_out_range_mode,
+    normalize_simple_out_range_mode,
+    parse_out_range_expression,
+)
 from direct_preset.service import BasicUiPayload, DirectPresetService, TargetDetailPayload
 from core.paths import AppPaths
 from core.presets.preset_file_store import PresetFileStore
@@ -27,7 +33,11 @@ from .preset_ops import (
     set_debug_log_enabled as _set_debug_log_enabled,
     set_wssize_enabled as _set_wssize_enabled,
 )
-from direct_preset.modes import DIRECT_UI_MODE_DEFAULT, load_current_direct_ui_mode
+from direct_preset.modes import (
+    DIRECT_UI_MODE_DEFAULT,
+    load_current_direct_ui_mode,
+    normalize_direct_ui_mode_for_engine,
+)
 from .text_ops import (
     _collect_changed_strategy_selections,
     _coerce_int,
@@ -56,6 +66,7 @@ class DirectPresetFacadeBackend:
     preset_selection_service: PresetSelectionService
     preset_store: DirectRuntimePresetStore
     preset_store_v1: DirectRuntimePresetStore
+    direct_mode_override: str | None = None
     on_dpi_reload_needed: Optional[Callable[[], None]] = None
 
     def _adapter(self) -> DirectPresetEngineAdapter:
@@ -70,9 +81,11 @@ class DirectPresetFacadeBackend:
     def _service(self) -> DirectPresetService:
         return DirectPresetService(self.app_paths, self.engine)
 
-    def _current_direct_strategy_set(self) -> str:
+    def _current_direct_mode(self) -> str:
         if not self._adapter().supports_direct_ui_mode():
             return ""
+        if self.direct_mode_override is not None:
+            return normalize_direct_ui_mode_for_engine(self.engine, self.direct_mode_override)
         resolved = load_current_direct_ui_mode(self.engine)
         return resolved or DIRECT_UI_MODE_DEFAULT
 
@@ -80,7 +93,7 @@ class DirectPresetFacadeBackend:
         selected_file_name = str(getattr(selected_manifest, "file_name", "") or "").strip()
         if not selected_file_name:
             raise ValueError("Selected source preset file name is required")
-        return self.app_paths.engine_paths(self.engine).ensure_directories().presets_dir / selected_file_name
+        return self.preset_file_store.get_source_path(self.engine, selected_file_name)
 
     def _load_selected_preset_model(self, selected_manifest: PresetManifest | None = None):
         if selected_manifest is None:
@@ -154,7 +167,7 @@ class DirectPresetFacadeBackend:
         payload = self._service().build_basic_ui_payload(
             preset,
             startup_scope=startup_scope,
-            strategy_set=self._current_direct_strategy_set(),
+            direct_mode=self._current_direct_mode(),
         )
         payload = replace(
             payload,
@@ -178,11 +191,7 @@ class DirectPresetFacadeBackend:
     def get_basic_ui_empty_state(self) -> dict[str, str] | None:
         """Explains why the direct categories page is empty, if it is empty."""
         try:
-            presets_dir = self.app_paths.engine_paths(self.engine).ensure_directories().presets_dir
-            has_any_preset = any(
-                path.is_file() and path.suffix.lower() == ".txt" and not path.name.startswith("_")
-                for path in presets_dir.glob("*.txt")
-            )
+            has_any_preset = bool(self.list_manifests())
         except Exception:
             try:
                 has_any_preset = bool(self.list_manifests())
@@ -247,7 +256,7 @@ class DirectPresetFacadeBackend:
         return self._service().build_target_detail_payload(
             preset,
             str(target_key or "").strip().lower(),
-            strategy_set=self._current_direct_strategy_set(),
+            direct_mode=self._current_direct_mode(),
         )
 
     def list_file_names(self) -> list[str]:
@@ -337,10 +346,7 @@ class DirectPresetFacadeBackend:
             pass
 
     def get_source_path_by_file_name(self, file_name: str) -> Path:
-        manifest = self.get_manifest_by_file_name(file_name)
-        if manifest is None:
-            raise ValueError(f"Preset not found: {file_name}")
-        return self.app_paths.engine_paths(self.engine).ensure_directories().presets_dir / manifest.file_name
+        return self.preset_file_store.get_source_path(self.engine, file_name)
 
     def save_source_text_by_file_name(self, file_name: str, source_text: str) -> PresetManifest:
         manifest = self.get_manifest_by_file_name(file_name)
@@ -348,6 +354,7 @@ class DirectPresetFacadeBackend:
             raise ValueError(f"Preset not found: {file_name}")
         normalized = _normalize_direct_preset_source_text(source_text)
         updated = self.preset_file_store.update_preset(self.engine, manifest.file_name, normalized, None)
+        self.notify_preset_saved(updated.file_name)
         if self.is_selected_file_name(updated.file_name):
             self.direct_flow_coordinator.refresh_selected_launch_profile(self.launch_method)
         return updated
@@ -380,7 +387,9 @@ class DirectPresetFacadeBackend:
         self.direct_flow_coordinator.refresh_selected_launch_profile(self.launch_method)
 
     def select_file_name(self, file_name: str):
-        return self.direct_flow_coordinator.select_preset_file_name(self.launch_method, file_name)
+        profile = self.direct_flow_coordinator.select_preset_file_name(self.launch_method, file_name)
+        self.notify_preset_switched(profile.preset_file_name)
+        return profile
 
     def rename_by_file_name(self, file_name: str, new_name: str) -> PresetManifest:
         return _rename_by_file_name(self, file_name, new_name)
@@ -412,15 +421,15 @@ class DirectPresetFacadeBackend:
             return {}
         return self._service().get_strategy_selections(
             preset,
-            strategy_set=self._current_direct_strategy_set(),
+            direct_mode=self._current_direct_mode(),
         )
 
     def set_strategy_selections(self, selections: dict, *, save_and_sync: bool = True) -> bool:
         preset = self.get_selected_source_preset_model()
         if not preset:
             return False
-        strategy_set = self._current_direct_strategy_set()
-        current = self._service().get_strategy_selections(preset, strategy_set=strategy_set)
+        direct_mode = self._current_direct_mode()
+        current = self._service().get_strategy_selections(preset, direct_mode=direct_mode)
         changed = _collect_changed_strategy_selections(current, selections)
         if not changed:
             return True
@@ -429,7 +438,7 @@ class DirectPresetFacadeBackend:
                 preset,
                 target_key,
                 strategy_id,
-                strategy_set=strategy_set,
+                direct_mode=direct_mode,
             )
         return self.save_preset_model(preset) if save_and_sync else True
 
@@ -440,8 +449,8 @@ class DirectPresetFacadeBackend:
         preset = self.get_selected_source_preset_model()
         if not preset:
             return False
-        strategy_set = self._current_direct_strategy_set()
-        current = self._service().get_strategy_selections(preset, strategy_set=strategy_set)
+        direct_mode = self._current_direct_mode()
+        current = self._service().get_strategy_selections(preset, direct_mode=direct_mode)
         normalized_strategy_id = _normalize_strategy_selection_value(strategy_id)
         if (
             normalized_strategy_id != "none"
@@ -452,7 +461,7 @@ class DirectPresetFacadeBackend:
             preset,
             normalized_key,
             normalized_strategy_id,
-            strategy_set=strategy_set,
+            direct_mode=direct_mode,
         )
         if not ok:
             return False
@@ -514,9 +523,25 @@ class DirectPresetFacadeBackend:
             return False
 
         payload = _settings_payload_to_dict(settings)
+        out_range_is_simple = bool(payload.get("out_range_is_simple", True))
+        out_range_expression = str(payload.get("out_range_expression", details.out_range_settings.expression or "") or "").strip()
         out_range_value = max(0, _coerce_int(payload.get("out_range", details.out_range_settings.value), details.out_range_settings.value))
-        out_range_mode = str(payload.get("out_range_mode", details.out_range_settings.mode or "n") or "n").strip().lower()
-        out_range = OutRangeSettings(enabled=out_range_value > 0, value=out_range_value, mode="d" if out_range_mode == "d" else "n")
+        out_range_mode = normalize_simple_out_range_mode(
+            payload.get("out_range_mode", details.out_range_settings.mode or "d"),
+            default="d",
+        )
+        if out_range_is_simple:
+            out_range = OutRangeSettings(
+                enabled=(is_valuefree_out_range_mode(out_range_mode) or out_range_value > 0),
+                value=0 if is_valuefree_out_range_mode(out_range_mode) else out_range_value,
+                mode=out_range_mode,
+                expression=build_simple_out_range_expression(out_range_mode, out_range_value),
+            )
+        else:
+            parsed_out_range = parse_out_range_expression(out_range_expression) if out_range_expression else None
+            if parsed_out_range is None:
+                return False
+            out_range = parsed_out_range
         send = SendSettings(
             enabled=bool(payload.get("send_enabled", details.send_settings.enabled)),
             repeats=max(0, _coerce_int(payload.get("send_repeats", details.send_settings.repeats), details.send_settings.repeats)),
@@ -560,6 +585,7 @@ class DirectPresetFacadeBackend:
             return False
         source_text = _normalize_direct_preset_source_text(self._service()._serializer().serialize(preset))
         self.preset_file_store.update_preset(self.engine, selected_manifest.file_name, source_text, selected_manifest.name)
+        self.notify_preset_saved(selected_manifest.file_name)
         self._refresh_selected_launch_profile_from_source()
         if self.on_dpi_reload_needed:
             self.on_dpi_reload_needed()
@@ -587,7 +613,11 @@ class DirectPresetFacadeBackend:
         preset = self.get_selected_source_preset_model()
         if not preset:
             return None
-        return self._service().get_target_details(preset, str(target_key or "").strip().lower())
+        return self._service().get_target_details(
+            preset,
+            str(target_key or "").strip().lower(),
+            direct_mode=self._current_direct_mode(),
+        )
 
     def get_target_strategies(self, target_key: str) -> dict:
         preset = self.get_selected_source_preset_model()

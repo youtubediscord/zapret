@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-import re
 import time
 from typing import Callable
 
 from core.paths import AppPaths
-from log.log import log
+from settings.schema import SETTINGS_DIR_NAME, SETTINGS_FILE_NAME
 
 from core.presets.cache_signatures import path_cache_signature
 from core.presets.models import PresetManifest
 from core.presets.preset_file_store import PresetFileStore
 from core.presets.selection_service import PresetSelectionService
-from core.presets.v1_builtin_templates import is_builtin_preset_file_name_v1
-from core.presets.z2_builtin_templates import is_builtin_preset_file_name_v2
 
 
 class DirectFlowError(RuntimeError):
@@ -68,14 +64,14 @@ class DirectStartupSnapshot:
 
 
 class DirectFlowCoordinator:
-    PRESETS_DOWNLOAD_URL = "https://github.com/youtubediscord/zapret/discussions/categories/presets"
-
     _METHOD_TO_ENGINE = {
         "direct_zapret1": "winws1",
         "direct_zapret2": "winws2",
     }
-    _PRESET_HEADER_RE = re.compile(r"^\s*#\s*Preset:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
-    _TEMPLATE_ORIGIN_RE = re.compile(r"^\s*#\s*TemplateOrigin:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+    _DEFAULT_PRESET_BY_ENGINE = {
+        "winws1": "Default v1.txt",
+        "winws2": "Default v1 (game filter).txt",
+    }
 
     def __init__(
         self,
@@ -86,13 +82,7 @@ class DirectFlowCoordinator:
         self._app_paths = app_paths
         self._preset_selection_service = preset_selection_service
         self._preset_file_store = preset_file_store
-        self._prepared_support_methods: set[str] = set()
         self._selected_manifest_cache: dict[str, tuple[tuple[object, ...], PresetManifest]] = {}
-        self._support_prepare_errors: dict[str, str] = {}
-
-    def ensure_support_files_ready(self, launch_method: str) -> None:
-        """Prepares runtime support files for the given direct launch method."""
-        self._ensure_support_files(launch_method)
 
     def ensure_launch_profile(
         self,
@@ -186,9 +176,8 @@ class DirectFlowCoordinator:
 
     def get_selected_source_path(self, launch_method: str) -> Path:
         selected = self.get_selected_source_manifest(launch_method)
-
         engine = self._METHOD_TO_ENGINE[self._normalize_method(launch_method)]
-        return self._app_paths.engine_paths(engine).ensure_directories().presets_dir / selected.file_name
+        return self._preset_file_store.get_source_path(engine, selected.file_name)
 
     def ensure_selected_source_path(self, launch_method: str) -> Path:
         return self.get_startup_snapshot(launch_method, require_filters=False).preset_path
@@ -204,10 +193,10 @@ class DirectFlowCoordinator:
     def select_preset_file_name(self, launch_method: str, file_name: str) -> DirectLaunchProfile:
         method = self._normalize_method(launch_method)
         engine = self._METHOD_TO_ENGINE[method]
-        self._ensure_support_files(method)
-
         selected_file_name = self._preset_selection_service.select_preset_file_name_fast(engine, file_name)
-        selected_manifest = self._remember_manifest_from_file_name(method, engine, selected_file_name)
+        selected_manifest = self._preset_file_store.get_manifest(engine, selected_file_name)
+        if selected_manifest is None:
+            raise DirectFlowError(f"Выбранный пресет не найден: {selected_file_name}")
         selected_path = self._get_source_preset_path(engine, selected_file_name)
         display_name = str(getattr(selected_manifest, "name", "") or "").strip() or Path(selected_file_name).stem
         return DirectLaunchProfile(
@@ -240,92 +229,34 @@ class DirectFlowCoordinator:
         engine = self._METHOD_TO_ENGINE[method]
         label = str(timing_label or f"direct_flow.{method}.ensure_selected_source_manifest")
 
-        t_support = time.perf_counter()
-        self._ensure_support_files(
-            method,
-            timing_callback=timing_callback,
-            timing_label=label,
-        )
-        self._emit_timing(timing_callback, f"{label}.support_files", t_support)
-
         t_selection_service = time.perf_counter()
         selection = self._preset_selection_service
         self._emit_timing(timing_callback, f"{label}.selection_service", t_selection_service)
 
-        t_selected_name = time.perf_counter()
-        selected_file_name = str(selection.get_selected_file_name(engine) or "").strip()
-        self._emit_timing(timing_callback, f"{label}.selected_file_name", t_selected_name)
-        if selected_file_name:
-            t_cache_key = time.perf_counter()
-            cache_key = self._selected_manifest_cache_key(method, engine, selected_file_name)
-            self._emit_timing(timing_callback, f"{label}.cache_key", t_cache_key)
-            t_cache_lookup = time.perf_counter()
-            cached_manifest = self._selected_manifest_from_cache(method, cache_key)
-            self._emit_timing(timing_callback, f"{label}.cache_lookup", t_cache_lookup)
-            if cached_manifest is not None:
-                self._emit_timing(timing_callback, f"{label}.total", started_at)
-                return cached_manifest
-
-            t_selected_path = time.perf_counter()
-            selected_path = self._get_source_preset_path(engine, selected_file_name)
-            self._emit_timing(timing_callback, f"{label}.selected_path", t_selected_path)
-            if selected_path.exists():
-                t_manifest = time.perf_counter()
-                manifest = self._remember_manifest_from_path(
-                    method,
-                    engine,
-                    selected_path,
-                    cache_key=cache_key,
-                    timing_callback=timing_callback,
-                    timing_label=label,
-                )
-                self._emit_timing(timing_callback, f"{label}.remember_selected_manifest", t_manifest)
-                self._emit_timing(timing_callback, f"{label}.total", started_at)
-                return manifest
-
-        t_default = time.perf_counter()
-        default_path = self._get_source_preset_path(engine, "Default.txt")
-        if default_path.exists():
-            selected_file_name = selection.select_preset_file_name_fast(engine, default_path.name)
-            manifest = self._remember_manifest_from_file_name(method, engine, selected_file_name)
-            self._emit_timing(timing_callback, f"{label}.default_manifest", t_default)
-            self._emit_timing(timing_callback, f"{label}.total", started_at)
-            return manifest
-
-        t_list = time.perf_counter()
-        preset_paths = self._list_source_preset_paths(engine)
-        self._emit_timing(timing_callback, f"{label}.list_source_presets", t_list)
-        if not preset_paths:
-            support_error = str(self._support_prepare_errors.get(method) or "").strip()
-            if support_error:
-                raise DirectFlowError(
-                    "Не удалось подготовить встроенные пресеты: "
-                    f"{support_error}"
-                )
+        preferred_file_name = self._DEFAULT_PRESET_BY_ENGINE.get(engine, "")
+        t_manifest = time.perf_counter()
+        manifest = selection.ensure_selected_manifest(engine, preferred_file_name=preferred_file_name)
+        self._emit_timing(timing_callback, f"{label}.selected_manifest", t_manifest)
+        if manifest is None:
             raise DirectFlowError(
-                "Пресеты не найдены. Скачайте файлы пресетов вручную: "
-                f"{self.PRESETS_DOWNLOAD_URL}"
+                "Пресеты не найдены. Проверьте папку presets рядом с программой "
+                "и переустановите приложение, если системные пресеты отсутствуют."
             )
 
-        t_first = time.perf_counter()
-        first_path = preset_paths[0]
-        selected_file_name = selection.select_preset_file_name_fast(engine, first_path.name)
-        selected_path = self._get_source_preset_path(engine, selected_file_name)
-        if selected_path.exists():
-            manifest = self._remember_manifest_from_path(
-                method,
-                engine,
-                selected_path,
-                timing_callback=timing_callback,
-                timing_label=label,
-            )
-            self._emit_timing(timing_callback, f"{label}.first_available_manifest", t_first)
+        t_cache_key = time.perf_counter()
+        cache_key = self._selected_manifest_cache_key(method, engine, manifest.file_name)
+        self._emit_timing(timing_callback, f"{label}.cache_key", t_cache_key)
+        t_cache_lookup = time.perf_counter()
+        cached_manifest = self._selected_manifest_from_cache(method, cache_key)
+        self._emit_timing(timing_callback, f"{label}.cache_lookup", t_cache_lookup)
+        if cached_manifest is not None:
             self._emit_timing(timing_callback, f"{label}.total", started_at)
-            return manifest
+            return cached_manifest
 
-        if not selected_file_name:
-            raise DirectFlowError("Не удалось определить выбранный пресет")
-        raise DirectFlowError(f"Выбранный пресет не найден: {selected_file_name}")
+        if cache_key is not None:
+            self._selected_manifest_cache[method] = (cache_key, manifest)
+        self._emit_timing(timing_callback, f"{label}.total", started_at)
+        return manifest
 
     @staticmethod
     def _has_required_filters(launch_method: str, text: str) -> bool:
@@ -333,29 +264,6 @@ class DirectFlowCoordinator:
         if launch_method == "direct_zapret1":
             return any(flag in content for flag in ("--wf-tcp=", "--wf-udp="))
         return any(flag in content for flag in ("--wf-tcp-out", "--wf-udp-out", "--wf-raw-part"))
-
-    def _ensure_support_files(
-        self,
-        launch_method: str,
-        *,
-        timing_callback: Callable[[str, float], None] | None = None,
-        timing_label: str | None = None,
-    ) -> None:
-        method = self._normalize_method(launch_method)
-        if method in self._prepared_support_methods:
-            return
-        label = str(timing_label or f"direct_flow.{method}.support_files")
-        started_at = time.perf_counter()
-        try:
-            from core.presets.support_files import prepare_direct_support_files
-
-            prepare_direct_support_files(method, self._app_paths)
-            self._prepared_support_methods.add(method)
-            self._support_prepare_errors.pop(method, None)
-            self._emit_timing(timing_callback, f"{label}.prepare_direct_support_files", started_at)
-        except Exception as exc:
-            self._support_prepare_errors[method] = str(exc or "unknown support preparation error")
-            log(f"Failed to prepare direct support files for {method}: {exc}", "DEBUG")
 
     @staticmethod
     def _emit_timing(
@@ -380,16 +288,18 @@ class DirectFlowCoordinator:
         if not candidate:
             return None
 
-        engine_paths = self._app_paths.engine_paths(engine).ensure_directories()
-        preset_path = engine_paths.presets_dir / candidate
-        if not preset_path.exists():
+        try:
+            preset_path = self._preset_file_store.get_source_path(engine, candidate)
+        except Exception:
             return None
+
+        settings_path = self._app_paths.user_root / SETTINGS_DIR_NAME / SETTINGS_FILE_NAME
 
         return (
             self._normalize_method(launch_method),
             engine,
             candidate.lower(),
-            *path_cache_signature(engine_paths.selected_state_path),
+            *path_cache_signature(settings_path),
             *path_cache_signature(preset_path),
         )
 
@@ -408,141 +318,5 @@ class DirectFlowCoordinator:
             return manifest
         return None
 
-    def _remember_manifest_from_path(
-        self,
-        launch_method: str,
-        engine: str,
-        path: Path,
-        *,
-        cache_key: tuple[object, ...] | None = None,
-        timing_callback: Callable[[str, float], None] | None = None,
-        timing_label: str | None = None,
-    ) -> PresetManifest:
-        manifest_started = time.perf_counter()
-        manifest = self._manifest_from_source_path(
-            engine,
-            path,
-            timing_callback=timing_callback,
-            timing_label=timing_label,
-        )
-        label = str(timing_label or f"direct_flow.{self._normalize_method(launch_method)}.manifest")
-        self._emit_timing(timing_callback, f"{label}.manifest_from_source_path", manifest_started)
-        resolved_key = cache_key
-        if resolved_key is None:
-            resolved_key = self._selected_manifest_cache_key(launch_method, engine, path.name)
-        if resolved_key is not None:
-            self._selected_manifest_cache[self._normalize_method(launch_method)] = (resolved_key, manifest)
-        return manifest
-
-    def _remember_manifest_from_file_name(
-        self,
-        launch_method: str,
-        engine: str,
-        selected_file_name: str,
-    ) -> PresetManifest:
-        selected_path = self._get_source_preset_path(engine, selected_file_name)
-        return self._remember_manifest_from_path(
-            launch_method,
-            engine,
-            selected_path,
-            cache_key=self._selected_manifest_cache_key(launch_method, engine, selected_file_name),
-        )
-
-    @classmethod
-    def _read_header_metadata_from_source(
-        cls,
-        path: Path,
-        *,
-        fallback: str,
-    ) -> tuple[str, str | None]:
-        try:
-            lines: list[str] = []
-            with path.open("r", encoding="utf-8", errors="replace") as handle:
-                for raw in handle:
-                    stripped = raw.strip()
-                    if stripped and not stripped.startswith("#"):
-                        break
-                    lines.append(raw.rstrip("\n"))
-        except Exception:
-            return str(fallback or "Preset").strip() or "Preset", None
-
-        text = "\n".join(lines)
-        display_name = str(fallback or "Preset").strip() or "Preset"
-        match = cls._PRESET_HEADER_RE.search(text or "")
-        if match:
-            value = str(match.group(1) or "").strip()
-            if value:
-                display_name = value
-
-        template_origin = None
-        match = cls._TEMPLATE_ORIGIN_RE.search(text or "")
-        if match:
-            value = str(match.group(1) or "").strip()
-            if value:
-                template_origin = value
-
-        return display_name, template_origin
-
     def _get_source_preset_path(self, engine: str, file_name: str) -> Path:
-        resolved = str(self._preset_file_store.resolve_file_name(engine, file_name) or "").strip()
-        if resolved:
-            return self._app_paths.engine_paths(engine).ensure_directories().presets_dir / resolved
-        return self._app_paths.engine_paths(engine).ensure_directories().presets_dir / str(file_name or "").strip()
-
-    def _list_source_preset_paths(self, engine: str) -> list[Path]:
-        presets_dir = self._app_paths.engine_paths(engine).ensure_directories().presets_dir
-        return sorted(
-            (path for path in presets_dir.glob("*.txt") if path.is_file()),
-            key=lambda path: path.name.lower(),
-        )
-
-    @staticmethod
-    def _file_time_to_iso(path: Path) -> str:
-        try:
-            value = float(path.stat().st_mtime)
-        except Exception:
-            value = 0.0
-        if value <= 0:
-            return ""
-        return datetime.fromtimestamp(value, tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-    def _manifest_from_source_path(
-        self,
-        engine: str,
-        path: Path,
-        *,
-        timing_callback: Callable[[str, float], None] | None = None,
-        timing_label: str | None = None,
-    ) -> PresetManifest:
-        try:
-            manifest = self._preset_file_store.get_manifest(engine, path.name)
-            if manifest is not None:
-                return manifest
-        except Exception:
-            pass
-
-        label = str(timing_label or f"direct_flow.{engine}.manifest")
-        file_name = path.name
-        t_header = time.perf_counter()
-        display_name, template_origin = self._read_header_metadata_from_source(path, fallback=path.stem)
-        self._emit_timing(timing_callback, f"{label}.manifest_header_metadata", t_header)
-        t_timestamp = time.perf_counter()
-        timestamp = self._file_time_to_iso(path)
-        self._emit_timing(timing_callback, f"{label}.manifest_timestamp", t_timestamp)
-        kind = "builtin" if self._is_builtin_preset(engine, path, template_origin) else "user"
-        return PresetManifest(
-            file_name=file_name,
-            name=display_name,
-            template_origin=template_origin,
-            updated_at=timestamp,
-            kind=kind,
-        )
-
-    @staticmethod
-    def _is_builtin_preset(engine: str, path: Path, template_origin: str | None) -> bool:
-        engine_key = str(engine or "").strip().lower()
-        if engine_key == "winws2":
-            return is_builtin_preset_file_name_v2(path.name)
-        if engine_key == "winws1":
-            return is_builtin_preset_file_name_v1(path.name)
-        return False
+        return self._preset_file_store.get_source_path(engine, file_name)

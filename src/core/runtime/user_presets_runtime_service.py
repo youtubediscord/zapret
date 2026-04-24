@@ -370,7 +370,14 @@ class UserPresetsRuntimeService:
         _ = self._resolve_page(page)
         try:
             if not self._watcher_active:
+                timer = self._watcher_reload_timer
+                if timer is not None:
+                    timer.stop()
+                self._ui_dirty = True
                 return
+            timer = self._watcher_reload_timer
+            if timer is not None:
+                timer.stop()
             if self._file_watcher:
                 directories = self._file_watcher.directories()
                 files = self._file_watcher.files()
@@ -379,6 +386,7 @@ class UserPresetsRuntimeService:
                 if files:
                     self._file_watcher.removePaths(files)
             self._watcher_active = False
+            self._ui_dirty = True
         except Exception as e:
             log(f"Ошибка остановки мониторинга пресетов: {e}", "DEBUG")
 

@@ -13,9 +13,13 @@ def handle_user_presets_ui_state_changed(*, cleanup_in_progress: bool, runtime_s
     runtime_service.on_ui_state_changed(state, changed_fields)
 
 
-def activate_user_presets_page(*, cleanup_in_progress: bool, resync_layout_metrics_fn, runtime_service, refresh_presets_view_if_possible_fn, update_presets_view_height_fn, schedule_layout_resync_fn) -> None:
+def activate_user_presets_page(*, cleanup_in_progress: bool, resync_layout_metrics_fn, start_watching_presets_fn, runtime_service, refresh_presets_view_if_possible_fn, update_presets_view_height_fn, schedule_layout_resync_fn) -> None:
     if cleanup_in_progress:
         return
+    try:
+        start_watching_presets_fn()
+    except Exception:
+        pass
     resync_layout_metrics_fn()
     if runtime_service.is_ui_dirty():
         refresh_presets_view_if_possible_fn()
@@ -24,7 +28,7 @@ def activate_user_presets_page(*, cleanup_in_progress: bool, resync_layout_metri
     schedule_layout_resync_fn(include_delayed=True)
 
 
-def after_user_presets_ui_built(*, apply_page_theme_fn, get_preset_store_fn, on_store_changed_fn, on_store_switched_fn, on_store_updated_fn, start_watching_presets_fn, log_fn) -> None:
+def after_user_presets_ui_built(*, apply_page_theme_fn, get_preset_store_fn, on_store_changed_fn, on_store_switched_fn, on_store_updated_fn, log_fn) -> None:
     started_at = time.perf_counter()
     apply_page_theme_fn(force=True)
     try:
@@ -33,10 +37,6 @@ def after_user_presets_ui_built(*, apply_page_theme_fn, get_preset_store_fn, on_
         store.preset_switched.connect(on_store_switched_fn)
         store.preset_identity_changed.connect(on_store_switched_fn)
         store.preset_updated.connect(on_store_updated_fn)
-    except Exception:
-        pass
-    try:
-        start_watching_presets_fn()
     except Exception:
         pass
     elapsed_ms = int((time.perf_counter() - started_at) * 1000)

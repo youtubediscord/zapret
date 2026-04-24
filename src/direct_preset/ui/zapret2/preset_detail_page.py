@@ -10,7 +10,7 @@ class Zapret2PresetDetailPage(PresetSubpageBase):
         return "Пресет Zapret 2"
 
     def _get_preset_path(self, name: str) -> Path:
-        return self._require_app_context().app_paths.engine_paths("winws2").ensure_directories().presets_dir / str(name or "").strip()
+        return self._require_app_context().preset_file_store.get_source_path("winws2", str(name or "").strip())
 
     def _direct_launch_method(self) -> str | None:
         return "direct_zapret2"

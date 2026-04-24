@@ -328,7 +328,7 @@ class InitializationManager:
         def _worker() -> None:
             try:
                 log("🔧 Начинаем проверку хостлистов (background)", "DEBUG")
-                from utils.hostlists_manager import startup_hostlists_check
+                from lists.hostlists_manager import startup_hostlists_check
 
                 result = startup_hostlists_check()
                 if result:
@@ -347,7 +347,7 @@ class InitializationManager:
         def _worker() -> None:
             try:
                 log("🔧 Начинаем проверку IPsets (background)", "DEBUG")
-                from utils.ipsets_manager import startup_ipsets_check
+                from lists.ipsets_manager import startup_ipsets_check
 
                 result = startup_ipsets_check()
                 if result:
@@ -496,7 +496,7 @@ class InitializationManager:
             t0 = _t.perf_counter()
             
             # Создаем необходимые файлы
-            from utils.file_manager import ensure_required_files
+            from lists.file_manager import ensure_required_files
             ensure_required_files()
             
             # Launch autostart manager
@@ -632,14 +632,9 @@ class InitializationManager:
     def _finalize_managers_init(self):
         """Финализация инициализации менеджеров и обновление UI"""
         try:
-            # Обновляем UI состояние
-            from autostart.autostart_exe import is_autostart_enabled
-            autostart_exists = is_autostart_enabled()
-
-            app_runtime_state = getattr(self.app, "app_runtime_state", None)
-            if app_runtime_state is not None:
-                app_runtime_state.set_autostart(bool(autostart_exists))
-
+            # Каноническая синхронизация автозапуска выполняется позже в
+            # `_sync_autostart_status()`, поэтому здесь не дублируем тот же
+            # внешний запрос второй раз подряд.
             self.init_tasks_completed.add('managers')
             self._on_managers_init_done()
             log("✅ Managers init finalized", "DEBUG")
@@ -657,14 +652,14 @@ class InitializationManager:
                 return
 
             from tray import SystemTrayManager
-            from config.config import ICON_PATH, ICON_TEST_PATH
+            from config.config import ICON_PATH, ICON_DEV_PATH
             from config.build_info import APP_VERSION, CHANNEL
 
             from PyQt6.QtGui import QIcon
             from PyQt6.QtWidgets import QApplication
             import os
 
-            icon_path = ICON_TEST_PATH if CHANNEL.lower() == "test" else ICON_PATH
+            icon_path = ICON_DEV_PATH if CHANNEL.lower() == "dev" else ICON_PATH
             if not os.path.exists(icon_path):
                 icon_path = ICON_PATH
 

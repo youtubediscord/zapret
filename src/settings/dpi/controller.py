@@ -51,30 +51,26 @@ class DpiSettingsPageController:
 
     @staticmethod
     def _orchestra_reg_path() -> str:
-        from config.config import REGISTRY_PATH
-
-
-        return f"{REGISTRY_PATH}\\Orchestra"
+        return "orchestra.settings"
 
     @classmethod
     def load_orchestra_settings(cls) -> DpiOrchestraSettingsState:
-        from config.reg import reg
-
-        path = cls._orchestra_reg_path()
-        strict_detection = reg(path, "StrictDetection")
-        debug_file = reg(path, "KeepDebugFile")
-        auto_restart = reg(path, "AutoRestartOnDiscordFail")
-        discord_fails = reg(path, "DiscordFailsForRestart")
-        lock_successes = reg(path, "LockSuccesses")
-        unlock_fails = reg(path, "UnlockFails")
+        from settings.store import (
+            get_orchestra_auto_restart_on_discord_fail,
+            get_orchestra_discord_fails_for_restart,
+            get_orchestra_keep_debug_file,
+            get_orchestra_lock_successes,
+            get_orchestra_strict_detection,
+            get_orchestra_unlock_fails,
+        )
 
         return DpiOrchestraSettingsState(
-            strict_detection=bool(True if strict_detection is None else strict_detection),
-            debug_file=bool(debug_file),
-            auto_restart_discord=bool(True if auto_restart is None else auto_restart),
-            discord_fails=int(discord_fails if discord_fails is not None else 3),
-            lock_successes=int(lock_successes if lock_successes is not None else 3),
-            unlock_fails=int(unlock_fails if unlock_fails is not None else 3),
+            strict_detection=bool(get_orchestra_strict_detection()),
+            debug_file=bool(get_orchestra_keep_debug_file()),
+            auto_restart_discord=bool(get_orchestra_auto_restart_on_discord_fail()),
+            discord_fails=int(get_orchestra_discord_fails_for_restart()),
+            lock_successes=int(get_orchestra_lock_successes()),
+            unlock_fails=int(get_orchestra_unlock_fails()),
         )
 
     @staticmethod
@@ -95,45 +91,54 @@ class DpiSettingsPageController:
 
     @classmethod
     def set_orchestra_setting(cls, key: str, value, *, app=None) -> None:
-        from config.reg import reg
-
-        path = cls._orchestra_reg_path()
         normalized_key = str(key or "").strip().lower()
 
         if normalized_key == "strict_detection":
-            reg(path, "StrictDetection", 1 if bool(value) else 0)
+            from settings.store import set_orchestra_strict_detection
+
+            set_orchestra_strict_detection(bool(value))
             runner = getattr(app, "orchestra_runner", None) if app is not None else None
             if runner:
                 runner.set_strict_detection(bool(value))
             return
 
         if normalized_key == "debug_file":
-            reg(path, "KeepDebugFile", 1 if bool(value) else 0)
+            from settings.store import set_orchestra_keep_debug_file
+
+            set_orchestra_keep_debug_file(bool(value))
             return
 
         if normalized_key == "auto_restart_discord":
-            reg(path, "AutoRestartOnDiscordFail", 1 if bool(value) else 0)
+            from settings.store import set_orchestra_auto_restart_on_discord_fail
+
+            set_orchestra_auto_restart_on_discord_fail(bool(value))
             runner = getattr(app, "orchestra_runner", None) if app is not None else None
             if runner:
                 runner.auto_restart_on_discord_fail = bool(value)
             return
 
         if normalized_key == "discord_fails":
-            reg(path, "DiscordFailsForRestart", int(value))
+            from settings.store import set_orchestra_discord_fails_for_restart
+
+            set_orchestra_discord_fails_for_restart(int(value))
             runner = getattr(app, "orchestra_runner", None) if app is not None else None
             if runner:
                 runner.discord_fails_for_restart = int(value)
             return
 
         if normalized_key == "lock_successes":
-            reg(path, "LockSuccesses", int(value))
+            from settings.store import set_orchestra_lock_successes
+
+            set_orchestra_lock_successes(int(value))
             runner = getattr(app, "orchestra_runner", None) if app is not None else None
             if runner:
                 runner.lock_successes_threshold = int(value)
             return
 
         if normalized_key == "unlock_fails":
-            reg(path, "UnlockFails", int(value))
+            from settings.store import set_orchestra_unlock_fails
+
+            set_orchestra_unlock_fails(int(value))
             runner = getattr(app, "orchestra_runner", None) if app is not None else None
             if runner:
                 runner.unlock_fails_threshold = int(value)

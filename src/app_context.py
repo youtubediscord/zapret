@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from direct_preset.facade import DirectPresetFacade
+
 if TYPE_CHECKING:
     from app_state.app_runtime_state import AppRuntimeState
-    from app_state.launch_runtime_service import LaunchRuntimeService
     from app_state.main_window_state import AppUiState, MainWindowStateStore
     from winws_runtime.flow.direct_flow import DirectFlowCoordinator
+    from winws_runtime.state import LaunchRuntimeService
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore
@@ -18,7 +20,6 @@ if TYPE_CHECKING:
     from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
-    from direct_preset.facade import DirectPresetFacade
     from app_state.strategy_feedback_store import StrategyFeedbackStore
 
 
@@ -46,11 +47,11 @@ class AppContext:
 
 def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppContext:
     from app_state.app_runtime_state import AppRuntimeState
-    from app_state.launch_runtime_service import LaunchRuntimeService
     from app_state.main_window_state import AppUiState, MainWindowStateStore
-    from config.config import get_zapret_userdata_dir
+    from config.config import MAIN_DIRECTORY
 
     from winws_runtime.flow.direct_flow import DirectFlowCoordinator
+    from winws_runtime.state import LaunchRuntimeService
     from core.paths import AppPaths
     from core.presets.preset_file_store import PresetFileStore
     from core.presets.runtime_store import DirectRuntimePresetStore
@@ -62,11 +63,11 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
     from app_state.strategy_feedback_store import StrategyFeedbackStore
 
-    root = Path(get_zapret_userdata_dir()).resolve()
+    root = Path(MAIN_DIRECTORY).resolve()
     app_paths = AppPaths(user_root=root, local_root=root)
     ui_state_store = MainWindowStateStore(initial_ui_state or AppUiState())
     preset_file_store = PresetFileStore(app_paths)
-    preset_selection_service = PresetSelectionService(app_paths, preset_file_store)
+    preset_selection_service = PresetSelectionService(preset_file_store)
     preset_store = DirectRuntimePresetStore("winws2", preset_file_store, preset_selection_service)
     preset_store_v1 = DirectRuntimePresetStore("winws1", preset_file_store, preset_selection_service)
     strategy_feedback_store = StrategyFeedbackStore.default()
@@ -74,7 +75,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     launch_runtime_service = LaunchRuntimeService(ui_state_store)
     direct_flow_coordinator = DirectFlowCoordinator(app_paths, preset_selection_service, preset_file_store)
 
-    def _direct_facade_factory(launch_method: str) -> DirectPresetFacade:
+    def _direct_facade_factory(launch_method: str, direct_mode_override: str | None = None) -> DirectPresetFacade:
         method = str(launch_method or "").strip().lower()
         if method == "direct_zapret2":
             engine = "winws2"
@@ -92,6 +93,7 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
             preset_selection_service=preset_selection_service,
             preset_store=preset_store,
             preset_store_v1=preset_store_v1,
+            direct_mode_override=direct_mode_override,
         )
 
     direct_ui_snapshot_service = DirectUiSnapshotService(

@@ -91,7 +91,7 @@ def is_editor_smooth_scroll_target(widget) -> bool:
 def get_page_smooth_scroll_enabled() -> bool:
     """Читает обычную настройку плавной прокрутки страниц и списков."""
     try:
-        from config.reg import get_smooth_scroll_enabled as get_scroll_flag
+        from settings.store import get_smooth_scroll_enabled as get_scroll_flag
 
         return bool(get_scroll_flag())
     except Exception:
@@ -101,7 +101,7 @@ def get_page_smooth_scroll_enabled() -> bool:
 def get_editor_smooth_scroll_enabled() -> bool:
     """Читает пользовательскую настройку плавной прокрутки редакторов."""
     try:
-        from config.reg import get_editor_smooth_scroll_enabled as get_editor_scroll_flag
+        from settings.store import get_editor_smooth_scroll_enabled as get_editor_scroll_flag
 
         return bool(get_editor_scroll_flag())
     except Exception:
@@ -111,7 +111,7 @@ def get_editor_smooth_scroll_enabled() -> bool:
 def get_effective_editor_smooth_scroll_enabled(preference: bool | None = None) -> bool:
     """Возвращает итоговый флаг редакторов с учётом мастер-настройки анимаций."""
     try:
-        from config.reg import get_animations_enabled as get_animation_flag
+        from settings.store import get_animations_enabled as get_animation_flag
 
         animations_enabled = bool(get_animation_flag())
     except Exception:

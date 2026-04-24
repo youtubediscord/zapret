@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import subprocess
 from dataclasses import dataclass
 
-from config.config import REGISTRY_PATH
+from config.registry_paths import REGISTRY_PATH
 
 from log.log import log
+from utils.windows_icmp import ping_ipv4_host_winapi
 
 from ui.text_catalog import tr as tr_catalog
 
@@ -285,13 +285,12 @@ class NetworkPageController:
         results: list[tuple[str, str, bool]] = []
         for name, host in test_hosts:
             try:
-                result = subprocess.run(
-                    ["ping", "-n", "1", "-w", "2000", host],
-                    capture_output=True,
-                    text=True,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
+                ping_result = ping_ipv4_host_winapi(
+                    host,
+                    count=1,
+                    timeout_ms=2000,
                 )
-                results.append((name, host, result.returncode == 0))
+                results.append((name, host, ping_result.ok))
             except Exception:
                 results.append((name, host, False))
         return results
@@ -726,9 +725,9 @@ class NetworkPageController:
             return False
 
         try:
-            from config.reg import reg
+            from settings.store import get_isp_dns_info_shown
 
-            if reg(REGISTRY_PATH, "ISPDNSInfoShown"):
+            if get_isp_dns_info_shown():
                 return False
         except Exception:
             pass
@@ -748,9 +747,9 @@ class NetworkPageController:
     @staticmethod
     def mark_isp_dns_warning_shown() -> None:
         try:
-            from config.reg import reg
+            from settings.store import set_isp_dns_info_shown
 
-            reg(REGISTRY_PATH, "ISPDNSInfoShown", 1)
+            set_isp_dns_info_shown(True)
         except Exception:
             pass
 

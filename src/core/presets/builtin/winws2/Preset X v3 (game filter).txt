@@ -1,6 +1,6 @@
 # Preset: Preset X v3 (game filter)
 # TemplateOrigin: Preset X v3 (game filter)
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # IconColor: #60cdff
 # Description: 
 
@@ -83,7 +83,7 @@
 --blob=hex_00:0x00
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
 
@@ -97,7 +97,7 @@
 --new
 
 --filter-tcp=443
---hostlist-domains=updates.discord.com
+--hostlist=lists/discord-updates.txt
 --out-range=-d10
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 

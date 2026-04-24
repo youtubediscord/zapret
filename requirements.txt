@@ -6,9 +6,6 @@ PyQt6
 PyQt6-Qt6
 PyQt6-sip
 
-# Windows System Integration
-pywin32
-
 # Network and HTTP
 requests
 urllib3
@@ -20,11 +17,6 @@ psutil
 
 # requirements.txt
 # Zapret - Обход блокировок + Build Tools
-
-# ════════════════════════════════════════════════════════════
-# GUI Framework
-# ════════════════════════════════════════════════════════════
-PyQt6
 
 # ════════════════════════════════════════════════════════════
 # Windows System Integration  

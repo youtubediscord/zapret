@@ -1,10 +1,8 @@
 """ICMP ping tester — extracted from blockcheck2.py."""
 
-import re
-import subprocess
-
 from blockcheck.config import PING_COUNT, PING_TIMEOUT
 from blockcheck.models import SingleTestResult, TestStatus, TestType
+from utils.windows_icmp import ping_ipv4_host_winapi
 
 
 def ping_host(
@@ -12,67 +10,33 @@ def ping_host(
     count: int = PING_COUNT,
     timeout: int = PING_TIMEOUT,
 ) -> SingleTestResult:
-    """Ping a host via subprocess (Windows ping.exe)."""
+    """Ping a host via Windows ICMP API."""
     try:
-        cmd = ["ping", "-n", str(count), "-w", str(timeout * 1000), host]
-        output = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=timeout * count + 10,
-            encoding="cp866",
+        ping_result = ping_ipv4_host_winapi(
+            host,
+            count=count,
+            timeout_ms=int(timeout * 1000),
         )
-        text = output.stdout
-
-        # Russian locale
-        match = re.search(r"Среднее\s*=\s*(\d+)\s*мс", text)
-        if match:
-            ms = float(match.group(1))
+        if ping_result.ok and ping_result.average_ms is not None:
+            ms = float(ping_result.average_ms)
             return SingleTestResult(
                 target_name=host, test_type=TestType.PING,
                 status=TestStatus.OK, time_ms=ms,
                 detail=f"{ms:.0f}ms",
             )
 
-        # English locale
-        match = re.search(r"Average\s*=\s*(\d+)\s*ms", text, re.IGNORECASE)
-        if match:
-            ms = float(match.group(1))
+        error_code = str(ping_result.error_code or "").strip().upper()
+        if error_code in {"TIMEOUT", "NO_REPLY"}:
             return SingleTestResult(
                 target_name=host, test_type=TestType.PING,
-                status=TestStatus.OK, time_ms=ms,
-                detail=f"{ms:.0f}ms",
-            )
-
-        # Fallback: individual times (Russian)
-        times = re.findall(r"время[=<](\d+)\s*мс", text)
-        if times:
-            ms = sum(int(t) for t in times) / len(times)
-            return SingleTestResult(
-                target_name=host, test_type=TestType.PING,
-                status=TestStatus.OK, time_ms=ms,
-                detail=f"{ms:.0f}ms",
-            )
-
-        # Fallback: individual times (English)
-        times = re.findall(r"time[=<](\d+)\s*ms", text, re.IGNORECASE)
-        if times:
-            ms = sum(int(t) for t in times) / len(times)
-            return SingleTestResult(
-                target_name=host, test_type=TestType.PING,
-                status=TestStatus.OK, time_ms=ms,
-                detail=f"{ms:.0f}ms",
+                status=TestStatus.TIMEOUT, error_code=error_code or "TIMEOUT",
+                detail="Timeout",
             )
 
         return SingleTestResult(
             target_name=host, test_type=TestType.PING,
-            status=TestStatus.TIMEOUT, error_code="NO_REPLY",
-            detail="Timeout",
-        )
-    except subprocess.TimeoutExpired:
-        return SingleTestResult(
-            target_name=host, test_type=TestType.PING,
-            status=TestStatus.TIMEOUT, error_code="TIMEOUT",
-            detail="Timeout",
+            status=TestStatus.ERROR, error_code=error_code or "ERROR",
+            detail=str(ping_result.detail or "Ping failed"),
         )
     except Exception as e:
         return SingleTestResult(

@@ -88,7 +88,7 @@
 --filter-tcp=443
 --ipset-ip=XXX.XXX.XXX.XXX/XX,XXX.XXX.XXX.XXX/XX
 --wssize=1:6
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --dpi-desync=multidisorder
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2
@@ -96,7 +96,7 @@
 # === HTTPS ===
 --new
 --filter-tcp=443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=2,midsld-2

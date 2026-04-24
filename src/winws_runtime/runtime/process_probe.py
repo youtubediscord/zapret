@@ -205,3 +205,19 @@ def is_expected_winws_running(expected_exe_path: str) -> bool:
 
 def is_any_canonical_winws_running() -> bool:
     return bool(get_canonical_winws_process_pids())
+
+
+def is_winws_process_pid_alive(pid: int, expected_name: str = "") -> bool:
+    try:
+        target_pid = int(pid)
+    except Exception:
+        return False
+
+    normalized_name = str(expected_name or "").strip().lower()
+    for current_pid, process_name in _iter_winws_process_entries():
+        if int(current_pid) != target_pid:
+            continue
+        if normalized_name and str(process_name or "").strip().lower() != normalized_name:
+            return False
+        return True
+    return False

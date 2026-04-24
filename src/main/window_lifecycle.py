@@ -3,14 +3,23 @@ from __future__ import annotations
 from PyQt6.QtCore import QEvent, QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
 
-from log.log import global_logger, log
+from log.log import log
 
+from main.window_lifecycle_cleanup import (
+    cleanup_runtime_threads_for_close,
+    cleanup_support_managers_for_close,
+    cleanup_threaded_pages_for_close,
+    cleanup_tray_for_close,
+    cleanup_visual_and_proxy_resources_for_close,
+    detach_global_error_notifier,
+    hide_tray_icon_for_exit,
+    persist_window_geometry,
+    release_input_interaction_states,
+)
 from main.runtime_state import (
     log_startup_metric as emit_startup_metric,
     startup_elapsed_ms,
 )
-from ui.navigation.schema import iter_page_names_for_cleanup
-from ui.page_names import PageName
 from ui.window_adapter import sync_titlebar_search_width
 
 
@@ -24,30 +33,21 @@ class WindowLifecycleMixin:
 
         self._is_exiting = True
 
-        try:
-            if hasattr(global_logger, "set_ui_error_notifier"):
-                global_logger.set_ui_error_notifier(None)
-        except Exception:
-            pass
+        detach_global_error_notifier()
+        persist_window_geometry(self, context="закрытии", level="❌ ERROR")
 
-        try:
-            geometry_controller = getattr(self, "window_geometry_controller", None)
-            if geometry_controller is not None:
-                geometry_controller.persist_now(force=True)
-        except Exception as e:
-            log(f"Ошибка сохранения геометрии окна при закрытии: {e}", "❌ ERROR")
-
-        self._cleanup_support_managers_for_close()
-        self._cleanup_threaded_pages_for_close()
-        self._cleanup_visual_and_proxy_resources_for_close()
-        self._cleanup_runtime_threads_for_close()
+        self._cleanup_before_close()
 
         if getattr(self, "_stop_dpi_on_exit", False):
             try:
-                from utils.process_killer import kill_winws_force
+                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
-                kill_winws_force()
-                log("Процессы winws завершены при закрытии приложения (stop_dpi_on_exit=True)", "DEBUG")
+                result = shutdown_runtime_sync(window=self, reason="close_event stop_dpi_on_exit", include_cleanup=True)
+                log(
+                    f"Процессы winws завершены при закрытии приложения "
+                    f"(running={result.had_running_processes}, still_running={result.still_running})",
+                    "DEBUG",
+                )
             except Exception as e:
                 log(f"Ошибка остановки winws при закрытии: {e}", "DEBUG")
         else:
@@ -58,35 +58,7 @@ class WindowLifecycleMixin:
         super().closeEvent(event)
 
     def _release_input_interaction_states(self) -> None:
-        """Сбрасывает drag/resize состояния при скрытии/потере фокуса окна."""
-        try:
-            if bool(getattr(self, "_is_resizing", False)) and hasattr(self, "_end_resize"):
-                self._end_resize()
-            else:
-                self._is_resizing = False
-                self._resize_edge = None
-                self._resize_start_pos = None
-                self._resize_start_geometry = None
-                self.unsetCursor()
-        except Exception:
-            pass
-
-        try:
-            self._is_dragging = False
-            self._drag_start_pos = None
-            self._drag_window_pos = None
-        except Exception:
-            pass
-
-        try:
-            title_bar = getattr(self, "title_bar", None)
-            if title_bar is not None:
-                title_bar._is_moving = False
-                title_bar._is_system_moving = False
-                title_bar._drag_pos = None
-                title_bar._window_pos = None
-        except Exception:
-            pass
+        release_input_interaction_states(self)
 
     def request_exit(self, stop_dpi: bool) -> None:
         """Единая точка выхода из приложения.
@@ -97,18 +69,8 @@ class WindowLifecycleMixin:
         self._stop_dpi_on_exit = bool(stop_dpi)
         self._closing_completely = True
 
-        try:
-            geometry_controller = getattr(self, "window_geometry_controller", None)
-            if geometry_controller is not None:
-                geometry_controller.persist_now(force=True)
-        except Exception as e:
-            log(f"Ошибка сохранения геометрии окна при request_exit: {e}", "DEBUG")
-
-        try:
-            if hasattr(self, "tray_manager") and self.tray_manager:
-                self.tray_manager.hide_icon()
-        except Exception:
-            pass
+        persist_window_geometry(self, context="request_exit", level="DEBUG")
+        hide_tray_icon_for_exit(self)
 
         if stop_dpi:
             log("Запрошен выход: остановить DPI и выйти", "INFO")
@@ -121,10 +83,9 @@ class WindowLifecycleMixin:
                 log(f"stop_and_exit_async не удалось: {e}", "WARNING")
 
             try:
-                runtime = getattr(self, "launch_runtime_api", None)
-                if runtime is not None:
-                    runtime.stop_all_processes()
-                    runtime.cleanup_windivert_service()
+                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+
+                shutdown_runtime_sync(window=self, reason="request_exit fallback", include_cleanup=True)
             except Exception as e:
                 log(f"Ошибка остановки DPI перед выходом: {e}", "WARNING")
 
@@ -160,6 +121,12 @@ class WindowLifecycleMixin:
             log(f"Ошибка сценария сворачивания в трей: {e}", "WARNING")
 
         return False
+
+    def _cleanup_before_close(self) -> None:
+        self._cleanup_support_managers_for_close()
+        self._cleanup_threaded_pages_for_close()
+        self._cleanup_visual_and_proxy_resources_for_close()
+        self._cleanup_runtime_threads_for_close()
 
     def setWindowTitle(self, title: str):
         """Override to update FluentWindow's built-in titlebar."""
@@ -254,120 +221,17 @@ class WindowLifecycleMixin:
         except Exception as e:
             log(f"Ошибка обновления стилей: {e}", "DEBUG")
 
-    def _iter_loaded_pages_for_close(self):
-        loaded_pages = getattr(self, "pages", {}) or {}
-        for page_name, page in loaded_pages.items():
-            if page is None:
-                continue
-            yield page_name, page
-
     def _cleanup_threaded_pages_for_close(self) -> None:
-        try:
-            loaded_pages = list(self._iter_loaded_pages_for_close())
-            page_order = iter_page_names_for_cleanup(
-                page_name for page_name, _page in loaded_pages
-            )
-            pages_by_name = {
-                page_name: page
-                for page_name, page in loaded_pages
-            }
-
-            for page_name in page_order:
-                page = pages_by_name.get(page_name)
-                if page is None or not hasattr(page, "cleanup"):
-                    continue
-                try:
-                    page.cleanup()
-                except Exception as e:
-                    log(f"Ошибка при очистке страницы {page_name}: {e}", "DEBUG")
-        except Exception as e:
-            log(f"Ошибка при очистке страниц: {e}", "DEBUG")
+        cleanup_threaded_pages_for_close(self)
 
     def _cleanup_support_managers_for_close(self) -> None:
-        try:
-            process_monitor_manager = getattr(self, "process_monitor_manager", None)
-            if process_monitor_manager is not None:
-                process_monitor_manager.stop_monitoring()
-        except Exception as e:
-            log(f"Ошибка остановки process_monitor_manager: {e}", "DEBUG")
-
-        try:
-            subscription_manager = getattr(self, "subscription_manager", None)
-            if subscription_manager is not None:
-                subscription_manager.cleanup()
-        except Exception as e:
-            log(f"Ошибка очистки subscription_manager: {e}", "DEBUG")
-
-        try:
-            dns_ui_manager = getattr(self, "dns_ui_manager", None)
-            if dns_ui_manager is not None:
-                dns_ui_manager.cleanup()
-        except Exception as e:
-            log(f"Ошибка при очистке dns_ui_manager: {e}", "DEBUG")
-
-        try:
-            theme_manager = getattr(self, "theme_manager", None)
-            if theme_manager is not None:
-                theme_manager.cleanup()
-        except Exception as e:
-            log(f"Ошибка при очистке theme_manager: {e}", "DEBUG")
+        cleanup_support_managers_for_close(self)
 
     def _cleanup_visual_and_proxy_resources_for_close(self) -> None:
-        try:
-            app = QApplication.instance()
-            closer = getattr(app, "_zapret_global_combo_popup_closer", None) if app is not None else None
-            if closer is not None and hasattr(closer, "cleanup"):
-                closer.cleanup()
-        except Exception:
-            pass
-
-        try:
-            from telegram_proxy.ui.page import _get_proxy_manager
-
-            _get_proxy_manager().cleanup()
-        except Exception:
-            pass
-
-        try:
-            effects = getattr(self, "_holiday_effects", None)
-            if effects is not None:
-                effects.cleanup()
-                self._holiday_effects = None
-        except Exception as e:
-            log(f"Ошибка очистки праздничных эффектов: {e}", "DEBUG")
+        cleanup_visual_and_proxy_resources_for_close(self)
 
     def _cleanup_runtime_threads_for_close(self) -> None:
-        try:
-            launch_controller = getattr(self, "launch_controller", None)
-            if launch_controller is not None:
-                launch_controller.cleanup_threads()
-        except Exception as e:
-            log(f"Ошибка очистки DPI controller threads: {e}", "DEBUG")
-
-        try:
-            if hasattr(self, "_dpi_start_thread") and self._dpi_start_thread:
-                try:
-                    if self._dpi_start_thread.isRunning():
-                        self._dpi_start_thread.quit()
-                        self._dpi_start_thread.wait(1000)
-                except RuntimeError:
-                    pass
-
-            if hasattr(self, "_dpi_stop_thread") and self._dpi_stop_thread:
-                try:
-                    if self._dpi_stop_thread.isRunning():
-                        self._dpi_stop_thread.quit()
-                        self._dpi_stop_thread.wait(1000)
-                except RuntimeError:
-                    pass
-        except Exception as e:
-            log(f"Ошибка при очистке потоков: {e}", "❌ ERROR")
+        cleanup_runtime_threads_for_close(self)
 
     def _cleanup_tray_for_close(self) -> None:
-        try:
-            tray_manager = getattr(self, "tray_manager", None)
-            if tray_manager is not None:
-                tray_manager.cleanup()
-                self.tray_manager = None
-        except Exception as e:
-            log(f"Ошибка очистки системного трея: {e}", "DEBUG")
+        cleanup_tray_for_close(self)

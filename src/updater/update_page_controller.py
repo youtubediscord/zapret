@@ -5,6 +5,7 @@ from typing import Protocol
 from PyQt6.QtCore import QThread, QTimer
 
 from config.build_info import CHANNEL
+from config.config import CHANNEL_DEV, CHANNEL_STABLE
 
 from log.log import log
 
@@ -116,7 +117,7 @@ class UpdatePageController:
         self._download_state = UpdateDownloadState()
 
         try:
-            from config.reg import get_auto_update_enabled
+            from settings.store import get_auto_update_enabled
 
 
             self._auto_check_enabled = bool(get_auto_update_enabled())
@@ -203,7 +204,7 @@ class UpdatePageController:
                 "_can_start_install",
                 "_get_candidate_version_and_notes",
                 "_app_version",
-                "_is_test_update_channel",
+                "_is_dev_update_channel",
             ),
             view_plan_candidates=(
                 "apply_idle_view_state",
@@ -362,7 +363,7 @@ class UpdatePageController:
         self._auto_check_enabled = bool(enabled)
 
         try:
-            from config.reg import set_auto_update_enabled
+            from settings.store import set_auto_update_enabled
 
 
             set_auto_update_enabled(bool(enabled))
@@ -652,8 +653,8 @@ class UpdatePageController:
     def _on_version_found(self, channel: str, version_info: dict) -> None:
         if self._cleanup_in_progress:
             return
-        target_channel = "test" if self._is_test_update_channel() else "stable"
-        if channel not in {"stable", "test"} or channel != target_channel or version_info.get("error"):
+        target_channel = CHANNEL_DEV if self._is_dev_update_channel() else CHANNEL_STABLE
+        if channel not in {CHANNEL_STABLE, CHANNEL_DEV} or channel != target_channel or version_info.get("error"):
             return
 
         version = version_info.get("version", "")
@@ -718,9 +719,9 @@ class UpdatePageController:
         self._present_found_update_source(server_name)
 
     def _get_candidate_version_and_notes(self, status: dict) -> tuple[str | None, str]:
-        if self._is_test_update_channel():
-            raw_version = status.get("test_version")
-            notes = status.get("test_notes", "") or ""
+        if self._is_dev_update_channel():
+            raw_version = status.get("dev_version")
+            notes = status.get("dev_notes", "") or ""
         else:
             raw_version = status.get("stable_version")
             notes = status.get("stable_notes", "") or ""
@@ -760,7 +761,7 @@ class UpdatePageController:
         return APP_VERSION
 
     @staticmethod
-    def _is_test_update_channel() -> bool:
-        from updater.channel_utils import is_test_update_channel
+    def _is_dev_update_channel() -> bool:
+        from updater.channel_utils import is_dev_update_channel
 
-        return bool(is_test_update_channel(CHANNEL))
+        return bool(is_dev_update_channel(CHANNEL))

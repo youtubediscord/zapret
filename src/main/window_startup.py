@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from app_context import build_app_context, install_app_context
 from config.build_info import APP_VERSION
-from config.config import HEIGHT, MIN_WIDTH, WIDTH
+from config.window_metrics import HEIGHT, MIN_WIDTH, WIDTH
 
 from log.log import log
 
@@ -27,9 +27,9 @@ def window_bootstrap_for(window_cls, *, start_in_tray: bool):
 
 def manager_bootstrap_for(window) -> None:
     from managers.initialization_manager import InitializationManager
-    from managers.process_monitor_manager import ProcessMonitorManager
     from managers.subscription_manager import SubscriptionManager
     from managers.ui_manager import UIManager
+    from winws_runtime.monitoring import ProcessMonitorManager
 
     window.initialization_manager = InitializationManager(window)
     window.subscription_manager = SubscriptionManager(window)

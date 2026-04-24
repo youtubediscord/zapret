@@ -15,7 +15,7 @@ command_group = youtube
 icon_name = fa5b.youtube
 icon_color = #FF0000
 base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-googlevideo.txt
-base_filter_hostlist = --filter-tcp=80,443 --hostlist-domains=googlevideo.com
+base_filter_hostlist = --filter-tcp=80,443 --hostlist=googlevideo.txt
 strategy_type = tcp
 
 [youtube_tcp]
@@ -76,7 +76,7 @@ needs_new_separator = true
 command_group = discord
 icon_name = fa5b.discord
 icon_color = #7289DA
-base_filter = --filter-tcp=443 --hostlist-domains=updates.discord.com
+base_filter = --filter-tcp=443 --hostlist=discord-updates.txt
 strategy_type = tcp
 aliases = updates_tcp
 
@@ -138,7 +138,7 @@ needs_new_separator = true
 command_group = obsidian
 icon_name = fa5s.file-alt
 icon_color = #9974F8
-base_filter = --filter-tcp=80,443 --hostlist-domains=obsidian.md
+base_filter = --filter-tcp=80,443 --hostlist=obsidian.txt
 strategy_type = tcp
 
 [discord_voice_udp]
@@ -252,6 +252,21 @@ base_filter_ipset = --filter-tcp=80,443 --ipset=ipset-twitter.txt
 base_filter_hostlist = --filter-tcp=80,443 --hostlist=twitter.txt
 strategy_type = tcp
 aliases = x_tcp,t_tcp
+
+[twimg_tcp]
+full_name = Twitter Images (twimg.com)
+description = Twitter/X изображения и медиа (порты 80, 443)
+tooltip = 🐦 Twitter/X изображения и медиа\nОбходит блокировку CDN Twitter/X для загрузки изображений и медиа.\nРаботает с доменом twimg.com.
+color = #1da1f2
+default_strategy = none
+ports = 80, 443
+protocol = TCP
+needs_new_separator = true
+command_group = social
+icon_name = fa5b.twitter
+icon_color = #1DA1F2
+base_filter = --filter-tcp=80,443 --hostlist=twimg.txt
+strategy_type = tcp
 
 [soundcloud_tcp]
 full_name = SoundCloud
@@ -679,21 +694,6 @@ command_group = hostlists
 icon_name = fa5s.brain
 icon_color = #4A6CF7
 base_filter = --filter-tcp=80,443 --hostlist-domains=chat.deepseek.com,api.deepseek.com
-strategy_type = tcp
-
-[twimg_tcp]
-full_name = Twitter Images (twimg.com)
-description = Twitter/X изображения и медиа (порты 80, 443)
-tooltip = 🐦 Twitter/X изображения и медиа\nОбходит блокировку CDN Twitter/X для загрузки изображений и медиа.\nРаботает с доменом twimg.com.
-color = #1da1f2
-default_strategy = none
-ports = 80, 443
-protocol = TCP
-needs_new_separator = true
-command_group = social
-icon_name = fa5b.twitter
-icon_color = #1DA1F2
-base_filter = --filter-tcp=80,443 --hostlist-domains=twimg.com
 strategy_type = tcp
 
 [other_tcp]

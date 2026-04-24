@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from config.config import LOGS_FOLDER, MAIN_DIRECTORY
 from ui.text_catalog import tr as tr_catalog
 from ui.support_request_actions import prepare_strategy_scan_support_request
 
@@ -304,36 +305,7 @@ class StrategyScanPageController:
 
         list_dirs: list[Path] = []
 
-        appdata = (os.environ.get("APPDATA") or "").strip()
-        if appdata:
-            list_dirs.extend(
-                [
-                    Path(appdata) / "ZapretTwoDev" / "lists",
-                    Path(appdata) / "ZapretTwo" / "lists",
-                ]
-            )
-
-        try:
-            from config.config import APPDATA_DIR, get_zapret_userdata_dir
-
-
-            app_channel_dir = (APPDATA_DIR or "").strip()
-            if app_channel_dir:
-                list_dirs.append(Path(app_channel_dir) / "lists")
-
-            user_data_dir = (get_zapret_userdata_dir() or "").strip()
-            if user_data_dir:
-                list_dirs.append(Path(user_data_dir) / "lists")
-        except Exception:
-            pass
-
-        try:
-            from config.config import MAIN_DIRECTORY
-
-
-            list_dirs.append(Path(MAIN_DIRECTORY) / "lists")
-        except Exception:
-            list_dirs.append(Path.cwd() / "lists")
+        list_dirs.append(Path(MAIN_DIRECTORY) / "lists")
 
         files: list[str] = []
         seen: set[str] = set()
@@ -755,20 +727,7 @@ class StrategyScanPageController:
 
     @staticmethod
     def resume_state_path() -> Path:
-        try:
-            from config.config import APPDATA_DIR
-
-
-            base_dir = Path(APPDATA_DIR)
-        except Exception:
-            try:
-                from config.config import MAIN_DIRECTORY
-
-
-                base_dir = Path(MAIN_DIRECTORY)
-            except Exception:
-                base_dir = Path.cwd()
-        return base_dir / "strategy_scan_resume.json"
+        return Path(MAIN_DIRECTORY) / "strategy_scan_resume.json"
 
     @staticmethod
     def target_key(
@@ -906,13 +865,7 @@ class StrategyScanPageController:
 
     @staticmethod
     def _resolve_log_dir() -> Path:
-        try:
-            from config.config import LOGS_FOLDER
-
-
-            log_dir = Path(LOGS_FOLDER)
-        except Exception:
-            log_dir = Path.cwd() / "logs"
+        log_dir = Path(LOGS_FOLDER)
 
         try:
             from log.log import global_logger
@@ -965,16 +918,6 @@ class StrategyScanPageController:
             udp_games_scope=udp_games_scope,
         )
         candidates = [primary_path]
-
-        try:
-            from config.config import APPDATA_DIR
-
-
-            candidates.append(Path(APPDATA_DIR) / "logs" / primary_path.name)
-        except Exception:
-            pass
-
-        candidates.append(Path.cwd() / "logs" / primary_path.name)
 
         tried: set[Path] = set()
         for path in candidates:

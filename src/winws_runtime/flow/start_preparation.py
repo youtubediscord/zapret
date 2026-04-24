@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from log.log import log
 
 
-from winws_runtime.runtime.workers import PreparedDpiStartRequest
+from winws_runtime.runtime.start_workers import PreparedDpiStartRequest
 
 if TYPE_CHECKING:
     from app_context import AppContext

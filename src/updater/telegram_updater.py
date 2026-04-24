@@ -37,7 +37,7 @@ _TOKEN_CACHE = ""
 # Каналы для разных веток (username без @)
 TELEGRAM_CHANNELS = {
     'stable': 'zapretnetdiscordyoutube',
-    'test': 'zapretguidev',
+    'dev': 'zapretguidev',
 }
 
 # Таймаут для Telegram запросов (секунды)
@@ -166,7 +166,7 @@ def get_telegram_version_info(channel: str = 'stable') -> Optional[Dict[str, Any
     2. Парсинг публичной страницы t.me/s/channel
     
     Args:
-        channel: 'stable' или 'test'
+        channel: 'stable' или 'dev'
         
     Returns:
         Dict с информацией о версии или None
@@ -251,18 +251,18 @@ def _extract_version_from_filename(file_name: str) -> Optional[str]:
     Извлекает версию из имени файла установщика.
     
     Поддерживает оба формата:
-    - Zapret2Setup_TEST_20_3_17_14.exe  → 20.3.17.14  (подчёркивания)
-    - Zapret2Setup_TEST_20.3.17.14.exe  → 20.3.17.14  (точки)
-    - Zapret2Setup_20_3_17_14.exe       → 20.3.17.14  (без TEST)
+    - Zapret2Setup_DEV_20_3_17_14.exe   → 20.3.17.14  (подчёркивания)
+    - Zapret2Setup_DEV_20.3.17.14.exe   → 20.3.17.14  (точки)
+    - Zapret2Setup_20_3_17_14.exe       → 20.3.17.14  (без DEV)
     """
     if not file_name:
         return None
     
     # Паттерн 1: подчёркивания в имени файла
-    # Zapret2Setup[_TEST]_XX_X_XX_XX.exe
+    # Zapret2Setup[_DEV]_XX_X_XX_XX.exe
     # Берём всё после последнего "Setup" или "TEST", до ".exe"
     m = re.search(
-        r'Zapret2Setup(?:_TEST)?_(\d+(?:_\d+)+)\.exe',
+        r'Zapret2Setup(?:_DEV)?_(\d+(?:_\d+)+)\.exe',
         file_name,
         re.IGNORECASE,
     )
@@ -276,7 +276,7 @@ def _extract_version_from_filename(file_name: str) -> Optional[str]:
     # Паттерн 2: точки в имени файла (старый формат)
     # Zapret2Setup_20.3.17.14.exe
     m = re.search(
-        r'Zapret2Setup(?:_TEST)?[_.]?(\d+\.\d+\.\d+(?:\.\d+)?)\.exe',
+        r'Zapret2Setup(?:_DEV)?[_.]?(\d+\.\d+\.\d+(?:\.\d+)?)\.exe',
         file_name,
         re.IGNORECASE,
     )

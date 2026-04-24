@@ -462,9 +462,9 @@ class HostsManager:
     def apply_hosts_bootstrap_if_needed(self):
         """Единоразово применяет bootstrap hosts для текущей сигнатуры."""
         try:
-            from config.reg import get_remove_github_api
+            from settings.store import get_remove_github_api
 
-            from config.reg import (
+            from settings.store import (
                 get_hosts_bootstrap_signature,
                 set_hosts_bootstrap_signature,
             )

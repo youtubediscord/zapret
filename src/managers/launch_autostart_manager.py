@@ -21,7 +21,7 @@ class LaunchAutostartManager(QObject):
 
         self._autostart_initiated = True
 
-        from config.reg import get_dpi_autostart
+        from settings.store import get_dpi_autostart
 
         if not get_dpi_autostart():
             log("Автозапуск DPI отключён", "INFO")

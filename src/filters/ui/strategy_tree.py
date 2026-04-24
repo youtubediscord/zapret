@@ -153,7 +153,7 @@ class StrategyTree(QTreeWidget):
         # WinUI smooth scrollbar (replaces native Qt scrollbar)
         try:
             from qfluentwidgets import SmoothScrollDelegate
-            from config.reg import get_smooth_scroll_enabled
+            from settings.store import get_smooth_scroll_enabled
             smooth_enabled = get_smooth_scroll_enabled()
             try:
                 self._smooth_scroll_delegate = SmoothScrollDelegate(self, useAni=smooth_enabled)

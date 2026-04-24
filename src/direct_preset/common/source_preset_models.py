@@ -41,6 +41,7 @@ class OutRangeSettings:
     enabled: bool = False
     value: int = 0
     mode: str = "n"
+    expression: str = ""
     raw_line: str = ""
 
 

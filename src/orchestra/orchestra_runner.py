@@ -32,32 +32,34 @@ from utils.circular_strategy_numbering import (
     renumber_circular_strategies,
     strip_strategy_tags,
 )
-from config.config import MAIN_DIRECTORY, EXE_FOLDER, LUA_FOLDER, LOGS_FOLDER, BIN_FOLDER, REGISTRY_PATH, LISTS_FOLDER
+from config.config import MAIN_DIRECTORY, EXE_FOLDER, LUA_FOLDER, LOGS_FOLDER, BIN_FOLDER
+from lists.core.paths import get_lists_dir
 
-from config.reg import reg, reg_delete_value
+from settings.store import (
+    get_orchestra_auto_restart_on_discord_fail,
+    get_orchestra_discord_fails_for_restart,
+    get_orchestra_keep_debug_file,
+    get_orchestra_whitelist_user_domains,
+    remove_orchestra_history_target,
+    remove_orchestra_locked_target,
+    remove_orchestra_user_blocked_target,
+    remove_orchestra_user_locked,
+    set_orchestra_whitelist_user_domains,
+)
 from orchestra.ignored_targets import (
     get_orchestra_ignored_exact_domains,
     is_orchestra_ignored_target,
 )
 from orchestra.log_parser import LogParser, EventType, ParsedEvent, nld_cut, ip_to_subnet16, is_local_ip
-from orchestra.blocked_strategies_manager import (
-    BlockedStrategiesManager,
-    get_blocked_registry_path,
-    get_user_blocked_registry_path,
-)
+from orchestra.blocked_strategies_manager import BlockedStrategiesManager
 from orchestra.locked_strategies_manager import (
     LockedStrategiesManager,
     ASKEY_ALL,
     TCP_ASKEYS,
     UDP_ASKEYS,
     PROTO_TO_ASKEY,
-    REGISTRY_ORCHESTRA_HISTORY,
-    get_registry_path,
-    get_user_registry_path,
 )
-
-# Путь в реестре (основные константы теперь в менеджерах)
-REGISTRY_ORCHESTRA = f"{REGISTRY_PATH}\\Orchestra"
+LISTS_FOLDER = get_lists_dir()
 
 # Максимальное количество лог-файлов оркестратора
 MAX_ORCHESTRA_LOGS = 10
@@ -205,19 +207,16 @@ class OrchestraRunner:
         # Теперь используем уникальные имена с ID сессии
         self.current_log_id: Optional[str] = None
         self.debug_log_path: Optional[str] = None
-        # Загружаем настройку сохранения debug файла из реестра
-        saved_debug = reg(f"{REGISTRY_PATH}\\Orchestra", "KeepDebugFile")
-        self.keep_debug_file = bool(saved_debug)
+        # Загружаем настройку сохранения debug файла из settings.json
+        self.keep_debug_file = bool(get_orchestra_keep_debug_file())
 
-        # Загружаем настройку авторестарта при Discord FAIL (по умолчанию включено)
-        saved_auto_restart = reg(f"{REGISTRY_PATH}\\Orchestra", "AutoRestartOnDiscordFail")
-        self.auto_restart_on_discord_fail = saved_auto_restart is None or bool(saved_auto_restart)
+        # Загружаем настройку авторестарта при Discord FAIL
+        self.auto_restart_on_discord_fail = bool(get_orchestra_auto_restart_on_discord_fail())
         self.restart_callback: Optional[Callable[[], None]] = None  # Callback для перезапуска приложения
 
         # Счётчик Discord FAIL для рестарта (рестарт только после N фейлов подряд)
         self.discord_fail_count = 0
-        saved_threshold = reg(f"{REGISTRY_PATH}\\Orchestra", "DiscordFailsForRestart")
-        self.discord_fails_threshold = int(saved_threshold) if saved_threshold is not None else 3
+        self.discord_fails_threshold = int(get_orchestra_discord_fails_for_restart())
 
         # Состояние
         self.running_process: Optional[subprocess.Popen] = None
@@ -418,47 +417,43 @@ class OrchestraRunner:
         for askey in ASKEY_ALL:
             locked_dict = self.locked_manager.locked_by_askey[askey]
             user_locked = self.locked_manager.user_locked_by_askey[askey]
-            reg_path = get_registry_path(askey)
-            user_reg_path = get_user_registry_path(askey)
 
             for hostname in list(locked_dict.keys()):
                 if not self._should_ignore_orchestra_host(hostname):
                     continue
                 del locked_dict[hostname]
-                reg_delete_value(reg_path, hostname)
+                remove_orchestra_locked_target(askey, hostname)
                 removed_locked += 1
 
             for hostname in list(user_locked):
                 if not self._should_ignore_orchestra_host(hostname):
                     continue
                 user_locked.discard(hostname)
-                reg_delete_value(user_reg_path, hostname)
+                remove_orchestra_user_locked(askey, hostname)
                 removed_user_locks += 1
 
             blocked_dict = self.blocked_manager.blocked_by_askey[askey]
             user_blocked = self.blocked_manager.user_blocked_by_askey[askey]
-            blocked_reg_path = get_blocked_registry_path(askey)
-            user_blocked_reg_path = get_user_blocked_registry_path(askey)
 
             for hostname in list(blocked_dict.keys()):
                 if not self._should_ignore_orchestra_host(hostname):
                     continue
                 del blocked_dict[hostname]
-                reg_delete_value(blocked_reg_path, hostname)
+                remove_orchestra_user_blocked_target(askey, hostname)
                 removed_blocked += 1
 
             for hostname in list(user_blocked.keys()):
                 if not self._should_ignore_orchestra_host(hostname):
                     continue
                 del user_blocked[hostname]
-                reg_delete_value(user_blocked_reg_path, hostname)
+                remove_orchestra_user_blocked_target(askey, hostname)
                 removed_user_blocked += 1
 
         for hostname in list(self.locked_manager.strategy_history.keys()):
             if not self._should_ignore_orchestra_host(hostname):
                 continue
             del self.locked_manager.strategy_history[hostname]
-            reg_delete_value(REGISTRY_ORCHESTRA_HISTORY, hostname)
+            remove_orchestra_history_target(hostname)
             removed_history += 1
 
         total_removed = removed_locked + removed_user_locks + removed_history + removed_blocked + removed_user_blocked
@@ -1697,7 +1692,7 @@ class OrchestraRunner:
     # ==================== WHITELIST METHODS ====================
 
     def load_whitelist(self) -> set:
-        """Загружает whitelist из реестра + добавляет системные домены"""
+        """Загружает whitelist из settings.json + добавляет системные домены"""
         # 1. Очищаем
         self.user_whitelist = []
         self.whitelist = set()
@@ -1706,13 +1701,11 @@ class OrchestraRunner:
         self.whitelist.update(DEFAULT_WHITELIST_DOMAINS)
         default_count = len(DEFAULT_WHITELIST_DOMAINS)
         
-        # 3. Загружаем пользовательские из реестра
+        # 3. Загружаем пользовательские из settings.json
         try:
-            data = reg(REGISTRY_ORCHESTRA, "Whitelist")
-            if data:
-                self.user_whitelist = json.loads(data)
-                # Добавляем в объединённый whitelist
-                self.whitelist.update(self.user_whitelist)
+            self.user_whitelist = list(get_orchestra_whitelist_user_domains())
+            self.whitelist.update(self.user_whitelist)
+            if self.user_whitelist:
                 log(f"Загружен whitelist: {default_count} системных + {len(self.user_whitelist)} пользовательских", "DEBUG")
             else:
                 log(f"Загружен whitelist: {default_count} системных доменов", "DEBUG")
@@ -1722,10 +1715,9 @@ class OrchestraRunner:
         return self.whitelist
 
     def save_whitelist(self):
-        """Сохраняет пользовательский whitelist в реестр"""
+        """Сохраняет пользовательский whitelist в settings.json."""
         try:
-            data = json.dumps(self.user_whitelist, ensure_ascii=False)
-            reg(REGISTRY_ORCHESTRA, "Whitelist", data)
+            set_orchestra_whitelist_user_domains(list(self.user_whitelist))
             log(f"Сохранено {len(self.user_whitelist)} пользовательских доменов в whitelist", "DEBUG")
         except Exception as e:
             log(f"Ошибка сохранения whitelist: {e}", "ERROR")

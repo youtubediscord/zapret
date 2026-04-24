@@ -9,6 +9,11 @@ import subprocess
 from dataclasses import dataclass, field
 from typing import Tuple, Optional, List, Dict
 from log.log import log
+from winws_runtime.runtime.system_ops import (
+    aggressive_windivert_cleanup_runtime,
+    force_kill_all_winws_processes,
+    kill_process_by_pid_runtime,
+)
 
 from utils.windows_event_log import get_recent_application_error_messages
 from utils.windows_process_probe import iter_process_records_winapi, iter_process_names_winapi, iter_uninstall_display_names
@@ -428,8 +433,6 @@ def try_kill_conflicting_processes(auto_kill: bool = False) -> bool:
     
     log("Попытка закрыть конфликтующие процессы...", "INFO")
 
-    from utils.process_killer import kill_process_by_pid_winapi
-
     success_count = 0
     for conflict in conflicting:
         try:
@@ -438,7 +441,7 @@ def try_kill_conflicting_processes(auto_kill: bool = False) -> bool:
                 log(f"❌ У конфликтующего процесса {conflict['name']} нет корректного PID", "ERROR")
                 continue
 
-            if kill_process_by_pid_winapi(pid, wait_timeout_ms=5000):
+            if kill_process_by_pid_runtime(pid, wait_timeout_ms=5000):
                 log(f"✅ Процесс {conflict['name']} (PID {pid}) успешно закрыт через WinAPI", "SUCCESS")
                 success_count += 1
             else:
@@ -593,8 +596,7 @@ def diagnose_startup_error(error: Exception, exe_path: str = None) -> str:
 
             # Пробуем автоматически завершить
             try:
-                from utils.process_killer import kill_winws_force
-                if kill_winws_force():
+                if force_kill_all_winws_processes():
                     diagnostics.append("   ✅ Процесс завершён. Попробуйте запустить снова")
                 else:
                     diagnostics.append("   ❌ Не удалось завершить процесс")
@@ -610,24 +612,7 @@ def diagnose_startup_error(error: Exception, exe_path: str = None) -> str:
 
         # Пробуем агрессивную очистку всего
         try:
-            from utils.process_killer import kill_winws_force
-            from utils.service_manager import cleanup_windivert_services, unload_driver
-
-            # 1. Убиваем все процессы
-            kill_winws_force()
-
-            # 2. Очищаем WinDivert службы
-            cleanup_windivert_services()
-
-            # 3. Выгружаем драйверы WinDivert
-            for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
-                try:
-                    unload_driver(driver)
-                except:
-                    pass
-
-            import time
-            time.sleep(0.5)
+            aggressive_windivert_cleanup_runtime()
 
             diagnostics.append("   ✅ Очистка выполнена. Попробуйте запустить снова")
         except Exception as cleanup_err:
@@ -1046,15 +1031,7 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
 
     Returns (cause, solution, auto_fix_action).
     """
-    # Check 1: Network adapters
-    if not _check_network_adapters():
-        return (
-            "Все сетевые адаптеры отключены — WinDivert не может привязаться к устройству",
-            "Включите хотя бы один сетевой адаптер в Диспетчере устройств",
-            "enable_adapters",
-        )
-
-    # Check 2: WinDivert files missing (AV quarantine)
+    # Check 1: WinDivert files missing (AV quarantine)
     missing = _check_windivert_files()
     if missing:
         return (
@@ -1063,7 +1040,7 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             None,
         )
 
-    # Check 3: BFE service
+    # Check 2: BFE service
     if not _check_bfe_service():
         return (
             "Служба Base Filtering Engine (BFE) отключена — WinDivert зависит от неё",
@@ -1071,7 +1048,7 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             "enable_bfe",
         )
 
-    # Check 4: Secure Boot
+    # Check 3: Secure Boot
     if _check_secure_boot():
         return (
             "Secure Boot блокирует загрузку неподписанного драйвера WinDivert",
@@ -1079,7 +1056,7 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             None,
         )
 
-    # Check 5: WinDivert service explicitly disabled
+    # Check 4: WinDivert service explicitly disabled
     driver_disabled = _check_windivert_driver_disabled()
     if driver_disabled:
         return (
@@ -1088,6 +1065,26 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             "enable_driver",
         )
 
+    # Check 5: Driver installed but not yet ready after cleanup/restart.
+    try:
+        from winws_runtime.runtime.system_ops import probe_windivert_state_runtime
+
+        probe = probe_windivert_state_runtime()
+        if probe.installed and not probe.ready:
+            return (
+                "WinDivert ещё не готов после предыдущего запуска или очистки",
+                "Подождите пару секунд и попробуйте снова. Если повторяется — перезапустите программу или ПК",
+                None,
+            )
+        if not probe.installed and not probe.ready:
+            return (
+                "WinDivert ещё не установился или не готов к открытию фильтра",
+                "Подождите пару секунд и попробуйте снова. Если повторяется — перезапустите программу или проверьте файлы WinDivert",
+                None,
+            )
+    except Exception:
+        pass
+
     # Check 6: Antivirus
     av = _detect_active_antivirus()
     if av:
@@ -1095,6 +1092,16 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             f"Антивирус ({av}) может блокировать загрузку драйвера WinDivert",
             "Добавьте папку программы в исключения антивируса",
             None,
+        )
+
+    # Check 7: Network adapters. This check must be late because Win32 1058
+    # is a generic service-disabled error and otherwise easily turns into a
+    # ложный диагноз про адаптеры.
+    if not _check_network_adapters():
+        return (
+            "Не найден ни один активный сетевой адаптер — WinDivert не к чему привязаться",
+            "Включите хотя бы один сетевой адаптер в системе и повторите запуск",
+            "enable_adapters",
         )
 
     # Fallback
@@ -1115,7 +1122,7 @@ def _check_network_adapters() -> bool:
             adapter_type = int(adapter.get("type") or 0)
             if adapter_type == 24:  # MIB_IF_TYPE_LOOPBACK
                 continue
-            if adapter.get("ip_addresses"):
+            if adapter.get("index") or adapter.get("adapter_name") or adapter.get("name"):
                 return True
         return False
     except Exception:

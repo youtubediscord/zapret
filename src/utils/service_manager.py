@@ -29,6 +29,10 @@ SERVICE_STOPPED = 0x00000001
 SERVICE_STOP_PENDING = 0x00000003
 SERVICE_RUNNING = 0x00000004
 
+ERROR_SERVICE_DOES_NOT_EXIST = 1060
+ERROR_SERVICE_NOT_ACTIVE = 1062
+ERROR_SERVICE_MARKED_FOR_DELETE = 1072
+
 if hasattr(ctypes, "windll"):
     advapi32 = ctypes.windll.advapi32
 
@@ -94,21 +98,37 @@ def stop_service(service_name: str) -> bool:
                 return True  # Считаем что она не работает
             
             try:
-                # Останавливаем службу
                 service_status = SERVICE_STATUS()
-                result = ControlService(service, 1, ctypes.byref(service_status))  # 1 = SERVICE_CONTROL_STOP
-                
-                if result:
-                    log(f"✅ Служба {service_name} остановлена через Win API", "DEBUG")
-                    return True
-                else:
-                    error_code = ctypes.get_last_error()
-                    if error_code == 1062:  # ERROR_SERVICE_NOT_ACTIVE
+
+                # Сначала проверяем текущее состояние.
+                if QueryServiceStatus(service, ctypes.byref(service_status)):
+                    if service_status.dwCurrentState == SERVICE_STOPPED:
                         log(f"Служба {service_name} уже остановлена", "DEBUG")
                         return True
-                    else:
-                        log(f"Не удалось остановить {service_name}, код: {error_code}", "DEBUG")
+                    if service_status.dwCurrentState != SERVICE_STOP_PENDING:
+                        result = ControlService(service, 1, ctypes.byref(service_status))  # 1 = SERVICE_CONTROL_STOP
+                        if not result:
+                            error_code = ctypes.get_last_error()
+                            if error_code == ERROR_SERVICE_NOT_ACTIVE:
+                                log(f"Служба {service_name} уже остановлена", "DEBUG")
+                                return True
+                            log(f"Не удалось остановить {service_name}, код: {error_code}", "DEBUG")
+                            return False
+
+                # Ждём реального перехода в STOPPED, а не только факта отправки stop-команды.
+                deadline = time.time() + 5.0
+                while time.time() < deadline:
+                    if not QueryServiceStatus(service, ctypes.byref(service_status)):
+                        error_code = ctypes.get_last_error()
+                        log(f"QueryServiceStatus не удался для {service_name}, код: {error_code}", "DEBUG")
                         return False
+                    if service_status.dwCurrentState == SERVICE_STOPPED:
+                        log(f"✅ Служба {service_name} остановлена через Win API", "DEBUG")
+                        return True
+                    time.sleep(0.1)
+
+                log(f"Таймаут ожидания остановки службы {service_name}", "DEBUG")
+                return False
                         
             finally:
                 CloseServiceHandle(service)
@@ -141,13 +161,27 @@ def delete_service(service_name: str) -> bool:
             return False
         
         try:
-            # Открываем службу
-            service = OpenService(sc_manager, service_name, SERVICE_DELETE)
+            # Открываем службу и для удаления, и для контроля состояния.
+            service = OpenService(sc_manager, service_name, SERVICE_DELETE | SERVICE_QUERY_STATUS)
             if not service:
                 log(f"Служба {service_name} не найдена (уже удалена?)", "DEBUG")
                 return True  # Считаем успехом
             
             try:
+                service_status = SERVICE_STATUS()
+
+                # Если сервис ещё живой, дожидаемся состояния STOPPED.
+                deadline = time.time() + 5.0
+                while time.time() < deadline:
+                    if not QueryServiceStatus(service, ctypes.byref(service_status)):
+                        error_code = ctypes.get_last_error()
+                        if error_code == ERROR_SERVICE_DOES_NOT_EXIST:
+                            return True
+                        break
+                    if service_status.dwCurrentState == SERVICE_STOPPED:
+                        break
+                    time.sleep(0.1)
+
                 # Удаляем службу
                 result = DeleteService(service)
                 
@@ -156,10 +190,10 @@ def delete_service(service_name: str) -> bool:
                     return True
                 else:
                     error_code = ctypes.get_last_error()
-                    if error_code == 1060:  # ERROR_SERVICE_DOES_NOT_EXIST
+                    if error_code == ERROR_SERVICE_DOES_NOT_EXIST:
                         log(f"Служба {service_name} не существует", "DEBUG")
                         return True
-                    elif error_code == 1072:  # ERROR_SERVICE_MARKED_FOR_DELETE
+                    elif error_code == ERROR_SERVICE_MARKED_FOR_DELETE:
                         log(f"Служба {service_name} уже помечена для удаления", "DEBUG")
                         return True
                     else:
@@ -189,18 +223,17 @@ def stop_and_delete_service(service_name: str, retry_count: int = 3) -> bool:
         True если служба остановлена и удалена
     """
     try:
-        # Сначала останавливаем
+        # Сначала останавливаем и дожидаемся реального STOPPED.
         stop_service(service_name)
-        time.sleep(0.1)
-        
-        # Пытаемся удалить несколько раз
+
+        # Пытаемся удалить несколько раз, давая SCM время завершить переходные состояния.
         for attempt in range(retry_count):
             if delete_service(service_name):
                 return True
             
             if attempt < retry_count - 1:
                 log(f"Попытка {attempt + 1}/{retry_count} удаления {service_name}", "DEBUG")
-                time.sleep(0.2)
+                time.sleep(0.35)
         
         return False
         
@@ -228,7 +261,16 @@ def cleanup_windivert_services() -> bool:
 
 def unload_driver(driver_name: str) -> bool:
     """
-    Выгружает драйвер через fltmc (через Win API пока не реализовано)
+    Выгружает драйвер через Win API / Service Control Manager.
+
+    Для текущего проекта WinDivert/Monkey представлены как driver-service
+    записи SCM. Для обычного runtime-cleanup здесь нельзя удалять service entry:
+    это делает следующий запуск зависимым от повторной авто-установки драйвера.
+    Поэтому "выгрузка" в стандартном пути означает:
+    - остановить driver service;
+    - дождаться состояния STOPPED.
+
+    Полное удаление service entry оставляем только для явно агрессивной cleanup-ветки.
     
     Args:
         driver_name: Имя драйвера
@@ -237,22 +279,36 @@ def unload_driver(driver_name: str) -> bool:
         True если драйвер выгружен
     """
     try:
-        import subprocess
-        
-        result = subprocess.run(
-            ["fltmc", "unload", driver_name],
-            capture_output=True,
-            creationflags=0x08000000,  # CREATE_NO_WINDOW
-            timeout=3
-        )
-        
-        if result.returncode == 0:
-            log(f"✅ Драйвер {driver_name} выгружен", "DEBUG")
+        if not service_exists(driver_name):
+            log(f"Драйвер {driver_name} уже отсутствует в SCM", "DEBUG")
             return True
-        else:
-            log(f"Драйвер {driver_name} не выгружен (возможно не загружен)", "DEBUG")
+
+        if not stop_service(driver_name):
             return False
-            
+
+        deadline = time.time() + 5.0
+        last_state = None
+        while time.time() < deadline:
+            exists = service_exists(driver_name)
+            state = get_service_state(driver_name)
+            last_state = state
+
+            if exists and state == SERVICE_STOPPED:
+                log(f"✅ Драйвер {driver_name} остановлен через Win API", "DEBUG")
+                return True
+
+            if (not exists) or state is None:
+                log(f"✅ Драйвер {driver_name} выгружен через Win API", "DEBUG")
+                return True
+
+            time.sleep(0.15)
+
+        log(
+            f"Драйвер {driver_name} не выгружен через Win API "
+            f"(state={last_state}, exists={service_exists(driver_name)})",
+            "DEBUG",
+        )
+        return False
     except Exception as e:
         log(f"Ошибка выгрузки драйвера {driver_name}: {e}", "DEBUG")
         return False
@@ -286,6 +342,37 @@ def service_exists(service_name: str) -> bool:
     except Exception as e:
         log(f"Ошибка проверки службы {service_name}: {e}", "DEBUG")
         return False
+
+
+def get_service_state(service_name: str) -> int | None:
+    """
+    Возвращает текущее состояние службы Windows или None, если службы нет
+    или состояние не удалось прочитать.
+    """
+    if advapi32 is None or OpenSCManager is None or OpenService is None or QueryServiceStatus is None:
+        return None
+    try:
+        sc_manager = OpenSCManager(None, None, SC_MANAGER_ALL_ACCESS)
+        if not sc_manager:
+            return None
+
+        try:
+            service = OpenService(sc_manager, service_name, SERVICE_QUERY_STATUS)
+            if not service:
+                return None
+
+            try:
+                service_status = SERVICE_STATUS()
+                if QueryServiceStatus(service, ctypes.byref(service_status)):
+                    return int(service_status.dwCurrentState)
+                return None
+            finally:
+                CloseServiceHandle(service)
+        finally:
+            CloseServiceHandle(sc_manager)
+    except Exception as e:
+        log(f"Ошибка чтения состояния службы {service_name}: {e}", "DEBUG")
+        return None
 
 
 def fast_cleanup_all() -> None:

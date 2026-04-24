@@ -308,7 +308,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Automatically start the current DPI mode after ZapretGUI launches",
     },
     "page.z1_control.card.advanced": {
-        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "ru": "Дополнительные настройки",
         "en": "ADVANCED SETTINGS",
     },
     "page.z1_control.advanced.warning": {
@@ -778,14 +778,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.about.button.update_settings": {
         "ru": "Настройка обновлений",
         "en": "Update Settings",
-    },
-    "page.about.device.id": {
-        "ru": "ID устройства",
-        "en": "Device ID",
-    },
-    "page.about.button.copy_id": {
-        "ru": "Копировать ID",
-        "en": "Copy ID",
     },
     "page.about.subscription.free": {
         "ru": "Free версия",
@@ -1312,8 +1304,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Manage domains (other.txt). Subdomains are handled automatically. Prefix a domain with ^ to match only the exact domain.",
     },
     "page.custom_domains.description": {
-        "ru": "Здесь редактируется файл other.user.txt (только ваши домены). Системная база берётся из шаблона и отдельно хранится в other.base.txt, а общий other.txt собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
-        "en": "Edit other.user.txt (your domains only). The system base comes from template in other.base.txt, and combined other.txt is rebuilt automatically. URLs are converted to domains automatically. Changes are saved automatically. Ctrl+Z is supported.",
+        "ru": "Здесь редактируется пользовательский список доменов `lists/user/other.txt`. Системная база лежит в `lists/base/other.txt`, а итоговый `lists/other.txt` собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
+        "en": "Edit the custom domains list `lists/user/other.txt`. The system base lives in `lists/base/other.txt`, and the final `lists/other.txt` is rebuilt automatically. URLs are converted to domains automatically. Changes are saved automatically. Ctrl+Z is supported.",
     },
     "page.custom_domains.card.add": {
         "ru": "Добавить домен",
@@ -1324,8 +1316,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Actions",
     },
     "page.custom_domains.card.editor": {
-        "ru": "other.user.txt (редактор)",
-        "en": "other.user.txt (editor)",
+        "ru": "lists/user/other.txt (редактор)",
+        "en": "lists/user/other.txt (editor)",
     },
     "page.custom_domains.input.placeholder": {
         "ru": "Введите домен или URL (например: example.com или https://site.com/page)",
@@ -1356,16 +1348,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Confirm clear",
     },
     "page.custom_domains.tooltip.open_file": {
-        "ru": "Сохраняет изменения и открывает other.user.txt в проводнике",
-        "en": "Saves changes and opens other.user.txt in Explorer",
+        "ru": "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике",
+        "en": "Saves changes and opens `lists/user/other.txt` in Explorer",
     },
     "page.custom_domains.tooltip.reset_file": {
-        "ru": "Очищает other.user.txt (мои домены) и пересобирает other.txt из системной базы",
-        "en": "Clears other.user.txt (my domains) and rebuilds other.txt from system base",
+        "ru": "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
+        "en": "Clears `lists/user/other.txt` and rebuilds `lists/other.txt` from the system base",
     },
     "page.custom_domains.tooltip.clear_all": {
-        "ru": "Удаляет только пользовательские домены. Базовые домены из шаблона останутся",
-        "en": "Removes only custom domains. Base template domains remain",
+        "ru": "Удаляет только пользовательские домены. Системная база из `lists/base/other.txt` останется",
+        "en": "Removes only custom domains. The system base from `lists/base/other.txt` remains",
     },
     "page.custom_domains.editor.placeholder": {
         "ru": "Домены по одному на строку:\nexample.com\nsubdomain.site.org\n\nКомментарии начинаются с #",
@@ -1424,12 +1416,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Custom IPs and Subnets for ipset-all",
     },
     "page.custom_ipset.subtitle": {
-        "ru": "Здесь Вы можете редактировать пользовательский список IP/подсетей (ipset-all.user.txt). Пишите только IP/CIDR, изменения сохраняются автоматически.",
-        "en": "Edit custom IP/subnet list (ipset-all.user.txt). Use IP/CIDR format only; changes are saved automatically.",
+        "ru": "Здесь Вы можете редактировать пользовательский список IP/подсетей `lists/user/ipset-all.txt`. Пишите только IP/CIDR, изменения сохраняются автоматически.",
+        "en": "Edit the custom IP/subnet list `lists/user/ipset-all.txt`. Use IP/CIDR format only; changes are saved automatically.",
     },
     "page.custom_ipset.description": {
-        "ru": "Добавляйте свои IP/подсети в ipset-all.user.txt.\n• Одиночный IP: 1.2.3.4\n• Подсеть: 10.0.0.0/8\nДиапазоны (a-b) не поддерживаются.\nСистемная база хранится в ipset-all.base.txt и объединяется автоматически в ipset-all.txt.",
-        "en": "Add your own IPs/subnets to ipset-all.user.txt.\n• Single IP: 1.2.3.4\n• Subnet: 10.0.0.0/8\nRanges (a-b) are not supported.\nSystem base is stored in ipset-all.base.txt and merged into ipset-all.txt automatically.",
+        "ru": "Добавляйте свои IP/подсети в `lists/user/ipset-all.txt`.\n• Одиночный IP: 1.2.3.4\n• Подсеть: 10.0.0.0/8\nДиапазоны (a-b) не поддерживаются.\nСистемная база хранится в `lists/base/ipset-all.txt`, а итоговый `lists/ipset-all.txt` собирается автоматически.",
+        "en": "Add your own IPs/subnets to `lists/user/ipset-all.txt`.\n• Single IP: 1.2.3.4\n• Subnet: 10.0.0.0/8\nRanges (a-b) are not supported.\nThe system base is stored in `lists/base/ipset-all.txt`, and the final `lists/ipset-all.txt` is rebuilt automatically.",
     },
     "page.custom_ipset.section.add": {
         "ru": "Добавить IP/подсеть",
@@ -1456,8 +1448,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Clear all",
     },
     "page.custom_ipset.section.editor": {
-        "ru": "ipset-all.user.txt (редактор)",
-        "en": "ipset-all.user.txt (editor)",
+        "ru": "lists/user/ipset-all.txt (редактор)",
+        "en": "lists/user/ipset-all.txt (editor)",
     },
     "page.custom_ipset.editor.placeholder": {
         "ru": "IP/подсети по одному на строку:\n192.168.0.1\n10.0.0.0/8\n\nКомментарии начинаются с #",
@@ -1672,12 +1664,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Number of errors to auto-unlock strategy",
     },
     "page.dpi_settings.card.advanced": {
-        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "ru": "Дополнительные настройки",
         "en": "ADVANCED SETTINGS",
     },
     "page.dpi_settings.advanced.warning": {
-        "ru": "⚠ Изменяйте только если знаете что делаете",
-        "en": "⚠ Change only if you know what you are doing",
+        "ru": "Изменяйте только если знаете что делаете",
+        "en": "Change only if you know what you are doing",
     },
     "page.dpi_settings.advanced.wssize.title": {
         "ru": "Включить --wssize",
@@ -1852,8 +1844,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": " • ✅ Reset",
     },
     "page.hostlist.domains.desc": {
-        "ru": "Редактируется файл other.user.txt (только ваши домены). Системная база хранится в other.base.txt, общий other.txt собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
-        "en": "Edit other.user.txt (your domains only). System base is kept in other.base.txt, and combined other.txt is rebuilt automatically. URLs are converted to domains automatically. Changes are saved automatically. Ctrl+Z is supported.",
+        "ru": "Редактируется пользовательский список `lists/user/other.txt` (только ваши домены). Системная база хранится в `lists/base/other.txt`, а итоговый `lists/other.txt` собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
+        "en": "Edit the custom list `lists/user/other.txt` (your domains only). The system base is stored in `lists/base/other.txt`, and the final `lists/other.txt` is rebuilt automatically. URLs are converted to domains automatically. Changes are saved automatically. Ctrl+Z is supported.",
     },
     "page.hostlist.domains.section.add": {
         "ru": "Добавить домен",
@@ -1864,20 +1856,20 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Enter domain or URL (for example: example.com)",
     },
     "page.hostlist.domains.tooltip.open_file": {
-        "ru": "Сохраняет изменения и открывает other.user.txt в проводнике",
-        "en": "Saves changes and opens other.user.txt in Explorer",
+        "ru": "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике",
+        "en": "Saves changes and opens `lists/user/other.txt` in Explorer",
     },
     "page.hostlist.domains.tooltip.reset_file": {
-        "ru": "Очищает other.user.txt и пересобирает other.txt из системной базы",
-        "en": "Clears other.user.txt and rebuilds other.txt from system base",
+        "ru": "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
+        "en": "Clears `lists/user/other.txt` and rebuilds `lists/other.txt` from the system base",
     },
     "page.hostlist.domains.tooltip.clear_all": {
         "ru": "Удаляет только пользовательские домены",
         "en": "Removes custom domains only",
     },
     "page.hostlist.domains.section.editor": {
-        "ru": "other.user.txt (редактор)",
-        "en": "other.user.txt (editor)",
+        "ru": "lists/user/other.txt (редактор)",
+        "en": "lists/user/other.txt (editor)",
     },
     "page.hostlist.domains.editor.placeholder": {
         "ru": "Домены по одному на строку:\nexample.com\nsubdomain.site.org\n\nКомментарии начинаются с #",
@@ -1908,8 +1900,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Failed to reset:\n{error}",
     },
     "page.hostlist.ips.desc": {
-        "ru": "Добавляйте свои IP/подсети в ipset-all.user.txt.\n• Одиночный IP: 1.2.3.4\n• Подсеть: 10.0.0.0/8\nДиапазоны (a-b) не поддерживаются. Изменения сохраняются автоматически.\nСистемная база хранится в ipset-all.base.txt и автоматически объединяется в ipset-all.txt.",
-        "en": "Add your own IPs/subnets to ipset-all.user.txt.\n• Single IP: 1.2.3.4\n• Subnet: 10.0.0.0/8\nRanges (a-b) are not supported. Changes are saved automatically.\nSystem base is stored in ipset-all.base.txt and automatically merged into ipset-all.txt.",
+        "ru": "Добавляйте свои IP/подсети в `lists/user/ipset-all.txt`.\n• Одиночный IP: 1.2.3.4\n• Подсеть: 10.0.0.0/8\nДиапазоны (a-b) не поддерживаются. Изменения сохраняются автоматически.\nСистемная база хранится в `lists/base/ipset-all.txt`, а итоговый `lists/ipset-all.txt` собирается автоматически.",
+        "en": "Add your own IPs/subnets to `lists/user/ipset-all.txt`.\n• Single IP: 1.2.3.4\n• Subnet: 10.0.0.0/8\nRanges (a-b) are not supported. Changes are saved automatically.\nThe system base is stored in `lists/base/ipset-all.txt`, and the final `lists/ipset-all.txt` is rebuilt automatically.",
     },
     "page.hostlist.ips.section.add": {
         "ru": "Добавить IP/подсеть",
@@ -1920,8 +1912,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "For example: 1.2.3.4 or 10.0.0.0/8",
     },
     "page.hostlist.ips.section.editor": {
-        "ru": "ipset-all.user.txt (редактор)",
-        "en": "ipset-all.user.txt (editor)",
+        "ru": "lists/user/ipset-all.txt (редактор)",
+        "en": "lists/user/ipset-all.txt (editor)",
     },
     "page.hostlist.ips.editor.placeholder": {
         "ru": "IP/подсети по одному на строку:\n192.168.0.1\n10.0.0.0/8\n\nКомментарии начинаются с #",
@@ -1956,8 +1948,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Delete all entries?",
     },
     "page.hostlist.exclusions.desc": {
-        "ru": "Здесь два типа исключений:\n• Домены: netrogat.user.txt -> netrogat.txt (--hostlist-exclude)\n• IP/подсети: ipset-ru.user.txt -> ipset-ru.txt (--ipset-exclude)",
-        "en": "Two exclusion types here:\n• Domains: netrogat.user.txt -> netrogat.txt (--hostlist-exclude)\n• IP/subnets: ipset-ru.user.txt -> ipset-ru.txt (--ipset-exclude)",
+        "ru": "Здесь два типа исключений:\n• Домены: `lists/user/netrogat.txt` -> `lists/netrogat.txt` (--hostlist-exclude)\n• IP/подсети: `lists/user/ipset-ru.txt` -> `lists/ipset-ru.txt` (--ipset-exclude)",
+        "en": "Two exclusion types here:\n• Domains: `lists/user/netrogat.txt` -> `lists/netrogat.txt` (--hostlist-exclude)\n• IP/subnets: `lists/user/ipset-ru.txt` -> `lists/ipset-ru.txt` (--ipset-exclude)",
     },
     "page.hostlist.exclusions.section.add_domain": {
         "ru": "Добавить домен",
@@ -1976,8 +1968,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Open final",
     },
     "page.hostlist.exclusions.section.editor_domain": {
-        "ru": "netrogat.user.txt (редактор)",
-        "en": "netrogat.user.txt (editor)",
+        "ru": "lists/user/netrogat.txt (редактор)",
+        "en": "lists/user/netrogat.txt (editor)",
     },
     "page.hostlist.exclusions.editor.domain.placeholder": {
         "ru": "Домены по одному на строку:\ngosuslugi.ru\nvk.com\n\nКомментарии начинаются с #",
@@ -2024,8 +2016,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "IP exclusions (--ipset-exclude)",
     },
     "page.hostlist.exclusions.ipru.desc": {
-        "ru": "Редактируйте только ipset-ru.user.txt. Системная база хранится в ipset-ru.base.txt и автоматически объединяется в ipset-ru.txt.",
-        "en": "Edit only ipset-ru.user.txt. System base is stored in ipset-ru.base.txt and automatically merged into ipset-ru.txt.",
+        "ru": "Редактируйте только `lists/user/ipset-ru.txt`. Системная база хранится в `lists/base/ipset-ru.txt`, а итоговый `lists/ipset-ru.txt` собирается автоматически.",
+        "en": "Edit only `lists/user/ipset-ru.txt`. The system base is stored in `lists/base/ipset-ru.txt`, and the final `lists/ipset-ru.txt` is rebuilt automatically.",
     },
     "page.hostlist.exclusions.ipru.section.add": {
         "ru": "Добавить IP/подсеть в исключения",
@@ -2036,8 +2028,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "IP exclusion actions",
     },
     "page.hostlist.exclusions.ipru.section.editor": {
-        "ru": "ipset-ru.user.txt (редактор)",
-        "en": "ipset-ru.user.txt (editor)",
+        "ru": "lists/user/ipset-ru.txt (редактор)",
+        "en": "lists/user/ipset-ru.txt (editor)",
     },
     "page.hostlist.exclusions.ipru.editor.placeholder": {
         "ru": "IP/подсети по одному на строку:\n31.13.64.0/18\n77.88.0.0/18\n\nКомментарии начинаются с #",
@@ -2272,12 +2264,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Exclusions",
     },
     "page.netrogat.subtitle": {
-        "ru": "Управление пользовательским списком netrogat.user.txt. Итоговый netrogat.txt собирается автоматически.",
-        "en": "Manage custom netrogat.user.txt list. Final netrogat.txt is built automatically.",
+        "ru": "Управление пользовательским списком `lists/user/netrogat.txt`. Итоговый `lists/netrogat.txt` собирается автоматически.",
+        "en": "Manage the custom list `lists/user/netrogat.txt`. The final `lists/netrogat.txt` is rebuilt automatically.",
     },
     "page.netrogat.description": {
-        "ru": "Редактируйте только netrogat.user.txt.\nСистемная база хранится в netrogat.base.txt и автоматически объединяется в netrogat.txt.",
-        "en": "Edit only netrogat.user.txt.\nSystem base is stored in netrogat.base.txt and automatically merged into netrogat.txt.",
+        "ru": "Редактируйте только `lists/user/netrogat.txt`.\nСистемная база хранится в `lists/base/netrogat.txt`, а итоговый `lists/netrogat.txt` собирается автоматически.",
+        "en": "Edit only `lists/user/netrogat.txt`.\nThe system base is stored in `lists/base/netrogat.txt`, and the final `lists/netrogat.txt` is rebuilt automatically.",
     },
     "page.netrogat.section.add": {
         "ru": "Добавить домен",
@@ -2312,8 +2304,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Clear all",
     },
     "page.netrogat.section.editor": {
-        "ru": "netrogat.user.txt (редактор)",
-        "en": "netrogat.user.txt (editor)",
+        "ru": "lists/user/netrogat.txt (редактор)",
+        "en": "lists/user/netrogat.txt (editor)",
     },
     "page.netrogat.editor.placeholder": {
         "ru": "Домены по одному на строку:\ngosuslugi.ru\nvk.com\n\nКомментарии начинаются с #",
@@ -3224,8 +3216,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "🔄 Creating code...",
     },
     "page.premium.activation.success.code_created": {
-        "ru": "✅ Код создан и скопирован. Отправьте его боту в Telegram.",
-        "en": "✅ Code created and copied. Send it to the bot in Telegram.",
+        "ru": "✅ Код создан примерно на 10 минут и скопирован. Сразу отправьте его боту в Telegram.",
+        "en": "✅ Code was created for about 10 minutes and copied. Send it to the bot right away.",
     },
     "page.premium.connection.progress.testing": {
         "ru": "🔄 Проверка соединения...",
@@ -3403,13 +3395,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "S: {version}",
         "en": "S: {version}",
     },
-    "page.servers.table.versions.test_template": {
-        "ru": "T: {version}",
-        "en": "T: {version}",
+    "page.servers.table.versions.dev_template": {
+        "ru": "D: {version}",
+        "en": "D: {version}",
     },
     "page.servers.table.versions.both_template": {
-        "ru": "S: {stable}, T: {test}",
-        "en": "S: {stable}, T: {test}",
+        "ru": "S: {stable}, D: {dev}",
+        "en": "S: {stable}, D: {dev}",
     },
     "page.servers.table.versions.rate_limit_template": {
         "ru": "Лимит: {remaining}/{limit}",
@@ -4016,7 +4008,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "",
     },
     "page.z2_control.subtitle": {
-        "ru": "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, а при необходимости выполните тонкую настройку для каждой категории в разделе «Прямой запуск».",
+        "ru": "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, а при необходимости выполните тонкую настройку для каждого фильтра в разделе «Прямой запуск».",
         "en": "Configure and launch Zapret 2. Choose ready presets and fine-tune categories in Direct Launch.",
     },
     "page.z2_control.section.status": {
@@ -4120,12 +4112,12 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Current selected source preset",
     },
     "page.z2_control.card.advanced": {
-        "ru": "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ",
+        "ru": "Дополнительные настройки",
         "en": "ADVANCED SETTINGS",
     },
     "page.z2_control.advanced.warning": {
-        "ru": "⚠ Изменяйте только если знаете что делаете",
-        "en": "⚠ Change only if you know what you are doing",
+        "ru": "Изменяйте только если знаете что делаете",
+        "en": "Change only if you know what you are doing",
     },
     "page.z2_control.blobs.title": {
         "ru": "Блобы",
@@ -4162,6 +4154,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z2_direct.request.button": {
         "ru": "ОТКРЫТЬ ФОРМУ НА GITHUB",
         "en": "OPEN GITHUB FORM",
+    },
+    "page.z2_direct.toolbar.title": {
+        "ru": "Категории и target'ы",
+        "en": "Categories and targets",
     },
     "page.z2_direct.toolbar.expand": {
         "ru": "Развернуть",
@@ -4551,10 +4547,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Target",
         "en": "Target",
     },
-    "page.z2_strategy_detail.header.select_category": {
-        "ru": "Выберите target",
-        "en": "Select a target",
-    },
     "page.z2_strategy_detail.back.strategies": {
         "ru": "Прямой запуск Zapret 2",
         "en": "Direct launch Zapret 2",
@@ -4583,21 +4575,61 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "IPset",
         "en": "IPset",
     },
+    "page.z2_strategy_detail.out_range.kind": {
+        "ru": "Тип:",
+        "en": "Type:",
+    },
+    "page.z2_strategy_detail.out_range.kind.simple": {
+        "ru": "Простой",
+        "en": "Simple",
+    },
+    "page.z2_strategy_detail.out_range.kind.expression": {
+        "ru": "Выражение",
+        "en": "Expression",
+    },
+    "page.z2_strategy_detail.out_range.kind.tooltip": {
+        "ru": "Простой режим для a, x, n и d. Выражение нужно для форм вроде s1<d1, b1000- или <s34228.",
+        "en": "Simple mode is for a, x, n, and d. Expression mode is for forms like s1<d1, b1000-, or <s34228.",
+    },
     "page.z2_strategy_detail.out_range.mode": {
         "ru": "Режим:",
         "en": "Mode:",
     },
     "page.z2_strategy_detail.out_range.mode.tooltip": {
-        "ru": "n = количество пакетов с самого первого, d = отсчитывать ТОЛЬКО количество пакетов с данными",
-        "en": "n = count packets from the first one, d = count only packets with payload",
+        "ru": "a = всегда, x = никогда, n = номер пакета, d = номер пакета с данными",
+        "en": "a = always, x = never, n = packet number, d = packet number with payload",
     },
     "page.z2_strategy_detail.out_range.value": {
         "ru": "Значение:",
         "en": "Value:",
     },
     "page.z2_strategy_detail.out_range.value.tooltip": {
-        "ru": "--out-range: ограничение количества исходящих пакетов (n) или задержки (d)",
-        "en": "--out-range: outgoing packet limit (n) or delay count (d)",
+        "ru": "Для режимов n и d укажите число. Для a и x значение не используется.",
+        "en": "Enter a number for n and d. The value is ignored for a and x.",
+    },
+    "page.z2_strategy_detail.out_range.expression": {
+        "ru": "Выражение:",
+        "en": "Expression:",
+    },
+    "page.z2_strategy_detail.out_range.expression.placeholder": {
+        "ru": "Например: s1<d1, b1000-, <s34228",
+        "en": "For example: s1<d1, b1000-, <s34228",
+    },
+    "page.z2_strategy_detail.out_range.expression.tooltip": {
+        "ru": "Введите только значение после --out-range=. Например: x, -d10, s1<d1, b1000- или <s34228.",
+        "en": "Enter only the value after --out-range=. For example: x, -d10, s1<d1, b1000-, or <s34228.",
+    },
+    "page.z2_strategy_detail.out_range.expression.notice": {
+        "ru": "Можно использовать a, x, -n10, -d10 и диапазоны вроде s1<d1, b1000- или <s34228.",
+        "en": "You can use a, x, -n10, -d10, and ranges like s1<d1, b1000-, or <s34228.",
+    },
+    "page.z2_strategy_detail.out_range.expression.invalid": {
+        "ru": "Выражение out-range не распознано. Ожидается значение вроде x, -d10, s1<d1, b1000- или <s34228.",
+        "en": "The out-range expression was not recognized. Expected a value like x, -d10, s1<d1, b1000-, or <s34228.",
+    },
+    "page.z2_strategy_detail.out_range.complex.notice": {
+        "ru": "Сейчас используется сложное выражение out-range: {expr}\nПереключение режима заменит его простым значением.",
+        "en": "A complex out-range expression is currently used: {expr}\nChanging the mode will replace it with a simple value.",
     },
     "page.z2_strategy_detail.search.placeholder": {
         "ru": "Поиск по имени или args...",
@@ -5244,8 +5276,8 @@ TEXTS_EXTRA: dict[str, dict[str, str]] = {
         "en": "Want to add a new site or service to Zapret 2? Open the GitHub form and describe what should be added to the hostlist or ipset.",
     },
     "page.z2_direct.empty.no_presets": {
-        "ru": "Пресеты Zapret 2 не найдены. Обычно здесь должны быть txt-файлы в %APPDATA%\\zapret\\presets_v2. Если папка пустая, встроенные пресеты не были скопированы или были удалены.",
-        "en": "Zapret 2 presets were not found. Normally txt files should exist in %APPDATA%\\zapret\\presets_v2. If the folder is empty, built-in presets were not copied or were removed.",
+        "ru": "Пресеты Zapret 2 не найдены. Проверьте папку presets рядом с программой. Если системные пресеты отсутствуют, переустановите приложение.",
+        "en": "Zapret 2 presets were not found. Check the presets folder near the program. If built-in presets are missing, reinstall the app.",
     },
     "page.z2_direct.empty.no_selected_preset": {
         "ru": "Не удалось определить выбранный source preset. Откройте список пресетов, выберите любой пресет заново и нажмите «Обновить».",
@@ -5254,6 +5286,10 @@ TEXTS_EXTRA: dict[str, dict[str, str]] = {
     "page.z2_direct.empty.preset_read_error": {
         "ru": "Не удалось прочитать выбранный source preset «{preset_name}». Такое бывает, если файл пустой, повреждён или недоступен для чтения.",
         "en": "Could not read the selected source preset \"{preset_name}\". This may happen if the file is empty, corrupted, or unavailable for reading.",
+    },
+    "page.z2_direct.empty.unknown_error": {
+        "ru": "Не удалось построить список категорий для выбранного source preset «{preset_name}». Обычно это значит, что во время чтения preset-а или построения snapshot произошла внутренняя ошибка. Нажмите «Обновить» и проверьте лог.",
+        "en": "Could not build the category list for the selected source preset \"{preset_name}\". This usually means an internal error happened while reading the preset or building the snapshot. Click Refresh and check the log.",
     },
     "page.z2_direct.empty.no_categories": {
         "ru": "В выбранном source preset «{preset_name}» не найдено ни одной категории для этой страницы. Это значит, что после разбора файла программа не увидела ни одного target'а с фильтрами вроде hostlist, hostlist-domains или ipset.",

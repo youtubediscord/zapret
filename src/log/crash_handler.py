@@ -20,6 +20,7 @@ import platform
 import atexit
 from pathlib import Path
 
+from config.config import LOGS_FOLDER, MAIN_DIRECTORY
 
 # Папка для логов крашей
 CRASH_LOGS_FOLDER = None
@@ -37,12 +38,9 @@ def _get_crash_logs_folder() -> Path:
         return Path(CRASH_LOGS_FOLDER)
     
     try:
-        from config.config import LOGS_FOLDER
-
         folder = Path(LOGS_FOLDER) / "crashes"
-    except ImportError:
-        # Fallback если config не доступен
-        folder = Path.cwd() / "logs" / "crashes"
+    except Exception:
+        folder = Path(MAIN_DIRECTORY) / "logs" / "crashes"
     
     folder.mkdir(parents=True, exist_ok=True)
     CRASH_LOGS_FOLDER = str(folder)
@@ -424,4 +422,3 @@ def test_crash(crash_type: str = "exception"):
 
 # Логирование при импорте удалено чтобы избежать circular import
 # Логирование происходит в install_crash_handler()
-

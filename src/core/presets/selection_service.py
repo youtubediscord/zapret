@@ -1,39 +1,24 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-from core.paths import AppPaths
-
 from .models import PresetManifest
 from .preset_file_store import PresetFileStore
 
 
 class PresetSelectionService:
-    def __init__(self, paths: AppPaths, preset_file_store: PresetFileStore):
-        self._paths = paths
+    def __init__(self, preset_file_store: PresetFileStore):
         self._preset_file_store = preset_file_store
 
     def get_selected_file_name(self, engine: str) -> str | None:
-        path = self._selection_path(engine)
-        if not path.exists():
-            return None
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return None
-        raw_value = str(payload.get("selected_file_name") or "").strip()
+        from settings.store import get_selected_source_preset_file_name, set_selected_source_preset_file_name
+
+        raw_value = str(get_selected_source_preset_file_name(engine) or "").strip()
         if not raw_value:
             return None
 
         resolved = str(self._preset_file_store.resolve_file_name(engine, raw_value) or "").strip()
         if resolved and resolved != raw_value:
             try:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(
-                    json.dumps({"selected_file_name": resolved}, ensure_ascii=False, indent=2) + "\n",
-                    encoding="utf-8",
-                )
+                set_selected_source_preset_file_name(engine, resolved)
             except Exception:
                 pass
         return resolved or raw_value or None
@@ -45,41 +30,36 @@ class PresetSelectionService:
         return self._preset_file_store.get_manifest(engine, file_name)
 
     def select_preset(self, engine: str, file_name: str) -> PresetManifest:
+        from settings.store import set_selected_source_preset_file_name
+
         preset = self._preset_file_store.get_manifest(engine, file_name)
         if preset is None:
             raise ValueError(f"Preset not found: {file_name}")
-        path = self._selection_path(engine)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"selected_file_name": preset.file_name}, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        set_selected_source_preset_file_name(engine, preset.file_name)
         return preset
 
     def select_preset_file_name_fast(self, engine: str, file_name: str) -> str:
         """Direct selection path that does not depend on preset index.json."""
+        from settings.store import set_selected_source_preset_file_name
+
         candidate = str(self._preset_file_store.resolve_file_name(engine, file_name) or "").strip()
         if not candidate:
             raise ValueError("Preset file name is required")
 
-        presets_dir = self._paths.engine_paths(engine).ensure_directories().presets_dir
-        preset_path = presets_dir / candidate
-        if not preset_path.exists():
+        try:
+            preset_path = self._preset_file_store.get_source_path(engine, candidate)
+        except Exception:
+            preset_path = None
+        if preset_path is None or not preset_path.exists():
             raise ValueError(f"Preset not found: {file_name}")
 
-        path = self._selection_path(engine)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps({"selected_file_name": candidate}, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        set_selected_source_preset_file_name(engine, candidate)
         return candidate
 
     def clear_selection(self, engine: str) -> None:
-        try:
-            self._selection_path(engine).unlink()
-        except FileNotFoundError:
-            pass
+        from settings.store import clear_selected_source_preset_file_name
+
+        clear_selected_source_preset_file_name(engine)
 
     def ensure_can_delete(self, engine: str, file_name: str) -> None:
         selected_file_name = self.get_selected_file_name(engine)
@@ -102,6 +82,3 @@ class PresetSelectionService:
         if not manifests:
             return None
         return self.select_preset(engine, manifests[0].file_name)
-
-    def _selection_path(self, engine: str) -> Path:
-        return self._paths.engine_paths(engine).ensure_directories().selected_state_path

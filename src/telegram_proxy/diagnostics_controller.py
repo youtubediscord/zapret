@@ -3,15 +3,14 @@ from __future__ import annotations
 import concurrent.futures
 import socket
 import ssl
-import subprocess
 import time
 from base64 import b64encode
 from collections.abc import Callable
 from os import urandom
 
 from log.log import log
-
 from telegram_proxy.page_settings_controller import TelegramProxySettingsController
+from utils.windows_process_probe import iter_process_records_winapi
 
 
 class TelegramProxyDiagnosticsController:
@@ -527,14 +526,9 @@ class TelegramProxyDiagnosticsController:
     @staticmethod
     def _check_winws2_running() -> bool:
         try:
-            for exe in ("winws2.exe", "winws.exe"):
-                result = subprocess.run(
-                    ["tasklist", "/FI", f"IMAGENAME eq {exe}", "/NH"],
-                    capture_output=True,
-                    text=True,
-                    timeout=5,
-                )
-                if exe in result.stdout.lower():
+            expected = {"winws2.exe", "winws.exe"}
+            for _pid, process_name in iter_process_records_winapi():
+                if str(process_name or "").strip().lower() in expected:
                     return True
             return False
         except Exception:

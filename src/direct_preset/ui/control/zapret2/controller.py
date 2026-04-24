@@ -14,10 +14,10 @@ from direct_preset.ui.control.control_runtime_controller import (
     ControlStopButtonPlan,
     ControlToggleActionStartPlan,
 )
-from direct_preset.modes import (
-    DIRECT_UI_MODE_DEFAULT,
-    load_current_direct_ui_mode,
-    normalize_direct_ui_mode_for_engine,
+from filters.mode_runtime import (
+    DIRECT_MODE_DEFAULT,
+    load_current_direct_mode,
+    normalize_direct_mode,
 )
 from ui.text_catalog import tr as tr_catalog
 
@@ -123,8 +123,8 @@ class Zapret2DirectControlPageController(ControlPageController):
 
     @staticmethod
     def get_direct_launch_mode_setting() -> str:
-        resolved = load_current_direct_ui_mode("winws2")
-        return resolved or DIRECT_UI_MODE_DEFAULT
+        resolved = load_current_direct_mode()
+        return resolved or DIRECT_MODE_DEFAULT
 
     @staticmethod
     def build_direct_mode_label_plan(*, language: str) -> DirectModeLabelPlan:
@@ -138,8 +138,8 @@ class Zapret2DirectControlPageController(ControlPageController):
 
     @staticmethod
     def build_direct_mode_change_plan(*, wanted_mode: str, current_mode: str) -> DirectModeChangePlan:
-        wanted = normalize_direct_ui_mode_for_engine("winws2", wanted_mode)
-        current = normalize_direct_ui_mode_for_engine("winws2", current_mode)
+        wanted = normalize_direct_mode(wanted_mode)
+        current = normalize_direct_mode(current_mode)
         if wanted not in ("basic", "advanced") or wanted == current:
             return DirectModeChangePlan(
                 should_apply=False,
@@ -154,7 +154,7 @@ class Zapret2DirectControlPageController(ControlPageController):
 
     @staticmethod
     def apply_direct_mode_change(*, wanted_mode: str, app_context, reload_host) -> None:
-        wanted = normalize_direct_ui_mode_for_engine("winws2", wanted_mode)
+        wanted = normalize_direct_mode(wanted_mode)
         if wanted not in ("basic", "advanced"):
             return
 
@@ -174,6 +174,7 @@ class Zapret2DirectControlPageController(ControlPageController):
             facade = DirectPresetFacade.from_launch_method(
                 "direct_zapret2",
                 app_context=app_context,
+                direct_mode_override=wanted,
                 on_dpi_reload_needed=lambda: request_direct_runtime_content_apply(
                     reload_host,
                     launch_method="direct_zapret2",
@@ -197,24 +198,26 @@ class Zapret2DirectControlPageController(ControlPageController):
     @staticmethod
     def save_wssize_enabled(enabled: bool, *, app_context) -> None:
         try:
-            from direct_preset.facade import DirectPresetFacade
+            from settings.dpi.strategy_settings import set_wssize_enabled
 
-            DirectPresetFacade.from_launch_method(
-                "direct_zapret2",
+            set_wssize_enabled(
+                bool(enabled),
                 app_context=app_context,
-            ).set_wssize_enabled(bool(enabled))
+                launch_method="direct_zapret2",
+            )
         except Exception:
             pass
 
     @staticmethod
     def save_debug_log_enabled(enabled: bool, *, app_context) -> None:
         try:
-            from direct_preset.facade import DirectPresetFacade
+            from settings.dpi.strategy_settings import set_debug_log_enabled
 
-            DirectPresetFacade.from_launch_method(
-                "direct_zapret2",
+            set_debug_log_enabled(
+                bool(enabled),
                 app_context=app_context,
-            ).set_debug_log_enabled(bool(enabled))
+                launch_method="direct_zapret2",
+            )
         except Exception:
             pass
 

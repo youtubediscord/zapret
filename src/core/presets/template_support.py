@@ -6,14 +6,14 @@ from .z2_template_runtime import (
     get_default_category_settings,
     get_default_template_content,
     get_template_content,
-    overwrite_templates_to_presets,
+    reset_user_overrides_to_builtin_v2,
 )
 from .v1_template_runtime import (
     get_builtin_base_from_copy_name_v1,
     get_builtin_preset_content_v1,
     get_default_template_content_v1,
     get_template_content_v1,
-    overwrite_v1_templates_to_presets,
+    reset_user_overrides_to_builtin_v1,
 )
 
 
@@ -54,9 +54,9 @@ def resolve_reset_template(launch_method: str, preset_name: str) -> str:
 def reset_all_templates(launch_method: str) -> tuple[int, int, list[str]]:
     method = str(launch_method or "").strip().lower()
     if method == "direct_zapret2":
-        return overwrite_templates_to_presets()
+        return reset_user_overrides_to_builtin_v2()
 
-    return overwrite_v1_templates_to_presets()
+    return reset_user_overrides_to_builtin_v1()
 
 
 def get_default_target_settings_v2(category_key: str | None = None) -> dict:

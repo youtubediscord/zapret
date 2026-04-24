@@ -12,7 +12,7 @@ from packaging import version
 
 from .release_manager import get_latest_release
 from .github_release import normalize_version
-from .channel_utils import is_test_update_channel
+from .channel_utils import is_dev_update_channel
 from config.build_info import CHANNEL, APP_VERSION
 
 from log.log import log
@@ -405,15 +405,15 @@ class UpdateWorker(QObject):
 
     def _stop_dpi_for_download(self) -> bool:
         """Останавливает winws/winws2 если запущены. Возвращает True если что-то остановили."""
-        from utils.process_killer import is_process_running, kill_winws_force
+        from winws_runtime.runtime.sync_shutdown import is_any_runtime_running_sync, shutdown_runtime_sync
 
-        if not is_process_running("winws.exe") and not is_process_running("winws2.exe"):
+        if not is_any_runtime_running_sync():
             return False
 
         log("⚠️ DPI (winws) мешает скачиванию — временно останавливаем", "🔁 UPDATE")
         self._emit("Остановка DPI для скачивания...")
 
-        kill_winws_force()
+        shutdown_runtime_sync(reason="updater_download_connectivity", include_cleanup=True)
         time.sleep(0.5)
         return True
 
@@ -424,8 +424,11 @@ class UpdateWorker(QObject):
         try:
             self._emit("Запуск установщика…")
 
-            # Копируем установщик в постоянную папку (чтобы temp не удалился)
-            persistent_dir = os.path.join(os.environ.get("LOCALAPPDATA", ""), "ZapretUpdate")
+            # Путь установки
+            from config.config import MAIN_DIRECTORY
+
+            install_dir = MAIN_DIRECTORY
+            persistent_dir = os.path.join(install_dir, "_update_cache")
             os.makedirs(persistent_dir, exist_ok=True)
 
             persistent_exe = os.path.join(persistent_dir, "Zapret2Setup.exe")
@@ -434,16 +437,14 @@ class UpdateWorker(QObject):
             if os.path.exists(persistent_exe):
                 try:
                     os.remove(persistent_exe)
-                except:
+                except Exception:
                     pass
 
-            # Копируем установщик
+            # Копируем установщик рядом с установленной программой,
+            # чтобы не зависеть от пользовательского LOCALAPPDATA.
             shutil.copy2(setup_exe, persistent_exe)
             file_size = os.path.getsize(persistent_exe)
             log(f"📁 Установщик скопирован: {persistent_exe} ({file_size / 1024 / 1024:.1f} MB)", "🔁 UPDATE")
-
-            # Путь установки
-            install_dir = os.path.dirname(sys.executable)
 
             # Аргументы для тихой установки.
             base_args = (
@@ -605,7 +606,7 @@ class UpdateWorker(QObject):
                 log(f"⏱️ Проверка заблокирована rate limiter: {error_msg}", "🔁 UPDATE")
                 
                 # Для ручных проверок показываем сообщение только в stable-канале.
-                if not self._silent and not is_test_update_channel(CHANNEL):
+                if not self._silent and not is_dev_update_channel(CHANNEL):
                     self.show_no_updates.emit(f"Rate limit: {error_msg}")
                 
                 return False

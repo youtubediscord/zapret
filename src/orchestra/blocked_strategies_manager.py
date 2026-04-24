@@ -27,9 +27,13 @@ from typing import Dict, List, Callable, Optional, Set
 
 from log.log import log
 
-from config.config import REGISTRY_PATH
-
-from config.reg import reg, reg_enumerate_values, reg_delete_all_values, reg_delete_value
+from settings.store import (
+    clear_orchestra_user_blocked,
+    get_orchestra_user_blocked,
+    remove_orchestra_user_blocked_target,
+    set_orchestra_user_blocked,
+    set_orchestra_user_blocked_strategies,
+)
 from orchestra.ignored_targets import is_orchestra_ignored_target
 
 
@@ -56,23 +60,6 @@ PROTO_TO_ASKEY = {
     "dns": "dns",
     "stun": "stun",
 }
-
-# Базовый путь в реестре
-REGISTRY_ORCHESTRA = f"{REGISTRY_PATH}\\Orchestra"
-
-# Legacy путь для backward compatibility (будет мигрирован)
-REGISTRY_ORCHESTRA_BLOCKED_LEGACY = f"{REGISTRY_ORCHESTRA}\\Blocked"
-
-
-def get_blocked_registry_path(askey: str) -> str:
-    """Возвращает путь в реестре для blocked askey"""
-    return f"{REGISTRY_ORCHESTRA}\\Blocked{askey.title()}"
-
-
-def get_user_blocked_registry_path(askey: str) -> str:
-    """Возвращает путь в реестре для user blocked askey"""
-    return f"{REGISTRY_ORCHESTRA}\\UserBlocked{askey.title()}"
-
 
 # Домены для которых strategy=1 (pass) заблокирована по умолчанию - они точно заблокированы РКН
 # При загрузке blocked_strategies автоматически добавляется s1 для этих доменов
@@ -196,61 +183,14 @@ class BlockedStrategiesManager:
         """Проверяет, запрещён ли этот хост для blocked-контура оркестратора."""
         return is_orchestra_ignored_target(hostname)
 
-    # ==================== МИГРАЦИЯ ====================
-
-    def _migrate_old_registry_format(self):
-        """Мигрирует старый формат (Orchestra\\Blocked) в новый (Orchestra\\BlockedTls)"""
-        try:
-            # Проверяем есть ли старые данные
-            old_data = reg_enumerate_values(REGISTRY_ORCHESTRA_BLOCKED_LEGACY)
-            if not old_data:
-                return
-
-            migrated_count = 0
-            tls_path = get_blocked_registry_path("tls")
-
-            for hostname, json_str in old_data.items():
-                hostname = self._normalize_hostname(hostname)
-                try:
-                    strategies = json.loads(json_str)
-                    if isinstance(strategies, list) and strategies:
-                        # Фильтруем только пользовательские (не дефолтные)
-                        user_strategies = [int(s) for s in strategies if not self._is_default_blocked_internal(hostname, int(s))]
-                        if user_strategies:
-                            # Сохраняем в новый путь
-                            reg(tls_path, hostname, json.dumps(user_strategies))
-                            migrated_count += 1
-                except (json.JSONDecodeError, ValueError):
-                    pass
-
-            # Удаляем старые данные
-            if migrated_count > 0:
-                try:
-                    reg_delete_all_values(REGISTRY_ORCHESTRA_BLOCKED_LEGACY)
-                except Exception:
-                    pass
-                log(f"Мигрировано {migrated_count} blocked записей из Blocked в BlockedTls", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка миграции blocked: {e}", "DEBUG")
-
-    def _is_default_blocked_internal(self, hostname: str, strategy: int) -> bool:
-        """Внутренняя проверка для миграции (без нормализации)"""
-        if strategy != 1:
-            return False
-        return is_default_blocked_pass_domain(hostname)
-
     # ==================== ЗАГРУЗКА/СОХРАНЕНИЕ ====================
 
     def load(self):
-        """Загружает заблокированные стратегии из реестра + дефолтные блокировки s1"""
+        """Загружает заблокированные стратегии из settings.json + дефолтные блокировки s1."""
         # Очищаем все словари по askey БЕЗ создания новых (сохраняем ссылки!)
         for askey in ASKEY_ALL:
             self.blocked_by_askey[askey].clear()
             self.user_blocked_by_askey[askey].clear()
-
-        # Сначала мигрируем старый формат если есть
-        self._migrate_old_registry_format()
 
         # 1. Добавляем дефолтные блокировки: strategy=1 для DEFAULT_BLOCKED_PASS_DOMAINS (только TLS)
         tls_dict = self.blocked_by_askey["tls"]
@@ -258,57 +198,32 @@ class BlockedStrategiesManager:
             tls_dict[domain] = [1]
         default_count = len(DEFAULT_BLOCKED_PASS_DOMAINS)
 
-        # 2. Загружаем пользовательские блокировки из реестра для всех askey профилей
+        # 2. Загружаем пользовательские блокировки из settings.json для всех askey профилей
         try:
             total_user_count = 0
 
             for askey in ASKEY_ALL:
-                reg_path = get_blocked_registry_path(askey)
-                user_reg_path = get_user_blocked_registry_path(askey)
                 target_dict = self.blocked_by_askey[askey]
                 user_dict = self.user_blocked_by_askey[askey]
 
-                # Загружаем blocked стратегии
                 try:
-                    data = reg_enumerate_values(reg_path)
+                    data = get_orchestra_user_blocked(askey)
                     for hostname, json_str in data.items():
                         hostname = self._normalize_hostname(hostname)
                         if self._is_ignored_hostname(hostname):
-                            reg_delete_value(reg_path, hostname)
+                            remove_orchestra_user_blocked_target(askey, hostname)
                             continue
                         try:
-                            strategies = json.loads(json_str)
-                            if isinstance(strategies, list) and strategies:
-                                user_blocked = [int(s) for s in strategies]
-                                # Мержим с существующими (дефолтными)
-                                if hostname in target_dict:
-                                    existing = set(target_dict[hostname])
-                                    existing.update(user_blocked)
-                                    target_dict[hostname] = sorted(list(existing))
-                                else:
-                                    target_dict[hostname] = sorted(user_blocked)
-                                # Считаем user блокировки
+                            if isinstance(json_str, list) and json_str:
+                                user_blocked = [int(s) for s in json_str]
+                                existing = set(target_dict.get(hostname, []))
+                                existing.update(user_blocked)
+                                target_dict[hostname] = sorted(list(existing))
+                                user_dict[hostname] = set(user_blocked)
                                 for s in user_blocked:
                                     if not self.is_default_blocked(hostname, s):
                                         total_user_count += 1
-                        except (json.JSONDecodeError, ValueError):
-                            pass
-                except Exception:
-                    pass
-
-                # Загружаем user blocks маркеры
-                try:
-                    user_data = reg_enumerate_values(user_reg_path)
-                    for hostname, json_str in user_data.items():
-                        hostname = self._normalize_hostname(hostname)
-                        if self._is_ignored_hostname(hostname):
-                            reg_delete_value(user_reg_path, hostname)
-                            continue
-                        try:
-                            strategies = json.loads(json_str)
-                            if isinstance(strategies, list):
-                                user_dict[hostname] = set(int(s) for s in strategies)
-                        except (json.JSONDecodeError, ValueError):
+                        except Exception:
                             pass
                 except Exception:
                     pass
@@ -321,46 +236,25 @@ class BlockedStrategiesManager:
             else:
                 log(f"Загружено {default_count} дефолтных блокировок (s1 для заблокированных сайтов)", "DEBUG")
         except Exception as e:
-            log(f"Ошибка загрузки blocked strategies: {e}", "DEBUG")
+            log(f"Ошибка загрузки blocked strategies из settings.json: {e}", "DEBUG")
 
     def save(self):
-        """Сохраняет заблокированные стратегии в реестр (только пользовательские)"""
+        """Сохраняет заблокированные стратегии в settings.json (только пользовательские)."""
         try:
             total_saved = 0
 
-            # Сохраняем для всех 9 askey профилей
             for askey in ASKEY_ALL:
-                reg_path = get_blocked_registry_path(askey)
-                user_reg_path = get_user_blocked_registry_path(askey)
                 target_dict = self.blocked_by_askey[askey]
                 user_dict = self.user_blocked_by_askey[askey]
 
-                # Собираем данные для сохранения (только пользовательские блокировки)
                 to_save = {}
                 for hostname, strategies in target_dict.items():
                     hostname_norm = self._normalize_hostname(hostname)
-                    # Фильтруем только пользовательские блокировки
                     user_strategies = [s for s in strategies if not self.is_default_blocked(hostname_norm, s)]
                     if user_strategies:
                         to_save[hostname_norm] = user_strategies
-
-                # Сохраняем blocked
-                for hostname, user_strategies in to_save.items():
-                    try:
-                        json_str = json.dumps(user_strategies)
-                        reg(reg_path, hostname, json_str)
-                        total_saved += len(user_strategies)
-                    except Exception as e:
-                        log(f"Ошибка сохранения blocked для {hostname} [{askey}]: {e}", "DEBUG")
-
-                # Сохраняем user blocks маркеры
-                for hostname, strategies_set in user_dict.items():
-                    if strategies_set:
-                        try:
-                            json_str = json.dumps(sorted(list(strategies_set)))
-                            reg(user_reg_path, hostname, json_str)
-                        except Exception as e:
-                            log(f"Ошибка сохранения user_blocked для {hostname} [{askey}]: {e}", "DEBUG")
+                set_orchestra_user_blocked(askey, to_save)
+                total_saved += sum(len(v) for v in to_save.values())
 
             if total_saved > 0:
                 log(f"Сохранено {total_saved} пользовательских заблокированных стратегий", "DEBUG")
@@ -561,8 +455,6 @@ class BlockedStrategiesManager:
 
         target_dict = self.blocked_by_askey[askey]
         user_dict = self.user_blocked_by_askey[askey]
-        reg_path = get_blocked_registry_path(askey)
-        user_reg_path = get_user_blocked_registry_path(askey)
 
         if hostname in target_dict:
             if strategy in target_dict[hostname]:
@@ -573,25 +465,24 @@ class BlockedStrategiesManager:
                     user_dict[hostname].discard(strategy)
                     if not user_dict[hostname]:
                         del user_dict[hostname]
-                        try:
-                            reg_delete_value(user_reg_path, hostname)
-                        except Exception:
-                            pass
 
                 # Если остались только дефолтные блокировки - удаляем ключ из реестра
                 user_strategies = [s for s in target_dict[hostname] if not self.is_default_blocked(hostname, s)]
                 if not user_strategies:
-                    # Удаляем из реестра (но оставляем в памяти если есть дефолтные)
-                    try:
-                        reg_delete_value(reg_path, hostname)
-                    except Exception:
-                        pass
-                    # Если нет дефолтных - удаляем и из памяти
                     if not target_dict[hostname]:
                         del target_dict[hostname]
                 else:
-                    # Сохраняем только пользовательские
                     self.save()
+
+                # Сохраняем актуальный пользовательский набор
+                set_orchestra_user_blocked(
+                    askey,
+                    {
+                        host: sorted(list(values))
+                        for host, values in user_dict.items()
+                        if values
+                    },
+                )
 
                 log(f"Разблокирована стратегия #{strategy} для {hostname} [{askey.upper()}]", "INFO")
 
@@ -613,16 +504,8 @@ class BlockedStrategiesManager:
                     if not self.is_default_blocked(hostname, strategy):
                         user_count += 1
 
-        # Очищаем реестр для всех askey (там только пользовательские)
         for askey in ASKEY_ALL:
-            try:
-                reg_delete_all_values(get_blocked_registry_path(askey))
-            except Exception:
-                pass
-            try:
-                reg_delete_all_values(get_user_blocked_registry_path(askey))
-            except Exception:
-                pass
+            clear_orchestra_user_blocked(askey)
 
         # Перезагружаем blocked_strategies (останутся только дефолтные)
         self.load()

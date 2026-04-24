@@ -260,7 +260,7 @@ class UpdatePageViewController:
         language: str,
     ) -> ServerRowPlan:
         from ui.text_catalog import tr as tr_catalog
-        from updater.channel_utils import is_test_update_channel
+        from updater.channel_utils import is_dev_update_channel
 
         def tr(key: str, default: str) -> str:
             return tr_catalog(key, language=language, default=default)
@@ -291,9 +291,9 @@ class UpdatePageViewController:
 
         if row_server_name == "Telegram Bot":
             if status.get("status") == "online":
-                if is_test_update_channel(channel):
-                    extra_text = tr("page.servers.table.versions.test_template", "T: {version}").format(
-                        version=status.get("test_version", "—")
+                if is_dev_update_channel(channel):
+                    extra_text = tr("page.servers.table.versions.dev_template", "D: {version}").format(
+                        version=status.get("dev_version", "—")
                     )
                 else:
                     extra_text = tr("page.servers.table.versions.stable_template", "S: {version}").format(
@@ -310,9 +310,9 @@ class UpdatePageViewController:
             else:
                 extra_text = str(status.get("error", ""))[:40]
         elif status.get("status") == "online":
-            extra_text = tr("page.servers.table.versions.both_template", "S: {stable}, T: {test}").format(
+            extra_text = tr("page.servers.table.versions.both_template", "S: {stable}, D: {dev}").format(
                 stable=status.get("stable_version", "—"),
-                test=status.get("test_version", "—"),
+                dev=status.get("dev_version", "—"),
             )
         else:
             extra_text = str(status.get("error", ""))[:40]
@@ -329,10 +329,10 @@ class UpdatePageViewController:
     @staticmethod
     def open_update_channel(channel: str) -> UpdateChannelActionResult:
         from config.telegram_links import open_telegram_link
-        from updater.channel_utils import is_test_update_channel
+        from updater.channel_utils import is_dev_update_channel
 
         try:
-            domain = "zapretguidev" if is_test_update_channel(channel) else "zapretnetdiscordyoutube"
+            domain = "zapretguidev" if is_dev_update_channel(channel) else "zapretnetdiscordyoutube"
             open_telegram_link(domain)
             return UpdateChannelActionResult(True, domain)
         except Exception as e:

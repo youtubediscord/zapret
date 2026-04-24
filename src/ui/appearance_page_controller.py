@@ -72,7 +72,7 @@ class AppearancePageController:
     @staticmethod
     def load_display_mode() -> str:
         try:
-            from config.reg import get_display_mode
+            from settings.store import get_display_mode
 
             return str(get_display_mode() or "dark")
         except Exception:
@@ -82,7 +82,7 @@ class AppearancePageController:
     def save_display_mode(mode: str) -> AppearanceDisplayModePlan:
         effective_mode = str(mode or "dark")
         try:
-            from config.reg import get_display_mode, set_display_mode
+            from settings.store import get_display_mode, set_display_mode
 
             set_display_mode(mode)
             effective_mode = str(get_display_mode() or effective_mode)
@@ -96,7 +96,7 @@ class AppearancePageController:
     @staticmethod
     def load_ui_language() -> AppearanceUiLanguagePlan:
         try:
-            from config.reg import get_ui_language
+            from settings.store import get_ui_language
 
             lang = normalize_language(get_ui_language())
         except Exception:
@@ -107,7 +107,7 @@ class AppearancePageController:
     def save_ui_language(language: str) -> AppearanceUiLanguagePlan:
         lang = normalize_language(language)
         try:
-            from config.reg import set_ui_language
+            from settings.store import set_ui_language
 
             set_ui_language(lang)
         except Exception:
@@ -117,7 +117,7 @@ class AppearancePageController:
     @staticmethod
     def load_background_preset() -> AppearanceBackgroundPresetPlan:
         try:
-            from config.reg import get_background_preset
+            from settings.store import get_background_preset
 
             preset = str(get_background_preset() or "standard")
         except Exception:
@@ -128,7 +128,7 @@ class AppearancePageController:
     def save_background_preset(preset: str) -> AppearanceBackgroundPresetPlan:
         normalized = str(preset or "standard")
         try:
-            from config.reg import set_background_preset
+            from settings.store import set_background_preset
 
             set_background_preset(normalized)
         except Exception:
@@ -138,7 +138,7 @@ class AppearancePageController:
     @staticmethod
     def load_mica_enabled() -> AppearanceMicaPlan:
         try:
-            from config.reg import get_mica_enabled
+            from settings.store import get_mica_enabled
 
             enabled = bool(get_mica_enabled())
         except Exception:
@@ -148,7 +148,7 @@ class AppearancePageController:
     @staticmethod
     def save_mica_enabled(enabled: bool) -> AppearanceMicaPlan:
         try:
-            from config.reg import set_mica_enabled
+            from settings.store import set_mica_enabled
 
             set_mica_enabled(bool(enabled))
         except Exception:
@@ -158,7 +158,7 @@ class AppearancePageController:
     @staticmethod
     def load_window_opacity() -> AppearanceOpacityPlan:
         try:
-            from config.reg import get_window_opacity
+            from settings.store import get_window_opacity
 
             value = int(get_window_opacity())
         except Exception:
@@ -169,7 +169,7 @@ class AppearancePageController:
     def save_window_opacity(value: int) -> AppearanceOpacityPlan:
         normalized = int(value)
         try:
-            from config.reg import set_window_opacity
+            from settings.store import set_window_opacity
 
             set_window_opacity(normalized)
         except Exception:
@@ -179,7 +179,7 @@ class AppearancePageController:
     @staticmethod
     def load_animations_enabled() -> AppearanceTogglePlan:
         try:
-            from config.reg import get_animations_enabled
+            from settings.store import get_animations_enabled
 
             enabled = bool(get_animations_enabled())
         except Exception:
@@ -189,7 +189,7 @@ class AppearancePageController:
     @staticmethod
     def save_animations_enabled(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_animations_enabled
+            from settings.store import set_animations_enabled
 
             set_animations_enabled(bool(enabled))
         except Exception:
@@ -199,7 +199,7 @@ class AppearancePageController:
     @staticmethod
     def load_smooth_scroll_enabled() -> AppearanceTogglePlan:
         try:
-            from config.reg import get_smooth_scroll_enabled
+            from settings.store import get_smooth_scroll_enabled
 
             enabled = bool(get_smooth_scroll_enabled())
         except Exception:
@@ -209,7 +209,7 @@ class AppearancePageController:
     @staticmethod
     def save_smooth_scroll_enabled(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_smooth_scroll_enabled
+            from settings.store import set_smooth_scroll_enabled
 
             set_smooth_scroll_enabled(bool(enabled))
         except Exception:
@@ -219,7 +219,7 @@ class AppearancePageController:
     @staticmethod
     def load_editor_smooth_scroll_enabled() -> AppearanceTogglePlan:
         try:
-            from config.reg import get_editor_smooth_scroll_enabled
+            from settings.store import get_editor_smooth_scroll_enabled
 
             enabled = bool(get_editor_smooth_scroll_enabled())
         except Exception:
@@ -229,7 +229,7 @@ class AppearancePageController:
     @staticmethod
     def save_editor_smooth_scroll_enabled(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_editor_smooth_scroll_enabled
+            from settings.store import set_editor_smooth_scroll_enabled
 
             set_editor_smooth_scroll_enabled(bool(enabled))
         except Exception:
@@ -239,7 +239,7 @@ class AppearancePageController:
     @staticmethod
     def load_accent_color() -> AppearanceAccentColorPlan:
         try:
-            from config.reg import get_accent_color
+            from settings.store import get_accent_color
 
             hex_color = get_accent_color()
         except Exception:
@@ -250,7 +250,7 @@ class AppearancePageController:
     def save_accent_color(hex_color: str) -> AppearanceAccentColorPlan:
         normalized = str(hex_color or "").strip()
         try:
-            from config.reg import set_accent_color
+            from settings.store import set_accent_color
 
             if normalized:
                 set_accent_color(normalized)
@@ -261,7 +261,7 @@ class AppearancePageController:
     @staticmethod
     def load_tinted_settings() -> AppearanceTintedSettingsPlan:
         try:
-            from config.reg import (
+            from settings.store import (
                 get_follow_windows_accent,
                 get_tinted_background,
                 get_tinted_background_intensity,
@@ -283,7 +283,7 @@ class AppearancePageController:
     @staticmethod
     def save_follow_windows_accent(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_follow_windows_accent
+            from settings.store import set_follow_windows_accent
 
             set_follow_windows_accent(bool(enabled))
         except Exception:
@@ -293,7 +293,7 @@ class AppearancePageController:
     @staticmethod
     def save_tinted_background(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_tinted_background
+            from settings.store import set_tinted_background
 
             set_tinted_background(bool(enabled))
         except Exception:
@@ -304,7 +304,7 @@ class AppearancePageController:
     def save_tinted_background_intensity(value: int) -> AppearanceOpacityPlan:
         normalized = int(value)
         try:
-            from config.reg import set_tinted_background_intensity
+            from settings.store import set_tinted_background_intensity
 
             set_tinted_background_intensity(normalized)
         except Exception:
@@ -314,7 +314,7 @@ class AppearancePageController:
     @staticmethod
     def load_windows_system_accent() -> AppearanceAccentColorPlan:
         try:
-            from config.reg import get_windows_system_accent
+            from settings.store import get_windows_system_accent
 
             hex_color = get_windows_system_accent()
         except Exception:
@@ -324,7 +324,7 @@ class AppearancePageController:
     @staticmethod
     def load_rkn_background() -> AppearanceRknBackgroundPlan:
         try:
-            from config.reg import get_rkn_background
+            from settings.store import get_rkn_background
 
             value = get_rkn_background()
         except Exception:
@@ -335,7 +335,7 @@ class AppearancePageController:
     def save_rkn_background(value: str | None) -> AppearanceRknBackgroundPlan:
         normalized = str(value).strip().replace("\\", "/") if value is not None else None
         try:
-            from config.reg import set_rkn_background
+            from settings.store import set_rkn_background
 
             set_rkn_background(normalized)
         except Exception:
@@ -345,7 +345,7 @@ class AppearancePageController:
     @staticmethod
     def load_premium_effects() -> AppearancePremiumEffectsPlan:
         try:
-            from config.reg import get_garland_enabled, get_snowflakes_enabled
+            from settings.store import get_garland_enabled, get_snowflakes_enabled
 
             garland = bool(get_garland_enabled())
             snowflakes = bool(get_snowflakes_enabled())
@@ -360,7 +360,7 @@ class AppearancePageController:
     @staticmethod
     def save_garland_enabled(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_garland_enabled
+            from settings.store import set_garland_enabled
 
             set_garland_enabled(bool(enabled))
         except Exception:
@@ -370,7 +370,7 @@ class AppearancePageController:
     @staticmethod
     def save_snowflakes_enabled(enabled: bool) -> AppearanceTogglePlan:
         try:
-            from config.reg import set_snowflakes_enabled
+            from settings.store import set_snowflakes_enabled
 
             set_snowflakes_enabled(bool(enabled))
         except Exception:

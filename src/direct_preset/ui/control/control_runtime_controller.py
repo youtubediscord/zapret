@@ -101,7 +101,7 @@ class ControlPageController:
         max_blocked = False
 
         try:
-            from config.reg import get_dpi_autostart
+            from settings.store import get_dpi_autostart
 
 
             auto_dpi_enabled = bool(get_dpi_autostart())
@@ -131,7 +131,7 @@ class ControlPageController:
     @staticmethod
     def save_auto_dpi(enabled: bool) -> ControlAutoDpiPlan:
         try:
-            from config.reg import set_dpi_autostart
+            from settings.store import set_dpi_autostart
 
 
             set_dpi_autostart(bool(enabled))

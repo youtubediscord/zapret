@@ -4,19 +4,17 @@ import os
 import sys
 
 from app_notifications import advisory_notification, notification_action
+from config.config import MAIN_DIRECTORY
 from utils.windows_process_probe import iter_process_names_winapi, iter_uninstall_display_names
 
 
 def _resolve_kaspersky_paths() -> tuple[str, str]:
     """Возвращает путь к exe и рабочую папку приложения."""
+    base_dir = os.path.abspath(MAIN_DIRECTORY)
     if getattr(sys, "frozen", False):
         exe_path = os.path.abspath(sys.executable)
-        base_dir = os.path.dirname(exe_path)
     else:
-        exe_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "zapret.pyw")
-        )
-        base_dir = os.path.dirname(exe_path)
+        exe_path = os.path.abspath(os.path.join(base_dir, "zapret.pyw"))
     return exe_path, base_dir
 
 _KASPERSKY_PROCESS_NAMES = frozenset(
@@ -49,55 +47,30 @@ def _check_kaspersky_antivirus() -> bool:
 
 def _check_kaspersky_warning_disabled():
     """
-    Проверяет, отключено ли предупреждение о Kaspersky в реестре.
+    Проверяет, отключено ли предупреждение о Kaspersky в settings.json.
     
     Returns:
         bool: True если предупреждение отключено, False если нет
     """
     try:
-        import winreg
-        from config.config import REGISTRY_PATH
+        from settings.store import get_kaspersky_warning_disabled
 
-        key_path = REGISTRY_PATH
-        value_name = "DisableKasperskyWarning"
-        
-        # Пытаемся открыть ключ
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ) as key:
-                value, _ = winreg.QueryValueEx(key, value_name)
-                return value == 1
-        except (FileNotFoundError, OSError):
-            return False
-            
-    except ImportError:
-        # Если winreg недоступен (не Windows), возвращаем False
+        return bool(get_kaspersky_warning_disabled())
+    except Exception:
         return False
 
 def _set_kaspersky_warning_disabled(disabled: bool) -> bool:
     """
-    Сохраняет в реестре настройку отключения предупреждения о Kaspersky.
+    Сохраняет в settings.json настройку отключения предупреждения о Kaspersky.
     
     Args:
         disabled: True для отключения предупреждения, False для включения
     """
     try:
-        import winreg
-        from config.config import REGISTRY_PATH
+        from settings.store import set_kaspersky_warning_disabled
 
-        key_path = REGISTRY_PATH
-        value_name = "DisableKasperskyWarning"
-        
-        # Создаем или открываем ключ
-        try:
-            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_WRITE) as key:
-                winreg.SetValueEx(key, value_name, 0, winreg.REG_DWORD, 1 if disabled else 0)
-            return True
-        except Exception as e:
-            print(f"Ошибка при записи в реестр: {e}")
-            return False
-            
-    except ImportError:
-        # Если winreg недоступен (не Windows), ничего не делаем
+        return bool(set_kaspersky_warning_disabled(bool(disabled)))
+    except Exception:
         return False
 
 

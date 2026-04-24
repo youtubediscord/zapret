@@ -1,5 +1,5 @@
 # lists/ui/netrogat_page.py
-"""Страница управления пользовательскими исключениями netrogat.user.txt"""
+"""Страница управления пользовательскими исключениями lists/user/netrogat.txt"""
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -44,14 +44,14 @@ from log.log import log
 
 
 class NetrogatPage(BasePage):
-    """Страница пользовательских исключений netrogat.user.txt"""
+    """Страница пользовательских исключений lists/user/netrogat.txt"""
 
     data_changed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(
             "Исключения",
-            "Управление пользовательским списком netrogat.user.txt. Итоговый netrogat.txt собирается автоматически.",
+            "Управление пользовательским списком `lists/user/netrogat.txt`. Итоговый `lists/netrogat.txt` собирается автоматически.",
             parent,
             title_key="page.netrogat.title",
             subtitle_key="page.netrogat.subtitle",
@@ -101,8 +101,8 @@ class NetrogatPage(BasePage):
         desc = CaptionLabel(
             self._tr(
                 "page.netrogat.description",
-                "Редактируйте только netrogat.user.txt.\n"
-                "Системная база хранится в netrogat.base.txt и автоматически объединяется в netrogat.txt.",
+                "Редактируйте только `lists/user/netrogat.txt`.\n"
+                "Системная база хранится в `lists/base/netrogat.txt`, а итоговый `lists/netrogat.txt` собирается автоматически.",
             )
         )
         self._desc_label = desc
@@ -171,7 +171,7 @@ class NetrogatPage(BasePage):
             self._open_btn,
             self._tr(
                 "page.netrogat.action.open_file.description",
-                "Сохраняет изменения и открывает netrogat.user.txt в проводнике.",
+                "Сохраняет изменения и открывает `lists/user/netrogat.txt` в проводнике.",
             ),
         )
 
@@ -197,7 +197,7 @@ class NetrogatPage(BasePage):
             self._clear_btn,
             self._tr(
                 "page.netrogat.action.clear_all.description",
-                "Удаляет все пользовательские домены из netrogat.user.txt.",
+                "Удаляет все пользовательские домены из `lists/user/netrogat.txt`.",
             ),
         )
 
@@ -211,7 +211,7 @@ class NetrogatPage(BasePage):
         self.layout.addWidget(actions_group)
 
         # Текстовый редактор (вместо списка)
-        editor_card = SettingsCard(self._tr("page.netrogat.section.editor", "netrogat.user.txt (редактор)"))
+        editor_card = SettingsCard(self._tr("page.netrogat.section.editor", "lists/user/netrogat.txt (редактор)"))
         self._editor_card = editor_card
         editor_layout = QVBoxLayout()
         editor_layout.setSpacing(8)
@@ -273,7 +273,7 @@ class NetrogatPage(BasePage):
         self.text_edit.blockSignals(False)
         self._status_state["saved"] = False
         self._update_status()
-        log(f"Загружено {state.lines_count} строк из netrogat.user.txt", "INFO")
+        log(f"Загружено {state.lines_count} строк из lists/user/netrogat.txt", "INFO")
 
     def _render_status_label(self):
         summary = self._tr(
@@ -293,9 +293,9 @@ class NetrogatPage(BasePage):
         if self._desc_label is not None:
             self._desc_label.setText(
                 self._tr(
-                    "page.netrogat.description",
-                    "Редактируйте только netrogat.user.txt.\n"
-                    "Системная база хранится в netrogat.base.txt и автоматически объединяется в netrogat.txt.",
+                "page.netrogat.description",
+                    "Редактируйте только `lists/user/netrogat.txt`.\n"
+                    "Системная база хранится в `lists/base/netrogat.txt`, а итоговый `lists/netrogat.txt` собирается автоматически.",
                 )
             )
         if self._add_card is not None:
@@ -308,7 +308,7 @@ class NetrogatPage(BasePage):
             except Exception:
                 pass
         if self._editor_card is not None:
-            self._editor_card.set_title(self._tr("page.netrogat.section.editor", "netrogat.user.txt (редактор)"))
+            self._editor_card.set_title(self._tr("page.netrogat.section.editor", "lists/user/netrogat.txt (редактор)"))
 
         self.input.setPlaceholderText(
             self._tr(
@@ -332,7 +332,7 @@ class NetrogatPage(BasePage):
                 self._open_btn,
                 self._tr(
                     "page.netrogat.action.open_file.description",
-                    "Сохраняет изменения и открывает netrogat.user.txt в проводнике.",
+                    "Сохраняет изменения и открывает `lists/user/netrogat.txt` в проводнике.",
                 )
             )
         if self._open_final_btn is not None:
@@ -350,7 +350,7 @@ class NetrogatPage(BasePage):
                 self._clear_btn,
                 self._tr(
                     "page.netrogat.action.clear_all.description",
-                    "Удаляет все пользовательские домены из netrogat.user.txt.",
+                    "Удаляет все пользовательские домены из `lists/user/netrogat.txt`.",
                 )
             )
 
@@ -406,7 +406,7 @@ class NetrogatPage(BasePage):
             self.data_changed.emit()
             return
 
-        log("Не удалось сохранить netrogat.user.txt или синхронизировать итоговый netrogat.txt", "ERROR")
+        log("Не удалось сохранить lists/user/netrogat.txt или синхронизировать итоговый lists/netrogat.txt", "ERROR")
 
     def _update_status(self):
         if self._cleanup_in_progress:
@@ -464,10 +464,10 @@ class NetrogatPage(BasePage):
             )
             if box.exec():
                 self.text_edit.clear()
-                log("Очистили netrogat.user.txt", "INFO")
+                log("Очистили lists/user/netrogat.txt", "INFO")
         else:
             self.text_edit.clear()
-            log("Очистили netrogat.user.txt", "INFO")
+            log("Очистили lists/user/netrogat.txt", "INFO")
 
     def _open_file(self):
         try:
@@ -475,7 +475,7 @@ class NetrogatPage(BasePage):
             self._save()
             HostlistPageController.open_netrogat_user_file()
         except Exception as e:
-            log(f"Ошибка открытия netrogat.user.txt: {e}", "ERROR")
+            log(f"Ошибка открытия lists/user/netrogat.txt: {e}", "ERROR")
             if InfoBar:
                 InfoBar.warning(
                     title=self._tr("common.error.title", "Ошибка"),

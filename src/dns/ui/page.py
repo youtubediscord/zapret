@@ -86,7 +86,9 @@ from dns.ui.load_workflow import (
 from dns.ui.page_runtime_helpers import (
     build_dynamic_network_ui,
     clear_dns_selection_ui,
-    sync_selected_dns_card_ui,
+)
+from dns.ui.page_selection_workflow import (
+    build_dns_selection_sync_request_fn,
 )
 from dns.ui.selection import (
     apply_dns_selection_plan_ui,
@@ -132,6 +134,7 @@ class NetworkPage(BasePage):
         self._force_dns_status_details_fallback = ""
         self._runtime_initialized = False
         self._cleanup_in_progress = False
+        self._dns_selection_sync_queued = False
         
         self.dns_cards = {}
         self.adapter_cards = []
@@ -148,6 +151,29 @@ class NetworkPage(BasePage):
         self._tools_actions_bar = None
         self._tools_section_label = None
         self._build_ui()
+        self._request_dns_selection_sync = build_dns_selection_sync_request_fn(
+            get_cleanup_in_progress_fn=lambda: self._cleanup_in_progress,
+            get_sync_queued_fn=lambda: self._dns_selection_sync_queued,
+            set_sync_queued_fn=lambda value: setattr(self, "_dns_selection_sync_queued", value),
+            schedule_fn=QTimer.singleShot,
+            get_adapter_cards_fn=lambda: self.adapter_cards,
+            get_dns_info_fn=lambda: self._dns_info,
+            providers=DNS_PROVIDERS,
+            build_dns_selection_plan_fn=NetworkPageController.build_dns_selection_plan,
+            get_selected_adapters_fn=self._get_selected_adapters,
+            apply_dns_selection_plan_ui_fn=apply_dns_selection_plan_ui,
+            get_dns_cards_fn=lambda: self.dns_cards,
+            get_auto_indicator_fn=lambda: getattr(self, "auto_indicator", None),
+            get_auto_card_fn=lambda: getattr(self, "auto_card", None),
+            get_custom_indicator_fn=lambda: getattr(self, "custom_indicator", None),
+            get_custom_card_fn=lambda: getattr(self, "custom_card", None),
+            get_custom_primary_fn=lambda: getattr(self, "custom_primary", None),
+            get_custom_secondary_fn=lambda: getattr(self, "custom_secondary", None),
+            get_indicator_on_qss_fn=DNSProviderCard.indicator_on,
+            get_indicator_off_qss_fn=DNSProviderCard.indicator_off,
+            set_card_selected_fn=self._set_dns_card_selected,
+            set_selected_provider_fn=lambda value: setattr(self, "_selected_provider", value),
+        )
         self._apply_page_theme(force=True)
         self._run_runtime_init_once()
 
@@ -448,13 +474,12 @@ class NetworkPage(BasePage):
             adapters_layout=self.adapters_layout,
             on_auto_selected=self._select_auto_dns,
             on_provider_selected=self._on_dns_selected,
-            on_adapter_state_changed=self._sync_selected_dns_card,
+            on_adapter_state_changed=self._request_dns_selection_sync,
             normalize_alias_fn=_normalize_alias,
             ipv6_available=self._ipv6_available,
             dns_cards_container=self.dns_cards_container,
             custom_card=self.custom_card,
             adapters_container=self.adapters_container,
-            sync_selected_dns_card_fn=self._sync_selected_dns_card,
             check_and_show_isp_dns_warning_fn=self._check_and_show_isp_dns_warning,
             apply_inline_theme_styles_fn=self._apply_inline_theme_styles,
         )
@@ -472,26 +497,7 @@ class NetworkPage(BasePage):
         self.dns_cards.update(provider_cards.dns_cards)
         self._dns_category_labels.extend(provider_cards.category_labels)
         self.adapter_cards = result["adapter_cards"]
-
-    def _sync_selected_dns_card(self, *_):
-        self._selected_provider = sync_selected_dns_card_ui(
-            adapter_cards=self.adapter_cards,
-            dns_info=self._dns_info,
-            providers=DNS_PROVIDERS,
-            build_dns_selection_plan_fn=NetworkPageController.build_dns_selection_plan,
-            get_selected_adapters_fn=self._get_selected_adapters,
-            apply_dns_selection_plan_ui_fn=apply_dns_selection_plan_ui,
-            dns_cards=self.dns_cards,
-            auto_indicator=getattr(self, 'auto_indicator', None),
-            auto_card=getattr(self, 'auto_card', None),
-            custom_indicator=getattr(self, 'custom_indicator', None),
-            custom_card=getattr(self, 'custom_card', None),
-            custom_primary=getattr(self, 'custom_primary', None),
-            custom_secondary=getattr(self, 'custom_secondary', None),
-            indicator_on_qss=DNSProviderCard.indicator_on(),
-            indicator_off_qss=DNSProviderCard.indicator_off(),
-            set_card_selected_fn=self._set_dns_card_selected,
-        )
+        self._request_dns_selection_sync()
     
     def _clear_selection(self):
         """Сбрасывает все выделения"""
@@ -697,7 +703,7 @@ class NetworkPage(BasePage):
                 build_refresh_plan_fn=NetworkPageController.build_adapter_dns_refresh_plan,
             )
 
-            self._sync_selected_dns_card()
+            self._request_dns_selection_sync()
             if refresh_plan is not None:
                 log(refresh_plan.log_message, refresh_plan.log_level)
             
@@ -803,7 +809,7 @@ class NetworkPage(BasePage):
                 auto_card = getattr(self, "auto_card", None)
                 auto_selected = bool(auto_card.property("selected")) if auto_card is not None else False
                 self.auto_indicator.setStyleSheet(
-                    DNSProviderCard._indicator_on() if auto_selected else DNSProviderCard._indicator_off()
+                    DNSProviderCard.indicator_on() if auto_selected else DNSProviderCard.indicator_off()
                 )
         except Exception:
             pass
@@ -813,7 +819,7 @@ class NetworkPage(BasePage):
                 custom_card = getattr(self, "custom_card", None)
                 custom_selected = bool(custom_card.property("selected")) if custom_card is not None else False
                 self.custom_indicator.setStyleSheet(
-                    DNSProviderCard._indicator_on() if custom_selected else DNSProviderCard._indicator_off()
+                    DNSProviderCard.indicator_on() if custom_selected else DNSProviderCard.indicator_off()
                 )
         except Exception:
             pass

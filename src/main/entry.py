@@ -16,7 +16,7 @@ from main.shell import shell_bootstrap
 
 def _configure_window_appearance(window) -> None:
     try:
-        from config.reg import get_background_preset
+        from settings.store import get_background_preset
         from ui.theme import apply_window_background
 
         background_preset = get_background_preset()
@@ -33,7 +33,7 @@ def _configure_window_appearance(window) -> None:
         pass
 
     try:
-        from config.reg import get_window_opacity
+        from settings.store import get_window_opacity
 
         opacity = get_window_opacity()
         if opacity != 100:
@@ -45,6 +45,13 @@ def _configure_window_appearance(window) -> None:
 def main() -> None:
     log("=== ЗАПУСК ПРИЛОЖЕНИЯ ===", "🔹 main")
     log(APP_VERSION, "🔹 main")
+
+    try:
+        from settings.store import materialize_settings_file
+
+        materialize_settings_file()
+    except Exception as exc:
+        log(f"Не удалось подготовить settings.json: {exc}", "WARNING")
 
     start_in_tray = shell_bootstrap()
     app = application_bootstrap()

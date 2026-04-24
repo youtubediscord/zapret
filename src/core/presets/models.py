@@ -10,3 +10,4 @@ class PresetManifest:
     template_origin: str | None
     updated_at: str
     kind: str = "user"
+    storage_scope: str = "user"

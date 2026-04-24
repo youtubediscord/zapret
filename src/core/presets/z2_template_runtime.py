@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from .builtin_template_sync import load_repo_builtin_templates
 from direct_preset.common.circular_preset_support import resolve_transport_settings
 from direct_preset.common.source_preset_models import SendSettings, SyndataSettings
 from direct_preset.engines import winws2_parser, winws2_rules
@@ -71,91 +71,32 @@ def get_builtin_base_from_copy_name(name: str) -> Optional[str]:
     return get_template_canonical_name(base)
 
 def ensure_templates_copied_to_presets() -> bool:
-    try:
-        from config.config import get_zapret_presets_v2_dir
+    return True
 
 
-        templates = _load_template_contents()
-        if not templates:
-            return True
-
-        presets_dir = Path(get_zapret_presets_v2_dir())
-        presets_dir.mkdir(parents=True, exist_ok=True)
-        backups_dir = presets_dir / "_builtin_version_backups"
-
-        for name, content in templates.items():
-            dest = presets_dir / f"{name}.txt"
-            template_version = _extract_builtin_version(content)
-
-            needs_write = False
-            updated = False
-            existing_content: Optional[str] = None
-            existing_version: Optional[str] = None
-            if not dest.exists():
-                needs_write = True
-            else:
-                try:
-                    existing_content = dest.read_text(encoding="utf-8", errors="replace")
-                except Exception:
-                    existing_content = None
-                existing_version = _extract_builtin_version(existing_content or "")
-                if _is_newer_builtin_version(template_version, existing_version):
-                    needs_write = True
-                    updated = True
-                    if existing_content is not None:
-                        try:
-                            backups_dir.mkdir(parents=True, exist_ok=True)
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            from_v = _sanitize_version_for_filename(existing_version)
-                            to_v = _sanitize_version_for_filename(template_version)
-                            backup_name = f"{dest.stem}__{timestamp}__{from_v}_to_{to_v}.txt"
-                            (backups_dir / backup_name).write_text(existing_content, encoding="utf-8")
-                        except Exception:
-                            pass
-
-            if needs_write:
-                try:
-                    dest.write_text(content, encoding="utf-8")
-                except Exception:
-                    continue
-                if updated:
-                    log(
-                        f"Built-in preset updated from template version {existing_version or 'none'} "
-                        f"to {template_version or 'none'}: {dest}",
-                        "DEBUG",
-                    )
-        return True
-    except Exception:
-        return False
-
-
-def overwrite_templates_to_presets() -> tuple[int, int, list[str]]:
-    try:
-        from config.config import get_zapret_presets_v2_dir
-
-    except Exception:
-        return (0, 0, [])
-
-    presets_dir = Path(get_zapret_presets_v2_dir())
-    try:
-        presets_dir.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        return (0, 0, [])
-
+def reset_user_overrides_to_builtin_v2() -> tuple[int, int, list[str]]:
     templates = _load_template_contents()
     if not templates:
         return (0, 0, [])
 
-    copied = 0
+    presets_dir = _user_presets_dir_v2()
+    removed = 0
     failed: list[str] = []
     for name in sorted(templates.keys(), key=lambda value: value.lower()):
         dest = presets_dir / f"{name}.txt"
+        if not dest.exists():
+            continue
         try:
-            dest.write_text(templates[name], encoding="utf-8")
-            copied += 1
-        except Exception:
+            dest.unlink()
+            removed += 1
+        except Exception as exc:
             failed.append(name)
-    return (copied, len(templates), failed)
+            log(f"Failed to reset V2 user override '{name}' to built-in: {exc}", "DEBUG")
+    return (removed, len(templates), failed)
+
+
+def overwrite_templates_to_presets() -> tuple[int, int, list[str]]:
+    return reset_user_overrides_to_builtin_v2()
 
 
 def get_default_category_settings() -> dict:
@@ -349,9 +290,26 @@ def _extract_syndata_overrides(action_lines: list[str], protocol: str) -> dict:
 
 
 def _load_template_contents() -> dict[str, str]:
-    from .z2_builtin_templates import list_repo_builtin_templates_v2
+    return load_repo_builtin_templates(
+        _builtin_presets_dir_v2(),
+        normalize_content=_normalize_template_header_v2,
+    )
 
-    return dict(list_repo_builtin_templates_v2())
+
+def _user_presets_dir_v2() -> Path:
+    from config.config import get_presets_v2_dir
+
+    path = Path(get_presets_v2_dir())
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _builtin_presets_dir_v2() -> Path:
+    from config.config import get_builtin_presets_v2_dir
+
+    path = Path(get_builtin_presets_v2_dir())
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _normalize_template_header_v2(content: str, preset_name: str) -> str:

@@ -424,8 +424,6 @@ class PresetSubpageBase(BasePage):
             self._preset_name = updated.name
             self._preset_file_name = updated.file_name
             self._preset_path = facade.get_source_path_by_file_name(self._preset_file_name)
-            if self._preset_file_name:
-                self._notify_preset_saved(self._preset_file_name)
             self._set_footer(f"Сохранено {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             self._set_footer(f"Ошибка сохранения: {e}")
@@ -509,8 +507,6 @@ class PresetSubpageBase(BasePage):
             updated = facade.rename_by_file_name(self._preset_file_name, new_name)
             self._notify_preset_structure_changed()
             self.set_preset_file_name(updated.file_name)
-            if self._preset_file_name and facade.is_selected_file_name(self._preset_file_name):
-                self._notify_preset_identity_changed()
             self._show_success(f"Пресет переименован: {new_name}")
         except Exception as e:
             self._show_error(str(e))
@@ -576,8 +572,6 @@ class PresetSubpageBase(BasePage):
             self._preset_path = facade.get_source_path_by_file_name(self._preset_file_name)
             self._load_file()
             self._refresh_header()
-            if self._preset_file_name:
-                self._notify_preset_saved(self._preset_file_name)
             self._show_success(f"Пресет «{self._preset_name}» сброшен")
         except Exception as e:
             self._show_error(str(e))
@@ -644,20 +638,6 @@ class PresetSubpageBase(BasePage):
             return True
         except Exception:
             return False
-
-    def _notify_preset_identity_changed(self) -> None:
-        if not self._preset_file_name:
-            return
-        try:
-            self._get_direct_facade().notify_preset_identity_changed(self._preset_file_name)
-        except Exception:
-            pass
-
-    def _notify_preset_saved(self, file_name: str) -> None:
-        try:
-            self._get_direct_facade().notify_preset_saved(file_name)
-        except Exception:
-            pass
 
     def _notify_preset_structure_changed(self) -> None:
         store = getattr(self, "_ui_state_store", None)

@@ -36,6 +36,7 @@ from winws_runtime.health.process_health_check import (
     check_common_crash_causes,
     diagnose_startup_error
 )
+from winws_runtime.runtime.system_ops import get_process_pids_by_name
 
 
 class StrategyRunnerV1(StrategyRunnerBase):
@@ -232,9 +233,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
 
                 if not cleanup_needed:
                     try:
-                        from utils.process_killer import get_process_pids
-
-                        cleanup_needed = bool(get_process_pids(os.path.basename(self.winws_exe)))
+                        cleanup_needed = bool(get_process_pids_by_name(os.path.basename(self.winws_exe)))
                     except Exception:
                         cleanup_needed = False
 
@@ -390,6 +389,17 @@ class StrategyRunnerV1(StrategyRunnerBase):
 
             self._preset_file_path = preset_path
             success = self._spawn_process_locked(artifact, strategy_name)
+            if not success:
+                log(
+                    "Fast preset switch failed, retrying via full start path with cleanup",
+                    "WARNING",
+                )
+                success = self._start_from_preset_file_locked(
+                    preset_path,
+                    strategy_name,
+                    retry_count=0,
+                    max_retries=2,
+                )
         if success:
             self._start_config_watcher(preset_path)
         return success
@@ -421,6 +431,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
     def _prepare_cleanup_before_spawn_locked(self, *, retry_count: int) -> None:
         if retry_count > 0:
             self._aggressive_windivert_cleanup()
+            self._wait_after_aggressive_windivert_cleanup()
         else:
             self._perform_standard_windivert_cleanup()
 
@@ -434,6 +445,23 @@ class StrategyRunnerV1(StrategyRunnerBase):
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
+
+        if self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+            max_retry_count=1,
+        ):
+            log(
+                "Transient WinDivert service error detected, retrying with aggressive cleanup",
+                "WARNING",
+            )
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                retry_count=retry_count + 1,
+                max_retries=max_retries,
+            )
 
         if self._is_windivert_system_error(stderr_output, exit_code):
             log("WinDivert system error — retry will not help", "WARNING")
@@ -474,6 +502,11 @@ class StrategyRunnerV1(StrategyRunnerBase):
             self._stop_process_only_locked()
 
         self._prepare_cleanup_before_spawn_locked(retry_count=retry_count)
+        if not self._ensure_windivert_ready_before_spawn():
+            self._last_spawn_exit_code = 34
+            self._last_spawn_stderr = "windivert: readiness probe failed before spawn"
+            self._set_last_error("WinDivert ещё не готов к открытию фильтра")
+            return False
 
         if not os.path.exists(self.winws_exe):
             log(f"winws.exe disappeared: {self.winws_exe}", "ERROR")
@@ -493,7 +526,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
             max_retries=max_retries,
         )
 
-    def stop(self) -> bool:
+    def stop(self, *, cleanup_services: bool = True) -> bool:
         """Stops running process and hot-reload watcher."""
         self._stop_config_watcher()
         with self._state_lock:
@@ -506,7 +539,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
                     reason="public_stop",
                 )
             self._preset_file_path = None
-            success = super().stop()
+            success = super().stop(cleanup_services=cleanup_services)
             self._set_runner_state_locked(
                 PresetRunnerState.IDLE,
                 reason="public_stop_completed",

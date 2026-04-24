@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core.presets.runtime_store import DirectRuntimePresetStore
+from direct_preset.modes import resolve_direct_mode_logic
 from direct_preset.engines import (
     winws1_classifier,
     winws1_parser,
@@ -59,10 +60,11 @@ class DirectPresetEngineAdapter:
             return ("udp",)
         return ("tcp",)
 
-    def strategy_identity_modes(self, strategy_set: str | None) -> tuple[str, ...]:
-        if self.engine == "winws2" and str(strategy_set or "").strip().lower() == "basic":
-            return ("keep_send_syndata", "helpers_stripped")
-        return ("helpers_stripped",)
+    def strategy_identity_modes(self, direct_mode: str | None) -> tuple[str, ...]:
+        mode_logic = resolve_direct_mode_logic(self.engine, str(direct_mode or "").strip().lower())
+        if mode_logic is None:
+            return ("helpers_stripped",)
+        return tuple(mode_logic.strategy_identity_modes())
 
     def wssize_enabled_from_args(self, args_text: str) -> bool:
         lines = _split_arg_lines(args_text)

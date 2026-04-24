@@ -17,6 +17,99 @@ except ImportError:
     API_BASE_URL = ""
 REQUEST_TIMEOUT = 5
 AUTO_NETWORK_RETRY_COOLDOWN_SEC = 30
+PAIR_CODE_TTL_MINUTES = 10
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(str(value))
+    except Exception:
+        return 0
+
+
+def _collect_api_message_bits(raw_any: Any) -> list[str]:
+    if not isinstance(raw_any, dict):
+        return []
+
+    bits: list[str] = []
+    for key in ("error", "message", "detail", "status", "_http_text"):
+        value = str(raw_any.get(key) or "").strip()
+        if value and value not in bits:
+            bits.append(value)
+    return bits
+
+
+def _contains_error_token(text: str, *tokens: str) -> bool:
+    haystack = str(text or "").casefold()
+    return any(str(token or "").casefold() in haystack for token in tokens)
+
+
+def _format_pair_finish_error(raw_any: Any) -> tuple[Optional[str], bool]:
+    """
+    Convert backend `pair_finish` errors into short user-facing hints.
+
+    Returns:
+        (message, clear_local_pair_code)
+    """
+    if not isinstance(raw_any, dict):
+        return None, False
+
+    http_i = _safe_int(raw_any.get("_http_status"))
+    joined = " | ".join(_collect_api_message_bits(raw_any))
+    if not joined:
+        return None, False
+
+    if _contains_error_token(
+        joined,
+        "pair_code_not_found",
+        "pair code not found",
+        "code not found",
+        "код не найден",
+        "истёк",
+        "истек",
+        "expired",
+    ):
+        return (
+            "Код привязки не найден на сервере или уже перестал действовать. "
+            f"Создайте новый код и сразу отправьте его боту. Код живёт около {PAIR_CODE_TTL_MINUTES} минут. "
+            "Если это повторяется сразу после создания, обычно запущена старая версия приложения, "
+            "в приложении остался прежний код или бот и приложение подключены к разным серверам Premium.",
+            True,
+        )
+
+    if _contains_error_token(
+        joined,
+        "pair_code_used",
+        "already used",
+        "already paired",
+        "код уже использован",
+        "код уже привязан",
+    ):
+        return (
+            "Этот код уже был использован. Создайте новый код в приложении и отправьте именно его.",
+            True,
+        )
+
+    if _contains_error_token(
+        joined,
+        "ошибка сети",
+        "timeout",
+        "timed out",
+        "connection error",
+        "connection refused",
+        "connection aborted",
+        "temporarily unavailable",
+    ):
+        return (
+            "Не удалось проверить код из-за сети. Нажмите «Проверить соединение» и попробуйте ещё раз.",
+            False,
+        )
+
+    if http_i >= 400:
+        return (f"Ошибка привязки (HTTP {http_i}): {joined}", False)
+    if raw_any.get("success") is False:
+        return (f"Ошибка привязки: {joined}", False)
+    return None, False
 
 
 class PremiumService:
@@ -149,7 +242,7 @@ class PremiumService:
                 )
             except Exception:
                 pass
-            return True, str(signed.get("message") or "Код создан"), code
+            return True, str(signed.get("message") or f"Код создан на {PAIR_CODE_TTL_MINUTES} минут"), code
 
     def clear_activation(self) -> bool:
         with self._lock:
@@ -202,34 +295,6 @@ class PremiumService:
                     except Exception:
                         pass
 
-            def _format_api_error(raw_any: Any, *, ctx: str) -> Optional[str]:
-                if not isinstance(raw_any, dict):
-                    return None
-                http = raw_any.get("_http_status")
-                http_i = 0
-                try:
-                    http_i = int(str(http))
-                except Exception:
-                    http_i = 0
-                # Prefer explicit error fields.
-                err = (
-                    raw_any.get("error")
-                    or raw_any.get("message")
-                    or raw_any.get("detail")
-                    or raw_any.get("status")
-                    or ""
-                )
-                err_s = str(err or "").strip()
-                text_s = (raw_any.get("_http_text") or "").strip()
-                msg = err_s or text_s
-                if not msg:
-                    return None
-                if http_i >= 400:
-                    return f"API ошибка ({ctx}, HTTP {http_i}): {msg}"
-                if raw_any.get("success") is False:
-                    return f"API ошибка ({ctx}): {msg}"
-                return None
-
             # If we have a pending pair code (user started pairing), try to finish pairing first.
             # Do it even when we already have a token: token may be stale/invalid on server.
             code = PremiumStorage.get_pair_code()
@@ -240,7 +305,12 @@ class PremiumService:
                 raw2, nonce2 = self._api.post_pair_finish(device_id=device_id, pair_code=str(code))
                 if raw2:
                     _apply_network_health(raw2)
-                    pair_error_message = _format_api_error(raw2, ctx="pair_finish")
+                    pair_error_message, should_clear_pair_code = _format_pair_finish_error(raw2)
+                    if should_clear_pair_code:
+                        PremiumStorage.clear_pair_code()
+                        code = None
+                        exp = 0
+                        has_pending_code = False
                     signed2 = verify_signed_response(raw2, expected_device_id=device_id, expected_nonce=nonce2)
                     if signed2 and signed2.get("type") == "zapret_premium_activation":
                         token = str(signed2.get("device_token") or "").strip()

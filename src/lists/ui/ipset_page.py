@@ -209,10 +209,10 @@ class IpsetPage(BasePage):
     def _open_ipset_folder(self):
         """Открывает папку IP-сетов"""
         try:
-            from config.config import LISTS_FOLDER
+            from lists.core.paths import get_lists_dir
 
             import os
-            os.startfile(LISTS_FOLDER)
+            os.startfile(get_lists_dir())
         except Exception as e:
             log(f"Ошибка открытия папки: {e}", "ERROR")
             if InfoBar is not None:
@@ -232,11 +232,12 @@ class IpsetPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            from config.config import LISTS_FOLDER
+            from lists.core.paths import get_lists_dir
 
             import os
+            lists_folder = get_lists_dir()
             
-            if not os.path.exists(LISTS_FOLDER):
+            if not os.path.exists(lists_folder):
                 self._set_files_info(
                     key="page.ipset.files.not_found",
                     default="Папка не найдена",
@@ -244,13 +245,13 @@ class IpsetPage(BasePage):
                 return
                 
             # Ищем файлы с IP
-            ipset_files = [f for f in os.listdir(LISTS_FOLDER) 
+            ipset_files = [f for f in os.listdir(lists_folder) 
                           if f.endswith('.txt') and ('ip' in f.lower() or 'subnet' in f.lower())]
             
             total_ips = 0
             for f in ipset_files[:10]:
                 try:
-                    path = os.path.join(LISTS_FOLDER, f)
+                    path = os.path.join(lists_folder, f)
                     with open(path, 'r', encoding='utf-8', errors='ignore') as file:
                         total_ips += sum(1 for line in file if line.strip() and not line.startswith('#'))
                 except:
@@ -259,7 +260,7 @@ class IpsetPage(BasePage):
             self._set_files_info(
                 key="page.ipset.files.summary",
                 default="📁 Папка: {folder}\n📄 IP-файлов: {files_count}\n🌐 Примерно IP/подсетей: {total_ips}",
-                folder=LISTS_FOLDER,
+                folder=lists_folder,
                 files_count=len(ipset_files),
                 total_ips=f"{total_ips:,}",
             )

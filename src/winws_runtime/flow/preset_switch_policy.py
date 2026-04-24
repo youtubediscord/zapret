@@ -30,10 +30,24 @@ def request_runtime_preset_switch(
             log("Runtime preset switch skipped: launch_controller not found", "DEBUG")
             return False
         if not controller.is_running():
-            log(f"Runtime preset switch skipped: DPI not running ({method})", "DEBUG")
+            runtime_service = getattr(app, "launch_runtime_service", None)
+            phase = ""
+            running = False
+            if runtime_service is not None:
+                try:
+                    snapshot = runtime_service.snapshot()
+                    phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
+                    running = bool(getattr(snapshot, "running", False))
+                except Exception:
+                    phase = ""
+                    running = False
+            log(
+                f"Runtime preset switch skipped: DPI not running ({method}, phase={phase or 'unknown'}, running={running})",
+                "WARNING",
+            )
             return False
     except Exception as e:
-        log(f"Runtime preset switch state check error: {e}", "DEBUG")
+        log(f"Runtime preset switch state check error: {e}", "WARNING")
         return False
 
     preset_info = f", preset={target_preset}" if target_preset else ""

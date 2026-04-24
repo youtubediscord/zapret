@@ -23,6 +23,7 @@ class DirectPresetFacade:
     preset_selection_service: "PresetSelectionService"
     preset_store: "DirectRuntimePresetStore"
     preset_store_v1: "DirectRuntimePresetStore"
+    direct_mode_override: str | None = None
     on_dpi_reload_needed: Optional[Callable[[], None]] = None
 
     @classmethod
@@ -31,6 +32,7 @@ class DirectPresetFacade:
         launch_method: str,
         *,
         app_context: "AppContext",
+        direct_mode_override: str | None = None,
         on_dpi_reload_needed: Optional[Callable[[], None]] = None,
     ) -> "DirectPresetFacade":
         method = str(launch_method or "").strip().lower()
@@ -44,6 +46,7 @@ class DirectPresetFacade:
                 preset_selection_service=app_context.preset_selection_service,
                 preset_store=app_context.preset_store,
                 preset_store_v1=app_context.preset_store_v1,
+                direct_mode_override=direct_mode_override,
                 on_dpi_reload_needed=on_dpi_reload_needed,
             )
         if method == "direct_zapret1":
@@ -56,6 +59,7 @@ class DirectPresetFacade:
                 preset_selection_service=app_context.preset_selection_service,
                 preset_store=app_context.preset_store,
                 preset_store_v1=app_context.preset_store_v1,
+                direct_mode_override=direct_mode_override,
                 on_dpi_reload_needed=on_dpi_reload_needed,
             )
         raise ValueError(f"Unsupported launch method for direct preset facade: {launch_method}")
@@ -72,6 +76,7 @@ class DirectPresetFacade:
             preset_selection_service=self.preset_selection_service,
             preset_store=self.preset_store,
             preset_store_v1=self.preset_store_v1,
+            direct_mode_override=self.direct_mode_override,
             on_dpi_reload_needed=self.on_dpi_reload_needed,
         )
 

@@ -84,8 +84,8 @@ def build_exclusions_panel_ui(
         tr_fn(
             "page.hostlist.exclusions.desc",
             "Исключения для хостлистов и ipset.\n"
-            "• Домены: netrogat.user.txt -> netrogat.txt (--hostlist-exclude)\n"
-            "• IP/подсети: ipset-ru.user.txt -> ipset-ru.txt (--ipset-exclude)",
+            "• Домены: `lists/user/netrogat.txt` -> `lists/netrogat.txt` (--hostlist-exclude)\n"
+            "• IP/подсети: `lists/user/ipset-ru.txt` -> `lists/ipset-ru.txt` (--ipset-exclude)",
         )
     )
     desc.setWordWrap(True)
@@ -142,7 +142,7 @@ def build_exclusions_panel_ui(
         excl_open_action_card,
         tr_fn(
             "page.hostlist.exclusions.action.open_file.description",
-            "Сохраняет изменения и открывает netrogat.user.txt в проводнике.",
+            "Сохраняет изменения и открывает `lists/user/netrogat.txt` в проводнике.",
         ),
     )
 
@@ -168,7 +168,7 @@ def build_exclusions_panel_ui(
         excl_clear_action_card,
         tr_fn(
             "page.hostlist.exclusions.action.clear_all.description",
-            "Удаляет все пользовательские домены из netrogat.user.txt.",
+            "Удаляет все пользовательские домены из `lists/user/netrogat.txt`.",
         ),
     )
 
@@ -182,7 +182,7 @@ def build_exclusions_panel_ui(
     layout.addWidget(excl_actions_group)
 
     excl_editor_card = settings_card_cls(
-        tr_fn("page.hostlist.exclusions.section.editor_domain", "netrogat.user.txt (редактор)")
+        tr_fn("page.hostlist.exclusions.section.editor_domain", "lists/user/netrogat.txt (редактор)")
     )
     excl_editor_layout = qvbox_layout_cls()
     excl_editor_layout.setSpacing(8)
@@ -215,8 +215,8 @@ def build_exclusions_panel_ui(
     ipru_desc_label = caption_label_cls(
         tr_fn(
             "page.hostlist.exclusions.ipru.desc",
-            "Редактируйте только ipset-ru.user.txt. "
-            "Системная база хранится в ipset-ru.base.txt и автоматически объединяется в ipset-ru.txt.",
+            "Редактируйте только `lists/user/ipset-ru.txt`. "
+            "Системная база хранится в `lists/base/ipset-ru.txt`, а итоговый `lists/ipset-ru.txt` собирается автоматически.",
         )
     )
     ipru_desc_label.setWordWrap(True)
@@ -260,7 +260,7 @@ def build_exclusions_panel_ui(
         ipru_open_action_card,
         tr_fn(
             "page.hostlist.exclusions.ipru.action.open_file.description",
-            "Сохраняет изменения и открывает ipset-ru.user.txt в проводнике.",
+            "Сохраняет изменения и открывает `lists/user/ipset-ru.txt` в проводнике.",
         ),
     )
 
@@ -286,7 +286,7 @@ def build_exclusions_panel_ui(
         ipru_clear_action_card,
         tr_fn(
             "page.hostlist.exclusions.ipru.action.clear_all.description",
-            "Удаляет все пользовательские IP-исключения из ipset-ru.user.txt.",
+            "Удаляет все пользовательские IP-исключения из `lists/user/ipset-ru.txt`.",
         ),
     )
 
@@ -299,7 +299,7 @@ def build_exclusions_panel_ui(
     layout.addWidget(ipru_actions_group)
 
     ipru_editor_card = settings_card_cls(
-        tr_fn("page.hostlist.exclusions.ipru.section.editor", "ipset-ru.user.txt (редактор)")
+        tr_fn("page.hostlist.exclusions.ipru.section.editor", "lists/user/ipset-ru.txt (редактор)")
     )
     ipru_editor_layout = qvbox_layout_cls()
     ipru_editor_layout.setSpacing(8)

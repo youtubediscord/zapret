@@ -4,7 +4,7 @@ from __future__ import annotations
 def are_animations_enabled() -> bool:
     """Читает текущее пользовательское состояние мастер-переключателя анимаций."""
     try:
-        from config.reg import get_animations_enabled
+        from settings.store import get_animations_enabled
 
         return bool(get_animations_enabled())
     except Exception:
@@ -59,7 +59,7 @@ def apply_window_animation_policy(window, enabled: bool) -> None:
     apply_process_animation_fallback(enabled)
 
     try:
-        from config.reg import get_editor_smooth_scroll_enabled
+        from settings.store import get_editor_smooth_scroll_enabled
 
         apply_window_editor_smooth_scroll_policy(window, get_editor_smooth_scroll_enabled())
     except Exception:

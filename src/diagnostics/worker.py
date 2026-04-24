@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from PyQt6.QtCore import QObject, pyqtSignal
 from utils.subproc import get_system32_path, get_syswow64_path
+from utils.windows_icmp import ping_ipv4_host_winapi
 from config.config import LOGS_FOLDER
 
 from dns_checker import DNSChecker
@@ -119,6 +120,27 @@ class ConnectionTestWorker(QObject):
         
         self.log_message("")
 
+    @staticmethod
+    def _ping_timeout_ms(count: int) -> int:
+        """Возвращает таймаут одного ICMP-запроса, чтобы вся проверка не висела слишком долго."""
+        packet_count = max(1, int(count))
+        return max(1000, min(3000, 10000 // packet_count))
+
+    @staticmethod
+    def _format_ping_failure(error_code: str, detail: str) -> str:
+        normalized = str(error_code or "").strip().upper()
+        if normalized == "DNS_ERR":
+            return "Недоступен (DNS не разрешается)"
+        if normalized in {"TIMEOUT", "NO_REPLY"}:
+            return "Недоступен (таймаут)"
+        if normalized == "UNSUPPORTED":
+            return "Недоступен (в этой среде нет Windows ICMP API)"
+        if normalized == "ICMP_11003":
+            return "Недоступен (узел недоступен)"
+        if detail:
+            return f"Недоступен ({detail})"
+        return "Недоступен"
+
     def ping(self, host, count=4):
         """Выполняет ping с возможностью прерывания."""
         if self.is_stop_requested():
@@ -126,153 +148,50 @@ class ConnectionTestWorker(QObject):
             
         try:
             self.log_message(f"Проверка доступности для URL: {host}")
-            command = ["ping", "-n", str(count), host]
-
-            try:
-                result = subprocess.run(
-                    command,
-                    capture_output=True,
-                    timeout=10,
-                    shell=False,
-                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-                )
-            except Exception as e:
-                self.log_message(f"Ошибка выполнения ping: {e}")
-                return False
+            packet_count = max(1, int(count))
+            ping_result = ping_ipv4_host_winapi(
+                host,
+                count=packet_count,
+                timeout_ms=self._ping_timeout_ms(packet_count),
+            )
             
             if self.is_stop_requested():
                 return False
 
-            output = ""
-            if result and result.stdout:
-                for encoding in ['cp866', 'cp1251', 'utf-8', 'latin-1']:
-                    try:
-                        output = result.stdout.decode(encoding)
-                        break
-                    except:
-                        continue
-
-                if not output:
-                    output = result.stdout.decode('utf-8', errors='ignore')
-
-            if output:
-                debug_output = output[:200].replace('\n', ' ').replace('\r', '')
-                self.log_message(f"[DEBUG] Ping output sample: {debug_output}")
-
-            en_success_patterns = [
-                "bytes=", "Bytes=", "BYTES=",
-                "time=", "Time=", "TIME=",
-                "TTL=", "ttl=", "Ttl="
+            debug_details = [
+                f"host={host}",
+                f"sent={ping_result.sent}",
+                f"received={ping_result.received}",
             ]
+            if ping_result.resolved_ip:
+                debug_details.append(f"ip={ping_result.resolved_ip}")
+            if ping_result.average_ms is not None:
+                debug_details.append(f"avg={ping_result.average_ms:.0f}ms")
+            if ping_result.error_code:
+                debug_details.append(f"code={ping_result.error_code}")
+            if ping_result.detail:
+                debug_details.append(f"detail={ping_result.detail}")
+            self.log_message(f"[DEBUG] Ping WinAPI: {', '.join(debug_details)}")
 
-            ru_success_patterns = [
-                "байт=", "Байт=", "БАЙТ=",
-                "время=", "Время=", "ВРЕМЯ=",
-                "TTL=", "ttl=", "Ttl="
-            ]
+            sent = int(ping_result.sent or packet_count)
+            received = int(ping_result.received or 0)
+            self.log_message(f"{host}: Отправлено: {sent}, Получено: {received}")
 
-            fail_patterns = [
-                "unreachable", "timed out", "could not find", 
-                "100% loss", "Destination host unreachable",
-                "Request timed out", "100% packet loss",
-                "General failure", "Transmit failed",
-                "недоступен", "превышен", "не удается",
-                "100% потерь", "Заданный узел недоступен",
-                "Превышен интервал", "100% потери",
-                "Общий сбой", "Сбой передачи"
-            ]
-
-            success_count = 0
-            found_success = False
-
-            for pattern in en_success_patterns:
-                if pattern in output:
-                    success_count = output.count(pattern)
-                    found_success = True
-                    break
-
-            if not found_success:
-                for pattern in ru_success_patterns:
-                    if pattern in output:
-                        success_count = output.count(pattern)
-                        found_success = True
-                        break
-            
-            # Проверяем на ошибки
-            is_failed = any(pattern.lower() in output.lower() for pattern in fail_patterns)
-            
-            import re
-            en_stats = re.search(r'Packets:\s*Sent\s*=\s*(\d+),\s*Received\s*=\s*(\d+)', output, re.IGNORECASE)
-            ru_stats = re.search(r'Пакетов:\s*отправлено\s*=\s*(\d+),\s*получено\s*=\s*(\d+)', output, re.IGNORECASE)
-            
-            if en_stats:
-                sent = int(en_stats.group(1))
-                received = int(en_stats.group(2))
-                if received > 0:
-                    success_count = received
-                    found_success = True
-                self.log_message(f"{host}: Отправлено: {sent}, Получено: {received}")
-            elif ru_stats:
-                sent = int(ru_stats.group(1))
-                received = int(ru_stats.group(2))
-                if received > 0:
-                    success_count = received
-                    found_success = True
-                self.log_message(f"{host}: Отправлено: {sent}, Получено: {received}")
-            elif found_success and success_count > 0:
-                self.log_message(f"{host}: Отправлено: {count}, Получено: {success_count}")
-            elif is_failed:
-                self.log_message(f"{host}: Отправлено: {count}, Получено: 0")
-            else:
-                ip_pattern = re.search(r'(\d{1,3}(?:\.\d{1,3}){3})', output)
-                if ip_pattern:
-                    self.log_message(f"{host}: DNS разрешен в {ip_pattern.group(1)}, статус пинга неизвестен")
+            if ping_result.ok and received > 0:
+                if ping_result.resolved_ip and ping_result.resolved_ip != host:
+                    self.log_message(f"\tDNS разрешен в {ping_result.resolved_ip}")
+                if ping_result.average_ms is not None:
+                    self.log_message(f"\tДоступен (задержка: {ping_result.average_ms:.0f} мс)")
                 else:
-                    self.log_message(f"{host}: Отправлено: {count}, Статус неизвестен")
-            
-            if found_success and success_count > 0:
-                latency_found = False
-
-                for line in output.splitlines():
-                    if "time=" in line or "Time=" in line:
-                        match = re.search(r'time[<=](\d+)ms', line, re.IGNORECASE)
-                        if match:
-                            ms = match.group(1)
-                            self.log_message(f"\tДоступен (Latency: {ms}ms)")
-                            latency_found = True
-                            break
-                        # Альтернативный формат time<1ms
-                        elif "time<" in line:
-                            self.log_message(f"\tДоступен (Latency: <1ms)")
-                            latency_found = True
-                            break
-                    elif "время=" in line or "Время=" in line:
-                        match = re.search(r'время[<=](\d+)', line, re.IGNORECASE)
-                        if match:
-                            ms = match.group(1)
-                            self.log_message(f"\tДоступен (Latency: {ms}ms)")
-                            latency_found = True
-                            break
-                
-                if not latency_found:
                     self.log_message(f"\tДоступен")
-            elif is_failed:
-                if any(x in output.lower() for x in ["could not find", "не удается"]):
-                    self.log_message(f"\tНедоступен (DNS не разрешается)")
-                elif any(x in output.lower() for x in ["unreachable", "недоступен"]):
-                    self.log_message(f"\tНедоступен (узел недоступен)")
-                elif any(x in output.lower() for x in ["timed out", "превышен"]):
-                    self.log_message(f"\tНедоступен (таймаут)")
-                else:
-                    self.log_message(f"\tНедоступен")
-            else:
-                self.log_message(f"\tСтатус неопределен")
-                
-            return True
-            
-        except subprocess.TimeoutExpired:
-            if not self.is_stop_requested():
-                self.log_message(f"Таймаут при проверке {host}")
+                return True
+
+            if ping_result.resolved_ip:
+                self.log_message(f"\tDNS разрешен в {ping_result.resolved_ip}")
+
+            self.log_message(
+                f"\t{self._format_ping_failure(ping_result.error_code or '', ping_result.detail)}"
+            )
             return False
         except Exception as e:
             if not self.is_stop_requested():

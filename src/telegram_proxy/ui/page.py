@@ -503,7 +503,7 @@ class TelegramProxyPage(BasePage):
     def _auto_start_check(self):
         """Auto-start proxy if autostart is enabled."""
         try:
-            from config.reg import get_tg_proxy_autostart
+            from settings.store import get_tg_proxy_autostart
             if get_tg_proxy_autostart():
                 self._start_proxy()
                 self._try_auto_deeplink()

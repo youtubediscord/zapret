@@ -18,7 +18,7 @@ from .common.circular_preset_support import (
     resolve_transport_settings,
 )
 from direct_preset.adapters import DirectPresetEngineAdapter, get_direct_preset_engine_adapter
-from direct_preset.modes import get_direct_preset_mode_adapter
+from direct_preset.modes import resolve_direct_mode_logic
 from .common.source_preset_models import (
     OutRangeSettings,
     PresetTargetDetails,
@@ -27,6 +27,11 @@ from .common.source_preset_models import (
     SyndataSettings,
     TargetContext,
     TargetProfileSnapshot,
+)
+from .common.strategy_resolution import (
+    infer_strategy_id as infer_strategy_id_common,
+    normalized_strategy_identities as normalized_strategy_identities_common,
+    strategy_lookup_for_candidates as strategy_lookup_for_candidates_common,
 )
 from direct_preset.catalog_provider import StrategyEntry, load_strategy_catalogs
 from .common.target_metadata_service import TargetMetadataService
@@ -201,7 +206,7 @@ class DirectPresetService:
         source: SourcePreset,
         *,
         startup_scope: str | None = None,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
     ) -> BasicUiPayload:
         _t_total = _time.perf_counter()
         contexts = self.collect_target_contexts(source, startup_scope=startup_scope)
@@ -275,7 +280,7 @@ class DirectPresetService:
                 current_strategy = self._resolve_current_strategy_from_context(
                     source,
                     ctx,
-                    strategy_set=strategy_set,
+                    direct_mode=direct_mode,
                     catalogs=catalogs,
                     strategy_lookup_cache=strategy_lookup_cache,
                 )
@@ -330,7 +335,7 @@ class DirectPresetService:
         source: SourcePreset,
         target_key: str,
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
     ) -> TargetDetailPayload | None:
         normalized_key = str(target_key or "").strip().lower()
         if not normalized_key:
@@ -339,7 +344,7 @@ class DirectPresetService:
         ctx = contexts.get(normalized_key)
         if ctx is None:
             return None
-        state = self._resolve_target_state_from_context(source, ctx, strategy_set=strategy_set)
+        state = self._resolve_target_state_from_context(source, ctx, direct_mode=direct_mode)
         if state is None:
             return None
         catalogs = self._strategy_catalogs()
@@ -363,17 +368,17 @@ class DirectPresetService:
         source: SourcePreset,
         target_key: str,
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
     ) -> PresetTargetDetails | None:
-        state = self._resolve_target_state(source, target_key, strategy_set=strategy_set)
+        state = self._resolve_target_state(source, target_key, direct_mode=direct_mode)
         if state is None:
             return None
         return state.details
 
-    def get_strategy_selections(self, source: SourcePreset, *, strategy_set: str | None = None) -> dict[str, str]:
+    def get_strategy_selections(self, source: SourcePreset, *, direct_mode: str | None = None) -> dict[str, str]:
         out: dict[str, str] = {}
         for target_key in self.collect_target_contexts(source):
-            details = self.get_target_details(source, target_key, strategy_set=strategy_set)
+            details = self.get_target_details(source, target_key, direct_mode=direct_mode)
             out[target_key] = details.current_strategy if details else "none"
         return out
 
@@ -402,7 +407,7 @@ class DirectPresetService:
         target_key: str,
         strategy_id: str,
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
     ) -> bool:
         if is_circular_source_preset(source):
             return False
@@ -419,7 +424,7 @@ class DirectPresetService:
             except Exception:
                 return False
             return True
-        details = self.get_target_details(source, normalized_key) or PresetTargetDetails(
+        details = self.get_target_details(source, normalized_key, direct_mode=direct_mode) or PresetTargetDetails(
             target_key=normalized_key,
             display_name=ctx.display_name,
             current_strategy="none",
@@ -428,20 +433,19 @@ class DirectPresetService:
             syndata_settings=SyndataSettings(),
         )
         strategy_args = self._strategy_args_by_id(requested_strategy_id, ctx.strategy_candidates)
-        compare_mode = next(iter(self._strategy_identity_modes(strategy_set)), "helpers_stripped")
-        if compare_mode == "keep_send_syndata":
-            action_lines = self._rules().compose_action_lines(
-                self._rules().strip_helper_lines(strategy_args),
-                details.out_range_settings,
-                self._rules().parse_send(strategy_args),
-                self._rules().parse_syndata(strategy_args),
-            )
-        else:
+        mode_logic = self._resolve_mode_logic(direct_mode)
+        if mode_logic is None:
             action_lines = self._rules().compose_action_lines(
                 strategy_args,
                 details.out_range_settings,
                 details.send_settings,
                 details.syndata_settings,
+            )
+        else:
+            action_lines = mode_logic.compose_action_lines_for_strategy_selection(
+                strategy_args=strategy_args,
+                details=details,
+                rules_module=self._rules(),
             )
         replace_profile_action_lines(source, profile_index, action_lines)
         return True
@@ -595,21 +599,21 @@ class DirectPresetService:
         source: SourcePreset,
         target_key: str,
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
     ) -> _ResolvedTargetState | None:
         normalized_key = str(target_key or "").strip().lower()
         contexts = self.collect_target_contexts(source)
         ctx = contexts.get(normalized_key)
         if ctx is None:
             return None
-        return self._resolve_target_state_from_context(source, ctx, strategy_set=strategy_set)
+        return self._resolve_target_state_from_context(source, ctx, direct_mode=direct_mode)
 
     def _resolve_target_state_from_context(
         self,
         source: SourcePreset,
         ctx: TargetContext,
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
     ) -> _ResolvedTargetState | None:
         try:
             profile = source.profiles[ctx.profile_index]
@@ -619,7 +623,7 @@ class DirectPresetService:
         strategy_id = self._infer_strategy_id(
             profile.action_lines,
             ctx.strategy_candidates,
-            strategy_set=strategy_set,
+            direct_mode=direct_mode,
             match_lines=profile.match_lines,
         )
         out_range, send, syndata = resolve_transport_settings(
@@ -630,7 +634,7 @@ class DirectPresetService:
 
         warnings: list[str] = []
         if len(ctx.related_profiles) > 1:
-            warnings.append("target appears in multiple profiles; basic UI edits only the first profile")
+            warnings.append("target appears in multiple profiles; UI edits affect only the first profile")
 
         details = PresetTargetDetails(
             target_key=ctx.target_key,
@@ -652,7 +656,7 @@ class DirectPresetService:
         source: SourcePreset,
         ctx: TargetContext,
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
         catalogs: dict[str, dict[str, StrategyEntry]] | None = None,
         strategy_lookup_cache: dict[tuple[tuple[str, ...], str], dict[str, str]] | None = None,
     ) -> str:
@@ -663,7 +667,7 @@ class DirectPresetService:
         return self._infer_strategy_id(
             profile.action_lines,
             ctx.strategy_candidates,
-            strategy_set=strategy_set,
+            direct_mode=direct_mode,
             match_lines=profile.match_lines,
             catalogs=catalogs,
             strategy_lookup_cache=strategy_lookup_cache,
@@ -674,6 +678,9 @@ class DirectPresetService:
 
     def _strategy_catalogs(self) -> dict[str, dict[str, StrategyEntry]]:
         return load_strategy_catalogs(self._paths, self._engine)
+
+    def _resolve_mode_logic(self, direct_mode: str | None):
+        return resolve_direct_mode_logic(self._engine, direct_mode or "")
 
     def _strategy_entries_from_candidates(
         self,
@@ -710,126 +717,63 @@ class DirectPresetService:
         action_lines: list[str],
         candidates: tuple[str, ...],
         *,
-        strategy_set: str | None = None,
+        direct_mode: str | None = None,
         match_lines: list[str] | tuple[str, ...] | None = None,
         catalogs: dict[str, dict[str, StrategyEntry]] | None = None,
         strategy_lookup_cache: dict[tuple[tuple[str, ...], str], dict[str, str]] | None = None,
     ) -> str:
-        matched_any_non_empty = False
-        for compare_mode in self._strategy_identity_modes(strategy_set):
-            normalized = self._normalized_strategy_identity(
-                action_lines,
-                compare_mode=compare_mode,
-                match_lines=match_lines,
-                candidates=candidates,
-            )
-            if not normalized:
-                continue
-            matched_any_non_empty = True
-            lookup = self._strategy_lookup_for_candidates(
-                candidates,
-                compare_mode=compare_mode,
-                catalogs=catalogs,
-                strategy_lookup_cache=strategy_lookup_cache,
-            )
-            matched = lookup.get(normalized)
-            if matched:
-                return matched
-        if not matched_any_non_empty:
-            return "none"
-        return "custom"
+        return infer_strategy_id_common(
+            action_lines=action_lines,
+            candidates=candidates,
+            direct_mode=direct_mode,
+            match_lines=match_lines,
+            catalogs=catalogs or self._strategy_catalogs(),
+            strategy_lookup_cache=strategy_lookup_cache,
+            identities_fn=lambda lines, mode, matches, names: self._normalized_strategy_identities(
+                lines,
+                direct_mode=mode,
+                match_lines=matches,
+                candidates=names,
+            ),
+        )
 
     def _strategy_lookup_for_candidates(
         self,
         candidates: tuple[str, ...],
         *,
-        compare_mode: str = "helpers_stripped",
+        direct_mode: str | None = None,
         catalogs: dict[str, dict[str, StrategyEntry]] | None = None,
         strategy_lookup_cache: dict[tuple[tuple[str, ...], str], dict[str, str]] | None = None,
     ) -> dict[str, str]:
-        cache_key = (tuple(candidates or ()), str(compare_mode or "helpers_stripped"))
-        cache = strategy_lookup_cache if strategy_lookup_cache is not None else {}
-        cached = cache.get(cache_key)
-        if cached is not None:
-            return cached
+        return strategy_lookup_for_candidates_common(
+            candidates=candidates,
+            direct_mode=direct_mode,
+            catalogs=catalogs or self._strategy_catalogs(),
+            strategy_lookup_cache=strategy_lookup_cache,
+            identities_fn=lambda lines, mode, matches, names: self._normalized_strategy_identities(
+                lines,
+                direct_mode=mode,
+                match_lines=matches,
+                candidates=names,
+            ),
+        )
 
-        resolved_catalogs = catalogs or self._strategy_catalogs()
-        lookup: dict[str, str] = {}
-        for name in cache_key[0]:
-            for entry in resolved_catalogs.get(name, {}).values():
-                normalized_args = self._normalized_strategy_identity(
-                    entry.args.splitlines(),
-                    compare_mode=compare_mode,
-                    candidates=candidates,
-                )
-                if not normalized_args:
-                    continue
-                lookup.setdefault(normalized_args, entry.strategy_id)
-
-        if strategy_lookup_cache is not None:
-            strategy_lookup_cache[cache_key] = lookup
-        return lookup
-
-    @staticmethod
-    def _normalize_args(lines: list[str] | tuple[str, ...]) -> str:
-        return "\n".join(sorted(str(line).strip().lower() for line in lines if str(line).strip()))
-
-    def _strategy_identity_modes(self, strategy_set: str | None) -> tuple[str, ...]:
-        return get_direct_preset_mode_adapter(self._engine, strategy_set).strategy_identity_modes()
-
-    def _normalized_strategy_identity(
+    def _normalized_strategy_identities(
         self,
         action_lines: list[str] | tuple[str, ...],
         *,
-        compare_mode: str,
+        direct_mode: str | None = None,
         match_lines: list[str] | tuple[str, ...] | None = None,
         candidates: tuple[str, ...] | list[str] | None = None,
-    ) -> str:
-        mode = str(compare_mode or "helpers_stripped").strip().lower()
-        lines = [str(line).strip() for line in action_lines if str(line).strip()]
-        keep_payload_in_identity = get_direct_preset_mode_adapter(
-            self._engine,
-            "basic" if mode == "keep_send_syndata" else "",
-        ).keep_payload_in_identity(candidates)
-        if mode == "keep_send_syndata":
-            payload_lines = [
-                str(line).strip()
-                for line in (match_lines or ())
-                if str(line).strip().lower().startswith("--payload=")
-            ]
-            if keep_payload_in_identity:
-                lines = payload_lines + lines
-        if mode == "keep_send_syndata":
-            normalized_lines: list[str] = []
-            for line in lines:
-                lowered = line.strip().lower()
-                if lowered.startswith("--out-range="):
-                    continue
-                if not keep_payload_in_identity and lowered.startswith("--payload="):
-                    continue
-                if lowered == "--payload=all":
-                    continue
-                cleaned = line
-                try:
-                    cleaned = self._rules()._cleanup_action_line_after_inline_out_range(cleaned)  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                if cleaned:
-                    normalized_lines.append(cleaned)
-            lines = normalized_lines
-        else:
-            lines = self._rules().strip_helper_lines(lines)
-            normalized_lines = []
-            for line in lines:
-                cleaned = line
-                try:
-                    cleaned = self._rules()._cleanup_action_line_after_inline_out_range(cleaned)  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                if cleaned:
-                    normalized_lines.append(cleaned)
-            lines = normalized_lines
-        return self._normalize_args(lines)
+    ) -> tuple[str, ...]:
+        return normalized_strategy_identities_common(
+            action_lines=action_lines,
+            direct_mode=direct_mode,
+            match_lines=match_lines,
+            candidates=candidates,
+            resolve_mode_logic_fn=self._resolve_mode_logic,
+            rules_module=self._rules(),
+        )
 
     @staticmethod
     def _detect_filter_mode(profile) -> str:

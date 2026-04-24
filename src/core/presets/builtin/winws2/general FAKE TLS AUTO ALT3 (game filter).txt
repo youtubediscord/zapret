@@ -1,6 +1,6 @@
 # Preset: general FAKE TLS AUTO ALT3 (game filter)
 # TemplateOrigin: general FAKE TLS AUTO ALT3 (game filter)
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 
 --lua-init=@lua/zapret-lib.lua
 --lua-init=@lua/zapret-antidpi.lua
@@ -104,7 +104,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_ts=-600000
 --lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8:tcp_ts=-600000

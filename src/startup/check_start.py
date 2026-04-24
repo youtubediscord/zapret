@@ -5,7 +5,7 @@ import winreg
 
 # Импортируем константы из конфига
 from app_notifications import advisory_notification, notification_action
-from config.config import BIN_FOLDER
+from config.config import BIN_FOLDER, MAIN_DIRECTORY
 
 from utils.windows_process_probe import iter_process_records_winapi
 
@@ -195,7 +195,7 @@ def check_path_for_onedrive() -> tuple[bool, str]:
     """
     Проверяет OneDrive в путях без сохранения старого результата.
     """
-    current_path = os.path.abspath(os.getcwd())
+    current_path = os.path.abspath(MAIN_DIRECTORY)
     exe_path = os.path.abspath(sys.executable)
 
     paths_to_check = [current_path, exe_path, BIN_FOLDER]
@@ -300,7 +300,7 @@ def contains_special_chars(path: str) -> bool:
 
 def check_path_for_special_chars():
     """Проверяет пути программы на наличие специальных символов."""
-    current_path = os.path.abspath(os.getcwd())
+    current_path = os.path.abspath(MAIN_DIRECTORY)
     exe_path = os.path.abspath(sys.executable)
     
     paths_to_check = [current_path, exe_path, BIN_FOLDER]

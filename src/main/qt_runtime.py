@@ -131,7 +131,7 @@ def application_bootstrap() -> QApplication:
     from PyQt6.QtGui import QColor
 
     try:
-        from config.reg import get_display_mode
+        from settings.store import get_display_mode
 
         display_mode = get_display_mode()
     except Exception:
@@ -145,7 +145,7 @@ def application_bootstrap() -> QApplication:
         setTheme(Theme.DARK)
 
     try:
-        from config.reg import (
+        from settings.store import (
             get_follow_windows_accent,
             get_windows_system_accent,
             get_accent_color,

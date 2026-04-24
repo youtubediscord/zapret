@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from config.config import MAIN_DIRECTORY
 from safe_construct import safe_construct
 
 
@@ -32,15 +33,15 @@ class PremiumStorage:
     """
     Single storage for premium state.
 
-    Windows: %APPDATA%\\zapret\\premium.ini
+    Windows: <install_dir>\\premium.ini
     """
 
     @staticmethod
     def path() -> Path:
-        appdata = os.environ.get("APPDATA")
-        if appdata:
-            return Path(appdata) / "zapret" / "premium.ini"
-        return Path.home() / ".config" / "zapret" / "premium.ini"
+        base = (MAIN_DIRECTORY or "").strip()
+        if not base:
+            raise RuntimeError("Не удалось определить корень данных premium")
+        return Path(base) / "premium.ini"
 
     @staticmethod
     def _read(path: Path) -> configparser.ConfigParser:

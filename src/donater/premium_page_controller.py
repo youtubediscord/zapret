@@ -460,7 +460,7 @@ class PremiumPageController:
                 copy_to_clipboard=bool(code),
                 activation_status_plan=PremiumPageController.build_activation_status_plan(
                     text_key="page.premium.activation.success.code_created",
-                    text_default="✅ Код создан и скопирован. Отправьте его боту в Telegram.",
+                    text_default="✅ Код создан примерно на 10 минут и скопирован. Сразу отправьте его боту в Telegram.",
                 ),
                 update_device_info=True,
                 start_autopoll=True,

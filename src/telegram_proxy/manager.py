@@ -161,7 +161,7 @@ def get_proxy_manager() -> TelegramProxyManager:
 
 def build_upstream_proxy_config_from_settings() -> Optional[UpstreamProxyConfig]:
     try:
-        from config.reg import (
+        from settings.store import (
             get_tg_proxy_upstream_enabled,
             get_tg_proxy_upstream_host,
             get_tg_proxy_upstream_mode,
@@ -192,7 +192,7 @@ def build_upstream_proxy_config_from_settings() -> Optional[UpstreamProxyConfig]
 
 def autostart_proxy_if_enabled_async() -> bool:
     try:
-        from config.reg import get_tg_proxy_autostart, get_tg_proxy_host, get_tg_proxy_port
+        from settings.store import get_tg_proxy_autostart, get_tg_proxy_host, get_tg_proxy_port
     except Exception:
         return False
 

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Dict, Optional
+
+from config.config import MAIN_DIRECTORY
 
 
 _CACHED_TARGET_METADATA: Optional[Dict[str, Dict]] = None
@@ -66,37 +67,17 @@ def _package_broad_target_metadata_file_path() -> Path:
 
 
 def _user_target_metadata_file_path() -> Path:
-    try:
-        from config.config import get_zapret_userdata_dir
-
-
-        base = (get_zapret_userdata_dir() or "").strip()
-        if base:
-            return Path(base) / "direct_preset" / "metadata" / "targets.txt"
-    except Exception:
-        pass
-
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        return Path(appdata) / "zapret" / "direct_preset" / "metadata" / "targets.txt"
-    return Path.home() / ".config" / "zapret" / "direct_preset" / "metadata" / "targets.txt"
+    base = (MAIN_DIRECTORY or "").strip()
+    if not base:
+        raise RuntimeError("Не удалось определить корень данных для target metadata")
+    return Path(base) / "direct_preset" / "metadata" / "targets.txt"
 
 
 def _user_broad_target_metadata_file_path() -> Path:
-    try:
-        from config.config import get_zapret_userdata_dir
-
-
-        base = (get_zapret_userdata_dir() or "").strip()
-        if base:
-            return Path(base) / "direct_preset" / "metadata" / "broad_targets.txt"
-    except Exception:
-        pass
-
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        return Path(appdata) / "zapret" / "direct_preset" / "metadata" / "broad_targets.txt"
-    return Path.home() / ".config" / "zapret" / "direct_preset" / "metadata" / "broad_targets.txt"
+    base = (MAIN_DIRECTORY or "").strip()
+    if not base:
+        raise RuntimeError("Не удалось определить корень данных для broad target metadata")
+    return Path(base) / "direct_preset" / "metadata" / "broad_targets.txt"
 
 
 def _load_one(path: Path) -> Dict[str, Dict]:

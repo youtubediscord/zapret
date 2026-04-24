@@ -11,9 +11,11 @@ def start_target_payload_request(
     current_request_id: int,
     build_request_plan_fn,
     issue_page_load_token_fn,
+    snapshot_service,
     prepare_request_fn,
     now_fn,
     worker_cls,
+    worker_kwargs=None,
     parent,
     on_loaded_callback,
 ):
@@ -28,9 +30,11 @@ def start_target_payload_request(
 
     worker = worker_cls(
         request_id,
+        snapshot_service=snapshot_service,
         launch_method="direct_zapret2",
         target_key=plan.normalized_target_key,
         refresh=refresh,
+        **dict(worker_kwargs or {}),
         parent=parent,
     )
     worker.loaded.connect(

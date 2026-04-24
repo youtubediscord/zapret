@@ -321,18 +321,12 @@ class DNSStartupManager:
 # ══════════════════════════════════════════════════════════════════════
 
 def reset_crash_counter():
-    """Сбрасывает счетчик крашей DNS (для аварийного отключения)"""
+    """Сбрасывает счетчик крашей DNS в settings.json."""
     try:
-        import winreg
-        path = r"Software\ZapretReg2"
-        
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0, 
-                           winreg.KEY_SET_VALUE) as key:
-            try:
-                winreg.DeleteValue(key, "DNSCrashCount")
-                log("Счетчик DNS крашей сброшен", "DEBUG")
-            except:
-                pass
+        from settings.store import reset_dns_crash_count
+
+        reset_dns_crash_count()
+        log("Счетчик DNS крашей сброшен", "DEBUG")
     except Exception as e:
         log(f"Ошибка сброса счетчика крашей: {e}", "DEBUG")
 
@@ -344,30 +338,24 @@ def disable_dns_if_crashing():
         bool: True если DNS был отключен из-за крашей
     """
     try:
-        import winreg
-        path = r"Software\ZapretReg2"
-        
-        # Читаем счетчик крашей
-        crash_count = 0
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
-                crash_count, _ = winreg.QueryValueEx(key, "DNSCrashCount")
-        except:
-            pass
-        
+        from settings.store import (
+            get_dns_crash_count,
+            increment_dns_crash_count,
+            reset_dns_crash_count,
+            set_force_dns_enabled,
+        )
+
+        crash_count = int(get_dns_crash_count())
+
         # Если больше 3 крашей - отключаем DNS
         if crash_count > 3:
-            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
-                winreg.SetValueEx(key, "ForceDNS", 0, winreg.REG_DWORD, 0)
-                winreg.DeleteValue(key, "DNSCrashCount")
-            
+            set_force_dns_enabled(False)
+            reset_dns_crash_count()
             log("⚠️ DNS автоматически отключен после множественных крашей", "WARNING")
             return True
         
         # Увеличиваем счетчик
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, path) as key:
-            winreg.SetValueEx(key, "DNSCrashCount", 0, winreg.REG_DWORD, crash_count + 1)
-        
+        increment_dns_crash_count()
         return False
         
     except Exception as e:

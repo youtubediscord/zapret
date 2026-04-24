@@ -21,9 +21,9 @@ if TYPE_CHECKING:
     from app_context import AppContext
     from managers.launch_autostart_manager import LaunchAutostartManager
     from managers.initialization_manager import InitializationManager
-    from managers.process_monitor_manager import ProcessMonitorManager
     from managers.subscription_manager import SubscriptionManager
     from managers.ui_manager import UIManager
+    from winws_runtime.monitoring import ProcessMonitorManager
 
 
 class LupiDPIApp(

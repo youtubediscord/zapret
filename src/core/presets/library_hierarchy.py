@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 from typing import Callable, Iterable
 
-from config.config import get_zapret_userdata_dir
+from config.config import MAIN_DIRECTORY
 
 
 
@@ -32,7 +32,7 @@ def _safe_scope_name(scope_key: str, *, canonicalize: bool = True) -> str:
 
 
 def _storage_dir() -> Path:
-    return Path(get_zapret_userdata_dir()) / "preset_library"
+    return Path(MAIN_DIRECTORY) / "preset_library"
 
 
 def _default_state() -> dict:

@@ -148,7 +148,6 @@ class WindowNotificationController(QObject):
             self.schedule_startup_notification_queue(300)
             return
         if not self.host.isVisible():
-            self.schedule_startup_notification_queue(500)
             return
         if not self._startup_notification_queue:
             return

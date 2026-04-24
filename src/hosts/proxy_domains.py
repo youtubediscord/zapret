@@ -27,6 +27,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from config.config import MAIN_DIRECTORY
 from safe_construct import safe_construct
 
 
@@ -119,7 +120,7 @@ def _get_app_root() -> Path:
     - В exe-сборке (PyInstaller frozen): папка, где лежит exe.
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        return Path(MAIN_DIRECTORY)
     # hosts/proxy_domains.py -> hosts/ -> project root
     return Path(__file__).resolve().parent.parent
 
@@ -148,10 +149,10 @@ def _get_catalog_hosts_ini_path() -> Path:
 
 
 def _get_user_hosts_ini_path() -> Path:
-    appdata = os.environ.get("APPDATA")
-    if appdata:
-        return Path(appdata) / "zapret" / "user_hosts.ini"
-    return Path.home() / ".config" / "zapret" / "user_hosts.ini"
+    base = (MAIN_DIRECTORY or "").strip()
+    if not base:
+        raise RuntimeError("Не удалось определить корень данных для user_hosts.ini")
+    return Path(base) / "user_hosts.ini"
 
 
 def _parse_bool(value: str) -> bool:
@@ -772,7 +773,7 @@ def load_user_hosts_selection() -> dict[str, str]:
     """
     Возвращает выбор пользователя: {service_name: profile_name}.
 
-    Хранится отдельно от каталога доменов в `%APPDATA%/zapret/user_hosts.ini`.
+    Хранится отдельно от каталога доменов в `user_hosts.ini` рядом с программой.
     """
     path = get_user_hosts_ini_path()
     if not path.exists():
@@ -802,7 +803,7 @@ def load_user_hosts_selection() -> dict[str, str]:
 
 
 def save_user_hosts_selection(selected_profiles: dict[str, str]) -> bool:
-    """Сохраняет выбор пользователя в `%APPDATA%/zapret/user_hosts.ini`."""
+    """Сохраняет выбор пользователя в `user_hosts.ini` рядом с программой."""
     path = get_user_hosts_ini_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)

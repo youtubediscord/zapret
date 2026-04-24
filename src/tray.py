@@ -51,7 +51,7 @@ from ui.window_adapter import (
 
 def _toggle_github_api_removal(*, status_callback=None) -> bool:
     """Переключает флаг удаления api.github.com из hosts при запуске."""
-    from config.reg import get_remove_github_api, set_remove_github_api
+    from settings.store import get_remove_github_api, set_remove_github_api
 
 
     try:
@@ -826,13 +826,13 @@ class SystemTrayManager:
             if mgr.is_running:
                 mgr.stop_proxy()
                 try:
-                    from config.reg import set_tg_proxy_enabled
+                    from settings.store import set_tg_proxy_enabled
                     set_tg_proxy_enabled(False)
                 except Exception:
                     pass
                 return
 
-            from config.reg import (
+            from settings.store import (
                 get_tg_proxy_host,
                 get_tg_proxy_port,
                 get_tg_proxy_upstream_enabled,
@@ -881,7 +881,7 @@ class SystemTrayManager:
 
     def _on_tg_proxy_status_changed(self, running: bool):
         try:
-            from config.reg import set_tg_proxy_enabled
+            from settings.store import set_tg_proxy_enabled
             set_tg_proxy_enabled(bool(running))
         except Exception:
             pass
@@ -995,7 +995,7 @@ class SystemTrayManager:
 
     def _set_window_opacity(self, value: int) -> None:
         try:
-            from config.reg import set_window_opacity as _set_window_opacity
+            from settings.store import set_window_opacity as _set_window_opacity
             _set_window_opacity(int(value))
         except Exception:
             pass

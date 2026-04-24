@@ -20,7 +20,7 @@ class RegistryWindowGeometryStore:
     """Низкоуровневое хранилище геометрии окна в config/registry слое."""
 
     def load(self) -> StoredWindowGeometry:
-        from config.config import get_window_maximized, get_window_position, get_window_size
+        from config.window_geometry_store import get_window_maximized, get_window_position, get_window_size
 
 
         return StoredWindowGeometry(
@@ -30,14 +30,14 @@ class RegistryWindowGeometryStore:
         )
 
     def save_geometry(self, x: int, y: int, width: int, height: int) -> None:
-        from config.config import set_window_position, set_window_size
+        from config.window_geometry_store import set_window_position, set_window_size
 
 
         set_window_position(int(x), int(y))
         set_window_size(int(width), int(height))
 
     def save_maximized(self, maximized: bool) -> None:
-        from config.config import set_window_maximized
+        from config.window_geometry_store import set_window_maximized
 
 
         set_window_maximized(bool(maximized))

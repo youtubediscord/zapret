@@ -9,8 +9,6 @@ import zipfile
 from core.paths import AppPaths
 
 from .models import PresetManifest
-from .v1_builtin_templates import is_builtin_preset_file_name_v1
-from .z2_builtin_templates import is_builtin_preset_file_name_v2
 
 
 _PRESET_HEADER_RE = re.compile(r"^\s*#\s*Preset:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
@@ -57,7 +55,6 @@ class PresetFileStore:
     def __init__(self, paths: AppPaths):
         self._paths = paths
         self._manifest_cache: dict[str, tuple[tuple[object, ...], list[PresetManifest]]] = {}
-        self._prepared_runtime_engines: set[str] = set()
 
     def list_manifests(self, engine: str) -> list[PresetManifest]:
         manifests = self._load_manifests(engine)
@@ -79,13 +76,14 @@ class PresetFileStore:
 
         normalized_candidate = _normalize_preset_file_name_candidate(candidate)
         engine_paths = self._engine_paths(engine)
-        direct_path = engine_paths.presets_dir / normalized_candidate
-        if direct_path.exists():
-            return direct_path.name
+        for presets_dir in (engine_paths.user_presets_dir, engine_paths.builtin_presets_dir):
+            direct_path = presets_dir / normalized_candidate
+            if direct_path.exists():
+                return direct_path.name
 
-        raw_path = engine_paths.presets_dir / candidate
-        if raw_path.exists():
-            return raw_path.name
+            raw_path = presets_dir / candidate
+            if raw_path.exists():
+                return raw_path.name
 
         lowered_candidate = candidate.lower()
         lowered_normalized = normalized_candidate.lower()
@@ -107,8 +105,13 @@ class PresetFileStore:
         manifest = self.get_manifest(engine, file_name)
         if manifest is None:
             raise ValueError(f"Preset not found: {file_name}")
-        path = self._engine_paths(engine).presets_dir / manifest.file_name
-        return _read_text(path)
+        return _read_text(self._manifest_path(engine, manifest))
+
+    def get_source_path(self, engine: str, file_name: str) -> Path:
+        manifest = self.get_manifest(engine, file_name)
+        if manifest is None:
+            raise ValueError(f"Preset not found: {file_name}")
+        return self._manifest_path(engine, manifest)
 
     def create_preset(
         self,
@@ -123,11 +126,19 @@ class PresetFileStore:
         if not normalized_name:
             raise ValueError("Preset name is required")
 
-        file_name = self._unique_file_name(engine_paths.presets_dir, normalized_name)
+        file_name = self._unique_file_name(
+            (engine_paths.user_presets_dir, engine_paths.builtin_presets_dir),
+            normalized_name,
+        )
         display_name = self._extract_name(source_text, Path(file_name).stem)
         template_origin = self._extract_template_origin(source_text)
         updated_at = _now_iso()
-        normalized_kind = str(kind or "user").strip().lower() or "user"
+        normalized_kind = self._infer_kind(
+            engine,
+            template_origin,
+            current_kind=kind,
+            storage_scope="user",
+        )
 
         manifest = PresetManifest(
             file_name=file_name,
@@ -135,8 +146,9 @@ class PresetFileStore:
             template_origin=template_origin,
             updated_at=updated_at,
             kind=normalized_kind,
+            storage_scope="user",
         )
-        self._write_source(engine_paths.presets_dir / file_name, source_text)
+        self._write_source(engine_paths.user_presets_dir / file_name, source_text)
         self._invalidate_manifest_cache(engine)
         return manifest
 
@@ -151,15 +163,24 @@ class PresetFileStore:
         manifests = self._load_manifests(engine)
         idx = self._find_index(manifests, file_name)
         current = manifests[idx]
+        target_scope = "user"
+        target_path = self._engine_paths(engine).user_presets_dir / current.file_name
+        template_origin = self._extract_template_origin(source_text)
 
         updated = PresetManifest(
             file_name=current.file_name,
             name=self._extract_name(source_text, Path(current.file_name).stem),
-            template_origin=self._extract_template_origin(source_text),
+            template_origin=template_origin,
             updated_at=_now_iso(),
-            kind=current.kind,
+            kind=self._infer_kind(
+                engine,
+                template_origin,
+                current_kind=current.kind,
+                storage_scope=target_scope,
+            ),
+            storage_scope=target_scope,
         )
-        self._write_source(self._engine_paths(engine).presets_dir / updated.file_name, source_text)
+        self._write_source(target_path, source_text)
         self._invalidate_manifest_cache(engine)
         return updated
 
@@ -167,28 +188,37 @@ class PresetFileStore:
         manifests = self._load_manifests(engine)
         idx = self._find_index(manifests, file_name)
         current = manifests[idx]
+        if str(current.storage_scope or "").strip().lower() != "user":
+            raise ValueError(f"Built-in preset cannot be renamed: {current.name}")
         normalized_name = str(new_name or "").strip()
         if not normalized_name:
             raise ValueError("Preset name is required")
 
         engine_paths = self._engine_paths(engine)
-        src_path = engine_paths.presets_dir / current.file_name
+        src_path = self._manifest_path(engine, current)
         target_file_name = self._unique_file_name(
-            engine_paths.presets_dir,
+            (engine_paths.user_presets_dir, engine_paths.builtin_presets_dir),
             normalized_name,
             exclude_file_name=current.file_name,
         )
-        target_path = engine_paths.presets_dir / target_file_name
+        target_path = engine_paths.user_presets_dir / target_file_name
         if src_path.exists() and src_path != target_path:
             src_path.rename(target_path)
 
         source_text = _read_text(target_path) if target_path.exists() else ""
+        template_origin = self._extract_template_origin(source_text)
         updated = PresetManifest(
             file_name=target_file_name,
             name=self._extract_name(source_text, Path(target_file_name).stem),
-            template_origin=self._extract_template_origin(source_text),
+            template_origin=template_origin,
             updated_at=_now_iso(),
-            kind=current.kind,
+            kind=self._infer_kind(
+                engine,
+                template_origin,
+                current_kind=current.kind,
+                storage_scope="user",
+            ),
+            storage_scope="user",
         )
         self._invalidate_manifest_cache(engine)
         return updated
@@ -197,7 +227,9 @@ class PresetFileStore:
         manifests = self._load_manifests(engine)
         idx = self._find_index(manifests, file_name)
         manifest = manifests[idx]
-        preset_path = self._engine_paths(engine).presets_dir / manifest.file_name
+        if str(manifest.storage_scope or "").strip().lower() != "user":
+            raise ValueError(f"Built-in preset cannot be deleted: {manifest.name}")
+        preset_path = self._manifest_path(engine, manifest)
         try:
             preset_path.unlink()
         except FileNotFoundError:
@@ -236,7 +268,6 @@ class PresetFileStore:
 
     def _load_manifests(self, engine: str) -> list[PresetManifest]:
         normalized_engine = str(engine or "").strip().lower()
-        self._ensure_runtime_support_ready(normalized_engine)
         cache_key = self._current_manifest_cache_key(normalized_engine)
         cached_entry = self._manifest_cache.get(normalized_engine)
         if cache_key is not None and cached_entry is not None and cached_entry[0] == cache_key:
@@ -246,51 +277,34 @@ class PresetFileStore:
         self._cache_manifests(normalized_engine, manifests)
         return manifests
 
-    def _ensure_runtime_support_ready(self, engine: str) -> None:
-        normalized_engine = str(engine or "").strip().lower()
-        if normalized_engine in self._prepared_runtime_engines:
-            return
-
-        launch_method = ""
-        if normalized_engine == "winws1":
-            launch_method = "direct_zapret1"
-        elif normalized_engine == "winws2":
-            launch_method = "direct_zapret2"
-
-        if not launch_method:
-            self._prepared_runtime_engines.add(normalized_engine)
-            return
-
-        from .support_files import prepare_direct_support_files
-
-        prepare_direct_support_files(launch_method, self._paths)
-        self._prepared_runtime_engines.add(normalized_engine)
-
     def _scan_manifests_from_files(self, engine: str) -> list[PresetManifest]:
         engine_paths = self._engine_paths(engine)
-        manifests: list[PresetManifest] = []
-        for preset_path in sorted(engine_paths.presets_dir.glob("*.txt"), key=lambda p: p.name.lower()):
-            header_text = _read_header_text(preset_path)
-            display_name = self._extract_name(header_text, preset_path.stem)
-            template_origin = self._extract_template_origin(header_text)
-            updated_at = self._file_time_to_iso(preset_path) or _now_iso()
-            preset_kind = self._extract_preset_kind(header_text)
-            kind = self._infer_kind(
-                engine,
-                preset_path.name,
-                template_origin,
-                preset_kind,
-            )
-            manifests.append(
-                PresetManifest(
+        manifests_by_file_name: dict[str, PresetManifest] = {}
+        for storage_scope, presets_dir in (
+            ("builtin", engine_paths.builtin_presets_dir),
+            ("user", engine_paths.user_presets_dir),
+        ):
+            for preset_path in sorted(presets_dir.glob("*.txt"), key=lambda p: p.name.lower()):
+                header_text = _read_header_text(preset_path)
+                display_name = self._extract_name(header_text, preset_path.stem)
+                template_origin = self._extract_template_origin(header_text)
+                updated_at = self._file_time_to_iso(preset_path) or _now_iso()
+                preset_kind = self._extract_preset_kind(header_text)
+                kind = self._infer_kind(
+                    engine,
+                    template_origin,
+                    current_kind=preset_kind,
+                    storage_scope=storage_scope,
+                )
+                manifests_by_file_name[preset_path.name.lower()] = PresetManifest(
                     file_name=preset_path.name,
                     name=display_name,
                     template_origin=template_origin,
                     updated_at=updated_at,
                     kind=kind,
+                    storage_scope=storage_scope,
                 )
-            )
-        return manifests
+        return list(manifests_by_file_name.values())
 
     @staticmethod
     def _extract_name(source_text: str, fallback: str) -> str:
@@ -321,18 +335,19 @@ class PresetFileStore:
     def _infer_kind(
         cls,
         engine: str,
-        file_name: str,
         template_origin: str | None,
+        *,
         current_kind: str | None = None,
+        storage_scope: str,
     ) -> str:
+        _ = engine
+        _ = template_origin
+        normalized_storage_scope = str(storage_scope or "").strip().lower()
+        if normalized_storage_scope == "builtin":
+            return "builtin"
         normalized_current_kind = str(current_kind or "").strip().lower()
         if normalized_current_kind == "imported":
             return "imported"
-        engine_key = str(engine or "").strip().lower()
-        if engine_key == "winws2":
-            return "builtin" if is_builtin_preset_file_name_v2(file_name) else "user"
-        if engine_key == "winws1":
-            return "builtin" if is_builtin_preset_file_name_v1(file_name) else "user"
         return "user"
 
     def _cache_manifests(self, engine: str, manifests: list[PresetManifest]) -> None:
@@ -349,7 +364,10 @@ class PresetFileStore:
             engine_paths = self._engine_paths(engine)
         except Exception:
             return None
-        return (*self._path_signature(engine_paths.presets_dir),)
+        return (
+            *self._path_signature(engine_paths.user_presets_dir),
+            *self._path_signature(engine_paths.builtin_presets_dir),
+        )
 
     def _invalidate_manifest_cache(self, engine: str) -> None:
         self._manifest_cache.pop(str(engine or "").strip().lower(), None)
@@ -391,9 +409,15 @@ class PresetFileStore:
             text += "\n"
         path.write_text(text, encoding="utf-8", newline="\n")
 
+    def _manifest_path(self, engine: str, manifest: PresetManifest) -> Path:
+        engine_paths = self._engine_paths(engine)
+        if str(manifest.storage_scope or "").strip().lower() == "builtin":
+            return engine_paths.builtin_presets_dir / manifest.file_name
+        return engine_paths.user_presets_dir / manifest.file_name
+
     @staticmethod
     def _unique_file_name(
-        presets_dir: Path,
+        presets_dirs: tuple[Path, ...],
         name: str,
         *,
         exclude_file_name: str | None = None,
@@ -402,7 +426,7 @@ class PresetFileStore:
         candidate = f"{base}.txt"
         counter = 2
         excluded = (exclude_file_name or "").strip().lower()
-        while (presets_dir / candidate).exists() and candidate.lower() != excluded:
+        while any((presets_dir / candidate).exists() for presets_dir in presets_dirs) and candidate.lower() != excluded:
             candidate = f"{base} ({counter}).txt"
             counter += 1
         return candidate

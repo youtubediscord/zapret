@@ -35,10 +35,12 @@ from .lifecycle_feedback import (
     show_launch_warning_top,
 )
 from .thread_runtime import start_worker_thread
-from .workers import (
-    DirectLaunchStartWorker,
+from .control_workers import (
     DirectLaunchStopWorker,
     StopAndExitWorker,
+)
+from .start_workers import (
+    DirectLaunchStartWorker,
 )
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
@@ -60,6 +62,7 @@ class DirectLaunchController:
         self._restart_completed_generation = 0
         self._restart_pending_stop_generation = 0
         self._restart_active_start_generation = 0
+        self._restart_force_stop_generation = 0
         self._restart_runner_wait_queued = False
         self._direct_switch_runner_wait_queued = False
         # Generation token for async start verification.
@@ -313,10 +316,10 @@ class DirectLaunchController:
                 expected_process=self._expected_process_name(launch_method),
             )
 
-    def _mark_runtime_running(self) -> None:
+    def _mark_runtime_running(self, pid: int | None = None) -> None:
         runtime_service = self._runtime_service()
         if runtime_service is not None:
-            runtime_service.mark_running()
+            runtime_service.mark_running(pid=pid)
 
     def _mark_runtime_failed(self, error_message: str, *, exit_code: int | None = None) -> None:
         runtime_service = self._runtime_service()
@@ -485,7 +488,12 @@ class DirectLaunchController:
         
         log(f"Запуск асинхронного старта DPI: {request.mode_name} (метод: {request.method_name})", "INFO")
 
-    def stop_dpi_async(self):
+    def stop_dpi_async(
+        self,
+        *,
+        force_cleanup: bool = False,
+        cleanup_services: bool = False,
+    ):
         """Асинхронно останавливает DPI без блокировки UI"""
         # Проверка на уже запущенный поток
         try:
@@ -518,12 +526,17 @@ class DirectLaunchController:
             self,
             thread_attr="_dpi_stop_thread",
             worker_attr="_dpi_stop_worker",
-            worker=DirectLaunchStopWorker(self.app, launch_method),
+            worker=DirectLaunchStopWorker(
+                self.app,
+                launch_method,
+                force_cleanup=force_cleanup,
+                cleanup_services=cleanup_services,
+            ),
             finished_slot=self._on_dpi_stop_finished,
             progress_slot=self.app.set_status,
             cleanup_log_label="потока остановки",
         )
-        
+
         log(f"Запуск асинхронной остановки DPI (метод: {method_name})", "INFO")
     
     def stop_and_exit_async(self):
@@ -569,9 +582,37 @@ class DirectLaunchController:
         Returns:
             True если процесс запущен, False иначе
         """
-        return self.app.launch_runtime_api.is_any_running(silent=True)
+        try:
+            runtime_service = getattr(self.app, "launch_runtime_service", None)
+            if runtime_service is not None:
+                snapshot = runtime_service.snapshot()
+                phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
+                if bool(getattr(snapshot, "running", False)) and phase == "running":
+                    return True
+        except Exception:
+            pass
 
-    def restart_dpi_async(self):
+        try:
+            from winws_runtime.runners.runner_factory import get_current_runner
+
+            runner = get_current_runner()
+            if runner is not None:
+                snapshot_getter = getattr(runner, "get_runner_state_snapshot", None)
+                if callable(snapshot_getter):
+                    snapshot = snapshot_getter()
+                    state_value = str(getattr(snapshot, "state", "") or "").strip().lower()
+                    if state_value == "running":
+                        return True
+
+                is_runner_running = getattr(runner, "is_running", None)
+                if callable(is_runner_running) and bool(is_runner_running()):
+                    return True
+        except Exception:
+            pass
+
+        return bool(self.app.launch_runtime_api.is_any_running(silent=True))
+
+    def restart_dpi_async(self, *, force_full_stop: bool = False):
         """
         Перезапускает DPI по модели "последний запрос побеждает".
 
@@ -579,4 +620,4 @@ class DirectLaunchController:
         переключает пресеты, мы запоминаем только последнее поколение
         запроса и продолжаем pipeline от него.
         """
-        restart_dpi_async_impl(self)
+        restart_dpi_async_impl(self, force_full_stop=force_full_stop)

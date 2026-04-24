@@ -48,31 +48,21 @@ def _check_telega_installed() -> str | None:
 
 
 def _check_telega_warning_disabled() -> bool:
-    """Проверяет, отключено ли предупреждение о Telega в реестре."""
+    """Проверяет, отключено ли предупреждение о Telega в settings.json."""
     try:
-        import winreg
-        from config.config import REGISTRY_PATH
+        from settings.store import get_telega_warning_disabled
 
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_READ
-        ) as key:
-            value, _ = winreg.QueryValueEx(key, "DisableTelegaWarning")
-            return value == 1
+        return bool(get_telega_warning_disabled())
     except Exception:
         return False
 
 
 def _set_telega_warning_disabled(disabled: bool) -> bool:
-    """Сохраняет в реестре настройку отключения предупреждения о Telega."""
+    """Сохраняет в settings.json настройку отключения предупреждения о Telega."""
     try:
-        import winreg
-        from config.config import REGISTRY_PATH
+        from settings.store import set_telega_warning_disabled
 
-        with winreg.CreateKeyEx(
-            winreg.HKEY_CURRENT_USER, REGISTRY_PATH, 0, winreg.KEY_WRITE
-        ) as key:
-            winreg.SetValueEx(key, "DisableTelegaWarning", 0, winreg.REG_DWORD, 1 if disabled else 0)
-        return True
+        return bool(set_telega_warning_disabled(bool(disabled)))
     except Exception:
         return False
 

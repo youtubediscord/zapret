@@ -13,8 +13,8 @@ from PyQt6.QtWidgets import QApplication, QWidget, QLabel
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from PyQt6.QtCore import Qt
 
-from config.build_info import APP_VERSION, CHANNEL
-from config.config import ICON_PATH, ICON_TEST_PATH
+from config.build_info import APP_VERSION
+from config.config import ICON_PATH, ICON_DEV_PATH, is_dev_build_channel
 
 from log.log import log
 
@@ -33,7 +33,7 @@ class ZapretFluentWindow(FluentWindow):
         self.setMinimumSize(900, 500)
 
         # Set app icon
-        icon_path = ICON_TEST_PATH if CHANNEL == "test" else ICON_PATH
+        icon_path = ICON_DEV_PATH if is_dev_build_channel() else ICON_PATH
         self._app_icon = None
         if os.path.exists(icon_path):
             self._app_icon = QIcon(icon_path)

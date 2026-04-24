@@ -1,6 +1,6 @@
 # Preset: general ALT3
 # TemplateOrigin: general ALT3
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # IconColor: #e6c300ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -109,7 +109,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
 --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
@@ -117,7 +117,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=fake:blob=tls_google:tls_mod=rnd,dupsid,sni=www.google.com:tcp_ts=-600000
 --lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000

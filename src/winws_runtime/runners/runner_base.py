@@ -14,13 +14,24 @@ from .constants import SW_HIDE, CREATE_NO_WINDOW, STARTF_USESHOWWINDOW
 from .preset_runner_support import wait_for_process_exit
 from winws_runtime.health.process_health_check import (
     check_process_health, get_last_crash_info, check_common_crash_causes,
-    check_conflicting_processes, get_conflicting_processes_report, diagnose_startup_error
+    check_conflicting_processes, get_conflicting_processes_report, diagnose_startup_error,
+    diagnose_winws_exit,
+)
+from winws_runtime.runtime.system_ops import (
+    aggressive_windivert_cleanup_runtime,
+    cleanup_windivert_services_runtime,
+    force_kill_all_winws_processes,
+    standard_windivert_cleanup_runtime,
+    stop_and_delete_named_service,
+    unload_known_windivert_drivers_runtime,
+    WinDivertRuntimeProbeResult,
+    wait_for_windivert_spawn_ready_runtime,
 )
 from utils.args_resolver import resolve_args_paths
-from utils.service_manager import (
-    cleanup_windivert_services, stop_and_delete_service, unload_driver, service_exists
-)
-from utils.process_killer import kill_process_by_name, kill_winws_force
+
+
+_AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS = 1.8
+_WINDIVERT_PRESPAWN_WAIT_SECONDS = 3.0
 
 
 class StrategyRunnerBase(ABC):
@@ -103,34 +114,26 @@ class StrategyRunnerBase(ABC):
     def _fast_cleanup_services(self):
         """Fast service cleanup via Win API (for normal startup)"""
         try:
-            cleanup_windivert_services()
+            cleanup_windivert_services_runtime()
         except Exception as e:
             log(f"Fast cleanup error: {e}", "DEBUG")
 
     def _unload_known_windivert_drivers(self) -> None:
         """Best-effort unload of known WinDivert-related drivers before spawn."""
         try:
-            for driver in ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]:
-                try:
-                    unload_driver(driver)
-                except Exception:
-                    pass
+            unload_known_windivert_drivers_runtime()
         except Exception:
             pass
 
     def _perform_standard_windivert_cleanup(self) -> None:
         """Canonical lightweight cleanup before ordinary preset start."""
-        log("Cleaning up previous winws processes...", "DEBUG")
-        kill_winws_force()
-        self._fast_cleanup_services()
-        self._unload_known_windivert_drivers()
-        time.sleep(0.3)
+        standard_windivert_cleanup_runtime()
 
     def _force_cleanup_multiple_services(self, service_names: List[str], retry_count: int = 3):
         """Force cleanup multiple services"""
         for service_name in service_names:
             try:
-                stop_and_delete_service(service_name, retry_count=retry_count)
+                stop_and_delete_named_service(service_name, retry_count=retry_count)
             except Exception as e:
                 log(f"Error cleaning up service {service_name}: {e}", "DEBUG")
 
@@ -175,39 +178,127 @@ class StrategyRunnerBase(ABC):
 
     def _aggressive_windivert_cleanup(self):
         """Aggressive WinDivert cleanup via Win API - for cases when normal cleanup doesn't help"""
-        log("Performing aggressive WinDivert cleanup via Win API...", "INFO")
+        aggressive_windivert_cleanup_runtime()
 
-        # 1. Kill ALL processes that may hold handles
-        self._kill_all_winws_processes()
-        time.sleep(0.3)
+    def _wait_after_aggressive_windivert_cleanup(self, *, seconds: float = _AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS) -> None:
+        """Даём Windows время после тяжёлой очистки WinDivert.
 
-        # 2. Unload drivers via fltmc (before deleting services!)
-        drivers = ["WinDivert", "WinDivert14", "WinDivert64", "Monkey"]
-        for driver in drivers:
-            try:
-                unload_driver(driver)
-            except:
-                pass
+        Практически это нужно именно для плавающих 1058/34 случаев: сразу после
+        aggressive cleanup драйвер/SCM ещё могут не успеть полностью освободить
+        filter handle, и мгновенный повторный spawn просто ловит ту же ошибку.
+        """
+        cooldown = max(0.0, float(seconds))
+        if cooldown <= 0:
+            return
+        log(f"Waiting {cooldown:.1f}s for WinDivert cleanup to settle", "DEBUG")
+        time.sleep(cooldown)
 
-        time.sleep(0.2)
+    def _ensure_windivert_ready_before_spawn(self, *, max_wait_seconds: float = _WINDIVERT_PRESPAWN_WAIT_SECONDS) -> bool:
+        """Проверяет готовность WinDivert прямо перед новым spawn."""
+        try:
+            probe = wait_for_windivert_spawn_ready_runtime(
+                max_wait_seconds=max_wait_seconds,
+                poll_interval=0.25,
+            )
+        except Exception:
+            return True
 
-        # 3. Stop and delete services via Win API
-        services = ["WinDivert", "WinDivert14", "WinDivert64", "windivert", "Monkey"]
-        for service in services:
-            try:
-                stop_and_delete_service(service, retry_count=3)
-            except:
-                pass
+        if probe.ready:
+            return True
 
-        time.sleep(0.3)
+        recovery_probe = self._retry_windivert_spawn_readiness_after_recovery(probe)
+        if recovery_probe.ready:
+            return True
 
-        # 4. Final process cleanup
-        self._kill_all_winws_processes()
+        log(
+            "WinDivert pre-spawn readiness check failed: "
+            f"installed={recovery_probe.installed}, error={recovery_probe.error_code}, stage={recovery_probe.stage}",
+            "WARNING",
+        )
+        return False
 
-        log("Aggressive cleanup completed", "INFO")
+    def _retry_windivert_spawn_readiness_after_recovery(
+        self,
+        probe: WinDivertRuntimeProbeResult,
+    ) -> WinDivertRuntimeProbeResult:
+        """Один recovery-цикл для pre-spawn readiness.
 
-    def stop(self) -> bool:
-        """Stops running process"""
+        Нужен для плавающих случаев, когда stop/cleanup уже завершён, но
+        WinDivert ещё не готов открыть NETWORK layer. Не бесконечный retry:
+        делаем один контролируемый цикл и возвращаем итоговый probe.
+        """
+        transient_codes = {1058, 1060, 1753}
+        if probe.ready or int(probe.error_code or 0) not in transient_codes:
+            return probe
+
+        log(
+            "WinDivert pre-spawn readiness transient failure, performing one recovery cycle",
+            "WARNING",
+        )
+        try:
+            self._aggressive_windivert_cleanup()
+            self._wait_after_aggressive_windivert_cleanup()
+            return wait_for_windivert_spawn_ready_runtime(
+                max_wait_seconds=_WINDIVERT_PRESPAWN_WAIT_SECONDS,
+                poll_interval=0.25,
+            )
+        except Exception:
+            return probe
+
+    def _should_retry_transient_windivert_service_error(
+        self,
+        stderr: str,
+        exit_code: int,
+        *,
+        retry_count: int,
+        max_retry_count: int = 1,
+    ) -> bool:
+        """Разрешает один retry для плавающего WinDivert service error.
+
+        WinDivert code 1058/34 у нас иногда всплывает как остаточная гонка
+        после stop/start, а не как реальное отключение BFE/службы/драйвера.
+        Для таких случаев разрешаем один повтор через более тяжёлый cleanup.
+
+        При явных системных причинах retry запрещён:
+        - BFE реально выключен
+        - служба WinDivert реально disabled
+        - файлов драйвера нет
+        - Secure Boot / подпись / политика безопасности
+        """
+        if retry_count >= max_retry_count:
+            return False
+
+        try:
+            diag = diagnose_winws_exit(exit_code, stderr)
+        except Exception:
+            diag = None
+
+        win32_error = int(getattr(diag, "win32_error", exit_code) or exit_code)
+        if win32_error != 1058:
+            return False
+
+        cause = str(getattr(diag, "cause", "") or "").strip().lower()
+        hard_no_retry_markers = (
+            "base filtering engine",
+            "служба windivert отключена",
+            "отсутствуют файлы windivert",
+            "secure boot",
+            "подпись драйвера",
+            "политика безопасности",
+        )
+        if any(marker in cause for marker in hard_no_retry_markers):
+            return False
+
+        return True
+
+    def stop(self, *, cleanup_services: bool = True) -> bool:
+        """Stops running process.
+
+        `cleanup_services=False` используется для сценариев stop->start внутри
+        одного runtime pipeline. В таких переходах удаление WinDivert service
+        здесь слишком агрессивно: следующий start сам выполняет свою штатную
+        pre-cleanup стадию и должен оставаться единственной точкой этой очистки.
+        """
         try:
             success = True
 
@@ -231,8 +322,9 @@ class StrategyRunnerBase(ABC):
                 log("No running process to stop", "INFO")
 
             # Additional cleanup
-            self._stop_windivert_service()
-            self._stop_monkey_service()
+            if cleanup_services:
+                self._stop_windivert_service()
+                self._stop_monkey_service()
             self._kill_all_winws_processes()
 
             # Clear state
@@ -246,24 +338,30 @@ class StrategyRunnerBase(ABC):
 
     def _stop_windivert_service(self):
         """Stops and deletes WinDivert service via Win API"""
-        for service_name in ["WinDivert", "windivert", "WinDivert14", "WinDivert64"]:
-            stop_and_delete_service(service_name, retry_count=3)
+        try:
+            for service_name in ["WinDivert", "windivert", "WinDivert14", "WinDivert64"]:
+                stop_and_delete_named_service(service_name, retry_count=3)
+        except Exception as e:
+            log(f"Ошибка остановки WinDivert service: {e}", "DEBUG")
 
     def _stop_monkey_service(self):
         """Stops and deletes Monkey service via Win API"""
-        stop_and_delete_service("Monkey", retry_count=3)
+        try:
+            stop_and_delete_named_service("Monkey", retry_count=3)
+        except Exception as e:
+            log(f"Ошибка остановки Monkey service: {e}", "DEBUG")
 
     def _force_delete_service(self, service_name: str):
         """Force delete a service"""
         try:
-            stop_and_delete_service(service_name, retry_count=5)
+            stop_and_delete_named_service(service_name, retry_count=5)
         except Exception as e:
             log(f"Force delete service {service_name} error: {e}", "DEBUG")
 
     def _kill_all_winws_processes(self):
         """Forcefully terminates all winws.exe and winws2.exe processes via Win API"""
         try:
-            kill_winws_force()
+            force_kill_all_winws_processes()
         except Exception as e:
             log(f"Error killing winws processes: {e}", "DEBUG")
 

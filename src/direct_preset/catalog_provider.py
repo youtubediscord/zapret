@@ -16,39 +16,21 @@ class StrategyEntry:
     args: str
 
 
-_ENSURE_SYNC_CACHE: dict[tuple[str, str], tuple[tuple[tuple[str, int, int], ...], str]] = {}
 _STRATEGY_CATALOGS_CACHE: dict[
     tuple[str, str],
     tuple[tuple[tuple[str, int, int], ...], dict[str, dict[str, StrategyEntry]]],
 ] = {}
 
-
-def _package_catalog_root() -> Path:
-    return Path(__file__).resolve().parent / "catalogs"
-
-
-def _user_catalog_root(paths: AppPaths) -> Path:
+def _catalog_root(paths: AppPaths) -> Path:
     return paths.user_root / "direct_preset" / "catalogs"
 
 
 def ensure_user_catalogs(paths: AppPaths) -> Path:
-    package_root = _package_catalog_root()
-    user_root = _user_catalog_root(paths)
-    user_root.mkdir(parents=True, exist_ok=True)
-
-    for src in package_root.rglob("*.txt"):
-        relative = src.relative_to(package_root)
-        dst = user_root / relative
-        src_text = src.read_text(encoding="utf-8", errors="replace")
-        if dst.exists():
-            dst_text = dst.read_text(encoding="utf-8", errors="replace")
-            if dst_text == src_text:
-                continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(src_text, encoding="utf-8")
-    sanitize_strategy_catalog_dir(user_root / "winws1")
-    sanitize_strategy_catalog_dir(user_root / "winws2")
-    return user_root
+    catalog_root = _catalog_root(paths)
+    catalog_root.mkdir(parents=True, exist_ok=True)
+    sanitize_strategy_catalog_dir(catalog_root / "winws1")
+    sanitize_strategy_catalog_dir(catalog_root / "winws2")
+    return catalog_root
 
 
 def _tree_signature(root: Path, pattern: str = "*.txt") -> tuple[tuple[str, int, int], ...]:
@@ -66,21 +48,6 @@ def _tree_signature(root: Path, pattern: str = "*.txt") -> tuple[tuple[str, int,
         except Exception:
             continue
     return tuple(rows)
-
-
-def _ensure_user_catalogs_runtime(paths: AppPaths) -> Path:
-    package_root = _package_catalog_root()
-    user_root = _user_catalog_root(paths)
-    cache_key = (str(package_root.resolve()), str(user_root.resolve()))
-    package_signature = _tree_signature(package_root)
-    cached = _ENSURE_SYNC_CACHE.get(cache_key)
-    if cached is not None and cached[0] == package_signature and Path(cached[1]).exists():
-        return Path(cached[1])
-
-    ensured_root = ensure_user_catalogs(paths)
-    _ENSURE_SYNC_CACHE[cache_key] = (package_signature, str(ensured_root))
-    return ensured_root
-
 
 def _parse_catalog_file(path: Path, catalog_name: str) -> dict[str, StrategyEntry]:
     strategies: dict[str, StrategyEntry] = {}
@@ -125,7 +92,7 @@ def _parse_catalog_file(path: Path, catalog_name: str) -> dict[str, StrategyEntr
 
 
 def load_strategy_catalogs(paths: AppPaths, engine: str) -> dict[str, dict[str, StrategyEntry]]:
-    root = _ensure_user_catalogs_runtime(paths)
+    root = ensure_user_catalogs(paths)
     engine_root = root / engine
     cache_key = (str(engine_root.resolve()), str(engine or "").strip().lower())
     signature = _tree_signature(engine_root)

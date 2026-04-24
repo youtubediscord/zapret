@@ -45,6 +45,7 @@ from .constants import CREATE_NO_WINDOW
 from winws_runtime.health.process_health_check import (
     diagnose_startup_error
 )
+from winws_runtime.runtime.system_ops import get_all_winws_process_pids, get_process_pids_by_name
 
 
 _WINDOWS_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
@@ -529,6 +530,25 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
         return artifact
 
+    def _is_circular_preset_path(self, preset_path: str) -> bool:
+        p = str(preset_path or "").strip()
+        if not p or not os.path.exists(p):
+            return False
+
+        try:
+            with open(p, "r", encoding="utf-8", errors="replace") as f:
+                source_content = f.read()
+        except Exception:
+            return False
+
+        try:
+            from direct_preset.engines import winws2_parser
+
+            normalized = self._normalize_preset_text(source_content)
+            return bool(is_circular_source_preset(winws2_parser.parse(normalized)))
+        except Exception:
+            return False
+
     def _on_config_changed(self):
         """
         Called when config file changes.
@@ -565,21 +585,25 @@ class StrategyRunnerV2(StrategyRunnerBase):
                     self._set_last_error("Preset содержит ссылки на отсутствующие файлы")
                 return
 
-            self._stop_process_only_locked()
+            cleanup_required = self._stop_process_only_locked()
+            if cleanup_required:
+                self._perform_standard_windivert_cleanup()
             self._spawn_process_locked(
                 artifact,
                 strategy_name,
                 hot_reload=True,
             )
 
-    def _stop_process_only_locked(self) -> None:
+    def _stop_process_only_locked(self) -> bool:
         """
         Stops the process without stopping the config watcher.
         Used for hot-reload to keep monitoring the config file.
         """
         try:
             cleanup_needed = False
+            had_running_process = False
             if self.running_process and self.is_running():
+                had_running_process = True
                 pid = self.running_process.pid
                 strategy_name = self.current_launch_label or "unknown"
                 self._set_runner_state_locked(
@@ -612,18 +636,17 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
                 if not cleanup_needed:
                     try:
-                        from utils.process_killer import get_process_pids
-
-                        cleanup_needed = bool(get_process_pids(os.path.basename(self.winws_exe)))
+                        cleanup_needed = bool(get_process_pids_by_name(os.path.basename(self.winws_exe)))
                     except Exception:
                         cleanup_needed = False
 
             if cleanup_needed:
                 log("Hot-reload fallback cleanup: detected lingering winws process", "DEBUG")
                 self._kill_all_winws_processes()
-
+            return had_running_process or cleanup_needed
         except Exception as e:
             log(f"Error stopping process for hot-reload: {e}", "ERROR")
+            return False
 
     def _clear_process_state_locked(self) -> None:
         self.running_process = None
@@ -807,6 +830,26 @@ class StrategyRunnerV2(StrategyRunnerBase):
         self._set_last_error(None)
         self._stop_config_watcher()
 
+        current_preset_path = str(self._preset_file_path or "").strip()
+        if current_preset_path and current_preset_path != str(preset_path or "").strip():
+            try:
+                current_is_circular = self._is_circular_preset_path(current_preset_path)
+                target_is_circular = self._is_circular_preset_path(preset_path)
+                if current_is_circular != target_is_circular:
+                    log(
+                        "Preset switch crosses circular/non-circular boundary; using full restart path",
+                        "INFO",
+                    )
+                    with self._state_lock:
+                        return self._start_from_preset_file_locked(
+                            preset_path,
+                            strategy_name,
+                            force_cleanup=True,
+                            retry_count=0,
+                        )
+            except Exception:
+                pass
+
         with self._state_lock:
             artifact = self._compile_preset_artifact(preset_path)
             if not artifact.validation_ok:
@@ -827,7 +870,9 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 return False
 
             if self.running_process and self.is_running():
-                self._stop_process_only_locked()
+                cleanup_required = self._stop_process_only_locked()
+                if cleanup_required:
+                    self._perform_standard_windivert_cleanup()
 
             self._preset_file_path = preset_path
             success = self._spawn_process_locked(
@@ -835,6 +880,17 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 strategy_name,
                 hot_reload=True,
             )
+            if not success:
+                log(
+                    "Fast preset switch failed, retrying via full start path with cleanup",
+                    "WARNING",
+                )
+                success = self._start_from_preset_file_locked(
+                    preset_path,
+                    strategy_name,
+                    force_cleanup=True,
+                    retry_count=0,
+                )
         if success:
             self._start_config_watcher()
         return success
@@ -865,8 +921,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
         Returns:
             True if strategy started successfully
         """
-        from utils.process_killer import kill_winws_force, get_process_pids
-
         if not os.path.exists(preset_path):
             log(f"Preset file not found: {preset_path}", "ERROR")
             self._set_last_error(f"Preset файл не найден: {preset_path}")
@@ -881,15 +935,12 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 strategy_name,
                 force_cleanup=bool(_force_cleanup),
                 retry_count=int(_retry_count),
-                kill_winws_force=kill_winws_force,
-                get_process_pids=get_process_pids,
             )
 
     def _resolve_cleanup_required_before_spawn(
         self,
         *,
         force_cleanup: bool,
-        get_process_pids,
     ) -> bool:
         cleanup_required = bool(force_cleanup)
 
@@ -899,7 +950,7 @@ class StrategyRunnerV2(StrategyRunnerBase):
             cleanup_required = True
 
         try:
-            active_winws_pids = get_process_pids("winws.exe") + get_process_pids("winws2.exe")
+            active_winws_pids = get_all_winws_process_pids()
         except Exception:
             active_winws_pids = []
 
@@ -921,11 +972,26 @@ class StrategyRunnerV2(StrategyRunnerBase):
         *,
         cleanup_required: bool,
         retry_count: int,
-        kill_winws_force,
-        get_process_pids,
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
+
+        if self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+            max_retry_count=1,
+        ):
+            log(
+                "Transient WinDivert service error detected, retrying with aggressive cleanup",
+                "WARNING",
+            )
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                force_cleanup=True,
+                retry_count=retry_count + 1,
+            )
 
         if self._is_windivert_system_error(stderr_output, exit_code):
             log("WinDivert system error detected — retry will not help", "WARNING")
@@ -942,8 +1008,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
                 strategy_name,
                 force_cleanup=True,
                 retry_count=1,
-                kill_winws_force=kill_winws_force,
-                get_process_pids=get_process_pids,
             )
 
         return False
@@ -955,8 +1019,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
         *,
         force_cleanup: bool,
         retry_count: int,
-        kill_winws_force,
-        get_process_pids,
     ) -> bool:
         artifact = self._compile_preset_artifact(preset_path)
         if not artifact.validation_ok:
@@ -978,9 +1040,15 @@ class StrategyRunnerV2(StrategyRunnerBase):
 
         cleanup_required = self._resolve_cleanup_required_before_spawn(
             force_cleanup=force_cleanup,
-            get_process_pids=get_process_pids,
         )
         self._perform_cleanup_before_spawn_locked(cleanup_required=cleanup_required)
+        if retry_count > 0:
+            self._wait_after_aggressive_windivert_cleanup()
+        if not self._ensure_windivert_ready_before_spawn():
+            self._last_spawn_exit_code = 34
+            self._last_spawn_stderr = "windivert: readiness probe failed before spawn"
+            self._set_last_error("WinDivert ещё не готов к открытию фильтра")
+            return False
 
         self._preset_file_path = preset_path
         success = self._spawn_process_locked(
@@ -997,8 +1065,6 @@ class StrategyRunnerV2(StrategyRunnerBase):
             strategy_name,
             cleanup_required=cleanup_required,
             retry_count=retry_count,
-            kill_winws_force=kill_winws_force,
-            get_process_pids=get_process_pids,
         )
 
     def find_running_preset_pid(self, preset_path: str) -> Optional[int]:
@@ -1081,7 +1147,7 @@ class StrategyRunnerV2(StrategyRunnerBase):
     def stop_background_watchers(self) -> None:
         self._stop_config_watcher()
 
-    def stop(self) -> bool:
+    def stop(self, *, cleanup_services: bool = True) -> bool:
         """
         Stops running process and config watcher.
 
@@ -1101,7 +1167,7 @@ class StrategyRunnerV2(StrategyRunnerBase):
                     reason="public_stop",
                 )
             self._preset_file_path = None
-            success = super().stop()
+            success = super().stop(cleanup_services=cleanup_services)
             self._set_runner_state_locked(
                 PresetRunnerState.IDLE,
                 reason="public_stop_completed",

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from .builtin_template_sync import load_repo_builtin_templates
 from log.log import log
 
 
@@ -77,124 +77,78 @@ def get_builtin_base_from_copy_name_v1(name: str) -> Optional[str]:
 
 
 def ensure_v1_templates_copied_to_presets() -> int:
-    templates = _load_template_contents()
-    if not templates:
-        return 0
-
-    presets_dir = _presets_dir_v1()
-    copied = 0
-
-    for name, content in templates.items():
-        dest = presets_dir / f"{name}.txt"
-        if dest.exists():
-            continue
-        try:
-            dest.write_text(content, encoding="utf-8")
-            copied += 1
-        except Exception as exc:
-            log(f"Failed to copy V1 template '{name}' to presets: {exc}", "DEBUG")
-
-    return copied
+    return 0
 
 
 def update_changed_v1_templates_in_presets() -> int:
-    templates = _load_template_contents()
-    if not templates:
-        return 0
-
-    presets_dir = _presets_dir_v1()
-    backups_dir = presets_dir / "_builtin_version_backups"
-    updated = 0
-
-    for name, template_content in templates.items():
-        dest = presets_dir / f"{name}.txt"
-        if not dest.exists():
-            continue
-        try:
-            template_version = _extract_builtin_version(template_content)
-            if not template_version:
-                continue
-
-            existing_content = dest.read_text(encoding="utf-8", errors="replace")
-            existing_version = _extract_builtin_version(existing_content)
-            if not _is_newer_builtin_version(template_version, existing_version):
-                continue
-
-            try:
-                backups_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                from_v = _sanitize_version_for_filename(existing_version)
-                to_v = _sanitize_version_for_filename(template_version)
-                backup_name = f"{dest.stem}__{timestamp}__{from_v}_to_{to_v}.txt"
-                (backups_dir / backup_name).write_text(existing_content, encoding="utf-8")
-            except Exception:
-                pass
-
-            dest.write_text(template_content, encoding="utf-8")
-            log(
-                f"Built-in V1 preset updated from template version {existing_version or 'none'} "
-                f"to {template_version or 'none'}: {dest}",
-                "DEBUG",
-            )
-            updated += 1
-        except Exception as exc:
-            log(f"Failed to update V1 preset '{name}' from template: {exc}", "DEBUG")
-
-    return updated
+    return 0
 
 
-def overwrite_v1_templates_to_presets() -> tuple[int, int, list[str]]:
+def reset_user_overrides_to_builtin_v1() -> tuple[int, int, list[str]]:
     templates = _load_template_contents()
     if not templates:
         return (0, 0, [])
 
-    presets_dir = _presets_dir_v1()
-    copied = 0
+    presets_dir = _user_presets_dir_v1()
+    removed = 0
     failed: list[str] = []
 
     for name in sorted(templates.keys(), key=lambda value: value.lower()):
         dest = presets_dir / f"{name}.txt"
+        if not dest.exists():
+            continue
         try:
-            dest.write_text(templates[name], encoding="utf-8")
-            copied += 1
+            dest.unlink()
+            removed += 1
         except Exception as exc:
             failed.append(name)
-            log(f"Failed to overwrite V1 preset '{name}' from template: {exc}", "DEBUG")
+            log(f"Failed to reset V1 user override '{name}' to built-in: {exc}", "DEBUG")
 
-    return (copied, len(templates), failed)
+    return (removed, len(templates), failed)
+
+
+def overwrite_v1_templates_to_presets() -> tuple[int, int, list[str]]:
+    return reset_user_overrides_to_builtin_v1()
 
 
 def ensure_default_preset_exists_v1() -> bool:
     try:
-        ensure_v1_templates_copied_to_presets()
-        presets_dir = _presets_dir_v1()
-        if (presets_dir / "Default.txt").exists():
+        presets_dir = _builtin_presets_dir_v1()
+        if (presets_dir / "Default v1 (game filter).txt").exists():
             return True
         return next((path for path in sorted(presets_dir.glob("*.txt"), key=lambda item: item.name.lower())), None) is not None
     except Exception as exc:
         log(f"Error ensuring V1 default preset: {exc}", "DEBUG")
         return False
 
-def _presets_dir_v1() -> Path:
+def _user_presets_dir_v1() -> Path:
     try:
-        from config.config import get_zapret_userdata_dir
+        from config.config import get_presets_v1_dir
+
+        path = Path(get_presets_v1_dir())
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except Exception as exc:
+        raise RuntimeError("Не удалось определить корень программы для presets_v1") from exc
 
 
-        base = (get_zapret_userdata_dir() or "").strip()
-        if base:
-            path = Path(base) / "presets_v1"
-            path.mkdir(parents=True, exist_ok=True)
-            return path
-    except Exception:
-        pass
-    raise RuntimeError("Canonical userdata root is required for presets_v1 directory")
+def _builtin_presets_dir_v1() -> Path:
+    try:
+        from config.config import get_builtin_presets_v1_dir
+
+        path = Path(get_builtin_presets_v1_dir())
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except Exception as exc:
+        raise RuntimeError("Не удалось определить корень программы для presets_v1_builtin") from exc
 
 
 def _load_template_contents() -> dict[str, str]:
     try:
-        from .v1_builtin_templates import list_repo_builtin_templates_v1
-
-        return dict(list_repo_builtin_templates_v1())
+        return load_repo_builtin_templates(
+            _builtin_presets_dir_v1(),
+            normalize_content=_normalize_template_header_v1,
+        )
     except Exception as exc:
         log(f"Error reading V1 built-in templates: {exc}", "DEBUG")
         return {}

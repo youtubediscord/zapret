@@ -77,8 +77,8 @@ def build_domains_panel_ui(
     desc = body_label_cls(
         tr_fn(
             "page.hostlist.domains.desc",
-            "Редактируется файл other.user.txt (только ваши домены). "
-            "Системная база хранится в other.base.txt, общий other.txt собирается автоматически. "
+            "Редактируется пользовательский список `lists/user/other.txt` (только ваши домены). "
+            "Системная база хранится в `lists/base/other.txt`, итоговый `lists/other.txt` собирается автоматически. "
             "URL автоматически преобразуются в домены. Изменения сохраняются автоматически. "
             "Поддерживается Ctrl+Z.",
         )
@@ -122,7 +122,7 @@ def build_domains_panel_ui(
         open_action,
         tr_fn(
             "page.hostlist.domains.tooltip.open_file",
-            "Сохраняет изменения и открывает other.user.txt в проводнике",
+            "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике",
         ),
     )
 
@@ -135,7 +135,7 @@ def build_domains_panel_ui(
         reset_action,
         tr_fn(
             "page.hostlist.domains.tooltip.reset_file",
-            "Очищает other.user.txt и пересобирает other.txt из системной базы",
+            "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
         ),
     )
 
@@ -154,7 +154,7 @@ def build_domains_panel_ui(
     layout.addWidget(actions_group)
 
     editor_card = settings_card_cls(
-        tr_fn("page.hostlist.domains.section.editor", "other.user.txt (редактор)")
+        tr_fn("page.hostlist.domains.section.editor", "lists/user/other.txt (редактор)")
     )
     editor_layout = qvbox_layout_cls()
     editor_layout.setSpacing(8)
@@ -231,11 +231,11 @@ def build_ips_panel_ui(
     desc = body_label_cls(
         tr_fn(
             "page.hostlist.ips.desc",
-            "Добавляйте свои IP/подсети в ipset-all.user.txt.\n"
+            "Добавляйте свои IP/подсети в `lists/user/ipset-all.txt`.\n"
             "• Одиночный IP: 1.2.3.4\n"
             "• Подсеть: 10.0.0.0/8\n"
             "Диапазоны (a-b) не поддерживаются. Изменения сохраняются автоматически.\n"
-            "Системная база хранится в ipset-all.base.txt и автоматически объединяется в ipset-all.txt.",
+            "Системная база хранится в `lists/base/ipset-all.txt`, а итоговый `lists/ipset-all.txt` собирается автоматически.",
         )
     )
     desc.setWordWrap(True)
@@ -272,7 +272,7 @@ def build_ips_panel_ui(
     open_action.clicked.connect(on_open_file)
     set_tooltip_fn(
         open_action,
-        tr_fn("page.hostlist.ips.action.open_file.description", "Сохраняет изменения и открывает ipset-all.user.txt в проводнике."),
+        tr_fn("page.hostlist.ips.action.open_file.description", "Сохраняет изменения и открывает `lists/user/ipset-all.txt` в проводнике."),
     )
 
     clear_action = action_button_cls(
@@ -290,7 +290,7 @@ def build_ips_panel_ui(
     layout.addWidget(actions_group)
 
     editor_card = settings_card_cls(
-        tr_fn("page.hostlist.ips.section.editor", "ipset-all.user.txt (редактор)")
+        tr_fn("page.hostlist.ips.section.editor", "lists/user/ipset-all.txt (редактор)")
     )
     editor_layout = qvbox_layout_cls()
     editor_layout.setSpacing(8)

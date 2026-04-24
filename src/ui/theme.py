@@ -6,8 +6,8 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from PyQt6.QtCore import QThread, QObject, pyqtSignal
 from PyQt6.QtGui import QPixmap, QColor, QIcon
-from config.reg import reg
 from config.config import THEME_FOLDER
+from settings import store as settings_store
 
 from log.log import log
 
@@ -83,13 +83,9 @@ _THEME_DYNAMIC_LAYER_END = "/* __THEME_DYNAMIC_LAYER_END__ */"
 
 
 def set_selected_theme(theme_name: str) -> bool:
-    """Записывает строку SelectedTheme"""
-    from config.config import REGISTRY_PATH
-
-    from log.log import log
-
-    result = reg(REGISTRY_PATH, "SelectedTheme", theme_name)
-    log(f"💾 Сохранение темы в реестр [{REGISTRY_PATH}]: '{theme_name}' -> {result}", "DEBUG")
+    """Сохраняет выбранную тему в settings.json."""
+    result = settings_store.set_selected_theme(theme_name)
+    log(f"💾 Сохранение темы в settings.json: '{theme_name}' -> {result}", "DEBUG")
     return result
 
 def _parse_rgb(rgb: str, *, default: tuple[int, int, int] = (0, 0, 0)) -> tuple[int, int, int]:
@@ -197,7 +193,7 @@ def _compute_tint_color(opacity_pct: int) -> tuple:
         r, g, b = 32, 32, 32
 
     try:
-        from config.reg import get_tinted_background, get_tinted_background_intensity
+        from settings.store import get_tinted_background, get_tinted_background_intensity
         if get_tinted_background():
             intensity = get_tinted_background_intensity()
             accent_rgb = _get_qfluent_themecolor()
@@ -399,7 +395,7 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
     # Determine preset
     if preset is None:
         try:
-            from config.reg import get_background_preset
+            from settings.store import get_background_preset
             preset = get_background_preset()
         except Exception:
             preset = "standard"
@@ -424,7 +420,7 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
     if hasattr(window, 'set_background_image'):
         if preset == "rkn_chan":
             try:
-                from config.reg import get_rkn_background
+                from settings.store import get_rkn_background
                 selected_rkn_bg = get_rkn_background()
             except Exception:
                 selected_rkn_bg = None
@@ -475,7 +471,7 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
             # Apply tint overlay based on current slider value (0%=pure Mica, 100%=heavy tint)
             if hasattr(window, 'set_tint_overlay'):
                 try:
-                    from config.reg import get_window_opacity
+                    from settings.store import get_window_opacity
                     opacity_pct = get_window_opacity()
                 except Exception:
                     opacity_pct = 0
@@ -490,7 +486,7 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
 
         # Standard preset, Mica OFF: transparent gradient (no blur) via DWM
         try:
-            from config.reg import get_window_opacity
+            from settings.store import get_window_opacity
             opacity_pct = get_window_opacity()
         except Exception:
             opacity_pct = 100
@@ -528,7 +524,7 @@ def _sync_theme_accent_to_qfluent(theme_name: str) -> None:
         from PyQt6.QtGui import QColor as _QColor
 
         try:
-            from config.reg import get_accent_color
+            from settings.store import get_accent_color
             hex_color = get_accent_color()
             if hex_color:
                 c = _QColor(hex_color)

@@ -200,6 +200,7 @@ class _SettingCardGroupAutoSizer(QObject):
         self._group = group
         self._cleanup_in_progress = False
         self._refresh_pending = False
+        self._refreshing = False
         self._watched_widget_ids: set[int] = set()
         self._watched_widgets: list[QWidget] = []
         self._watch_widget(group)
@@ -238,6 +239,8 @@ class _SettingCardGroupAutoSizer(QObject):
     def schedule_refresh(self) -> None:
         if self._cleanup_in_progress:
             return
+        if self._refreshing:
+            return
         if self._refresh_pending:
             return
         self._refresh_pending = True
@@ -251,6 +254,11 @@ class _SettingCardGroupAutoSizer(QObject):
         group = self._group
         if group is None:
             return
+        try:
+            if not group.isVisible():
+                return
+        except Exception:
+            pass
 
         layout = getattr(group, "vBoxLayout", None)
         if layout is None:
@@ -258,66 +266,82 @@ class _SettingCardGroupAutoSizer(QObject):
 
         self._watch_layout_widgets()
 
+        self._refreshing = True
         try:
-            layout.invalidate()
-            layout.activate()
-        except Exception:
-            pass
-
-        width_candidates = [
-            int(getattr(group, "width", lambda: 0)() or 0),
-        ]
-        try:
-            width_candidates.append(int(layout.sizeHint().width()))
-        except Exception:
-            pass
-        try:
-            width_candidates.append(int(group.sizeHint().width()))
-        except Exception:
-            pass
-        width = max(1, *width_candidates)
-
-        height = 0
-        try:
-            if layout.hasHeightForWidth():
-                height = int(layout.totalHeightForWidth(width))
-        except Exception:
-            height = 0
-        if height <= 0:
             try:
-                height = int(layout.sizeHint().height())
-            except Exception:
-                height = 0
-        if height <= 0:
-            return
-
-        try:
-            group.setMinimumHeight(height)
-        except Exception:
-            pass
-        try:
-            if group.height() != height:
-                group.resize(max(1, group.width()), height)
-        except Exception:
-            pass
-        try:
-            group.updateGeometry()
-        except Exception:
-            pass
-
-        parent = None
-        try:
-            parent = group.parentWidget()
-        except Exception:
-            parent = None
-        if parent is not None:
-            try:
-                parent.updateGeometry()
+                layout.invalidate()
+                layout.activate()
             except Exception:
                 pass
 
+            try:
+                width_candidates = [
+                    int(getattr(group, "width", lambda: 0)() or 0),
+                ]
+                try:
+                    width_candidates.append(int(layout.sizeHint().width()))
+                except Exception:
+                    pass
+                try:
+                    width_candidates.append(int(group.sizeHint().width()))
+                except Exception:
+                    pass
+                width = max(1, *width_candidates)
+
+                height = 0
+                try:
+                    if layout.hasHeightForWidth():
+                        height = int(layout.totalHeightForWidth(width))
+                except Exception:
+                    height = 0
+                if height <= 0:
+                    try:
+                        height = int(layout.sizeHint().height())
+                    except Exception:
+                        height = 0
+                if height <= 0:
+                    return
+
+                geometry_changed = False
+                try:
+                    if group.minimumHeight() != height:
+                        group.setMinimumHeight(height)
+                        geometry_changed = True
+                except Exception:
+                    pass
+                try:
+                    if group.height() != height:
+                        group.resize(max(1, group.width()), height)
+                        geometry_changed = True
+                except Exception:
+                    pass
+                if not geometry_changed:
+                    return
+
+                try:
+                    group.updateGeometry()
+                except Exception:
+                    pass
+
+                parent = None
+                try:
+                    parent = group.parentWidget()
+                except Exception:
+                    parent = None
+                if parent is not None:
+                    try:
+                        parent.updateGeometry()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        finally:
+            self._refreshing = False
+
     def eventFilter(self, obj, event):  # noqa: N802
         if self._cleanup_in_progress:
+            return False
+        if self._refreshing:
             return False
         _ = obj
         try:

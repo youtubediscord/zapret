@@ -1,5 +1,5 @@
 # lists/ui/custom_ipset_page.py
-"""Страница управления пользовательскими IP (ipset-all.user.txt)."""
+"""Страница управления пользовательскими IP (lists/user/ipset-all.txt)."""
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -42,14 +42,14 @@ from log.log import log
 
 
 class CustomIpSetPage(BasePage):
-    """Страница управления пользовательскими IP (ipset-all.user.txt)."""
+    """Страница управления пользовательскими IP (lists/user/ipset-all.txt)."""
 
     ipset_changed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(
             "Кастомные (мои) IP и подсети для ipset-all",
-            "Здесь Вы можете редактировать пользовательский список IP/подсетей (ipset-all.user.txt). Пишите только IP/CIDR, изменения сохраняются автоматически.",
+            "Здесь Вы можете редактировать пользовательский список IP/подсетей `lists/user/ipset-all.txt`. Пишите только IP/CIDR, изменения сохраняются автоматически.",
             parent,
             title_key="page.custom_ipset.title",
             subtitle_key="page.custom_ipset.subtitle",
@@ -106,11 +106,11 @@ class CustomIpSetPage(BasePage):
         desc = CaptionLabel(
             self._tr(
                 "page.custom_ipset.description",
-                "Добавляйте свои IP/подсети в ipset-all.user.txt.\n"
+                "Добавляйте свои IP/подсети в `lists/user/ipset-all.txt`.\n"
                 "• Одиночный IP: 1.2.3.4\n"
                 "• Подсеть: 10.0.0.0/8\n"
                 "Диапазоны (a-b) не поддерживаются.\n"
-                "Системная база хранится в ipset-all.base.txt и объединяется автоматически в ipset-all.txt.",
+                "Системная база хранится в `lists/base/ipset-all.txt`, а итоговый `lists/ipset-all.txt` собирается автоматически.",
             )
         )
         self._desc_label = desc
@@ -155,7 +155,7 @@ class CustomIpSetPage(BasePage):
             self.open_btn,
             self._tr(
                 "page.custom_ipset.action.open_file.description",
-                "Сохраняет изменения и открывает ipset-all.user.txt в проводнике.",
+                "Сохраняет изменения и открывает `lists/user/ipset-all.txt` в проводнике.",
             ),
         )
 
@@ -168,7 +168,7 @@ class CustomIpSetPage(BasePage):
             self.clear_btn,
             self._tr(
                 "page.custom_ipset.action.clear_all.description",
-                "Удаляет все пользовательские записи из ipset-all.user.txt.",
+                "Удаляет все пользовательские записи из `lists/user/ipset-all.txt`.",
             ),
         )
 
@@ -177,7 +177,7 @@ class CustomIpSetPage(BasePage):
         self.layout.addWidget(actions_group)
 
         # Текстовый редактор (вместо списка)
-        editor_card = SettingsCard(self._tr("page.custom_ipset.section.editor", "ipset-all.user.txt (редактор)"))
+        editor_card = SettingsCard(self._tr("page.custom_ipset.section.editor", "lists/user/ipset-all.txt (редактор)"))
         self._editor_card = editor_card
         editor_layout = QVBoxLayout()
         editor_layout.setSpacing(8)
@@ -258,7 +258,7 @@ class CustomIpSetPage(BasePage):
         self._has_validation_error = False
 
     def _load_entries(self):
-        """Загружает пользовательский список из ipset-all.user.txt."""
+        """Загружает пользовательский список из lists/user/ipset-all.txt."""
         if self._cleanup_in_progress:
             return
         try:
@@ -270,9 +270,9 @@ class CustomIpSetPage(BasePage):
             self.text_edit.blockSignals(False)
             self._status_state["saved"] = False
             self._update_status()
-            log(f"Загружено {state.lines_count} строк из ipset-all.user.txt", "INFO")
+            log(f"Загружено {state.lines_count} строк из lists/user/ipset-all.txt", "INFO")
         except Exception as e:
-            log(f"Ошибка загрузки ipset-all.user.txt: {e}", "ERROR")
+            log(f"Ошибка загрузки lists/user/ipset-all.txt: {e}", "ERROR")
             self._status_state["error_key"] = "page.custom_ipset.status.error_load"
             self._status_state["error_default"] = "❌ Ошибка загрузки: {error}"
             self._status_state["error_kwargs"] = {"error": e}
@@ -330,12 +330,12 @@ class CustomIpSetPage(BasePage):
         if self._desc_label is not None:
             self._desc_label.setText(
                 self._tr(
-                    "page.custom_ipset.description",
-                    "Добавляйте свои IP/подсети в ipset-all.user.txt.\n"
-                    "• Одиночный IP: 1.2.3.4\n"
-                    "• Подсеть: 10.0.0.0/8\n"
-                    "Диапазоны (a-b) не поддерживаются.\n"
-                    "Системная база хранится в ipset-all.base.txt и объединяется автоматически в ipset-all.txt.",
+                "page.custom_ipset.description",
+                "Добавляйте свои IP/подсети в `lists/user/ipset-all.txt`.\n"
+                "• Одиночный IP: 1.2.3.4\n"
+                "• Подсеть: 10.0.0.0/8\n"
+                "Диапазоны (a-b) не поддерживаются.\n"
+                "Системная база хранится в `lists/base/ipset-all.txt`, а итоговый `lists/ipset-all.txt` собирается автоматически.",
                 )
             )
         if self._add_card is not None:
@@ -348,7 +348,7 @@ class CustomIpSetPage(BasePage):
             except Exception:
                 pass
         if self._editor_card is not None:
-            self._editor_card.set_title(self._tr("page.custom_ipset.section.editor", "ipset-all.user.txt (редактор)"))
+            self._editor_card.set_title(self._tr("page.custom_ipset.section.editor", "lists/user/ipset-all.txt (редактор)"))
 
         self.input.setPlaceholderText(
             self._tr("page.custom_ipset.input.placeholder", "Например: 1.2.3.4 или 10.0.0.0/8")
@@ -364,7 +364,7 @@ class CustomIpSetPage(BasePage):
                 self.open_btn,
                 self._tr(
                     "page.custom_ipset.action.open_file.description",
-                    "Сохраняет изменения и открывает ipset-all.user.txt в проводнике.",
+                    "Сохраняет изменения и открывает `lists/user/ipset-all.txt` в проводнике.",
                 )
             )
         if self.clear_btn is not None:
@@ -373,7 +373,7 @@ class CustomIpSetPage(BasePage):
                 self.clear_btn,
                 self._tr(
                     "page.custom_ipset.action.clear_all.description",
-                    "Удаляет все пользовательские записи из ipset-all.user.txt.",
+                    "Удаляет все пользовательские записи из `lists/user/ipset-all.txt`.",
                 )
             )
         self.text_edit.setPlaceholderText(
@@ -412,7 +412,7 @@ class CustomIpSetPage(BasePage):
         self._render_status_label()
 
     def _save_entries(self):
-        """Сохраняет пользовательский список в ipset-all.user.txt."""
+        """Сохраняет пользовательский список в lists/user/ipset-all.txt."""
         try:
             text = self.text_edit.toPlainText()
             state = HostlistPageController.save_custom_ipset_text(text)
@@ -432,10 +432,10 @@ class CustomIpSetPage(BasePage):
                 self.text_edit.setTextCursor(cursor)
                 self.text_edit.blockSignals(False)
 
-            log(f"Сохранено {state.saved_count} строк в ipset-all.user.txt", "SUCCESS")
+            log(f"Сохранено {state.saved_count} строк в lists/user/ipset-all.txt", "SUCCESS")
             self.ipset_changed.emit()
         except Exception as e:
-            log(f"Ошибка сохранения ipset-all.user.txt: {e}", "ERROR")
+            log(f"Ошибка сохранения lists/user/ipset-all.txt: {e}", "ERROR")
 
     def _update_status(self):
         if self._cleanup_in_progress:
@@ -506,10 +506,10 @@ class CustomIpSetPage(BasePage):
             )
             if box.exec():
                 self.text_edit.clear()
-                log("Пользовательские записи ipset-all.user.txt удалены", "INFO")
+                log("Пользовательские записи lists/user/ipset-all.txt удалены", "INFO")
         else:
             self.text_edit.clear()
-            log("Пользовательские записи ipset-all.user.txt удалены", "INFO")
+            log("Пользовательские записи lists/user/ipset-all.txt удалены", "INFO")
 
     def _open_file(self):
         try:
@@ -517,7 +517,7 @@ class CustomIpSetPage(BasePage):
             self._save_entries()
             HostlistPageController.open_ipset_all_user_file()
         except Exception as e:
-            log(f"Ошибка открытия ipset-all.user.txt: {e}", "ERROR")
+            log(f"Ошибка открытия lists/user/ipset-all.txt: {e}", "ERROR")
             if InfoBar:
                 InfoBar.warning(
                     title=self._tr("common.error.title", "Ошибка"),

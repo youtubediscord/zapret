@@ -89,29 +89,6 @@ class AboutPageController:
         )
 
     @staticmethod
-    def get_client_id() -> str:
-        try:
-            from tgram import get_client_id
-
-            return str(get_client_id() or "")
-        except Exception:
-            return ""
-
-    @staticmethod
-    def copy_client_id(client_id: str) -> AboutActionResult:
-        from PyQt6.QtGui import QGuiApplication
-
-        cid = str(client_id or "").strip()
-        if not cid or cid == "—":
-            return AboutActionResult(False, "")
-        try:
-            QGuiApplication.clipboard().setText(cid)
-            return AboutActionResult(True, cid)
-        except Exception as e:
-            log(f"Ошибка копирования ID: {e}", "DEBUG")
-            return AboutActionResult(False, str(e))
-
-    @staticmethod
     def open_support_discussions() -> AboutActionResult:
         from config.urls import SUPPORT_DISCUSSIONS_URL
 

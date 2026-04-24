@@ -8,48 +8,20 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
-from utils.subproc import get_system_exe
-
-TASK_NAME = "ZapretGUI_AutoStart"
+from autostart.task_scheduler_api import (
+    CANONICAL_TASK_NAME,
+    is_canonical_autostart_enabled,
+    register_canonical_autostart_task,
+)
 
 
 def _log(message: str, level: str = "INFO"):
     timestamp = datetime.now().strftime("[%H:%M:%S]")
     print(f"{timestamp} [{level}] {message}")
-
-
-def _run_schtasks(args: list[str], *, check_output: bool = True) -> Any:
-    cmd = [get_system_exe("schtasks.exe")] + args
-
-    for encoding in ("utf-8", "cp866", "cp1251"):
-        try:
-            return subprocess.run(
-                cmd,
-                capture_output=check_output,
-                text=True,
-                encoding=encoding,
-                errors="replace",
-                timeout=30,
-            )
-        except (UnicodeDecodeError, subprocess.TimeoutExpired):
-            continue
-        except Exception:
-            continue
-
-    try:
-        return subprocess.run(cmd, capture_output=check_output, timeout=30)
-    except Exception as exc:
-        class ErrorResult:
-            returncode = -1
-            stdout = ""
-            stderr = str(exc)
-
-        return ErrorResult()
 
 
 def setup_autostart_for_exe(
@@ -68,27 +40,13 @@ def setup_autostart_for_exe(
         # Перед созданием новой задачи убираем только её текущую каноническую версию.
         clear_autostart_task(status_cb=_status)
 
-        create_args = [
-            "/Create",
-            "/TN",
-            TASK_NAME,
-            "/TR",
-            f'"{exe_path}" --tray',
-            "/SC",
-            "ONLOGON",
-            "/RL",
-            "HIGHEST",
-            "/F",
-        ]
-        result = _run_schtasks(create_args)
-
-        if result.returncode != 0:
-            error_msg = getattr(result, "stderr", "Неизвестная ошибка")
-            _log(f"Ошибка создания задачи автозапуска: {error_msg}", "❌ ERROR")
+        ok = register_canonical_autostart_task(exe_path)
+        if not ok:
+            _log("Ошибка создания задачи автозапуска через Task Scheduler API", "❌ ERROR")
             _status("Не удалось создать задачу автозапуска")
             return False
 
-        _log(f"Создана задача автозапуска: {TASK_NAME}", "INFO")
+        _log(f"Создана задача автозапуска: {CANONICAL_TASK_NAME}", "INFO")
         _status("Автозапуск программы включён")
         return True
     except Exception as exc:
@@ -98,7 +56,6 @@ def setup_autostart_for_exe(
 
 def is_autostart_enabled() -> bool:
     try:
-        result = _run_schtasks(["/Query", "/TN", TASK_NAME])
-        return result.returncode == 0
+        return bool(is_canonical_autostart_enabled())
     except Exception:
         return False

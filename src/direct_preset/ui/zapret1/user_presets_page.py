@@ -305,6 +305,7 @@ class Zapret1UserPresetsPage(BasePage):
         activate_user_presets_page(
             cleanup_in_progress=self._cleanup_in_progress,
             resync_layout_metrics_fn=self._resync_layout_metrics,
+            start_watching_presets_fn=self._start_watching_presets,
             runtime_service=self._runtime_service,
             refresh_presets_view_if_possible_fn=self.refresh_presets_view_if_possible,
             update_presets_view_height_fn=self._update_presets_view_height,
@@ -319,6 +320,7 @@ class Zapret1UserPresetsPage(BasePage):
     def on_page_hidden(self) -> None:
         self._layout_resync_timer.stop()
         self._layout_resync_delayed_timer.stop()
+        self._runtime_service.stop_watching_presets()
 
     def _after_ui_built(self) -> None:
         after_user_presets_ui_built(
@@ -327,7 +329,6 @@ class Zapret1UserPresetsPage(BasePage):
             on_store_changed_fn=self._on_store_changed,
             on_store_switched_fn=self._on_store_switched,
             on_store_updated_fn=self._on_store_updated,
-            start_watching_presets_fn=self._start_watching_presets,
             log_fn=log,
         )
 
@@ -446,7 +447,7 @@ class Zapret1UserPresetsPage(BasePage):
         self.add_spacing(4)
         self.add_widget(self._preset_search_input)
         try:
-            from config.reg import get_smooth_scroll_enabled
+            from settings.store import get_smooth_scroll_enabled
             smooth_enabled = get_smooth_scroll_enabled()
             self.set_smooth_scroll_enabled(smooth_enabled)
         except Exception:

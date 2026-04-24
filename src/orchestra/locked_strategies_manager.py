@@ -24,9 +24,22 @@ from typing import Dict, Optional, Callable, Set, List
 
 from log.log import log
 
-from config.config import REGISTRY_PATH
-
-from config.reg import reg, reg_enumerate_values, reg_delete_all_values, reg_delete_value
+from settings.store import (
+    clear_orchestra_history,
+    clear_orchestra_locked_map,
+    clear_orchestra_user_locked,
+    get_orchestra_history,
+    get_orchestra_locked_map,
+    get_orchestra_user_locked,
+    remove_orchestra_history_target,
+    remove_orchestra_locked_target,
+    remove_orchestra_user_locked,
+    set_orchestra_history,
+    set_orchestra_history_for_target,
+    set_orchestra_locked_map,
+    set_orchestra_locked_strategy,
+    set_orchestra_user_locked,
+)
 from orchestra.ignored_targets import is_orchestra_ignored_target
 
 
@@ -53,29 +66,6 @@ PROTO_TO_ASKEY = {
     "dns": "dns",
     "stun": "stun",
 }
-
-# Пути в реестре для хранения обученных стратегий (subkeys)
-REGISTRY_ORCHESTRA = f"{REGISTRY_PATH}\\Orchestra"
-REGISTRY_ORCHESTRA_HISTORY = f"{REGISTRY_ORCHESTRA}\\History"  # История: domain=JSON (REG_SZ)
-
-def get_registry_path(askey: str) -> str:
-    """Возвращает путь в реестре для askey"""
-    return f"{REGISTRY_ORCHESTRA}\\{askey.title()}"
-
-def get_user_registry_path(askey: str) -> str:
-    """Возвращает путь в реестре для user locks askey"""
-    return f"{REGISTRY_ORCHESTRA}\\User{askey.title()}"
-
-# Legacy paths для backward compatibility
-REGISTRY_ORCHESTRA_TLS = get_registry_path("tls")
-REGISTRY_ORCHESTRA_HTTP = get_registry_path("http")
-REGISTRY_ORCHESTRA_UDP = get_registry_path("udp")  # Будет мигрирован в Quic
-REGISTRY_ORCHESTRA_UNKNOWN = get_registry_path("unknown")
-REGISTRY_ORCHESTRA_USER_TLS = get_user_registry_path("tls")
-REGISTRY_ORCHESTRA_USER_HTTP = get_user_registry_path("http")
-REGISTRY_ORCHESTRA_USER_UDP = get_user_registry_path("udp")  # Будет мигрирован в UserQuic
-REGISTRY_ORCHESTRA_USER_UNKNOWN = get_user_registry_path("unknown")
-
 
 class LockedStrategiesManager:
     """
@@ -137,89 +127,14 @@ class LockedStrategiesManager:
         return is_orchestra_ignored_target(hostname)
 
     def _migrate_old_registry_format(self):
-        """Мигрирует старый формат (JSON в одном ключе) в новый (subkeys)"""
-        try:
-            # Проверяем есть ли старые данные
-            old_tls = reg(REGISTRY_ORCHESTRA, "LearnedStrategies")
-            old_http = reg(REGISTRY_ORCHESTRA, "LearnedStrategiesHTTP")
-            old_history = reg(REGISTRY_ORCHESTRA, "StrategyHistory")
-
-            migrated = False
-
-            # Мигрируем TLS
-            if old_tls and old_tls != "{}":
-                try:
-                    data = json.loads(old_tls)
-                    for domain, strategy in data.items():
-                        reg(get_registry_path("tls"), domain, int(strategy))
-                    reg(REGISTRY_ORCHESTRA, "LearnedStrategies", None)  # Удаляем старый ключ
-                    migrated = True
-                    log(f"Мигрировано {len(data)} TLS стратегий в новый формат", "INFO")
-                except Exception:
-                    pass
-
-            # Мигрируем HTTP
-            if old_http and old_http != "{}":
-                try:
-                    data = json.loads(old_http)
-                    for domain, strategy in data.items():
-                        reg(get_registry_path("http"), domain, int(strategy))
-                    reg(REGISTRY_ORCHESTRA, "LearnedStrategiesHTTP", None)  # Удаляем старый ключ
-                    migrated = True
-                    log(f"Мигрировано {len(data)} HTTP стратегий в новый формат", "INFO")
-                except Exception:
-                    pass
-
-            # Мигрируем историю
-            if old_history and old_history != "{}":
-                try:
-                    data = json.loads(old_history)
-                    for domain, strategies in data.items():
-                        json_str = json.dumps(strategies, ensure_ascii=False)
-                        reg(REGISTRY_ORCHESTRA_HISTORY, domain, json_str)
-                    reg(REGISTRY_ORCHESTRA, "StrategyHistory", None)  # Удаляем старый ключ
-                    migrated = True
-                    log(f"Мигрирована история для {len(data)} доменов в новый формат", "INFO")
-                except Exception:
-                    pass
-
-            # Мигрируем старый UDP в новый Quic
-            old_udp_data = reg_enumerate_values(REGISTRY_ORCHESTRA_UDP)
-            if old_udp_data:
-                quic_path = get_registry_path("quic")
-                for ip, strategy in old_udp_data.items():
-                    reg(quic_path, ip, int(strategy))
-                    try:
-                        reg_delete_value(REGISTRY_ORCHESTRA_UDP, ip)
-                    except Exception:
-                        pass
-                migrated = True
-                log(f"Мигрировано {len(old_udp_data)} UDP стратегий в Quic", "INFO")
-
-            # Мигрируем старый UserUDP в новый UserQuic
-            old_user_udp_data = reg_enumerate_values(REGISTRY_ORCHESTRA_USER_UDP)
-            if old_user_udp_data:
-                user_quic_path = get_user_registry_path("quic")
-                for ip in old_user_udp_data.keys():
-                    reg(user_quic_path, ip, 1)
-                    try:
-                        reg_delete_value(REGISTRY_ORCHESTRA_USER_UDP, ip)
-                    except Exception:
-                        pass
-                migrated = True
-                log(f"Мигрировано {len(old_user_udp_data)} UserUDP locks в UserQuic", "INFO")
-
-            if migrated:
-                log("Миграция реестра завершена", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка миграции реестра: {e}", "DEBUG")
+        """Legacy-миграция удалена: стартуем только из settings.json."""
+        return None
 
     # ==================== ЗАГРУЗКА/СОХРАНЕНИЕ ====================
 
     def load(self) -> Dict[str, int]:
         """
-        Загружает залоченные стратегии и историю из реестра.
+        Загружает залоченные стратегии и историю из settings.json.
 
         Returns:
             Словарь TLS стратегий {hostname: strategy} (для backward compatibility)
@@ -229,38 +144,30 @@ class LockedStrategiesManager:
             self.locked_by_askey[askey].clear()
             self.user_locked_by_askey[askey].clear()
 
-        # Сначала мигрируем старый формат если есть
-        self._migrate_old_registry_format()
-
         try:
             total_loaded = 0
             total_user_locks = 0
 
             # Загружаем стратегии для всех 9 askey профилей
             for askey in ASKEY_ALL:
-                reg_path = get_registry_path(askey)
-                user_reg_path = get_user_registry_path(askey)
-
-                # Загружаем locked стратегии
                 try:
-                    data = reg_enumerate_values(reg_path)
+                    data = get_orchestra_locked_map(askey)
                     for hostname, strategy in data.items():
                         hostname_norm = hostname.lower()
                         if self._is_ignored_hostname(hostname_norm):
-                            reg_delete_value(reg_path, hostname)
+                            remove_orchestra_locked_target(askey, hostname)
                             continue
                         self.locked_by_askey[askey][hostname_norm] = int(strategy)
                     total_loaded += len(data)
                 except Exception:
                     pass
 
-                # Загружаем user locks
                 try:
-                    user_data = reg_enumerate_values(user_reg_path)
-                    for hostname in user_data.keys():
+                    user_data = list(get_orchestra_user_locked(askey))
+                    for hostname in user_data:
                         hostname_norm = hostname.lower()
                         if self._is_ignored_hostname(hostname_norm):
-                            reg_delete_value(user_reg_path, hostname)
+                            remove_orchestra_user_locked(askey, hostname)
                             continue
                         self.user_locked_by_askey[askey].add(hostname_norm)
                     total_user_locks += len(user_data)
@@ -277,7 +184,7 @@ class LockedStrategiesManager:
             self._clean_blocked_conflicts()
 
         except Exception as e:
-            log(f"Ошибка загрузки стратегий из реестра: {e}", "DEBUG")
+            log(f"Ошибка загрузки стратегий из settings.json: {e}", "DEBUG")
 
         # Загружаем историю
         self.load_history()
@@ -298,8 +205,6 @@ class LockedStrategiesManager:
         for askey in ASKEY_ALL:
             target_dict = self.locked_by_askey[askey]
             user_set = self.user_locked_by_askey[askey]
-            reg_path = get_registry_path(askey)
-            user_reg_path = get_user_registry_path(askey)
 
             # Очистка s1 для дефолтно заблокированных доменов (только TCP профили)
             # НО: не удаляем user locks - пользователь явно залочил домен
@@ -310,7 +215,7 @@ class LockedStrategiesManager:
                             blocked_cleaned.append((hostname, askey))
                             del target_dict[hostname]
                             try:
-                                reg_delete_value(reg_path, hostname)
+                                remove_orchestra_locked_target(askey, hostname)
                             except Exception:
                                 pass
 
@@ -320,16 +225,14 @@ class LockedStrategiesManager:
                 if self.blocked_manager.is_blocked(hostname, strategy):
                     conflicts_cleaned.append((hostname, strategy, askey.upper()))
                     del target_dict[hostname]
-                    # Удаляем из реестра locked
                     try:
-                        reg_delete_value(reg_path, hostname)
+                        remove_orchestra_locked_target(askey, hostname)
                     except Exception:
                         pass
-                    # Удаляем также из user locks если есть
                     if hostname in user_set:
                         user_set.discard(hostname)
                         try:
-                            reg_delete_value(user_reg_path, hostname)
+                            remove_orchestra_user_locked(askey, hostname)
                         except Exception:
                             pass
 
@@ -343,17 +246,14 @@ class LockedStrategiesManager:
                 log(f"  - {hostname} strategy={strategy} [{askey_upper}]", "INFO")
 
     def save(self):
-        """Сохраняет залоченные стратегии в реестр"""
+        """Сохраняет залоченные стратегии в settings.json."""
         try:
             total_saved = 0
 
-            # Сохраняем стратегии для всех 9 askey профилей
             for askey in ASKEY_ALL:
-                reg_path = get_registry_path(askey)
                 target_dict = self.locked_by_askey[askey]
-
-                for hostname, strategy in target_dict.items():
-                    reg(reg_path, hostname, int(strategy))
+                set_orchestra_locked_map(askey, {hostname: int(strategy) for hostname, strategy in target_dict.items()})
+                set_orchestra_user_locked(askey, sorted(self.user_locked_by_askey[askey]))
                 total_saved += len(target_dict)
 
             # Логируем детальную статистику
@@ -363,7 +263,7 @@ class LockedStrategiesManager:
                 log(f"Сохранено {total_saved} стратегий ({stats})", "DEBUG")
 
         except Exception as e:
-            log(f"Ошибка сохранения стратегий в реестр: {e}", "ERROR")
+            log(f"Ошибка сохранения стратегий в settings.json: {e}", "ERROR")
 
     # ==================== LOCK/UNLOCK ====================
 
@@ -389,19 +289,18 @@ class LockedStrategiesManager:
         # Получаем словари и пути реестра для данного askey
         target_dict = self.locked_by_askey[askey]
         user_set = self.user_locked_by_askey[askey]
-        reg_path = get_registry_path(askey)
-        user_reg_path = get_user_registry_path(askey)
-
         # Сохраняем стратегию
         target_dict[hostname] = strategy
-        reg(reg_path, hostname, strategy)
+        set_orchestra_locked_strategy(askey, hostname, strategy)
 
         # Если user_lock - добавляем в user set и сохраняем в реестр
         if user_lock:
             user_set.add(hostname)
-            reg(user_reg_path, hostname, 1)  # Просто маркер (значение 1)
+            set_orchestra_user_locked(askey, sorted(user_set))
             log(f"[USER] Залочена стратегия #{strategy} для {hostname} [{askey.upper()}]", "INFO")
         else:
+            if hostname in user_set:
+                set_orchestra_user_locked(askey, sorted(user_set))
             log(f"Залочена стратегия #{strategy} для {hostname} [{askey.upper()}]", "INFO")
 
         if self.output_callback:
@@ -425,23 +324,18 @@ class LockedStrategiesManager:
         # Получаем словари и пути реестра для данного askey
         target_dict = self.locked_by_askey[askey]
         user_set = self.user_locked_by_askey[askey]
-        reg_path = get_registry_path(askey)
-        user_reg_path = get_user_registry_path(askey)
-
         if hostname in target_dict:
             old_strategy = target_dict[hostname]
             del target_dict[hostname]
-            # Удаляем из реестра
             try:
-                reg(reg_path, hostname, None)  # None = удалить значение
+                remove_orchestra_locked_target(askey, hostname)
             except Exception:
                 pass
 
-            # Удаляем также из user locks если есть
             if hostname in user_set:
                 user_set.discard(hostname)
                 try:
-                    reg(user_reg_path, hostname, None)
+                    remove_orchestra_user_locked(askey, hostname)
                 except Exception:
                     pass
 
@@ -478,20 +372,12 @@ class LockedStrategiesManager:
             True если очистка успешна
         """
         try:
-            # Очищаем реестр для всех 9 askey профилей
             for askey in ASKEY_ALL:
-                try:
-                    reg_delete_all_values(get_registry_path(askey))
-                except Exception:
-                    pass
-                try:
-                    reg_delete_all_values(get_user_registry_path(askey))
-                except Exception:
-                    pass
+                clear_orchestra_locked_map(askey)
+                clear_orchestra_user_locked(askey)
 
-            # Очищаем историю
-            reg_delete_all_values(REGISTRY_ORCHESTRA_HISTORY)
-            log("Очищены обученные стратегии, user locks и история в реестре", "INFO")
+            clear_orchestra_history()
+            log("Очищены обученные стратегии, user locks и история в settings.json", "INFO")
 
             # Очищаем все словари по askey БЕЗ создания новых (сохраняем ссылки!)
             for askey in ASKEY_ALL:
@@ -573,17 +459,18 @@ class LockedStrategiesManager:
     # ==================== ИСТОРИЯ СТРАТЕГИЙ ====================
 
     def load_history(self):
-        """Загружает историю стратегий из реестра"""
+        """Загружает историю стратегий из settings.json."""
         self.strategy_history = {}
         try:
-            history_data = reg_enumerate_values(REGISTRY_ORCHESTRA_HISTORY)
+            history_data = get_orchestra_history()
             for domain, json_str in history_data.items():
                 if self._is_ignored_hostname(domain):
-                    reg_delete_value(REGISTRY_ORCHESTRA_HISTORY, domain)
+                    remove_orchestra_history_target(domain)
                     continue
                 try:
-                    self.strategy_history[domain] = json.loads(json_str)
-                except json.JSONDecodeError:
+                    if isinstance(json_str, dict):
+                        self.strategy_history[domain] = json_str
+                except Exception:
                     pass
 
             if self.strategy_history:
@@ -593,14 +480,15 @@ class LockedStrategiesManager:
             self.strategy_history = {}
 
     def save_history(self):
-        """Сохраняет историю стратегий в реестр"""
+        """Сохраняет историю стратегий в settings.json."""
         try:
+            sanitized: dict[str, dict[str, dict[str, int]]] = {}
             for domain, strategies in self.strategy_history.items():
                 if self._is_ignored_hostname(domain):
-                    reg_delete_value(REGISTRY_ORCHESTRA_HISTORY, domain)
+                    remove_orchestra_history_target(domain)
                     continue
-                json_str = json.dumps(strategies, ensure_ascii=False)
-                reg(REGISTRY_ORCHESTRA_HISTORY, domain, json_str)
+                sanitized[domain] = strategies
+            set_orchestra_history(sanitized)
             log(f"Сохранена история для {len(self.strategy_history)} доменов", "DEBUG")
         except Exception as e:
             log(f"Ошибка сохранения истории: {e}", "ERROR")
@@ -617,6 +505,7 @@ class LockedStrategiesManager:
             'successes': successes,
             'failures': failures
         }
+        set_orchestra_history_for_target(hostname, self.strategy_history[hostname])
 
     def increment_history(self, hostname: str, strategy: int, is_success: bool):
         """Инкрементирует счётчик успехов или неудач для домена/стратегии"""
@@ -633,6 +522,7 @@ class LockedStrategiesManager:
             self.strategy_history[hostname][strat_key]['successes'] += 1
         else:
             self.strategy_history[hostname][strat_key]['failures'] += 1
+        set_orchestra_history_for_target(hostname, self.strategy_history[hostname])
 
     def get_history_for_domain(self, hostname: str) -> dict:
         """Возвращает историю стратегий для домена с рейтингами"""

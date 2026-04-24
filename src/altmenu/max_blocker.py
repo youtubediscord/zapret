@@ -10,12 +10,6 @@ from pathlib import Path
 from typing import Optional, Callable, List, Tuple
 from log.log import log
 
-
-# Ключ в реестре для хранения настройки
-from config.config import REGISTRY_PATH_GUI
-
-REGISTRY_KEY_MAX_BLOCKED = "MaxBlocked"
-
 # Путь к политикам Explorer для блокировки запуска
 EXPLORER_POLICIES_PATH = r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer"
 DISALLOW_RUN_PATH = r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\DisallowRun"
@@ -61,21 +55,20 @@ class MaxBlockerManager:
     def is_max_blocked(self) -> bool:
         """Проверяет, включена ли блокировка MAX"""
         try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_GUI) as key:
-                value, _ = winreg.QueryValueEx(key, REGISTRY_KEY_MAX_BLOCKED)
-                return bool(value)
-        except (FileNotFoundError, OSError):
+            from settings.store import get_max_blocked
+
+            return bool(get_max_blocked())
+        except Exception:
             return False
     
     def set_max_blocked(self, blocked: bool) -> bool:
-        """Сохраняет состояние блокировки в реестр"""
+        """Сохраняет состояние блокировки в settings.json."""
         try:
-            # Создаем ключ если не существует
-            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, REGISTRY_PATH_GUI) as key:
-                winreg.SetValueEx(key, REGISTRY_KEY_MAX_BLOCKED, 0, winreg.REG_DWORD, int(blocked))
-            return True
+            from settings.store import set_max_blocked as store_set_max_blocked
+
+            return bool(store_set_max_blocked(bool(blocked)))
         except Exception as e:
-            log(f"Ошибка записи в реестр: {e}", "❌ ERROR")
+            log(f"Ошибка сохранения состояния блокировки MAX: {e}", "❌ ERROR")
             return False
     
     def block_processes_in_registry(self) -> bool:

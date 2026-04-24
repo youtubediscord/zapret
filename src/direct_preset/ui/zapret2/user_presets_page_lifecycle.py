@@ -25,6 +25,7 @@ def activate_user_presets_page(
     rebuild_breadcrumb_fn,
     apply_mode_labels_fn,
     resync_layout_metrics_fn,
+    start_watching_presets_fn,
     runtime_service,
     refresh_presets_view_if_possible_fn,
     update_presets_view_height_fn,
@@ -32,6 +33,10 @@ def activate_user_presets_page(
 ) -> None:
     if cleanup_in_progress:
         return
+    try:
+        start_watching_presets_fn()
+    except Exception:
+        pass
     rebuild_breadcrumb_fn()
     apply_mode_labels_fn()
     resync_layout_metrics_fn()
@@ -49,7 +54,6 @@ def after_user_presets_ui_built(
     on_store_changed_fn,
     on_store_switched_fn,
     on_store_updated_fn,
-    start_watching_presets_fn,
     log_fn,
 ) -> None:
     started_at = time.perf_counter()
@@ -63,11 +67,6 @@ def after_user_presets_ui_built(
         store.preset_updated.connect(on_store_updated_fn)
     except Exception:
         pass
-    try:
-        start_watching_presets_fn()
-    except Exception:
-        pass
-
     elapsed_ms = int((time.perf_counter() - started_at) * 1000)
     log_fn(f"Z2UserPresetsPage: lazy ui init {elapsed_ms}ms", "DEBUG")
 

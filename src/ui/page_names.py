@@ -31,8 +31,8 @@ class PageName(Enum):
 
     # === Мои списки ===
     NETROGAT = auto()                # Исключения (netrogat.txt)
-    CUSTOM_DOMAINS = auto()          # Мои hostlist (other.user.txt)
-    CUSTOM_IPSET = auto()            # Мои ipset (ipset-all.user.txt)
+    CUSTOM_DOMAINS = auto()          # Мои hostlist (lists/user/other.txt)
+    CUSTOM_IPSET = auto()            # Мои ipset (lists/user/ipset-all.txt)
 
     # === Настройки системы ===
     AUTOSTART = auto()               # Автозапуск

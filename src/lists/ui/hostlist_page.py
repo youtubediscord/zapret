@@ -565,7 +565,7 @@ class HostlistPage(BasePage):
             domains_text = state.text
             load_text_into_editor(self._d_editor, domains_text)
             self._domains_update_status()
-            log(f"Загружено {state.lines_count} строк из other.user.txt", "INFO")
+            log(f"Загружено {state.lines_count} строк из lists/user/other.txt", "INFO")
         except Exception as e:
             log(f"Ошибка загрузки доменов: {e}", "ERROR")
             if hasattr(self, "_d_status"):
@@ -596,7 +596,7 @@ class HostlistPage(BasePage):
                 current_text=text,
                 update_status_fn=self._domains_update_status,
             )
-            log(f"Сохранено {state.saved_count} строк в other.user.txt", "SUCCESS")
+            log(f"Сохранено {state.saved_count} строк в lists/user/other.txt", "SUCCESS")
             self.domains_changed.emit()
         except Exception as e:
             log(f"Ошибка сохранения доменов: {e}", "ERROR")
@@ -679,9 +679,9 @@ class HostlistPage(BasePage):
             self._ip_base_set_cache = state.base_set
             load_text_into_editor(self._i_editor, state.text)
             self._ips_update_status()
-            log(f"Загружено {state.lines_count} строк из ipset-all.user.txt", "INFO")
+            log(f"Загружено {state.lines_count} строк из lists/user/ipset-all.txt", "INFO")
         except Exception as e:
-            log(f"Ошибка загрузки ipset-all.user.txt: {e}", "ERROR")
+            log(f"Ошибка загрузки lists/user/ipset-all.txt: {e}", "ERROR")
             if hasattr(self, "_i_status"):
                 self._i_status.setText(
                     self._tr("page.hostlist.status.error", "❌ Ошибка: {error}", error=e)
@@ -711,10 +711,10 @@ class HostlistPage(BasePage):
                 update_status_fn=self._ips_update_status,
             )
             self._ips_update_status()
-            log(f"Сохранено {state.saved_count} строк в ipset-all.user.txt", "SUCCESS")
+            log(f"Сохранено {state.saved_count} строк в lists/user/ipset-all.txt", "SUCCESS")
             self.ipset_changed.emit()
         except Exception as e:
-            log(f"Ошибка сохранения ipset-all.user.txt: {e}", "ERROR")
+            log(f"Ошибка сохранения lists/user/ipset-all.txt: {e}", "ERROR")
 
     def _ips_update_status(self):
         if not hasattr(self, "_i_status") or not hasattr(self, "_i_editor"):
@@ -834,7 +834,7 @@ class HostlistPage(BasePage):
             self._excl_base_set_cache = state.base_set
             load_text_into_editor(self._excl_editor, state.text)
             self._excl_update_status()
-            log(f"Загружено {state.lines_count} строк из netrogat.user.txt", "INFO")
+            log(f"Загружено {state.lines_count} строк из lists/user/netrogat.txt", "INFO")
         except Exception as e:
             log(f"Ошибка загрузки netrogat: {e}", "ERROR")
             if hasattr(self, "_excl_status"):
@@ -853,9 +853,9 @@ class HostlistPage(BasePage):
 
             load_text_into_editor(self._ipru_editor, state.text)
             self._ipru_update_status()
-            log(f"Загружено {state.lines_count} строк из ipset-ru.user.txt", "INFO")
+            log(f"Загружено {state.lines_count} строк из lists/user/ipset-ru.txt", "INFO")
         except Exception as e:
-            log(f"Ошибка загрузки ipset-ru.user.txt: {e}", "ERROR")
+            log(f"Ошибка загрузки lists/user/ipset-ru.txt: {e}", "ERROR")
             if hasattr(self, "_ipru_status"):
                 self._ipru_status.setText(
                     self._tr("page.hostlist.status.error", "❌ Ошибка: {error}", error=e)
@@ -979,9 +979,9 @@ class HostlistPage(BasePage):
                 current_text=text,
             )
             self._ipru_update_status()
-            log(f"Сохранено {state.saved_count} строк в ipset-ru.user.txt", "SUCCESS")
+            log(f"Сохранено {state.saved_count} строк в lists/user/ipset-ru.txt", "SUCCESS")
         except Exception as e:
-            log(f"Ошибка сохранения ipset-ru.user.txt: {e}", "ERROR")
+            log(f"Ошибка сохранения lists/user/ipset-ru.txt: {e}", "ERROR")
 
     def _ipru_update_status(self):
         if not hasattr(self, "_ipru_status") or not hasattr(self, "_ipru_editor"):
@@ -1099,7 +1099,7 @@ class HostlistPage(BasePage):
             except Exception:
                 pass
         if hasattr(self, "_domains_editor_card"):
-            self._domains_editor_card.set_title(self._tr("page.hostlist.domains.section.editor", "other.user.txt (редактор)"))
+            self._domains_editor_card.set_title(self._tr("page.hostlist.domains.section.editor", "lists/user/other.txt (редактор)"))
         if hasattr(self, "_d_input"):
             self._d_input.setPlaceholderText(
                 self._tr("page.hostlist.domains.input.placeholder", "Введите домен или URL (например: example.com)")
@@ -1112,7 +1112,7 @@ class HostlistPage(BasePage):
                 self._domains_open_action_card,
                 self._tr(
                     "page.hostlist.domains.tooltip.open_file",
-                    "Сохраняет изменения и открывает other.user.txt в проводнике",
+                    "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике",
                 ),
             )
         if hasattr(self, "_domains_reset_action_card"):
@@ -1121,7 +1121,7 @@ class HostlistPage(BasePage):
                 self._domains_reset_action_card,
                 self._tr(
                     "page.hostlist.domains.tooltip.reset_file",
-                    "Очищает other.user.txt и пересобирает other.txt из системной базы",
+                    "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
                 ),
             )
         if hasattr(self, "_domains_clear_action_card"):
@@ -1152,7 +1152,7 @@ class HostlistPage(BasePage):
             except Exception:
                 pass
         if hasattr(self, "_ips_editor_card"):
-            self._ips_editor_card.set_title(self._tr("page.hostlist.ips.section.editor", "ipset-all.user.txt (редактор)"))
+            self._ips_editor_card.set_title(self._tr("page.hostlist.ips.section.editor", "lists/user/ipset-all.txt (редактор)"))
         if hasattr(self, "_i_input"):
             self._i_input.setPlaceholderText(
                 self._tr("page.hostlist.ips.input.placeholder", "Например: 1.2.3.4 или 10.0.0.0/8")
@@ -1163,7 +1163,7 @@ class HostlistPage(BasePage):
             self._ips_open_action_card.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
             set_tooltip(
                 self._ips_open_action_card,
-                self._tr("page.hostlist.ips.action.open_file.description", "Сохраняет изменения и открывает ipset-all.user.txt в проводнике."),
+                self._tr("page.hostlist.ips.action.open_file.description", "Сохраняет изменения и открывает `lists/user/ipset-all.txt` в проводнике."),
             )
         if hasattr(self, "_ips_clear_action_card"):
             self._ips_clear_action_card.setText(self._tr("page.hostlist.button.clear_all", "Очистить всё"))
@@ -1193,7 +1193,7 @@ class HostlistPage(BasePage):
             except Exception:
                 pass
         if hasattr(self, "_excl_editor_card"):
-            self._excl_editor_card.set_title(self._tr("page.hostlist.exclusions.section.editor_domain", "netrogat.user.txt (редактор)"))
+            self._excl_editor_card.set_title(self._tr("page.hostlist.exclusions.section.editor_domain", "lists/user/netrogat.txt (редактор)"))
         if hasattr(self, "_excl_input"):
             self._excl_input.setPlaceholderText(
                 self._tr(
@@ -1213,7 +1213,7 @@ class HostlistPage(BasePage):
             self._excl_open_action_card.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
             set_tooltip(
                 self._excl_open_action_card,
-                self._tr("page.hostlist.exclusions.action.open_file.description", "Сохраняет изменения и открывает netrogat.user.txt в проводнике."),
+                self._tr("page.hostlist.exclusions.action.open_file.description", "Сохраняет изменения и открывает `lists/user/netrogat.txt` в проводнике."),
             )
         if hasattr(self, "_excl_open_final_action_card"):
             self._excl_open_final_action_card.setText(self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"))
@@ -1225,7 +1225,7 @@ class HostlistPage(BasePage):
             self._excl_clear_action_card.setText(self._tr("page.hostlist.button.clear_all", "Очистить всё"))
             set_tooltip(
                 self._excl_clear_action_card,
-                self._tr("page.hostlist.exclusions.action.clear_all.description", "Удаляет все пользовательские домены из netrogat.user.txt."),
+                self._tr("page.hostlist.exclusions.action.clear_all.description", "Удаляет все пользовательские домены из `lists/user/netrogat.txt`."),
             )
         if hasattr(self, "_excl_editor"):
             self._excl_editor.setPlaceholderText(
@@ -1247,7 +1247,7 @@ class HostlistPage(BasePage):
             self._ipru_desc_label.setText(
                 self._tr(
                     "page.hostlist.exclusions.ipru.desc",
-                    "Редактируйте только ipset-ru.user.txt. Системная база хранится в ipset-ru.base.txt и автоматически объединяется в ipset-ru.txt.",
+                    "Редактируйте только `lists/user/ipset-ru.txt`. Системная база хранится в `lists/base/ipset-ru.txt`, а итоговый `lists/ipset-ru.txt` собирается автоматически.",
                 )
             )
         if hasattr(self, "_ipru_add_card"):
@@ -1262,7 +1262,7 @@ class HostlistPage(BasePage):
             except Exception:
                 pass
         if hasattr(self, "_ipru_editor_card"):
-            self._ipru_editor_card.set_title(self._tr("page.hostlist.exclusions.ipru.section.editor", "ipset-ru.user.txt (редактор)"))
+            self._ipru_editor_card.set_title(self._tr("page.hostlist.exclusions.ipru.section.editor", "lists/user/ipset-ru.txt (редактор)"))
         if hasattr(self, "_ipru_input"):
             self._ipru_input.setPlaceholderText(
                 self._tr("page.hostlist.ips.input.placeholder", "Например: 1.2.3.4 или 10.0.0.0/8")
@@ -1273,7 +1273,7 @@ class HostlistPage(BasePage):
             self._ipru_open_action_card.setText(self._tr("page.hostlist.button.open_file", "Открыть файл"))
             set_tooltip(
                 self._ipru_open_action_card,
-                self._tr("page.hostlist.exclusions.ipru.action.open_file.description", "Сохраняет изменения и открывает ipset-ru.user.txt в проводнике."),
+                self._tr("page.hostlist.exclusions.ipru.action.open_file.description", "Сохраняет изменения и открывает `lists/user/ipset-ru.txt` в проводнике."),
             )
         if hasattr(self, "_ipru_open_final_action_card"):
             self._ipru_open_final_action_card.setText(self._tr("page.hostlist.exclusions.button.open_final", "Открыть итоговый"))
@@ -1285,7 +1285,7 @@ class HostlistPage(BasePage):
             self._ipru_clear_action_card.setText(self._tr("page.hostlist.button.clear_all", "Очистить всё"))
             set_tooltip(
                 self._ipru_clear_action_card,
-                self._tr("page.hostlist.exclusions.ipru.action.clear_all.description", "Удаляет все пользовательские IP-исключения из ipset-ru.user.txt."),
+                self._tr("page.hostlist.exclusions.ipru.action.clear_all.description", "Удаляет все пользовательские IP-исключения из `lists/user/ipset-ru.txt`."),
             )
         if hasattr(self, "_ipru_editor"):
             self._ipru_editor.setPlaceholderText(

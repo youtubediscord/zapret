@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import RLock
 
-from config.reg import reg
-from orchestra.orchestra_runner import OrchestraRunner, REGISTRY_ORCHESTRA
+from orchestra.orchestra_runner import OrchestraRunner
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,8 +46,9 @@ class OrchestraWhitelistRuntimeService:
 
     @staticmethod
     def _registry_revision() -> str:
-        raw = reg(REGISTRY_ORCHESTRA, "Whitelist")
-        return str(raw or "")
+        from settings.store import get_orchestra_whitelist_user_domains
+
+        return "|".join(get_orchestra_whitelist_user_domains())
 
     def _revision(self, window) -> tuple[object, ...]:
         live_runner = self._live_runner(window)

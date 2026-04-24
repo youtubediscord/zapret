@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 
+from config.config import MAIN_DIRECTORY
 from main.runtime_state import is_startup_debug_enabled
 
 
@@ -12,10 +13,7 @@ _PRELAUNCH_DONE = False
 def _set_workdir_to_app() -> None:
     """Устанавливает рабочую директорию в папку exe/скрипта."""
     try:
-        if "__compiled__" in globals():
-            app_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-        else:
-            app_dir = os.path.dirname(sys.executable)
+        app_dir = os.path.abspath(MAIN_DIRECTORY)
 
         os.chdir(app_dir)
 

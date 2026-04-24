@@ -38,6 +38,7 @@ from blockcheck.config import (
 from blockcheck.models import TestStatus
 from blockcheck.scan_models import StrategyProbeResult, StrategyScanReport
 from blockcheck.stun_tester import test_stun
+from config.config import MAIN_DIRECTORY
 
 logger = logging.getLogger(__name__)
 
@@ -510,7 +511,6 @@ class StrategyScanner:
     def _load_catalog_strategies(self) -> list[dict]:
         """Load catalog strategies for current scan protocol."""
         try:
-            from config.config import MAIN_DIRECTORY, get_zapret_userdata_dir
             from core.paths import AppPaths
             from direct_preset.catalog_provider import load_strategy_catalogs
 
@@ -521,8 +521,8 @@ class StrategyScanner:
             else:
                 catalog_name = "tcp"
 
-            user_root = Path((get_zapret_userdata_dir() or "").strip() or self._work_dir)
             local_root = Path((MAIN_DIRECTORY or "").strip() or self._work_dir)
+            user_root = Path((MAIN_DIRECTORY or "").strip() or self._work_dir)
             app_paths = AppPaths(user_root=user_root, local_root=local_root)
             catalogs = load_strategy_catalogs(app_paths, "winws2")
             entries = catalogs.get(catalog_name, {})
@@ -1313,23 +1313,8 @@ class StrategyScanner:
         """Collect candidate directories where ipset game lists can live."""
         dirs: list[str] = []
 
-        appdata = (os.environ.get("APPDATA") or "").strip()
-        if appdata:
-            dirs.extend(
-                [
-                    os.path.join(appdata, "ZapretTwoDev", "lists"),
-                    os.path.join(appdata, "ZapretTwo", "lists"),
-                ]
-            )
-
         try:
-            from config.config import APPDATA_DIR, get_zapret_userdata_dir
-
-            app_channel_dir = (APPDATA_DIR or "").strip()
-            if app_channel_dir:
-                dirs.append(os.path.join(app_channel_dir, "lists"))
-
-            user_data_dir = (get_zapret_userdata_dir() or "").strip()
+            user_data_dir = (MAIN_DIRECTORY or "").strip()
             if user_data_dir:
                 dirs.append(os.path.join(user_data_dir, "lists"))
         except Exception:
@@ -1578,10 +1563,11 @@ class StrategyScanner:
         # Fallback: force-kill all winws processes if graceful kill failed
         if not killed_cleanly:
             try:
-                from utils.process_killer import kill_winws_force
-                kill_winws_force()
+                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+
+                shutdown_runtime_sync(reason="blockcheck_kill_fallback", include_cleanup=True)
             except Exception as e:
-                logger.debug("kill_winws_force fallback failed: %s", e)
+                logger.debug("canonical runtime shutdown fallback failed: %s", e)
 
     def _pre_scan_cleanup(self) -> None:
         """Kill any running winws and clean WinDivert before scanning."""
@@ -1589,20 +1575,14 @@ class StrategyScanner:
         errors = []
 
         try:
-            from utils.process_killer import kill_winws_force
-            if not kill_winws_force():
-                errors.append("kill_winws_force returned False")
-        except Exception as e:
-            errors.append(f"kill_winws_force: {e}")
-            logger.debug("kill_winws_force failed: %s", e)
+            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
-        try:
-            from utils.service_manager import cleanup_windivert_services
-            if not cleanup_windivert_services():
-                errors.append("cleanup_windivert returned False")
+            result = shutdown_runtime_sync(reason="blockcheck_pre_scan", include_cleanup=True)
+            if result.still_running:
+                errors.append("runtime still running after canonical shutdown")
         except Exception as e:
-            errors.append(f"cleanup_windivert: {e}")
-            logger.debug("cleanup_windivert_services failed: %s", e)
+            errors.append(f"canonical_runtime_shutdown: {e}")
+            logger.debug("canonical runtime shutdown failed: %s", e)
 
         # Clean stale temp files from a previous crashed scan
         self._cleanup_temp_files()
@@ -1661,11 +1641,7 @@ class StrategyScanner:
 
     def _find_work_dir(self) -> str:
         """Find the working directory (where exe/ folder is)."""
-        try:
-            from config.config import MAIN_DIRECTORY
-            return MAIN_DIRECTORY
-        except ImportError:
-            return os.getcwd()
+        return MAIN_DIRECTORY
 
     def _find_winws2(self) -> str:
         """Find the winws2.exe path."""

@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QSpinBox, QFrame, QLineEdit, QPushButton
 )
 
-from ..base_page import BasePage
+from ui.pages.base_page import BasePage
 from ui.compat_widgets import set_tooltip
 
 try:
@@ -224,7 +224,7 @@ class OrchestraLockedPage(BasePage):
                 self.refresh_btn,
                 self._tr("page.orchestra.locked.button.refresh.tooltip", "Обновить"),
             )
-        self._apply_theme()
+        self._apply_page_theme()
 
     def _setup_ui(self):
         # === Уведомление (баннер) ===

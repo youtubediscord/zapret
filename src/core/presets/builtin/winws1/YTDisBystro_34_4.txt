@@ -39,7 +39,7 @@
 --hostlist=lists/instagram.txt
 --hostlist=lists/twitter.txt
 --hostlist=lists/whatsapp.txt
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --hostlist=lists/russia-youtube.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=7,sld+1
@@ -69,7 +69,7 @@
 # === HTTPS Discord ===
 --new
 --filter-tcp=443
---hostlist-domains=updates.discord.com,stable.dl2.discordapp.net,animego.online,animejoy.ru,rutracker.org,static.rutracker.cc,pixiv.net,cdn77.com
+--hostlist=lists/discord-updates.txt,stable.dl2.discordapp.net,animego.online,animejoy.ru,rutracker.org,static.rutracker.cc,pixiv.net,cdn77.com
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=293
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_12.bin

@@ -91,7 +91,7 @@ class TelegramProxySettingsController:
         state = cls.default_state()
 
         try:
-            from config.reg import (
+            from settings.store import (
                 get_tg_proxy_autostart,
                 get_tg_proxy_host,
                 get_tg_proxy_port,
@@ -135,7 +135,7 @@ class TelegramProxySettingsController:
     @staticmethod
     def set_autostart(enabled: bool) -> None:
         try:
-            from config.reg import set_tg_proxy_autostart
+            from settings.store import set_tg_proxy_autostart
 
             set_tg_proxy_autostart(bool(enabled))
         except Exception:
@@ -145,7 +145,7 @@ class TelegramProxySettingsController:
     def set_port(cls, port: int) -> int:
         normalized = cls.normalize_port(port)
         try:
-            from config.reg import set_tg_proxy_port
+            from settings.store import set_tg_proxy_port
 
             set_tg_proxy_port(normalized)
         except Exception:
@@ -156,7 +156,7 @@ class TelegramProxySettingsController:
     def set_host(cls, host: str) -> str:
         normalized = cls.normalize_host(host)
         try:
-            from config.reg import set_tg_proxy_host
+            from settings.store import set_tg_proxy_host
 
             set_tg_proxy_host(normalized)
         except Exception:
@@ -166,7 +166,7 @@ class TelegramProxySettingsController:
     @staticmethod
     def set_proxy_enabled(enabled: bool) -> None:
         try:
-            from config.reg import set_tg_proxy_enabled
+            from settings.store import set_tg_proxy_enabled
 
             set_tg_proxy_enabled(bool(enabled))
         except Exception:
@@ -175,7 +175,7 @@ class TelegramProxySettingsController:
     @staticmethod
     def set_upstream_enabled(enabled: bool) -> None:
         try:
-            from config.reg import set_tg_proxy_upstream_enabled
+            from settings.store import set_tg_proxy_upstream_enabled
 
             set_tg_proxy_upstream_enabled(bool(enabled))
         except Exception:
@@ -184,7 +184,7 @@ class TelegramProxySettingsController:
     @staticmethod
     def set_upstream_mode(always_enabled: bool) -> None:
         try:
-            from config.reg import set_tg_proxy_upstream_mode
+            from settings.store import set_tg_proxy_upstream_mode
 
             set_tg_proxy_upstream_mode("always" if always_enabled else "fallback")
         except Exception:
@@ -193,7 +193,7 @@ class TelegramProxySettingsController:
     @classmethod
     def set_upstream_fields(cls, host: str, port: int, user: str, password: str) -> None:
         try:
-            from config.reg import (
+            from settings.store import (
                 set_tg_proxy_upstream_host,
                 set_tg_proxy_upstream_pass,
                 set_tg_proxy_upstream_port,
@@ -210,7 +210,7 @@ class TelegramProxySettingsController:
     @classmethod
     def load_upstream_test_target(cls) -> tuple[str, int] | None:
         try:
-            from config.reg import (
+            from settings.store import (
                 get_tg_proxy_upstream_enabled,
                 get_tg_proxy_upstream_host,
                 get_tg_proxy_upstream_port,
@@ -231,7 +231,7 @@ class TelegramProxySettingsController:
     def build_upstream_config(cls):
         try:
             from telegram_proxy.wss_proxy import UpstreamProxyConfig
-            from config.reg import (
+            from settings.store import (
                 get_tg_proxy_upstream_enabled,
                 get_tg_proxy_upstream_host,
                 get_tg_proxy_upstream_mode,
@@ -262,13 +262,11 @@ class TelegramProxySettingsController:
     @staticmethod
     def consume_auto_deeplink_request() -> bool:
         try:
-            from config.config import REGISTRY_PATH
+            from settings.store import get_tg_proxy_deeplink_done, set_tg_proxy_deeplink_done
 
-            from config.reg import reg
-
-            if reg(REGISTRY_PATH, "TgProxyDeeplinkDone"):
+            if get_tg_proxy_deeplink_done():
                 return False
-            reg(REGISTRY_PATH, "TgProxyDeeplinkDone", 1)
+            set_tg_proxy_deeplink_done(True)
             return True
         except Exception:
             return False

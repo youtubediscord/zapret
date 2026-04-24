@@ -1,6 +1,6 @@
 # Preset: general ALT (game filter)
 # TemplateOrigin: general ALT (game filter)
-# BuiltinVersion: 2.18
+# BuiltinVersion: 2.19
 # IconColor: #f0a675ff
 
 --lua-init=@lua/zapret-lib.lua
@@ -106,7 +106,7 @@
 --new
 
 --filter-tcp=80,443
---hostlist-domains=googlevideo.com
+--hostlist=lists/googlevideo.txt
 --out-range=-d8
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000:ip_id=zero
 --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000:ip_id=zero

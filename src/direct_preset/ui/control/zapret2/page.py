@@ -165,7 +165,7 @@ class Zapret2DirectControlPage(ControlPageActionMixin, BasePage):
     """Страница управления для direct_zapret2 (главная вкладка раздела "Стратегии")."""
 
     navigate_to_presets = pyqtSignal()        # → PageName.ZAPRET2_USER_PRESETS
-    navigate_to_direct_launch = pyqtSignal()  # → PageName.ZAPRET2_DIRECT
+    navigate_to_direct_launch = pyqtSignal()  # → текущий Basic/Advanced page-flow
     navigate_to_blobs = pyqtSignal()          # → PageName.BLOBS
     direct_mode_changed = pyqtSignal(str)     # "basic" | "advanced"
     deferred_show_requested = pyqtSignal()
@@ -176,7 +176,7 @@ class Zapret2DirectControlPage(ControlPageActionMixin, BasePage):
         super().__init__(
             "Управление",
             "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, "
-            "а при необходимости выполните тонкую настройку для каждого target'а в разделе «Прямой запуск».",
+            "а при необходимости выполните тонкую настройку для каждого фильтра в разделе «Прямой запуск».",
             parent,
             title_key="page.z2_control.title",
             subtitle_key="page.z2_control.subtitle",
@@ -253,14 +253,19 @@ class Zapret2DirectControlPage(ControlPageActionMixin, BasePage):
 
     def _load_selected_preset_name(self) -> tuple[str, str]:
         try:
-            file_name = str(self._require_app_context().preset_selection_service.get_selected_file_name("winws2") or "").strip()
+            selected_manifest = self._require_app_context().direct_flow_coordinator.get_selected_source_manifest(
+                "direct_zapret2"
+            )
         except Exception:
-            file_name = ""
+            selected_manifest = None
+
+        file_name = str(getattr(selected_manifest, "file_name", "") or "").strip()
+        display_name = str(getattr(selected_manifest, "name", "") or "").strip()
 
         if not file_name:
             return "", ""
 
-        display_name = os.path.splitext(os.path.basename(file_name))[0].strip() or file_name
+        display_name = display_name or os.path.splitext(os.path.basename(file_name))[0].strip() or file_name
         return display_name, display_name
 
     def _require_app_context(self):

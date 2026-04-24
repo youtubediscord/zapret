@@ -119,7 +119,7 @@ def apply_z1_direct_language(
     )
 
     advanced_card.titleLabel.setText(
-        tr_catalog("page.z1_control.card.advanced", language=language, default="ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ")
+        tr_catalog("page.z1_control.card.advanced", language=language, default="Дополнительные настройки")
     )
     advanced_notice.setText(
         tr_catalog("page.z1_control.advanced.warning", language=language, default="Изменяйте только если знаете что делаете")

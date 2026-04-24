@@ -4,14 +4,13 @@
 """
 from __future__ import annotations
 
-import winreg
 import time
 from typing import List, Tuple, Optional, Dict
 import socket
 
 from log.log import log
 
-from config.config import REGISTRY_PATH
+from settings import store as settings_store
 
 from .dns_core import DNSManager, DEFAULT_EXCLUSIONS, _normalize_alias
 
@@ -68,17 +67,14 @@ class DNSForceManager:
     def is_force_dns_enabled(self) -> bool:
         """Проверяет, включен ли принудительный DNS"""
         try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-                value, _ = winreg.QueryValueEx(key, self.FORCE_DNS_KEY)
-                return bool(value)
-        except:
+            return bool(settings_store.get_force_dns_enabled())
+        except Exception:
             return True  # По умолчанию включен
     
     def set_force_dns_enabled(self, enabled: bool):
         """Устанавливает состояние принудительного DNS"""
         try:
-            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-                winreg.SetValueEx(key, self.FORCE_DNS_KEY, 0, winreg.REG_DWORD, int(enabled))
+            settings_store.set_force_dns_enabled(bool(enabled))
             log(f"ForceDNS = {enabled}", "DNS")
         except Exception as e:
             log(f"Error setting ForceDNS: {e}", "ERROR")
@@ -339,14 +335,8 @@ class DNSForceManager:
 # ──────────────────────────────────────────────────────────────────────
 
 def ensure_default_force_dns():
-    """Создает ключ ForceDNS по умолчанию"""
+    """Гарантирует наличие значения ForceDNS по умолчанию в settings.json."""
     try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH):
-            return
-    except FileNotFoundError:
-        try:
-            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, REGISTRY_PATH) as key:
-                winreg.SetValueEx(key, DNSForceManager.FORCE_DNS_KEY, 0, winreg.REG_DWORD, 1)
-            log("Created default ForceDNS=1", "DNS")
-        except Exception as e:
-            log(f"Error creating ForceDNS key: {e}", "ERROR")
+        settings_store.read_settings()
+    except Exception as e:
+        log(f"Error creating default ForceDNS state: {e}", "ERROR")

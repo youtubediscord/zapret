@@ -168,7 +168,7 @@ def build_z2_direct_deferred_sections(
     )
 
     advanced_card, advanced_notice = build_advanced_settings_section(
-        title=tr_fn("page.z2_control.card.advanced", "ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ"),
+        title=tr_fn("page.z2_control.card.advanced", "Дополнительные настройки"),
         warning_text=tr_fn("page.z2_control.advanced.warning", "Изменяйте только если знаете что делаете"),
         parent=content_parent,
         toggle_rows=[discord_restart_toggle, wssize_toggle, debug_log_toggle],
