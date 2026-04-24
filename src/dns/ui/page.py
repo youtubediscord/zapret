@@ -231,6 +231,8 @@ class NetworkPage(BasePage):
             self.custom_label.setText(self._tr("page.network.custom.label", "Свой:"))
         if hasattr(self, "custom_apply_btn"):
             self.custom_apply_btn.setText(self._tr("page.network.custom.apply", "OK"))
+        if hasattr(self, "ipv6_label"):
+            self.ipv6_label.setText(self._tr("page.network.custom.ipv6.label", "IPv6:"))
 
         self._update_test_action_text()
 
@@ -344,6 +346,7 @@ class NetworkPage(BasePage):
             on_flush_dns_cache=self._confirm_flush_dns_cache,
             set_tooltip_fn=set_tooltip,
             dns_provider_card_cls=DNSProviderCard,
+            show_ipv6=self._ipv6_available,
         )
         self.loading_card = shell.loading_card
         self.loading_label = shell.loading_label
@@ -356,6 +359,15 @@ class NetworkPage(BasePage):
         self.custom_primary = shell.custom_primary
         self.custom_secondary = shell.custom_secondary
         self.custom_apply_btn = shell.custom_apply_btn
+        
+        # IPv6 поля (если доступны)
+        if shell.ipv6_label is not None:
+            self.ipv6_label = shell.ipv6_label
+        if shell.custom_primary_v6 is not None:
+            self.custom_primary_v6 = shell.custom_primary_v6
+        if shell.custom_secondary_v6 is not None:
+            self.custom_secondary_v6 = shell.custom_secondary_v6
+            
         self.adapters_container = shell.adapters_container
         self.adapters_layout = shell.adapters_layout
         self._tools_section_label = shell.tools_section_label
@@ -368,8 +380,6 @@ class NetworkPage(BasePage):
         self.add_widget(self.dns_cards_container)
         self.add_spacing(6)
         self.add_widget(self.custom_card)
-
-        self.add_spacing(12)
 
         # ═══════════════════════════════════════════════════════════════
         # СЕТЕВЫЕ АДАПТЕРЫ
@@ -603,18 +613,45 @@ class NetworkPage(BasePage):
             self._refresh_adapters_dns()
     
     def _apply_custom_dns_quick(self):
-        """Быстрое применение пользовательского DNS"""
+        """Быстрое применение пользовательского DNS (IPv4 + IPv6)"""
         # Если Force DNS активен - подсвечиваем карточку Force DNS
         if self._force_dns_active:
             self._highlight_force_dns()
             return
-        
+
+        from utils import IPValidator
+
         primary = self.custom_primary.text().strip()
         if not primary:
             return
-        
+
+        # Валидация IPv4
+        if not IPValidator.is_valid_ipv4(primary):
+            log(f"DNS: Неверный формат IPv4: {primary}", "WARNING")
+            return
+
         secondary = self.custom_secondary.text().strip() or None
+        if secondary and not IPValidator.is_valid_ipv4(secondary):
+            log(f"DNS: Неверный формат IPv4 (вторичный): {secondary}", "WARNING")
+            return
+
+        # Валидация IPv6 (если поля существуют и заполнены)
+        primary_v6 = None
+        secondary_v6 = None
         
+        if hasattr(self, 'custom_primary_v6') and self.custom_primary_v6 is not None:
+            primary_v6 = self.custom_primary_v6.text().strip() or None
+            if primary_v6:
+                if not IPValidator.is_valid_ipv6(primary_v6):
+                    log(f"DNS: Неверный формат IPv6: {primary_v6}", "WARNING")
+                    return
+
+                if hasattr(self, 'custom_secondary_v6') and self.custom_secondary_v6 is not None:
+                    secondary_v6 = self.custom_secondary_v6.text().strip() or None
+                    if secondary_v6 and not IPValidator.is_valid_ipv6(secondary_v6):
+                        log(f"DNS: Неверный формат IPv6 (вторичный): {secondary_v6}", "WARNING")
+                        return
+
         select_custom_dns_ui(
             dns_cards=self.dns_cards,
             auto_indicator=getattr(self, 'auto_indicator', None),
@@ -625,12 +662,19 @@ class NetworkPage(BasePage):
             indicator_off_qss=DNSProviderCard.indicator_off(),
             set_card_selected_fn=self._set_dns_card_selected,
         )
-        
+
         adapters = self._get_selected_adapters()
         if not adapters:
             return
 
-        success = NetworkPageController.apply_custom_dns(adapters, primary, secondary)
+        success = NetworkPageController.apply_custom_dns(
+            adapters,
+            primary,
+            secondary,
+            primary_v6=primary_v6,
+            secondary_v6=secondary_v6,
+            ipv6_available=self._ipv6_available,
+        )
         plan = NetworkPageController.build_custom_dns_apply_result_plan(
             primary=primary,
             adapter_count=len(adapters),
