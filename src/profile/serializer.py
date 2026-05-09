@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import re
 
 from .models import EngineName, Preset, Profile, ProfileSegment
 from .parser import parse_preset_text
@@ -113,6 +114,53 @@ def append_profile_from_template(preset: Preset, template: Profile, *, enabled: 
     return _reparse(updated)
 
 
+def with_profile_deleted(preset: Preset, profile_index: int) -> Preset:
+    updated = deepcopy(preset)
+    index = int(profile_index)
+    if index < 0 or index >= len(updated.profiles):
+        raise IndexError(f"Profile index out of range: {profile_index}")
+    del updated.profiles[index]
+    _ensure_profile_boundaries(updated)
+    return _reparse(updated)
+
+
+def with_profile_duplicated(preset: Preset, profile_index: int) -> Preset:
+    updated = deepcopy(preset)
+    index = int(profile_index)
+    if index < 0 or index >= len(updated.profiles):
+        raise IndexError(f"Profile index out of range: {profile_index}")
+
+    source = updated.profiles[index]
+    profile = deepcopy(source)
+    profile.index = index + 1
+    _rename_profile_copy(profile, _unique_copy_name(updated, source))
+
+    updated.profiles.insert(index + 1, profile)
+    _ensure_profile_boundaries(updated)
+    return _reparse(updated)
+
+
+def with_profile_moved(preset: Preset, source_index: int, destination_index: int) -> Preset:
+    updated = deepcopy(preset)
+    source = int(source_index)
+    destination = int(destination_index)
+    if source < 0 or source >= len(updated.profiles):
+        raise IndexError(f"Profile index out of range: {source_index}")
+    if destination < 0:
+        destination = 0
+    if destination > len(updated.profiles):
+        destination = len(updated.profiles)
+    if source == destination or source + 1 == destination:
+        return updated
+
+    profile = updated.profiles.pop(source)
+    if source < destination:
+        destination -= 1
+    updated.profiles.insert(destination, profile)
+    _ensure_profile_boundaries(updated)
+    return _reparse(updated)
+
+
 def _segment_for_strategy_line(engine: EngineName, line: str) -> ProfileSegment:
     lowered = line.lower()
     if engine == "winws2" and (
@@ -138,6 +186,63 @@ def _directive_insert_index(profile: Profile) -> int:
         if segment.kind not in {"blank", "comment", "directive"}:
             return index
     return len(profile.segments)
+
+
+def _unique_copy_name(preset: Preset, source: Profile) -> str:
+    base = str(source.name or source.display_name or f"profile {source.index + 1}").strip() or "profile"
+    base = re.sub(r"\s+копия(?:\s+\d+)?$", "", base, flags=re.IGNORECASE).strip() or base
+    existing = {
+        str(profile.name or profile.display_name or "").strip().casefold()
+        for profile in preset.profiles
+        if str(profile.name or profile.display_name or "").strip()
+    }
+    candidate = f"{base} копия"
+    if candidate.casefold() not in existing:
+        return candidate
+    counter = 2
+    while True:
+        candidate = f"{base} копия {counter}"
+        if candidate.casefold() not in existing:
+            return candidate
+        counter += 1
+
+
+def _ensure_profile_boundaries(preset: Preset) -> None:
+    for index, profile in enumerate(preset.profiles):
+        if index == 0 or str(profile.new_line or "").strip():
+            continue
+        name = str(profile.name or profile.display_name or f"profile {index + 1}").strip() or f"profile {index + 1}"
+        profile.new_line = f"--new={name}"
+
+
+def _rename_profile_copy(profile: Profile, name: str) -> None:
+    clean_name = str(name or "").strip() or "profile копия"
+    renamed_new_line = False
+    current_new_line = str(profile.new_line or "").strip()
+    if current_new_line.lower().startswith("--new="):
+        profile.new_line = f"--new={clean_name}"
+        renamed_new_line = True
+
+    for segment in profile.segments:
+        if segment.kind == "directive" and str(segment.name or "").strip().lower() == "--name":
+            segment.value = clean_name
+            segment.text = f"--name={clean_name}"
+            profile.name = clean_name
+            profile.display_name = clean_name
+            return
+
+    if renamed_new_line:
+        profile.name = clean_name
+        profile.display_name = clean_name
+        return
+    profile.new_line = f"--new={clean_name}"
+    if current_new_line.lower() not in {"--new"}:
+        profile.segments.insert(
+            _directive_insert_index(profile),
+            ProfileSegment(kind="directive", text=f"--name={clean_name}", name="--name", value=clean_name),
+        )
+    profile.name = clean_name
+    profile.display_name = clean_name
 
 
 def _reparse(preset: Preset) -> Preset:

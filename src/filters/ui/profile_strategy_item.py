@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QCursor, QResizeEvent
+from PyQt6.QtCore import QMimeData, QPoint, Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QCursor, QDrag, QResizeEvent
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from ui.compat_widgets import set_tooltip
@@ -120,6 +120,10 @@ class ProfileStrategyItem(CardWidget):
     """
 
     item_activated = pyqtSignal(str)
+    context_requested = pyqtSignal(str, QPoint)
+    item_dropped = pyqtSignal(str, str)
+
+    MIME_TYPE = "application/x-zapret-profile-key"
 
     def __init__(
         self,
@@ -143,6 +147,9 @@ class ProfileStrategyItem(CardWidget):
         self._icon_label = None
         self._desc_label = None
         self._list_badge = None
+        self._drag_enabled = False
+        self._drag_start_pos: QPoint | None = None
+        self._suppress_next_click = False
 
         self._strategy_id = "none"
         self._strategy_name = "Отключено"
@@ -151,18 +158,25 @@ class ProfileStrategyItem(CardWidget):
 
         self.clicked.connect(self._emit_item_activated)
         self.setProperty("clickable", True)
-        self.setProperty("noDrag", True)
+        self.setProperty("noDrag", False)
+        self.setAcceptDrops(True)
 
         if self._tooltip:
             set_tooltip(self, self._tooltip.replace("\n", "<br>"))
         self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
 
     def _emit_item_activated(self):
+        if self._suppress_next_click:
+            self._suppress_next_click = False
+            return
         self.item_activated.emit(self._item_key)
 
     @property
     def item_key(self) -> str:
         return self._item_key
+
+    def set_drag_enabled(self, enabled: bool) -> None:
+        self._drag_enabled = bool(enabled)
 
     def _build_ui(self):
         self.setMinimumHeight(42)
@@ -375,3 +389,54 @@ class ProfileStrategyItem(CardWidget):
 
     def set_visible_by_filter(self, visible: bool):
         self.setVisible(visible)
+
+    def mousePressEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.position().toPoint()
+        return super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        if not self._drag_enabled or not (event.buttons() & Qt.MouseButton.LeftButton):
+            return super().mouseMoveEvent(event)
+        if self._drag_start_pos is None:
+            return super().mouseMoveEvent(event)
+        if (event.position().toPoint() - self._drag_start_pos).manhattanLength() < 8:
+            return super().mouseMoveEvent(event)
+
+        mime = QMimeData()
+        mime.setData(self.MIME_TYPE, self._item_key.encode("utf-8"))
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        self._suppress_next_click = True
+        self._drag_start_pos = None
+        drag.exec(Qt.DropAction.MoveAction)
+        event.accept()
+
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.RightButton:
+            self.context_requested.emit(self._item_key, self.mapToGlobal(event.position().toPoint()))
+            event.accept()
+            return
+        return super().mouseReleaseEvent(event)
+
+    def dragEnterEvent(self, event):  # noqa: N802
+        if self._drag_enabled and event.mimeData().hasFormat(self.MIME_TYPE):
+            event.acceptProposedAction()
+            return
+        return super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):  # noqa: N802
+        if self._drag_enabled and event.mimeData().hasFormat(self.MIME_TYPE):
+            event.acceptProposedAction()
+            return
+        return super().dragMoveEvent(event)
+
+    def dropEvent(self, event):  # noqa: N802
+        if not self._drag_enabled or not event.mimeData().hasFormat(self.MIME_TYPE):
+            return super().dropEvent(event)
+        source_key = bytes(event.mimeData().data(self.MIME_TYPE)).decode("utf-8", errors="replace").strip()
+        if source_key and source_key != self._item_key:
+            self.item_dropped.emit(source_key, self._item_key)
+            event.acceptProposedAction()
+            return
+        event.ignore()

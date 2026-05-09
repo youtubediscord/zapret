@@ -140,6 +140,9 @@ class ProfilesPageBase(BasePage):
             return
         profiles_list = ProfilesList(self)
         profiles_list.profile_selected.connect(self._on_profile_clicked)
+        profiles_list.profile_context_action_requested.connect(self._on_profile_context_action)
+        profiles_list.profile_move_requested.connect(self._on_profile_move_requested)
+        profiles_list.profile_move_to_end_requested.connect(self._on_profile_move_to_end_requested)
         profiles_list.build_profiles(tuple(payload.items))
         self._profiles_list = profiles_list
         self._content_host_layout.addWidget(profiles_list, 1)
@@ -167,6 +170,58 @@ class ProfilesPageBase(BasePage):
 
     def _on_profile_clicked(self, profile_key: str, strategy_id: str) -> None:
         self.open_profile_detail.emit(profile_key, strategy_id)
+
+    def _on_profile_context_action(self, profile_key: str, action: str) -> None:
+        normalized_action = str(action or "").strip().lower()
+        if normalized_action == "duplicate":
+            self._duplicate_profile(profile_key)
+        elif normalized_action == "delete":
+            self._delete_profile(profile_key)
+
+    def _duplicate_profile(self, profile_key: str) -> None:
+        try:
+            new_key = self._service().duplicate_profile(profile_key)
+            self.refresh_from_preset_switch()
+            if new_key:
+                self.open_profile_detail.emit(new_key, "custom")
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось дублировать profile: {exc}", "ERROR")
+            self._show_empty_state("Не удалось дублировать profile. Проверьте лог и preset-файл.")
+
+    def _delete_profile(self, profile_key: str) -> None:
+        if MessageBox is not None:
+            box = MessageBox(
+                "Удалить profile?",
+                "Profile будет физически удалён из выбранного preset-файла. Это не то же самое, что выключить через --skip.",
+                self.window(),
+            )
+            box.yesButton.setText("Удалить")
+            box.cancelButton.setText("Отмена")
+            if not box.exec():
+                return
+        try:
+            self._service().delete_profile(profile_key)
+            self.refresh_from_preset_switch()
+            self.strategy_selected.emit(profile_key, "custom")
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось удалить profile: {exc}", "ERROR")
+            self._show_empty_state("Не удалось удалить profile. Проверьте лог и preset-файл.")
+
+    def _on_profile_move_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
+        try:
+            self._service().move_profile_before(source_profile_key, destination_profile_key)
+            self.refresh_from_preset_switch()
+            self.strategy_selected.emit(source_profile_key, "custom")
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось переместить profile: {exc}", "ERROR")
+
+    def _on_profile_move_to_end_requested(self, profile_key: str) -> None:
+        try:
+            self._service().move_profile_to_end(profile_key)
+            self.refresh_from_preset_switch()
+            self.strategy_selected.emit(profile_key, "custom")
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось переместить profile в конец: {exc}", "ERROR")
 
     def apply_strategy_selection(self, profile_key: str, strategy_id: str) -> None:
         _ = (profile_key, strategy_id)

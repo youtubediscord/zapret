@@ -12,7 +12,10 @@ from .parser import parse_preset_text
 from .serializer import (
     append_profile_from_template,
     serialize_preset,
+    with_profile_deleted,
+    with_profile_duplicated,
     with_profile_enabled,
+    with_profile_moved,
     with_profile_strategy_lines,
 )
 from .strategy_catalog import StrategyEntry, load_strategy_catalogs
@@ -225,6 +228,44 @@ class ProfilePresetService:
         self.save_selected_preset(preset)
         return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
 
+    def delete_profile(self, profile_key: str) -> bool:
+        preset, _manifest = self.load_selected_preset()
+        index = _profile_index_for_key(preset, profile_key)
+        if index is None:
+            return False
+        preset = with_profile_deleted(preset, index)
+        self.save_selected_preset(preset)
+        return True
+
+    def duplicate_profile(self, profile_key: str) -> str | None:
+        preset, _manifest = self.load_selected_preset()
+        index = _profile_index_for_key(preset, profile_key)
+        if index is None:
+            return None
+        preset = with_profile_duplicated(preset, index)
+        self.save_selected_preset(preset)
+        duplicate_index = index + 1
+        return preset.profiles[duplicate_index].key if 0 <= duplicate_index < len(preset.profiles) else None
+
+    def move_profile_before(self, source_profile_key: str, destination_profile_key: str) -> str | None:
+        preset, _manifest = self.load_selected_preset()
+        source_index = _profile_index_for_key(preset, source_profile_key)
+        destination_index = _profile_index_for_key(preset, destination_profile_key)
+        if source_index is None or destination_index is None:
+            return None
+        preset = with_profile_moved(preset, source_index, destination_index)
+        self.save_selected_preset(preset)
+        return _profile_key_by_original_key(preset, source_profile_key)
+
+    def move_profile_to_end(self, profile_key: str) -> str | None:
+        preset, _manifest = self.load_selected_preset()
+        source_index = _profile_index_for_key(preset, profile_key)
+        if source_index is None:
+            return None
+        preset = with_profile_moved(preset, source_index, len(preset.profiles))
+        self.save_selected_preset(preset)
+        return _profile_key_by_original_key(preset, profile_key)
+
     def _resolve_profile(self, profile_key: str) -> Profile | None:
         preset, _manifest = self.load_selected_preset()
         index = _profile_index_for_key(preset, profile_key)
@@ -283,6 +324,13 @@ def _profile_index_for_key(preset: Preset, profile_key: str) -> int | None:
         if profile.key == key:
             return index
     return None
+
+
+def _profile_key_by_original_key(preset: Preset, profile_key: str) -> str | None:
+    index = _profile_index_for_key(preset, profile_key)
+    if index is None:
+        return None
+    return preset.profiles[index].key
 
 
 def _strategy_names_for_catalog(catalogs: dict[str, dict[str, StrategyEntry]], catalog_name: str) -> dict[str, str]:

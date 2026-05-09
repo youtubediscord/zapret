@@ -2,18 +2,30 @@ from __future__ import annotations
 
 from typing import Dict
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from PyQt6.QtCore import QPoint, pyqtSignal
+from PyQt6.QtGui import QAction, QCursor
+from PyQt6.QtWidgets import QMenu, QVBoxLayout, QWidget
 
 from filters.ui.collapsible_group import CollapsibleGroup
 from filters.ui.filter_chip_button import FilterButtonGroup
 from filters.ui.profile_strategy_item import ProfileStrategyItem
 from profile.match_filters import is_voice_match, ports_label_from_match_lines, protocol_label_from_match_lines
 from profile.service import ProfileListItem
+from ui.popup_menu import exec_popup_menu
+
+try:
+    from qfluentwidgets import Action, FluentIcon, RoundMenu
+except ImportError:
+    Action = None
+    FluentIcon = None
+    RoundMenu = None
 
 
 class ProfilesList(QWidget):
     profile_selected = pyqtSignal(str, str)
+    profile_context_action_requested = pyqtSignal(str, str)
+    profile_move_requested = pyqtSignal(str, str)
+    profile_move_to_end_requested = pyqtSignal(str)
 
     GROUP_NAMES = {
         "youtube": "YouTube",
@@ -31,6 +43,7 @@ class ProfilesList(QWidget):
         self._profile_items: Dict[str, ProfileListItem] = {}
         self._groups: Dict[str, CollapsibleGroup] = {}
         self._profile_to_group: Dict[str, str] = {}
+        self.setAcceptDrops(True)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -111,13 +124,63 @@ class ProfilesList(QWidget):
             item.list_type if item.list_type in {"hostlist", "ipset"} else None,
             self,
         )
+        widget.set_drag_enabled(bool(item.in_preset))
         widget.item_activated.connect(self._on_item_clicked)
+        widget.context_requested.connect(self._on_item_context_requested)
+        widget.item_dropped.connect(self._on_item_dropped)
         widget.set_strategy(item.strategy_id, item.strategy_name)
         return widget
 
     def _on_item_clicked(self, profile_key: str) -> None:
         item = self._profile_items.get(profile_key)
         self.profile_selected.emit(profile_key, item.strategy_id if item is not None else "none")
+
+    def _on_item_context_requested(self, profile_key: str, global_pos: QPoint) -> None:
+        item = self._profile_items.get(profile_key)
+        if item is None or not item.in_preset:
+            return
+        action = self._show_profile_context_menu(global_pos)
+        if action:
+            self.profile_context_action_requested.emit(profile_key, action)
+
+    def _on_item_dropped(self, source_key: str, destination_key: str) -> None:
+        source = self._profile_items.get(source_key)
+        destination = self._profile_items.get(destination_key)
+        if source is None or destination is None:
+            return
+        if not source.in_preset or not destination.in_preset:
+            return
+        if source_key == destination_key:
+            return
+        self.profile_move_requested.emit(source_key, destination_key)
+
+    def _show_profile_context_menu(self, global_pos: QPoint | None) -> str | None:
+        labels = {
+            "duplicate": "Дублировать",
+            "delete": "Удалить",
+        }
+        if RoundMenu is not None and Action is not None:
+            menu = RoundMenu(parent=self)
+            duplicate_action = _make_menu_action(labels["duplicate"], icon=_fluent_icon("COPY"), parent=menu)
+            delete_action = _make_menu_action(labels["delete"], icon=_fluent_icon("DELETE"), parent=menu)
+            menu.addAction(duplicate_action)
+            menu.addAction(delete_action)
+            action_map = {
+                duplicate_action: "duplicate",
+                delete_action: "delete",
+            }
+            chosen = exec_popup_menu(menu, global_pos or QCursor.pos(), owner=self, capture_action=True)
+            return action_map.get(chosen)
+
+        menu = QMenu(self)
+        duplicate_action = menu.addAction(labels["duplicate"])
+        delete_action = menu.addAction(labels["delete"])
+        action_map = {
+            duplicate_action: "duplicate",
+            delete_action: "delete",
+        }
+        chosen = exec_popup_menu(menu, global_pos or QCursor.pos(), owner=self, capture_action=True)
+        return action_map.get(chosen)
 
     def _apply_filters(self, active_filters: set[str]) -> None:
         if "all" in active_filters:
@@ -152,6 +215,68 @@ class ProfilesList(QWidget):
                 for key, widget in self._items_by_key.items()
                 if self._profile_to_group.get(key) == group_key
             ))
+
+    def dragEnterEvent(self, event):  # noqa: N802
+        if event.mimeData().hasFormat(ProfileStrategyItem.MIME_TYPE):
+            event.acceptProposedAction()
+            return
+        return super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):  # noqa: N802
+        if event.mimeData().hasFormat(ProfileStrategyItem.MIME_TYPE):
+            event.acceptProposedAction()
+            return
+        return super().dragMoveEvent(event)
+
+    def dropEvent(self, event):  # noqa: N802
+        if not event.mimeData().hasFormat(ProfileStrategyItem.MIME_TYPE):
+            return super().dropEvent(event)
+        source_key = bytes(event.mimeData().data(ProfileStrategyItem.MIME_TYPE)).decode("utf-8", errors="replace").strip()
+        item = self._profile_items.get(source_key)
+        if source_key and item is not None and item.in_preset:
+            self.profile_move_to_end_requested.emit(source_key)
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+
+def _fluent_icon(name: str):
+    if FluentIcon is None:
+        return None
+    return getattr(FluentIcon, name, None)
+
+
+def _make_menu_action(text: str, *, icon=None, parent=None):
+    if Action is not None:
+        if icon is not None:
+            try:
+                return Action(icon, text, parent)
+            except TypeError:
+                pass
+        try:
+            action = Action(text, parent)
+        except TypeError:
+            try:
+                action = Action(text)
+            except TypeError:
+                action = None
+        if action is not None:
+            try:
+                if icon is not None and hasattr(action, "setIcon"):
+                    action.setIcon(icon)
+            except Exception:
+                pass
+            return action
+
+    action = QAction(text, parent)
+    try:
+        if icon is not None:
+            action.setIcon(icon)
+    except Exception:
+        pass
+    return action
+
+
 def _match_summary(item: ProfileListItem) -> str:
     parts = [part for part in (protocol_label_from_match_lines(item.match_lines), ports_label_from_match_lines(item.match_lines), item.list_type) if part]
     return " • ".join(parts) or "без явных условий"
