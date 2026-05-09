@@ -8,7 +8,7 @@ class WindowCloseController:
     """Единый контроллер поведения при закрытии главного окна.
 
     Здесь решается только пользовательский сценарий закрытия:
-    показать диалог, свернуть в трей или выполнить request_exit().
+    показать диалог, свернуть в трей или выбрать полный выход.
     Само финальное освобождение ресурсов остаётся в main.closeEvent.
     """
 
@@ -17,7 +17,7 @@ class WindowCloseController:
 
     def should_continue_final_close(self, event) -> bool:
         """Возвращает True только для окончательного закрытия приложения."""
-        if bool(getattr(self.host, "_closing_completely", False)):
+        if self.host._closing_completely:
             return True
 
         try:
@@ -33,12 +33,15 @@ class WindowCloseController:
                 return False
 
             if result == "tray":
-                minimized = bool(self.host.minimize_to_tray())
+                minimized = bool(self.host.close_to_tray())
                 if not minimized:
                     log("Сценарий 'свернуть в трей' не выполнен: tray manager не готов", "WARNING")
                 return False
 
-            self.host.request_exit(stop_dpi=bool(result))
+            if bool(result):
+                self.host.exit_stop_dpi()
+            else:
+                self.host.exit_keep_dpi()
             return False
         except Exception as e:
             log(f"Ошибка пользовательского сценария закрытия окна: {e}", "DEBUG")

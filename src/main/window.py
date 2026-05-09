@@ -9,7 +9,7 @@ from main.window_actions import WindowActionsMixin
 from main.window_lifecycle import WindowLifecycleMixin
 from main.window_startup import (
     WindowStartupMixin,
-    startup_services_bootstrap_for,
+    startup_bootstrap_for,
     window_bootstrap_for,
 )
 from main.window_state_sync import WindowStateSyncMixin
@@ -55,8 +55,8 @@ def window_bootstrap(*, start_in_tray: bool) -> tuple["AppContext", "LupiDPIApp"
     return window_bootstrap_for(LupiDPIApp, start_in_tray=start_in_tray)
 
 
-def startup_services_bootstrap(window: "LupiDPIApp") -> None:
-    startup_services_bootstrap_for(window)
+def startup_bootstrap(window: "LupiDPIApp") -> None:
+    startup_bootstrap_for(window)
 
 
-__all__ = ["LupiDPIApp", "window_bootstrap", "startup_services_bootstrap"]
+__all__ = ["LupiDPIApp", "window_bootstrap", "startup_bootstrap"]

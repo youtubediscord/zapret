@@ -7,7 +7,7 @@ def toggle_pin_preset_action(*, name: str, resolve_display_name_fn, storage_api,
     try:
         display_name = resolve_display_name_fn(name)
         pinned = storage_api.toggle_preset_pin(name)
-        log_fn(f"Preset '{display_name}' {'закреплён' if pinned else 'откреплён'}", "INFO")
+        log_fn(f"Пресет '{display_name}' {'закреплён' if pinned else 'откреплён'}", "INFO")
         refresh_presets_view_from_cache_fn()
     except Exception as exc:
         log_fn(f"Ошибка закрепления пресета: {exc}", "ERROR")
@@ -131,9 +131,9 @@ def reset_preset_action(*, name: str, resolve_display_name_fn, actions_api, mess
                 tr_fn("page.winws1_user_presets.dialog.reset_single.title", "Вернуть встроенный пресет?"),
                 tr_fn(
                     "page.winws1_user_presets.dialog.reset_single.body",
-                    "Пользовательский файл пресета '{name}' будет удалён.\n"
-                    "После этого снова будет использоваться встроенный пресет с тем же именем файла.\n"
-                    "Изменения в пользовательском файле будут потеряны.",
+                    "Будет удалён ваш изменённый файл пресета «{name}».\n"
+                    "После этого снова появится встроенный пресет с тем же именем файла.\n"
+                    "Изменения в этом файле будут потеряны.",
                     name=display_name,
                 ),
                 parent_window,
@@ -170,9 +170,9 @@ def delete_preset_action(*, name: str, resolve_display_name_fn, storage_api, act
                 tr_fn("page.winws1_user_presets.dialog.delete_single.title", "Удалить пресет?"),
                 tr_fn(
                     "page.winws1_user_presets.dialog.delete_single.body",
-                    "Пресет '{name}' будет удалён из списка пользовательских пресетов.\n"
-                    "Изменения в этом пресете будут потеряны.\n"
-                    "Вернуть его можно только заново создав пресет или импортировав файл.",
+                    "Пользовательский пресет «{name}» будет удалён.\n"
+                    "Изменения в нём будут потеряны.\n"
+                    "Вернуть его можно только создав новый пресет или импортировав txt-файл.",
                     name=display_name,
                 ),
                 parent_window,
@@ -204,7 +204,7 @@ def export_preset_action(*, page, name: str, resolve_display_name_fn, file_dialo
         page,
         tr_fn("page.winws1_user_presets.file_dialog.export_title", "Экспортировать пресет"),
         f"{display_name}.txt",
-        "Preset files (*.txt);;All files (*.*)",
+        "Файлы пресетов (*.txt);;Все файлы (*.*)",
     )
     if not file_path:
         return

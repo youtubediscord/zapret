@@ -27,7 +27,7 @@ def install_deferred_maintenance(window: "LupiDPIApp") -> None:
             controller = getattr(window, "window_notification_controller", None)
             duration_ms = int(payload.get("duration_ms") or 0)
             if duration_ms > 0:
-                window.log_startup_metric("DeferredMaintenanceFinished", f"{duration_ms}ms")
+                window.log_startup_metric("StartupPostInitMaintenanceFinished", f"{duration_ms}ms")
 
             if controller is not None:
                 controller.notify_many(payload.get("notifications") or [])
@@ -52,7 +52,7 @@ def install_deferred_maintenance(window: "LupiDPIApp") -> None:
         if not is_window_alive(window):
             return
 
-        window.log_startup_metric("DeferredMaintenanceStarted", "telega_association_worker")
+        window.log_startup_metric("StartupPostInitMaintenanceStarted", "telega_association_worker")
         start_daemon_thread("DeferredMaintenanceWorker", _deferred_maintenance_worker)
 
     def _schedule_deferred_maintenance() -> None:

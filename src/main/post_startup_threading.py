@@ -7,7 +7,7 @@ from PyQt6.QtCore import QTimer
 
 
 def start_daemon_thread(name: str, target: Callable[[], None]) -> threading.Thread:
-    thread = threading.Thread(target=target, daemon=True, name=str(name or "PostStartupWorker"))
+    thread = threading.Thread(target=target, daemon=True, name=str(name or "StartupPostInitWorker"))
     thread.start()
     return thread
 

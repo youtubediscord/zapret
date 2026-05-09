@@ -15,14 +15,14 @@ def install_telegram_proxy_startup(window: "LupiDPIApp") -> None:
     def _start_telegram_proxy() -> None:
         if not is_window_alive(window):
             return
-        start_daemon_thread("TelegramProxyPostStartup", start_telegram_proxy_if_enabled)
+        start_daemon_thread("TelegramProxyStartupPostInit", start_telegram_proxy_if_enabled)
 
     def _schedule_telegram_proxy() -> None:
         if not is_window_alive(window):
             return
         delay_ms = 1000
         log(f"Telegram Proxy отложен на {delay_ms}ms после post-init", "DEBUG")
-        window.log_startup_metric("PostStartupTelegramProxyQueued", f"{delay_ms}ms after post-init")
+        window.log_startup_metric("StartupPostInitTelegramProxyQueued", f"{delay_ms}ms after post-init")
         schedule_after(
             delay_ms,
             lambda: is_window_alive(window) and _start_telegram_proxy(),

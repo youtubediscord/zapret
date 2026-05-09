@@ -6,8 +6,10 @@ from PyQt6.QtWidgets import QApplication, QWidget
 from log.log import log
 
 from main.window_lifecycle_cleanup import (
+    cleanup_process_monitor_for_close,
     cleanup_runtime_threads_for_close,
-    cleanup_support_managers_for_close,
+    cleanup_subscription_for_close,
+    cleanup_theme_for_close,
     cleanup_threaded_pages_for_close,
     cleanup_tray_for_close,
     cleanup_visual_and_proxy_resources_for_close,
@@ -30,28 +32,7 @@ class WindowLifecycleMixin:
             return
 
         self._is_exiting = True
-
-        detach_global_error_notifier()
-        persist_window_geometry(self, context="закрытии", level="❌ ERROR")
-
-        self._cleanup_before_close()
-
-        if self._stop_dpi_on_exit:
-            try:
-                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
-
-                result = shutdown_runtime_sync(window=self, reason="close_event stop_dpi_on_exit", include_cleanup=True)
-                log(
-                    f"Процессы winws завершены при закрытии приложения "
-                    f"(running={result.had_running_processes}, still_running={result.still_running})",
-                    "DEBUG",
-                )
-            except Exception as e:
-                log(f"Ошибка остановки winws при закрытии: {e}", "DEBUG")
-        else:
-            log("Выход без остановки DPI: winws не трогаем", "DEBUG")
-
-        self._cleanup_tray_for_close()
+        self._run_final_close_cleanup()
 
         super().closeEvent(event)
 
@@ -59,40 +40,58 @@ class WindowLifecycleMixin:
         release_input_interaction_states(self)
 
     def request_exit(self, stop_dpi: bool) -> None:
-        """Единая точка выхода из приложения.
+        """Общий вход для tray и adapter-слоя."""
+        if stop_dpi:
+            self.exit_stop_dpi()
+        else:
+            self.exit_keep_dpi()
 
-        - stop_dpi=False: закрыть GUI, DPI оставить работать.
-        - stop_dpi=True: остановить DPI и выйти.
-        """
+    def exit_keep_dpi(self) -> None:
+        """Полный выход из GUI без остановки DPI."""
+        self._prepare_full_exit(stop_dpi=False)
+        log("Запрошен выход: выйти без остановки DPI", "INFO")
+        self._quit_application()
+
+    def exit_stop_dpi(self) -> None:
+        """Полный выход из GUI с остановкой DPI."""
+        self._prepare_full_exit(stop_dpi=True)
+        log("Запрошен выход: остановить DPI и выйти", "INFO")
+
+        if self._start_async_stop_and_exit():
+            return
+
+        self._shutdown_dpi_before_exit_sync(reason="exit_stop_dpi")
+        self._quit_application()
+
+    def _prepare_full_exit(self, *, stop_dpi: bool) -> None:
         self._stop_dpi_on_exit = bool(stop_dpi)
         self._closing_completely = True
 
         persist_window_geometry(self, context="request_exit", level="DEBUG")
         hide_tray_icon_for_exit(self)
 
-        if stop_dpi:
-            log("Запрошен выход: остановить DPI и выйти", "INFO")
+    def _start_async_stop_and_exit(self) -> bool:
+        try:
+            # Окно можно закрыть очень рано, до первой startup-фазы.
+            # Поэтому launch_controller здесь остаётся ленивой проверкой.
+            launch_controller = getattr(self, "launch_controller", None)
+            if launch_controller is None:
+                return False
+            launch_controller.stop_and_exit_async()
+            return True
+        except Exception as e:
+            log(f"stop_and_exit_async не удалось: {e}", "WARNING")
+            return False
 
-            try:
-                # Окно можно закрыть очень рано, до первой startup-фазы.
-                # Поэтому launch_controller здесь остаётся ленивой проверкой.
-                launch_controller = getattr(self, "launch_controller", None)
-                if launch_controller is not None:
-                    launch_controller.stop_and_exit_async()
-                    return
-            except Exception as e:
-                log(f"stop_and_exit_async не удалось: {e}", "WARNING")
+    def _shutdown_dpi_before_exit_sync(self, *, reason: str) -> None:
+        try:
+            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
-            try:
-                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+            shutdown_runtime_sync(window=self, reason=reason, include_cleanup=True)
+        except Exception as e:
+            log(f"Ошибка остановки DPI перед выходом: {e}", "WARNING")
 
-                shutdown_runtime_sync(window=self, reason="request_exit fallback", include_cleanup=True)
-            except Exception as e:
-                log(f"Ошибка остановки DPI перед выходом: {e}", "WARNING")
-
-        else:
-            log("Запрошен выход: выйти без остановки DPI", "INFO")
-
+    def _quit_application(self) -> None:
         QApplication.closeAllWindows()
         QApplication.processEvents()
         QApplication.quit()
@@ -111,7 +110,7 @@ class WindowLifecycleMixin:
 
         return None
 
-    def minimize_to_tray(self) -> bool:
+    def close_to_tray(self) -> bool:
         """Скрывает окно в трей (без выхода из GUI)."""
         try:
             tray_manager = self.ensure_tray_manager()
@@ -123,10 +122,37 @@ class WindowLifecycleMixin:
         return False
 
     def _cleanup_before_close(self) -> None:
-        self._cleanup_support_managers_for_close()
+        self._cleanup_process_monitor_for_close()
+        self._cleanup_subscription_for_close()
+        self._cleanup_theme_for_close()
         self._cleanup_threaded_pages_for_close()
         self._cleanup_visual_and_proxy_resources_for_close()
         self._cleanup_runtime_threads_for_close()
+
+    def _run_final_close_cleanup(self) -> None:
+        detach_global_error_notifier()
+        persist_window_geometry(self, context="закрытии", level="❌ ERROR")
+
+        self._cleanup_before_close()
+        self._finish_dpi_for_final_close()
+        self._cleanup_tray_for_close()
+
+    def _finish_dpi_for_final_close(self) -> None:
+        if not self._stop_dpi_on_exit:
+            log("Выход без остановки DPI: winws не трогаем", "DEBUG")
+            return
+
+        try:
+            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+
+            result = shutdown_runtime_sync(window=self, reason="close_event exit_stop_dpi", include_cleanup=True)
+            log(
+                f"Процессы winws завершены при закрытии приложения "
+                f"(running={result.had_running_processes}, still_running={result.still_running})",
+                "DEBUG",
+            )
+        except Exception as e:
+            log(f"Ошибка остановки winws при закрытии: {e}", "DEBUG")
 
     def changeEvent(self, event):
         if event.type() == QEvent.Type.ActivationChange:
@@ -181,7 +207,7 @@ class WindowLifecycleMixin:
         if not self._startup_ttff_logged:
             self._startup_ttff_logged = True
             self._startup_ttff_ms = startup_elapsed_ms()
-            emit_startup_metric("TTFF", "first showEvent")
+            emit_startup_metric("StartupTTFF", "first showEvent")
 
         self.window_geometry_controller.apply_saved_maximized_state_if_needed()
         QTimer.singleShot(350, self.window_geometry_controller.enable_persistence)
@@ -210,8 +236,14 @@ class WindowLifecycleMixin:
     def _cleanup_threaded_pages_for_close(self) -> None:
         cleanup_threaded_pages_for_close(self)
 
-    def _cleanup_support_managers_for_close(self) -> None:
-        cleanup_support_managers_for_close(self)
+    def _cleanup_process_monitor_for_close(self) -> None:
+        cleanup_process_monitor_for_close(self)
+
+    def _cleanup_subscription_for_close(self) -> None:
+        cleanup_subscription_for_close(self)
+
+    def _cleanup_theme_for_close(self) -> None:
+        cleanup_theme_for_close(self)
 
     def _cleanup_visual_and_proxy_resources_for_close(self) -> None:
         cleanup_visual_and_proxy_resources_for_close(self)

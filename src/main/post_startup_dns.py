@@ -36,7 +36,7 @@ def install_dns_startup(window: "LupiDPIApp") -> None:
         try:
             duration_ms = schedule_dns_startup(status_callback=_handle_startup_dns_status)
             window.log_startup_metric(
-                "PostStartupDNSQueued",
+                "StartupPostInitDnsQueued",
                 f"{duration_ms}ms",
             )
         except Exception as exc:

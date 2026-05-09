@@ -61,7 +61,7 @@ class ProfileSetupPageBase(BasePage):
         return require_page_app_context(
             self,
             parent=self.parent(),
-            error_message="AppContext is required for profile setup page",
+            error_message="Не удалось открыть настройку профиля: нет контекста приложения.",
         )
 
     def _service(self) -> ProfilePresetService:
@@ -223,7 +223,7 @@ class ProfileSetupPageBase(BasePage):
         combo.addItem("x", userData="x")
         combo.addItem("n", userData="n")
         combo.addItem("d", userData="d")
-        combo.addItem("custom", userData="custom")
+        combo.addItem("своё", userData="custom")
 
     def _rebuild_breadcrumb(self) -> None:
         self._breadcrumb.blockSignals(True)
@@ -283,7 +283,7 @@ class ProfileSetupPageBase(BasePage):
 
             self._strategy_combo.clear()
             self._strategy_combo.addItem("Отключено", userData="none")
-            self._strategy_combo.addItem("custom", userData="custom")
+            self._strategy_combo.addItem("Своя настройка", userData="custom")
             for strategy_id, entry in payload.strategy_entries.items():
                 self._strategy_combo.addItem(entry.name, userData=strategy_id)
 
@@ -294,7 +294,7 @@ class ProfileSetupPageBase(BasePage):
                     break
 
             self._match_text.setPlainText(payload.match_summary)
-            self._strategy_text.setPlainText(payload.raw_strategy_text or "custom")
+            self._strategy_text.setPlainText(payload.raw_strategy_text or "Стратегия не выбрана")
             self._raw_text.setPlainText(payload.raw_profile_text)
             self._apply_feedback_buttons(payload)
             self._sync_subpage_visibility()

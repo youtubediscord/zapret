@@ -2593,7 +2593,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Blocked Strategies",
     },
     "page.orchestra.blocked.subtitle": {
-        "ru": "Системные блокировки (strategy=1 для заблокированных РКН сайтов) + пользовательский чёрный список. Оркестратор не будет их использовать.",
+        "ru": "Системные блокировки (стратегия 1 для заблокированных РКН сайтов) + пользовательский чёрный список. Оркестратор не будет их использовать.",
         "en": "System blocks (strategy=1 for blocked sites) plus custom blacklist. Orchestrator will not use them.",
     },
     "page.orchestra.blocked.card.add": {
@@ -3518,7 +3518,7 @@ TEXTS: dict[str, dict[str, str]] = {
     },
     "page.winws1_pages.request.hint": {
         "ru": "Если нужного профиля нет в списке, его можно добавить позже в набор доступных профилей.",
-        "en": "If the needed profile is missing, it can be added later as a template.",
+        "en": "If the needed profile is missing, it can be added later to the available profiles.",
     },
     "page.winws1_pages.loading": {
         "ru": "Читаем профили из выбранного пресета...",
@@ -3633,7 +3633,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Restore built-in preset?",
     },
     "page.winws1_user_presets.dialog.reset_single.body": {
-        "ru": "Пользовательский файл пресета '{name}' будет удалён.\nПосле этого снова будет использоваться встроенный пресет с тем же именем файла.\nИзменения в пользовательском файле будут потеряны.",
+        "ru": "Будет удалён ваш изменённый файл пресета «{name}».\nПосле этого снова появится встроенный пресет с тем же именем файла.\nИзменения в этом файле будут потеряны.",
         "en": "User preset file '{name}' will be removed.\nThe built-in preset with the same file name will be used again.\nChanges in the user file will be lost.",
     },
     "page.winws1_user_presets.dialog.reset_single.button": {
@@ -3645,7 +3645,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Delete preset?",
     },
     "page.winws1_user_presets.dialog.delete_single.body": {
-        "ru": "Пресет '{name}' будет удалён из списка пользовательских пресетов.\nИзменения в этом пресете будут потеряны.\nВернуть его можно только заново создав пресет или импортировав файл.",
+        "ru": "Пользовательский пресет «{name}» будет удалён.\nИзменения в нём будут потеряны.\nВернуть его можно только создав новый пресет или импортировав txt-файл.",
         "en": "Preset '{name}' will be removed from the user presets list.\nChanges in this preset will be lost.\nYou can restore it only by creating a new preset or importing a file.",
     },
     "page.winws1_user_presets.dialog.delete_single.button": {
@@ -3657,7 +3657,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "New preset",
     },
     "page.winws1_user_presets.dialog.create.subtitle": {
-        "ru": "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между конфигурациями.",
+        "ru": "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между разными настройками.",
         "en": "Save current settings as a separate preset to switch between configurations quickly.",
     },
     "page.winws1_user_presets.dialog.create.name": {
@@ -3673,7 +3673,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Create from",
     },
     "page.winws1_user_presets.dialog.create.source.current": {
-        "ru": "Текущего активного",
+        "ru": "Текущего пресета",
         "en": "Current active",
     },
     "page.winws1_user_presets.dialog.create.source.standard": {
@@ -3721,7 +3721,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Preset exists",
     },
     "page.winws1_user_presets.dialog.import_exists.body": {
-        "ru": "Пресет '{name}' уже существует. Импортировать с другим именем?",
+        "ru": "Пресет «{name}» уже существует. Импортировать с другим именем?",
         "en": "Preset '{name}' already exists. Import with another name?",
     },
     "page.winws1_user_presets.dialog.reset_all.title": {
@@ -3729,7 +3729,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Restore default presets",
     },
     "page.winws1_user_presets.dialog.reset_all.body": {
-        "ru": "Встроенные пресеты будут возвращены к состоянию после установки.\nВаши изменения во встроенных пресетах будут потеряны.\nПользовательские пресеты с другими именами останутся.\nТекущий выбранный пресет будет применён заново автоматически.",
+        "ru": "Мы вернём встроенные пресеты к состоянию после установки.\nЕсли вы меняли встроенный пресет, эти изменения будут потеряны.\nПользовательские пресеты с другими именами останутся.\nТекущий выбранный пресет будет применён заново.",
         "en": "Built-in presets will be restored to their post-install state.\nYour changes to built-in presets will be lost.\nCustom presets with other names will remain.\nCurrent selected preset will be re-applied automatically.",
     },
     "page.winws1_user_presets.dialog.reset_all.button": {
@@ -3785,7 +3785,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Failed to import preset",
     },
     "page.winws1_user_presets.error.import_exception": {
-        "ru": "Ошибка импорта: {error}",
+        "ru": "Не удалось импортировать пресет: {error}",
         "en": "Import error: {error}",
     },
     "page.winws1_user_presets.error.open_folder": {
@@ -4109,7 +4109,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Restore built-in preset?",
     },
     "page.winws2_user_presets.dialog.reset_single.body": {
-        "ru": "Пользовательский файл пресета '{name}' будет удалён.\nПосле этого снова будет использоваться встроенный пресет с тем же именем файла.\nИзменения в пользовательском файле будут потеряны.",
+        "ru": "Будет удалён ваш изменённый файл пресета «{name}».\nПосле этого снова появится встроенный пресет с тем же именем файла.\nИзменения в этом файле будут потеряны.",
         "en": "User preset file '{name}' will be removed.\nThe built-in preset with the same file name will be used again.\nChanges in the user file will be lost.",
     },
     "page.winws2_user_presets.dialog.reset_single.button": {
@@ -4121,7 +4121,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Delete preset?",
     },
     "page.winws2_user_presets.dialog.delete_single.body": {
-        "ru": "Пресет '{name}' будет удалён из списка пользовательских пресетов.\nИзменения в этом пресете будут потеряны.\nВернуть его можно только заново создав пресет или импортировав файл.",
+        "ru": "Пользовательский пресет «{name}» будет удалён.\nИзменения в нём будут потеряны.\nВернуть его можно только создав новый пресет или импортировав txt-файл.",
         "en": "Preset '{name}' will be removed from the user presets list.\nChanges in this preset will be lost.\nYou can restore it only by creating a new preset or importing a file.",
     },
     "page.winws2_user_presets.dialog.delete_single.button": {
@@ -4133,7 +4133,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "New preset",
     },
     "page.winws2_user_presets.dialog.create.subtitle": {
-        "ru": "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между конфигурациями.",
+        "ru": "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между разными настройками.",
         "en": "Save current settings as a separate preset to switch between configurations quickly.",
     },
     "page.winws2_user_presets.dialog.create.name": {
@@ -4149,7 +4149,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Create from",
     },
     "page.winws2_user_presets.dialog.create.source.current": {
-        "ru": "Текущего активного",
+        "ru": "Текущего пресета",
         "en": "Current active",
     },
     "page.winws2_user_presets.dialog.create.source.standard": {
@@ -4197,7 +4197,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Preset exists",
     },
     "page.winws2_user_presets.dialog.import_exists.body": {
-        "ru": "Пресет '{name}' уже существует. Импортировать с другим именем?",
+        "ru": "Пресет «{name}» уже существует. Импортировать с другим именем?",
         "en": "Preset '{name}' already exists. Import with another name?",
     },
     "page.winws2_user_presets.dialog.reset_all.title": {
@@ -4205,7 +4205,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Restore default presets",
     },
     "page.winws2_user_presets.dialog.reset_all.body": {
-        "ru": "Встроенные пресеты будут возвращены к состоянию после установки.\nВаши изменения во встроенных пресетах будут потеряны.\nПользовательские пресеты с другими именами останутся.\nТекущий выбранный пресет будет применён заново автоматически.",
+        "ru": "Мы вернём встроенные пресеты к состоянию после установки.\nЕсли вы меняли встроенный пресет, эти изменения будут потеряны.\nПользовательские пресеты с другими именами останутся.\nТекущий выбранный пресет будет применён заново.",
         "en": "Built-in presets will be restored to their post-install state.\nYour changes to built-in presets will be lost.\nCustom presets with other names will remain.\nCurrent selected preset will be re-applied automatically.",
     },
     "page.winws2_user_presets.dialog.reset_all.button": {
@@ -4261,7 +4261,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Failed to import preset",
     },
     "page.winws2_user_presets.error.import_exception": {
-        "ru": "Ошибка импорта: {error}",
+        "ru": "Не удалось импортировать пресет: {error}",
         "en": "Import error: {error}",
     },
     "page.winws2_user_presets.error.open_folder": {

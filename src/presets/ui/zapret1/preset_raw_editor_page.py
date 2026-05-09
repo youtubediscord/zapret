@@ -8,7 +8,7 @@ from settings.mode import ENGINE_WINWS1, ZAPRET1_MODE
 
 class Zapret1PresetRawEditorPage(PresetSubpageBase):
     def _default_title(self) -> str:
-        return "Preset Zapret 1"
+        return "Пресет Zapret 1"
 
     def _get_preset_path(self, name: str) -> Path:
         return self._require_app_context().preset_file_store.get_source_path(ENGINE_WINWS1, str(name or "").strip())

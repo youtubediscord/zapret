@@ -313,7 +313,7 @@ class UserPresetsPageController:
         return UserPresetActionResult(
             ok=True,
             log_level="INFO",
-            log_message=f"Preset '{current_name}' переименован в '{new_name}'",
+            log_message=f"Пресет '{current_name}' переименован в '{new_name}'",
             infobar_level=None,
             infobar_title="",
             infobar_content="",
@@ -385,7 +385,7 @@ class UserPresetsPageController:
         return UserPresetActionResult(
             ok=True,
             log_level="INFO",
-            log_message=f"Preset '{display_name}' дублирован как '{new_name}'",
+            log_message=f"Пресет '{display_name}' дублирован как '{new_name}'",
             infobar_level=None,
             infobar_title="",
             infobar_content="",

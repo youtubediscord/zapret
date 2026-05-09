@@ -56,7 +56,7 @@ class CreatePresetDialog(MessageBoxBase):
         self.subtitleLabel = BodyLabel(
             self._tr(
                 "page.winws2_user_presets.dialog.create.subtitle",
-                "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между конфигурациями.",
+                "Сохраните текущие настройки как отдельный пресет, чтобы быстро переключаться между разными настройками.",
             ),
             self.widget,
         )
@@ -88,7 +88,7 @@ class CreatePresetDialog(MessageBoxBase):
             self._source_seg = SegmentedWidget(self.widget)
             self._source_seg.addItem(
                 "current",
-                self._tr("page.winws2_user_presets.dialog.create.source.current", "Текущего активного"),
+                self._tr("page.winws2_user_presets.dialog.create.source.current", "Текущего пресета"),
             )
             self._source_seg.addItem(
                 "standard",
@@ -226,10 +226,10 @@ class ResetAllPresetsDialog(MessageBoxBase):
             tr_presets_dialog(
                 "page.winws2_user_presets.dialog.reset_all.body",
                 self._ui_language,
-                "Встроенные пресеты будут возвращены к состоянию после установки.\n"
-                "Ваши изменения во встроенных пресетах будут потеряны.\n"
+                "Мы вернём встроенные пресеты к состоянию после установки.\n"
+                "Если вы меняли встроенный пресет, эти изменения будут потеряны.\n"
                 "Пользовательские пресеты с другими именами останутся.\n"
-                "Текущий выбранный пресет будет применён заново автоматически.",
+                "Текущий выбранный пресет будет применён заново.",
             ),
             self.widget,
         )

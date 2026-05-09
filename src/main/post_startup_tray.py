@@ -34,9 +34,9 @@ def install_tray_startup(window: "LupiDPIApp") -> None:
         delay_ms = 1500
         log(f"Системный трей отложен на {delay_ms}ms после post-init", "DEBUG")
         try:
-            window.log_startup_metric("PostStartupTrayQueued", f"{delay_ms}ms after post-init")
+            window.log_startup_metric("StartupPostInitTrayQueued", f"{delay_ms}ms after post-init")
         except Exception as exc:
-            log(f"Не удалось записать startup-метрику PostStartupTrayQueued: {exc}", "DEBUG")
+            log(f"Не удалось записать startup-метрику StartupPostInitTrayQueued: {exc}", "DEBUG")
 
         schedule_after(
             delay_ms,

@@ -100,7 +100,7 @@ class ProfilesList(QWidget):
         description = " | ".join(description_parts)
         tooltip = _match_summary(item)
         if not item.in_preset:
-            tooltip = f"{tooltip}\nЭтого профиля ещё нет в выбранном пресете. Включите его или выберите готовую стратегию, чтобы добавить."
+            tooltip = f"{tooltip}\nПрофиля ещё нет в пресете. Включите его или выберите готовую стратегию."
         elif not item.enabled:
             tooltip = f"{tooltip}\nПрофиль есть в пресете, но сейчас выключен. В файле это записано через --skip."
 

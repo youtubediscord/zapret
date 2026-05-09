@@ -95,7 +95,7 @@ def import_preset_action(
         parent,
         tr_fn("page.winws1_user_presets.file_dialog.import_title", "Импортировать пресет"),
         "",
-        "Preset files (*.txt);;All files (*.*)",
+        "Файлы пресетов (*.txt);;Все файлы (*.*)",
     )
     if not file_path:
         return
@@ -121,7 +121,11 @@ def import_preset_action(
         log_fn(f"Ошибка импорта пресета: {exc}", "ERROR")
         info_bar_cls.error(
             title=tr_fn("common.error.title", "Ошибка"),
-            content=tr_fn("page.winws1_user_presets.error.import_exception", "Ошибка импорта: {error}", error=exc),
+            content=tr_fn(
+                "page.winws1_user_presets.error.import_exception",
+                "Не удалось импортировать пресет: {error}",
+                error=exc,
+            ),
             parent=parent_window,
         )
 

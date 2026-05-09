@@ -35,9 +35,9 @@ def init_tray(app) -> None:
 
     log("Системный трей инициализирован", "INFO")
     try:
-        app.log_startup_metric("TrayInit", f"{(time.perf_counter() - started_at) * 1000:.0f}ms")
+        app.log_startup_metric("StartupTrayInit", f"{(time.perf_counter() - started_at) * 1000:.0f}ms")
     except Exception as exc:
-        log(f"Не удалось записать startup-метрику TrayInit: {exc}", "DEBUG")
+        log(f"Не удалось записать startup-метрику StartupTrayInit: {exc}", "DEBUG")
 
     if bool(getattr(app, "_tray_launch_notification_pending", False)):
         app.window_notification_controller.notify(

@@ -89,7 +89,7 @@ def cleanup_threaded_pages_for_close(window) -> None:
         log(f"Ошибка при очистке страниц: {e}", "DEBUG")
 
 
-def cleanup_support_managers_for_close(window) -> None:
+def cleanup_process_monitor_for_close(window) -> None:
     try:
         # Эти сервисы создаются после первого показа окна, поэтому при очень
         # раннем закрытии их может ещё не быть.
@@ -99,6 +99,8 @@ def cleanup_support_managers_for_close(window) -> None:
     except Exception as e:
         log(f"Ошибка остановки process_monitor_manager: {e}", "DEBUG")
 
+
+def cleanup_subscription_for_close(window) -> None:
     try:
         subscription_manager = getattr(window, "subscription_manager", None)
         if subscription_manager is not None:
@@ -106,6 +108,8 @@ def cleanup_support_managers_for_close(window) -> None:
     except Exception as e:
         log(f"Ошибка очистки subscription_manager: {e}", "DEBUG")
 
+
+def cleanup_theme_for_close(window) -> None:
     try:
         theme_manager = getattr(window, "theme_manager", None)
         if theme_manager is not None:

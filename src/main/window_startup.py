@@ -22,21 +22,21 @@ def window_bootstrap_for(window_cls, *, start_in_tray: bool):
     t_context = _time.perf_counter()
     app_context = build_app_context(initial_ui_state=window_cls._build_initial_ui_state())
     emit_startup_metric(
-        "WindowBootstrapContext",
+        "StartupWindowBootstrapContext",
         f"{(_time.perf_counter() - t_context) * 1000:.0f}ms",
     )
     install_app_context(app_context)
     t_window = _time.perf_counter()
     window = window_cls(start_in_tray=start_in_tray, app_context=app_context)
     emit_startup_metric(
-        "WindowBootstrapWindow",
+        "StartupWindowBootstrapWindow",
         f"{(_time.perf_counter() - t_window) * 1000:.0f}ms",
     )
     register_app_window(window)
     return app_context, window
 
 
-def startup_services_bootstrap_for(window) -> None:
+def startup_bootstrap_for(window) -> None:
     from donater.subscription_manager import SubscriptionManager
     from main.startup_coordinator import StartupCoordinator
     from winws_runtime.monitoring import ProcessMonitorManager
@@ -84,14 +84,14 @@ class WindowStartupMixin:
         self.window_notification_controller = WindowNotificationController(self)
         self.window_notification_controller.register_global_error_notifier()
         emit_startup_metric(
-            "WindowInitNotifications",
+            "StartupWindowInitNotifications",
             f"{(_time.perf_counter() - t_notifications) * 1000:.0f}ms",
         )
 
         t_geometry = _time.perf_counter()
         self.window_geometry_controller.restore_geometry()
         emit_startup_metric(
-            "WindowInitRestoreGeometry",
+            "StartupWindowInitRestoreGeometry",
             f"{(_time.perf_counter() - t_geometry) * 1000:.0f}ms",
         )
 
@@ -103,8 +103,8 @@ class WindowStartupMixin:
         self._startup_ttff_ms = None
         self._startup_interactive_logged = False
         self._startup_interactive_ms = None
-        self._startup_services_ready_logged = False
-        self._startup_services_ready_ms = None
+        self._startup_core_ready_logged = False
+        self._startup_core_ready_ms = None
         self._startup_post_init_done_logged = False
         self._startup_post_init_done_ms = None
         self._last_active_preset_content_path = ""
@@ -120,7 +120,7 @@ class WindowStartupMixin:
             t_show = _time.perf_counter()
             self.show()
             emit_startup_metric(
-                "WindowInitShowCall",
+                "StartupWindowInitShowCall",
                 f"{(_time.perf_counter() - t_show) * 1000:.0f}ms",
             )
             log("Основное окно показано (FluentWindow, init в фоне)", "DEBUG")
@@ -179,7 +179,7 @@ class WindowStartupMixin:
         total_started_at = _time.perf_counter()
         bootstrap_started_at = _time.perf_counter()
 
-        startup_services_bootstrap_for(self)
+        startup_bootstrap_for(self)
         log(f"⏱ Startup: startup bootstrap {(_time.perf_counter() - bootstrap_started_at) * 1000:.0f}ms", "DEBUG")
 
         self.startup_coordinator.run_async_init()
@@ -205,32 +205,32 @@ class WindowStartupMixin:
         ttff_ms = self._startup_ttff_ms
         if isinstance(ttff_ms, int):
             delta_ms = max(0, interactive_ms - ttff_ms)
-            emit_startup_metric("Interactive", f"{source}, +{delta_ms}ms after TTFF")
+            emit_startup_metric("StartupInteractive", f"{source}, +{delta_ms}ms after StartupTTFF")
         else:
-            emit_startup_metric("Interactive", source)
+            emit_startup_metric("StartupInteractive", source)
         try:
             self.startup_interactive_ready.emit(str(source or "interactive"))
         except Exception as e:
             log(f"Startup: startup_interactive_ready signal failed: {e}", "DEBUG")
 
-    def _mark_startup_services_ready(self, source: str = "startup_services_ready") -> None:
-        if self._startup_services_ready_logged:
+    def _mark_startup_core_ready(self, source: str = "startup_core_ready") -> None:
+        if self._startup_core_ready_logged:
             return
 
-        self._startup_services_ready_logged = True
-        services_ready_ms = startup_elapsed_ms()
-        self._startup_services_ready_ms = services_ready_ms
+        self._startup_core_ready_logged = True
+        core_ready_ms = startup_elapsed_ms()
+        self._startup_core_ready_ms = core_ready_ms
 
         details = source
         interactive_ms = self._startup_interactive_ms
         if isinstance(interactive_ms, int):
-            delta_ms = max(0, services_ready_ms - interactive_ms)
-            details = f"{source}, +{delta_ms}ms after Interactive"
+            delta_ms = max(0, core_ready_ms - interactive_ms)
+            details = f"{source}, +{delta_ms}ms after StartupInteractive"
         elif isinstance(self._startup_ttff_ms, int):
-            delta_ms = max(0, services_ready_ms - self._startup_ttff_ms)
-            details = f"{source}, +{delta_ms}ms after TTFF"
+            delta_ms = max(0, core_ready_ms - self._startup_ttff_ms)
+            details = f"{source}, +{delta_ms}ms after StartupTTFF"
 
-        emit_startup_metric("StartupServicesReady", details)
+        emit_startup_metric("StartupCoreReady", details)
 
     def _mark_startup_post_init_done(self, source: str = "post_init_tasks") -> None:
         if self._startup_post_init_done_logged:
@@ -241,15 +241,15 @@ class WindowStartupMixin:
         self._startup_post_init_done_ms = post_init_ms
 
         details = source
-        services_ready_ms = self._startup_services_ready_ms
-        if isinstance(services_ready_ms, int):
-            delta_ms = max(0, post_init_ms - services_ready_ms)
-            details = f"{source}, +{delta_ms}ms after StartupServicesReady"
+        core_ready_ms = self._startup_core_ready_ms
+        if isinstance(core_ready_ms, int):
+            delta_ms = max(0, post_init_ms - core_ready_ms)
+            details = f"{source}, +{delta_ms}ms after StartupCoreReady"
         elif isinstance(self._startup_interactive_ms, int):
             delta_ms = max(0, post_init_ms - self._startup_interactive_ms)
-            details = f"{source}, +{delta_ms}ms after Interactive"
+            details = f"{source}, +{delta_ms}ms after StartupInteractive"
 
-        emit_startup_metric("PostInitDispatched", details)
+        emit_startup_metric("StartupPostInit", details)
         self._startup_post_init_ready = True
         try:
             self.startup_post_init_ready.emit(str(source or "post_init"))

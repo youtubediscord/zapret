@@ -29,7 +29,7 @@ def install_startup_checks(window: "LupiDPIApp") -> None:
             duration_ms = int(payload.get("duration_ms") or 0)
 
             if duration_ms > 0:
-                window.log_startup_metric("StartupChecksFinished", f"{duration_ms}ms")
+                window.log_startup_metric("StartupPostInitChecksFinished", f"{duration_ms}ms")
 
             if controller is not None:
                 controller.notify_many([item for item in notifications if isinstance(item, dict)])
@@ -61,7 +61,7 @@ def install_startup_checks(window: "LupiDPIApp") -> None:
             )
 
     def _start_startup_checks() -> None:
-        window.log_startup_metric("StartupChecksStarted", "startup_checks_worker")
+        window.log_startup_metric("StartupPostInitChecksStarted", "startup_checks_worker")
         start_daemon_thread("StartupChecksWorker", _startup_checks_worker)
 
     bind_startup_gate(

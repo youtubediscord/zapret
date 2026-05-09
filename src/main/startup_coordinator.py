@@ -20,12 +20,12 @@ TASK_PROCESS_MONITOR = "process_monitor"
 TASK_CORE_STARTUP = "core_startup"
 TASK_THEME_MANAGER = "theme_manager"
 TASK_TRAY = "tray"
-TASK_STARTUP_SERVICES_READY = "startup_services_ready"
+TASK_STARTUP_CORE_READY = "startup_core_ready"
 
 REQUIRED_STARTUP_COMPONENTS = (
     TASK_LAUNCH_RUNTIME_API,
     TASK_LAUNCH_CONTROLLER,
-    TASK_STARTUP_SERVICES_READY,
+    TASK_STARTUP_CORE_READY,
 )
 
 
@@ -153,9 +153,9 @@ class StartupCoordinator:
 
         phase_two_steps.append(
             (
-                TASK_STARTUP_SERVICES_READY,
-                "startup services",
-                self._finalize_startup_services,
+                TASK_STARTUP_CORE_READY,
+                "startup core",
+                self._finalize_startup_core,
                 None,
             )
         )
@@ -184,13 +184,13 @@ class StartupCoordinator:
         """Фиксирует момент, когда минимальный контур окна уже готов к кликам."""
         self.app._mark_startup_interactive("startup_minimal_ready")
 
-    def _finalize_startup_services(self):
+    def _finalize_startup_core(self):
         """Фиксирует готовность основного startup-контура."""
         log("Основной startup-контур готов", "✅ SUCCESS")
-        self.app._mark_startup_services_ready("startup_coordinator")
+        self.app._mark_startup_core_ready("startup_coordinator")
         self.app.set_status("Инициализация завершена")
         self._check_and_complete_initialization()
-        log("✅ Startup services finalized", "DEBUG")
+        log("✅ Startup core finalized", "DEBUG")
 
     # ───────────────────────── верификация и пост-задачи ─────────────────────
 
@@ -237,17 +237,17 @@ class StartupCoordinator:
             from settings.dpi.strategy_settings import get_strategy_launch_method
             launch_method = get_strategy_launch_method()
             self._log_startup_step(
-                "PostInitResolveMethod",
+                "StartupPostInitResolveMethod",
                 f"{launch_method} {(_time.perf_counter() - t_method)*1000:.0f}ms",
             )
 
             run_queued_with_str(self._run_deferred_post_init_launch, str(launch_method or ""))
             self._log_startup_step(
-                "PostInitDeferredScheduled",
+                "StartupPostInitDeferredScheduled",
                 f"{launch_method}, queued_connection",
             )
             self._log_startup_step(
-                "DPIAutostartQueued",
+                "StartupDpiAutostart",
                 f"{launch_method}, queued_connection",
             )
             post_init_metric_source = f"post_init_scheduled:{launch_method}"
@@ -260,7 +260,7 @@ class StartupCoordinator:
             import traceback
             log(traceback.format_exc(), "DEBUG")
         finally:
-            self._log_startup_step("PostInitQuickPhase", f"{(_time.perf_counter() - t_total)*1000:.0f}ms")
+            self._log_startup_step("StartupPostInitQuickPhase", f"{(_time.perf_counter() - t_total)*1000:.0f}ms")
             self.app._mark_startup_post_init_done(post_init_metric_source)
 
     def _run_deferred_post_init_launch(self, launch_method: str) -> None:
@@ -271,7 +271,7 @@ class StartupCoordinator:
 
         started_at = _time.perf_counter()
         method = normalize_launch_method(launch_method)
-        self._log_startup_step("PostInitDeferredStart", method or "unknown")
+        self._log_startup_step("StartupPostInitDeferredStart", method or "unknown")
 
         try:
             from winws_runtime.runtime.autostart import start_dpi_autostart
@@ -283,6 +283,6 @@ class StartupCoordinator:
             log(traceback.format_exc(), "DEBUG")
         finally:
             self._log_startup_step(
-                "PostInitDeferredDispatch",
+                "StartupPostInitDeferredDispatch",
                 f"{method or 'unknown'} {(_time.perf_counter() - started_at)*1000:.0f}ms",
             )

@@ -293,7 +293,7 @@ class PresetSubpageBase(BasePage):
         summary_layout.setContentsMargins(16, 16, 16, 16)
         summary_layout.setSpacing(8)
 
-        self.statusLabel = StrongBodyLabel("Preset", self.summaryCard)
+        self.statusLabel = StrongBodyLabel("Пресет", self.summaryCard)
         self.metaLabel = CaptionLabel("", self.summaryCard)
         self.metaLabel.setWordWrap(True)
         self.pathLabel = CaptionLabel("", self.summaryCard)
@@ -424,9 +424,9 @@ class PresetSubpageBase(BasePage):
         try:
             service = self._get_preset_file_service()
             if service is None:
-                raise ValueError("Preset mode file service is required")
+                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
-                raise ValueError("Preset file name is required for preset mode saving")
+                raise ValueError("Не удалось определить имя файла пресета для сохранения.")
             updated = service.save_source_text_by_file_name(self._preset_file_name, self.editor.toPlainText())
             self._preset_name = updated.name
             self._preset_file_name = updated.file_name
@@ -447,7 +447,7 @@ class PresetSubpageBase(BasePage):
         try:
             if self._activate_selected_preset():
                 self._refresh_header()
-                self._show_success(f"Preset «{self._preset_name}» активирован")
+                self._show_success(f"Пресет «{self._preset_name}» активирован")
             else:
                 self._show_error(f"Не удалось активировать пресет «{self._preset_name}»")
         except Exception as e:
@@ -508,9 +508,9 @@ class PresetSubpageBase(BasePage):
         try:
             service = self._get_preset_file_service()
             if service is None:
-                raise ValueError("Preset mode file service is required")
+                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
-                raise ValueError("Preset file name is required for preset mode rename")
+                raise ValueError("Не удалось определить имя файла пресета для переименования.")
             updated = service.rename_by_file_name(self._preset_file_name, new_name)
             self._notify_preset_structure_changed()
             self.set_preset_file_name(updated.file_name)
@@ -524,9 +524,9 @@ class PresetSubpageBase(BasePage):
             new_name = f"{self._preset_name} (копия)"
             service = self._get_preset_file_service()
             if service is None:
-                raise ValueError("Preset mode file service is required")
+                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
-                raise ValueError("Preset file name is required for preset mode duplicate")
+                raise ValueError("Не удалось определить имя файла пресета для дублирования.")
             duplicated = service.duplicate_by_file_name(self._preset_file_name, new_name)
             self._notify_preset_structure_changed()
             self.set_preset_file_name(duplicated.file_name)
@@ -540,16 +540,16 @@ class PresetSubpageBase(BasePage):
             self,
             "Экспортировать пресет",
             f"{self._preset_name}.txt",
-            "Preset files (*.txt);;All files (*.*)",
+            "Файлы пресетов (*.txt);;Все файлы (*.*)",
         )
         if not file_path:
             return
         try:
             service = self._get_preset_file_service()
             if service is None:
-                raise ValueError("Preset mode file service is required")
+                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
-                raise ValueError("Preset file name is required for preset mode export")
+                raise ValueError("Не удалось определить имя файла пресета для экспорта.")
             service.export_plain_text_by_file_name(self._preset_file_name, Path(file_path))
             self._show_success(f"Пресет экспортирован: {file_path}")
         except Exception as e:
@@ -560,8 +560,9 @@ class PresetSubpageBase(BasePage):
         if MessageBox is not None:
             box = MessageBox(
                 "Вернуть встроенный пресет?",
-                f"Пользовательский файл пресета «{self._preset_name}» будет удалён. "
-                "После этого снова будет использоваться встроенный пресет с тем же именем файла.",
+                f"Будет удалён ваш изменённый файл пресета «{self._preset_name}».\n"
+                "После этого снова появится встроенный пресет с тем же именем файла.\n"
+                "Изменения в этом файле будут потеряны.",
                 self.window(),
             )
             box.yesButton.setText("Вернуть встроенный")
@@ -571,9 +572,9 @@ class PresetSubpageBase(BasePage):
         try:
             service = self._get_preset_file_service()
             if service is None:
-                raise ValueError("Preset mode file service is required")
+                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
-                raise ValueError("Preset file name is required for preset mode reset")
+                raise ValueError("Не удалось определить имя файла пресета для сброса.")
             updated = service.reset_to_builtin_by_file_name(self._preset_file_name)
             self._preset_name = updated.name
             self._preset_file_name = updated.file_name
@@ -592,7 +593,8 @@ class PresetSubpageBase(BasePage):
         if MessageBox is not None:
             box = MessageBox(
                 "Удалить пресет?",
-                f"Preset «{self._preset_name}» будет удалён.",
+                f"Пользовательский пресет «{self._preset_name}» будет удалён.\n"
+                "Изменения в нём будут потеряны.",
                 self.window(),
             )
             box.yesButton.setText("Удалить")
@@ -603,13 +605,13 @@ class PresetSubpageBase(BasePage):
             name = self._preset_name
             service = self._get_preset_file_service()
             if service is None:
-                raise ValueError("Preset mode file service is required")
+                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
-                raise ValueError("Preset file name is required for preset mode delete")
+                raise ValueError("Не удалось определить имя файла пресета для удаления.")
             service.delete_by_file_name(self._preset_file_name)
             self._notify_preset_structure_changed()
             self.back_clicked.emit()
-            self._show_success(f"Preset «{name}» удалён")
+            self._show_success(f"Пресет «{name}» удалён")
         except Exception as e:
             self._show_error(str(e))
 
@@ -632,7 +634,7 @@ class PresetSubpageBase(BasePage):
         return require_page_app_context(
             self,
             parent=self.parent(),
-            error_message="AppContext is required for preset subpage",
+            error_message="Не удалось открыть страницу пресета: нет контекста приложения.",
         )
 
     def _get_preset_mode_coordinator(self):
