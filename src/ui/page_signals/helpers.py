@@ -28,9 +28,9 @@ def connect_show_page_signal(window, key: str, signal_obj, target_page: PageName
         window,
         key,
         signal_obj,
-        lambda target=target_page, current_window=window, internal=allow_internal: show_page(
+        lambda page_to_show=target_page, current_window=window, internal=allow_internal: show_page(
             current_window,
-            target,
+            page_to_show,
             allow_internal=internal,
         ),
     )

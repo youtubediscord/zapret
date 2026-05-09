@@ -7,7 +7,7 @@ from settings.dpi.strategy_settings import get_strategy_launch_method
 from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 
 
-class DirectLaunchStopWorker(QObject):
+class PresetLaunchStopWorker(QObject):
     """Worker для асинхронной остановки прямого launch-runtime."""
 
     finished = pyqtSignal(bool, str)
@@ -48,10 +48,10 @@ class DirectLaunchStopWorker(QObject):
 
             if self.launch_method == "orchestra":
                 success = self._stop_orchestra()
-            elif self.launch_method in ("direct_zapret2", "direct_zapret1"):
-                success = self._stop_direct()
+            elif self.launch_method in ("zapret2_mode", "zapret1_mode"):
+                success = self._stop_preset_mode()
             else:
-                success = self._stop_direct()
+                success = self._stop_preset_mode()
 
             if success:
                 self.progress.emit("DPI успешно остановлен")
@@ -64,9 +64,9 @@ class DirectLaunchStopWorker(QObject):
             log(error_msg, "❌ ERROR")
             self.finished.emit(False, error_msg)
 
-    def _stop_direct(self):
+    def _stop_preset_mode(self):
         try:
-            return self._shutdown_runtime(reason=f"direct_stop_worker:{self.launch_method}")
+            return self._shutdown_runtime(reason=f"preset_stop_worker:{self.launch_method}")
 
         except Exception as e:
             log(f"Ошибка прямой остановки: {e}", "❌ ERROR")
@@ -91,8 +91,8 @@ class DirectLaunchStopWorker(QObject):
         return not result.still_running
 
 
-class DirectPresetSwitchWorker(QObject):
-    """Worker для быстрого переключения running direct пресета без общего restart pipeline."""
+class PresetSwitchWorker(QObject):
+    """Worker для быстрого переключения running preset без общего restart pipeline."""
 
     finished = pyqtSignal(bool, str, int, str, bool)
     progress = pyqtSignal(str)
@@ -111,10 +111,10 @@ class DirectPresetSwitchWorker(QObject):
 
     def run(self):
         try:
-            if self.launch_method not in ("direct_zapret1", "direct_zapret2"):
+            if self.launch_method not in ("zapret1_mode", "zapret2_mode"):
                 self.finished.emit(
                     False,
-                    f"Неподдерживаемый метод direct switch: {self.launch_method}",
+                    f"Неподдерживаемый метод preset switch: {self.launch_method}",
                     self.generation,
                     self.launch_method,
                     False,
@@ -125,7 +125,7 @@ class DirectPresetSwitchWorker(QObject):
 
             from winws_runtime.runners.runner_factory import get_strategy_runner
 
-            profile = self.app_instance.app_context.direct_flow_coordinator.ensure_launch_profile(
+            preset = self.app_instance.app_context.preset_mode_coordinator.ensure_launch_preset(
                 self.launch_method,
                 require_filters=True,
             )
@@ -139,15 +139,15 @@ class DirectPresetSwitchWorker(QObject):
             if callable(switch_method):
                 success = bool(
                     switch_method(
-                        str(profile.preset_path),
-                        profile.display_name,
+                        str(preset.preset_path),
+                        preset.display_name,
                     )
                 )
             else:
                 success = bool(
                     runner.start_from_preset_file(
-                        str(profile.preset_path),
-                        profile.display_name,
+                        str(preset.preset_path),
+                        preset.display_name,
                     )
                 )
 

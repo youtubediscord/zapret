@@ -175,225 +175,64 @@ class SettingsCard(QWidget if HAS_FLUENT else QFrame):
         return super().styleSheet()
 
 
-class _SettingCardGroupAutoSizer(QObject):
-    """Принудительно пересчитывает высоту Fluent-группы после динамических изменений.
+def refresh_setting_card_group_height(group):
+    """Явно пересчитывает высоту Fluent `SettingCardGroup`.
 
-    В qfluentwidgets `SettingCardGroup.adjustSize()` учитывает только карточки внутри
-    внутреннего `cardLayout`. Если мы вручную вставляем дополнительные виджеты в
-    `vBoxLayout` группы, например предупреждающий текст или строку статуса, штатный
-    расчёт высоты становится заниженным. В результате следующий блок страницы может
-    стартовать слишком рано и визуально «налезать» на предыдущий.
-    """
-
-    _REFRESH_EVENTS = {
-        QEvent.Type.Show,
-        QEvent.Type.Hide,
-        QEvent.Type.Resize,
-        QEvent.Type.LayoutRequest,
-        QEvent.Type.FontChange,
-        QEvent.Type.StyleChange,
-        QEvent.Type.ContentsRectChange,
-    }
-
-    def __init__(self, group: QWidget):
-        super().__init__(group)
-        self._group = group
-        self._cleanup_in_progress = False
-        self._refresh_pending = False
-        self._refreshing = False
-        self._watched_widget_ids: set[int] = set()
-        self._watched_widgets: list[QWidget] = []
-        self._watch_widget(group)
-        self._watch_layout_widgets()
-        self.schedule_refresh()
-
-    def _watch_widget(self, widget) -> None:
-        if self._cleanup_in_progress:
-            return
-        if widget is None:
-            return
-        widget_id = id(widget)
-        if widget_id in self._watched_widget_ids:
-            return
-        self._watched_widget_ids.add(widget_id)
-        self._watched_widgets.append(widget)
-        try:
-            widget.installEventFilter(self)
-        except Exception:
-            pass
-
-    def _watch_layout_widgets(self) -> None:
-        if self._cleanup_in_progress:
-            return
-        layout = getattr(self._group, "vBoxLayout", None)
-        if layout is None:
-            return
-        for index in range(layout.count()):
-            item = layout.itemAt(index)
-            if item is None:
-                continue
-            widget = item.widget()
-            if widget is not None:
-                self._watch_widget(widget)
-
-    def schedule_refresh(self) -> None:
-        if self._cleanup_in_progress:
-            return
-        if self._refreshing:
-            return
-        if self._refresh_pending:
-            return
-        self._refresh_pending = True
-        QTimer.singleShot(0, lambda: (not self._cleanup_in_progress) and self.refresh_now())
-
-    def refresh_now(self) -> None:
-        if self._cleanup_in_progress:
-            self._refresh_pending = False
-            return
-        self._refresh_pending = False
-        group = self._group
-        if group is None:
-            return
-        try:
-            if not group.isVisible():
-                return
-        except Exception:
-            pass
-
-        layout = getattr(group, "vBoxLayout", None)
-        if layout is None:
-            return
-
-        self._watch_layout_widgets()
-
-        self._refreshing = True
-        try:
-            try:
-                layout.invalidate()
-                layout.activate()
-            except Exception:
-                pass
-
-            try:
-                width_candidates = [
-                    int(getattr(group, "width", lambda: 0)() or 0),
-                ]
-                try:
-                    width_candidates.append(int(layout.sizeHint().width()))
-                except Exception:
-                    pass
-                try:
-                    width_candidates.append(int(group.sizeHint().width()))
-                except Exception:
-                    pass
-                width = max(1, *width_candidates)
-
-                height = 0
-                try:
-                    if layout.hasHeightForWidth():
-                        height = int(layout.totalHeightForWidth(width))
-                except Exception:
-                    height = 0
-                if height <= 0:
-                    try:
-                        height = int(layout.sizeHint().height())
-                    except Exception:
-                        height = 0
-                if height <= 0:
-                    return
-
-                geometry_changed = False
-                try:
-                    if group.minimumHeight() != height:
-                        group.setMinimumHeight(height)
-                        geometry_changed = True
-                except Exception:
-                    pass
-                try:
-                    if group.height() != height:
-                        group.resize(max(1, group.width()), height)
-                        geometry_changed = True
-                except Exception:
-                    pass
-                if not geometry_changed:
-                    return
-
-                try:
-                    group.updateGeometry()
-                except Exception:
-                    pass
-
-                parent = None
-                try:
-                    parent = group.parentWidget()
-                except Exception:
-                    parent = None
-                if parent is not None:
-                    try:
-                        parent.updateGeometry()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        finally:
-            self._refreshing = False
-
-    def eventFilter(self, obj, event):  # noqa: N802
-        if self._cleanup_in_progress:
-            return False
-        if self._refreshing:
-            return False
-        _ = obj
-        try:
-            if event.type() in self._REFRESH_EVENTS:
-                self._watch_layout_widgets()
-                self.schedule_refresh()
-        except Exception:
-            pass
-        return super().eventFilter(obj, event)
-
-    def cleanup(self) -> None:
-        if self._cleanup_in_progress:
-            return
-        self._cleanup_in_progress = True
-        self._refresh_pending = False
-        for widget in list(self._watched_widgets):
-            try:
-                widget.removeEventFilter(self)
-            except Exception:
-                pass
-        self._watched_widgets.clear()
-        self._watched_widget_ids.clear()
-        self._group = None
-
-
-def enable_setting_card_group_auto_height(group):
-    """Включает авто-пересчёт высоты для Fluent `SettingCardGroup`.
-
-    Функция безопасна и для обычных fallback-виджетов: если передан не Fluent-группа,
-    она просто вернёт объект без изменений.
+    Важно: функция не ставит eventFilter и не слушает `LayoutRequest`.
+    Вызывайте её только после реального изменения структуры группы:
+    вставили виджет, добавили карточку, скрыли/показали дополнительную строку.
     """
 
     if group is None or not hasattr(group, "vBoxLayout"):
         return group
 
-    helper = getattr(group, "_setting_group_auto_sizer", None)
-    if helper is None:
-        helper = _SettingCardGroupAutoSizer(group)
+    layout = getattr(group, "vBoxLayout", None)
+    if layout is None:
+        return group
+
+    try:
+        layout.invalidate()
+        layout.activate()
+    except Exception:
+        pass
+
+    height = 0
+    try:
+        width = max(1, int(group.width() or 0), int(layout.sizeHint().width() or 0))
+    except Exception:
+        width = 1
+
+    try:
+        if layout.hasHeightForWidth():
+            height = int(layout.totalHeightForWidth(width))
+    except Exception:
+        height = 0
+    if height <= 0:
         try:
-            group._setting_group_auto_sizer = helper  # type: ignore[attr-defined]
+            height = int(layout.sizeHint().height())
         except Exception:
-            pass
-        try:
-            group.destroyed.connect(lambda *_args, h=helper: h.cleanup())
-        except Exception:
-            pass
-    else:
-        try:
-            helper.schedule_refresh()
-        except Exception:
-            pass
+            height = 0
+    if height <= 0:
+        return group
+
+    try:
+        if int(group.minimumHeight()) == height and int(group.maximumHeight()) == height:
+            return group
+    except Exception:
+        pass
+
+    try:
+        group.setFixedHeight(height)
+        group.updateGeometry()
+    except Exception:
+        pass
     return group
+
+
+def enable_setting_card_group_auto_height(group):
+    """Совместимый alias для явного пересчёта высоты SettingCardGroup."""
+
+    return refresh_setting_card_group_height(group)
 
 
 def insert_widget_into_setting_card_group(group, index: int, widget) -> None:
@@ -405,13 +244,7 @@ def insert_widget_into_setting_card_group(group, index: int, widget) -> None:
     if layout is None:
         return
     layout.insertWidget(int(index), widget)
-    helper = enable_setting_card_group_auto_height(group)
-    try:
-        helper = getattr(group, "_setting_group_auto_sizer", helper)
-        if helper is not None:
-            helper.schedule_refresh()
-    except Exception:
-        pass
+    refresh_setting_card_group_height(group)
 
 
 class QuickActionsBar(SimpleCardWidget if HAS_FLUENT else QFrame):

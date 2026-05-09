@@ -12,8 +12,8 @@ DEFAULT_TG_PROXY_HOST = "127.0.0.1"
 DEFAULT_TG_PROXY_PORT = 1353
 DEFAULT_TG_PROXY_UPSTREAM_PORT = 1080
 
-VALID_LAUNCH_METHODS = frozenset({"direct_zapret2", "direct_zapret1", "orchestra"})
-VALID_DIRECT_UI_MODES = frozenset({"basic", "advanced"})
+VALID_LAUNCH_METHODS = frozenset({"zapret2_mode", "zapret1_mode", "orchestra"})
+VALID_PROFILE_UI_MODES = frozenset({"basic"})
 VALID_DISPLAY_MODES = frozenset({"dark", "light", "system"})
 VALID_UI_LANGUAGES = frozenset({"ru", "en"})
 VALID_BACKGROUND_PRESETS = frozenset({"standard", "amoled", "rkn_chan"})
@@ -35,8 +35,8 @@ ORCHESTRA_ASKEYS = (
 def default_program() -> dict[str, Any]:
     return {
         "dpi_autostart": True,
-        "strategy_launch_method": "direct_zapret2",
-        "direct_ui_mode": "basic",
+        "strategy_launch_method": "zapret2_mode",
+        "profile_ui_mode": "basic",
         "selected_source_preset_file_name_winws1": "",
         "selected_source_preset_file_name_winws2": "",
         "auto_update_enabled": True,
@@ -90,8 +90,7 @@ def default_warnings() -> dict[str, Any]:
 
 def default_telegram_proxy() -> dict[str, Any]:
     return {
-        "enabled": False,
-        "autostart": True,
+        "enabled": True,
         "host": DEFAULT_TG_PROXY_HOST,
         "port": DEFAULT_TG_PROXY_PORT,
         "mode": "socks5",
@@ -119,9 +118,7 @@ def default_hosts() -> dict[str, Any]:
 
 
 def default_ui_state() -> dict[str, Any]:
-    return {
-        "tcp_phase_tabs_by_target": {},
-    }
+    return {}
 
 
 def default_orchestra_settings() -> dict[str, Any]:

@@ -480,9 +480,9 @@ class StrategyScanner:
     def _select_strategies(self, mode: str, start_index: int = 0) -> tuple[list[dict], int, int]:
         """Select strategy batch for mode and resume cursor.
 
-        All modes load from the canonical direct-preset catalog for the selected
+        All modes load from the canonical preset catalog for the selected
         protocol. The scanner works with the same strategy definitions as the
-        direct preset editor instead of the removed legacy z2 catalog layer.
+        preset mode editor instead of the removed legacy z2 catalog layer.
         - quick:    30 strategies from cursor
         - standard: 80 strategies from cursor
         - full:     all remaining strategies from cursor
@@ -512,7 +512,7 @@ class StrategyScanner:
         """Load catalog strategies for current scan protocol."""
         try:
             from core.paths import AppPaths
-            from direct_preset.catalog_provider import load_strategy_catalogs
+            from profile.strategy_catalog import load_strategy_catalogs
 
             if self._scan_protocol == _PROTOCOL_STUN_VOICE:
                 catalog_name = "voice"

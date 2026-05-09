@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time as _time
+
 from app_context import build_app_context, install_app_context
 from config.build_info import APP_VERSION
 from config.window_metrics import HEIGHT, MIN_WIDTH, WIDTH
@@ -10,7 +12,6 @@ from main.runtime_state import (
     log_startup_metric as emit_startup_metric,
     startup_elapsed_ms,
 )
-from ui.holiday_effects import HolidayEffectsManager
 from ui.app_window_locator import register_app_window
 from ui.window_close_controller import WindowCloseController
 from ui.window_geometry_controller import WindowGeometryController
@@ -18,9 +19,19 @@ from ui.window_notification_controller import WindowNotificationController
 
 
 def window_bootstrap_for(window_cls, *, start_in_tray: bool):
+    t_context = _time.perf_counter()
     app_context = build_app_context(initial_ui_state=window_cls._build_initial_ui_state())
+    emit_startup_metric(
+        "WindowBootstrapContext",
+        f"{(_time.perf_counter() - t_context) * 1000:.0f}ms",
+    )
     install_app_context(app_context)
+    t_window = _time.perf_counter()
     window = window_cls(start_in_tray=start_in_tray, app_context=app_context)
+    emit_startup_metric(
+        "WindowBootstrapWindow",
+        f"{(_time.perf_counter() - t_window) * 1000:.0f}ms",
+    )
     register_app_window(window)
     return app_context, window
 
@@ -72,11 +83,25 @@ class WindowStartupMixin:
             default_width=WIDTH,
             default_height=HEIGHT,
         )
+        t_notifications = _time.perf_counter()
         self.window_notification_controller = WindowNotificationController(self)
         self.window_notification_controller.register_global_error_notifier()
-        self.window_geometry_controller.restore_geometry()
+        emit_startup_metric(
+            "WindowInitNotifications",
+            f"{(_time.perf_counter() - t_notifications) * 1000:.0f}ms",
+        )
 
-        self._holiday_effects = HolidayEffectsManager(self)
+        t_geometry = _time.perf_counter()
+        self.window_geometry_controller.restore_geometry()
+        emit_startup_metric(
+            "WindowInitRestoreGeometry",
+            f"{(_time.perf_counter() - t_geometry) * 1000:.0f}ms",
+        )
+
+        # Праздничные overlay-слои не нужны для первого кадра окна.
+        # Создаём их лениво только если пользователь реально включает
+        # гирлянду/снежинки или когда код позже действительно попросит этот слой.
+        self._holiday_effects = None
         self._startup_ttff_logged = False
         self._startup_ttff_ms = None
         self._startup_interactive_logged = False
@@ -95,7 +120,12 @@ class WindowStartupMixin:
         self.active_preset_content_changed_requested.connect(self._apply_active_preset_content_changed, self._queued_connection())
 
         if not self.start_in_tray and not self.isVisible():
+            t_show = _time.perf_counter()
             self.show()
+            emit_startup_metric(
+                "WindowInitShowCall",
+                f"{(_time.perf_counter() - t_show) * 1000:.0f}ms",
+            )
             log("Основное окно показано (FluentWindow, init в фоне)", "DEBUG")
 
         self.deferred_init_requested.emit()

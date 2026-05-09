@@ -20,11 +20,11 @@ from winws_runtime.flow.start_preparation import (
     resolve_method_name,
 )
 from .restart_flow import (
-    handle_direct_preset_switch_finished,
-    process_pending_direct_preset_switch,
+    handle_presets_switch_finished,
+    process_pending_presets_switch,
     process_pending_restart_request,
     restart_dpi_async as restart_dpi_async_impl,
-    switch_direct_preset_async as switch_direct_preset_async_impl,
+    switch_presets_async as switch_presets_async_impl,
 )
 from .lifecycle_feedback import (
     cleanup_threads as cleanup_threads_impl,
@@ -36,27 +36,27 @@ from .lifecycle_feedback import (
 )
 from .thread_runtime import start_worker_thread
 from .control_workers import (
-    DirectLaunchStopWorker,
+    PresetLaunchStopWorker,
     StopAndExitWorker,
 )
 from .start_workers import (
-    DirectLaunchStartWorker,
+    PresetLaunchStartWorker,
 )
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
 
-class DirectLaunchController:
-    """Основной orchestrator прямого запуска и остановки обхода."""
+class PresetLaunchController:
+    """Основной orchestrator режима профилей и остановки обхода."""
     
     def __init__(self, app_instance):
         self.app = app_instance
         self._dpi_start_thread = None
         self._dpi_stop_thread = None
         self._stop_exit_thread = None
-        self._direct_preset_switch_thread = None
-        self._direct_preset_switch_worker = None
-        self._direct_preset_switch_requested_generation = 0
-        self._direct_preset_switch_completed_generation = 0
-        self._direct_preset_switch_method = ""
+        self._presets_switch_thread = None
+        self._presets_switch_worker = None
+        self._presets_switch_requested_generation = 0
+        self._presets_switch_completed_generation = 0
+        self._presets_switch_method = ""
         self._pending_launch_warnings: list[str] = []
         self._restart_request_generation = 0
         self._restart_completed_generation = 0
@@ -64,7 +64,7 @@ class DirectLaunchController:
         self._restart_active_start_generation = 0
         self._restart_force_stop_generation = 0
         self._restart_runner_wait_queued = False
-        self._direct_switch_runner_wait_queued = False
+        self._preset_switch_runner_wait_queued = False
         # Generation token for async start verification.
         # Prevents stale QTimer checks from previous start attempts.
         self._dpi_start_verify_generation = 0
@@ -95,11 +95,11 @@ class DirectLaunchController:
             self._dpi_stop_thread = None
 
         try:
-            if self._direct_preset_switch_thread and self._direct_preset_switch_thread.isRunning():
-                if not method or method in {"direct_zapret1", "direct_zapret2"}:
+            if self._presets_switch_thread and self._presets_switch_thread.isRunning():
+                if not method or method in {"zapret1_mode", "zapret2_mode"}:
                     return True
         except RuntimeError:
-            self._direct_preset_switch_thread = None
+            self._presets_switch_thread = None
 
         if int(self._restart_request_generation or 0) > int(self._restart_completed_generation or 0):
             return True
@@ -107,8 +107,8 @@ class DirectLaunchController:
             return True
         if int(self._restart_pending_stop_generation or 0) > 0:
             return True
-        if int(self._direct_preset_switch_requested_generation or 0) > int(self._direct_preset_switch_completed_generation or 0):
-            if not method or method in {"direct_zapret1", "direct_zapret2"}:
+        if int(self._presets_switch_requested_generation or 0) > int(self._presets_switch_completed_generation or 0):
+            if not method or method in {"zapret1_mode", "zapret2_mode"}:
                 return True
 
         return False
@@ -157,14 +157,14 @@ class DirectLaunchController:
 
         QTimer.singleShot(200, _retry)
 
-    def _schedule_pending_direct_switch_retry(self) -> None:
-        if self._direct_switch_runner_wait_queued:
+    def _schedule_pending_preset_switch_retry(self) -> None:
+        if self._preset_switch_runner_wait_queued:
             return
-        self._direct_switch_runner_wait_queued = True
+        self._preset_switch_runner_wait_queued = True
 
         def _retry() -> None:
-            self._direct_switch_runner_wait_queued = False
-            self._process_pending_direct_preset_switch()
+            self._preset_switch_runner_wait_queued = False
+            self._process_pending_presets_switch()
 
         QTimer.singleShot(200, _retry)
 
@@ -360,11 +360,11 @@ class DirectLaunchController:
             if skip_first_start:
                 self.app._first_dpi_start = False
 
-    def _process_pending_direct_preset_switch(self) -> None:
-        process_pending_direct_preset_switch(self)
+    def _process_pending_presets_switch(self) -> None:
+        process_pending_presets_switch(self)
 
-    def switch_direct_preset_async(self, launch_method: str | None = None) -> None:
-        switch_direct_preset_async_impl(self, launch_method)
+    def switch_presets_async(self, launch_method: str | None = None) -> None:
+        switch_presets_async_impl(self, launch_method)
 
     def _process_pending_restart_request(self) -> None:
         process_pending_restart_request(self)
@@ -433,12 +433,19 @@ class DirectLaunchController:
         self._pending_launch_warnings = list(warnings or [])
         return request
 
-    def start_dpi_async(self, selected_mode=None, launch_method=None, *, _skip_conflict_prompt: bool = False):
+    def start_dpi_async(
+        self,
+        selected_mode=None,
+        launch_method=None,
+        *,
+        _skip_conflict_prompt: bool = False,
+        _startup_autostart: bool = False,
+    ):
         """Асинхронно запускает DPI без блокировки UI
 
         Args:
             selected_mode: Стратегия для запуска
-            launch_method: Метод запуска ("direct_zapret2", "direct_zapret1", "orchestra" и т.д.). Если None - читается из реестра
+            launch_method: Метод запуска ("zapret2_mode", "zapret1_mode", "orchestra" и т.д.). Если None - читается из реестра
         """
         if not self._prepare_start_preflight(
             selected_mode=selected_mode,
@@ -464,14 +471,16 @@ class DirectLaunchController:
 
         self.app.set_status(f"🚀 Запуск DPI ({request.method_name}): {request.mode_name}")
         
-        # Показываем индикатор только на уже загруженной странице стратегий
-        # для активного метода запуска, без старого обязательного attr-контракта.
-        bridge = self._runtime_ui_bridge()
-        if bridge is not None:
-            bridge.show_active_strategy_page_loading()
-        
+        # Для автозапуска при открытии программы не накрываем страницу общей
+        # крутилкой. Иначе кажется, что само окно ещё "не открылось", хотя
+        # на деле уже идёт фоновый запуск выбранного пресета.
+        if not _startup_autostart:
+            bridge = self._runtime_ui_bridge()
+            if bridge is not None:
+                bridge.show_active_profiles_page_loading()
+
         store = getattr(self.app, "ui_state_store", None)
-        if store is not None:
+        if store is not None and not _startup_autostart:
             store.set_launch_busy(True, "Запуск Zapret...")
 
         self._begin_runtime_start(request.launch_method, request.selected_mode)
@@ -480,7 +489,7 @@ class DirectLaunchController:
             self,
             thread_attr="_dpi_start_thread",
             worker_attr="_dpi_start_worker",
-            worker=DirectLaunchStartWorker(self.app, request.selected_mode, request.launch_method),
+            worker=PresetLaunchStartWorker(self.app, request.selected_mode, request.launch_method),
             finished_slot=self._on_dpi_start_finished,
             progress_slot=self.app.set_status,
             cleanup_log_label="потока запуска",
@@ -511,7 +520,7 @@ class DirectLaunchController:
         
         bridge = self._runtime_ui_bridge()
         if bridge is not None:
-            bridge.show_active_strategy_page_loading()
+            bridge.show_active_profiles_page_loading()
         
         store = getattr(self.app, "ui_state_store", None)
         if store is not None:
@@ -526,7 +535,7 @@ class DirectLaunchController:
             self,
             thread_attr="_dpi_stop_thread",
             worker_attr="_dpi_stop_worker",
-            worker=DirectLaunchStopWorker(
+            worker=PresetLaunchStopWorker(
                 self.app,
                 launch_method,
                 force_cleanup=force_cleanup,
@@ -559,8 +568,8 @@ class DirectLaunchController:
     def _on_dpi_stop_finished(self, success, error_message):
         on_dpi_stop_finished_impl(self, success, error_message)
 
-    def _on_direct_preset_switch_finished(self, success, error_message, generation, launch_method, skipped_as_stale):
-        handle_direct_preset_switch_finished(
+    def _on_presets_switch_finished(self, success, error_message, generation, launch_method, skipped_as_stale):
+        handle_presets_switch_finished(
             self,
             success,
             error_message,

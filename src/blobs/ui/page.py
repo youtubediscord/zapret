@@ -49,7 +49,7 @@ except ImportError:
 class BlobsPage(BasePage):
     """Страница управления блобами"""
 
-    back_clicked = pyqtSignal()  # → PageName.ZAPRET2_DIRECT_CONTROL
+    back_clicked = pyqtSignal()  # → PageName.ZAPRET2_MODE_CONTROL
 
     def __init__(self, parent=None):
         super().__init__(

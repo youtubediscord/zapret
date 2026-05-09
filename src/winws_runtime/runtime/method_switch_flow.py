@@ -64,7 +64,7 @@ def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntime
     normalized_method = str(method or "").strip().lower()
     expected_exe_path = ""
     expected_process_name = ""
-    if normalized_method in {"direct_zapret2", "direct_zapret1", "orchestra"}:
+    if normalized_method in {"zapret2_mode", "zapret1_mode", "orchestra"}:
         expected_exe_path = str(get_winws_exe_for_method(normalized_method) or "").strip()
         expected_process_name = os.path.basename(expected_exe_path).strip().lower()
 
@@ -198,7 +198,7 @@ def _can_autostart_for_method(window, method: str) -> bool:
     normalized_method = str(method or "").strip().lower()
     if normalized_method == "orchestra":
         return True
-    if normalized_method not in {"direct_zapret2", "direct_zapret1"}:
+    if normalized_method not in {"zapret2_mode", "zapret1_mode"}:
         try:
             window.set_status("Ошибка: выбран удалённый или неподдерживаемый режим запуска")
         except Exception:
@@ -207,19 +207,19 @@ def _can_autostart_for_method(window, method: str) -> bool:
         return False
 
     try:
-        direct_flow_coordinator = window.app_context.direct_flow_coordinator
-        direct_flow_coordinator.get_startup_snapshot(normalized_method)
+        preset_mode_coordinator = window.app_context.preset_mode_coordinator
+        preset_mode_coordinator.get_startup_snapshot(normalized_method)
         return True
     except Exception as e:
-        if normalized_method == "direct_zapret2":
-            log("direct_zapret2: выбранный source-пресет не подготовлен", "ERROR")
+        if normalized_method == "zapret2_mode":
+            log("zapret2_mode: выбранный source-пресет не подготовлен", "ERROR")
             try:
                 window.set_status("Ошибка: отсутствует Default v1 (game filter).txt (built-in пресет)")
             except Exception:
                 pass
             return False
 
-        log(f"direct_zapret1: ошибка инициализации пресета: {e}", "WARNING")
+        log(f"zapret1_mode: ошибка инициализации пресета: {e}", "WARNING")
         return False
 
 

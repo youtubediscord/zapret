@@ -776,7 +776,7 @@ class HostsPageController:
         )
 
     @classmethod
-    def build_direct_toggle_plan(
+    def build_mode_toggle_plan(
         cls,
         *,
         current_selection: dict[str, str],

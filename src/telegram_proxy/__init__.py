@@ -35,10 +35,7 @@ def _is_ignorable_transport_reset_error(exc: BaseException | None) -> bool:
 
 
 def _is_ignorable_asyncio_loop_exception(context: dict) -> bool:
-    message = str(context.get("message") or "").strip().lower()
     exception = context.get("exception")
-    if "connection lost" not in message:
-        return False
     protocol = context.get("protocol")
     transport = context.get("transport")
     if protocol is None and transport is None:
@@ -75,7 +72,10 @@ def _install_loop_exception_handler(
         if _is_ignorable_asyncio_loop_exception(context):
             if on_log is not None:
                 try:
-                    on_log("Proxy transport reset by remote host (WinError 10054); suppressed as network noise")
+                    on_log(
+                        "Telegram Proxy: удалённая сторона закрыла соединение "
+                        "(WinError 10054), это скрыто как сетевой сброс"
+                    )
                 except Exception:
                     pass
             return

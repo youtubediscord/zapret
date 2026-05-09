@@ -156,18 +156,18 @@ class LinkedWheelListView(ListView):
             event.ignore()
             return
 
-        target_index = self.indexAt(event.position().toPoint())
-        target_kind = "end"
-        target_id = ""
-        if target_index.isValid():
-            target_kind = str(target_index.data(PresetListModel.KindRole) or "")
-            if target_kind == "preset":
-                target_id = str(target_index.data(PresetListModel.FileNameRole) or "")
+        drop_index = self.indexAt(event.position().toPoint())
+        destination_kind = "end"
+        destination_id = ""
+        if drop_index.isValid():
+            destination_kind = str(drop_index.data(PresetListModel.KindRole) or "")
+            if destination_kind == "preset":
+                destination_id = str(drop_index.data(PresetListModel.FileNameRole) or "")
             else:
-                target_kind = "end"
-                target_id = ""
+                destination_kind = "end"
+                destination_id = ""
 
-        self.item_dropped.emit(source_kind, source_id, target_kind, target_id)
+        self.item_dropped.emit(source_kind, source_id, destination_kind, destination_id)
         event.acceptProposedAction()
 
 

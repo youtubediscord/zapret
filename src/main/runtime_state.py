@@ -36,6 +36,18 @@ def is_cpu_diagnostic_enabled() -> bool:
     return False
 
 
+def is_qt_event_diagnostic_enabled() -> bool:
+    raw = os.environ.get("ZAPRET_QT_EVENT_DIAGNOSTIC")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    for arg in sys.argv[1:]:
+        if str(arg).strip().lower() in {"--qt-event-debug", "--qt-event-diagnostic"}:
+            return True
+
+    return False
+
+
 def log_startup_metric(marker: str, details: str = "") -> None:
     from log.log import log
 

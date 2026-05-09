@@ -39,7 +39,7 @@ class PresetSelectionService:
         return preset
 
     def select_preset_file_name_fast(self, engine: str, file_name: str) -> str:
-        """Direct selection path that does not depend on preset index.json."""
+        """Preset selection path that does not depend on preset index.json."""
         from settings.store import set_selected_source_preset_file_name
 
         candidate = str(self._preset_file_store.resolve_file_name(engine, file_name) or "").strip()

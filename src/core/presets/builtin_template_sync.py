@@ -39,5 +39,5 @@ def is_builtin_preset_file_name(file_name: str, builtin_names: Iterable[str]) ->
     candidate = str(Path(str(file_name or "").strip()).stem or "").strip()
     if not candidate:
         return False
-    target = candidate.casefold()
-    return any(str(name or "").strip().casefold() == target for name in builtin_names)
+    candidate_key = candidate.casefold()
+    return any(str(name or "").strip().casefold() == candidate_key for name in builtin_names)

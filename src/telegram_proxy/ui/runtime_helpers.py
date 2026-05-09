@@ -99,7 +99,6 @@ def load_settings_into_ui(
     upstream_catalog,
     port_spin,
     host_edit,
-    autostart_toggle,
     update_manual_instructions,
     upstream_toggle,
     upstream_host_edit,
@@ -116,10 +115,6 @@ def load_settings_into_ui(
     port_spin.blockSignals(False)
 
     host_edit.setText(state.host)
-
-    autostart_toggle.toggle.blockSignals(True)
-    autostart_toggle.toggle.setChecked(state.autostart_enabled)
-    autostart_toggle.toggle.blockSignals(False)
     update_manual_instructions()
 
     upstream_toggle.toggle.blockSignals(True)
@@ -174,7 +169,6 @@ def apply_ui_texts(
     upstream_pass_edit,
     log_edit,
     diag_edit,
-    autostart_toggle,
     auto_deeplink_toggle,
     upstream_toggle,
     upstream_preset_row,
@@ -270,11 +264,6 @@ def apply_ui_texts(
         if diag_edit is not None:
             diag_edit.setPlaceholderText("Нажмите 'Запустить диагностику'...")
 
-        if autostart_toggle is not None:
-            autostart_toggle.set_texts(
-                "Автозапуск прокси",
-                "Запускать прокси автоматически при старте программы",
-            )
         if auto_deeplink_toggle is not None:
             auto_deeplink_toggle.set_texts(
                 "Авто-настройка Telegram",

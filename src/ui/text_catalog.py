@@ -43,11 +43,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Управление",
         "en": "Control",
     },
-    "nav.page.zapret2_direct_control": {
+    "nav.page.zapret2_mode_control": {
         "ru": "Управление Zapret 2",
         "en": "Zapret 2 Control",
     },
-    "nav.page.zapret1_direct_control": {
+    "nav.page.zapret1_mode_control": {
         "ru": "Управление Zapret 1",
         "en": "Zapret 1 Control",
     },
@@ -99,15 +99,15 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "О программе",
         "en": "About",
     },
-    "nav.page.zapret2_direct": {
-        "ru": "Прямой запуск",
-        "en": "Direct Launch",
+    "nav.page.zapret2_mode": {
+        "ru": "Профили",
+        "en": "Profile Mode",
     },
     "nav.page.zapret2_user_presets": {
         "ru": "Мои пресеты",
         "en": "My Presets",
     },
-    "nav.page.zapret1_direct": {
+    "nav.page.zapret1_mode": {
         "ru": "Стратегии Z1",
         "en": "Z1 Strategies",
     },
@@ -227,9 +227,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Сменить пресет обхода блокировок",
         "en": "Switch Bypass Preset",
     },
-    "page.z2_control.direct_tuning": {
-        "ru": "Настройте пресет более тонко через прямой запуск",
-        "en": "Fine Tune via Direct Launch",
+    "page.z2_control.profile_tuning": {
+        "ru": "Настройте пресет более тонко через режим профилей",
+        "en": "Fine Tune via Profile Mode",
     },
     "page.z1_control.title": {
         "ru": "Управление Zapret 1",
@@ -287,13 +287,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Мои пресеты",
         "en": "My Presets",
     },
-    "page.z1_control.strategies.title": {
-        "ru": "Стратегии по категориям",
-        "en": "Strategies by category",
+    "page.z1_control.profiles.title": {
+        "ru": "Profiles и стратегии",
+        "en": "Profiles and strategies",
     },
-    "page.z1_control.strategies.desc": {
-        "ru": "Выбор стратегии для YouTube, Discord и др.",
-        "en": "Select strategy for YouTube, Discord, and more",
+    "page.z1_control.profiles.desc": {
+        "ru": "Выбор profile и готовой стратегии из выбранного preset",
+        "en": "Select a profile and ready strategy from the selected preset",
     },
     "page.z1_control.button.open": {
         "ru": "Открыть",
@@ -374,154 +374,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.z1_control.button.documentation.desc": {
         "ru": "Открыть справку и описание возможностей",
         "en": "Open help and feature documentation",
-    },
-    "page.z1_strategy_detail.args_dialog.title": {
-        "ru": "Аргументы стратегии",
-        "en": "Strategy arguments",
-    },
-    "page.z1_strategy_detail.args_dialog.hint": {
-        "ru": "Один аргумент на строку. Изменяет только выбранный target.",
-        "en": "One argument per line. Changes only the selected target.",
-    },
-    "page.z1_strategy_detail.args_dialog.placeholder": {
-        "ru": "Например:\n--dpi-desync=multisplit\n--dpi-desync-split-pos=1",
-        "en": "For example:\n--dpi-desync=multisplit\n--dpi-desync-split-pos=1",
-    },
-    "page.z1_strategy_detail.args_dialog.button.save": {
-        "ru": "Сохранить",
-        "en": "Save",
-    },
-    "page.z1_strategy_detail.args_dialog.button.cancel": {
-        "ru": "Отмена",
-        "en": "Cancel",
-    },
-    "page.z1_strategy_detail.header.category_fallback": {
-        "ru": "Target",
-        "en": "Target",
-    },
-    "page.z1_strategy_detail.back.strategies": {
-        "ru": "← Стратегии Zapret 1",
-        "en": "← Zapret 1 Strategies",
-    },
-    "page.z1_strategy_detail.breadcrumb.control": {
-        "ru": "Управление",
-        "en": "Control",
-    },
-    "page.z1_strategy_detail.breadcrumb.strategies": {
-        "ru": "Прямой запуск Zapret 1",
-        "en": "Zapret 1 Direct",
-    },
-    "page.z1_strategy_detail.state.category_bypass": {
-        "ru": "Обход для target'а",
-        "en": "Bypass for target",
-    },
-    "page.z1_strategy_detail.toggle.on": {
-        "ru": "Включено",
-        "en": "Enabled",
-    },
-    "page.z1_strategy_detail.toggle.off": {
-        "ru": "Выключено",
-        "en": "Disabled",
-    },
-    "page.z1_strategy_detail.filter.label": {
-        "ru": "Фильтр:",
-        "en": "Filter:",
-    },
-    "page.z1_strategy_detail.filter.ipset": {
-        "ru": "IPset",
-        "en": "IPset",
-    },
-    "page.z1_strategy_detail.filter.hostlist": {
-        "ru": "Hostlist",
-        "en": "Hostlist",
-    },
-    "page.z1_strategy_detail.search.placeholder": {
-        "ru": "Поиск стратегии по названию или аргументам",
-        "en": "Search strategy by name or arguments",
-    },
-    "page.z1_strategy_detail.sort.recommended": {
-        "ru": "По рекомендации",
-        "en": "By recommendation",
-    },
-    "page.z1_strategy_detail.sort.alpha_asc": {
-        "ru": "По алфавиту A-Z",
-        "en": "Alphabetical A-Z",
-    },
-    "page.z1_strategy_detail.sort.alpha_desc": {
-        "ru": "По алфавиту Z-A",
-        "en": "Alphabetical Z-A",
-    },
-    "page.z1_strategy_detail.button.edit_args": {
-        "ru": "Редактировать аргументы",
-        "en": "Edit arguments",
-    },
-    "page.z1_strategy_detail.args.none": {
-        "ru": "(нет аргументов)",
-        "en": "(no arguments)",
-    },
-    "page.z1_strategy_detail.args.more": {
-        "ru": "\n... (+{count} строк)",
-        "en": "\n... (+{count} lines)",
-    },
-    "page.z1_strategy_detail.card.strategies": {
-        "ru": "Стратегии",
-        "en": "Strategies",
-    },
-    "page.z1_strategy_detail.empty.no_strategies": {
-        "ru": "Нет доступных стратегий. Проверьте целостность встроенного каталога стратегий и перезапустите приложение.",
-        "en": "No strategies available. Check the bundled strategy catalog and restart the application.",
-    },
-    "page.z1_strategy_detail.tree.disabled.name": {
-        "ru": "Выключено",
-        "en": "Disabled",
-    },
-    "page.z1_strategy_detail.tree.disabled.args": {
-        "ru": "Отключить обход DPI для этого target'а",
-        "en": "Disable DPI bypass for this target",
-    },
-    "page.z1_strategy_detail.tree.custom.name": {
-        "ru": "Свой набор",
-        "en": "Custom set",
-    },
-    "page.z1_strategy_detail.tree.custom.args": {
-        "ru": "Пользовательские аргументы",
-        "en": "Custom arguments",
-    },
-    "page.z1_strategy_detail.subtitle.ports": {
-        "ru": "порты: {ports}",
-        "en": "ports: {ports}",
-    },
-    "page.z1_strategy_detail.selected.current": {
-        "ru": "Текущая стратегия: {strategy}",
-        "en": "Current strategy: {strategy}",
-    },
-    "page.z1_strategy_detail.error.filter_mode_save": {
-        "ru": "Не удалось сохранить режим фильтрации",
-        "en": "Failed to save filter mode",
-    },
-    "page.z1_strategy_detail.infobar.filter_mode.title": {
-        "ru": "Режим фильтрации",
-        "en": "Filter mode",
-    },
-    "page.z1_strategy_detail.infobar.strategy_applied": {
-        "ru": "Стратегия применена",
-        "en": "Strategy applied",
-    },
-    "page.z1_strategy_detail.infobar.args_saved.title": {
-        "ru": "Аргументы сохранены",
-        "en": "Arguments saved",
-    },
-    "page.z1_strategy_detail.infobar.args_saved.content": {
-        "ru": "Пользовательские аргументы применены",
-        "en": "Custom arguments applied",
-    },
-    "page.z1_strategy_detail.infobar.args_cleared.title": {
-        "ru": "Аргументы очищены",
-        "en": "Arguments cleared",
-    },
-    "page.z1_strategy_detail.infobar.args_cleared.content": {
-        "ru": "Target возвращён в режим 'Выключено'",
-        "en": "Target returned to 'Disabled' mode",
     },
     "page.orchestra.title": {
         "ru": "Оркестратор",
@@ -1011,9 +863,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Стратегия:",
         "en": "Strategy:",
     },
-    "page.autostart.mode.direct_zapret2": {
-        "ru": "Прямой запуск (Zapret 2)",
-        "en": "Direct launch (Zapret 2)",
+    "page.autostart.mode.zapret2_mode": {
+        "ru": "Профили (Zapret 2)",
+        "en": "Zapret 2 mode",
     },
     "page.autostart.mode.orchestra_learning": {
         "ru": "Оркестр (автообучение)",
@@ -1579,11 +1431,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "рекомендуется",
         "en": "recommended",
     },
-    "page.dpi_settings.method.direct_z2.title": {
+    "page.dpi_settings.method.zapret2_mode.title": {
         "ru": "Zapret 2",
         "en": "Zapret 2",
     },
-    "page.dpi_settings.method.direct_z2.desc": {
+    "page.dpi_settings.method.zapret2_mode.desc": {
         "ru": "Режим со второй версией Zapret (winws2.exe) + готовые пресеты для быстрого запуска. Поддерживает кастомный lua-код чтобы писать свои стратегии.",
         "en": "Mode with Zapret v2 (winws2.exe) and ready presets for quick launch. Supports custom Lua code for your own strategies.",
     },
@@ -1595,11 +1447,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Автоматическое обучение. Система сама подбирает лучшие стратегии для каждого домена. Запоминает результаты между запусками.",
         "en": "Automatic learning. The system picks the best strategy per domain and remembers results between launches.",
     },
-    "page.dpi_settings.method.direct_z1.title": {
+    "page.dpi_settings.method.zapret1_mode.title": {
         "ru": "Zapret 1",
         "en": "Zapret 1",
     },
-    "page.dpi_settings.method.direct_z1.desc": {
+    "page.dpi_settings.method.zapret1_mode.desc": {
         "ru": "Режим первой версии Zapret 1 (winws.exe) + готовые пресеты для быстрого запуска. Не использует Lua код, нет понятия блобов.",
         "en": "Mode with Zapret v1 (winws.exe) and ready presets for quick launch. Does not use Lua and has no blob concept.",
     },
@@ -3648,8 +3500,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Failed to open Discord:\n{error}",
     },
     "page.z1_control.subtitle": {
-        "ru": "Настройка и запуск Zapret 1 (winws.exe). Выберите стратегии для категорий или переключитесь на другой пресет.",
-        "en": "Configure and launch Zapret 1 (winws.exe). Choose category strategies or switch preset.",
+        "ru": "Настройка и запуск Zapret 1 (winws.exe). Выберите profiles и готовые стратегии или переключитесь на другой пресет.",
+        "en": "Configure and launch Zapret 1 (winws.exe). Choose profiles and ready strategies or switch preset.",
     },
     "page.z1_control.section.status": {
         "ru": "Статус работы",
@@ -3667,45 +3519,61 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Настройки программы",
         "en": "Program Settings",
     },
-    "page.z1_direct.title": {
-        "ru": "Прямой запуск Zapret 1",
-        "en": "Direct Launch Zapret 1",
+    "page.z1_pages.title": {
+        "ru": "Профили Zapret 1",
+        "en": "Zapret 1 Profiles",
     },
-    "page.z1_direct.back.control": {
+    "page.z1_pages.back.control": {
         "ru": "\u2190 Управление",
         "en": "\u2190 Control",
     },
-    "page.z1_direct.breadcrumb.control": {
+    "page.z1_pages.breadcrumb.control": {
         "ru": "Управление",
         "en": "Control",
     },
-    "page.z1_direct.toolbar.expand": {
+    "page.z1_pages.toolbar.expand": {
         "ru": "Развернуть",
         "en": "Expand",
     },
-    "page.z1_direct.toolbar.collapse": {
+    "page.z1_pages.toolbar.collapse": {
         "ru": "Свернуть",
         "en": "Collapse",
     },
-    "page.z1_direct.toolbar.info": {
+    "page.z1_pages.toolbar.info": {
         "ru": "Что это?",
         "en": "What is this?",
     },
-    "page.z1_direct.strategy.off": {
+    "page.z1_pages.toolbar.title": {
+        "ru": "Profiles",
+        "en": "Profiles",
+    },
+    "page.z1_pages.request.button": {
+        "ru": "Предложить profile",
+        "en": "Suggest profile",
+    },
+    "page.z1_pages.request.hint": {
+        "ru": "Если нужного profile нет в списке, его можно добавить позже как шаблон.",
+        "en": "If the needed profile is missing, it can be added later as a template.",
+    },
+    "page.z1_pages.loading": {
+        "ru": "Читаем profiles из выбранного preset...",
+        "en": "Reading profiles from the selected preset...",
+    },
+    "page.z1_pages.strategy.off": {
         "ru": "Выключено",
         "en": "Off",
     },
-    "page.z1_direct.strategy.custom": {
+    "page.z1_pages.strategy.custom": {
         "ru": "Свой набор",
         "en": "Custom set",
     },
-    "page.z1_direct.info.title": {
-        "ru": "Прямой запуск Zapret 1",
-        "en": "Direct Launch Zapret 1",
+    "page.z1_pages.info.title": {
+        "ru": "Профили Zapret 1",
+        "en": "Zapret 1 Profiles",
     },
-    "page.z1_direct.info.body": {
-        "ru": "Чтобы запустить zapret напрямую, выберите по одной стратегии для каждой категории и нажмите «Запустить» на странице управления.",
-        "en": "To start Zapret directly, choose one strategy per category and click Start on the control page.",
+    "page.z1_pages.info.body": {
+        "ru": "Чтобы запустить zapret напрямую, включите нужные profiles, выберите для них готовые стратегии и нажмите «Запустить» на странице управления.",
+        "en": "To start Zapret directly, enable the needed profiles, choose ready strategies for them, and click Start on the control page.",
     },
     "page.z1_user_presets.title": {
         "ru": "Мои пресеты",
@@ -3716,8 +3584,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Control",
     },
     "page.z1_user_presets.configs.title": {
-        "ru": "Обменивайтесь пресетами и категориями в разделе GitHub Discussions",
-        "en": "Share presets and categories in GitHub Discussions",
+        "ru": "Обменивайтесь пресетами и profiles в разделе GitHub Discussions",
+        "en": "Share presets and profiles in GitHub Discussions",
     },
     "page.z1_user_presets.configs.button": {
         "ru": "Получить конфиги",
@@ -3997,19 +3865,19 @@ TEXTS: dict[str, dict[str, str]] = {
     },
     "page.z1_user_presets.info.body": {
         "ru": "Здесь кнопка для нубов — \"хочу чтобы нажал и всё работало\". Выбираете любой пресет — тыкаете — перезагружаете вкладку и смотрите, что ресурс открывается (или не открывается). Если не открывается — тыкаете на следующий пресет. Также здесь можно создавать, импортировать, экспортировать и переключать пользовательские пресеты.",
-        "en": "This section is for simple workflow: pick any preset, apply it, reload the tab and check if the target opens. If not, try the next preset. You can also create, import, export and switch custom presets here.",
+        "en": "This section is for simple workflow: pick any preset, apply it, reload the tab and check if the resource opens. If not, try the next preset. You can also create, import, export and switch custom presets here.",
     },
-    "page.z1_strategy_detail.title": {
-        "ru": "Детали стратегии",
-        "en": "Strategy Details",
+    "page.z1_profile_detail.title": {
+        "ru": "Детали profile",
+        "en": "Profile Details",
     },
-    "page.z1_strategy_detail.subtitle": {
-        "ru": "",
-        "en": "",
+    "page.z1_profile_detail.breadcrumb.control": {
+        "ru": "Управление",
+        "en": "Control",
     },
     "page.z2_control.subtitle": {
-        "ru": "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, а при необходимости выполните тонкую настройку для каждого фильтра в разделе «Прямой запуск».",
-        "en": "Configure and launch Zapret 2. Choose ready presets and fine-tune categories in Direct Launch.",
+        "ru": "Настройка и запуск Zapret 2. Выберите готовые пресеты-конфиги, а при необходимости выполните тонкую настройку для каждого фильтра в разделе «Профили».",
+        "en": "Configure and launch Zapret 2. Choose ready presets and fine-tune categories in Profile Mode.",
     },
     "page.z2_control.section.status": {
         "ru": "Статус работы",
@@ -4023,9 +3891,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Сменить пресет обхода блокировок",
         "en": "Switch Bypass Preset",
     },
-    "page.z2_control.section.direct_tuning": {
-        "ru": "Настройте пресет более тонко через прямой запуск",
-        "en": "Fine Tune via Direct Launch",
+    "page.z2_control.section.profile_tuning": {
+        "ru": "Настройте пресет более тонко через режим профилей",
+        "en": "Fine Tune via Profile Mode",
     },
     "page.z2_control.section.program_settings": {
         "ru": "Настройки программы",
@@ -4091,9 +3959,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Изменить режим",
         "en": "Change mode",
     },
-    "page.z2_control.direct_mode.caption": {
-        "ru": "Режим прямого запуска",
-        "en": "Direct launch mode",
+    "page.z2_control.profile_ui_mode.caption": {
+        "ru": "Режим отображения profile",
+        "en": "Profile UI mode",
     },
     "page.z2_control.mode.basic": {
         "ru": "Basic",
@@ -4139,41 +4007,41 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Документация",
         "en": "Documentation",
     },
-    "page.z2_direct.title": {
-        "ru": "Прямой запуск Zapret 2",
-        "en": "Direct Launch Zapret 2",
+    "page.z2_pages.title": {
+        "ru": "Профили Zapret 2",
+        "en": "Zapret 2 Profiles",
     },
-    "page.z2_direct.back.control": {
+    "page.z2_pages.back.control": {
         "ru": "Управление",
         "en": "Control",
     },
-    "page.z2_direct.current.not_selected": {
+    "page.z2_pages.current.not_selected": {
         "ru": "Не выбрана",
         "en": "Not selected",
     },
-    "page.z2_direct.request.button": {
+    "page.z2_pages.request.button": {
         "ru": "ОТКРЫТЬ ФОРМУ НА GITHUB",
         "en": "OPEN GITHUB FORM",
     },
-    "page.z2_direct.toolbar.title": {
-        "ru": "Категории и target'ы",
-        "en": "Categories and targets",
+    "page.z2_pages.toolbar.title": {
+        "ru": "Profiles",
+        "en": "Profiles",
     },
-    "page.z2_direct.toolbar.expand": {
+    "page.z2_pages.toolbar.expand": {
         "ru": "Развернуть",
         "en": "Expand",
     },
-    "page.z2_direct.toolbar.collapse": {
+    "page.z2_pages.toolbar.collapse": {
         "ru": "Свернуть",
         "en": "Collapse",
     },
-    "page.z2_direct.toolbar.info": {
+    "page.z2_pages.toolbar.info": {
         "ru": "Что это такое?",
         "en": "What is this?",
     },
-    "page.z2_direct.info.title": {
-        "ru": "Прямой запуск Zapret 2",
-        "en": "Direct Launch Zapret 2",
+    "page.z2_pages.info.title": {
+        "ru": "Профили Zapret 2",
+        "en": "Zapret 2 Profiles",
     },
     "page.z2_user_presets.title": {
         "ru": "Мои пресеты",
@@ -4184,8 +4052,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Control",
     },
     "page.z2_user_presets.configs.title": {
-        "ru": "Обменивайтесь пресетами и категориями в разделе GitHub Discussions",
-        "en": "Share presets and categories in GitHub Discussions",
+        "ru": "Обменивайтесь пресетами и profiles в разделе GitHub Discussions",
+        "en": "Share presets and profiles in GitHub Discussions",
     },
     "page.z2_user_presets.configs.button": {
         "ru": "Получить конфиги",
@@ -4465,415 +4333,59 @@ TEXTS: dict[str, dict[str, str]] = {
     },
     "page.z2_user_presets.info.body": {
         "ru": "Здесь кнопка для нубов — \"хочу чтобы нажал и всё работало\". Выбираете любой пресет — тыкаете — перезагружаете вкладку и смотрите, что ресурс открывается (или не открывается). Если не открывается — тыкаете на следующий пресет. Также здесь можно создавать, импортировать, экспортировать и переключать пользовательские пресеты.",
-        "en": "This section is for simple workflow: pick any preset, apply it, reload the tab and check if the target opens. If not, try the next preset. You can also create, import, export and switch custom presets here.",
+        "en": "This section is for simple workflow: pick any preset, apply it, reload the tab and check if the resource opens. If not, try the next preset. You can also create, import, export and switch custom presets here.",
     },
-    "page.z2_strategy_detail.title": {
-        "ru": "Детали стратегии",
-        "en": "Strategy Details",
+    "page.z2_profile_detail.title": {
+        "ru": "Profile",
+        "en": "Profile",
     },
-    "page.z2_strategy_detail.subtitle": {
-        "ru": "",
-        "en": "",
-    },
-    "page.z2_strategy_detail.args_dialog.title": {
-        "ru": "Аргументы стратегии",
-        "en": "Strategy arguments",
-    },
-    "page.z2_strategy_detail.args_dialog.hint": {
-        "ru": "Один аргумент на строку. Изменяет только выбранный target.",
-        "en": "One argument per line. Applies only to the selected target.",
-    },
-    "page.z2_strategy_detail.args_dialog.hint.short": {
-        "ru": "Один аргумент на строку.",
-        "en": "One argument per line.",
-    },
-    "page.z2_strategy_detail.args_dialog.placeholder": {
-        "ru": "Например:\n--dpi-desync=multisplit\n--dpi-desync-split-pos=1",
-        "en": "Example:\n--dpi-desync=multisplit\n--dpi-desync-split-pos=1",
-    },
-    "page.z2_strategy_detail.args_dialog.button.save": {
-        "ru": "Сохранить",
-        "en": "Save",
-    },
-    "page.z2_strategy_detail.args_dialog.button.cancel": {
-        "ru": "Отмена",
-        "en": "Cancel",
-    },
-    "page.z2_strategy_detail.preset_dialog.create.title": {
+    "page.z2_profile_detail.preset_dialog.create.title": {
         "ru": "Создать пресет",
         "en": "Create preset",
     },
-    "page.z2_strategy_detail.preset_dialog.rename.title": {
+    "page.z2_profile_detail.preset_dialog.rename.title": {
         "ru": "Переименовать пресет",
         "en": "Rename preset",
     },
-    "page.z2_strategy_detail.preset_dialog.rename.current_name": {
+    "page.z2_profile_detail.preset_dialog.rename.current_name": {
         "ru": "Текущее имя: {name}",
         "en": "Current name: {name}",
     },
-    "page.z2_strategy_detail.preset_dialog.name_label": {
+    "page.z2_profile_detail.preset_dialog.name_label": {
         "ru": "Название",
         "en": "Name",
     },
-    "page.z2_strategy_detail.preset_dialog.name_placeholder": {
+    "page.z2_profile_detail.preset_dialog.name_placeholder": {
         "ru": "Введите название пресета...",
         "en": "Enter preset name...",
     },
-    "page.z2_strategy_detail.preset_dialog.button.create": {
+    "page.z2_profile_detail.preset_dialog.button.create": {
         "ru": "Создать",
         "en": "Create",
     },
-    "page.z2_strategy_detail.preset_dialog.button.rename": {
+    "page.z2_profile_detail.preset_dialog.button.rename": {
         "ru": "Переименовать",
         "en": "Rename",
     },
-    "page.z2_strategy_detail.preset_dialog.button.cancel": {
+    "page.z2_profile_detail.preset_dialog.button.cancel": {
         "ru": "Отмена",
         "en": "Cancel",
     },
-    "page.z2_strategy_detail.preset_dialog.error.empty": {
+    "page.z2_profile_detail.preset_dialog.error.empty": {
         "ru": "Введите название пресета",
         "en": "Enter preset name",
     },
-    "page.z2_strategy_detail.breadcrumb.control": {
+    "page.z2_profile_detail.breadcrumb.control": {
         "ru": "Управление",
         "en": "Control",
     },
-    "page.z2_strategy_detail.breadcrumb.strategies": {
-        "ru": "Прямой запуск Zapret 2",
-        "en": "Direct launch Zapret 2",
-    },
-    "page.z2_strategy_detail.header.category_fallback": {
-        "ru": "Target",
-        "en": "Target",
-    },
-    "page.z2_strategy_detail.back.strategies": {
-        "ru": "Прямой запуск Zapret 2",
-        "en": "Direct launch Zapret 2",
-    },
-    "page.z2_strategy_detail.toggle.enable.title": {
-        "ru": "Включить обход",
-        "en": "Enable bypass",
-    },
-    "page.z2_strategy_detail.toggle.enable.description": {
-        "ru": "Активировать DPI-обход для этого target'а",
-        "en": "Enable DPI bypass for this target",
-    },
-    "page.z2_strategy_detail.filter_mode.title": {
-        "ru": "Режим фильтрации",
-        "en": "Filtering mode",
-    },
-    "page.z2_strategy_detail.filter_mode.description": {
-        "ru": "Hostlist - по доменам, IPset - по IP",
-        "en": "Hostlist by domains, IPset by IP",
-    },
-    "page.z2_strategy_detail.filter.hostlist": {
+    "page.z2_profile_detail.filter.hostlist": {
         "ru": "Hostlist",
         "en": "Hostlist",
     },
-    "page.z2_strategy_detail.filter.ipset": {
+    "page.z2_profile_detail.filter.ipset": {
         "ru": "IPset",
         "en": "IPset",
-    },
-    "page.z2_strategy_detail.out_range.kind": {
-        "ru": "Тип:",
-        "en": "Type:",
-    },
-    "page.z2_strategy_detail.out_range.kind.simple": {
-        "ru": "Простой",
-        "en": "Simple",
-    },
-    "page.z2_strategy_detail.out_range.kind.expression": {
-        "ru": "Выражение",
-        "en": "Expression",
-    },
-    "page.z2_strategy_detail.out_range.kind.tooltip": {
-        "ru": "Простой режим для a, x, n и d. Выражение нужно для форм вроде s1<d1, b1000- или <s34228.",
-        "en": "Simple mode is for a, x, n, and d. Expression mode is for forms like s1<d1, b1000-, or <s34228.",
-    },
-    "page.z2_strategy_detail.out_range.mode": {
-        "ru": "Режим:",
-        "en": "Mode:",
-    },
-    "page.z2_strategy_detail.out_range.mode.tooltip": {
-        "ru": "a = всегда, x = никогда, n = номер пакета, d = номер пакета с данными",
-        "en": "a = always, x = never, n = packet number, d = packet number with payload",
-    },
-    "page.z2_strategy_detail.out_range.value": {
-        "ru": "Значение:",
-        "en": "Value:",
-    },
-    "page.z2_strategy_detail.out_range.value.tooltip": {
-        "ru": "Для режимов n и d укажите число. Для a и x значение не используется.",
-        "en": "Enter a number for n and d. The value is ignored for a and x.",
-    },
-    "page.z2_strategy_detail.out_range.expression": {
-        "ru": "Выражение:",
-        "en": "Expression:",
-    },
-    "page.z2_strategy_detail.out_range.expression.placeholder": {
-        "ru": "Например: s1<d1, b1000-, <s34228",
-        "en": "For example: s1<d1, b1000-, <s34228",
-    },
-    "page.z2_strategy_detail.out_range.expression.tooltip": {
-        "ru": "Введите только значение после --out-range=. Например: x, -d10, s1<d1, b1000- или <s34228.",
-        "en": "Enter only the value after --out-range=. For example: x, -d10, s1<d1, b1000-, or <s34228.",
-    },
-    "page.z2_strategy_detail.out_range.expression.notice": {
-        "ru": "Можно использовать a, x, -n10, -d10 и диапазоны вроде s1<d1, b1000- или <s34228.",
-        "en": "You can use a, x, -n10, -d10, and ranges like s1<d1, b1000-, or <s34228.",
-    },
-    "page.z2_strategy_detail.out_range.expression.invalid": {
-        "ru": "Выражение out-range не распознано. Ожидается значение вроде x, -d10, s1<d1, b1000- или <s34228.",
-        "en": "The out-range expression was not recognized. Expected a value like x, -d10, s1<d1, b1000-, or <s34228.",
-    },
-    "page.z2_strategy_detail.out_range.complex.notice": {
-        "ru": "Сейчас используется сложное выражение out-range: {expr}\nПереключение режима заменит его простым значением.",
-        "en": "A complex out-range expression is currently used: {expr}\nChanging the mode will replace it with a simple value.",
-    },
-    "page.z2_strategy_detail.search.placeholder": {
-        "ru": "Поиск по имени или args...",
-        "en": "Search by name or args...",
-    },
-    "page.z2_strategy_detail.sort.tooltip.short": {
-        "ru": "Сортировка",
-        "en": "Sort",
-    },
-    "page.z2_strategy_detail.sort.default": {
-        "ru": "По умолчанию",
-        "en": "Default",
-    },
-    "page.z2_strategy_detail.sort.name_asc": {
-        "ru": "По имени (А-Я)",
-        "en": "By name (A-Z)",
-    },
-    "page.z2_strategy_detail.sort.name_desc": {
-        "ru": "По имени (Я-А)",
-        "en": "By name (Z-A)",
-    },
-    "page.z2_strategy_detail.sort.tooltip": {
-        "ru": "Сортировка: {label}",
-        "en": "Sort: {label}",
-    },
-    "page.z2_strategy_detail.filter.technique.all": {
-        "ru": "Все техники",
-        "en": "All techniques",
-    },
-    "page.z2_strategy_detail.args.tooltip": {
-        "ru": "Аргументы стратегии для выбранного target'а",
-        "en": "Strategy arguments for the selected target",
-    },
-    "page.z2_strategy_detail.subtitle.ports": {
-        "ru": "порты: {ports}",
-        "en": "ports: {ports}",
-    },
-    "page.z2_strategy_detail.tree.phase.none.name": {
-        "ru": "(без изменений)",
-        "en": "(no changes)",
-    },
-    "page.z2_strategy_detail.tree.phase.none.desc": {
-        "ru": "Снять отметку со стратегии (фаза будет пропущена)",
-        "en": "Unselect strategy (phase will be skipped)",
-    },
-    "page.z2_strategy_detail.tree.phase.custom.name": {
-        "ru": "Пользовательские аргументы (custom)",
-        "en": "Custom arguments (custom)",
-    },
-    "page.z2_strategy_detail.tree.phase.custom.desc": {
-        "ru": "Неизвестные аргументы, загруженные из профиля",
-        "en": "Unknown arguments loaded from profile",
-    },
-    "page.z2_strategy_detail.tree.disabled.name": {
-        "ru": "Выключено (без DPI-обхода)",
-        "en": "Disabled (no DPI bypass)",
-    },
-    "page.z2_strategy_detail.tree.disabled.desc": {
-        "ru": "Трафик пускается напрямую без модификаций",
-        "en": "Traffic passes directly without modifications",
-    },
-    "page.z2_strategy_detail.infobar.no_strategies.title": {
-        "ru": "Нет стратегий",
-        "en": "No strategies",
-    },
-    "page.z2_strategy_detail.infobar.no_strategies.content": {
-        "ru": "Для target'а '{category}' не найдено стратегий.",
-        "en": "No strategies found for target '{category}'.",
-    },
-    "page.z2_strategy_detail.infobar.preset.exists.title": {
-        "ru": "Уже существует",
-        "en": "Already exists",
-    },
-    "page.z2_strategy_detail.infobar.preset.exists.content": {
-        "ru": "Пресет '{name}' уже существует.",
-        "en": "Preset '{name}' already exists.",
-    },
-    "page.z2_strategy_detail.infobar.preset.created.title": {
-        "ru": "Пресет создан",
-        "en": "Preset created",
-    },
-    "page.z2_strategy_detail.infobar.preset.created.content": {
-        "ru": "Пресет '{name}' создан на основе текущих настроек.",
-        "en": "Preset '{name}' was created from current settings.",
-    },
-    "page.z2_strategy_detail.infobar.preset.create_failed": {
-        "ru": "Не удалось создать пресет.",
-        "en": "Failed to create preset.",
-    },
-    "page.z2_strategy_detail.infobar.preset.no_active.title": {
-        "ru": "Нет выбранного source-пресета",
-        "en": "No selected source preset",
-    },
-    "page.z2_strategy_detail.infobar.preset.no_active.content": {
-        "ru": "Выбранный source-пресет не найден.",
-        "en": "Selected source preset was not found.",
-    },
-    "page.z2_strategy_detail.infobar.preset.renamed.title": {
-        "ru": "Переименован",
-        "en": "Renamed",
-    },
-    "page.z2_strategy_detail.infobar.preset.renamed.content": {
-        "ru": "Пресет переименован: '{old}' -> '{new}'.",
-        "en": "Preset renamed: '{old}' -> '{new}'.",
-    },
-    "page.z2_strategy_detail.infobar.preset.rename_failed": {
-        "ru": "Не удалось переименовать пресет.",
-        "en": "Failed to rename preset.",
-    },
-    "page.z2_strategy_detail.button.create_preset": {
-        "ru": "Создать пресет",
-        "en": "Create preset",
-    },
-    "page.z2_strategy_detail.button.create_preset.tooltip": {
-        "ru": "Создать новый пресет на основе текущих настроек",
-        "en": "Create a new preset from current settings",
-    },
-    "page.z2_strategy_detail.button.rename_preset": {
-        "ru": "Переименовать",
-        "en": "Rename",
-    },
-    "page.z2_strategy_detail.button.rename_preset.tooltip": {
-        "ru": "Переименовать текущий выбранный source-пресет",
-        "en": "Rename current selected source preset",
-    },
-    "page.z2_strategy_detail.button.reset_settings": {
-        "ru": "Сбросить настройки",
-        "en": "Reset settings",
-    },
-    "page.z2_strategy_detail.button.reset_settings.confirm": {
-        "ru": "Сбросить все?",
-        "en": "Reset everything?",
-    },
-    "page.z2_strategy_detail.out_range.title": {
-        "ru": "Out Range",
-        "en": "Out Range",
-    },
-    "page.z2_strategy_detail.out_range.description": {
-        "ru": "Ограничение исходящих пакетов",
-        "en": "Outgoing packet limit",
-    },
-    "page.z2_strategy_detail.send.toggle.title": {
-        "ru": "Send параметры",
-        "en": "Send settings",
-    },
-    "page.z2_strategy_detail.send.toggle.description": {
-        "ru": "Отправка копий пакетов",
-        "en": "Send packet copies",
-    },
-    "page.z2_strategy_detail.send.repeats.title": {
-        "ru": "repeats",
-        "en": "repeats",
-    },
-    "page.z2_strategy_detail.send.repeats.description": {
-        "ru": "Количество повторных отправок",
-        "en": "Retry send count",
-    },
-    "page.z2_strategy_detail.send.ip_ttl.title": {
-        "ru": "ip_ttl",
-        "en": "ip_ttl",
-    },
-    "page.z2_strategy_detail.send.ip_ttl.description": {
-        "ru": "TTL для IPv4 отправляемых пакетов",
-        "en": "TTL for sent IPv4 packets",
-    },
-    "page.z2_strategy_detail.send.ip6_ttl.title": {
-        "ru": "ip6_ttl",
-        "en": "ip6_ttl",
-    },
-    "page.z2_strategy_detail.send.ip6_ttl.description": {
-        "ru": "TTL для IPv6 отправляемых пакетов",
-        "en": "TTL for sent IPv6 packets",
-    },
-    "page.z2_strategy_detail.send.ip_id.title": {
-        "ru": "ip_id",
-        "en": "ip_id",
-    },
-    "page.z2_strategy_detail.send.ip_id.description": {
-        "ru": "Режим IP ID для отправляемых пакетов",
-        "en": "IP ID mode for sent packets",
-    },
-    "page.z2_strategy_detail.send.badsum.title": {
-        "ru": "badsum",
-        "en": "badsum",
-    },
-    "page.z2_strategy_detail.send.badsum.description": {
-        "ru": "Отправлять пакеты с неправильной контрольной суммой",
-        "en": "Send packets with invalid checksum",
-    },
-    "page.z2_strategy_detail.syndata.toggle.title": {
-        "ru": "Syndata параметры",
-        "en": "Syndata settings",
-    },
-    "page.z2_strategy_detail.syndata.toggle.description": {
-        "ru": "Дополнительные параметры обхода DPI",
-        "en": "Additional DPI bypass settings",
-    },
-    "page.z2_strategy_detail.syndata.blob.title": {
-        "ru": "blob",
-        "en": "blob",
-    },
-    "page.z2_strategy_detail.syndata.blob.description": {
-        "ru": "Полезная нагрузка пакета",
-        "en": "Packet payload",
-    },
-    "page.z2_strategy_detail.syndata.tls_mod.title": {
-        "ru": "tls_mod",
-        "en": "tls_mod",
-    },
-    "page.z2_strategy_detail.syndata.tls_mod.description": {
-        "ru": "Модификация полезной нагрузки TLS",
-        "en": "TLS payload modification",
-    },
-    "page.z2_strategy_detail.syndata.autottl_delta.title": {
-        "ru": "AutoTTL Delta",
-        "en": "AutoTTL Delta",
-    },
-    "page.z2_strategy_detail.syndata.autottl_delta.description": {
-        "ru": "Смещение от измеренного TTL (OFF = убрать ip_autottl)",
-        "en": "Offset from measured TTL (OFF = disable ip_autottl)",
-    },
-    "page.z2_strategy_detail.syndata.autottl_min.title": {
-        "ru": "AutoTTL Min",
-        "en": "AutoTTL Min",
-    },
-    "page.z2_strategy_detail.syndata.autottl_min.description": {
-        "ru": "Минимальный TTL",
-        "en": "Minimum TTL",
-    },
-    "page.z2_strategy_detail.syndata.autottl_max.title": {
-        "ru": "AutoTTL Max",
-        "en": "AutoTTL Max",
-    },
-    "page.z2_strategy_detail.syndata.autottl_max.description": {
-        "ru": "Максимальный TTL",
-        "en": "Maximum TTL",
-    },
-    "page.z2_strategy_detail.syndata.tcp_flags.title": {
-        "ru": "tcp_flags_unset",
-        "en": "tcp_flags_unset",
-    },
-    "page.z2_strategy_detail.syndata.tcp_flags.description": {
-        "ru": "Сбросить TCP флаги",
-        "en": "Unset TCP flags",
     },
     "page.ipset.title": {
         "ru": "IPset",
@@ -5267,41 +4779,41 @@ TEXTS_EXTRA: dict[str, dict[str, str]] = {
         "ru": "Стратегия добавлена",
         "en": "Strategy added",
     },
-    "page.z1_direct.empty.no_categories": {
-        "ru": "Категории не найдены. Проверьте наличие json/strategies/builtin/categories.txt",
-        "en": "No categories found. Check json/strategies/builtin/categories.txt",
+    "page.z1_pages.empty.no_categories": {
+        "ru": "Profiles не найдены. Проверьте выбранный preset и файл src/profile/templates/all_profiles.txt",
+        "en": "Profiles were not found. Check the selected preset and src/profile/templates/all_profiles.txt",
     },
-    "page.z2_direct.request.hint": {
+    "page.z2_pages.request.hint": {
         "ru": "Хотите добавить новый сайт или сервис в Zapret 2? Откройте готовую форму на GitHub и опишите, что нужно добавить в hostlist или ipset.",
         "en": "Want to add a new site or service to Zapret 2? Open the GitHub form and describe what should be added to the hostlist or ipset.",
     },
-    "page.z2_direct.empty.no_presets": {
+    "page.z2_pages.empty.no_presets": {
         "ru": "Пресеты Zapret 2 не найдены. Проверьте папку presets рядом с программой. Если системные пресеты отсутствуют, переустановите приложение.",
         "en": "Zapret 2 presets were not found. Check the presets folder near the program. If built-in presets are missing, reinstall the app.",
     },
-    "page.z2_direct.empty.no_selected_preset": {
+    "page.z2_pages.empty.no_selected_preset": {
         "ru": "Не удалось определить выбранный source preset. Откройте список пресетов, выберите любой пресет заново и нажмите «Обновить».",
         "en": "Could not determine the selected source preset. Open the preset list, choose any preset again, and click Refresh.",
     },
-    "page.z2_direct.empty.preset_read_error": {
+    "page.z2_pages.empty.preset_read_error": {
         "ru": "Не удалось прочитать выбранный source preset «{preset_name}». Такое бывает, если файл пустой, повреждён или недоступен для чтения.",
         "en": "Could not read the selected source preset \"{preset_name}\". This may happen if the file is empty, corrupted, or unavailable for reading.",
     },
-    "page.z2_direct.empty.unknown_error": {
-        "ru": "Не удалось построить список категорий для выбранного source preset «{preset_name}». Обычно это значит, что во время чтения preset-а или построения snapshot произошла внутренняя ошибка. Нажмите «Обновить» и проверьте лог.",
-        "en": "Could not build the category list for the selected source preset \"{preset_name}\". This usually means an internal error happened while reading the preset or building the snapshot. Click Refresh and check the log.",
+    "page.z2_pages.empty.unknown_error": {
+        "ru": "Не удалось построить список profiles для выбранного source preset «{preset_name}». Обычно это значит, что во время чтения preset-а произошла внутренняя ошибка. Нажмите «Обновить» и проверьте лог.",
+        "en": "Could not build the profile list for the selected source preset \"{preset_name}\". This usually means an internal error happened while reading the preset. Click Refresh and check the log.",
     },
-    "page.z2_direct.empty.no_categories": {
-        "ru": "В выбранном source preset «{preset_name}» не найдено ни одной категории для этой страницы. Это значит, что после разбора файла программа не увидела ни одного target'а с фильтрами вроде hostlist, hostlist-domains или ipset.",
-        "en": "No categories were found for this page in the selected source preset \"{preset_name}\". This means that after parsing the file, the app did not find any target with filters such as hostlist, hostlist-domains, or ipset.",
+    "page.z2_pages.empty.no_categories": {
+        "ru": "В выбранном source preset «{preset_name}» не найдено ни одного profile для этой страницы. Это значит, что после разбора файла программа не увидела profile с фильтрами вроде hostlist, hostlist-domains или ipset.",
+        "en": "No profiles were found for this page in the selected source preset \"{preset_name}\". This means that after parsing the file, the app did not find a profile with filters such as hostlist, hostlist-domains, or ipset.",
     },
-    "page.z2_direct.current.active_count": {
+    "page.z2_pages.current.active_count": {
         "ru": "{count} активных",
         "en": "{count} active",
     },
-    "page.z2_direct.info.body": {
-        "ru": "Здесь Вы можете тонко изменить стратегию для каждого target'а, который найден в выбранном source preset. Всего существует несколько фаз дурения (send, syndata, fake, multisplit и т.д.). Последовательность сама определяется программой.\n\nВы можете править пресет вручную через txt-файл или выбирать готовые стратегии в этом меню. Каждая стратегия — это набор аргументов, то есть техник дурения или фуллинга, которые меняют содержимое пакетов по модели TCP/IP, отправляемых вашим устройством. Это помогает сбить алгоритмы ТСПУ провайдера, чтобы они не заметили или пропустили запрещённый контент.",
-        "en": "Here you can finely tune the strategy for each target found in the selected source preset. There are several obfuscation phases (send, syndata, fake, multisplit, etc.). Their sequence is determined by the app.\n\nYou can edit the preset manually in a txt file or choose ready-made strategies in this menu. Each strategy is a set of arguments, i.e. packet manipulation techniques used to alter TCP/IP traffic sent by your device. This helps confuse provider TSPU algorithms so they do not detect or block restricted content.",
+    "page.z2_pages.info.body": {
+        "ru": "Здесь Вы можете тонко изменить стратегию для каждого profile, который найден в выбранном source preset. Всего существует несколько фаз дурения (send, syndata, fake, multisplit и т.д.). Последовательность сама определяется программой.\n\nВы можете править пресет вручную через txt-файл или выбирать готовые стратегии в этом меню. Каждая стратегия — это набор аргументов, то есть техник дурения или фуллинга, которые меняют содержимое пакетов по модели TCP/IP, отправляемых вашим устройством. Это помогает сбить алгоритмы ТСПУ провайдера, чтобы они не заметили или пропустили запрещённый контент.",
+        "en": "Here you can finely tune the strategy for each profile found in the selected source preset. There are several obfuscation phases (send, syndata, fake, multisplit, etc.). Their sequence is determined by the app.\n\nYou can edit the preset manually in a txt file or choose ready-made strategies in this menu. Each strategy is a set of arguments, i.e. packet manipulation techniques used to alter TCP/IP traffic sent by your device. This helps confuse provider TSPU algorithms so they do not detect or block restricted content.",
     },
 }
 
@@ -5485,37 +4997,13 @@ TEXTS_PAGES_FINAL: dict[str, dict[str, str]] = {
         "ru": "🧹 Ошибки очищены",
         "en": "🧹 Errors cleared",
     },
-    "page.strategies_base.title": {
-        "ru": "Выбор активных стратегий (и их настройка) Zapret 2",
-        "en": "Select Active Strategies (and tune them) for Zapret 2",
-    },
-    "page.strategies_base.subtitle": {
-        "ru": "Для каждой категории (доменов внутри хостлиста или айпишников внутри айпсета) можно выбрать свою стратегию для обхода блокировок. Список всех статегий для каждой категории одинаковый, отличается только по типу трафика (TCP, UDP, stun). Некоторые типы дурения (например send или syndata) можно настроить более точечно чтобы получить больше уникальных стратегий, исходя из того как работает ваше ТСПУ.",
-        "en": "For each category (domains in hostlist or IPs in ipset) you can select a separate bypass strategy. The list of strategies is the same for each category and differs only by traffic type (TCP, UDP, STUN). Some techniques (for example send or syndata) can be tuned more precisely to get more unique strategies based on your provider filtering behavior.",
-    },
-    "page.strategies_base.current_prefix": {
-        "ru": "Текущая:",
-        "en": "Current:",
-    },
-    "page.strategies_base.strategy.not_selected": {
-        "ru": "Не выбрана",
-        "en": "Not selected",
-    },
-    "page.strategies_base.loading": {
-        "ru": "Загрузка...",
-        "en": "Loading...",
-    },
-    "page.strategies_base.strategy.autostart_disabled": {
-        "ru": "Автозапуск DPI после старта программы отключён",
-        "en": "Auto-start DPI after app launch is disabled",
-    },
     "page.z2_control.mode.dialog.title": {
-        "ru": "Режим прямого запуска",
-        "en": "Direct Launch Mode",
+        "ru": "Режим отображения profile",
+        "en": "Profile UI Mode",
     },
     "page.z2_control.mode.dialog.description": {
-        "ru": "Прямой запуск поддерживает несколько режимов: упрощенный и расширенный для профи. Настройки не сохраняются между режимами Вы можете выбрать любой. Рекомендуем начать с базового. Бывает что базовый из-за готовых стратегий плохо пробивает сайты, тогда рекомендуем попробовать продвинутый в котором можно более тонко настроить техники дурения.",
-        "en": "Direct launch supports multiple modes: simplified and advanced for power users. Settings are not shared across modes, so you can choose any mode. We recommend starting with Basic. If Basic does not bypass enough sites, try Advanced for finer technique tuning.",
+        "ru": "Профили поддерживает несколько режимов: упрощенный и расширенный для профи. Настройки не сохраняются между режимами Вы можете выбрать любой. Рекомендуем начать с базового. Бывает что базовый из-за готовых стратегий плохо пробивает сайты, тогда рекомендуем попробовать продвинутый в котором можно более тонко настроить техники дурения.",
+        "en": "Profile UI supports multiple modes: simplified and advanced for power users. Settings are not shared across modes, so you can choose any mode. We recommend starting with Basic. If Basic does not bypass enough sites, try Advanced for finer technique tuning.",
     },
     "page.z2_control.mode.dialog.basic_description": {
         "ru": "Basic (базовый) — готовая таблица стратегий без понятия фаз. Собирать свои стратегии нельзя.",
@@ -5584,8 +5072,8 @@ TEXTS.update(TEXTS_PAGES_FINAL)
 
 NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.CONTROL: "nav.page.control",
-    PageName.ZAPRET2_DIRECT_CONTROL: "nav.page.zapret2_direct_control",
-    PageName.ZAPRET1_DIRECT_CONTROL: "nav.page.zapret1_direct_control",
+    PageName.ZAPRET2_MODE_CONTROL: "nav.page.zapret2_mode_control",
+    PageName.ZAPRET1_MODE_CONTROL: "nav.page.zapret1_mode_control",
     PageName.ORCHESTRA: "nav.page.orchestra",
     PageName.HOSTLIST: "nav.page.hostlist",
     PageName.NETROGAT: "page.netrogat.title",
@@ -5604,12 +5092,12 @@ NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.SERVERS: "page.servers.title",
     PageName.ABOUT: "nav.page.about",
     PageName.SUPPORT: "page.support.title",
-    PageName.ZAPRET2_DIRECT: "nav.page.zapret2_direct",
+    PageName.ZAPRET2_MODE: "nav.page.zapret2_mode",
     PageName.ZAPRET2_USER_PRESETS: "nav.page.zapret2_user_presets",
-    PageName.ZAPRET2_STRATEGY_DETAIL: "page.z2_strategy_detail.title",
-    PageName.ZAPRET1_DIRECT: "nav.page.zapret1_direct",
+    PageName.ZAPRET2_PROFILE_DETAIL: "page.z2_profile_detail.title",
+    PageName.ZAPRET1_MODE: "nav.page.zapret1_mode",
     PageName.ZAPRET1_USER_PRESETS: "nav.page.zapret1_user_presets",
-    PageName.ZAPRET1_STRATEGY_DETAIL: "page.z1_strategy_detail.title",
+    PageName.ZAPRET1_PROFILE_DETAIL: "page.z1_profile_detail.title",
 }
 
 
@@ -5634,18 +5122,18 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
     SearchEntry("control.title", PageName.CONTROL, "page.control.title"),
     SearchEntry("control.status", PageName.CONTROL, "page.control.status", section_key="page.control.status"),
     SearchEntry("control.settings", PageName.CONTROL, "page.control.program_settings", section_key="page.control.program_settings"),
-    SearchEntry("z2.control.title", PageName.ZAPRET2_DIRECT_CONTROL, "page.z2_control.title"),
-    SearchEntry("z2.control.status", PageName.ZAPRET2_DIRECT_CONTROL, "page.control.status", section_key="page.control.status"),
-    SearchEntry("z2.control.preset", PageName.ZAPRET2_DIRECT_CONTROL, "page.z2_control.preset_switch", section_key="page.z2_control.preset_switch"),
-    SearchEntry("z2.control.direct", PageName.ZAPRET2_DIRECT_CONTROL, "page.z2_control.direct_tuning", section_key="page.z2_control.direct_tuning"),
-    SearchEntry("z2.direct.title", PageName.ZAPRET2_DIRECT, "page.z2_direct.title"),
+    SearchEntry("z2.control.title", PageName.ZAPRET2_MODE_CONTROL, "page.z2_control.title"),
+    SearchEntry("z2.control.status", PageName.ZAPRET2_MODE_CONTROL, "page.control.status", section_key="page.control.status"),
+    SearchEntry("z2.control.preset", PageName.ZAPRET2_MODE_CONTROL, "page.z2_control.preset_switch", section_key="page.z2_control.preset_switch"),
+    SearchEntry("z2.control.mode", PageName.ZAPRET2_MODE_CONTROL, "page.z2_control.profile_tuning", section_key="page.z2_control.profile_tuning"),
+    SearchEntry("z2.mode.title", PageName.ZAPRET2_MODE, "page.z2_pages.title"),
     SearchEntry("z2.user_presets.title", PageName.ZAPRET2_USER_PRESETS, "page.z2_user_presets.title"),
-    SearchEntry("z2.strategy_detail.title", PageName.ZAPRET2_STRATEGY_DETAIL, "page.z2_strategy_detail.title"),
-    SearchEntry("z1.control.title", PageName.ZAPRET1_DIRECT_CONTROL, "page.z1_control.title"),
-    SearchEntry("z1.control.presets", PageName.ZAPRET1_DIRECT_CONTROL, "page.z1_control.presets", section_key="page.z1_control.presets"),
-    SearchEntry("z1.direct.title", PageName.ZAPRET1_DIRECT, "page.z1_direct.title"),
+    SearchEntry("z2.profile_detail.title", PageName.ZAPRET2_PROFILE_DETAIL, "page.z2_profile_detail.title"),
+    SearchEntry("z1.control.title", PageName.ZAPRET1_MODE_CONTROL, "page.z1_control.title"),
+    SearchEntry("z1.control.presets", PageName.ZAPRET1_MODE_CONTROL, "page.z1_control.presets", section_key="page.z1_control.presets"),
+    SearchEntry("z1.mode.title", PageName.ZAPRET1_MODE, "page.z1_pages.title"),
     SearchEntry("z1.user_presets.title", PageName.ZAPRET1_USER_PRESETS, "page.z1_user_presets.title"),
-    SearchEntry("z1.strategy_detail.title", PageName.ZAPRET1_STRATEGY_DETAIL, "page.z1_strategy_detail.title"),
+    SearchEntry("z1.profile_detail.title", PageName.ZAPRET1_PROFILE_DETAIL, "page.z1_profile_detail.title"),
     SearchEntry("orchestra.title", PageName.ORCHESTRA, "page.orchestra.title"),
     SearchEntry("orchestra.training", PageName.ORCHESTRA, "page.orchestra.training_status", section_key="page.orchestra.training_status"),
     SearchEntry("orchestra.log", PageName.ORCHESTRA, "page.orchestra.log", section_key="page.orchestra.log"),
@@ -5713,8 +5201,8 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
 
 _PAGE_SEARCH_EXTRA_PREFIXES: dict[PageName, tuple[str, ...]] = {
     PageName.HOSTLIST: ("page.ipset.",),
-    PageName.ZAPRET2_DIRECT: ("page.strategies_base.",),
-    PageName.ZAPRET1_DIRECT: ("page.strategies_base.",),
+    PageName.ZAPRET2_MODE: ("page.z2_pages.",),
+    PageName.ZAPRET1_MODE: ("page.z1_pages.",),
     PageName.BLOCKCHECK: (
         "page.connection.",
         "page.dns_check.",

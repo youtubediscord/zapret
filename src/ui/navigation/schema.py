@@ -22,8 +22,8 @@ class PageRouteSpec:
 
 
 _COMMON = ()
-_Z2_DIRECT = ("direct_zapret2",)
-_Z1_DIRECT = ("direct_zapret1",)
+_Z2_MODE = ("zapret2_mode",)
+_Z1_MODE = ("zapret1_mode",)
 _ORCHESTRA = ("orchestra",)
 
 
@@ -40,111 +40,111 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         breadcrumb_parent=None,
         sidebar_group="root",
     ),
-    PageName.ZAPRET2_DIRECT_CONTROL: PageRouteSpec(
-        page_name=PageName.ZAPRET2_DIRECT_CONTROL,
-        attr_name="zapret2_direct_control_page",
-        module_name="direct_preset.ui.control.zapret2.page",
-        class_name="Zapret2DirectControlPage",
-        route_key="Zapret2DirectControlPage",
+    PageName.ZAPRET2_MODE_CONTROL: PageRouteSpec(
+        page_name=PageName.ZAPRET2_MODE_CONTROL,
+        attr_name="zapret2_mode_control_page",
+        module_name="presets.ui.control.zapret2.page",
+        class_name="Zapret2ModeControlPage",
+        route_key="Zapret2ModeControlPage",
         is_top_level=True,
         is_hidden=False,
-        launch_modes=_Z2_DIRECT,
+        launch_modes=_Z2_MODE,
         breadcrumb_parent=None,
         sidebar_group="root",
     ),
-    PageName.ZAPRET2_DIRECT: PageRouteSpec(
-        page_name=PageName.ZAPRET2_DIRECT,
-        attr_name="zapret2_strategies_page",
-        module_name="filters.ui.filter_list.zapret2.targets_page",
-        class_name="Zapret2StrategiesPageNew",
-        route_key="Zapret2StrategiesPageNew",
+    PageName.ZAPRET2_MODE: PageRouteSpec(
+        page_name=PageName.ZAPRET2_MODE,
+        attr_name="zapret2_profiles_page",
+        module_name="profile.ui.profiles_page",
+        class_name="Zapret2ProfilesPage",
+        route_key="Zapret2ProfilesPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z2_DIRECT,
-        breadcrumb_parent=PageName.ZAPRET2_DIRECT_CONTROL,
+        launch_modes=_Z2_MODE,
+        breadcrumb_parent=PageName.ZAPRET2_MODE_CONTROL,
         sidebar_group=None,
     ),
-    PageName.ZAPRET2_STRATEGY_DETAIL: PageRouteSpec(
-        page_name=PageName.ZAPRET2_STRATEGY_DETAIL,
-        attr_name="strategy_detail_page",
-        module_name="filters.ui.filter_list.zapret2.strategy_detail_page",
-        class_name="StrategyDetailPage",
-        route_key="StrategyDetailPage",
+    PageName.ZAPRET2_PROFILE_DETAIL: PageRouteSpec(
+        page_name=PageName.ZAPRET2_PROFILE_DETAIL,
+        attr_name="profile_detail_page",
+        module_name="profile.ui.detail_page",
+        class_name="ProfileDetailPage",
+        route_key="ProfileDetailPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z2_DIRECT,
-        breadcrumb_parent=PageName.ZAPRET2_DIRECT,
+        launch_modes=_Z2_MODE,
+        breadcrumb_parent=PageName.ZAPRET2_MODE,
         sidebar_group=None,
     ),
     PageName.ZAPRET2_PRESET_DETAIL: PageRouteSpec(
         page_name=PageName.ZAPRET2_PRESET_DETAIL,
         attr_name="zapret2_preset_detail_page",
-        module_name="direct_preset.ui.zapret2.preset_detail_page",
+        module_name="presets.ui.zapret2.preset_detail_page",
         class_name="Zapret2PresetDetailPage",
         route_key="Zapret2PresetDetailPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z2_DIRECT,
+        launch_modes=_Z2_MODE,
         breadcrumb_parent=PageName.ZAPRET2_USER_PRESETS,
         sidebar_group=None,
     ),
-    PageName.ZAPRET1_DIRECT_CONTROL: PageRouteSpec(
-        page_name=PageName.ZAPRET1_DIRECT_CONTROL,
-        attr_name="zapret1_direct_control_page",
-        module_name="direct_preset.ui.control.zapret1.page",
-        class_name="Zapret1DirectControlPage",
-        route_key="Zapret1DirectControlPage",
+    PageName.ZAPRET1_MODE_CONTROL: PageRouteSpec(
+        page_name=PageName.ZAPRET1_MODE_CONTROL,
+        attr_name="zapret1_mode_control_page",
+        module_name="presets.ui.control.zapret1.page",
+        class_name="Zapret1ModeControlPage",
+        route_key="Zapret1ModeControlPage",
         is_top_level=True,
         is_hidden=False,
-        launch_modes=_Z1_DIRECT,
+        launch_modes=_Z1_MODE,
         breadcrumb_parent=None,
         sidebar_group="root",
     ),
-    PageName.ZAPRET1_DIRECT: PageRouteSpec(
-        page_name=PageName.ZAPRET1_DIRECT,
-        attr_name="zapret1_strategies_page",
-        module_name="filters.ui.filter_list.zapret1.targets_page",
-        class_name="Zapret1StrategiesPage",
-        route_key="Zapret1StrategiesPage",
+    PageName.ZAPRET1_MODE: PageRouteSpec(
+        page_name=PageName.ZAPRET1_MODE,
+        attr_name="zapret1_profiles_page",
+        module_name="profile.ui.profiles_page",
+        class_name="Zapret1ProfilesPage",
+        route_key="Zapret1ProfilesPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z1_DIRECT,
-        breadcrumb_parent=PageName.ZAPRET1_DIRECT_CONTROL,
+        launch_modes=_Z1_MODE,
+        breadcrumb_parent=PageName.ZAPRET1_MODE_CONTROL,
         sidebar_group=None,
     ),
     PageName.ZAPRET1_USER_PRESETS: PageRouteSpec(
         page_name=PageName.ZAPRET1_USER_PRESETS,
         attr_name="zapret1_user_presets_page",
-        module_name="direct_preset.ui.zapret1.user_presets_page",
+        module_name="presets.ui.zapret1.user_presets_page",
         class_name="Zapret1UserPresetsPage",
         route_key="Zapret1UserPresetsPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z1_DIRECT,
-        breadcrumb_parent=PageName.ZAPRET1_DIRECT_CONTROL,
+        launch_modes=_Z1_MODE,
+        breadcrumb_parent=PageName.ZAPRET1_MODE_CONTROL,
         sidebar_group=None,
     ),
-    PageName.ZAPRET1_STRATEGY_DETAIL: PageRouteSpec(
-        page_name=PageName.ZAPRET1_STRATEGY_DETAIL,
-        attr_name="zapret1_strategy_detail_page",
-        module_name="filters.ui.filter_list.zapret1.strategy_detail_page",
-        class_name="Zapret1StrategyDetailPage",
-        route_key="Zapret1StrategyDetailPage",
+    PageName.ZAPRET1_PROFILE_DETAIL: PageRouteSpec(
+        page_name=PageName.ZAPRET1_PROFILE_DETAIL,
+        attr_name="zapret1_profile_detail_page",
+        module_name="profile.ui.detail_page",
+        class_name="Zapret1ProfileDetailPage",
+        route_key="Zapret1ProfileDetailPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z1_DIRECT,
-        breadcrumb_parent=PageName.ZAPRET1_DIRECT,
+        launch_modes=_Z1_MODE,
+        breadcrumb_parent=PageName.ZAPRET1_MODE,
         sidebar_group=None,
     ),
     PageName.ZAPRET1_PRESET_DETAIL: PageRouteSpec(
         page_name=PageName.ZAPRET1_PRESET_DETAIL,
         attr_name="zapret1_preset_detail_page",
-        module_name="direct_preset.ui.zapret1.preset_detail_page",
+        module_name="presets.ui.zapret1.preset_detail_page",
         class_name="Zapret1PresetDetailPage",
         route_key="Zapret1PresetDetailPage",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z1_DIRECT,
+        launch_modes=_Z1_MODE,
         breadcrumb_parent=PageName.ZAPRET1_USER_PRESETS,
         sidebar_group=None,
     ),
@@ -187,13 +187,13 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
     PageName.ZAPRET2_USER_PRESETS: PageRouteSpec(
         page_name=PageName.ZAPRET2_USER_PRESETS,
         attr_name="zapret2_user_presets_page",
-        module_name="direct_preset.ui.zapret2.user_presets_page",
+        module_name="presets.ui.zapret2.user_presets_page",
         class_name="Zapret2UserPresetsPage",
-        route_key="Zapret2UserPresetsPage_Direct",
+        route_key="Zapret2UserPresetsPage_Mode",
         is_top_level=False,
         is_hidden=True,
-        launch_modes=_Z2_DIRECT,
-        breadcrumb_parent=PageName.ZAPRET2_DIRECT_CONTROL,
+        launch_modes=_Z2_MODE,
+        breadcrumb_parent=PageName.ZAPRET2_MODE_CONTROL,
         sidebar_group=None,
     ),
     PageName.NETROGAT: PageRouteSpec(
@@ -396,13 +396,13 @@ PAGE_CLEANUP_ORDER: tuple[PageName, ...] = (
     PageName.CONTROL,
     PageName.CUSTOM_DOMAINS,
     PageName.CUSTOM_IPSET,
-    PageName.ZAPRET2_DIRECT_CONTROL,
-    PageName.ZAPRET2_DIRECT,
-    PageName.ZAPRET2_STRATEGY_DETAIL,
+    PageName.ZAPRET2_MODE_CONTROL,
+    PageName.ZAPRET2_MODE,
+    PageName.ZAPRET2_PROFILE_DETAIL,
     PageName.ZAPRET2_USER_PRESETS,
-    PageName.ZAPRET1_DIRECT_CONTROL,
-    PageName.ZAPRET1_DIRECT,
-    PageName.ZAPRET1_STRATEGY_DETAIL,
+    PageName.ZAPRET1_MODE_CONTROL,
+    PageName.ZAPRET1_MODE,
+    PageName.ZAPRET1_PROFILE_DETAIL,
     PageName.ZAPRET1_USER_PRESETS,
     PageName.NETROGAT,
     PageName.HOSTLIST,
@@ -442,16 +442,16 @@ SIDEBAR_GROUP_ORDER: tuple[str, ...] = ("root", "settings", "system", "diagnosti
 
 DETAIL_PAGE_NAMES: frozenset[PageName] = frozenset(
     {
-        PageName.ZAPRET2_STRATEGY_DETAIL,
+        PageName.ZAPRET2_PROFILE_DETAIL,
         PageName.ZAPRET2_PRESET_DETAIL,
-        PageName.ZAPRET1_STRATEGY_DETAIL,
+        PageName.ZAPRET1_PROFILE_DETAIL,
         PageName.ZAPRET1_PRESET_DETAIL,
     }
 )
 
 MODE_ENTRY_PAGES: dict[str, PageName] = {
-    "direct_zapret2": PageName.ZAPRET2_DIRECT_CONTROL,
-    "direct_zapret1": PageName.ZAPRET1_DIRECT_CONTROL,
+    "zapret2_mode": PageName.ZAPRET2_MODE_CONTROL,
+    "zapret1_mode": PageName.ZAPRET1_MODE_CONTROL,
     "orchestra": PageName.ORCHESTRA,
 }
 
@@ -481,7 +481,7 @@ def iter_page_names_for_cleanup(page_names: Iterable[PageName]) -> tuple[PageNam
 
 def normalize_launch_method_for_ui(method: str | None) -> str:
     normalized = (method or "").strip().lower()
-    return normalized or "direct_zapret2"
+    return normalized or "zapret2_mode"
 
 
 def _matches_method(spec: PageRouteSpec, method: str | None) -> bool:
@@ -496,8 +496,8 @@ def _is_sidebar_visible_in_method(spec: PageRouteSpec, method: str | None) -> bo
 
     if spec.page_name == PageName.CONTROL:
         return normalized_method not in {
-            "direct_zapret2",
-            "direct_zapret1",
+            "zapret2_mode",
+            "zapret1_mode",
             "orchestra",
         }
 
@@ -511,7 +511,7 @@ def is_page_allowed_for_method(page_name: PageName, method: str | None) -> bool:
     return _matches_method(spec, method)
 
 
-def is_page_direct_open_allowed(page_name: PageName) -> bool:
+def is_page_mode_open_allowed(page_name: PageName) -> bool:
     return page_name not in DETAIL_PAGE_NAMES
 
 
@@ -612,7 +612,7 @@ __all__ = [
     "get_page_route_key",
     "get_page_spec",
     "is_page_allowed_for_method",
-    "is_page_direct_open_allowed",
+    "is_page_mode_open_allowed",
     "is_page_search_visible",
     "iter_page_names_for_cleanup",
     "get_sidebar_pages_for_method",

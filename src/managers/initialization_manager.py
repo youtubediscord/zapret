@@ -151,9 +151,8 @@ class InitializationManager:
         phase_two_steps = [
             self._init_process_monitor,
             self._init_core_managers,
-            self._init_strategy_manager,
             self._init_theme_manager,
-            self._init_telegram_proxy_autostart,
+            self._init_telegram_proxy_startup,
             self._init_network_managers,
             self._finalize_managers_init,
         ]
@@ -177,12 +176,6 @@ class InitializationManager:
 
     # ───────────────────────── инициализация подсистем ───────────────────────
 
-    def _init_strategy_manager(self):
-        """Stub: старый strategy manager удалён — теперь используется direct preset UI."""
-        self.app.strategy_manager = None
-        log("Legacy strategy manager отключён — используется direct preset UI", "DEBUG")
-        self.init_tasks_completed.add('strategy_manager')
-
     def _init_strategy_cache(self):
         """Прогрев кэша стратегий для быстрого открытия вкладок"""
         def _worker() -> None:
@@ -193,14 +186,11 @@ class InitializationManager:
 
                 method = get_strategy_launch_method()
 
-                # Прогреваем кэш выборов/source preset только для поддерживаемых direct-режимов.
-                if method in ("direct_zapret1", "direct_zapret2"):
-                    from direct_preset.facade import DirectPresetFacade
+                # Прогреваем кэш выбранного source preset только для поддерживаемых preset-режимов.
+                if method in {"zapret1_mode", "zapret2_mode"}:
+                    from profile.service import ProfilePresetService
 
-                    DirectPresetFacade.from_launch_method(
-                        method,
-                        app_context=self.app.app_context,
-                    ).get_strategy_selections()
+                    ProfilePresetService(self.app.app_context, method).list_profiles()
                 elif method == "orchestra":
                     pass
 
@@ -229,24 +219,24 @@ class InitializationManager:
         """Считает итоговую строку стратегии без выполнения UI-кода в рабочем потоке."""
         try:
             # Убедимся, что выбранные source-пресеты подготовлены до расчёта summary.
-            if method == "direct_zapret2":
+            if method == "zapret2_mode":
                 try:
-                    self.app.app_context.direct_flow_coordinator.get_startup_snapshot("direct_zapret2")
+                    self.app.app_context.preset_mode_coordinator.get_startup_snapshot("zapret2_mode")
                 except Exception as e:
                     log(
-                        f"direct_zapret2: не удалось подготовить выбранный source-пресет: {e}",
+                        f"zapret2_mode: не удалось подготовить выбранный source-пресет: {e}",
                         "ERROR",
                     )
-            elif method == "direct_zapret1":
+            elif method == "zapret1_mode":
                 try:
-                    self.app.app_context.direct_flow_coordinator.get_startup_snapshot("direct_zapret1")
+                    self.app.app_context.preset_mode_coordinator.get_startup_snapshot("zapret1_mode")
                 except Exception:
-                    log("direct_zapret1: не удалось подготовить выбранный source-пресет", "ERROR")
+                    log("zapret1_mode: не удалось подготовить выбранный source-пресет", "ERROR")
 
-            if method in ("direct_zapret2", "direct_zapret1"):
-                from ui.window_display_state import get_direct_strategy_summary
+            if method in ("zapret2_mode", "zapret1_mode"):
+                from ui.window_display_state import get_profile_strategy_summary
 
-                return get_direct_strategy_summary(self.app)
+                return get_profile_strategy_summary(self.app)
         except Exception as e:
             log(f"Ошибка расчёта стартового summary стратегии: {e}", "DEBUG")
 
@@ -262,7 +252,7 @@ class InitializationManager:
             return initial_name
         if method == "orchestra":
             return "Оркестр"
-        return "Прямой запуск"
+        return "Профили"
 
     def _apply_strategy_cache_summary(self, launch_method: str, strategy_summary: str) -> None:
         """Возвращает результат прогрева в единый store уже в GUI-потоке."""
@@ -278,7 +268,7 @@ class InitializationManager:
     def _init_launch_runtime_api(self):
         """Инициализация launch runtime API."""
         try:
-            from winws_runtime.runtime.runtime_api import DirectLaunchRuntimeApi
+            from winws_runtime.runtime.runtime_api import PresetLaunchRuntimeApi
             from config.config import get_winws_exe_for_method, is_zapret2_mode
 
             from settings.dpi.strategy_settings import get_strategy_launch_method
@@ -291,7 +281,7 @@ class InitializationManager:
             else:
                 log(f"Используется winws.exe для режима {launch_method}", "INFO")
 
-            self.app.launch_runtime_api = DirectLaunchRuntimeApi(
+            self.app.launch_runtime_api = PresetLaunchRuntimeApi(
                 expected_exe_path=winws_exe,
                 status_callback=self.app.set_status,
                 app_instance=self.app,
@@ -366,26 +356,26 @@ class InitializationManager:
     def _init_launch_controller(self):
         """Инициализация launch controller."""
         try:
-            from winws_runtime.runtime.controller import DirectLaunchController
-            self.app.launch_controller = DirectLaunchController(self.app)
+            from winws_runtime.runtime.controller import PresetLaunchController
+            self.app.launch_controller = PresetLaunchController(self.app)
             log("Launch controller инициализирован", "INFO")
             self.init_tasks_completed.add('launch_controller')
         except Exception as e:
             log(f"Ошибка инициализации launch controller: {e}", "❌ ERROR")
             self.app.set_status(f"Ошибка контроллера: {e}")
 
-    def _init_telegram_proxy_autostart(self):
-        """Фоновый автозапуск Telegram Proxy сразу после общего старта приложения."""
+    def _init_telegram_proxy_startup(self):
+        """Фоновый запуск Telegram Proxy, если он включён в настройках."""
         try:
-            from telegram_proxy.manager import autostart_proxy_if_enabled_async
+            from telegram_proxy.manager import start_proxy_if_enabled_async
 
-            started = bool(autostart_proxy_if_enabled_async())
+            started = bool(start_proxy_if_enabled_async())
             if started:
-                log("Telegram Proxy автозапуск запланирован через общий startup flow", "INFO")
+                log("Telegram Proxy включён и запланирован через общий запуск приложения", "INFO")
             else:
-                log("Telegram Proxy автозапуск не требуется или уже выполнен", "DEBUG")
+                log("Telegram Proxy выключен или уже запущен", "DEBUG")
         except Exception as e:
-            log(f"Ошибка автозапуска Telegram Proxy: {e}", "WARNING")
+            log(f"Ошибка запуска Telegram Proxy: {e}", "WARNING")
 
     def _init_menu(self):
         """Инициализация меню"""
@@ -417,11 +407,16 @@ class InitializationManager:
         from settings.dpi.strategy_settings import get_strategy_launch_method
 
         launch_method = get_strategy_launch_method()
+        prepared_selected_mode = None
 
-        # Для новых direct режимов проверяем сам source preset, а не legacy selections dict.
-        if launch_method in ("direct_zapret2", "direct_zapret1"):
+        # Для новых preset режимов проверяем сам source preset, а не legacy selections dict.
+        if launch_method in ("zapret2_mode", "zapret1_mode"):
             try:
-                self.app.app_context.direct_flow_coordinator.get_startup_snapshot(launch_method, require_filters=True)
+                snapshot = self.app.app_context.preset_mode_coordinator.get_startup_snapshot(
+                    launch_method,
+                    require_filters=True,
+                )
+                prepared_selected_mode = snapshot.to_selected_mode()
             except Exception:
                 self._show_strategy_required_warning(for_bat=False)
                 self.app.set_status("⚠️ Выберите стратегию для запуска")
@@ -434,10 +429,13 @@ class InitializationManager:
         # orchestra режим не требует выбора стратегии - работает автоматически
 
         # Запускаем DPI
-        self.app.launch_controller.start_dpi_async()
+        self.app.launch_controller.start_dpi_async(
+            selected_mode=prepared_selected_mode,
+            launch_method=launch_method,
+        )
 
     def _show_strategy_required_warning(self, for_bat: bool = False) -> None:
-        """Показывает fluent-предупреждение о том, что выбранный direct-пресет пуст для запуска."""
+        """Показывает fluent-предупреждение о том, что выбранный preset пуст для запуска."""
         launch_method = ""
         try:
             from settings.dpi.strategy_settings import get_strategy_launch_method
@@ -448,15 +446,15 @@ class InitializationManager:
 
         if for_bat:
             subtitle = (
-                "Для запуска Zapret выберите готовый пресет в разделе «Стратегии»."
+                "Для запуска Zapret выберите готовый preset."
             )
-            button_text = "Открыть стратегии"
+            button_text = "Открыть profiles"
         else:
             subtitle = (
-                "Для запуска Zapret выберите хотя бы одну стратегию "
-                "в разделе «Стратегии»."
+                "Для запуска Zapret включите хотя бы один profile "
+                "и выберите для него готовую стратегию."
             )
-            button_text = "Выбрать стратегию"
+            button_text = "Открыть profiles"
 
         try:
             controller = getattr(self.app, "window_notification_controller", None)
@@ -472,10 +470,10 @@ class InitializationManager:
                     presentation="infobar",
                     queue="immediate",
                     duration=-1,
-                    dedupe_key=f"launch.strategy_required:{launch_method or 'unknown'}:{'bat' if for_bat else 'direct'}",
+                    dedupe_key=f"launch.strategy_required:{launch_method or 'unknown'}:{'bat' if for_bat else 'preset_mode'}",
                     buttons=[
                         notification_action(
-                            "open_strategy_page",
+                            "open_profiles_page",
                             button_text,
                             value=launch_method,
                         ),
@@ -535,7 +533,7 @@ class InitializationManager:
                         target_exe = get_winws_exe_for_method(launch_method)
                         expected_process = os.path.basename(target_exe).strip().lower()
                     else:
-                        target_exe = get_winws_exe_for_method("direct_zapret2")
+                        target_exe = get_winws_exe_for_method("zapret2_mode")
 
                     launch_runtime_api.set_expected_exe_path(target_exe)
                     runtime_service.bootstrap_probe(
@@ -738,7 +736,7 @@ class InitializationManager:
 
     def _required_components(self):
         """Список требуемых компонентов для успешного старта"""
-        return ['launch_runtime_api', 'launch_controller', 'strategy_manager', 'managers']
+        return ['launch_runtime_api', 'launch_controller', 'managers']
 
     def _check_and_complete_initialization(self) -> bool:
         """

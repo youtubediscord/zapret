@@ -533,8 +533,9 @@ class OrchestraPage(BasePage):
             self.start_monitoring()
 
     def on_page_hidden(self) -> None:
-        """Скрытие страницы не должно выключать runtime оркестратора."""
-        pass
+        """Останавливает только UI-мониторинг скрытой страницы."""
+        self.stop_monitoring()
+        self._runtime_started = False
 
     def set_learned_data(self, data: dict):
         """Устанавливает данные обучения"""

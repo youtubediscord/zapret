@@ -55,7 +55,6 @@ def restart_proxy_if_running(
 
     set_restarting(True)
     status_label.setText(plan.status_text)
-    manager._stop_stats_polling()
 
     def _bg_stop():
         manager._stop_controller_only()

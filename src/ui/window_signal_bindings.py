@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ui.window_appearance_state import (
+    on_animations_changed,
     on_editor_smooth_scroll_changed,
     on_smooth_scroll_changed,
 )
@@ -28,6 +29,12 @@ def connect_window_page_signals(window) -> None:
 
     try:
         window._preset_runtime_coordinator.setup_active_preset_file_watcher()
+    except Exception:
+        pass
+
+    try:
+        from settings.store import get_animations_enabled
+        on_animations_changed(window, get_animations_enabled())
     except Exception:
         pass
 

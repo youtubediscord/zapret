@@ -27,10 +27,36 @@ def check_for_update_sync() -> dict:
         from updater.release_manager import get_latest_release
         from updater.github_release import normalize_version
         from updater.update import compare_versions
+        from updater.rate_limiter import UpdateRateLimiter
+        from updater.update_cache import UpdateCache
 
         log("Проверка обновлений при запуске...", "🔁 UPDATE")
 
-        release_info = get_latest_release(CHANNEL, use_cache=False)
+        try:
+            app_ver_norm = normalize_version(APP_VERSION)
+        except Exception:
+            app_ver_norm = APP_VERSION
+
+        release_info = UpdateCache.get_cached_release(CHANNEL)
+        if release_info:
+            log("Стартовая проверка обновлений использует кэш", "🔁 UPDATE")
+        else:
+            can_check, skip_reason = UpdateRateLimiter.can_check_update(is_auto=True)
+            if not can_check:
+                log(f"Автопроверка обновлений при запуске пропущена: {skip_reason}", "🔁 UPDATE")
+                return {
+                    'has_update': False,
+                    'version': app_ver_norm,
+                    'release_notes': '',
+                    'error': None,
+                    'release_info': None,
+                    'skipped': True,
+                    'skip_reason': skip_reason,
+                }
+
+            release_info = get_latest_release(CHANNEL, use_cache=True)
+            UpdateRateLimiter.record_check(is_auto=True)
+
         if not release_info:
             return {
                 'has_update': False,
@@ -42,11 +68,6 @@ def check_for_update_sync() -> dict:
 
         new_ver = release_info.get('version', '')
         release_notes = release_info.get('release_notes', '')
-
-        try:
-            app_ver_norm = normalize_version(APP_VERSION)
-        except Exception:
-            app_ver_norm = APP_VERSION
 
         cmp = compare_versions(app_ver_norm, new_ver)
 

@@ -82,8 +82,8 @@ class DpiSettingsPageController:
 
         set_strategy_launch_method(next_method)
 
-        direct_methods = ("direct_zapret2", "direct_zapret1")
-        if previous_method in direct_methods or next_method in direct_methods:
+        preset_methods = ("zapret2_mode", "zapret1_mode")
+        if previous_method in preset_methods or next_method in preset_methods:
             if previous_method != next_method:
                 log(f"Смена метода {previous_method} -> {next_method}", "INFO")
 

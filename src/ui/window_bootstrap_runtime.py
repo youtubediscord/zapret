@@ -61,7 +61,7 @@ def create_preset_runtime_coordinator(window) -> PresetRuntimeCoordinator:
             and window.launch_controller.is_running()
         ),
         restart_dpi_async=lambda: window.launch_controller.restart_dpi_async(),
-        switch_direct_preset_async=lambda method: window.launch_controller.switch_direct_preset_async(method),
+        switch_presets_async=lambda method: window.launch_controller.switch_presets_async(method),
         refresh_after_switch=lambda: refresh_pages_after_preset_switch(window),
     )
 
@@ -74,10 +74,10 @@ def finalize_page_signal_bootstrap(window) -> None:
 
 
 def ensure_session_memory_defaults(window) -> None:
-    if not hasattr(window, "_direct_zapret2_last_opened_target_key"):
-        window._direct_zapret2_last_opened_target_key = None
-    if not hasattr(window, "_direct_zapret2_restore_detail_on_open"):
-        window._direct_zapret2_restore_detail_on_open = False
+    if not hasattr(window, "_zapret2_mode_last_opened_profile_key"):
+        window._zapret2_mode_last_opened_profile_key = None
+    if not hasattr(window, "_zapret2_mode_restore_profile_detail_on_open"):
+        window._zapret2_mode_restore_profile_detail_on_open = False
     if not hasattr(window, "_window_page_signals_connected"):
         window._window_page_signals_connected = False
 
@@ -103,14 +103,14 @@ def get_current_launch_method_for_preset_runtime() -> str:
 def resolve_active_preset_watch_path(window) -> str:
     try:
         method = get_current_launch_method_for_preset_runtime()
-        if method not in {"direct_zapret2", "direct_zapret1"}:
+        if method not in {"zapret2_mode", "zapret1_mode"}:
             return ""
 
         app_context = getattr(window, "app_context", None)
         if app_context is None:
             return ""
 
-        preset_path = app_context.direct_flow_coordinator.get_selected_source_path(method)
+        preset_path = app_context.preset_mode_coordinator.get_selected_source_path(method)
         return str(preset_path or "")
     except Exception:
         return ""

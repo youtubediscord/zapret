@@ -101,15 +101,15 @@ class StrategyRunnerV1(StrategyRunnerBase):
         )
         if state == PresetRunnerState.FAILED:
             publish_runner_failure(
-                launch_method="direct_zapret1",
+                launch_method="zapret1_mode",
                 error=error,
             )
         return snapshot
 
     def _on_config_changed(self) -> None:
         """Called when the preset file changes. Performs full restart."""
-        if controller_transition_in_progress("direct_zapret1"):
-            log("Hot-reload пропущен: controller уже выполняет transition для direct_zapret1", "DEBUG")
+        if controller_transition_in_progress("zapret1_mode"):
+            log("Hot-reload пропущен: controller уже выполняет transition для zapret1_mode", "DEBUG")
             return
         log("Preset file changed, restarting winws.exe...", "INFO")
         try:
@@ -362,7 +362,7 @@ class StrategyRunnerV1(StrategyRunnerBase):
             return False
 
     def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
-        """Fast path for switching running direct preset without full aggressive cleanup."""
+        """Fast path for switching running preset mode without full aggressive cleanup."""
         if not os.path.exists(preset_path):
             log(f"Fast switch preset file not found: {preset_path}", "ERROR")
             self._set_last_error(f"Preset файл не найден: {preset_path}")
@@ -406,9 +406,9 @@ class StrategyRunnerV1(StrategyRunnerBase):
 
     def start_from_preset_file(self, preset_path: str, strategy_name: str = "Preset", _retry_count: int = 0) -> bool:
         """
-        Starts strategy directly from an existing preset file via @file syntax.
+        Запускает winws1 из выбранного preset-файла через синтаксис @file.
 
-        This is the primary path for ordinary direct_zapret1 launch.
+        Это основной путь для обычного запуска zapret1_mode.
         """
         max_retries = 2
 

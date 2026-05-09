@@ -19,8 +19,9 @@ class StrategyScanRunLogState:
 @dataclass(slots=True)
 class StrategyApplyResult:
     strategy_name: str
-    applied_target: str
+    applied_profile: str
     selected_file_name: str
+    operation: str
 
 
 @dataclass(slots=True)
@@ -556,11 +557,18 @@ class StrategyScanPageController:
 
     @staticmethod
     def build_apply_success_plan(result: StrategyApplyResult) -> StrategyScanUiMessagePlan:
+        operation = str(getattr(result, "operation", "") or "").strip().lower()
+        if operation == "updated":
+            title_default = "Стратегия обновлена"
+            body_text = f"{result.strategy_name} заменена в существующем profile: {result.applied_profile}"
+        else:
+            title_default = "Стратегия применена"
+            body_text = f"{result.strategy_name} применена к profile: {result.applied_profile}"
         return StrategyScanUiMessagePlan(
             kind="success",
             title_key="page.strategy_scan.applied",
-            title_default="Стратегия добавлена",
-            body_text=f"{result.strategy_name} добавлена в пресет для {result.applied_target}",
+            title_default=title_default,
+            body_text=body_text,
         )
 
     @staticmethod
@@ -694,8 +702,8 @@ class StrategyScanPageController:
         if not target:
             target = cls.default_target_for_protocol(scan_protocol)
 
-        prev_target_key = cls.target_key(previous_target, previous_protocol, previous_scope)
-        target_key = cls.target_key(target, scan_protocol, udp_games_scope)
+        prev_scan_key = cls.scan_key(previous_target, previous_protocol, previous_scope)
+        scan_key = cls.scan_key(target, scan_protocol, udp_games_scope)
 
         resume_next_index = cls.get_resume_index(target, scan_protocol, udp_games_scope)
         resume_available = resume_next_index > 0
@@ -704,7 +712,7 @@ class StrategyScanPageController:
             resume_available
             and previous_protocol == scan_protocol
             and previous_scope == udp_games_scope
-            and prev_target_key == target_key
+            and prev_scan_key == scan_key
             and result_rows_count == resume_next_index
             and table_row_count == result_rows_count
         )
@@ -730,7 +738,7 @@ class StrategyScanPageController:
         return Path(MAIN_DIRECTORY) / "strategy_scan_resume.json"
 
     @staticmethod
-    def target_key(
+    def scan_key(
         target: str,
         scan_protocol: str = "tcp_https",
         udp_games_scope: str = "all",
@@ -772,7 +780,7 @@ class StrategyScanPageController:
                         else:
                             key = raw_key_str
                     else:
-                            key = cls.target_key(raw_key_str, "tcp_https")
+                            key = cls.scan_key(raw_key_str, "tcp_https")
                     if not key:
                         continue
                     if isinstance(raw_value, dict):
@@ -786,7 +794,7 @@ class StrategyScanPageController:
                     cleaned_domains[key] = {"next_index": next_index}
                 return {"domains": cleaned_domains}
 
-            key = cls.target_key(str(data.get("target", "") or ""))
+            key = cls.scan_key(str(data.get("target", "") or ""))
             try:
                 next_index = max(0, int(data.get("next_index", 0) or 0))
             except Exception:
@@ -808,7 +816,7 @@ class StrategyScanPageController:
 
     @classmethod
     def get_resume_index(cls, target: str, scan_protocol: str, udp_games_scope: str = "all") -> int:
-        key = cls.target_key(target, scan_protocol, udp_games_scope)
+        key = cls.scan_key(target, scan_protocol, udp_games_scope)
         if not key:
             return 0
         state = cls.load_resume_state()
@@ -827,7 +835,7 @@ class StrategyScanPageController:
         next_index: int,
         udp_games_scope: str = "all",
     ) -> None:
-        key = cls.target_key(target, scan_protocol, udp_games_scope)
+        key = cls.scan_key(target, scan_protocol, udp_games_scope)
         if not key:
             return
         state = cls.load_resume_state()
@@ -837,7 +845,7 @@ class StrategyScanPageController:
 
     @classmethod
     def clear_resume_state(cls, target: str, scan_protocol: str, udp_games_scope: str = "all") -> None:
-        key = cls.target_key(target, scan_protocol, udp_games_scope)
+        key = cls.scan_key(target, scan_protocol, udp_games_scope)
         if not key:
             return
         state = cls.load_resume_state()
@@ -1146,46 +1154,77 @@ class StrategyScanPageController:
             return []
 
     @staticmethod
-    def prepend_strategy_block(existing_content: str, strategy_lines: list[str], blob_lines: list[str]) -> str:
-        normalized = (existing_content or "").replace("\r\n", "\n").replace("\r", "\n")
-        all_lines = normalized.split("\n")
+    def apply_profile_to_selected_preset(
+        *,
+        app_context,
+        strategy_lines: list[str],
+        blob_lines: list[str],
+    ) -> tuple[str, str]:
+        from profile.parser import parse_preset_text
+        from profile.serializer import serialize_preset, with_profile_enabled, with_profile_strategy_lines
 
-        first_filter_idx = len(all_lines)
-        filter_prefixes = ("--filter-tcp", "--filter-udp", "--filter-l7")
-        for idx, raw_line in enumerate(all_lines):
-            if raw_line.strip().startswith(filter_prefixes):
-                first_filter_idx = idx
-                break
+        manifest = app_context.preset_mode_coordinator.get_selected_source_manifest("zapret2_mode")
+        selected_file_name = str(getattr(manifest, "file_name", "") or "").strip()
+        if not selected_file_name:
+            raise RuntimeError("Не удалось определить выбранный пресет")
 
-        prefix_lines = all_lines[:first_filter_idx]
-        body_lines = all_lines[first_filter_idx:]
-
-        while prefix_lines and not prefix_lines[-1].strip():
-            prefix_lines.pop()
-
-        prefix_set = {line.strip() for line in prefix_lines if line.strip()}
-        missing_blob_lines = [line for line in blob_lines if line.strip() and line.strip() not in prefix_set]
-        if missing_blob_lines:
-            if prefix_lines and prefix_lines[-1].strip():
-                prefix_lines.append("")
-            prefix_lines.extend(missing_blob_lines)
+        source_text = app_context.preset_file_store.read_source_text("winws2", selected_file_name)
+        source = parse_preset_text(source_text, engine="winws2", source_name=selected_file_name)
 
         cleaned_strategy_lines = [line.strip() for line in strategy_lines if line and line.strip()]
+        profile_source = "\n".join(cleaned_strategy_lines).rstrip("\n") + "\n"
+        profile_preset = parse_preset_text(profile_source, engine="winws2", source_name=selected_file_name)
+        if not profile_preset.profiles:
+            raise RuntimeError("Не удалось собрать profile из найденной стратегии")
 
-        if prefix_lines and prefix_lines[-1].strip():
-            prefix_lines.append("")
+        known_preamble = {line.strip() for line in source.preamble_lines if line.strip()}
+        for line in [*blob_lines, *profile_preset.preamble_lines]:
+            stripped = str(line or "").strip()
+            if not stripped or stripped in known_preamble:
+                continue
+            if source.preamble_lines and source.preamble_lines[-1].strip():
+                source.preamble_lines.append("")
+            source.preamble_lines.append(stripped)
+            known_preamble.add(stripped)
 
-        result_lines = list(prefix_lines)
-        result_lines.extend(cleaned_strategy_lines)
+        new_profile = profile_preset.profiles[0]
+        existing_profile = next(
+            (
+                profile
+                for profile in source.profiles
+                if profile.match_signature and profile.match_signature == new_profile.match_signature
+            ),
+            None,
+        )
+        if existing_profile is not None:
+            source = with_profile_strategy_lines(
+                source,
+                existing_profile.index,
+                list(getattr(new_profile.strategy, "strategy_lines", ()) or ()),
+            )
+            source = with_profile_enabled(source, existing_profile.index, True)
+        else:
+            raise RuntimeError(
+                "В выбранном preset нет profile с такими условиями проверки. "
+                "Сначала создайте нужный profile, затем примените найденную стратегию повторно."
+            )
 
-        while body_lines and not body_lines[0].strip():
-            body_lines.pop(0)
-
-        if body_lines:
-            result_lines.extend(["", "--new", ""])
-            result_lines.extend(body_lines)
-
-        return "\n".join(result_lines).rstrip("\n") + "\n"
+        updated_text = serialize_preset(source)
+        updated = app_context.preset_file_store.update_preset(
+            "winws2",
+            selected_file_name,
+            updated_text,
+            getattr(manifest, "name", None),
+        )
+        try:
+            app_context.preset_store.notify_preset_saved(updated.file_name)
+        except Exception:
+            pass
+        try:
+            app_context.preset_mode_coordinator.refresh_selected_launch_preset("zapret2_mode")
+        except Exception:
+            pass
+        return selected_file_name, "updated"
 
     @classmethod
     def apply_strategy(
@@ -1198,16 +1237,6 @@ class StrategyScanPageController:
         scan_protocol: str,
         scan_udp_games_scope: str,
     ) -> StrategyApplyResult:
-        from direct_preset.facade import DirectPresetFacade
-
-        facade = DirectPresetFacade.from_launch_method(
-            "direct_zapret2",
-            app_context=app_context,
-        )
-        selected_file_name = str(facade.get_selected_file_name() or "").strip()
-        if not selected_file_name:
-            raise RuntimeError("Не удалось определить выбранный пресет")
-
         target = scan_target or cls.default_target_for_protocol(scan_protocol)
         blob_lines = cls.generate_blob_lines_for_apply(strategy_args)
 
@@ -1223,7 +1252,7 @@ class StrategyScanPageController:
                 "--payload=stun,discord_ip_discovery",
                 strategy_args,
             ]
-            applied_target = f"voice (probe: {cls.format_stun_target(target_host, target_port)})"
+            applied_profile = f"voice, проверка {cls.format_stun_target(target_host, target_port)}"
         elif scan_protocol == "udp_games":
             games_ipset_paths = cls.resolve_games_ipset_paths(scan_udp_games_scope)
             probe_host, probe_port = cls.stun_target_parts(target)
@@ -1240,9 +1269,9 @@ class StrategyScanPageController:
             shown_paths = ", ".join(games_ipset_paths[:3])
             if len(games_ipset_paths) > 3:
                 shown_paths += f", ... (+{len(games_ipset_paths) - 3})"
-            applied_target = (
+            applied_profile = (
                 f"Games UDP ipsets ({shown_paths}), "
-                f"probe {cls.format_stun_target(probe_host, probe_port)}"
+                f"проверка {cls.format_stun_target(probe_host, probe_port)}"
             )
         else:
             normalized_target = cls.normalize_target_domain(target) or "discord.com"
@@ -1252,20 +1281,17 @@ class StrategyScanPageController:
                 "--out-range=-d8",
                 strategy_args,
             ]
-            applied_target = normalized_target
+            applied_profile = normalized_target
 
-        existing_content = facade.read_selected_source_text()
-        updated_content = cls.prepend_strategy_block(
-            existing_content=existing_content,
+        selected_file_name, operation = cls.apply_profile_to_selected_preset(
+            app_context=app_context,
             strategy_lines=new_strategy_lines,
             blob_lines=blob_lines,
         )
 
-        facade.save_source_text_by_file_name(selected_file_name, updated_content)
-        facade.notify_preset_saved(selected_file_name)
-
         return StrategyApplyResult(
             strategy_name=strategy_name,
-            applied_target=applied_target,
+            applied_profile=applied_profile,
             selected_file_name=selected_file_name,
+            operation=operation,
         )

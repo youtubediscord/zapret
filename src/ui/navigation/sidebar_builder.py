@@ -110,7 +110,7 @@ def add_nav_item(
             routeKey=route_key,
             icon=icon,
             text=text,
-            onClick=lambda checked=False, target=page_name, current_window=window: show_page(current_window, target),
+            onClick=lambda checked=False, page_to_show=page_name, current_window=window: show_page(current_window, page_to_show),
             selectable=True,
             position=position,
         )
@@ -133,7 +133,7 @@ def add_nav_item(
             routeKey=route_key,
             icon=icon,
             text=text,
-            onClick=lambda checked=False, target=page_name, current_window=window: show_page(current_window, target),
+            onClick=lambda checked=False, page_to_show=page_name, current_window=window: show_page(current_window, page_to_show),
             selectable=True,
             position=position,
         )
@@ -237,17 +237,17 @@ def sync_nav_visibility(window, method: str | None = None) -> None:
 
             method = (get_strategy_launch_method() or "").strip().lower()
         except Exception:
-            method = "direct_zapret2"
+            method = "zapret2_mode"
     if not method:
-        method = "direct_zapret2"
+        method = "zapret2_mode"
 
-    targets = get_nav_visibility(method)
+    visibility_by_page = get_nav_visibility(method)
 
     log(f"[NAV] _sync_nav_visibility method={method!r}, _nav_items keys={[p.name for p in window._nav_items]}", "DEBUG")
     mode_visibility: dict[PageName, bool] = {
         page_name: True for page_name in window._nav_items
     }
-    for page_name, should_show in targets.items():
+    for page_name, should_show in visibility_by_page.items():
         item = window._nav_items.get(page_name)
         if item is None and bool(should_show):
             add_nav_item(

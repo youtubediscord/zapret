@@ -1,11 +1,10 @@
 # telegram_proxy/manager.py
 """QThread-based lifecycle manager for Telegram WSS proxy.
 
-Integrates with PyQt6 event system — emits signals on status changes
-so the UI page can update without polling.
+Integrates with PyQt6 event system — emits signals on status changes.
 """
 
-from PyQt6.QtCore import QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import QThread, pyqtSignal
 from typing import Optional, Callable
 
 from telegram_proxy import ProxyController
@@ -21,17 +20,14 @@ class TelegramProxyManager(QThread):
     Signals:
         status_changed(bool)   — emitted when proxy starts/stops
         log_message(str)       — emitted on proxy log events
-        stats_updated(object)  — emitted periodically with ProxyStats
     """
 
     status_changed = pyqtSignal(bool)
     log_message = pyqtSignal(str)
-    stats_updated = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._controller: Optional[ProxyController] = None
-        self._stats_timer: Optional[QTimer] = None
         self._proxy_logger = get_proxy_logger()
 
     @property
@@ -79,7 +75,6 @@ class TelegramProxyManager(QThread):
         ok = self._controller.start()
         if ok:
             self.status_changed.emit(True)
-            self._start_stats_polling()
         else:
             self._on_log("Failed to start proxy")
         return ok
@@ -89,7 +84,6 @@ class TelegramProxyManager(QThread):
         if not self._controller:
             return
 
-        self._stop_stats_polling()
         self._controller.stop()
         self._controller = None
         self.status_changed.emit(False)
@@ -114,42 +108,17 @@ class TelegramProxyManager(QThread):
     def cleanup(self) -> None:
         """Called on app exit."""
         try:
-            self._stop_stats_polling()
-        except Exception:
-            pass
-        try:
-            if self._stats_timer is not None:
-                self._stats_timer.deleteLater()
-        except Exception:
-            pass
-        try:
             if self._controller:
                 self._controller.stop()
         except Exception:
             pass
         self._controller = None
-        self._stats_timer = None
 
     def _on_log(self, msg: str) -> None:
         # Write to file logger + ring buffer (thread-safe)
         self._proxy_logger.log(msg)
         # Emit signal for backward compat (UI now uses drain() instead)
         self.log_message.emit(msg)
-
-    def _start_stats_polling(self) -> None:
-        if self._stats_timer is None:
-            self._stats_timer = QTimer()
-            self._stats_timer.timeout.connect(self._emit_stats)
-        self._stats_timer.start(2000)  # Every 2 seconds
-
-    def _stop_stats_polling(self) -> None:
-        if self._stats_timer:
-            self._stats_timer.stop()
-
-    def _emit_stats(self) -> None:
-        c = self._controller
-        if c and c.is_running:
-            self.stats_updated.emit(c.stats)
 
 
 def get_proxy_manager() -> TelegramProxyManager:
@@ -190,14 +159,18 @@ def build_upstream_proxy_config_from_settings() -> Optional[UpstreamProxyConfig]
         return None
 
 
-def autostart_proxy_if_enabled_async() -> bool:
+def start_proxy_if_enabled_async() -> bool:
     try:
-        from settings.store import get_tg_proxy_autostart, get_tg_proxy_host, get_tg_proxy_port
+        from settings.store import (
+            get_tg_proxy_enabled,
+            get_tg_proxy_host,
+            get_tg_proxy_port,
+        )
     except Exception:
         return False
 
     try:
-        if not get_tg_proxy_autostart():
+        if not get_tg_proxy_enabled():
             return False
 
         manager = get_proxy_manager()

@@ -91,16 +91,16 @@ WINWS2_EXE = os.path.join(EXE_FOLDER, "winws2.exe")    # Для Zapret 2
 # ОПРЕДЕЛЕНИЕ EXE ПО МЕТОДУ ЗАПУСКА
 # ═══════════════════════════════════════════════════════════════════
 # Все режимы, которые используют winws2.exe (Zapret 2 с Lua)
-ZAPRET2_MODES = ("direct_zapret2", "orchestra")
+ZAPRET2_MODES = ("zapret2_mode", "orchestra")
 # Режимы, которые используют winws.exe (Zapret 1)
-ZAPRET1_DIRECT_MODES = ("direct_zapret1",)
+ZAPRET1_MODE_MODES = ("zapret1_mode",)
 
 def get_winws_exe_for_method(method: str) -> str:
     """
     Возвращает путь к winws exe в зависимости от метода запуска.
 
     Args:
-        method: Метод запуска (direct_zapret2, orchestra, direct_zapret1)
+        method: Метод запуска (zapret2_mode, orchestra, zapret1_mode)
 
     Returns:
         Путь к winws2.exe для Zapret 2 режимов, winws.exe для остальных
@@ -121,7 +121,7 @@ def is_zapret2_mode(method: str) -> bool:
     """
     return method in ZAPRET2_MODES
 
-def is_zapret1_direct_mode(method: str) -> bool:
+def is_zapret1_mode(method: str) -> bool:
     """
     Проверяет, является ли метод режимом Zapret 1 (winws.exe).
 
@@ -131,7 +131,7 @@ def is_zapret1_direct_mode(method: str) -> bool:
     Returns:
         True если режим использует winws.exe
     """
-    return method in ZAPRET1_DIRECT_MODES
+    return method in ZAPRET1_MODE_MODES
 
 
 def get_current_winws_exe() -> str:
@@ -142,8 +142,8 @@ def get_current_winws_exe() -> str:
     соответствующий путь к исполняемому файлу.
 
     Returns:
-        Путь к winws2.exe для Zapret 2 режимов (direct_zapret2, orchestra),
-        winws.exe для Zapret 1 режимов (direct_zapret1)
+        Путь к winws2.exe для Zapret 2 режимов (zapret2_mode, orchestra),
+        winws.exe для Zapret 1 режимов (zapret1_mode)
 
     Примечание:
         Используйте эту функцию когда метод запуска не передаётся явно.

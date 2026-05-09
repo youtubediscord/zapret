@@ -153,7 +153,6 @@ class LogsPage(BasePage):
             self._apply_page_theme(force=True)
         except Exception:
             pass
-        self._run_runtime_init_once()
 
     def _run_runtime_init_once(self) -> None:
         self._runtime_initialized, self._runtime_started = run_logs_runtime_init(
@@ -166,6 +165,18 @@ class LogsPage(BasePage):
             start_winws_worker_fn=self._start_winws_output_worker,
             start_status_timer_fn=self._winws_status_timer.start,
         )
+
+    def _stop_runtime(self) -> None:
+        self._winws_status_timer.stop()
+        self._stop_tail_worker(blocking=False)
+        self._stop_winws_output_worker(blocking=False)
+        self._runtime_started = False
+
+    def on_page_activated(self) -> None:
+        self._run_runtime_init_once()
+
+    def on_page_hidden(self) -> None:
+        self._stop_runtime()
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         _ = force

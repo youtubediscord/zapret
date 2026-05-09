@@ -98,19 +98,19 @@ class DpiSettingsPage(BasePage):
         self.zapret2_header.setContentsMargins(0, 8, 0, 4)
         method_layout.addWidget(self.zapret2_header)
 
-        # Zapret 2 (direct) - рекомендуется
-        self.method_direct = Win11RadioOption(
-            self._tr("page.dpi_settings.method.direct_z2.title", "Zapret 2"),
+        # Zapret 2 mode - рекомендуется
+        self.method_zapret2_mode = Win11RadioOption(
+            self._tr("page.dpi_settings.method.zapret2_mode.title", "Zapret 2"),
             self._tr(
-                "page.dpi_settings.method.direct_z2.desc",
+                "page.dpi_settings.method.zapret2_mode.desc",
                 "Режим со второй версией Zapret (winws2.exe) + готовые пресеты для быстрого запуска. Поддерживает кастомный lua-код чтобы писать свои стратегии.",
             ),
             icon_name="mdi.rocket-launch",
             recommended=True,
             recommended_badge=self._tr("page.dpi_settings.option.recommended", "рекомендуется"),
         )
-        self.method_direct.clicked.connect(lambda: self._select_method("direct_zapret2"))
-        method_layout.addWidget(self.method_direct)
+        self.method_zapret2_mode.clicked.connect(lambda: self._select_method("zapret2_mode"))
+        method_layout.addWidget(self.method_zapret2_mode)
 
         # Оркестр (auto-learning)
         self.method_orchestra = Win11RadioOption(
@@ -135,18 +135,18 @@ class DpiSettingsPage(BasePage):
         zapret1_header.setContentsMargins(0, 12, 0, 4)
         method_layout.addWidget(zapret1_header)
 
-        # Zapret 1 Direct (прямой запуск winws.exe с JSON стратегиями)
-        self.method_direct_zapret1 = Win11RadioOption(
-            self._tr("page.dpi_settings.method.direct_z1.title", "Zapret 1"),
+        # Zapret 1 mode (режим профилей winws.exe с JSON стратегиями)
+        self.method_zapret1_mode = Win11RadioOption(
+            self._tr("page.dpi_settings.method.zapret1_mode.title", "Zapret 1"),
             self._tr(
-                "page.dpi_settings.method.direct_z1.desc",
+                "page.dpi_settings.method.zapret1_mode.desc",
                 "Режим первой версии Zapret 1 (winws.exe) + готовые пресеты для быстрого запуска. Не использует Lua код, нет понятия блобов.",
             ),
             icon_name="mdi.rocket-launch-outline",
             icon_color="#ff9800"
         )
-        self.method_direct_zapret1.clicked.connect(lambda: self._select_method("direct_zapret1"))
-        method_layout.addWidget(self.method_direct_zapret1)
+        self.method_zapret1_mode.clicked.connect(lambda: self._select_method("zapret1_mode"))
+        method_layout.addWidget(self.method_zapret1_mode)
 
         # Разделитель 2
         self.separator2 = QFrame()
@@ -254,8 +254,8 @@ class DpiSettingsPage(BasePage):
     
     def _update_method_selection(self, method: str):
         """Обновляет визуальное состояние выбора метода"""
-        self.method_direct.setSelected(method == "direct_zapret2")
-        self.method_direct_zapret1.setSelected(method == "direct_zapret1")
+        self.method_zapret2_mode.setSelected(method == "zapret2_mode")
+        self.method_zapret1_mode.setSelected(method == "zapret1_mode")
         self.method_orchestra.setSelected(method == "orchestra")
     
     def _select_method(self, method: str):
@@ -393,10 +393,10 @@ class DpiSettingsPage(BasePage):
                 self._tr("page.dpi_settings.section.orchestra_settings", "Настройки оркестратора")
             )
 
-        self.method_direct.set_texts(
-            self._tr("page.dpi_settings.method.direct_z2.title", "Zapret 2"),
+        self.method_zapret2_mode.set_texts(
+            self._tr("page.dpi_settings.method.zapret2_mode.title", "Zapret 2"),
             self._tr(
-                "page.dpi_settings.method.direct_z2.desc",
+                "page.dpi_settings.method.zapret2_mode.desc",
                 "Режим со второй версией Zapret (winws2.exe) + готовые пресеты для быстрого запуска. Поддерживает кастомный lua-код чтобы писать свои стратегии.",
             ),
             recommended_badge=self._tr("page.dpi_settings.option.recommended", "рекомендуется"),
@@ -408,10 +408,10 @@ class DpiSettingsPage(BasePage):
                 "Автоматическое обучение. Система сама подбирает лучшие стратегии для каждого домена. Запоминает результаты между запусками.",
             ),
         )
-        self.method_direct_zapret1.set_texts(
-            self._tr("page.dpi_settings.method.direct_z1.title", "Zapret 1"),
+        self.method_zapret1_mode.set_texts(
+            self._tr("page.dpi_settings.method.zapret1_mode.title", "Zapret 1"),
             self._tr(
-                "page.dpi_settings.method.direct_z1.desc",
+                "page.dpi_settings.method.zapret1_mode.desc",
                 "Режим первой версии Zapret 1 (winws.exe) + готовые пресеты для быстрого запуска. Не использует Lua код, нет понятия блобов.",
             ),
         )

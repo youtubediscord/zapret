@@ -1,9 +1,0 @@
-# Preset: autohostlist
-# TemplateOrigin: autohostlist
-# IconColor: #60cdff
-# Description: Imported from bat/autohostlist.txt
-
---wf-tcp=443
---wf-udp=443
-
-browser-intake-datadoghq.com

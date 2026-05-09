@@ -98,7 +98,7 @@ def unique_int_list(value: object) -> list[int]:
     return result
 
 
-def normalize_target_key(value: object) -> str:
+def normalize_lookup_key(value: object) -> str:
     return as_clean_str(value).lower()
 
 
@@ -113,7 +113,7 @@ def normalize_program(data: object) -> dict[str, Any]:
     return {
         "dpi_autostart": as_bool(raw.get("dpi_autostart"), defaults["dpi_autostart"]),
         "strategy_launch_method": as_str_in(raw.get("strategy_launch_method"), schema.VALID_LAUNCH_METHODS, defaults["strategy_launch_method"]),
-        "direct_ui_mode": as_str_in(raw.get("direct_ui_mode"), schema.VALID_DIRECT_UI_MODES, defaults["direct_ui_mode"]),
+        "profile_ui_mode": as_str_in(raw.get("profile_ui_mode"), schema.VALID_PROFILE_UI_MODES, defaults["profile_ui_mode"]),
         "selected_source_preset_file_name_winws1": as_clean_str(
             raw.get("selected_source_preset_file_name_winws1"),
             defaults["selected_source_preset_file_name_winws1"],
@@ -187,7 +187,6 @@ def normalize_telegram_proxy(data: object) -> dict[str, Any]:
     defaults = schema.default_telegram_proxy()
     return {
         "enabled": as_bool(raw.get("enabled"), defaults["enabled"]),
-        "autostart": as_bool(raw.get("autostart"), defaults["autostart"]),
         "host": as_clean_str(raw.get("host"), defaults["host"]) or defaults["host"],
         "port": as_int(raw.get("port"), defaults["port"], minimum=1024, maximum=65535),
         "mode": as_str_in(raw.get("mode"), schema.VALID_TG_PROXY_MODES, defaults["mode"]),
@@ -227,18 +226,8 @@ def normalize_hosts(data: object) -> dict[str, Any]:
 
 
 def normalize_ui_state(data: object) -> dict[str, Any]:
-    raw = as_dict(data)
-    tabs_raw = as_dict(raw.get("tcp_phase_tabs_by_target"))
-    tabs: dict[str, str] = {}
-    for target_key, phase_key in tabs_raw.items():
-        target = normalize_target_key(target_key)
-        phase = as_clean_str(phase_key).lower()
-        if not target or not phase:
-            continue
-        tabs[target] = phase
-    return {
-        "tcp_phase_tabs_by_target": tabs,
-    }
+    _ = data
+    return {}
 
 
 def normalize_orchestra_settings(data: object) -> dict[str, Any]:
@@ -267,8 +256,8 @@ def normalize_orchestra_locked_maps(data: object) -> dict[str, dict[str, int]]:
     for askey in schema.ORCHESTRA_ASKEYS:
         source = as_dict(raw.get(askey))
         entries: dict[str, int] = {}
-        for target_key, strategy in source.items():
-            target = normalize_target_key(target_key)
+        for lookup_key, strategy in source.items():
+            target = normalize_lookup_key(lookup_key)
             if not target:
                 continue
             entries[target] = as_int(strategy, 0, minimum=0)
@@ -281,7 +270,7 @@ def normalize_orchestra_user_locked_maps(data: object) -> dict[str, list[str]]:
     normalized: dict[str, list[str]] = {}
     for askey in schema.ORCHESTRA_ASKEYS:
         values = unique_str_list(raw.get(askey))
-        normalized[askey] = [normalize_target_key(item) for item in values if normalize_target_key(item)]
+        normalized[askey] = [normalize_lookup_key(item) for item in values if normalize_lookup_key(item)]
     return normalized
 
 
@@ -291,8 +280,8 @@ def normalize_orchestra_user_blocked_maps(data: object) -> dict[str, dict[str, l
     for askey in schema.ORCHESTRA_ASKEYS:
         source = as_dict(raw.get(askey))
         entries: dict[str, list[int]] = {}
-        for target_key, strategies in source.items():
-            target = normalize_target_key(target_key)
+        for lookup_key, strategies in source.items():
+            target = normalize_lookup_key(lookup_key)
             if not target:
                 continue
             entries[target] = unique_int_list(strategies)
@@ -303,8 +292,8 @@ def normalize_orchestra_user_blocked_maps(data: object) -> dict[str, dict[str, l
 def normalize_orchestra_history(data: object) -> dict[str, Any]:
     raw = as_dict(data)
     normalized: dict[str, dict[str, dict[str, int]]] = {}
-    for target_key, strategies in raw.items():
-        target = normalize_target_key(target_key)
+    for lookup_key, strategies in raw.items():
+        target = normalize_lookup_key(lookup_key)
         if not target:
             continue
         strategies_raw = as_dict(strategies)
@@ -329,9 +318,9 @@ def normalize_orchestra(data: object) -> dict[str, Any]:
         "settings": normalize_orchestra_settings(raw.get("settings")),
         "whitelist": {
             "user_domains": [
-                normalize_target_key(item)
+                normalize_lookup_key(item)
                 for item in unique_str_list(whitelist_raw.get("user_domains"))
-                if normalize_target_key(item)
+                if normalize_lookup_key(item)
             ],
         },
         "locked": normalize_orchestra_locked_maps(raw.get("locked")),

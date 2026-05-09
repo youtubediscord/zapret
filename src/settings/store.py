@@ -15,7 +15,7 @@ from settings.normalize import (
     as_int as _as_int,
     normalize_askey as _normalize_askey,
     normalize_settings as _normalize_settings,
-    normalize_target_key as _normalize_target_key,
+    normalize_lookup_key as _normalize_lookup_key,
     unique_int_list as _unique_int_list,
     unique_str_list as _unique_str_list,
 )
@@ -168,7 +168,7 @@ def _set_nullable_str(path: tuple[str, ...], value: str | None) -> bool:
     return True
 
 
-def _direct_preset_selection_path(engine: str) -> tuple[str, ...]:
+def _presets_selection_path(engine: str) -> tuple[str, ...]:
     normalized = _as_clean_str(engine).lower()
     if normalized not in _DIRECT_PRESET_SELECTION_PATHS:
         raise ValueError(f"Unsupported preset selection engine: {engine}")
@@ -265,33 +265,34 @@ def set_dpi_autostart(value: bool) -> bool:
 
 
 def get_strategy_launch_method() -> str:
-    return _get_str(("program", "strategy_launch_method"), "direct_zapret2")
+    return _get_str(("program", "strategy_launch_method"), "zapret2_mode")
 
 
 def set_strategy_launch_method(value: str) -> bool:
     return _set_str(("program", "strategy_launch_method"), value)
 
 
-def get_direct_ui_mode() -> str:
-    return _get_str(("program", "direct_ui_mode"), "basic")
+def get_profile_ui_mode() -> str:
+    return "basic"
 
 
-def set_direct_ui_mode(value: str) -> bool:
-    return _set_str(("program", "direct_ui_mode"), value)
+def set_profile_ui_mode(value: str) -> bool:
+    _ = value
+    return _set_str(("program", "profile_ui_mode"), "basic")
 
 
 def get_selected_source_preset_file_name(engine: str) -> str | None:
-    value = _get_str(_direct_preset_selection_path(engine), "")
+    value = _get_str(_presets_selection_path(engine), "")
     return value or None
 
 
 def set_selected_source_preset_file_name(engine: str, value: str | None) -> bool:
     normalized = _as_clean_str(value)
-    return _set_str(_direct_preset_selection_path(engine), normalized)
+    return _set_str(_presets_selection_path(engine), normalized)
 
 
 def clear_selected_source_preset_file_name(engine: str) -> bool:
-    return _set_str(_direct_preset_selection_path(engine), "")
+    return _set_str(_presets_selection_path(engine), "")
 
 
 def get_auto_update_enabled() -> bool:
@@ -542,38 +543,6 @@ def set_tg_proxy_deeplink_done(value: bool) -> bool:
     return _set_bool(("warnings", "tg_proxy_deeplink_done"), value)
 
 
-def get_tcp_phase_tabs_by_target() -> dict[str, str]:
-    data = _get_path_value(read_settings(), ("ui_state", "tcp_phase_tabs_by_target"), {})
-    return copy.deepcopy(data if isinstance(data, dict) else {})
-
-
-def set_tcp_phase_tabs_by_target(data: dict[str, str]) -> bool:
-    _update_settings(lambda settings: _set_path_value(settings, ("ui_state", "tcp_phase_tabs_by_target"), _as_dict(data)))
-    return True
-
-
-def get_last_tcp_phase_tab(target_key: str) -> str | None:
-    key = _normalize_target_key(target_key)
-    if not key:
-        return None
-    return get_tcp_phase_tabs_by_target().get(key)
-
-
-def set_last_tcp_phase_tab(target_key: str, phase_key: str) -> bool:
-    target = _normalize_target_key(target_key)
-    phase = _as_clean_str(phase_key).lower()
-    if not target or not phase:
-        return False
-
-    def _mutator(data: dict[str, Any]) -> None:
-        tabs = _as_dict(_get_path_value(data, ("ui_state", "tcp_phase_tabs_by_target"), {}))
-        tabs[target] = phase
-        _set_path_value(data, ("ui_state", "tcp_phase_tabs_by_target"), tabs)
-
-    _update_settings(_mutator)
-    return True
-
-
 def get_force_dns_enabled() -> bool:
     return _get_bool(("dns", "force_dns_enabled"), True)
 
@@ -645,19 +614,11 @@ def clear_active_hosts_domains() -> bool:
 
 
 def get_tg_proxy_enabled() -> bool:
-    return _get_bool(("telegram_proxy", "enabled"), False)
+    return _get_bool(("telegram_proxy", "enabled"), True)
 
 
 def set_tg_proxy_enabled(value: bool) -> bool:
     return _set_bool(("telegram_proxy", "enabled"), value)
-
-
-def get_tg_proxy_autostart() -> bool:
-    return _get_bool(("telegram_proxy", "autostart"), True)
-
-
-def set_tg_proxy_autostart(value: bool) -> bool:
-    return _set_bool(("telegram_proxy", "autostart"), value)
 
 
 def get_tg_proxy_host() -> str:
@@ -786,21 +747,21 @@ def get_orchestra_whitelist_user_domains() -> list[str]:
 
 
 def set_orchestra_whitelist_user_domains(domains: list[str]) -> bool:
-    normalized = [_normalize_target_key(item) for item in _unique_str_list(domains) if _normalize_target_key(item)]
+    normalized = [_normalize_lookup_key(item) for item in _unique_str_list(domains) if _normalize_lookup_key(item)]
     _update_settings(lambda data: _set_path_value(data, ("orchestra", "whitelist", "user_domains"), normalized))
     return True
 
 
 def add_orchestra_whitelist_domain(domain: str) -> bool:
     items = get_orchestra_whitelist_user_domains()
-    value = _normalize_target_key(domain)
+    value = _normalize_lookup_key(domain)
     if value and value not in items:
         items.append(value)
     return set_orchestra_whitelist_user_domains(items)
 
 
 def remove_orchestra_whitelist_domain(domain: str) -> bool:
-    value = _normalize_target_key(domain)
+    value = _normalize_lookup_key(domain)
     items = [item for item in get_orchestra_whitelist_user_domains() if item != value]
     return set_orchestra_whitelist_user_domains(items)
 
@@ -823,13 +784,13 @@ def set_orchestra_locked_map(askey: str, data: dict[str, int]) -> bool:
 
 def set_orchestra_locked_strategy(askey: str, target: str, strategy: int) -> bool:
     key = _normalize_askey(askey)
-    target_key = _normalize_target_key(target)
-    if not target_key:
+    lookup_key = _normalize_lookup_key(target)
+    if not lookup_key:
         return False
 
     def _mutator(data: dict[str, Any]) -> None:
         mapping = _as_dict(_get_path_value(data, ("orchestra", "locked", key), {}))
-        mapping[target_key] = int(strategy)
+        mapping[lookup_key] = int(strategy)
         _set_path_value(data, ("orchestra", "locked", key), mapping)
 
     _update_settings(_mutator)
@@ -838,11 +799,11 @@ def set_orchestra_locked_strategy(askey: str, target: str, strategy: int) -> boo
 
 def remove_orchestra_locked_target(askey: str, target: str) -> bool:
     key = _normalize_askey(askey)
-    target_key = _normalize_target_key(target)
+    lookup_key = _normalize_lookup_key(target)
 
     def _mutator(data: dict[str, Any]) -> None:
         mapping = _as_dict(_get_path_value(data, ("orchestra", "locked", key), {}))
-        mapping.pop(target_key, None)
+        mapping.pop(lookup_key, None)
         _set_path_value(data, ("orchestra", "locked", key), mapping)
 
     _update_settings(_mutator)
@@ -856,26 +817,26 @@ def clear_orchestra_locked_map(askey: str) -> bool:
 def get_orchestra_user_locked(askey: str) -> list[str]:
     key = _normalize_askey(askey)
     values = _get_path_value(read_settings(), ("orchestra", "user_locked", key), [])
-    return [_normalize_target_key(item) for item in _unique_str_list(values) if _normalize_target_key(item)]
+    return [_normalize_lookup_key(item) for item in _unique_str_list(values) if _normalize_lookup_key(item)]
 
 
 def set_orchestra_user_locked(askey: str, values: list[str]) -> bool:
     key = _normalize_askey(askey)
-    normalized = [_normalize_target_key(item) for item in _unique_str_list(values) if _normalize_target_key(item)]
+    normalized = [_normalize_lookup_key(item) for item in _unique_str_list(values) if _normalize_lookup_key(item)]
     _update_settings(lambda data: _set_path_value(data, ("orchestra", "user_locked", key), normalized))
     return True
 
 
 def add_orchestra_user_locked(askey: str, target: str) -> bool:
     items = get_orchestra_user_locked(askey)
-    value = _normalize_target_key(target)
+    value = _normalize_lookup_key(target)
     if value and value not in items:
         items.append(value)
     return set_orchestra_user_locked(askey, items)
 
 
 def remove_orchestra_user_locked(askey: str, target: str) -> bool:
-    value = _normalize_target_key(target)
+    value = _normalize_lookup_key(target)
     items = [item for item in get_orchestra_user_locked(askey) if item != value]
     return set_orchestra_user_locked(askey, items)
 
@@ -898,17 +859,17 @@ def set_orchestra_user_blocked(askey: str, data: dict[str, list[int]]) -> bool:
 
 def set_orchestra_user_blocked_strategies(askey: str, target: str, strategies: list[int]) -> bool:
     key = _normalize_askey(askey)
-    target_key = _normalize_target_key(target)
-    if not target_key:
+    lookup_key = _normalize_lookup_key(target)
+    if not lookup_key:
         return False
 
     def _mutator(data: dict[str, Any]) -> None:
         mapping = _as_dict(_get_path_value(data, ("orchestra", "user_blocked", key), {}))
         normalized = _unique_int_list(strategies)
         if normalized:
-            mapping[target_key] = normalized
+            mapping[lookup_key] = normalized
         else:
-            mapping.pop(target_key, None)
+            mapping.pop(lookup_key, None)
         _set_path_value(data, ("orchestra", "user_blocked", key), mapping)
 
     _update_settings(_mutator)
@@ -917,11 +878,11 @@ def set_orchestra_user_blocked_strategies(askey: str, target: str, strategies: l
 
 def remove_orchestra_user_blocked_target(askey: str, target: str) -> bool:
     key = _normalize_askey(askey)
-    target_key = _normalize_target_key(target)
+    lookup_key = _normalize_lookup_key(target)
 
     def _mutator(data: dict[str, Any]) -> None:
         mapping = _as_dict(_get_path_value(data, ("orchestra", "user_blocked", key), {}))
-        mapping.pop(target_key, None)
+        mapping.pop(lookup_key, None)
         _set_path_value(data, ("orchestra", "user_blocked", key), mapping)
 
     _update_settings(_mutator)
@@ -943,18 +904,18 @@ def set_orchestra_history(data: dict[str, Any]) -> bool:
 
 
 def get_orchestra_history_for_target(target: str) -> dict[str, Any]:
-    target_key = _normalize_target_key(target)
-    return copy.deepcopy(get_orchestra_history().get(target_key, {}))
+    lookup_key = _normalize_lookup_key(target)
+    return copy.deepcopy(get_orchestra_history().get(lookup_key, {}))
 
 
 def set_orchestra_history_for_target(target: str, data: dict[str, Any]) -> bool:
-    target_key = _normalize_target_key(target)
-    if not target_key:
+    lookup_key = _normalize_lookup_key(target)
+    if not lookup_key:
         return False
 
     def _mutator(settings: dict[str, Any]) -> None:
         history = _as_dict(_get_path_value(settings, ("orchestra", "history"), {}))
-        history[target_key] = _as_dict(data)
+        history[lookup_key] = _as_dict(data)
         _set_path_value(settings, ("orchestra", "history"), history)
 
     _update_settings(_mutator)
@@ -962,11 +923,11 @@ def set_orchestra_history_for_target(target: str, data: dict[str, Any]) -> bool:
 
 
 def remove_orchestra_history_target(target: str) -> bool:
-    target_key = _normalize_target_key(target)
+    lookup_key = _normalize_lookup_key(target)
 
     def _mutator(settings: dict[str, Any]) -> None:
         history = _as_dict(_get_path_value(settings, ("orchestra", "history"), {}))
-        history.pop(target_key, None)
+        history.pop(lookup_key, None)
         _set_path_value(settings, ("orchestra", "history"), history)
 
     _update_settings(_mutator)
@@ -983,7 +944,7 @@ __all__ = [
     "get_animations_enabled",
     "get_auto_update_enabled",
     "get_background_preset",
-    "get_direct_ui_mode",
+    "get_profile_ui_mode",
     "get_discord_restart_enabled",
     "get_display_mode",
     "get_dns_crash_count",
@@ -995,7 +956,6 @@ __all__ = [
     "get_hosts_bootstrap_signature",
     "get_isp_dns_info_shown",
     "get_kaspersky_warning_disabled",
-    "get_last_tcp_phase_tab",
     "get_max_blocked",
     "get_mica_enabled",
     "get_orchestra_auto_restart_on_discord_fail",
@@ -1020,9 +980,7 @@ __all__ = [
     "get_smooth_scroll_enabled",
     "get_snowflakes_enabled",
     "get_strategy_launch_method",
-    "get_tcp_phase_tabs_by_target",
     "get_telega_warning_disabled",
-    "get_tg_proxy_autostart",
     "get_tg_proxy_deeplink_done",
     "get_tg_proxy_enabled",
     "get_tg_proxy_host",
@@ -1058,7 +1016,7 @@ __all__ = [
     "set_auto_update_enabled",
     "set_background_preset",
     "set_defender_disabled_memory",
-    "set_direct_ui_mode",
+    "set_profile_ui_mode",
     "set_discord_restart_enabled",
     "set_display_mode",
     "set_dns_crash_count",
@@ -1070,7 +1028,6 @@ __all__ = [
     "set_hosts_bootstrap_signature",
     "set_isp_dns_info_shown",
     "set_kaspersky_warning_disabled",
-    "set_last_tcp_phase_tab",
     "set_max_blocked",
     "set_mica_enabled",
     "set_orchestra_auto_restart_on_discord_fail",
@@ -1096,9 +1053,7 @@ __all__ = [
     "set_smooth_scroll_enabled",
     "set_snowflakes_enabled",
     "set_strategy_launch_method",
-    "set_tcp_phase_tabs_by_target",
     "set_telega_warning_disabled",
-    "set_tg_proxy_autostart",
     "set_tg_proxy_deeplink_done",
     "set_tg_proxy_enabled",
     "set_tg_proxy_host",

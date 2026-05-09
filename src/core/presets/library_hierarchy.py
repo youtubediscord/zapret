@@ -8,23 +8,12 @@ from typing import Callable, Iterable
 
 from config.config import MAIN_DIRECTORY
 
-
-
-_SCOPE_KEY_ALIASES = {
-    "preset_zapret1": "direct_preset_winws1",
-    "preset_zapret2": "direct_preset_winws2",
-}
-
-
 def _canonical_scope_key(scope_key: str) -> str:
-    raw = str(scope_key or "").strip().lower()
-    if not raw:
-        return ""
-    return _SCOPE_KEY_ALIASES.get(raw, raw)
+    return str(scope_key or "").strip().lower()
 
 
-def _safe_scope_name(scope_key: str, *, canonicalize: bool = True) -> str:
-    raw = _canonical_scope_key(scope_key) if canonicalize else str(scope_key or "").strip().lower()
+def _safe_scope_name(scope_key: str) -> str:
+    raw = _canonical_scope_key(scope_key)
     if not raw:
         raw = "default"
     raw = re.sub(r"[^a-z0-9_.-]+", "_", raw)
@@ -81,40 +70,11 @@ class PresetHierarchyStore:
     def state_path(self) -> Path:
         return _storage_dir() / f"{_safe_scope_name(self.canonical_scope_key)}.json"
 
-    def _legacy_state_paths(self) -> list[Path]:
-        canonical = self.canonical_scope_key
-        legacy: list[Path] = []
-        for alias, target in _SCOPE_KEY_ALIASES.items():
-            if target != canonical:
-                continue
-            legacy.append(_storage_dir() / f"{_safe_scope_name(alias, canonicalize=False)}.json")
-        return legacy
-
-    def _migrate_legacy_state_if_needed(self) -> None:
-        path = self.state_path
-        if path.exists():
-            return
-        for legacy_path in self._legacy_state_paths():
-            if not legacy_path.exists():
-                continue
-            try:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                legacy_path.replace(path)
-            except Exception:
-                try:
-                    path.write_text(legacy_path.read_text(encoding="utf-8"), encoding="utf-8")
-                    legacy_path.unlink()
-                except Exception:
-                    pass
-            if path.exists():
-                return
-
     def _ensure_loaded(self) -> None:
         if self._state is not None:
             return
 
         path = self.state_path
-        self._migrate_legacy_state_if_needed()
         state = _default_state()
         if path.exists():
             try:
@@ -390,23 +350,23 @@ class PresetHierarchyStore:
         self,
         preset_names: Iterable[object],
         preset_name: str,
-        target_name: str,
+        destination_name: str,
         *,
         is_builtin_resolver: Callable[[str], bool] | None = None,
     ) -> bool:
         ordered_names = self.list_presets_flat(preset_names, is_builtin_resolver=is_builtin_resolver)
         source_name = self._resolve_preset_key(preset_name)
-        target_preset = self._resolve_preset_key(target_name)
+        destination_preset = self._resolve_preset_key(destination_name)
         if (
             not source_name
-            or not target_preset
-            or source_name == target_preset
+            or not destination_preset
+            or source_name == destination_preset
             or source_name not in ordered_names
-            or target_preset not in ordered_names
+            or destination_preset not in ordered_names
         ):
             return False
         reordered = [name for name in ordered_names if name != source_name]
-        insert_at = reordered.index(target_preset)
+        insert_at = reordered.index(destination_preset)
         reordered.insert(insert_at, source_name)
         if reordered == ordered_names:
             return False

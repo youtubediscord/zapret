@@ -61,11 +61,11 @@ class PresetFileStore:
         return sorted(manifests, key=lambda item: (item.name.lower(), item.file_name.lower()))
 
     def get_manifest(self, engine: str, file_name: str) -> PresetManifest | None:
-        target = self.resolve_file_name(engine, file_name).lower()
-        if not target:
+        resolved_file_name = self.resolve_file_name(engine, file_name).lower()
+        if not resolved_file_name:
             return None
         for manifest in self._load_manifests(engine):
-            if manifest.file_name.strip().lower() == target:
+            if manifest.file_name.strip().lower() == resolved_file_name:
                 return manifest
         return None
 
@@ -77,9 +77,9 @@ class PresetFileStore:
         normalized_candidate = _normalize_preset_file_name_candidate(candidate)
         engine_paths = self._engine_paths(engine)
         for presets_dir in (engine_paths.user_presets_dir, engine_paths.builtin_presets_dir):
-            direct_path = presets_dir / normalized_candidate
-            if direct_path.exists():
-                return direct_path.name
+            candidate_path = presets_dir / normalized_candidate
+            if candidate_path.exists():
+                return candidate_path.name
 
             raw_path = presets_dir / candidate
             if raw_path.exists():
@@ -163,8 +163,8 @@ class PresetFileStore:
         manifests = self._load_manifests(engine)
         idx = self._find_index(manifests, file_name)
         current = manifests[idx]
-        target_scope = "user"
-        target_path = self._engine_paths(engine).user_presets_dir / current.file_name
+        storage_scope = "user"
+        destination_path = self._engine_paths(engine).user_presets_dir / current.file_name
         template_origin = self._extract_template_origin(source_text)
 
         updated = PresetManifest(
@@ -176,11 +176,11 @@ class PresetFileStore:
                 engine,
                 template_origin,
                 current_kind=current.kind,
-                storage_scope=target_scope,
+                storage_scope=storage_scope,
             ),
-            storage_scope=target_scope,
+            storage_scope=storage_scope,
         )
-        self._write_source(target_path, source_text)
+        self._write_source(destination_path, source_text)
         self._invalidate_manifest_cache(engine)
         return updated
 
@@ -196,20 +196,20 @@ class PresetFileStore:
 
         engine_paths = self._engine_paths(engine)
         src_path = self._manifest_path(engine, current)
-        target_file_name = self._unique_file_name(
+        destination_file_name = self._unique_file_name(
             (engine_paths.user_presets_dir, engine_paths.builtin_presets_dir),
             normalized_name,
             exclude_file_name=current.file_name,
         )
-        target_path = engine_paths.user_presets_dir / target_file_name
-        if src_path.exists() and src_path != target_path:
-            src_path.rename(target_path)
+        destination_path = engine_paths.user_presets_dir / destination_file_name
+        if src_path.exists() and src_path != destination_path:
+            src_path.rename(destination_path)
 
-        source_text = _read_text(target_path) if target_path.exists() else ""
+        source_text = _read_text(destination_path) if destination_path.exists() else ""
         template_origin = self._extract_template_origin(source_text)
         updated = PresetManifest(
-            file_name=target_file_name,
-            name=self._extract_name(source_text, Path(target_file_name).stem),
+            file_name=destination_file_name,
+            name=self._extract_name(source_text, Path(destination_file_name).stem),
             template_origin=template_origin,
             updated_at=_now_iso(),
             kind=self._infer_kind(
@@ -385,9 +385,9 @@ class PresetFileStore:
             return (False, 0, 0)
 
     def _find_index(self, manifests: list[PresetManifest], file_name: str) -> int:
-        target = str(file_name or "").strip().lower()
+        candidate = str(file_name or "").strip().lower()
         for idx, manifest in enumerate(manifests):
-            if manifest.file_name.strip().lower() == target:
+            if manifest.file_name.strip().lower() == candidate:
                 return idx
         raise ValueError(f"Preset not found: {file_name}")
 

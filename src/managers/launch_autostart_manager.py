@@ -32,8 +32,8 @@ class LaunchAutostartManager(QObject):
         resolved_method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
 
         supported_methods = {
-            "direct_zapret2",
-            "direct_zapret1",
+            "zapret2_mode",
+            "zapret1_mode",
             "orchestra",
         }
         if resolved_method not in supported_methods:
@@ -41,12 +41,17 @@ class LaunchAutostartManager(QObject):
             self._mark_runtime_stopped()
             return
 
-        display_name = self._resolve_startup_display_name(resolved_method)
+        startup_snapshot = self._resolve_startup_snapshot(resolved_method)
+        display_name = self._resolve_startup_display_name(resolved_method, startup_snapshot=startup_snapshot)
         if display_name:
             update_window_current_strategy_display(self.app, display_name)
 
         log(f"Автозапуск передан в единый DPI controller pipeline: {resolved_method}", "INFO")
-        self.app.launch_controller.start_dpi_async(selected_mode=None, launch_method=resolved_method)
+        self.app.launch_controller.start_dpi_async(
+            selected_mode=startup_snapshot.to_selected_mode() if startup_snapshot is not None else None,
+            launch_method=resolved_method,
+            _startup_autostart=True,
+        )
 
     def _mark_runtime_stopped(self) -> None:
         runtime_service = getattr(self.app, "launch_runtime_service", None)
@@ -54,12 +59,26 @@ class LaunchAutostartManager(QObject):
             return
         runtime_service.mark_stopped(clear_error=True)
 
-    def _resolve_startup_display_name(self, launch_method: str) -> str:
+    def _resolve_startup_snapshot(self, launch_method: str):
         method = str(launch_method or "").strip().lower()
         try:
-            if method in {"direct_zapret1", "direct_zapret2"}:
-                snapshot = self.app.app_context.direct_flow_coordinator.get_startup_snapshot(method)
-                return str(snapshot.display_name or "").strip() or "Пресет"
+            if method in {"zapret1_mode", "zapret2_mode"}:
+                return self.app.app_context.preset_mode_coordinator.get_startup_snapshot(
+                    method,
+                    require_filters=True,
+                )
+        except Exception as e:
+            log(f"Не удалось подготовить стартовый пресет для {method}: {e}", "DEBUG")
+
+        return None
+
+    def _resolve_startup_display_name(self, launch_method: str, *, startup_snapshot=None) -> str:
+        method = str(launch_method or "").strip().lower()
+        try:
+            if method in {"zapret1_mode", "zapret2_mode"}:
+                snapshot = startup_snapshot or self._resolve_startup_snapshot(method)
+                if snapshot is not None:
+                    return str(snapshot.display_name or "").strip() or "Пресет"
 
             if method == "orchestra":
                 return "Оркестр"

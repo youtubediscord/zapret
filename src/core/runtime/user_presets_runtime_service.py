@@ -211,9 +211,9 @@ class UserPresetsRuntimeService:
         if page._presets_model is None or not hasattr(page, "presets_list"):
             return
 
-        target_file_name = str(file_name or "").strip()
-        target_display_name = str(display_name or "").strip()
-        if not target_file_name and not (use_display_name_fallback and target_display_name):
+        preset_file_name = str(file_name or "").strip()
+        preset_display_name = str(display_name or "").strip()
+        if not preset_file_name and not (use_display_name_fallback and preset_display_name):
             return
 
         model_type = type(page._presets_model)
@@ -225,15 +225,15 @@ class UserPresetsRuntimeService:
             index = page._presets_model.index(row, 0)
             if str(index.data(kind_role) or "") != "preset":
                 continue
-            if target_file_name and str(index.data(file_role) or "") == target_file_name:
+            if preset_file_name and str(index.data(file_role) or "") == preset_file_name:
                 page.presets_list.setCurrentIndex(index)
                 return
-            if use_display_name_fallback and target_display_name and name_role is not None:
-                if str(index.data(name_role) or "") == target_display_name:
+            if use_display_name_fallback and preset_display_name and name_role is not None:
+                if str(index.data(name_role) or "") == preset_display_name:
                     page.presets_list.setCurrentIndex(index)
                     return
 
-    def apply_active_preset_marker_for_target(
+    def apply_active_preset_marker_for_file(
         self,
         file_name: str,
         *,
@@ -264,7 +264,7 @@ class UserPresetsRuntimeService:
         page = self._resolve_page(page)
         adapter = self._resolve_adapter()
         active_file_name = adapter.selected_source_file_name()
-        return self.apply_active_preset_marker_for_target(active_file_name, page=page)
+        return self.apply_active_preset_marker_for_file(active_file_name, page=page)
 
     def ensure_preset_list_current_index(self, page=None) -> None:
         page = self._resolve_page(page)

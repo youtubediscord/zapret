@@ -27,7 +27,7 @@ except ImportError:
 
 from ui.page_names import PageName
 from ui.text_catalog import tr as tr_catalog
-from ui.window_display_state import get_direct_strategy_summary
+from ui.window_display_state import get_profile_strategy_summary
 from ui.ui_root import WindowUiRoot
 
 # ---------------------------------------------------------------------------
@@ -35,7 +35,7 @@ from ui.ui_root import WindowUiRoot
 # ---------------------------------------------------------------------------
 _NAV_ICONS = {
     PageName.CONTROL: FluentIcon.COMMAND_PROMPT if HAS_FLUENT else None,
-    PageName.ZAPRET2_DIRECT_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
+    PageName.ZAPRET2_MODE_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
     PageName.AUTOSTART: FluentIcon.POWER_BUTTON if HAS_FLUENT else None,
     PageName.NETWORK: FluentIcon.WIFI if HAS_FLUENT else None,
     PageName.HOSTS: FluentIcon.GLOBE if HAS_FLUENT else None,
@@ -55,9 +55,9 @@ _NAV_ICONS = {
     PageName.SUPPORT: FluentIcon.CHAT if HAS_FLUENT else None,
     PageName.ORCHESTRA: FluentIcon.MUSIC if HAS_FLUENT else None,
     PageName.ORCHESTRA_SETTINGS: FluentIcon.SETTING if HAS_FLUENT else None,
-    PageName.ZAPRET2_DIRECT: FluentIcon.PLAY if HAS_FLUENT else None,
-    PageName.ZAPRET1_DIRECT_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
-    PageName.ZAPRET1_DIRECT: FluentIcon.PLAY if HAS_FLUENT else None,
+    PageName.ZAPRET2_MODE: FluentIcon.PLAY if HAS_FLUENT else None,
+    PageName.ZAPRET1_MODE_CONTROL: FluentIcon.GAME if HAS_FLUENT else None,
+    PageName.ZAPRET1_MODE: FluentIcon.PLAY if HAS_FLUENT else None,
     PageName.ZAPRET1_USER_PRESETS: FluentIcon.FOLDER if HAS_FLUENT else None,
     PageName.TELEGRAM_PROXY: FluentIcon.SEND if HAS_FLUENT else None,
 }
@@ -65,7 +65,7 @@ _NAV_ICONS = {
 # Russian labels for navigation
 _NAV_LABELS = {
     PageName.CONTROL: "Управление",
-    PageName.ZAPRET2_DIRECT_CONTROL: "Управление Zapret 2",
+    PageName.ZAPRET2_MODE_CONTROL: "Управление Zapret 2",
     PageName.AUTOSTART: "Автозапуск",
     PageName.NETWORK: "Сеть",
     PageName.HOSTS: "Редактор файла hosts",
@@ -85,9 +85,9 @@ _NAV_LABELS = {
     PageName.SUPPORT: "Поддержка",
     PageName.ORCHESTRA: "Оркестратор",
     PageName.ORCHESTRA_SETTINGS: "Настройки оркестратора",
-    PageName.ZAPRET2_DIRECT: "Прямой запуск",
-    PageName.ZAPRET1_DIRECT_CONTROL: "Управление Zapret 1",
-    PageName.ZAPRET1_DIRECT: "Стратегии Z1",
+    PageName.ZAPRET2_MODE: "Профили",
+    PageName.ZAPRET1_MODE_CONTROL: "Управление Zapret 1",
+    PageName.ZAPRET1_MODE: "Стратегии Z1",
     PageName.ZAPRET1_USER_PRESETS: "Мои пресеты Z1",
     PageName.TELEGRAM_PROXY: "Telegram Proxy",
 }
@@ -202,7 +202,7 @@ class MainWindowUI:
             method = (get_strategy_launch_method() or "").strip().lower()
         except Exception:
             method = ""
-        return method or "direct_zapret2"
+        return method or "zapret2_mode"
 
     # Window-facing API intentionally kept minimal. Page opening and routing go
     # through window_adapter/page_host/workflow layers, not through this mixin.

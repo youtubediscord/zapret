@@ -420,8 +420,8 @@ class AutostartPage(BasePage):
             from settings.dpi.strategy_settings import get_strategy_launch_method
 
             method = str(get_strategy_launch_method() or "").strip()
-            if method == "direct_zapret2":
-                mode_text = "Прямой запуск (Zapret 2)"
+            if method == "zapret2_mode":
+                mode_text = "Профили (Zapret 2)"
             elif method == "orchestra":
                 mode_text = "Оркестр (автообучение)"
             else:
@@ -566,7 +566,16 @@ class AutostartPage(BasePage):
 
     def _on_gui_autostart(self):
         try:
-            from autostart.autostart_exe import setup_autostart_for_exe
+            from autostart.autostart_exe import request_admin_for_autostart, setup_autostart_for_exe
+            from startup.admin_check import is_admin
+
+            if not is_admin():
+                log("Для включения автозапуска нужны права администратора", "WARNING")
+                if request_admin_for_autostart():
+                    from PyQt6.QtWidgets import QApplication
+
+                    QApplication.quit()
+                return
 
             ok = bool(setup_autostart_for_exe(status_cb=lambda msg: log(msg, "INFO")))
             if not ok:

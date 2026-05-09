@@ -3,22 +3,22 @@ from __future__ import annotations
 from log.log import log
 from settings import store as settings_store
 
-_LAUNCH_METHOD_DEFAULT = "direct_zapret2"
+_LAUNCH_METHOD_DEFAULT = "zapret2_mode"
 _SUPPORTED_LAUNCH_METHODS = {
-    "direct_zapret2",
-    "direct_zapret1",
+    "zapret2_mode",
+    "zapret1_mode",
     "orchestra",
 }
 
-DIRECT_UI_MODE_DEFAULT = "basic"
-_VALID_DIRECT_ZAPRET2_UI_MODES = frozenset({"basic", "advanced"})
+PROFILE_UI_MODE_DEFAULT = "basic"
+_VALID_DIRECT_ZAPRET2_UI_MODES = frozenset({"basic"})
 
 
-def normalize_direct_ui_mode(value: object) -> str:
+def normalize_profile_ui_mode(value: object) -> str:
     mode = str(value or "").strip().lower()
     if mode in _VALID_DIRECT_ZAPRET2_UI_MODES:
         return mode
-    return DIRECT_UI_MODE_DEFAULT
+    return PROFILE_UI_MODE_DEFAULT
 
 
 def get_strategy_launch_method() -> str:
@@ -49,34 +49,35 @@ def set_strategy_launch_method(method: str) -> bool:
         return False
 
 
-def get_direct_ui_mode() -> str:
+def get_profile_ui_mode() -> str:
     try:
-        return normalize_direct_ui_mode(settings_store.get_direct_ui_mode())
+        return normalize_profile_ui_mode(settings_store.get_profile_ui_mode())
     except Exception as e:
-        log(f"Ошибка чтения режима direct UI из settings.json: {e}", "DEBUG")
-        return DIRECT_UI_MODE_DEFAULT
+        log(f"Ошибка чтения режима profile UI из settings.json: {e}", "DEBUG")
+        return PROFILE_UI_MODE_DEFAULT
 
 
-def set_direct_ui_mode(mode: str) -> bool:
-    value = normalize_direct_ui_mode(mode)
+def set_profile_ui_mode(mode: str) -> bool:
+    _ = mode
+    value = PROFILE_UI_MODE_DEFAULT
     try:
-        settings_store.set_direct_ui_mode(value)
-        log(f"Direct UI mode set to: {value}", "DEBUG")
+        settings_store.set_profile_ui_mode(value)
+        log(f"Profile UI mode set to: {value}", "DEBUG")
         return True
     except Exception as e:
-        log(f"Ошибка сохранения режима direct UI: {e}", "ERROR")
+        log(f"Ошибка сохранения режима profile UI: {e}", "ERROR")
         return False
 
 
-def _build_direct_runtime_reload_callback(*, launch_method: str, app_context, reason: str):
+def _build_preset_runtime_reload_callback(*, launch_method: str, app_context, reason: str):
     method = str(launch_method or "").strip().lower()
-    if method not in ("direct_zapret2", "direct_zapret1") or app_context is None:
+    if method not in ("zapret2_mode", "zapret1_mode") or app_context is None:
         return None
 
     def _reload() -> None:
         try:
             from ui.app_window_locator import find_app_window
-            from winws_runtime.flow.apply_policy import request_direct_runtime_content_apply
+            from winws_runtime.flow.apply_policy import request_preset_runtime_content_apply
 
             host = find_app_window("launch_controller", "app_context")
             if host is None:
@@ -86,7 +87,7 @@ def _build_direct_runtime_reload_callback(*, launch_method: str, app_context, re
             if host_context is not None and host_context is not app_context:
                 return
 
-            request_direct_runtime_content_apply(
+            request_preset_runtime_content_apply(
                 host,
                 launch_method=method,
                 reason=str(reason or "").strip() or "settings_changed",
@@ -97,83 +98,87 @@ def _build_direct_runtime_reload_callback(*, launch_method: str, app_context, re
     return _reload
 
 
-def _get_direct_preset_facade(*, app_context=None, launch_method: str | None = None, reload_reason: str | None = None):
-    try:
-        method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
-        if method in ("direct_zapret2", "direct_zapret1") and app_context is not None:
-            from direct_preset.facade import DirectPresetFacade
+def _is_profile_launch_method(method: str) -> bool:
+    return str(method or "").strip().lower() in {"zapret1_mode", "zapret2_mode"}
 
-            reload_callback = None
-            if reload_reason:
-                reload_callback = _build_direct_runtime_reload_callback(
-                    launch_method=method,
-                    app_context=app_context,
-                    reason=str(reload_reason or "").strip(),
-                )
 
-            return DirectPresetFacade.from_launch_method(
-                method,
-                app_context=app_context,
-                on_dpi_reload_needed=reload_callback,
-            )
-    except Exception:
-        pass
-    return None
+def _request_profile_runtime_reload(*, app_context=None, launch_method: str, reason: str) -> None:
+    reload_callback = _build_preset_runtime_reload_callback(
+        launch_method=launch_method,
+        app_context=app_context,
+        reason=reason,
+    )
+    if callable(reload_callback):
+        reload_callback()
 
 
 def get_wssize_enabled(*, app_context=None, launch_method: str | None = None) -> bool:
-    facade = _get_direct_preset_facade(app_context=app_context, launch_method=launch_method)
-    if facade is not None:
+    method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
+    if _is_profile_launch_method(method) and app_context is not None:
         try:
-            return bool(facade.get_wssize_enabled())
+            from profile.settings import get_wssize_enabled as get_profile_wssize_enabled
+
+            return bool(get_profile_wssize_enabled(app_context, launch_method=method))
         except Exception:
             return False
     return False
 
 
 def set_wssize_enabled(enabled: bool, *, app_context=None, launch_method: str | None = None) -> bool:
-    facade = _get_direct_preset_facade(
-        app_context=app_context,
-        launch_method=launch_method,
-        reload_reason="wssize_toggled",
-    )
-    if facade is not None:
+    method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
+    if _is_profile_launch_method(method) and app_context is not None:
         try:
-            return bool(facade.set_wssize_enabled(bool(enabled)))
+            from profile.settings import set_wssize_enabled as set_profile_wssize_enabled
+
+            changed = bool(set_profile_wssize_enabled(app_context, bool(enabled), launch_method=method))
+            _request_profile_runtime_reload(
+                app_context=app_context,
+                launch_method=method,
+                reason="wssize_toggled",
+            )
+            return changed
         except Exception:
             return False
     return False
 
 
 def get_debug_log_enabled(*, app_context=None, launch_method: str | None = None) -> bool:
-    facade = _get_direct_preset_facade(app_context=app_context, launch_method=launch_method)
-    if facade is not None:
+    method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
+    if _is_profile_launch_method(method) and app_context is not None:
         try:
-            return bool(facade.get_debug_log_enabled())
+            from profile.settings import get_debug_log_enabled as get_profile_debug_log_enabled
+
+            return bool(get_profile_debug_log_enabled(app_context, launch_method=method))
         except Exception:
             return False
     return False
 
 
 def set_debug_log_enabled(enabled: bool, *, app_context=None, launch_method: str | None = None) -> bool:
-    facade = _get_direct_preset_facade(
-        app_context=app_context,
-        launch_method=launch_method,
-        reload_reason="debug_log_toggled",
-    )
-    if facade is not None:
+    method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
+    if _is_profile_launch_method(method) and app_context is not None:
         try:
-            return bool(facade.set_debug_log_enabled(bool(enabled)))
+            from profile.settings import set_debug_log_enabled as set_profile_debug_log_enabled
+
+            changed = bool(set_profile_debug_log_enabled(app_context, bool(enabled), launch_method=method))
+            _request_profile_runtime_reload(
+                app_context=app_context,
+                launch_method=method,
+                reason="debug_log_toggled",
+            )
+            return changed
         except Exception:
             return False
     return False
 
 
 def get_debug_log_file(*, app_context=None, launch_method: str | None = None) -> str:
-    facade = _get_direct_preset_facade(app_context=app_context, launch_method=launch_method)
-    if facade is not None:
+    method = str(launch_method or get_strategy_launch_method() or "").strip().lower()
+    if _is_profile_launch_method(method) and app_context is not None:
         try:
-            return str(facade.get_debug_log_file() or "")
+            from profile.settings import get_debug_log_file as get_profile_debug_log_file
+
+            return str(get_profile_debug_log_file(app_context, launch_method=method) or "")
         except Exception:
             return ""
     return ""
@@ -182,10 +187,10 @@ def get_debug_log_file(*, app_context=None, launch_method: str | None = None) ->
 __all__ = [
     "get_strategy_launch_method",
     "set_strategy_launch_method",
-    "DIRECT_UI_MODE_DEFAULT",
-    "normalize_direct_ui_mode",
-    "get_direct_ui_mode",
-    "set_direct_ui_mode",
+    "PROFILE_UI_MODE_DEFAULT",
+    "normalize_profile_ui_mode",
+    "get_profile_ui_mode",
+    "set_profile_ui_mode",
     "get_wssize_enabled",
     "set_wssize_enabled",
     "get_debug_log_enabled",

@@ -20,7 +20,7 @@ class PreparedDpiStartRequest:
     method_name: str
 
 
-class DirectLaunchStartWorker(QObject):
+class PresetLaunchStartWorker(QObject):
     """Worker для асинхронного запуска прямого launch-runtime."""
 
     finished = pyqtSignal(bool, str)  # success, error_message
@@ -45,7 +45,7 @@ class DirectLaunchStartWorker(QObject):
             if (
                 isinstance(mode_param, dict)
                 and mode_param.get("is_preset_file")
-                and self.launch_method in ("direct_zapret2", "direct_zapret1")
+                and self.launch_method in ("zapret2_mode", "zapret1_mode")
             ):
                 return True, str(mode_param.get("preset_path") or "").strip()
         except Exception:
@@ -55,7 +55,7 @@ class DirectLaunchStartWorker(QObject):
     def _can_reuse_running_process(self, *, is_preset_file: bool, preset_path: str) -> bool:
         if not is_preset_file or not preset_path:
             return False
-        if self.launch_method not in ("direct_zapret2",):
+        if self.launch_method not in ("zapret2_mode",):
             return False
         try:
             from winws_runtime.runners.runner_factory import get_strategy_runner
@@ -139,17 +139,17 @@ class DirectLaunchStartWorker(QObject):
     def _run_launch_method(self) -> bool:
         if self.launch_method == "orchestra":
             return self._start_orchestra()
-        if self.launch_method in ("direct_zapret2", "direct_zapret1"):
-            return self._start_direct()
+        if self.launch_method in ("zapret2_mode", "zapret1_mode"):
+            return self._start_preset_mode()
         log(f"Неизвестный метод запуска: {self.launch_method}", "❌ ERROR")
         return False
 
-    def _resolve_direct_preset_payload(self) -> tuple[str, str] | None:
+    def _resolve_presets_payload(self) -> tuple[str, str] | None:
         mode_param = self.selected_mode
         if not (isinstance(mode_param, dict) and mode_param.get("is_preset_file")):
             log(f"Ожидался preset файл для {self.launch_method}: {type(mode_param)}", "❌ ERROR")
-            self._last_error_message = "Для прямого запуска нужен preset файл"
-            self.progress.emit("❌ Для прямого запуска нужен preset файл")
+            self._last_error_message = "Для режима профилей нужен preset файл"
+            self.progress.emit("❌ Для режима профилей нужен preset файл")
             return None
 
         preset_path = str(mode_param.get("preset_path", "") or "").strip()
@@ -171,7 +171,7 @@ class DirectLaunchStartWorker(QObject):
 
         return preset_path, strategy_name
 
-    def _start_direct_preset_with_runner(self, preset_path: str, strategy_name: str) -> bool:
+    def _start_presets_with_runner(self, preset_path: str, strategy_name: str) -> bool:
         from winws_runtime.runners.runner_factory import get_strategy_runner
 
         runner = get_strategy_runner(self._get_winws_exe())
@@ -227,13 +227,13 @@ class DirectLaunchStartWorker(QObject):
                 fatal_reason = ""
                 try:
                     mode_param = self.selected_mode
-                    if isinstance(mode_param, dict) and self.launch_method in ("direct_zapret2", "direct_zapret1"):
+                    if isinstance(mode_param, dict) and self.launch_method in ("zapret2_mode", "zapret1_mode"):
                         if mode_param.get("is_preset_file"):
                             preset_path = (mode_param.get("preset_path") or "").strip()
                             if not preset_path:
                                 fatal_reason = "❌ Ошибка: не указан путь к preset файлу"
                         else:
-                            fatal_reason = "❌ Для прямого запуска нужен preset файл"
+                            fatal_reason = "❌ Для режима профилей нужен preset файл"
                 except Exception:
                     fatal_reason = ""
 
@@ -248,14 +248,14 @@ class DirectLaunchStartWorker(QObject):
                 log(line, "❌ ERROR")
             self.finished.emit(False, diagnosis.split("\n")[0])
 
-    def _start_direct(self):
-        """Запуск direct-режима через существующий preset файл."""
+    def _start_preset_mode(self):
+        """Запуск preset-режима через существующий preset файл."""
         try:
-            payload = self._resolve_direct_preset_payload()
+            payload = self._resolve_presets_payload()
             if payload is None:
                 return False
             preset_path, strategy_name = payload
-            return self._start_direct_preset_with_runner(preset_path, strategy_name)
+            return self._start_presets_with_runner(preset_path, strategy_name)
 
         except Exception as e:
             exe_path = self._get_winws_exe() if hasattr(self.app_instance, "launch_runtime_api") else None

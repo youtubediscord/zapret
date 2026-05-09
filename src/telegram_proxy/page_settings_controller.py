@@ -9,7 +9,6 @@ from telegram_proxy.upstream_catalog import UpstreamCatalog
 class TelegramProxySettingsState:
     host: str
     port: int
-    autostart_enabled: bool
     upstream_enabled: bool
     upstream_host: str
     upstream_port: int
@@ -29,7 +28,6 @@ class TelegramProxySettingsController:
         return TelegramProxySettingsState(
             host=cls.DEFAULT_HOST,
             port=cls.DEFAULT_PORT,
-            autostart_enabled=False,
             upstream_enabled=False,
             upstream_host="",
             upstream_port=cls.DEFAULT_UPSTREAM_PORT,
@@ -92,7 +90,6 @@ class TelegramProxySettingsController:
 
         try:
             from settings.store import (
-                get_tg_proxy_autostart,
                 get_tg_proxy_host,
                 get_tg_proxy_port,
                 get_tg_proxy_upstream_enabled,
@@ -120,7 +117,6 @@ class TelegramProxySettingsController:
             return TelegramProxySettingsState(
                 host=host,
                 port=port,
-                autostart_enabled=bool(get_tg_proxy_autostart()),
                 upstream_enabled=bool(get_tg_proxy_upstream_enabled()),
                 upstream_host=upstream_host,
                 upstream_port=upstream_port,
@@ -131,15 +127,6 @@ class TelegramProxySettingsController:
             )
         except Exception:
             return state
-
-    @staticmethod
-    def set_autostart(enabled: bool) -> None:
-        try:
-            from settings.store import set_tg_proxy_autostart
-
-            set_tg_proxy_autostart(bool(enabled))
-        except Exception:
-            pass
 
     @classmethod
     def set_port(cls, port: int) -> int:

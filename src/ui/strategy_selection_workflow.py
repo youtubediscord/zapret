@@ -3,15 +3,15 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget
 
 from ui.window_display_state import (
-    get_direct_strategy_summary,
+    get_profile_strategy_summary,
     update_current_strategy_display,
 )
-from ui.navigation_targets import resolve_strategy_page_for_method
+from ui.navigation_pages import resolve_profiles_page_for_method
 from ui.window_adapter import get_loaded_page
 
 
 def get_strategy_selection_source_page(window, launch_method: str | None) -> QWidget | None:
-    page_name = resolve_strategy_page_for_method(launch_method)
+    page_name = resolve_profiles_page_for_method(launch_method)
     if page_name is None:
         return None
     return get_loaded_page(window, page_name)
@@ -24,8 +24,8 @@ def resolve_strategy_selection_display_name(
     strategy_name: str,
 ) -> str:
     normalized = str(launch_method or "").strip().lower()
-    if normalized == "direct_zapret2" and sender is get_strategy_selection_source_page(window, normalized):
-        return get_direct_strategy_summary(window)
+    if normalized == "zapret2_mode" and sender is get_strategy_selection_source_page(window, normalized):
+        return get_profile_strategy_summary(window)
     return strategy_name
 
 

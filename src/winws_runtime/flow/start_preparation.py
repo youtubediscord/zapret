@@ -23,9 +23,9 @@ def resolve_method_name(launch_method: str) -> str:
     method = str(launch_method or "").strip().lower()
     if method == "orchestra":
         return "оркестр"
-    if method == "direct_zapret2":
+    if method == "zapret2_mode":
         return "прямой"
-    if method == "direct_zapret1":
+    if method == "zapret1_mode":
         return "прямой Z1"
     return "классический"
 
@@ -50,8 +50,8 @@ def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, app_co
     if selected_mode is not None and selected_mode != "default":
         return selected_mode
 
-    if method in ("direct_zapret2", "direct_zapret1"):
-        snapshot = app_context.direct_flow_coordinator.get_startup_snapshot(
+    if method in ("zapret2_mode", "zapret1_mode"):
+        snapshot = app_context.preset_mode_coordinator.get_startup_snapshot(
             method,
             require_filters=True,
         )
@@ -61,18 +61,41 @@ def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, app_co
     raise RuntimeError("Неизвестный метод запуска")
 
 
-def direct_filter_flags(launch_method: str) -> tuple[str, ...]:
+def preset_filter_flags(launch_method: str) -> tuple[str, ...]:
     method = str(launch_method or "").strip().lower()
-    if method == "direct_zapret1":
+    if method == "zapret1_mode":
         return ("--wf-tcp=", "--wf-udp=")
     return ("--wf-tcp-out", "--wf-udp-out", "--wf-raw-part")
 
 
-def validate_direct_selected_mode(selected_mode, launch_method: str, *, app_context: "AppContext") -> None:
+def _preset_selected_mode_validated_for_method(selected_mode, launch_method: str) -> bool:
+    if not isinstance(selected_mode, dict):
+        return False
+    validated = bool(selected_mode.get("_preset_mode_filters_validated"))
+    validated_method = str(selected_mode.get("_preset_mode_filters_validated_method") or "").strip().lower()
     method = str(launch_method or "").strip().lower()
-    if method not in ("direct_zapret2", "direct_zapret1"):
+    return validated and validated_method == method
+
+
+def _preset_selected_mode_has_placeholder_unknown(selected_mode) -> bool:
+    if not isinstance(selected_mode, dict):
+        return False
+    return bool(selected_mode.get("_preset_mode_has_placeholder_unknown"))
+
+
+def validate_preset_selected_mode(selected_mode, launch_method: str, *, app_context: "AppContext") -> None:
+    method = str(launch_method or "").strip().lower()
+    if method not in ("zapret2_mode", "zapret1_mode"):
         return
     if not isinstance(selected_mode, dict) or not bool(selected_mode.get("is_preset_file")):
+        return
+    if method == "zapret1_mode" and _preset_selected_mode_validated_for_method(selected_mode, method):
+        return
+    if (
+        method == "zapret2_mode"
+        and _preset_selected_mode_validated_for_method(selected_mode, method)
+        and not _preset_selected_mode_has_placeholder_unknown(selected_mode)
+    ):
         return
 
     preset_path = Path(str(selected_mode.get("preset_path") or "").strip())
@@ -82,21 +105,27 @@ def validate_direct_selected_mode(selected_mode, launch_method: str, *, app_cont
     try:
         content = preset_path.read_text(encoding="utf-8").strip()
 
-        if method == "direct_zapret2":
+        if method == "zapret2_mode":
             content_lower = content.lower()
             if ("unknown.txt" in content_lower) or ("ipset-unknown.txt" in content_lower):
                 try:
-                    from direct_preset.service import DirectPresetService
+                    from profile.parser import parse_preset_text
+                    from profile.serializer import serialize_preset
 
-                    service = DirectPresetService(app_context.app_paths, "winws2")
-                    source = service.read_source_preset(preset_path)
-                    if service.remove_placeholder_profiles(source):
-                        service.write_source_preset(preset_path, source)
+                    source = parse_preset_text(content, engine="winws2", source_name=preset_path.name)
+                    kept = [
+                        profile for profile in source.profiles
+                        if "unknown.txt" not in "\n".join(profile.match.all_lines()).lower()
+                        and "ipset-unknown.txt" not in "\n".join(profile.match.all_lines()).lower()
+                    ]
+                    if len(kept) != len(source.profiles):
+                        source.profiles = kept
+                        preset_path.write_text(serialize_preset(source), encoding="utf-8")
                         content = preset_path.read_text(encoding="utf-8").strip()
                 except Exception as e:
                     log(f"Ошибка очистки preset файла от unknown.txt: {e}", "DEBUG")
 
-        if not any(flag in content for flag in direct_filter_flags(method)):
+        if not any(flag in content for flag in preset_filter_flags(method)):
             raise RuntimeError("Выберите хотя бы одну категорию для запуска")
     except RuntimeError:
         raise
@@ -104,50 +133,14 @@ def validate_direct_selected_mode(selected_mode, launch_method: str, *, app_cont
         raise RuntimeError(f"Ошибка чтения preset: {e}") from e
 
 
-def collect_soft_launch_warnings(selected_mode, launch_method: str, *, app_context: "AppContext") -> list[str]:
-    method = str(launch_method or "").strip().lower()
-    if method != "direct_zapret2":
-        return []
-    if not isinstance(selected_mode, dict) or not bool(selected_mode.get("is_preset_file")):
-        return []
-
-    preset_path = str(selected_mode.get("preset_path") or "").strip()
-    if not preset_path or not Path(preset_path).exists():
-        return []
-
-    try:
-        from direct_preset.service import DirectPresetService
-
-        service = DirectPresetService(app_context.app_paths, "winws2")
-        source = service.read_source_preset(Path(preset_path))
-        labels = service.collect_out_range_autofix_warning_labels(source)
-    except Exception as e:
-        log(f"Не удалось собрать предупреждения out-range для запуска: {e}", "DEBUG")
-        return []
-
-    if not labels:
-        return []
-
-    max_show = 5
-    shown = labels[:max_show]
-    hidden = len(labels) - len(shown)
-    message = (
-        "У некоторых фильтров out-range отсутствует или записан некорректно. "
-        f"Перед запуском будет автоматически применён --out-range=-d8 или исправлен формат: {', '.join(shown)}"
-    )
-    if hidden > 0:
-        message += f" (+{hidden} ещё)"
-    return [message]
-
-
-def sanitize_direct_preset_before_launch(
+def sanitize_presets_before_launch(
     selected_mode,
     launch_method: str,
     *,
     app_context: "AppContext",
 ) -> tuple[list[str], str | None]:
     method = str(launch_method or "").strip().lower()
-    if method != "direct_zapret2":
+    if method != "zapret2_mode":
         return [], None
     if not isinstance(selected_mode, dict) or not bool(selected_mode.get("is_preset_file")):
         return [], None
@@ -157,18 +150,35 @@ def sanitize_direct_preset_before_launch(
         return [], "Preset файл не найден. Создайте пресет в настройках"
 
     try:
-        from direct_preset.service import DirectPresetService
+        from profile.parser import parse_preset_text
+        from profile.serializer import serialize_preset, with_profile_strategy_lines
+        from profile.winws2_transport import normalize_winws2_action_lines
 
-        service = DirectPresetService(app_context.app_paths, "winws2")
-        source = service.read_source_preset(preset_path)
+        source = parse_preset_text(preset_path.read_text(encoding="utf-8", errors="replace"), engine="winws2", source_name=preset_path.name)
         changed = False
         warnings: list[str] = []
 
-        if service.remove_placeholder_profiles(source):
+        kept = [
+            profile for profile in source.profiles
+            if "unknown.txt" not in "\n".join(profile.match.all_lines()).lower()
+            and "ipset-unknown.txt" not in "\n".join(profile.match.all_lines()).lower()
+        ]
+        if len(kept) != len(source.profiles):
+            source.profiles = kept
+            source = parse_preset_text(serialize_preset(source), engine="winws2", source_name=preset_path.name)
             changed = True
             warnings.append("Из source-пресета автоматически убраны placeholder-фильтры unknown.txt.")
 
-        repaired_labels = service.repair_out_range_profiles(source)
+        repaired_labels: list[str] = []
+        for profile in list(source.profiles):
+            current_lines = [str(line).strip() for line in getattr(profile.strategy, "strategy_lines", ()) or () if str(line).strip()]
+            normalized_lines, fixes, _resolved = normalize_winws2_action_lines(
+                current_lines,
+                source_is_circular=False,
+            )
+            if fixes and normalized_lines != current_lines:
+                source = with_profile_strategy_lines(source, profile.index, normalized_lines)
+                repaired_labels.append(profile.display_name)
         if repaired_labels:
             changed = True
             max_show = 5
@@ -183,11 +193,11 @@ def sanitize_direct_preset_before_launch(
             warnings.append(message)
 
         if changed:
-            service.write_source_preset(preset_path, source)
+            preset_path.write_text(serialize_preset(source), encoding="utf-8")
 
         return warnings, None
     except Exception as e:
-        log(f"Не удалось подготовить direct preset перед запуском: {e}", "DEBUG")
+        log(f"Не удалось подготовить preset mode перед запуском: {e}", "DEBUG")
         return [], None
 
 
@@ -205,13 +215,13 @@ def prepare_start_request(
         resolved_method,
         app_context=app_context,
     )
-    validate_direct_selected_mode(
+    validate_preset_selected_mode(
         prepared_selected_mode,
         resolved_method,
         app_context=app_context,
     )
 
-    prelaunch_warnings, prelaunch_error = sanitize_direct_preset_before_launch(
+    prelaunch_warnings, prelaunch_error = sanitize_presets_before_launch(
         prepared_selected_mode,
         resolved_method,
         app_context=app_context,
@@ -219,14 +229,7 @@ def prepare_start_request(
     if prelaunch_error:
         raise RuntimeError(prelaunch_error)
 
-    warnings = [
-        *prelaunch_warnings,
-        *collect_soft_launch_warnings(
-            prepared_selected_mode,
-            resolved_method,
-            app_context=app_context,
-        ),
-    ]
+    warnings = list(prelaunch_warnings)
 
     return (
         PreparedDpiStartRequest(

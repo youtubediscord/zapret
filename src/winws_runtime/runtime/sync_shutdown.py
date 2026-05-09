@@ -38,7 +38,7 @@ def _resolve_launch_method(window=None) -> str:
 
         return str(get_strategy_launch_method() or "").strip().lower()
     except Exception:
-        return "direct_zapret2"
+        return "zapret2_mode"
 
 
 def _resolve_runtime_api(window, launch_method: str):
@@ -48,11 +48,11 @@ def _resolve_runtime_api(window, launch_method: str):
 
     try:
         from config.config import get_winws_exe_for_method
-        from winws_runtime.runtime.runtime_api import DirectLaunchRuntimeApi
+        from winws_runtime.runtime.runtime_api import PresetLaunchRuntimeApi
 
-        method = "direct_zapret2" if str(launch_method or "").strip().lower() == "orchestra" else str(launch_method or "").strip().lower()
+        method = "zapret2_mode" if str(launch_method or "").strip().lower() == "orchestra" else str(launch_method or "").strip().lower()
         expected_exe_path = get_winws_exe_for_method(method)
-        return DirectLaunchRuntimeApi(expected_exe_path=expected_exe_path, app_instance=window)
+        return PresetLaunchRuntimeApi(expected_exe_path=expected_exe_path, app_instance=window)
     except Exception:
         return None
 

@@ -1,2 +1,1 @@
-"""Filter/target слой для direct-списков и связанных UI helper-ов."""
-
+"""Слой фильтров для profile UI и связанных helper-ов."""

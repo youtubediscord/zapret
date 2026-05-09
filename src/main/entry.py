@@ -11,6 +11,7 @@ from startup.ipc_manager import IPCManager
 
 from main.post_startup import install_post_startup_tasks
 from main.qt_runtime import application_bootstrap
+from main.runtime_state import is_qt_event_diagnostic_enabled
 from main.shell import shell_bootstrap
 
 
@@ -55,6 +56,13 @@ def main() -> None:
 
     start_in_tray = shell_bootstrap()
     app = application_bootstrap()
+    if is_qt_event_diagnostic_enabled():
+        try:
+            from main.qt_event_diagnostics import install_qt_event_diagnostic
+
+            install_qt_event_diagnostic(app)
+        except Exception as exc:
+            log(f"Не удалось включить Qt event diagnostic: {exc}", "WARNING")
 
     from main.window import window_bootstrap
 

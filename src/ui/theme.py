@@ -400,11 +400,16 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
         except Exception:
             preset = "standard"
 
-    # Mica is always ON on Win11 for standard preset — Mica OFF produces a black
-    # window on modern Win11 (22H2+) so the user toggle is removed; we force Mica.
-    # On Win10, setMicaEffectEnabled is a no-op (build < 22000) so should_mica=False.
+    try:
+        from settings.store import get_mica_enabled
+        mica_enabled = bool(get_mica_enabled())
+    except Exception:
+        mica_enabled = True
+
+    # Mica is a Windows 11 system backdrop, not an interface animation.
+    # The animation switch must not disable it.
     _is_win11_plus = sys.platform == 'win32' and sys.getwindowsversion().build >= 22000
-    should_mica = _is_win11_plus and (preset == "standard")
+    should_mica = _is_win11_plus and (preset == "standard") and mica_enabled
     if hasattr(window, 'setMicaEffectEnabled'):
         # Pre-zero stored background colors before disabling Mica (Win11 only).
         # setMicaEffectEnabled(False) immediately calls setBackgroundColor(solid)
@@ -484,7 +489,25 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
                 pass
             return
 
-        # Standard preset, Mica OFF: transparent gradient (no blur) via DWM
+        if preset == "standard":
+            # Solid fallback for the default static UI. No DWM blur, no acrylic,
+            # no transparent Qt surface.
+            if hasattr(window, 'windowEffect'):
+                try:
+                    window.windowEffect.removeBackgroundEffect(window.winId())
+                except Exception:
+                    pass
+            solid = _QColor(250, 250, 250) if get_theme_tokens().is_light else _QColor(32, 32, 32)
+            window.setCustomBackgroundColor(solid, solid)
+            if hasattr(window, 'clear_tint_overlay'):
+                window.clear_tint_overlay()
+            try:
+                window.setWindowOpacity(1.0)
+            except Exception:
+                pass
+            return
+
+        # Non-standard fallback path.
         try:
             from settings.store import get_window_opacity
             opacity_pct = get_window_opacity()

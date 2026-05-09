@@ -21,7 +21,7 @@ from .system_ops import (
 )
 
 
-class DirectLaunchRuntimeApi:
+class PresetLaunchRuntimeApi:
     """Низкоуровневый runtime-слой запуска: статус процесса, ожидаемый exe и очистка WinDivert."""
 
     def __init__(
@@ -31,7 +31,7 @@ class DirectLaunchRuntimeApi:
         app_instance: Optional["LupiDPIApp"] = None,
     ):
         """
-        Инициализирует DirectLaunchRuntimeApi.
+        Инициализирует PresetLaunchRuntimeApi.
 
         Args:
             expected_exe_path: Путь к ожидаемому winws.exe/winws2.exe

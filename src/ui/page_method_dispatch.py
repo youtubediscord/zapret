@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QTimer
 
-from ui.navigation_targets import resolve_strategy_page_for_method
+from ui.navigation_pages import resolve_profiles_page_for_method
 from ui.page_contracts import PageMethodName, get_page_method
 from ui.page_names import PageName
 
@@ -44,15 +44,15 @@ def call_loaded_page_method(
         return False
 
 
-def show_active_strategy_page_loading(window) -> bool:
-    page_name = resolve_strategy_page_for_method(window._get_launch_method())
+def show_active_profiles_page_loading(window) -> bool:
+    page_name = resolve_profiles_page_for_method(window._get_launch_method())
     if page_name is None:
         return False
     return call_loaded_page_method(window, page_name, PageMethodName.SHOW_LOADING)
 
 
-def show_active_strategy_page_success(window) -> bool:
-    page_name = resolve_strategy_page_for_method(window._get_launch_method())
+def show_active_profiles_page_success(window) -> bool:
+    page_name = resolve_profiles_page_for_method(window._get_launch_method())
     if page_name is None:
         return False
     return call_loaded_page_method(window, page_name, PageMethodName.SHOW_SUCCESS)

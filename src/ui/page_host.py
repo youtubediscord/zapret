@@ -9,7 +9,7 @@ from ui.page_dependencies import inject_page_dependencies
 from ui.navigation.schema import (
     get_page_route_key,
     is_page_allowed_for_method,
-    is_page_direct_open_allowed,
+    is_page_mode_open_allowed,
 )
 from ui.page_names import PageName
 from ui.page_performance import log_page_metric
@@ -173,7 +173,7 @@ class WindowPageHost:
             log(f"[PAGE_HOST] reject show_page for disallowed page {page_name.name}", "WARNING")
             return False
 
-        if not allow_internal and not is_page_direct_open_allowed(page_name):
+        if not allow_internal and not is_page_mode_open_allowed(page_name):
             log(f"[PAGE_HOST] reject direct-open for internal/detail page {page_name.name}", "WARNING")
             return False
 

@@ -123,8 +123,8 @@ def on_dpi_process_confirmed(controller, running: bool, verify_gen=None):
 
     if controller._restart_request_generation > controller._restart_completed_generation:
         QTimer.singleShot(0, controller._process_pending_restart_request)
-    if controller._direct_preset_switch_requested_generation > controller._direct_preset_switch_completed_generation:
-        QTimer.singleShot(0, controller._process_pending_direct_preset_switch)
+    if controller._presets_switch_requested_generation > controller._presets_switch_completed_generation:
+        QTimer.singleShot(0, controller._process_pending_presets_switch)
 
 
 def on_dpi_start_finished(controller, success, error_message):
@@ -137,7 +137,7 @@ def on_dpi_start_finished(controller, success, error_message):
 
         bridge = ensure_runtime_ui_bridge(controller.app)
         if bridge is not None:
-            bridge.show_active_strategy_page_success()
+            bridge.show_active_profiles_page_success()
 
         if success:
             controller._mark_runtime_running(pid=_runner_start_pid(controller))
@@ -158,8 +158,8 @@ def on_dpi_start_finished(controller, success, error_message):
 
             if controller._restart_request_generation > controller._restart_completed_generation:
                 QTimer.singleShot(0, controller._process_pending_restart_request)
-            if controller._direct_preset_switch_requested_generation > controller._direct_preset_switch_completed_generation:
-                QTimer.singleShot(0, controller._process_pending_direct_preset_switch)
+            if controller._presets_switch_requested_generation > controller._presets_switch_completed_generation:
+                QTimer.singleShot(0, controller._process_pending_presets_switch)
 
     except Exception as e:
         log(f"Ошибка при обработке результата запуска DPI: {e}", "❌ ERROR")
@@ -179,7 +179,7 @@ def on_dpi_stop_finished(controller, success, error_message):
 
         bridge = ensure_runtime_ui_bridge(controller.app)
         if bridge is not None:
-            bridge.show_active_strategy_page_success()
+            bridge.show_active_profiles_page_success()
 
         if success:
             is_still_running = controller.app.launch_runtime_api.has_residual_processes(silent=True)
@@ -225,8 +225,8 @@ def on_dpi_stop_finished(controller, success, error_message):
         log(f"Ошибка при обработке результата остановки DPI: {e}", "❌ ERROR")
         controller.app.set_status(f"Ошибка: {e}")
     finally:
-        if controller._direct_preset_switch_requested_generation > controller._direct_preset_switch_completed_generation:
-            QTimer.singleShot(0, controller._process_pending_direct_preset_switch)
+        if controller._presets_switch_requested_generation > controller._presets_switch_completed_generation:
+            QTimer.singleShot(0, controller._process_pending_presets_switch)
 
 
 def on_stop_and_exit_finished(controller):

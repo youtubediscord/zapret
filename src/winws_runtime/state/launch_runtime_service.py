@@ -60,18 +60,18 @@ class LaunchRuntimeService:
 
         return LaunchRuntimeOwnershipMap(
             canonical_writers=(
-                "winws_runtime.runtime.controller.DirectLaunchController._begin_runtime_start",
-                "winws_runtime.runtime.controller.DirectLaunchController._mark_runtime_running",
-                "winws_runtime.runtime.controller.DirectLaunchController._mark_runtime_failed",
-                "winws_runtime.runtime.controller.DirectLaunchController._begin_runtime_stop",
-                "winws_runtime.runtime.controller.DirectLaunchController._mark_runtime_stopped",
+                "winws_runtime.runtime.controller.PresetLaunchController._begin_runtime_start",
+                "winws_runtime.runtime.controller.PresetLaunchController._mark_runtime_running",
+                "winws_runtime.runtime.controller.PresetLaunchController._mark_runtime_failed",
+                "winws_runtime.runtime.controller.PresetLaunchController._begin_runtime_stop",
+                "winws_runtime.runtime.controller.PresetLaunchController._mark_runtime_stopped",
             ),
             canonical_readers=(
                 "main.LupiDPIApp._apply_runner_failure_update",
                 "winws_runtime.runtime.lifecycle_feedback.verify_dpi_process_running",
-                "direct_preset.ui.control.zapret1.page.Zapret1DirectControlPage._get_current_dpi_runtime_state",
+                "presets.ui.control.zapret1.page.Zapret1ModeControlPage._get_current_dpi_runtime_state",
                 "ui.pages.control_page.ControlPage._get_current_dpi_runtime_state",
-                "direct_preset.ui.control.zapret2.page.Zapret2DirectControlPage._on_ui_state_changed",
+                "presets.ui.control.zapret2.page.Zapret2ModeControlPage._on_ui_state_changed",
                 "tray.SystemTrayManager._is_launch_running/_launch_phase via AppRuntimeState",
             ),
             allowed_auxiliary_writers=(
@@ -84,16 +84,16 @@ class LaunchRuntimeService:
 
     def __init__(self, app_instance_or_store) -> None:
         self.app = None
-        self._direct_store = None
+        self._store_override = None
         self._tracking_state = _LaunchRuntimeTrackingState()
         if isinstance(app_instance_or_store, MainWindowStateStore):
-            self._direct_store = app_instance_or_store
+            self._store_override = app_instance_or_store
         else:
             self.app = app_instance_or_store
 
     def _store(self) -> MainWindowStateStore | None:
-        if isinstance(self._direct_store, MainWindowStateStore):
-            return self._direct_store
+        if isinstance(self._store_override, MainWindowStateStore):
+            return self._store_override
         store = getattr(self.app, "ui_state_store", None)
         if isinstance(store, MainWindowStateStore):
             return store

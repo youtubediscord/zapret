@@ -1,1 +1,1 @@
-"""UI-пакет Premium. Используйте прямой импорт `donater.ui.page`."""
+"""UI-пакет Premium. Используйте явный импорт `donater.ui.page`."""

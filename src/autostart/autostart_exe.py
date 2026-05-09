@@ -17,11 +17,28 @@ from autostart.task_scheduler_api import (
     is_canonical_autostart_enabled,
     register_canonical_autostart_task,
 )
+from startup.admin_check import is_admin, request_admin_restart
 
 
 def _log(message: str, level: str = "INFO"):
     timestamp = datetime.now().strftime("[%H:%M:%S]")
     print(f"{timestamp} [{level}] {message}")
+
+
+def request_admin_for_autostart() -> bool:
+    """Просит перезапуск с правами администратора для включения автозапуска."""
+    return request_admin_restart(
+        prompt_message=(
+            "Для включения автозапуска программе нужны права администратора.\n\n"
+            "Нажмите OK, чтобы перезапустить ZapretGUI с правами администратора."
+        ),
+        prompt_title="Zapret - Требуются права администратора",
+        failure_message=(
+            "Не удалось получить права администратора.\n"
+            "Запустите ZapretGUI от имени администратора и включите автозапуск ещё раз."
+        ),
+        failure_title="Zapret - Автозапуск не включён",
+    )
 
 
 def setup_autostart_for_exe(
@@ -36,6 +53,12 @@ def setup_autostart_for_exe(
 
         exe_path = sys.executable
         _log("Включаем канонический автозапуск GUI", "INFO")
+
+        if not is_admin():
+            _log("Для включения автозапуска нужны права администратора", "WARNING")
+            _status("Для включения автозапуска нужны права администратора")
+            request_admin_for_autostart()
+            return False
 
         # Перед созданием новой задачи убираем только её текущую каноническую версию.
         clear_autostart_task(status_cb=_status)

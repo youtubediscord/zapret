@@ -176,7 +176,6 @@ class HostsPage(BasePage):
 
         self._build_ui()
         self._apply_page_theme(force=True)
-        self._start_catalog_watcher()
         self._run_runtime_init_once()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
@@ -201,6 +200,7 @@ class HostsPage(BasePage):
         )
 
     def on_page_activated(self) -> None:
+        self._start_catalog_watcher()
         activate_hosts_page(
             install_host_window_event_filter_fn=self._install_host_window_event_filter,
             build_activation_plan_fn=HostsPageController.build_activation_plan,
@@ -228,6 +228,7 @@ class HostsPage(BasePage):
 
     def on_page_hidden(self) -> None:
         self._close_service_combo_popups()
+        self._stop_catalog_watcher()
 
     def _install_host_window_event_filter(self) -> None:
         install_host_window_event_filter(
@@ -420,6 +421,15 @@ class HostsPage(BasePage):
             interval_ms=5000,
             refresh_callback=self._refresh_catalog_if_needed,
         )
+
+    def _stop_catalog_watcher(self) -> None:
+        timer = self._catalog_watch_timer
+        if timer is None:
+            return
+        try:
+            timer.stop()
+        except Exception:
+            pass
 
     def _reconcile_catalog_after_hidden_refresh(self) -> None:
         handled = reconcile_catalog_after_hidden_refresh(
@@ -682,7 +692,7 @@ class HostsPage(BasePage):
             self._update_profile_row_visual(service_name)
             return
 
-        plan = HostsPageController.build_direct_toggle_plan(
+        plan = HostsPageController.build_mode_toggle_plan(
             current_selection=self._service_dns_selection,
             service_name=service_name,
             checked=checked,

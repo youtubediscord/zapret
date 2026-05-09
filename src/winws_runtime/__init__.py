@@ -1,2 +1,2 @@
-"""Домен прямого запуска: flow, runtime и runner-layer."""
+"""Домен режима профилей: flow, runtime и runner-layer."""
 

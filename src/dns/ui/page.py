@@ -221,6 +221,19 @@ class NetworkPage(BasePage):
             start_loading_fn=self._start_loading,
         )
 
+    def on_page_activated(self) -> None:
+        if self._is_loading and not self._ui_built:
+            try:
+                self.loading_bar.start()
+            except Exception:
+                pass
+
+    def on_page_hidden(self) -> None:
+        try:
+            self.loading_bar.stop()
+        except Exception:
+            pass
+
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
 
@@ -477,6 +490,10 @@ class NetworkPage(BasePage):
             return
         self._ui_built = True
         self._is_loading = False
+        try:
+            self.loading_bar.stop()
+        except Exception:
+            pass
         self.loading_card.hide()
         auto_widgets = result["auto_widgets"]
         self.auto_card = auto_widgets.card
@@ -1013,6 +1030,10 @@ class NetworkPage(BasePage):
         )
 
     def cleanup(self) -> None:
+        try:
+            self.loading_bar.stop()
+        except Exception:
+            pass
         cleanup_network_page(
             set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
             set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),

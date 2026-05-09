@@ -53,7 +53,7 @@ def _split_launch_line(raw_line: str) -> list[str]:
 
 
 def launch_args_from_preset_text(content: str) -> list[str]:
-    """Build argv directly from a source preset file."""
+    """Собирает argv из текста выбранного preset-файла."""
     args: list[str] = []
     for raw in str(content or "").splitlines():
         stripped = raw.strip()
@@ -87,6 +87,7 @@ class ConfigFileWatcher:
         self._thread_name = str(thread_name or "ConfigFileWatcher")
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
         self._last_mtime: Optional[float] = None
 
         if os.path.exists(self._file_path):
@@ -99,6 +100,7 @@ class ConfigFileWatcher:
             return
 
         self._running = True
+        self._stop_event.clear()
         self._thread = threading.Thread(target=self._watch_loop, daemon=True, name=self._thread_name)
         self._thread.start()
         log(f"ConfigFileWatcher started for: {self._file_path}", "DEBUG")
@@ -119,6 +121,7 @@ class ConfigFileWatcher:
             return
 
         self._running = False
+        self._stop_event.set()
         watcher_thread = self._thread
         if watcher_thread and watcher_thread.is_alive():
             if watcher_thread is threading.current_thread():
@@ -149,10 +152,7 @@ class ConfigFileWatcher:
             except Exception as e:
                 log(f"Error checking file modification: {e}", "DEBUG")
 
-            sleep_remaining = self._interval
-            while sleep_remaining > 0 and self._running:
-                time.sleep(min(0.1, sleep_remaining))
-                sleep_remaining -= 0.1
+            self._stop_event.wait(max(0.1, float(self._interval or 1.0)))
 
 
 @dataclass(frozen=True)
@@ -247,7 +247,7 @@ def publish_runner_failure(
 ) -> None:
     """Best-effort bridge for runner-side launch failures only."""
     method = str(launch_method or "").strip().lower()
-    if method not in {"direct_zapret1", "direct_zapret2"}:
+    if method not in {"zapret1_mode", "zapret2_mode"}:
         return
 
     payload = {
@@ -280,7 +280,7 @@ def publish_active_preset_content_changed(path: str) -> None:
 def controller_transition_in_progress(launch_method: str) -> bool:
     """Checks whether the main DPI controller is already applying a runtime transition."""
     method = str(launch_method or "").strip().lower()
-    if method not in {"direct_zapret1", "direct_zapret2", "orchestra"}:
+    if method not in {"zapret1_mode", "zapret2_mode", "orchestra"}:
         return False
 
     try:

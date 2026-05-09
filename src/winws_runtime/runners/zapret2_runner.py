@@ -37,10 +37,7 @@ from .preset_runner_support import (
 from utils.circular_strategy_numbering import (
     strip_strategy_tags,
 )
-from direct_preset.common.circular_preset_support import (
-    is_circular_source_preset,
-    normalize_action_lines_for_preset,
-)
+from profile.winws2_transport import normalize_winws2_action_lines
 from .constants import CREATE_NO_WINDOW
 from winws_runtime.health.process_health_check import (
     diagnose_startup_error
@@ -224,7 +221,7 @@ class StrategyRunnerV2(StrategyRunnerBase):
         )
         if state == PresetRunnerState.FAILED:
             publish_runner_failure(
-                launch_method="direct_zapret2",
+                launch_method="zapret2_mode",
                 error=error,
             )
         return snapshot
@@ -438,33 +435,29 @@ class StrategyRunnerV2(StrategyRunnerBase):
         if lua_fixed:
             log("Applying implicit lua-init lines for launch artifact", "DEBUG")
 
-        source_is_circular = False
-        try:
-            from direct_preset.engines import winws2_parser
-
-            source_is_circular = is_circular_source_preset(winws2_parser.parse(normalized))
-        except Exception:
-            source_is_circular = False
-
+        source_is_circular = self._is_circular_preset_text(normalized)
         cleaned = normalized if source_is_circular else strip_strategy_tags(normalized)
         if (not source_is_circular) and cleaned != normalized:
             log("Ignoring legacy :strategy=N tags in launch artifact", "DEBUG")
 
         try:
-            from direct_preset.common.preset_editor import replace_profile_action_lines
-            from direct_preset.engines import winws2_parser, winws2_rules, winws2_serializer
+            from profile.parser import parse_preset_text
+            from profile.serializer import serialize_preset, with_profile_strategy_lines
 
-            source = winws2_parser.parse(cleaned)
-            source_is_circular = is_circular_source_preset(source)
+            source = parse_preset_text(cleaned, engine="winws2")
+            source_is_circular = self._is_circular_preset_text(cleaned)
             repaired_profiles = 0
             defaulted_profiles = 0
             rewritten_profiles = 0
 
-            for index, profile in enumerate(list(source.profiles or [])):
-                current_action_lines = [str(line).strip() for line in getattr(profile, "action_lines", ()) or () if str(line).strip()]
-                normalized_action_lines, fixes, _resolved = normalize_action_lines_for_preset(
+            for profile in list(source.profiles or []):
+                current_action_lines = [
+                    str(line).strip()
+                    for line in getattr(profile.strategy, "strategy_lines", ()) or ()
+                    if str(line).strip()
+                ]
+                normalized_action_lines, fixes, _resolved = normalize_winws2_action_lines(
                     current_action_lines,
-                    rules_module=winws2_rules,
                     source_is_circular=source_is_circular,
                 )
                 if not fixes or normalized_action_lines == current_action_lines:
@@ -473,11 +466,11 @@ class StrategyRunnerV2(StrategyRunnerBase):
                     defaulted_profiles += 1
                 if any(flag in fixes for flag in ("canonicalized_out_range", "replaced_invalid_out_range", "lifted_inline_out_range", "removed_duplicate_out_range")):
                     rewritten_profiles += 1
-                replace_profile_action_lines(source, index, normalized_action_lines)
+                source = with_profile_strategy_lines(source, profile.index, normalized_action_lines)
                 repaired_profiles += 1
 
             if repaired_profiles:
-                cleaned = winws2_serializer.serialize(source)
+                cleaned = serialize_preset(source)
                 log(
                     "Normalized out-range in launch artifact "
                     f"(profiles={repaired_profiles}, defaulted={defaulted_profiles}, rewritten={rewritten_profiles})",
@@ -541,21 +534,24 @@ class StrategyRunnerV2(StrategyRunnerBase):
         except Exception:
             return False
 
-        try:
-            from direct_preset.engines import winws2_parser
+        return self._is_circular_preset_text(source_content)
 
-            normalized = self._normalize_preset_text(source_content)
-            return bool(is_circular_source_preset(winws2_parser.parse(normalized)))
-        except Exception:
-            return False
+    @staticmethod
+    def _is_circular_preset_text(source_content: str) -> bool:
+        lowered = str(source_content or "").lower()
+        return (
+            "(circular)" in lowered
+            or "--lua-desync=circular" in lowered
+            or "--lua-desync=circular_quality" in lowered
+        )
 
     def _on_config_changed(self):
         """
         Called when config file changes.
         Restarts process with new config.
         """
-        if controller_transition_in_progress("direct_zapret2"):
-            log("Hot-reload пропущен: controller уже выполняет transition для direct_zapret2", "DEBUG")
+        if controller_transition_in_progress("zapret2_mode"):
+            log("Hot-reload пропущен: controller уже выполняет transition для zapret2_mode", "DEBUG")
             return
         log("Hot-reload triggered: config file changed", "INFO")
 
@@ -793,7 +789,7 @@ class StrategyRunnerV2(StrategyRunnerBase):
                     self._set_last_error(f"Hot-reload failed (код {exit_code})")
 
             self._clear_process_state_locked()
-            if artifact.preset_path:
+            if artifact.preset_path and not hot_reload:
                 self._preset_file_path = None
             return False
 
@@ -817,11 +813,12 @@ class StrategyRunnerV2(StrategyRunnerBase):
             import traceback
             log(traceback.format_exc(), "DEBUG")
             self._clear_process_state_locked()
-            self._preset_file_path = None
+            if not hot_reload:
+                self._preset_file_path = None
             return False
 
     def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
-        """Fast path for switching running direct preset using lightweight stop/start."""
+        """Fast path for switching running preset mode using lightweight stop/start."""
         if not os.path.exists(preset_path):
             log(f"Fast switch preset file not found: {preset_path}", "ERROR")
             self._set_last_error(f"Preset файл не найден: {preset_path}")
@@ -903,23 +900,22 @@ class StrategyRunnerV2(StrategyRunnerBase):
         _retry_count: int = 0,
     ) -> bool:
         """
-        Starts strategy directly from existing preset file.
+        Запускает winws2 из выбранного preset-файла.
 
-        This is the primary method for ordinary direct_zapret2 launch - it uses
-        an existing preset file instead of generating args from
-        registry/category selections.
+        Это основной путь для обычного запуска zapret2_mode: берём готовый
+        preset-файл, а не собираем аргументы из старых категорий.
 
-        Features:
-        - Hot-reload support (monitors preset file for changes)
-        - No registry access needed
-        - Preset file already contains all arguments
+        Возможности:
+        - hot-reload следит за изменениями preset-файла;
+        - реестр готовых стратегий для запуска не нужен;
+        - preset-файл уже содержит все аргументы.
 
         Args:
-            preset_path: Path to the preset file
-            strategy_name: Strategy name for logs
+            preset_path: путь к preset-файлу
+            strategy_name: имя для логов
 
         Returns:
-            True if strategy started successfully
+            True, если запуск прошёл успешно
         """
         if not os.path.exists(preset_path):
             log(f"Preset file not found: {preset_path}", "ERROR")

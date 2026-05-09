@@ -462,7 +462,7 @@ class BlockcheckRunner:
         return tcp_results
 
     @staticmethod
-    def _tcp_target_key(target: dict) -> str:
+    def _tcp_scan_key(target: dict) -> str:
         return str(target.get("id") or target.get("url") or "")
 
     def _probe_tcp_targets_health(
@@ -476,7 +476,7 @@ class BlockcheckRunner:
         health: dict[str, tuple[bool, str, float]] = {}
 
         def _probe_one(target: dict) -> tuple[str, tuple[bool, str, float]]:
-            key = self._tcp_target_key(target)
+            key = self._tcp_scan_key(target)
             ok, detail, elapsed = probe_tcp_target_health(
                 str(target.get("url") or ""),
                 timeout=TCP_HEALTH_TIMEOUT,
@@ -513,7 +513,7 @@ class BlockcheckRunner:
 
         for target in candidates:
             provider = str(target.get("provider") or "unknown")
-            key = self._tcp_target_key(target)
+            key = self._tcp_scan_key(target)
             is_healthy = health_map.get(key, (False, "", 0.0))[0]
 
             if provider not in provider_buckets:
@@ -553,7 +553,7 @@ class BlockcheckRunner:
                     continue
 
                 candidate = pool[idx]
-                key = self._tcp_target_key(candidate)
+                key = self._tcp_scan_key(candidate)
 
                 if stage == "healthy":
                     bucket["healthy_idx"] = idx + 1

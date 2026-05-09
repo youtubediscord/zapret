@@ -9,25 +9,25 @@ if TYPE_CHECKING:
     from main.window import LupiDPIApp
 
 
-def request_runtime_preset_switch(
+def request_selected_source_preset_apply(
     app: "LupiDPIApp",
     *,
     launch_method: str,
     reason: str,
     preset_file_name: str = "",
 ) -> bool:
-    """Apply runtime policy when the selected preset file itself changes."""
+    """Применяет выбранный source preset к уже запущенному DPI."""
     method = str(launch_method or "").strip().lower()
-    target_preset = str(preset_file_name or "").strip()
+    selected_preset = str(preset_file_name or "").strip()
 
     if not hasattr(app, "launch_controller") or not app.launch_controller:
-        log("Runtime preset switch skipped: launch_controller not found", "DEBUG")
+        log("Применение выбранного source preset пропущено: launch_controller не найден", "DEBUG")
         return False
 
     try:
         controller = getattr(app, "launch_controller", None)
         if controller is None:
-            log("Runtime preset switch skipped: launch_controller not found", "DEBUG")
+            log("Применение выбранного source preset пропущено: launch_controller не найден", "DEBUG")
             return False
         if not controller.is_running():
             runtime_service = getattr(app, "launch_runtime_service", None)
@@ -42,26 +42,26 @@ def request_runtime_preset_switch(
                     phase = ""
                     running = False
             log(
-                f"Runtime preset switch skipped: DPI not running ({method}, phase={phase or 'unknown'}, running={running})",
+                f"Применение выбранного source preset пропущено: DPI не запущен ({method}, phase={phase or 'unknown'}, running={running})",
                 "WARNING",
             )
             return False
     except Exception as e:
-        log(f"Runtime preset switch state check error: {e}", "WARNING")
+        log(f"Ошибка проверки состояния перед применением выбранного source preset: {e}", "WARNING")
         return False
 
-    preset_info = f", preset={target_preset}" if target_preset else ""
+    preset_info = f", preset={selected_preset}" if selected_preset else ""
 
-    if method in {"direct_zapret1", "direct_zapret2"}:
+    if method in {"zapret1_mode", "zapret2_mode"}:
         log(
-            f"Runtime preset switch ({method}, reason={reason}{preset_info}) -> direct preset switch pipeline",
+            f"Применение выбранного source preset ({method}, reason={reason}{preset_info}) -> preset mode switch pipeline",
             "INFO",
         )
-        app.launch_controller.switch_direct_preset_async(method)
+        app.launch_controller.switch_presets_async(method)
         return True
 
     log(
-        f"Runtime preset switch ({method or 'unknown'}, reason={reason}{preset_info}) -> restart pipeline",
+        f"Применение выбранного source preset ({method or 'unknown'}, reason={reason}{preset_info}) -> restart pipeline",
         "INFO",
     )
     app.launch_controller.restart_dpi_async()

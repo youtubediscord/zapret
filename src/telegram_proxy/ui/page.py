@@ -124,6 +124,7 @@ class TelegramProxyPage(BasePage):
         )
         self.parent_app = parent
         self._log_timer = None
+        self._stats_timer = None
         self._diag_poll_timer = None
         self._upstream_restart_timer = None
         self._relay_check_gen = 0
@@ -131,15 +132,20 @@ class TelegramProxyPage(BasePage):
         self._runtime_initialized = False
         self._setup_ui()
         self._after_ui_built()
-        # Auto-start now lives in startup initialization, so it works
-        # even if this page is never opened.
+        # Запуск Telegram Proxy живёт в общем старте приложения,
+        # поэтому страница не поднимает его сама.
 
     def _after_ui_built(self) -> None:
         self._connect_signals()
         self._load_settings()
         self._log_timer = QTimer(self)
         self._log_timer.timeout.connect(self._flush_log_buffer)
-        self._log_timer.start(_LOG_REFRESH_MS)
+        if self.isVisible():
+            self._log_timer.start(_LOG_REFRESH_MS)
+        self._stats_timer = QTimer(self)
+        self._stats_timer.timeout.connect(self._emit_stats_if_visible)
+        if self.isVisible():
+            self._stats_timer.start(2000)
         self._apply_ui_texts()
         self._run_runtime_init_once()
 
@@ -254,7 +260,6 @@ class TelegramProxyPage(BasePage):
         self._host_edit = widgets.host_edit
         self._port_label = widgets.port_label
         self._port_spin = widgets.port_spin
-        self._autostart_toggle = widgets.autostart_toggle
         self._auto_deeplink_toggle = widgets.auto_deeplink_toggle
         self._upstream_card = widgets.upstream_card
         self._upstream_desc_label = widgets.upstream_desc_label
@@ -408,7 +413,6 @@ class TelegramProxyPage(BasePage):
             upstream_pass_edit=getattr(self, "_upstream_pass_edit", None),
             log_edit=getattr(self, "_log_edit", None),
             diag_edit=getattr(self, "_diag_edit", None),
-            autostart_toggle=getattr(self, "_autostart_toggle", None),
             auto_deeplink_toggle=getattr(self, "_auto_deeplink_toggle", None),
             upstream_toggle=getattr(self, "_upstream_toggle", None),
             upstream_preset_row=getattr(self, "_upstream_preset_row", None),
@@ -460,13 +464,12 @@ class TelegramProxyPage(BasePage):
             upstream_mode_toggle=self._upstream_mode_toggle,
             index=index,
         )
+        enable_setting_card_group_auto_height(self._upstream_card)
 
     def _connect_signals(self):
         mgr = _get_proxy_manager()
         mgr.status_changed.connect(self._on_status_changed)
-        mgr.stats_updated.connect(self._on_stats_updated)
 
-        self._autostart_toggle.toggled.connect(self._on_autostart_changed)
         self._port_spin.valueChanged.connect(self._on_port_changed)
         self._host_edit.editingFinished.connect(self._on_host_changed)
 
@@ -489,7 +492,6 @@ class TelegramProxyPage(BasePage):
             upstream_catalog=self._upstream_catalog,
             port_spin=self._port_spin,
             host_edit=self._host_edit,
-            autostart_toggle=self._autostart_toggle,
             update_manual_instructions=self._update_manual_instructions,
             upstream_toggle=self._upstream_toggle,
             upstream_host_edit=self._upstream_host_edit,
@@ -499,16 +501,6 @@ class TelegramProxyPage(BasePage):
             refresh_upstream_preset_combo_callback=self._refresh_upstream_preset_combo,
             upstream_mode_toggle=self._upstream_mode_toggle,
         )
-
-    def _auto_start_check(self):
-        """Auto-start proxy if autostart is enabled."""
-        try:
-            from settings.store import get_tg_proxy_autostart
-            if get_tg_proxy_autostart():
-                self._start_proxy()
-                self._try_auto_deeplink()
-        except Exception:
-            pass
 
     def _try_auto_deeplink(self):
         """Open tg:// deep link automatically on first start."""
@@ -698,8 +690,25 @@ class TelegramProxyPage(BasePage):
             ),
             set_generation=lambda value: setattr(self, "_relay_check_gen", value),
         )
+        if self._stats_timer is not None:
+            if running and self.isVisible() and not self._stats_timer.isActive():
+                self._stats_timer.start(2000)
+            elif not running:
+                self._stats_timer.stop()
 
-    def _on_stats_updated(self, stats):
+    def _emit_stats_if_visible(self):
+        if self._cleanup_in_progress or not self.isVisible():
+            return
+        mgr = _get_proxy_manager()
+        if not mgr.is_running:
+            if self._stats_timer is not None:
+                self._stats_timer.stop()
+            return
+        self._apply_stats(mgr.stats)
+
+    def _apply_stats(self, stats):
+        if stats is None:
+            return
         apply_stats_updated(
             stats=stats,
             prev_sent=getattr(self, '_prev_bytes_sent', 0),
@@ -714,9 +723,6 @@ class TelegramProxyPage(BasePage):
                 setattr(self, "_speed_hist_down", down),
             ),
         )
-
-    def _on_autostart_changed(self, checked: bool):
-        TelegramProxySettingsController.set_autostart(checked)
 
     def _on_port_changed(self, port: int):
         normalized = TelegramProxySettingsController.set_port(port)
@@ -870,12 +876,31 @@ class TelegramProxyPage(BasePage):
         if not plan.ok and plan.log_line:
             log(plan.log_line, "WARNING")
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._log_timer is not None and not self._log_timer.isActive():
+            self._log_timer.start(_LOG_REFRESH_MS)
+        if self._stats_timer is not None and _get_proxy_manager().is_running and not self._stats_timer.isActive():
+            self._stats_timer.start(2000)
+            self._emit_stats_if_visible()
+
+    def hideEvent(self, event):
+        if self._log_timer is not None:
+            self._log_timer.stop()
+        if self._stats_timer is not None:
+            self._stats_timer.stop()
+        super().hideEvent(event)
+
     def cleanup(self):
         """Called on app exit."""
         self._cleanup_in_progress = True
         self._relay_check_gen = getattr(self, '_relay_check_gen', 0) + 1
         if self._log_timer is not None:
             self._log_timer.stop()
+        if self._stats_timer is not None:
+            self._stats_timer.stop()
+            self._stats_timer.deleteLater()
+            self._stats_timer = None
         if self._diag_poll_timer is not None:
             self._diag_poll_timer.stop()
             self._diag_poll_timer.deleteLater()

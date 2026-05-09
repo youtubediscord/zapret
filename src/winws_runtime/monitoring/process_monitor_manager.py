@@ -21,7 +21,7 @@ class ProcessMonitorManager(QObject):
         
         from winws_runtime.monitoring.process_monitor import ProcessMonitorThread
         
-        # 2000 ms is enough for crash detection; direct start/stop already updates UI immediately.
+        # 2000 ms хватает для обнаружения падения; start/stop режима preset обновляет UI сразу.
         self.process_monitor = ProcessMonitorThread(interval_ms=2000)
         
         if hasattr(self.process_monitor, "processDetailsChanged"):

@@ -894,10 +894,10 @@ class SystemTrayManager:
 
     def _cleanup_loaded_detail_page_overlays(self) -> None:
         try:
-            from ui.navigation_targets import get_strategy_detail_pages
+            from ui.navigation_pages import get_profile_detail_pages
             from ui.page_method_dispatch import close_page_transient_overlays
 
-            for page_name in get_strategy_detail_pages():
+            for page_name in get_profile_detail_pages():
                 try:
                     close_page_transient_overlays(self.parent, page_name)
                 except Exception:

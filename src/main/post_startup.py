@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -246,7 +247,12 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
     def _startup_update_worker() -> None:
         try:
             result = run_startup_update_check()
-            if result.get("error"):
+            if result.get("skipped"):
+                log(
+                    f"Автопроверка обновлений пропущена: {result.get('skip_reason') or 'нет необходимости'}",
+                    "🔁 UPDATE",
+                )
+            elif result.get("error"):
                 update_bridge.check_error.emit(result["error"])
             elif result.get("has_update"):
                 update_bridge.update_found.emit(
@@ -295,5 +301,62 @@ def install_post_startup_tasks(window: "LupiDPIApp") -> None:
         import threading
 
         threading.Thread(target=run_cpu_diagnostic, daemon=True, name="CPUDiagnostic").start()
+
+    def _auto_qt_event_diag_enabled() -> bool:
+        raw = os.environ.get("ZAPRET_AUTO_QT_EVENT_DIAGNOSTIC")
+        if raw is not None and str(raw).strip() != "":
+            return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        try:
+            from config.build_info import CHANNEL
+
+            return str(CHANNEL or "").strip().lower() == "dev"
+        except Exception:
+            return False
+
+    if _auto_qt_event_diag_enabled():
+        class _QtEventDiagBridge(QObject):
+            install_requested = pyqtSignal()
+
+        qt_event_diag_bridge = _QtEventDiagBridge()
+
+        def _install_qt_event_diag() -> None:
+            try:
+                from PyQt6.QtWidgets import QApplication
+                from main.qt_event_diagnostics import install_qt_event_diagnostic
+
+                install_qt_event_diagnostic(
+                    QApplication.instance(),
+                    interval_ms=5000,
+                    top_n=14,
+                    max_reports=8,
+                )
+            except Exception as exc:
+                log(f"Qt event auto diagnostic install failed: {exc}", "WARNING")
+
+        qt_event_diag_bridge.install_requested.connect(_install_qt_event_diag)
+
+        def _auto_qt_event_diag_probe() -> None:
+            try:
+                import time as _time
+                import psutil as _psutil
+
+                _time.sleep(18)
+                proc = _psutil.Process()
+                proc.cpu_percent(interval=None)
+                cpu = float(proc.cpu_percent(interval=5.0))
+                log(f"Auto Qt event diagnostic CPU sample: {cpu:.1f}%", "INFO")
+                if cpu >= 15.0:
+                    log("Auto Qt event diagnostic enabled due to high GUI CPU", "WARNING")
+                    qt_event_diag_bridge.install_requested.emit()
+            except Exception as exc:
+                log(f"Auto Qt event diagnostic probe failed: {exc}", "DEBUG")
+
+        import threading
+
+        threading.Thread(
+            target=_auto_qt_event_diag_probe,
+            daemon=True,
+            name="QtEventAutoDiagnosticProbe",
+        ).start()
 
     sys.excepthook = build_global_exception_handler()

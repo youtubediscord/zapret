@@ -4,8 +4,8 @@ from app_notifications import advisory_notification, notification_action
 from log.log import log
 
 from ui.page_method_dispatch import (
-    show_active_strategy_page_loading,
-    show_active_strategy_page_success,
+    show_active_profiles_page_loading,
+    show_active_profiles_page_success,
 )
 
 
@@ -15,11 +15,11 @@ class RuntimeUiBridge:
     def __init__(self, window):
         self._window = window
 
-    def show_active_strategy_page_loading(self) -> bool:
-        return show_active_strategy_page_loading(self._window)
+    def show_active_profiles_page_loading(self) -> bool:
+        return show_active_profiles_page_loading(self._window)
 
-    def show_active_strategy_page_success(self) -> bool:
-        return show_active_strategy_page_success(self._window)
+    def show_active_profiles_page_success(self) -> bool:
+        return show_active_profiles_page_success(self._window)
 
     def show_launch_error(self, message: str) -> None:
         text = str(message or "").strip()

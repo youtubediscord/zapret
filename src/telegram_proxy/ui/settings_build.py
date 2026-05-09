@@ -34,7 +34,6 @@ class TelegramProxySettingsPanelWidgets:
     host_edit: object
     port_label: object
     port_spin: object
-    autostart_toggle: object
     auto_deeplink_toggle: object
     upstream_card: object
     upstream_desc_label: object
@@ -160,14 +159,6 @@ def build_telegram_proxy_settings_panel(
     host_port_row.addWidget(port_spin)
     host_port_row.addStretch()
     insert_widget_into_setting_card_group(settings_card, 1, settings_host_row)
-
-    autostart_toggle = win11_toggle_row_cls(
-        "mdi.play-circle-outline",
-        "Автозапуск прокси",
-        "Запускать прокси автоматически при старте программы",
-    )
-    autostart_toggle.toggle.setChecked(True)
-    settings_card.addSettingCard(autostart_toggle)
 
     auto_deeplink_toggle = win11_toggle_row_cls(
         "mdi.telegram",
@@ -315,7 +306,6 @@ def build_telegram_proxy_settings_panel(
         host_edit=host_edit,
         port_label=port_label,
         port_spin=port_spin,
-        autostart_toggle=autostart_toggle,
         auto_deeplink_toggle=auto_deeplink_toggle,
         upstream_card=upstream_card,
         upstream_desc_label=upstream_desc_label,

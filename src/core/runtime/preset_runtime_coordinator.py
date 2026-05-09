@@ -5,21 +5,16 @@ from typing import Callable, Optional
 
 from PyQt6.QtCore import QFileSystemWatcher, QTimer, QObject
 
-from winws_runtime.flow.preset_switch_policy import request_runtime_preset_switch
+from winws_runtime.flow.preset_switch_policy import request_selected_source_preset_apply
 from winws_runtime.runners.preset_runner_support import publish_active_preset_content_changed
 from log.log import log
 
 
 
 class PresetRuntimeCoordinator(QObject):
-    """Coordinates preset-switch runtime behavior outside of UI pages.
+    """Координирует применение выбранного source preset вне UI-страниц.
 
-    Responsibilities:
-    - watch the active preset file for external/source changes
-    - request process restart after preset switch
-    - invoke UI refresh callbacks after preset changes
-
-    UI code should provide callbacks, but the runtime policy itself lives here.
+    UI передаёт callback-и, а правило применения source preset живёт здесь.
     """
 
     def __init__(
@@ -30,7 +25,7 @@ class PresetRuntimeCoordinator(QObject):
         get_active_preset_path: Callable[[], str],
         is_dpi_running: Callable[[], bool],
         restart_dpi_async: Callable[[], None],
-        switch_direct_preset_async: Callable[[str], None],
+        switch_presets_async: Callable[[str], None],
         refresh_after_switch: Callable[[], None],
     ) -> None:
         super().__init__(parent)
@@ -38,7 +33,7 @@ class PresetRuntimeCoordinator(QObject):
         self._get_active_preset_path = get_active_preset_path
         self._is_dpi_running = is_dpi_running
         self._restart_dpi_async = restart_dpi_async
-        self._switch_direct_preset_async = switch_direct_preset_async
+        self._switch_presets_async = switch_presets_async
         self._refresh_after_switch = refresh_after_switch
 
         self._active_preset_file_watcher: QFileSystemWatcher | None = None
@@ -85,7 +80,7 @@ class PresetRuntimeCoordinator(QObject):
         log(f"Пресет переключен: {preset_file_name}", "INFO")
         self._last_switched_preset_file_name = str(preset_file_name or "").strip()
         self.setup_active_preset_file_watcher()
-        self.request_dpi_restart_after_preset_switch()
+        self._request_selected_source_preset_apply()
         try:
             parent = self.parent()
             store = getattr(parent, "ui_state_store", None)
@@ -108,13 +103,13 @@ class PresetRuntimeCoordinator(QObject):
             pass
         self.schedule_refresh_after_preset_switch()
 
-    def request_dpi_restart_after_preset_switch(self) -> None:
+    def _request_selected_source_preset_apply(self) -> None:
         try:
             launch_method = str(self._get_launch_method() or "").strip().lower()
             parent = self.parent()
             if parent is None:
                 return
-            request_runtime_preset_switch(
+            request_selected_source_preset_apply(
                 parent,
                 launch_method=launch_method,
                 reason="preset_switched",

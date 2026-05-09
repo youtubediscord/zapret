@@ -67,20 +67,19 @@ class StrategyRunnerBase(ABC):
     @abstractmethod
     def start_from_preset_file(self, preset_path: str, strategy_name: str = "Preset") -> bool:
         """
-        Starts strategy directly from existing preset file.
+        Запускает движок из выбранного preset-файла.
 
-        This is the preferred method for launching DPI in the current
-        preset-based direct architecture.
+        Это основной способ запуска DPI в текущей preset-архитектуре.
 
-        Concrete runners must implement this explicitly. Preset launch is the
-        only supported direct-start contract in the current architecture.
+        Конкретные runner-ы должны явно реализовать этот метод. Запуск preset —
+        единственный поддерживаемый контракт запуска для режима preset.
 
         Args:
-            preset_path: Path to the preset file
-            strategy_name: Strategy name for logs
+            preset_path: путь к preset-файлу
+            strategy_name: имя для логов
 
         Returns:
-            True if strategy started successfully
+            True, если запуск прошёл успешно
         """
         pass
 

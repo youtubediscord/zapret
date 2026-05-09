@@ -7,11 +7,11 @@ from log.log import log
 
 
 
-def _is_direct_source_preset_launch() -> bool:
+def _is_preset_mode_source_launch() -> bool:
     try:
         from settings.dpi.strategy_settings import get_strategy_launch_method
 
-        return (get_strategy_launch_method() or "").strip().lower() in {"direct_zapret1", "direct_zapret2"}
+        return (get_strategy_launch_method() or "").strip().lower() in {"zapret1_mode", "zapret2_mode"}
     except Exception:
         return False
 
@@ -60,7 +60,7 @@ def apply_wssize_parameter(args: list) -> list:
     Returns:
         Модифицированный список аргументов с добавленными wssize параметрами
     """
-    if _is_direct_source_preset_launch():
+    if _is_preset_mode_source_launch():
         return args
 
     from settings.dpi.strategy_settings import get_wssize_enabled

@@ -3,7 +3,6 @@
 
 Используется в:
 - winws_runtime/runners/*
-- filters/ui/strategy_tree.py и связанные workflow
 """
 
 import os

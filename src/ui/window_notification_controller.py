@@ -299,8 +299,8 @@ class WindowNotificationController(QObject):
         if kind == "open_url":
             return lambda: webbrowser.open(str(action.get("value") or ""))
 
-        if kind == "open_strategy_page":
-            return lambda: self._open_strategy_page_for_method(str(action.get("value") or ""), bar)
+        if kind == "open_profiles_page":
+            return lambda: self._open_profiles_page_for_method(str(action.get("value") or ""), bar)
 
         if kind == "launch_conflict_kill_start":
             return lambda: self._run_launch_conflict_action(
@@ -419,18 +419,18 @@ class WindowNotificationController(QObject):
         except Exception as e:
             log(f"Не удалось отменить запуск после предупреждения о конфликтах: {e}", "DEBUG")
 
-    def _open_strategy_page_for_method(self, method: str, bar=None) -> None:
+    def _open_profiles_page_for_method(self, method: str, bar=None) -> None:
         try:
-            from ui.navigation_targets import resolve_strategy_page_for_method
+            from ui.navigation_pages import resolve_profiles_page_for_method
             from ui.window_adapter import show_page
 
-            target_page = resolve_strategy_page_for_method(str(method or "").strip().lower())
-            if target_page is None:
-                raise RuntimeError("Не удалось определить страницу стратегий для текущего режима")
+            profiles_page = resolve_profiles_page_for_method(str(method or "").strip().lower())
+            if profiles_page is None:
+                raise RuntimeError("Не удалось определить страницу profiles для текущего режима")
 
-            ok = bool(show_page(self.host, target_page, allow_internal=True))
+            ok = bool(show_page(self.host, profiles_page, allow_internal=True))
             if not ok:
-                raise RuntimeError("Не удалось открыть страницу стратегий")
+                raise RuntimeError("Не удалось открыть страницу profiles")
 
             try:
                 if bar is not None:
@@ -438,17 +438,17 @@ class WindowNotificationController(QObject):
             except Exception:
                 pass
         except Exception as e:
-            log(f"Не удалось открыть страницу стратегий: {e}", "DEBUG")
+            log(f"Не удалось открыть страницу profiles: {e}", "DEBUG")
             self.notify(
                 advisory_notification(
                     level="warning",
                     title="Не удалось открыть раздел",
-                    content="Не удалось перейти в раздел стратегий автоматически.",
-                    source="navigation.strategy_page",
+                    content="Не удалось перейти в раздел profiles автоматически.",
+                    source="navigation.profiles_page",
                     presentation="infobar",
                     queue="immediate",
                     duration=7000,
-                    dedupe_key="navigation.strategy_page",
+                    dedupe_key="navigation.profiles_page",
                 )
             )
 

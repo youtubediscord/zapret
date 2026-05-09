@@ -12,17 +12,17 @@ from qfluentwidgets import (
 
 from .base_page import BasePage
 from ui.page_dependencies import require_page_app_context
-from direct_preset.ui.control.control_page_program_settings_build import (
+from presets.ui.control.control_page_program_settings_build import (
     build_control_program_settings_section,
 )
-from direct_preset.ui.control.control_page_runtime_helpers import (
+from presets.ui.control.control_page_runtime_helpers import (
     apply_program_settings_snapshot,
     apply_status_plan,
     apply_strategy_display,
     set_toggle_checked,
     show_action_result_plan,
 )
-from direct_preset.ui.control.control_page_sections_build import (
+from presets.ui.control.control_page_sections_build import (
     build_control_extra_actions_section,
     build_control_management_section,
     build_control_status_section,
@@ -35,7 +35,7 @@ from ui.compat_widgets import (
 )
 from app_state.main_window_state import AppUiState, MainWindowStateStore
 from ui.text_catalog import tr as tr_catalog
-from direct_preset.ui.control.control_page_shared import (
+from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
     attach_program_settings_runtime,
     bind_control_ui_state_store,
@@ -45,7 +45,7 @@ from direct_preset.ui.control.control_page_shared import (
 from qfluentwidgets import themeColor
 
 
-from direct_preset.ui.control.control_runtime_controller import ControlPageController
+from presets.ui.control.control_runtime_controller import ControlPageController
 
 
 class BigActionButton(PrimaryActionButton):

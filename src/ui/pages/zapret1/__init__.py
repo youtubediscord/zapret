@@ -6,11 +6,11 @@ from importlib import import_module
 
 
 _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
-    "Zapret1DirectControlPage": ("direct_preset.ui.control.zapret1.page", "Zapret1DirectControlPage"),
-    "Zapret1StrategiesPage": ("filters.ui.filter_list.zapret1.targets_page", "Zapret1StrategiesPage"),
-    "Zapret1UserPresetsPage": ("direct_preset.ui.zapret1.user_presets_page", "Zapret1UserPresetsPage"),
-    "Zapret1StrategyDetailPage": ("filters.ui.filter_list.zapret1.strategy_detail_page", "Zapret1StrategyDetailPage"),
-    "Zapret1PresetDetailPage": ("direct_preset.ui.zapret1.preset_detail_page", "Zapret1PresetDetailPage"),
+    "Zapret1ModeControlPage": ("presets.ui.control.zapret1.page", "Zapret1ModeControlPage"),
+    "Zapret1ProfilesPage": ("profile.ui.profiles_page", "Zapret1ProfilesPage"),
+    "Zapret1UserPresetsPage": ("presets.ui.zapret1.user_presets_page", "Zapret1UserPresetsPage"),
+    "Zapret1ProfileDetailPage": ("profile.ui.detail_page", "Zapret1ProfileDetailPage"),
+    "Zapret1PresetDetailPage": ("presets.ui.zapret1.preset_detail_page", "Zapret1PresetDetailPage"),
 }
 
 __all__ = list(_PAGE_EXPORTS)

@@ -6,11 +6,25 @@ from log.log import log
 
 from main.runtime_state import startup_elapsed_ms
 from ui.window_appearance_state import on_animations_changed
-from ui.holiday_effects import HolidayEffectsManager
 from app_state.main_window_state import AppUiState
 
 
 class WindowStateSyncMixin:
+    def _ensure_holiday_effects_manager(self):
+        effects = getattr(self, "_holiday_effects", None)
+        if effects is not None:
+            return effects
+
+        try:
+            from ui.holiday_effects import HolidayEffectsManager
+
+            effects = HolidayEffectsManager(self)
+            self._holiday_effects = effects
+            return effects
+        except Exception as e:
+            log(f"❌ Ошибка создания праздничных эффектов: {e}", "DEBUG")
+            return None
+
     @staticmethod
     def _build_initial_ui_state() -> AppUiState:
         """Честное стартовое состояние UI до реальной синхронизации runtime-слоёв.
@@ -32,8 +46,8 @@ class WindowStateSyncMixin:
             launch_method = str(get_strategy_launch_method() or "").strip().lower()
 
             autostart_pending_methods = {
-                "direct_zapret2",
-                "direct_zapret1",
+                "zapret2_mode",
+                "zapret1_mode",
                 "orchestra",
             }
 
@@ -63,7 +77,7 @@ class WindowStateSyncMixin:
             return
 
         launch_method = str(payload.get("launch_method") or "").strip().lower()
-        if launch_method not in {"direct_zapret1", "direct_zapret2"}:
+        if launch_method not in {"zapret1_mode", "zapret2_mode"}:
             return
 
         snapshot = runtime_service.snapshot()
@@ -108,10 +122,9 @@ class WindowStateSyncMixin:
                 snapshot = store.snapshot()
                 store.set_holiday_overlays(bool(enabled), snapshot.snowflakes_enabled)
 
-            effects = getattr(self, "_holiday_effects", None)
+            effects = self._ensure_holiday_effects_manager()
             if effects is None:
-                effects = HolidayEffectsManager(self)
-                self._holiday_effects = effects
+                return
             effects.set_garland_enabled(bool(enabled))
         except Exception as e:
             log(f"❌ Ошибка переключения гирлянды: {e}", "ERROR")
@@ -124,10 +137,9 @@ class WindowStateSyncMixin:
                 snapshot = store.snapshot()
                 store.set_holiday_overlays(snapshot.garland_enabled, bool(enabled))
 
-            effects = getattr(self, "_holiday_effects", None)
+            effects = self._ensure_holiday_effects_manager()
             if effects is None:
-                effects = HolidayEffectsManager(self)
-                self._holiday_effects = effects
+                return
             effects.set_snowflakes_enabled(bool(enabled))
         except Exception as e:
             log(f"❌ Ошибка переключения снежинок: {e}", "ERROR")
@@ -135,8 +147,8 @@ class WindowStateSyncMixin:
     def set_window_opacity(self, value: int) -> None:
         """Устанавливает прозрачность фона окна (0–100%).
 
-        Win11: обновляет тинт-оверлей поверх Mica (apply_aero_effect fast path).
-        Win10: применяет setWindowOpacity через apply_aero_effect.
+        Win11: при включённой Mica обновляет её тинт.
+        В обычном статичном фоне просто пересобирает фон окна.
         """
         try:
             store = getattr(self, "ui_state_store", None)
@@ -149,9 +161,13 @@ class WindowStateSyncMixin:
                 log("Transparent effect проигнорирован (не standard пресет)", "DEBUG")
                 return
 
-            from ui.theme import apply_aero_effect
+            from settings.store import get_mica_enabled
+            from ui.theme import apply_aero_effect, apply_window_background
 
-            apply_aero_effect(self, value)
+            if get_mica_enabled():
+                apply_aero_effect(self, value)
+            else:
+                apply_window_background(self)
             log(f"Прозрачность обновлена: {value}%", "DEBUG")
         except Exception as e:
             log(f"❌ Ошибка при установке прозрачности окна: {e}", "ERROR")

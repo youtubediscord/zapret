@@ -15,19 +15,19 @@ class PageName(Enum):
 
     # === Основные страницы ===
     CONTROL = auto()                 # Управление DPI
-    ZAPRET2_DIRECT_CONTROL = auto()  # Zapret 2 Direct: управление (главная вкладка в "Стратегии")
-    ZAPRET2_DIRECT = auto()          # Zapret 2 Direct стратегии
-    ZAPRET1_DIRECT_CONTROL = auto()  # Zapret 1 Direct: управление (главная вкладка)
-    ZAPRET1_DIRECT = auto()          # Zapret 1 Direct стратегии
-    ZAPRET1_USER_PRESETS = auto()    # Zapret 1 Direct: пользовательские пресеты
-    ZAPRET1_STRATEGY_DETAIL = auto() # Zapret 1 Direct: детали стратегии для категории
-    ZAPRET2_STRATEGY_DETAIL = auto()         # Детальный просмотр стратегии
-    ZAPRET2_PRESET_DETAIL = auto()   # Zapret 2 Direct: подстраница пресета
-    ZAPRET1_PRESET_DETAIL = auto()   # Zapret 1 Direct: подстраница пресета
+    ZAPRET2_MODE_CONTROL = auto()  # Zapret 2 mode: управление
+    ZAPRET2_MODE = auto()          # Zapret 2 mode: profiles
+    ZAPRET1_MODE_CONTROL = auto()  # Zapret 1 mode: управление (главная вкладка)
+    ZAPRET1_MODE = auto()          # Zapret 1 mode: profiles
+    ZAPRET1_USER_PRESETS = auto()    # Zapret 1 mode: пользовательские пресеты
+    ZAPRET1_PROFILE_DETAIL = auto()  # Zapret 1 mode: детали profile
+    ZAPRET2_PROFILE_DETAIL = auto()  # Zapret 2 mode: детали profile
+    ZAPRET2_PRESET_DETAIL = auto()   # Zapret 2 mode: подстраница пресета
+    ZAPRET1_PRESET_DETAIL = auto()   # Zapret 1 mode: подстраница пресета
     HOSTLIST = auto()                # Листы (Hostlist + IPset)
     BLOBS = auto()                   # Блобы
     DPI_SETTINGS = auto()            # Настройки DPI
-    ZAPRET2_USER_PRESETS = auto()      # Zapret 2 Direct: пользовательские пресеты
+    ZAPRET2_USER_PRESETS = auto()      # Zapret 2 mode: пользовательские пресеты
 
     # === Мои списки ===
     NETROGAT = auto()                # Исключения (netrogat.txt)
