@@ -5,6 +5,7 @@ from PyQt6.QtCore import QTimer
 from ui.navigation_pages import resolve_preset_setup_page_for_method
 from ui.page_contracts import PageMethodName, get_page_method
 from ui.page_names import PageName
+from ui.window_ui_session import get_window_ui_session
 
 def call_loaded_page_method(
     window,
@@ -13,11 +14,11 @@ def call_loaded_page_method(
     *args,
     delay_ms: int = 0,
 ) -> bool:
-    page_host = getattr(window, "_page_host", None)
-    if page_host is None:
+    session = get_window_ui_session(window)
+    if session is None:
         return False
 
-    page = page_host.get_loaded_page(page_name)
+    page = session.page_host.get_loaded_page(page_name)
     if page is None:
         return False
 

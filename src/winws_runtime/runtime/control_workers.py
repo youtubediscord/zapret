@@ -3,6 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from log.log import log
+from presets.public import get_launch_snapshot
 from settings.dpi.strategy_settings import get_strategy_launch_method
 from settings.mode import is_orchestra_launch_method, is_preset_launch_method
 from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
@@ -128,10 +129,12 @@ class PresetSwitchWorker(QObject):
 
             from winws_runtime.runners.runner_factory import get_strategy_runner
 
-            preset = self.app_instance.app_context.preset_mode_coordinator.ensure_launch_preset(
+            snapshot = get_launch_snapshot(
                 self.launch_method,
+                app_context=self.app_instance.app_context,
                 require_filters=True,
             )
+            preset = snapshot.to_launch_preset()
 
             if not bool(self._is_generation_current(self.generation)):
                 self.finished.emit(True, "", self.generation, self.launch_method, True)

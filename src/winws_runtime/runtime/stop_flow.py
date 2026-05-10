@@ -30,7 +30,7 @@ def stop_dpi_async(
     if bridge is not None:
         bridge.show_active_preset_setup_page_loading()
 
-    controller.app.ui_state_store.set_launch_busy(True, "Остановка Zapret...")
+    controller._runtime_service().set_busy(True, "Остановка Zapret...")
     controller._begin_runtime_stop()
     controller.app.manually_stopped = True
 

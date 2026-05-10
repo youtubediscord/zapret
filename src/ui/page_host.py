@@ -18,6 +18,7 @@ from ui.startup_ui_metrics import (
     pump_startup_ui,
     record_startup_page_init_metric,
 )
+from ui.window_ui_session import get_window_ui_session
 
 
 class WindowPageHost:
@@ -51,10 +52,10 @@ class WindowPageHost:
         return self.pages.get(page_name)
 
     def has_nav_item(self, page_name: PageName) -> bool:
-        nav_items = getattr(self._window, "_nav_items", None)
-        if not isinstance(nav_items, dict):
+        session = get_window_ui_session(self._window)
+        if session is None:
             return False
-        return page_name in nav_items
+        return page_name in session.nav_items
 
     def set_stacked_widget_current_page(self, page: QWidget | None, *, animate: bool = True) -> bool:
         stack = getattr(self._window, "stackedWidget", None)

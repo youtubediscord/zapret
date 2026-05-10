@@ -10,11 +10,8 @@ if TYPE_CHECKING:
     from winws_runtime.flow.preset_mode import PresetModeCoordinator
     from winws_runtime.state import LaunchRuntimeService
     from core.paths import AppPaths
-    from presets.file_store import PresetFileStore
-    from presets.ui_store import PresetUiStore
-    from presets.selection_service import PresetSelectionService
+    from presets.public import PresetFileStore, PresetSelectionService, PresetUiStore
     from core.runtime.orchestra_whitelist_runtime_service import OrchestraWhitelistRuntimeService
-    from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
     from settings.mode import ENGINE_WINWS1, ENGINE_WINWS2
@@ -37,7 +34,6 @@ class AppContext:
     orchestra_whitelist_runtime_service: OrchestraWhitelistRuntimeService
     program_settings_runtime_service: ProgramSettingsRuntimeService
     user_presets_runtime_service_factory: Callable[[str], UserPresetsRuntimeService]
-    preset_runtime_coordinator_factory: Callable[..., PresetRuntimeCoordinator]
 
 
 def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppContext:
@@ -48,11 +44,8 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
     from winws_runtime.flow.preset_mode import PresetModeCoordinator
     from winws_runtime.state import LaunchRuntimeService
     from core.paths import AppPaths
-    from presets.file_store import PresetFileStore
-    from presets.ui_store import PresetUiStore
-    from presets.selection_service import PresetSelectionService
+    from presets.public import PresetFileStore, PresetSelectionService, PresetUiStore
     from core.runtime.orchestra_whitelist_runtime_service import OrchestraWhitelistRuntimeService
-    from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
     from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
     from core.runtime.user_presets_runtime_service import UserPresetsRuntimeService
     from settings.mode import ENGINE_WINWS1, ENGINE_WINWS2
@@ -84,7 +77,6 @@ def build_app_context(*, initial_ui_state: AppUiState | None = None) -> AppConte
         orchestra_whitelist_runtime_service=orchestra_whitelist_runtime_service,
         program_settings_runtime_service=program_settings_runtime_service,
         user_presets_runtime_service_factory=lambda scope_key: UserPresetsRuntimeService(scope_key=scope_key),
-        preset_runtime_coordinator_factory=lambda *args, **kwargs: PresetRuntimeCoordinator(*args, **kwargs),
     )
 
 

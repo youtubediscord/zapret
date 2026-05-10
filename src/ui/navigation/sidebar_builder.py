@@ -17,10 +17,12 @@ from ui.navigation.schema import (
 from ui.page_names import PageName
 from ui.startup_ui_metrics import pump_startup_ui
 from ui.text_catalog import tr as tr_catalog
+from ui.window_ui_session import get_window_ui_session
 
 
 def _get_page_host(window):
-    return getattr(window, "_page_host", None)
+    session = get_window_ui_session(window)
+    return None if session is None else session.page_host
 
 
 def _ensure_page(window, page_name: PageName):
@@ -31,11 +33,8 @@ def _ensure_page(window, page_name: PageName):
 
 
 def _get_loaded_pages(window) -> dict[PageName, QWidget]:
-    page_host = _get_page_host(window)
-    pages = getattr(page_host, "pages", None)
-    if isinstance(pages, dict):
-        return pages
-    return {}
+    session = get_window_ui_session(window)
+    return {} if session is None else session.pages
 
 
 def _scroll_layout_index(window, widget) -> int:
@@ -51,10 +50,13 @@ def _scroll_layout_index(window, widget) -> int:
 
 
 def _get_scroll_widget_for_layout_entry(window, entry) -> QWidget | None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return None
     if getattr(entry, "kind", "") == "page":
-        return getattr(window, "_nav_items", {}).get(entry.page_name)
+        return session.nav_items.get(entry.page_name)
     if getattr(entry, "kind", "") == "header":
-        return (getattr(window, "_nav_header_by_group", None) or {}).get(entry.group_name)
+        return session.nav_header_by_group.get(entry.group_name)
     return None
 
 
@@ -76,10 +78,11 @@ def add_nav_item(
     initial_visible: bool | None = None,
     insert_index: int | None = None,
 ) -> None:
-    if not getattr(window, "_has_fluent_nav", False):
+    session = get_window_ui_session(window)
+    if session is None or not session.has_fluent_nav:
         return
 
-    if page_name in getattr(window, "_nav_items", {}):
+    if page_name in session.nav_items:
         return
 
     from ui.navigation.search import show_page
@@ -90,7 +93,7 @@ def add_nav_item(
         log(f"[NAV] _add {page_name.name}: route key is missing - skip", "DEBUG")
         return
 
-    icon = window._nav_icons.get(page_name, window._default_nav_icon)
+    icon = session.nav_icons.get(page_name, session.default_nav_icon)
     text = get_nav_label(window, page_name)
     eager_pages = set(get_eager_page_names_for_method(window._get_launch_method()))
 
@@ -140,20 +143,21 @@ def add_nav_item(
         log(f"[NAV] addItem lazy {page_name.name} item={item}", "DEBUG")
 
     if item is not None:
-        window._nav_items[page_name] = item
+        session.nav_items[page_name] = item
         if initial_visible is not None:
             try:
                 item.setVisible(bool(initial_visible))
             except Exception:
                 pass
     else:
-        log(f"[NAV] addSubInterface returned None for {page_name.name} - not in _nav_items!", "WARNING")
+        log(f"[NAV] addSubInterface returned None for {page_name.name} - not in nav_items!", "WARNING")
 
     pump_startup_ui(window)
 
 
 def init_navigation(window) -> None:
-    if not getattr(window, "_has_fluent_nav", False):
+    session = get_window_ui_session(window)
+    if session is None or not session.has_fluent_nav:
         return
 
     from ui.navigation.search import (
@@ -163,18 +167,18 @@ def init_navigation(window) -> None:
         update_titlebar_search_width,
     )
 
-    pos_scroll = window._nav_scroll_position
+    pos_scroll = session.nav_scroll_position
     current_method = window._get_launch_method()
 
-    window._nav_items = {}
-    window._nav_search_query = ""
-    window._nav_mode_visibility = {}
-    window._nav_headers = []
-    window._nav_header_by_group = {}
-    window._sidebar_search_nav_widget = None
-    window._sidebar_search_model = None
-    window._sidebar_search_completer = None
-    window._sidebar_search_titlebar_attached = False
+    session.nav_items = {}
+    session.nav_search_query = ""
+    session.nav_mode_visibility = {}
+    session.nav_headers = []
+    session.nav_header_by_group = {}
+    session.sidebar_search_nav_widget = None
+    session.sidebar_search_model = None
+    session.sidebar_search_completer = None
+    session.sidebar_search_titlebar_attached = False
     initial_visibility = get_nav_visibility(current_method)
 
     def _add(page_name, position=pos_scroll):
@@ -187,15 +191,15 @@ def init_navigation(window) -> None:
 
     nav = window.navigationInterface
 
-    if getattr(window, "_has_fluent_nav", False):
-        widget_cls = getattr(window, "_sidebar_search_widget_cls", None)
+    if session.has_fluent_nav:
+        widget_cls = session.sidebar_search_widget_cls
         if widget_cls is not None:
-            window._sidebar_search_nav_widget = widget_cls()
-            window._sidebar_search_nav_widget.textChanged.connect(
+            session.sidebar_search_nav_widget = widget_cls()
+            session.sidebar_search_nav_widget.textChanged.connect(
                 lambda text, current_window=window: on_sidebar_search_changed(current_window, text)
             )
-            window._sidebar_search_nav_widget.set_placeholder_text(
-                tr_catalog("sidebar.search.placeholder", language=window._ui_language)
+            session.sidebar_search_nav_widget.set_placeholder_text(
+                tr_catalog("sidebar.search.placeholder", language=session.ui_language)
             )
             setup_sidebar_search_completer(window)
             attach_sidebar_search_to_titlebar(window)
@@ -204,11 +208,11 @@ def init_navigation(window) -> None:
     for group_plan in build_sidebar_group_plans(current_method):
         if group_plan.header_key:
             header = nav.addItemHeader(
-                tr_catalog(group_plan.header_key, language=window._ui_language),
+                tr_catalog(group_plan.header_key, language=session.ui_language),
                 pos_scroll,
             )
-            window._nav_header_by_group[group_plan.group_name] = header
-            window._nav_headers.append((header, group_plan.page_names, group_plan.header_key))
+            session.nav_header_by_group[group_plan.group_name] = header
+            session.nav_headers.append((header, group_plan.page_names, group_plan.header_key))
 
         for page_name in group_plan.page_names:
             _add(page_name)
@@ -226,7 +230,8 @@ def init_navigation(window) -> None:
 
 
 def sync_nav_visibility(window, method: str | None = None) -> None:
-    if not getattr(window, "_nav_items", None):
+    session = get_window_ui_session(window)
+    if session is None or not session.nav_items:
         return
 
     from ui.navigation.search import update_sidebar_search_suggestions
@@ -247,43 +252,44 @@ def sync_nav_visibility(window, method: str | None = None) -> None:
 
     visibility_by_page = get_nav_visibility(method)
 
-    log(f"[NAV] _sync_nav_visibility method={method!r}, _nav_items keys={[p.name for p in window._nav_items]}", "DEBUG")
+    log(f"[NAV] _sync_nav_visibility method={method!r}, nav_items keys={[p.name for p in session.nav_items]}", "DEBUG")
     mode_visibility: dict[PageName, bool] = {
-        page_name: True for page_name in window._nav_items
+        page_name: True for page_name in session.nav_items
     }
     for page_name, should_show in visibility_by_page.items():
-        item = window._nav_items.get(page_name)
+        item = session.nav_items.get(page_name)
         if item is None and bool(should_show):
             add_nav_item(
                 window,
                 page_name,
-                window._nav_scroll_position,
+                session.nav_scroll_position,
                 insert_index=_resolve_scroll_insert_index(window, page_name, method),
             )
-            item = window._nav_items.get(page_name)
+            item = session.nav_items.get(page_name)
 
         if item is not None:
             mode_visibility[page_name] = bool(should_show)
             log(f"[NAV]   {page_name.name} → modeVisible({should_show})", "DEBUG")
         elif bool(should_show):
-            log(f"[NAV]   {page_name.name} → NOT in _nav_items!", "WARNING")
+            log(f"[NAV]   {page_name.name} → NOT in nav_items!", "WARNING")
 
-    window._nav_mode_visibility = mode_visibility
+    session.nav_mode_visibility = mode_visibility
     apply_nav_visibility_filter(window)
     update_sidebar_search_suggestions(window)
 
 
 def apply_nav_visibility_filter(window) -> None:
-    if not getattr(window, "_nav_items", None):
+    session = get_window_ui_session(window)
+    if session is None or not session.nav_items:
         return
 
     from ui.navigation.text_sync import get_nav_label
 
-    search_query = (getattr(window, "_nav_search_query", "") or "").casefold()
-    mode_visibility = getattr(window, "_nav_mode_visibility", {}) or {}
+    search_query = (session.nav_search_query or "").casefold()
+    mode_visibility = session.nav_mode_visibility or {}
     visible_by_page: dict[PageName, bool] = {}
 
-    for page_name, item in window._nav_items.items():
+    for page_name, item in session.nav_items.items():
         mode_visible = bool(mode_visibility.get(page_name, True))
         label = get_nav_label(window, page_name)
         matches_query = not search_query or (search_query in label.casefold())
@@ -291,7 +297,7 @@ def apply_nav_visibility_filter(window) -> None:
         item.setVisible(final_visible)
         visible_by_page[page_name] = final_visible
 
-    for header, grouped_pages, _header_key in getattr(window, "_nav_headers", []):
+    for header, grouped_pages, _header_key in session.nav_headers:
         if header is None:
             continue
         header.setVisible(any(visible_by_page.get(page_name, False) for page_name in grouped_pages))

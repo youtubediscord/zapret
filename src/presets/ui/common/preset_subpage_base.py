@@ -145,7 +145,6 @@ class PresetSubpageBase(BasePage):
         self._preset_path: Path | None = None
         self._is_loading = False
         self._cleanup_in_progress = False
-        self._preset_file_service = None
         self._ui_state_store = None
 
         self._save_timer = QTimer(self)
@@ -210,19 +209,6 @@ class PresetSubpageBase(BasePage):
         elif key == "list":
             self.back_clicked.emit()
 
-    def _get_preset_file_service(self):
-        method = self._preset_launch_method()
-        if not method:
-            return None
-        if self._preset_file_service is None:
-            from presets.file_service import PresetFileService
-
-            self._preset_file_service = PresetFileService.from_launch_method(
-                method,
-                app_context=self._require_app_context(),
-            )
-        return self._preset_file_service
-
     def _show_success(self, text: str) -> None:
         if InfoBar is not None:
             try:
@@ -240,13 +226,16 @@ class PresetSubpageBase(BasePage):
                 pass
 
     def _is_current_builtin(self) -> bool:
-        service = self._get_preset_file_service()
-        if service is None:
-            return False
         try:
+            from presets.public import get_preset_manifest_by_file_name
+
             if not self._preset_file_name:
                 return False
-            manifest = service.get_manifest_by_file_name(self._preset_file_name)
+            manifest = get_preset_manifest_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                app_context=self._require_app_context(),
+            )
             return bool(manifest is not None and str(manifest.kind or "").strip().lower() == "builtin")
         except Exception:
             return False
@@ -333,14 +322,23 @@ class PresetSubpageBase(BasePage):
         self._flush_pending_save()
         self._preset_file_name = str(file_name or "").strip()
         self._preset_name = Path(self._preset_file_name).stem if self._preset_file_name else ""
-        service = self._get_preset_file_service()
-        if service is not None and self._preset_file_name:
+        if self._preset_file_name:
             try:
-                manifest = service.get_manifest_by_file_name(self._preset_file_name)
+                from presets.public import get_preset_manifest_by_file_name, get_preset_source_path_by_file_name
+
+                manifest = get_preset_manifest_by_file_name(
+                    self._preset_launch_method(),
+                    self._preset_file_name,
+                    app_context=self._require_app_context(),
+                )
                 if manifest is not None:
                     self._preset_name = manifest.name
                     self._preset_file_name = manifest.file_name
-                self._preset_path = service.get_source_path_by_file_name(self._preset_file_name)
+                self._preset_path = get_preset_source_path_by_file_name(
+                    self._preset_launch_method(),
+                    self._preset_file_name,
+                    app_context=self._require_app_context(),
+                )
             except Exception:
                 self._preset_path = self._get_preset_path(self._preset_name)
         else:
@@ -364,11 +362,16 @@ class PresetSubpageBase(BasePage):
             is_active = active_file_name.lower() == self._preset_file_name.lower()
         elif self._preset_name:
             is_active = active_name.lower() == self._preset_name.lower()
-        service = self._get_preset_file_service()
         origin = "builtin" if self._is_current_builtin() else "user"
-        if service is not None and self._preset_file_name:
+        if self._preset_file_name:
             try:
-                manifest = service.get_manifest_by_file_name(self._preset_file_name)
+                from presets.public import get_preset_manifest_by_file_name
+
+                manifest = get_preset_manifest_by_file_name(
+                    self._preset_launch_method(),
+                    self._preset_file_name,
+                    app_context=self._require_app_context(),
+                )
                 if manifest is not None:
                     kind = str(manifest.kind or "").strip().lower()
                     if kind in {"builtin", "imported", "user"}:
@@ -422,15 +425,23 @@ class PresetSubpageBase(BasePage):
         if self._preset_path is None:
             return
         try:
-            service = self._get_preset_file_service()
-            if service is None:
-                raise ValueError("Не удалось получить доступ к файлу пресета.")
+            from presets.public import get_preset_source_path_by_file_name, save_preset_source_by_file_name
+
             if not self._preset_file_name:
                 raise ValueError("Не удалось определить имя файла пресета для сохранения.")
-            updated = service.save_source_text_by_file_name(self._preset_file_name, self.editor.toPlainText())
+            updated = save_preset_source_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                self.editor.toPlainText(),
+                app_context=self._require_app_context(),
+            )
             self._preset_name = updated.name
             self._preset_file_name = updated.file_name
-            self._preset_path = service.get_source_path_by_file_name(self._preset_file_name)
+            self._preset_path = get_preset_source_path_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                app_context=self._require_app_context(),
+            )
             self._set_footer(f"Сохранено {datetime.now().strftime('%H:%M:%S')}")
         except Exception as e:
             self._set_footer(f"Ошибка сохранения: {e}")
@@ -506,12 +517,16 @@ class PresetSubpageBase(BasePage):
         if not new_name or new_name == self._preset_name:
             return
         try:
-            service = self._get_preset_file_service()
-            if service is None:
-                raise ValueError("Не удалось получить доступ к файлу пресета.")
+            from presets.public import rename_preset_by_file_name
+
             if not self._preset_file_name:
                 raise ValueError("Не удалось определить имя файла пресета для переименования.")
-            updated = service.rename_by_file_name(self._preset_file_name, new_name)
+            updated = rename_preset_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                new_name,
+                app_context=self._require_app_context(),
+            )
             self._notify_preset_structure_changed()
             self.set_preset_file_name(updated.file_name)
             self._show_success(f"Пресет переименован: {new_name}")
@@ -521,13 +536,17 @@ class PresetSubpageBase(BasePage):
     def _duplicate_preset(self) -> None:
         self._flush_pending_save()
         try:
+            from presets.public import duplicate_preset_by_file_name
+
             new_name = f"{self._preset_name} (копия)"
-            service = self._get_preset_file_service()
-            if service is None:
-                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
                 raise ValueError("Не удалось определить имя файла пресета для дублирования.")
-            duplicated = service.duplicate_by_file_name(self._preset_file_name, new_name)
+            duplicated = duplicate_preset_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                new_name,
+                app_context=self._require_app_context(),
+            )
             self._notify_preset_structure_changed()
             self.set_preset_file_name(duplicated.file_name)
             self._show_success(f"Создан дубликат: {new_name}")
@@ -545,12 +564,16 @@ class PresetSubpageBase(BasePage):
         if not file_path:
             return
         try:
-            service = self._get_preset_file_service()
-            if service is None:
-                raise ValueError("Не удалось получить доступ к файлу пресета.")
+            from presets.public import export_preset_plain_text
+
             if not self._preset_file_name:
                 raise ValueError("Не удалось определить имя файла пресета для экспорта.")
-            service.export_plain_text_by_file_name(self._preset_file_name, Path(file_path))
+            export_preset_plain_text(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                file_path,
+                app_context=self._require_app_context(),
+            )
             self._show_success(f"Пресет экспортирован: {file_path}")
         except Exception as e:
             self._show_error(str(e))
@@ -570,15 +593,22 @@ class PresetSubpageBase(BasePage):
             if not box.exec():
                 return
         try:
-            service = self._get_preset_file_service()
-            if service is None:
-                raise ValueError("Не удалось получить доступ к файлу пресета.")
+            from presets.public import get_preset_source_path_by_file_name, reset_preset_to_builtin_by_file_name
+
             if not self._preset_file_name:
                 raise ValueError("Не удалось определить имя файла пресета для сброса.")
-            updated = service.reset_to_builtin_by_file_name(self._preset_file_name)
+            updated = reset_preset_to_builtin_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                app_context=self._require_app_context(),
+            )
             self._preset_name = updated.name
             self._preset_file_name = updated.file_name
-            self._preset_path = service.get_source_path_by_file_name(self._preset_file_name)
+            self._preset_path = get_preset_source_path_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                app_context=self._require_app_context(),
+            )
             self._load_file()
             self._refresh_header()
             self._show_success(f"Восстановлен встроенный пресет «{self._preset_name}»")
@@ -602,13 +632,16 @@ class PresetSubpageBase(BasePage):
             if not box.exec():
                 return
         try:
+            from presets.public import delete_preset_by_file_name
+
             name = self._preset_name
-            service = self._get_preset_file_service()
-            if service is None:
-                raise ValueError("Не удалось получить доступ к файлу пресета.")
             if not self._preset_file_name:
                 raise ValueError("Не удалось определить имя файла пресета для удаления.")
-            service.delete_by_file_name(self._preset_file_name)
+            delete_preset_by_file_name(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                app_context=self._require_app_context(),
+            )
             self._notify_preset_structure_changed()
             self.back_clicked.emit()
             self._show_success(f"Пресет «{name}» удалён")
@@ -617,16 +650,27 @@ class PresetSubpageBase(BasePage):
 
     def _current_selected_name(self) -> str:
         try:
-            method = self._preset_launch_method()
-            selected = self._require_app_context().preset_mode_coordinator.get_selected_source_manifest(method)
+            from presets.public import get_selected_source_preset_manifest
+
+            selected = get_selected_source_preset_manifest(
+                self._preset_launch_method(),
+                app_context=self._require_app_context(),
+            )
             return (selected.name if selected is not None else "").strip()
         except Exception:
             return ""
 
     def _current_selected_file_name(self) -> str:
         try:
-            method = self._preset_launch_method()
-            return (self._require_app_context().preset_mode_coordinator.get_selected_source_file_name(method) or "").strip()
+            from presets.public import get_selected_source_preset_file_name
+
+            return (
+                get_selected_source_preset_file_name(
+                    self._preset_launch_method(),
+                    app_context=self._require_app_context(),
+                )
+                or ""
+            ).strip()
         except Exception:
             return ""
 
@@ -637,14 +681,17 @@ class PresetSubpageBase(BasePage):
             error_message="Не удалось открыть страницу пресета: нет контекста приложения.",
         )
 
-    def _get_preset_mode_coordinator(self):
-        return self._require_app_context().preset_mode_coordinator
-
     def _activate_selected_preset(self) -> bool:
         try:
+            from presets.public import activate_preset_file
+
             if not self._preset_file_name:
                 return False
-            self._get_preset_file_service().activate_preset_file(self._preset_file_name)
+            activate_preset_file(
+                self._preset_launch_method(),
+                self._preset_file_name,
+                app_context=self._require_app_context(),
+            )
             return True
         except Exception:
             return False

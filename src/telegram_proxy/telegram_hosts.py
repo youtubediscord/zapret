@@ -3,7 +3,7 @@
 
 Ensures all required Telegram domains point to the proven WSS relay IP.
 Called automatically when the Telegram Proxy page is opened.
-Operates independently of HostsManager to avoid conflicts with DNS profile
+Operates independently of the shared hosts editor to avoid conflicts with DNS profile
 selections — these entries are always active and never toggled by the user.
 """
 
@@ -56,9 +56,9 @@ def ensure_telegram_hosts() -> tuple[bool, str]:
     Returns ``(changed, message)``.
     *changed* is ``True`` when entries were added or corrected.
     """
-    from hosts.hosts import safe_read_hosts_file, safe_write_hosts_file
+    from hosts.public import read_hosts_file, write_hosts_file
 
-    content = safe_read_hosts_file()
+    content = read_hosts_file()
     if content is None:
         return False, "Не удалось прочитать файл hosts"
 
@@ -112,7 +112,7 @@ def ensure_telegram_hosts() -> tuple[bool, str]:
     for domain in TELEGRAM_DOMAINS:
         new_lines.append(f"{TELEGRAM_RELAY_IP} {domain}\n")
 
-    if not safe_write_hosts_file("".join(new_lines)):
+    if not write_hosts_file("".join(new_lines)):
         return False, "Не удалось записать файл hosts"
 
     parts_msg: list[str] = []

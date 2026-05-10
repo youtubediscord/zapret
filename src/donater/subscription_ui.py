@@ -1,21 +1,31 @@
 from __future__ import annotations
 
-from typing import Any, Dict
-
+from donater.state import PremiumState
 from log.log import log
 
 
-def apply_subscription_info_to_ui(
+def apply_subscription_starting_to_ui(app) -> None:
+    """Показывает старт фоновой проверки Premium."""
+    app.set_status("Инициализация подписок...")
+
+
+def apply_subscription_progress_to_ui(app, message: str) -> None:
+    """Показывает промежуточный статус Premium-проверки."""
+    app.set_status(str(message or ""))
+
+
+def apply_premium_state_to_ui(
     app,
-    sub_info: Dict[str, Any],
+    state: PremiumState,
 ) -> None:
     """Применяет Premium-статус к состоянию окна и верхней метке."""
-    is_premium = bool(sub_info.get("is_premium"))
-    days_remaining = sub_info.get("days_remaining")
-
-    app.ui_state_store.set_subscription(is_premium, days_remaining)
-    app.update_subscription_title_badge(is_premium)
-    log(f"Обновлена Premium-метка: premium={is_premium}", "DEBUG")
+    app.ui_state_store.set_subscription(state.is_premium, state.days_remaining)
+    app.update_subscription_title_badge(
+        state.is_premium,
+        state.days_remaining,
+        source=state.source,
+    )
+    log(f"Обновлена Premium-метка: premium={state.is_premium}", "DEBUG")
 
 
 def apply_subscription_init_failed_to_ui(app) -> None:

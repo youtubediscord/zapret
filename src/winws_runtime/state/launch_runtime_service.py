@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ui.state.main_window_state import MainWindowStateStore
+from ui.state.main_window_state import AppUiState, MainWindowStateStore
 from settings.mode import ALL_WINWS_EXE_NAMES, normalize_launch_method
 from winws_runtime.runtime.process_probe import is_winws_process_pid_alive
 
@@ -43,6 +43,24 @@ class _LaunchRuntimeTrackingState:
 
 class LaunchRuntimeService:
     """Единственная точка записи runtime-состояния DPI."""
+
+    @staticmethod
+    def build_initial_ui_state(
+        *,
+        launch_method: str = "",
+        dpi_autostart_enabled: bool = False,
+        gui_autostart_enabled: bool = False,
+        launch_supported: bool = False,
+    ) -> AppUiState:
+        """Создаёт начальный UI-state с runtime-полями через runtime-контракт."""
+
+        phase = "autostart_pending" if bool(dpi_autostart_enabled and launch_supported) else "stopped"
+        return AppUiState(
+            launch_method=normalize_launch_method(launch_method, default=""),
+            launch_phase=phase,
+            launch_running=False,
+            autostart_enabled=bool(gui_autostart_enabled),
+        )
 
     @staticmethod
     def build_ownership_map() -> LaunchRuntimeOwnershipMap:
@@ -124,6 +142,12 @@ class LaunchRuntimeService:
 
     def is_running(self) -> bool:
         return bool(self.snapshot().running)
+
+    def set_busy(self, busy: bool, text: str = "") -> bool:
+        store = self._store()
+        if store is None:
+            return False
+        return bool(store.set_launch_busy(bool(busy), str(text or "")))
 
     def begin_start(
         self,

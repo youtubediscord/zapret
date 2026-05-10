@@ -9,7 +9,7 @@ from profile.ui.profile_item import ProfileItem
 from profile.ui.widgets.profile_group import ProfileGroup
 from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
 from profile.match_filters import is_voice_match, ports_label_from_match_lines, protocol_label_from_match_lines
-from profile.service import ProfileListItem
+from profile.public import ProfileListItem
 
 
 class ProfilesList(QWidget):

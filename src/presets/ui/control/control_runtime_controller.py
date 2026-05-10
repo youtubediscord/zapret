@@ -1,23 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
 
 from settings.mode import EXE_NAME_WINWS1
-
-
-@dataclass(slots=True)
-class ControlProgramSettingsPlan:
-    auto_dpi_enabled: bool
-    defender_disabled: bool
-    max_blocked: bool
-
-
-@dataclass(slots=True)
-class ControlAutoDpiPlan:
-    enabled: bool
-    message: str
-    title: str
 
 
 @dataclass(slots=True)
@@ -67,15 +52,6 @@ class ControlToggleActionStartPlan:
     start_status: str
 
 
-@dataclass(slots=True)
-class ControlActionResultPlan:
-    level: str
-    title: str
-    content: str
-    revert_checked: bool | None
-    final_status: str
-
-
 class ControlPresetNameRuntime:
     def __init__(self) -> None:
         self.preset_name_dirty = True
@@ -94,61 +70,6 @@ class ControlPageController:
     @staticmethod
     def create_preset_name_runtime() -> ControlPresetNameRuntime:
         return ControlPresetNameRuntime()
-
-    @staticmethod
-    def load_program_settings() -> ControlProgramSettingsPlan:
-        auto_dpi_enabled = False
-        defender_disabled = False
-        max_blocked = False
-
-        try:
-            from settings.store import get_dpi_autostart
-
-
-            auto_dpi_enabled = bool(get_dpi_autostart())
-        except Exception:
-            pass
-
-        try:
-            from windows_features.defender_manager import WindowsDefenderManager
-
-            defender_disabled = bool(WindowsDefenderManager().is_defender_disabled())
-        except Exception:
-            pass
-
-        try:
-            from windows_features.max_blocker import is_max_blocked
-
-            max_blocked = bool(is_max_blocked())
-        except Exception:
-            pass
-
-        return ControlProgramSettingsPlan(
-            auto_dpi_enabled=auto_dpi_enabled,
-            defender_disabled=defender_disabled,
-            max_blocked=max_blocked,
-        )
-
-    @staticmethod
-    def save_auto_dpi(enabled: bool) -> ControlAutoDpiPlan:
-        try:
-            from settings.store import set_dpi_autostart
-
-
-            set_dpi_autostart(bool(enabled))
-        except Exception:
-            pass
-
-        message = (
-            "DPI будет запускаться автоматически после старта ZapretGUI"
-            if enabled
-            else "Автозапуск DPI после старта программы отключён"
-        )
-        return ControlAutoDpiPlan(
-            enabled=bool(enabled),
-            message=message,
-            title="Автозапуск DPI после старта программы",
-        )
 
     @staticmethod
     def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
@@ -207,7 +128,7 @@ class ControlPageController:
         return first_line[:157] + "..."
 
     @staticmethod
-    def build_strategy_display_plan(*, name: str, language: str, window=None) -> ControlStrategyDisplayPlan:
+    def build_strategy_display_plan(*, name: str, language: str, app_context=None) -> ControlStrategyDisplayPlan:
         from ui.text_catalog import tr as tr_catalog
 
         not_selected = tr_catalog(
@@ -235,13 +156,13 @@ class ControlPageController:
 
             method = (get_strategy_launch_method() or "").strip().lower()
             if is_preset_launch_method(method):
-                from ui.window_display_state import get_profile_strategy_summary
+                from ui.window_display_state import get_profile_strategy_summary_for_context
 
-                summary = get_profile_strategy_summary(window, max_items=2)
+                summary = get_profile_strategy_summary_for_context(app_context, max_items=2)
                 display_name = summary or not_selected
-                from profile.service import ProfilePresetService
+                from profile.public import list_profiles
 
-                payload = ProfilePresetService(window.app_context, method).list_profiles()
+                payload = list_profiles(app_context, method)
                 active_count = sum(
                     1
                     for item in payload.items
@@ -341,19 +262,11 @@ class ControlPageController:
         )
 
     @staticmethod
-    def is_user_admin() -> bool:
-        try:
-            import ctypes
-
-            return bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except Exception:
-            return False
-
-    @staticmethod
     def build_defender_toggle_start_plan(*, disable: bool, language: str) -> ControlToggleActionStartPlan:
         from ui.text_catalog import tr as tr_catalog
+        from program_settings.public import is_user_admin
 
-        if not ControlPageController.is_user_admin():
+        if not is_user_admin():
             return ControlToggleActionStartPlan(
                 blocked=True,
                 blocked_title="Требуются права администратора",
@@ -430,70 +343,6 @@ class ControlPageController:
         )
 
     @staticmethod
-    def run_defender_toggle(*, disable: bool, status_callback: Callable[[str], None] | None = None) -> ControlActionResultPlan:
-        try:
-            from windows_features.defender_manager import WindowsDefenderManager, set_defender_disabled
-
-            manager = WindowsDefenderManager(status_callback=status_callback)
-
-            if disable:
-                success, count = manager.disable_defender()
-                if success:
-                    set_defender_disabled(True)
-                    return ControlActionResultPlan(
-                        level="success",
-                        title="Windows Defender отключен",
-                        content=(
-                            "Windows Defender успешно отключен. "
-                            f"Применено {count} настроек. Может потребоваться перезагрузка."
-                        ),
-                        revert_checked=None,
-                        final_status="Готово",
-                    )
-                return ControlActionResultPlan(
-                    level="error",
-                    title="Ошибка",
-                    content=(
-                        "Не удалось отключить Windows Defender. "
-                        "Возможно, некоторые настройки заблокированы системой."
-                    ),
-                    revert_checked=False,
-                    final_status="Готово",
-                )
-
-            success, _count = manager.enable_defender()
-            if success:
-                set_defender_disabled(False)
-                return ControlActionResultPlan(
-                    level="success",
-                    title="Windows Defender включен",
-                    content=(
-                        "Windows Defender успешно включен. "
-                        "Защита вашего компьютера восстановлена."
-                    ),
-                    revert_checked=None,
-                    final_status="Готово",
-                )
-            return ControlActionResultPlan(
-                level="warning",
-                title="Частичный успех",
-                content=(
-                    "Windows Defender включен частично. "
-                    "Некоторые настройки могут потребовать ручного исправления."
-                ),
-                revert_checked=None,
-                final_status="Готово",
-            )
-        except Exception as e:
-            return ControlActionResultPlan(
-                level="error",
-                title="Ошибка",
-                content=f"Произошла ошибка при изменении настроек Windows Defender: {e}",
-                revert_checked=None,
-                final_status="",
-            )
-
-    @staticmethod
     def build_max_block_toggle_start_plan(*, enable: bool, language: str) -> ControlToggleActionStartPlan:
         from ui.text_catalog import tr as tr_catalog
 
@@ -543,53 +392,3 @@ class ControlPageController:
             ),
             start_status="",
         )
-
-    @staticmethod
-    def run_max_block_toggle(*, enable: bool, status_callback: Callable[[str], None] | None = None) -> ControlActionResultPlan:
-        try:
-            from windows_features.max_blocker import MaxBlockerManager
-
-            manager = MaxBlockerManager(status_callback=status_callback)
-
-            if enable:
-                success, message = manager.enable_blocking()
-                if success:
-                    return ControlActionResultPlan(
-                        level="success",
-                        title="Блокировка включена",
-                        content=message,
-                        revert_checked=None,
-                        final_status="Готово",
-                    )
-                return ControlActionResultPlan(
-                    level="warning",
-                    title="Ошибка",
-                    content=f"Не удалось полностью включить блокировку: {message}",
-                    revert_checked=False,
-                    final_status="Готово",
-                )
-
-            success, message = manager.disable_blocking()
-            if success:
-                return ControlActionResultPlan(
-                    level="success",
-                    title="Блокировка отключена",
-                    content=message,
-                    revert_checked=None,
-                    final_status="Готово",
-                )
-            return ControlActionResultPlan(
-                level="warning",
-                title="Ошибка",
-                content=f"Не удалось полностью отключить блокировку: {message}",
-                revert_checked=None,
-                final_status="Готово",
-            )
-        except Exception as e:
-            return ControlActionResultPlan(
-                level="error",
-                title="Ошибка",
-                content=f"Ошибка при переключении блокировки MAX: {e}",
-                revert_checked=None,
-                final_status="",
-            )

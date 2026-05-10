@@ -8,6 +8,7 @@ from ui.text_catalog import (
     normalize_language,
     tr as tr_catalog,
 )
+from ui.window_ui_session import get_window_ui_session
 
 
 def resolve_ui_language(window) -> str:
@@ -20,30 +21,36 @@ def resolve_ui_language(window) -> str:
 
 
 def get_nav_label(window, page_name: PageName) -> str:
-    fallback = window._nav_labels.get(page_name, page_name.name)
-    return get_nav_page_label(page_name, language=window._ui_language, fallback=fallback)
+    session = get_window_ui_session(window)
+    fallback = page_name.name if session is None else session.nav_labels.get(page_name, page_name.name)
+    language = None if session is None else session.ui_language
+    return get_nav_page_label(page_name, language=language, fallback=fallback)
 
 
 def refresh_navigation_texts(window) -> None:
     from ui.navigation.search import update_sidebar_search_suggestions
     from ui.navigation.sidebar_builder import apply_nav_visibility_filter
 
-    if window._sidebar_search_nav_widget is not None:
-        window._sidebar_search_nav_widget.set_placeholder_text(
-            tr_catalog("sidebar.search.placeholder", language=window._ui_language)
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+
+    if session.sidebar_search_nav_widget is not None:
+        session.sidebar_search_nav_widget.set_placeholder_text(
+            tr_catalog("sidebar.search.placeholder", language=session.ui_language)
         )
 
-    for page_name, item in getattr(window, "_nav_items", {}).items():
+    for page_name, item in session.nav_items.items():
         try:
             item.setText(get_nav_label(window, page_name))
         except Exception:
             pass
 
-    for header, _grouped_pages, header_key in getattr(window, "_nav_headers", []):
+    for header, _grouped_pages, header_key in session.nav_headers:
         if header is None:
             continue
         try:
-            header.setText(tr_catalog(header_key, language=window._ui_language))
+            header.setText(tr_catalog(header_key, language=session.ui_language))
         except Exception:
             pass
 
@@ -52,7 +59,10 @@ def refresh_navigation_texts(window) -> None:
 
 
 def on_ui_language_changed(window, language: str) -> None:
-    window._ui_language = normalize_language(language)
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    session.ui_language = normalize_language(language)
     refresh_navigation_texts(window)
     refresh_pages_language(window)
 
@@ -65,7 +75,8 @@ def apply_ui_language_to_page(window, page: QWidget | None) -> None:
         method = getattr(page, method_name, None)
         if callable(method):
             try:
-                method(window._ui_language)
+                session = get_window_ui_session(window)
+                method("ru" if session is None else session.ui_language)
             except TypeError:
                 try:
                     method()
@@ -77,7 +88,10 @@ def apply_ui_language_to_page(window, page: QWidget | None) -> None:
 
 
 def refresh_pages_language(window) -> None:
-    for page in getattr(window, "pages", {}).values():
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    for page in session.pages.values():
         apply_ui_language_to_page(window, page)
 
 

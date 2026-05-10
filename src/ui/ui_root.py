@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ui.navigation.sidebar_builder import init_navigation
+from ui.window_ui_session import get_window_ui_session
 from ui.window_bootstrap_runtime import (
     create_preset_runtime_coordinator,
     ensure_session_memory_defaults,
@@ -53,9 +54,9 @@ class WindowUiRoot:
             except Exception:
                 launch_method = ""
 
-        page_host = getattr(self._window, "_page_host", None)
-        if page_host is not None:
-            page_host.create_eager_pages(get_eager_page_names_for_method(launch_method))
+        session = get_window_ui_session(self._window)
+        if session is not None:
+            session.page_host.create_eager_pages(get_eager_page_names_for_method(launch_method))
 
         init_navigation(self._window)
         finalize_page_signal_bootstrap(self._window)
@@ -65,16 +66,16 @@ class WindowUiRoot:
         finish_ui_bootstrap(self._window)
 
     def get_loaded_page(self, page_name: PageName):
-        page_host = getattr(self._window, "_page_host", None)
-        if page_host is None:
+        session = get_window_ui_session(self._window)
+        if session is None:
             return None
-        return page_host.get_loaded_page(page_name)
+        return session.page_host.get_loaded_page(page_name)
 
     def show_page(self, page_name: PageName) -> bool:
-        page_host = getattr(self._window, "_page_host", None)
-        if page_host is None:
+        session = get_window_ui_session(self._window)
+        if session is None:
             return False
-        return page_host.show_page(page_name)
+        return session.page_host.show_page(page_name)
 
 
 __all__ = ["WindowUiRoot"]

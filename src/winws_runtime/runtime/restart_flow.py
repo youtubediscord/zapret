@@ -178,9 +178,7 @@ def process_pending_restart_request(controller) -> None:
 
 def handle_presets_switch_finished(controller, success, error_message, generation, launch_method, skipped_as_stale) -> None:
     try:
-        store = getattr(controller.app, "ui_state_store", None)
-        if store is not None:
-            store.set_launch_busy(False)
+        controller._runtime_service().set_busy(False)
 
         bridge = ensure_runtime_ui_bridge(controller.app)
         if bridge is not None:

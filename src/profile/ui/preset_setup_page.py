@@ -3,7 +3,7 @@ from __future__ import annotations
 from PyQt6.QtCore import pyqtSignal, QTimer
 
 from log.log import log
-from profile.service import ProfilePresetService
+from profile.public import list_profiles, move_profile_before, move_profile_to_end
 from profile.ui.profiles_list import ProfilesList
 from profile.ui.shell import build_profile_shell
 from qfluentwidgets import BodyLabel, BreadcrumbBar, MessageBox
@@ -59,9 +59,6 @@ class PresetSetupPageBase(BasePage):
             parent=self.parent(),
             error_message=f"AppContext is required for {self.engine_label} preset setup page",
         )
-
-    def _service(self) -> ProfilePresetService:
-        return ProfilePresetService(self._require_app_context(), self.launch_method)
 
     def _rebuild_breadcrumb(self) -> None:
         self._breadcrumb.blockSignals(True)
@@ -119,7 +116,7 @@ class PresetSetupPageBase(BasePage):
         except Exception:
             pass
         try:
-            payload = self._service().list_profiles()
+            payload = list_profiles(self._require_app_context(), self.launch_method)
             self._apply_payload(payload)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось прочитать профили: {exc}", "ERROR")
@@ -179,14 +176,19 @@ class PresetSetupPageBase(BasePage):
 
     def _on_profile_move_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
         try:
-            self._service().move_profile_before(source_profile_key, destination_profile_key)
+            move_profile_before(
+                self._require_app_context(),
+                self.launch_method,
+                source_profile_key,
+                destination_profile_key,
+            )
             self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось переместить профиль: {exc}", "ERROR")
 
     def _on_profile_move_to_end_requested(self, profile_key: str) -> None:
         try:
-            self._service().move_profile_to_end(profile_key)
+            move_profile_to_end(self._require_app_context(), self.launch_method, profile_key)
             self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось переместить профиль в конец: {exc}", "ERROR")

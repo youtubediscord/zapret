@@ -6,6 +6,8 @@ from PyQt6.QtWidgets import QApplication
 
 from log.log import global_logger, log
 from ui.navigation.schema import iter_page_names_for_cleanup
+from ui.window_ui_session import get_window_ui_session
+from winws_runtime.public import cleanup_launch_threads
 
 
 def detach_global_error_notifier() -> None:
@@ -59,7 +61,8 @@ def release_input_interaction_states(window) -> None:
 
 def iter_loaded_pages_for_close(window) -> Iterator[tuple[object, object]]:
     # Страницы создаются лениво: при раннем закрытии список может ещё не появиться.
-    loaded_pages = getattr(window, "pages", {}) or {}
+    session = get_window_ui_session(window)
+    loaded_pages = {} if session is None else session.pages
     for page_name, page in loaded_pages.items():
         if page is None:
             continue
@@ -145,10 +148,7 @@ def cleanup_visual_and_proxy_resources_for_close(window) -> None:
 
 def cleanup_runtime_threads_for_close(window) -> None:
     try:
-        # launch_controller появляется в первой startup-фазе.
-        launch_controller = getattr(window, "launch_controller", None)
-        if launch_controller is not None:
-            launch_controller.cleanup_threads()
+        cleanup_launch_threads(window)
     except Exception as e:
         log(f"Ошибка очистки DPI controller threads: {e}", "DEBUG")
 

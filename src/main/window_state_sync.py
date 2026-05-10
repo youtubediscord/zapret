@@ -30,7 +30,7 @@ class WindowStateSyncMixin:
         """Честное стартовое состояние UI до реальной синхронизации runtime-слоёв.
 
         Здесь важно не смешивать два разных механизма:
-        - `get_dpi_autostart()` — запуск DPI после старта уже открытого GUI;
+        - `is_auto_dpi_enabled()` — запуск DPI после старта уже открытого GUI;
         - `AppUiState.autostart_enabled` — сохранённое в settings.json состояние
           автозапуска самого GUI-приложения.
 
@@ -39,28 +39,22 @@ class WindowStateSyncMixin:
         меняется только при явном включении или отключении автозапуска.
         """
         try:
-            from settings.store import get_dpi_autostart, get_gui_autostart_enabled
+            from program_settings.public import is_auto_dpi_enabled
+            from settings.store import get_gui_autostart_enabled
+            from winws_runtime.public import LaunchRuntimeService
 
             from settings.dpi.strategy_settings import get_strategy_launch_method
-            from settings.mode import ALL_LAUNCH_METHODS, is_preset_launch_method
+            from settings.mode import ALL_LAUNCH_METHODS, normalize_launch_method
 
-            dpi_autostart_enabled = bool(get_dpi_autostart())
+            dpi_autostart_enabled = bool(is_auto_dpi_enabled())
             gui_autostart_enabled = bool(get_gui_autostart_enabled())
-            launch_method = str(get_strategy_launch_method() or "").strip().lower()
+            launch_method = normalize_launch_method(get_strategy_launch_method(), default="")
 
-            if dpi_autostart_enabled and launch_method in ALL_LAUNCH_METHODS:
-                return AppUiState(
-                    launch_method=launch_method,
-                    launch_phase="autostart_pending",
-                    launch_running=False,
-                    autostart_enabled=gui_autostart_enabled,
-                )
-
-            return AppUiState(
+            return LaunchRuntimeService.build_initial_ui_state(
                 launch_method=launch_method,
-                launch_phase="stopped",
-                launch_running=False,
-                autostart_enabled=gui_autostart_enabled,
+                dpi_autostart_enabled=dpi_autostart_enabled,
+                gui_autostart_enabled=gui_autostart_enabled,
+                launch_supported=launch_method in ALL_LAUNCH_METHODS,
             )
         except Exception:
             return AppUiState()
@@ -166,8 +160,10 @@ class WindowStateSyncMixin:
             log(f"🎄 Инициализация: гирлянда={garland_saved}, снежинки={snowflakes_saved}", "DEBUG")
 
             try:
-                sub_info = self.donate_checker.get_full_subscription_info(use_cache=True)
-                is_premium = bool(sub_info.get("is_premium"))
+                from donater.public import get_premium_state
+
+                premium_state = get_premium_state(use_cache=True)
+                is_premium = bool(premium_state.is_premium)
                 log(f"🎄 Премиум статус: {is_premium}", "DEBUG")
             except Exception as e:
                 is_premium = False

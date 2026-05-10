@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QTimer
 
 from log.log import log
+from presets.public import get_launch_snapshot
 from settings.mode import (
     ALL_LAUNCH_METHODS,
     ZAPRET1_MODE,
@@ -67,7 +68,7 @@ def handle_launch_method_changed_runtime(window, method: str) -> MethodSwitchRun
 
 
 def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntimePlan:
-    from settings.store import get_dpi_autostart
+    from program_settings.public import is_auto_dpi_enabled
 
     normalized_method = normalize_launch_method(method, default="")
     expected_exe_path = ""
@@ -106,7 +107,7 @@ def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntime
         pass
 
     can_autostart = _can_autostart_for_method(window, normalized_method)
-    autostart_enabled = bool(get_dpi_autostart())
+    autostart_enabled = bool(is_auto_dpi_enabled())
 
     if active_runtime_detected:
         dispatch_action = "restart" if (autostart_enabled and can_autostart) else "stop"
@@ -139,7 +140,6 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
             pass
 
     runtime_service = getattr(window, "launch_runtime_service", None)
-    store = getattr(window, "ui_state_store", None)
 
     if runtime_service is not None:
         try:
@@ -164,11 +164,11 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
             pass
 
     try:
-        if store is not None:
+        if runtime_service is not None:
             if plan.dispatch_action in {"restart", "stop"}:
-                store.set_launch_busy(True, "Переключаем режим запуска...")
+                runtime_service.set_busy(True, "Переключаем режим запуска...")
             else:
-                store.set_launch_busy(False)
+                runtime_service.set_busy(False)
     except Exception:
         pass
 
@@ -215,8 +215,11 @@ def _can_autostart_for_method(window, method: str) -> bool:
         return False
 
     try:
-        preset_mode_coordinator = window.app_context.preset_mode_coordinator
-        preset_mode_coordinator.get_startup_snapshot(normalized_method)
+        get_launch_snapshot(
+            normalized_method,
+            app_context=window.app_context,
+            require_filters=False,
+        )
         return True
     except Exception as e:
         if is_zapret2_launch_method(normalized_method):

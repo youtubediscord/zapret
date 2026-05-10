@@ -1,7 +1,6 @@
 # dpi/ui/zapret2_mode/page.py
 """Zapret 2 mode management page (Strategies landing for zapret2_mode)."""
 
-import os
 import time as _time
 import webbrowser
 
@@ -35,9 +34,13 @@ from ui.compat_widgets import (
 from ui.state.main_window_state import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
-    attach_program_settings_runtime,
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
+)
+from program_settings.public import (
+    attach_program_settings_runtime,
+    refresh_program_settings_snapshot,
+    set_auto_dpi_enabled,
 )
 from ui.text_catalog import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
@@ -253,20 +256,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _load_selected_preset_name(self) -> tuple[str, str]:
         try:
-            selected_manifest = self._require_app_context().preset_mode_coordinator.get_selected_source_manifest(
-                ZAPRET2_MODE
+            from presets.public import get_selected_source_preset_display
+
+            return get_selected_source_preset_display(
+                ZAPRET2_MODE,
+                app_context=self._require_app_context(),
             )
         except Exception:
-            selected_manifest = None
-
-        file_name = str(getattr(selected_manifest, "file_name", "") or "").strip()
-        display_name = str(getattr(selected_manifest, "name", "") or "").strip()
-
-        if not file_name:
             return "", ""
-
-        display_name = display_name or os.path.splitext(os.path.basename(file_name))[0].strip() or file_name
-        return display_name, display_name
 
     def _require_app_context(self):
         return require_page_app_context(
@@ -274,9 +271,6 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             parent=self.parent(),
             error_message="AppContext is required for Zapret2 mode control page",
         )
-
-    def _get_selection_service(self):
-        return self._require_app_context().preset_selection_service
 
     def _apply_selected_preset_name_fast(self) -> None:
         default_text = tr_catalog(
@@ -547,13 +541,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self._sync_profile_ui_mode_from_settings()
 
     def _sync_program_settings(self) -> None:
-        snapshot = self._require_app_context().program_settings_runtime_service.refresh()
-        self._apply_program_settings_snapshot(snapshot)
+        snapshot = refresh_program_settings_snapshot(self._require_app_context())
+        if snapshot is not None:
+            self._apply_program_settings_snapshot(snapshot)
 
     def _attach_program_settings_runtime(self) -> None:
         attach_program_settings_runtime(
             self,
-            require_app_context_fn=self._require_app_context,
+            app_context=self._require_app_context(),
             apply_snapshot_fn=self._apply_program_settings_snapshot,
             require_attr_name="auto_dpi_toggle",
         )
@@ -568,12 +563,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             max_block_toggle=self.max_block_toggle,
         )
 
-    def _get_program_settings_runtime_service(self):
-        return self._require_app_context().program_settings_runtime_service
-
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         try:
-            plan = Zapret2ModeControlPageController.save_auto_dpi(enabled)
+            plan = set_auto_dpi_enabled(enabled)
             self._set_status(plan.message)
             InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
         finally:

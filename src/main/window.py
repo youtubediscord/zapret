@@ -19,7 +19,7 @@ from ui.window_ui_facade import MainWindowUI
 
 if TYPE_CHECKING:
     from app_context import AppContext
-    from donater.subscription_manager import SubscriptionManager
+    from donater.public import SubscriptionManager
     from main.startup_coordinator import StartupCoordinator
     from winws_runtime.monitoring import ProcessMonitorManager
 

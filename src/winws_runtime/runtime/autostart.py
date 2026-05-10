@@ -1,4 +1,5 @@
 from log.log import log
+from presets.public import get_launch_snapshot
 from settings.mode import ALL_LAUNCH_METHODS, is_orchestra_launch_method, is_preset_launch_method
 from ui.window_adapter import update_window_current_strategy_display
 
@@ -11,9 +12,9 @@ def start_dpi_autostart(app, launch_method: str | None = None) -> None:
 
     app._dpi_autostart_initiated = True
 
-    from settings.store import get_dpi_autostart
+    from program_settings.public import is_auto_dpi_enabled
 
-    if not get_dpi_autostart():
+    if not is_auto_dpi_enabled():
         log("Автозапуск DPI отключён", "INFO")
         _mark_runtime_stopped(app)
         return
@@ -54,8 +55,9 @@ def _resolve_startup_snapshot(app, launch_method: str):
     method = str(launch_method or "").strip().lower()
     try:
         if is_preset_launch_method(method):
-            return app.app_context.preset_mode_coordinator.get_startup_snapshot(
+            return get_launch_snapshot(
                 method,
+                app_context=app.app_context,
                 require_filters=True,
             )
     except Exception as e:

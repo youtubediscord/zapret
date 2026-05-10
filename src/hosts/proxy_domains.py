@@ -169,14 +169,14 @@ def get_user_hosts_ini_path() -> Path:
 
 
 def _check_ipv6_connectivity() -> bool:
-    """Проверяет доступность IPv6 через DNSForceManager (ленивый импорт)."""
+    """Проверяет доступность IPv6 через публичную DNS-команду."""
     try:
-        from dns.dns_force import DNSForceManager  # type: ignore
+        from dns.public import check_ipv6_connectivity
     except Exception:
         return False
 
     try:
-        return bool(DNSForceManager.check_ipv6_connectivity())
+        return bool(check_ipv6_connectivity())
     except Exception:
         return False
 
@@ -184,7 +184,7 @@ def _check_ipv6_connectivity() -> bool:
 def _collect_provider_ipv6_entries() -> list[tuple[str, str]]:
     """Возвращает список (ключ, IPv6-адреса) из DNS_PROVIDERS."""
     try:
-        from dns.dns_providers import DNS_PROVIDERS  # type: ignore
+        from dns.public import DNS_PROVIDERS  # type: ignore
     except Exception as e:
         _log(f"Не удалось импортировать DNS_PROVIDERS для IPv6 секций: {e}", "DEBUG")
         return []

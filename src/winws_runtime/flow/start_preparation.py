@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from log.log import log
+from presets.public import get_launch_snapshot
 from settings.mode import (
     ENGINE_WINWS2,
     is_orchestra_launch_method,
@@ -59,8 +60,9 @@ def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, app_co
         return selected_mode
 
     if is_preset_launch_method(method):
-        snapshot = app_context.preset_mode_coordinator.get_startup_snapshot(
+        snapshot = get_launch_snapshot(
             method,
+            app_context=app_context,
             require_filters=True,
         )
         log(f"Используется выбранный source-пресет: {snapshot.preset_path}", "INFO")

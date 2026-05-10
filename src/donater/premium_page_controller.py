@@ -167,21 +167,14 @@ class PremiumPageController:
 
     @staticmethod
     def resolve_checker_bundle() -> PremiumCheckerInitResult:
-        try:
-            from donater.service import get_premium_service
-            from donater.storage import PremiumStorage
+        from donater.public import resolve_checker_bundle
 
-            return PremiumCheckerInitResult(
-                checker=get_premium_service(),
-                storage=PremiumStorage,
-                init_ok=True,
-            )
-        except Exception:
-            return PremiumCheckerInitResult(
-                checker=None,
-                storage=None,
-                init_ok=False,
-            )
+        bundle = resolve_checker_bundle()
+        return PremiumCheckerInitResult(
+            checker=bundle.checker,
+            storage=bundle.storage,
+            init_ok=bundle.init_ok,
+        )
 
     @staticmethod
     def create_worker_thread(target, args=None):

@@ -16,6 +16,7 @@ from ui.text_catalog import (
     find_search_entries,
     format_search_result,
 )
+from ui.window_ui_session import get_window_ui_session
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,8 @@ class SidebarSearchTarget:
 
 
 def _get_page_host(window):
-    return getattr(window, "_page_host", None)
+    session = get_window_ui_session(window)
+    return None if session is None else session.page_host
 
 
 def show_page(window, page_name: PageName) -> bool:
@@ -36,7 +38,10 @@ def show_page(window, page_name: PageName) -> bool:
 
 
 def attach_sidebar_search_to_titlebar(window) -> None:
-    widget = window._sidebar_search_nav_widget
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    widget = session.sidebar_search_nav_widget
     if widget is None:
         return
     title_bar = getattr(window, "titleBar", None)
@@ -50,13 +55,14 @@ def attach_sidebar_search_to_titlebar(window) -> None:
     if layout.indexOf(widget) < 0:
         insert_index = max(0, layout.count() - 1)
         layout.insertWidget(insert_index, widget, 0, Qt.AlignmentFlag.AlignVCenter)
-    window._sidebar_search_titlebar_attached = True
+    session.sidebar_search_titlebar_attached = True
 
 
 def update_titlebar_search_width(window) -> None:
-    if not bool(getattr(window, "_sidebar_search_titlebar_attached", False)):
+    session = get_window_ui_session(window)
+    if session is None or not session.sidebar_search_titlebar_attached:
         return
-    widget = window._sidebar_search_nav_widget
+    widget = session.sidebar_search_nav_widget
     if widget is None:
         return
     title_bar = getattr(window, "titleBar", None)
@@ -74,8 +80,11 @@ def update_titlebar_search_width(window) -> None:
 def on_sidebar_search_changed(window, text: str) -> None:
     from ui.navigation.sidebar_builder import apply_nav_visibility_filter
 
-    window._nav_search_query = (text or "").strip()
-    if route_sidebar_search_by_text(window, window._nav_search_query, prefer_first=False):
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    session.nav_search_query = (text or "").strip()
+    if route_sidebar_search_by_text(window, session.nav_search_query, prefer_first=False):
         return
     apply_nav_visibility_filter(window)
     update_sidebar_search_suggestions(window)
@@ -89,11 +98,12 @@ def get_sidebar_search_pages(window) -> set[PageName]:
 
 
 def setup_sidebar_search_completer(window) -> None:
-    if window._sidebar_search_nav_widget is None:
+    session = get_window_ui_session(window)
+    if session is None or session.sidebar_search_nav_widget is None:
         return
 
-    window._sidebar_search_model = QStandardItemModel(window)
-    completer = QCompleter(window._sidebar_search_model, window)
+    session.sidebar_search_model = QStandardItemModel(window)
+    completer = QCompleter(session.sidebar_search_model, window)
     completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
     completer.setFilterMode(Qt.MatchFlag.MatchContains)
     completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
@@ -116,18 +126,21 @@ def setup_sidebar_search_completer(window) -> None:
     except Exception:
         pass
 
-    window._sidebar_search_completer = completer
-    window._sidebar_search_nav_widget.set_completer(completer)
+    session.sidebar_search_completer = completer
+    session.sidebar_search_nav_widget.set_completer(completer)
 
 
 def update_sidebar_search_suggestions(window) -> None:
-    model = window._sidebar_search_model
-    completer = window._sidebar_search_completer
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    model = session.sidebar_search_model
+    completer = session.sidebar_search_completer
     if model is None or completer is None:
         return
 
     model.clear()
-    query = (getattr(window, "_nav_search_query", "") or "").strip()
+    query = (session.nav_search_query or "").strip()
     if not query:
         try:
             completer.popup().hide()
@@ -139,7 +152,7 @@ def update_sidebar_search_suggestions(window) -> None:
 
     matches = find_search_entries(
         query,
-        language=window._ui_language,
+        language=session.ui_language,
         visible_pages=visible_pages,
         max_results=10,
     )
@@ -154,19 +167,20 @@ def update_sidebar_search_suggestions(window) -> None:
     tab_role = page_role + 1
 
     for match in matches:
-        title, location = format_search_result(match.entry, language=window._ui_language)
+        title, location = format_search_result(match.entry, language=session.ui_language)
         item = QStandardItem(f"{title} - {location}")
         item.setData(match.entry.page_name.name, page_role)
         item.setData(match.entry.tab_key or "", tab_role)
         model.appendRow(item)
 
-    if window._sidebar_search_nav_widget is not None and window._sidebar_search_nav_widget.isVisible():
-        window._sidebar_search_nav_widget.show_completions()
+    if session.sidebar_search_nav_widget is not None and session.sidebar_search_nav_widget.isVisible():
+        session.sidebar_search_nav_widget.show_completions()
 
 
 def _clear_sidebar_search(window) -> None:
-    if window._sidebar_search_nav_widget is not None:
-        window._sidebar_search_nav_widget.clear()
+    session = get_window_ui_session(window)
+    if session is not None and session.sidebar_search_nav_widget is not None:
+        session.sidebar_search_nav_widget.clear()
 
 
 def _route_search_result_and_clear(window, page_name: PageName, tab_key: str = "") -> bool:
@@ -230,6 +244,10 @@ def _find_search_item_in_model(model: QStandardItemModel, text_cf: str, *, prefe
 
 
 def _resolve_search_target_from_query(window, text: str, *, prefer_first: bool) -> SidebarSearchTarget | None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return None
+
     text = (text or "").strip()
     if not text:
         return None
@@ -242,13 +260,13 @@ def _resolve_search_target_from_query(window, text: str, *, prefer_first: bool) 
     visible_pages = get_sidebar_search_pages(window)
     matches = find_search_entries(
         query,
-        language=window._ui_language,
+        language=session.ui_language,
         visible_pages=visible_pages,
         max_results=10,
     )
     selected_match = None
     for match in matches:
-        title, location = format_search_result(match.entry, language=window._ui_language)
+        title, location = format_search_result(match.entry, language=session.ui_language)
         display = f"{title} - {location}".strip().casefold()
         title_cf = (title or "").strip().casefold()
         if display == text_cf or title_cf == text_cf:
@@ -287,7 +305,11 @@ def route_sidebar_search_by_text(window, text: str, prefer_first: bool = False) 
     if not text:
         return False
 
-    model = window._sidebar_search_model
+    session = get_window_ui_session(window)
+    if session is None:
+        return False
+
+    model = session.sidebar_search_model
     if model is None:
         return False
 

@@ -2,32 +2,65 @@ from __future__ import annotations
 
 from ui.state.main_window_state import MainWindowStateStore
 from presets.ui.control.control_page_runtime_shared import set_toggle_checked
-from ui.window_action_controller import (
-    open_connection_test,
-    open_folder,
-    start_dpi,
-    stop_and_exit,
-    stop_dpi,
-)
+from winws_runtime.public import start_dpi_async, stop_dpi_async, stop_and_exit_async
+
+
+def _resolve_control_window(source):
+    try:
+        window = source.window()
+        if window is not None:
+            return window
+    except Exception:
+        pass
+
+    try:
+        parent_app = getattr(source, "parent_app", None)
+        if parent_app is not None:
+            return parent_app
+    except Exception:
+        pass
+
+    return source
 
 
 class ControlPageActionMixin:
     """Общие action-wrapper'ы для control-page слоёв."""
 
     def _start_dpi(self) -> None:
-        start_dpi(self)
+        start_dpi_async(_resolve_control_window(self))
 
     def _stop_dpi(self) -> None:
-        stop_dpi(self)
+        stop_dpi_async(_resolve_control_window(self))
 
     def _stop_and_exit(self) -> None:
-        stop_and_exit(self)
+        from log.log import log
+        from PyQt6.QtWidgets import QApplication
+
+        window = _resolve_control_window(self)
+        log("Остановка winws и закрытие программы...", "INFO")
+
+        if window is not None:
+            request_exit = getattr(window, "request_exit", None)
+            if callable(request_exit):
+                request_exit(stop_dpi=True)
+                return
+
+            if stop_and_exit_async(window):
+                return
+
+        QApplication.quit()
 
     def _open_connection_test(self) -> None:
-        open_connection_test(self)
+        window = _resolve_control_window(self)
+        handler = getattr(window, "open_connection_test", None)
+        if callable(handler):
+            handler()
 
     def _open_folder(self) -> None:
-        open_folder(self)
+        window = _resolve_control_window(self)
+        handler = getattr(window, "open_folder", None)
+        if callable(handler):
+            handler()
 
     def _set_toggle_checked(self, toggle, checked: bool) -> None:
         set_toggle_checked(toggle, checked)
@@ -39,26 +72,6 @@ class ControlPageActionMixin:
                 status_setter(msg)
         except Exception:
             pass
-
-
-def attach_program_settings_runtime(
-    owner,
-    *,
-    require_app_context_fn,
-    apply_snapshot_fn,
-    require_attr_name: str | None = None,
-) -> None:
-    if bool(getattr(owner, "_program_settings_runtime_attached", False)):
-        return
-    if require_attr_name is not None and getattr(owner, require_attr_name, None) is None:
-        return
-    owner._program_settings_runtime_attached = True
-    owner._program_settings_runtime_unsubscribe = (
-        require_app_context_fn().program_settings_runtime_service.subscribe(
-            apply_snapshot_fn,
-            emit_initial=True,
-        )
-    )
 
 
 def bind_control_ui_state_store(

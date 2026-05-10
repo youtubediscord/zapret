@@ -9,6 +9,7 @@ from presets.ui.control.control_page_runtime_shared import (
     show_action_result_plan,
 )
 from presets.ui.control.control_runtime_controller import ControlPageController
+from program_settings.public import set_defender_disabled, set_max_block_enabled
 
 
 class ControlPageWindowsFeatureMixin:
@@ -54,7 +55,7 @@ class ControlPageWindowsFeatureMixin:
             if start_plan.start_status:
                 self._set_status(start_plan.start_status)
 
-            result_plan = ControlPageController.run_defender_toggle(
+            result_plan = set_defender_disabled(
                 disable=disable,
                 status_callback=self._set_status,
             )
@@ -75,7 +76,7 @@ class ControlPageWindowsFeatureMixin:
             if start_plan.start_status:
                 self._set_status(start_plan.start_status)
 
-            result_plan = ControlPageController.run_max_block_toggle(
+            result_plan = set_max_block_enabled(
                 enable=enable,
                 status_callback=self._set_status,
             )

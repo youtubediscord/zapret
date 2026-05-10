@@ -832,7 +832,8 @@ class BaseZapret2UserPresetsPage(BasePage):
 
     def _on_dpi_reload_needed(self):
         try:
-            from winws_runtime.flow.apply_policy import request_preset_runtime_content_apply
+            from winws_runtime.public import request_preset_runtime_content_apply
+
             parent_app = getattr(self, "parent_app", None)
             if parent_app is not None:
                 request_preset_runtime_content_apply(

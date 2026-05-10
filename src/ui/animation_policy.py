@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ui.window_ui_session import get_window_ui_session
+
 
 def are_animations_enabled() -> bool:
     """Читает текущее пользовательское состояние мастер-переключателя анимаций."""
@@ -153,7 +155,9 @@ def _iter_window_pages_and_children(window):
     except Exception:
         return
 
-    for page in list(getattr(window, "pages", {}).values()):
+    session = get_window_ui_session(window)
+    pages = [] if session is None else list(session.pages.values())
+    for page in pages:
         yield page
         for child in page.findChildren(QWidget):
             yield child

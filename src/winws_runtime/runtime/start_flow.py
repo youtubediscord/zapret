@@ -106,7 +106,7 @@ def start_dpi_async(
         bridge = controller._runtime_ui_bridge()
         if bridge is not None:
             bridge.show_active_preset_setup_page_loading()
-        controller.app.ui_state_store.set_launch_busy(True, "Запуск Zapret...")
+        controller._runtime_service().set_busy(True, "Запуск Zapret...")
 
     controller._begin_runtime_start(request.launch_method, request.selected_mode)
 

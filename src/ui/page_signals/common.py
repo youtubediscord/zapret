@@ -15,8 +15,8 @@ from ui.window_appearance_state import (
     on_smooth_scroll_changed,
 )
 from ui.window_display_state import (
-    update_autostart_display,
-    update_subscription_display,
+    update_autostart_display_state,
+    update_subscription_display_in_store,
 )
 
 from .helpers import connect_page_signal_if_present, connect_show_page_signal_if_present
@@ -29,14 +29,14 @@ def connect_common_page_signals(window, page_name: PageName, page: QWidget) -> N
             "autostart.autostart_enabled",
             page,
             PageSignalName.AUTOSTART_ENABLED,
-            lambda w=window: update_autostart_display(w, True),
+            lambda w=window: update_autostart_display_state(w.app_runtime_state, w.ui_state_store, True),
         )
         connect_page_signal_if_present(
             window,
             "autostart.autostart_disabled",
             page,
             PageSignalName.AUTOSTART_DISABLED,
-            lambda w=window: update_autostart_display(w, False),
+            lambda w=window: update_autostart_display_state(w.app_runtime_state, w.ui_state_store, False),
         )
         connect_show_page_signal_if_present(
             window,
@@ -82,7 +82,11 @@ def connect_common_page_signals(window, page_name: PageName, page: QWidget) -> N
             "premium.subscription_updated",
             page,
             PageSignalName.SUBSCRIPTION_UPDATED,
-            lambda is_premium, days_remaining, w=window: update_subscription_display(w, is_premium, days_remaining),
+            lambda is_premium, days_remaining, w=window: update_subscription_display_in_store(
+                w.ui_state_store,
+                is_premium,
+                days_remaining,
+            ),
         )
 
 

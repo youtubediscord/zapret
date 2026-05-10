@@ -106,7 +106,9 @@ def _load_selected_source_text(app_context, launch_method: str) -> tuple[str, ob
     engine = _engine_for_method(method)
     if not is_preset_launch_method(method):
         raise ValueError(f"Unsupported profile settings launch method: {launch_method}")
-    manifest = app_context.preset_mode_coordinator.get_selected_source_manifest(method)
+    from presets.public import get_selected_source_preset_manifest
+
+    manifest = get_selected_source_preset_manifest(method, app_context=app_context)
     return app_context.preset_file_store.read_source_text(engine, manifest.file_name), manifest
 
 
@@ -114,12 +116,13 @@ def _save_selected_source_text(app_context, source_text: str, launch_method: str
     method = normalize_launch_method(launch_method, default="")
     if not is_preset_launch_method(method):
         raise ValueError(f"Unsupported profile settings launch method: {launch_method}")
-    from presets.file_service import PresetFileService
+    from presets.public import save_selected_preset_source
 
-    PresetFileService.from_launch_method(
+    save_selected_preset_source(
         method,
+        source_text,
         app_context=app_context,
-    ).save_selected_source_text(source_text)
+    )
 
 
 def _engine_for_method(launch_method: str) -> str:

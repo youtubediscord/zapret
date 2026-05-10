@@ -1162,9 +1162,10 @@ class StrategyScanPageController:
     ) -> tuple[str, str]:
         from profile.parser import parse_preset_text
         from profile.serializer import serialize_preset, with_profile_enabled, with_profile_strategy_lines
+        from presets.public import get_selected_source_preset_manifest
         from settings.mode import ENGINE_WINWS2, ZAPRET2_MODE
 
-        manifest = app_context.preset_mode_coordinator.get_selected_source_manifest(ZAPRET2_MODE)
+        manifest = get_selected_source_preset_manifest(ZAPRET2_MODE, app_context=app_context)
         selected_file_name = str(getattr(manifest, "file_name", "") or "").strip()
         if not selected_file_name:
             raise RuntimeError("Не удалось определить выбранный пресет")
@@ -1210,13 +1211,15 @@ class StrategyScanPageController:
                 "Сначала создайте нужный profile, затем примените найденную стратегию повторно."
             )
 
-        from presets.file_service import PresetFileService
+        from presets.public import save_preset_source_by_file_name
 
         updated_text = serialize_preset(source)
-        PresetFileService.from_launch_method(
+        save_preset_source_by_file_name(
             ZAPRET2_MODE,
+            selected_file_name,
+            updated_text,
             app_context=app_context,
-        ).save_source_text_by_file_name(selected_file_name, updated_text)
+        )
         return selected_file_name, "updated"
 
     @classmethod

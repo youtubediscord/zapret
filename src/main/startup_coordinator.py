@@ -5,7 +5,7 @@ from main.qt_dispatch import run_queued, run_queued_with_str
 from main.tray_startup import init_tray
 from main.window_startup_services import init_theme_manager
 from settings.mode import normalize_launch_method
-from winws_runtime.runtime.startup import (
+from winws_runtime.public import (
     init_core_startup,
     init_launch_controller,
     init_launch_runtime_api,
@@ -274,7 +274,7 @@ class StartupCoordinator:
         self._log_startup_step("StartupPostInitDeferredStart", method or "unknown")
 
         try:
-            from winws_runtime.runtime.autostart import start_dpi_autostart
+            from winws_runtime.public import start_dpi_autostart
 
             start_dpi_autostart(self.app, launch_method=method)
         except Exception as e:

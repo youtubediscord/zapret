@@ -3,7 +3,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget
 
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
-from winws_runtime.runtime.method_switch_flow import handle_launch_method_changed_runtime
+from winws_runtime.public import handle_launch_method_changed
 from ui.navigation.sidebar_builder import sync_nav_visibility
 from ui.navigation_pages import (
     resolve_preset_raw_editor_back_page_for_method,
@@ -24,7 +24,7 @@ from ui.workflows.mode import (
     redirect_to_preset_setup_page_for_method,
     show_active_mode_control_page,
 )
-from ui.window_display_state import on_profile_ui_mode_changed
+from ui.window_display_state import on_profile_ui_mode_changed_in_store
 
 from .helpers import (
     connect_page_signal_if_present,
@@ -74,7 +74,7 @@ def _connect_control_page_entries(window, page_name: PageName, page: QWidget, pa
             f"{page_name.name}.profile_ui_mode_changed",
             page,
             PageSignalName.PROFILE_UI_MODE_CHANGED,
-            lambda mode, w=window: on_profile_ui_mode_changed(w, mode),
+            lambda mode, w=window: on_profile_ui_mode_changed_in_store(w.ui_state_store, mode),
         )
 
 
@@ -159,7 +159,7 @@ def _connect_profile_setup_page(window, page_name: PageName, page: QWidget, page
 
 
 def _on_launch_method_changed(window, method: str) -> None:
-    plan = handle_launch_method_changed_runtime(window, method)
+    plan = handle_launch_method_changed(window, method)
 
     if plan.dispatch_action == "restart":
         log_text = (

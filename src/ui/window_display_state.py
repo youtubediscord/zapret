@@ -4,8 +4,7 @@ from log.log import log
 from settings.mode import is_preset_launch_method
 
 
-
-def get_profile_strategy_summary(window, max_items: int = 2) -> str:
+def get_profile_strategy_summary_for_context(app_context, max_items: int = 2) -> str:
     try:
         from settings.dpi.strategy_settings import get_strategy_launch_method
 
@@ -13,9 +12,9 @@ def get_profile_strategy_summary(window, max_items: int = 2) -> str:
         if not is_preset_launch_method(method):
             return "Профили"
 
-        from profile.service import ProfilePresetService
+        from profile.public import list_profiles
 
-        payload = ProfilePresetService(window.app_context, method).list_profiles()
+        payload = list_profiles(app_context, method)
         active_names = [
             item.display_name
             for item in payload.items
@@ -31,43 +30,38 @@ def get_profile_strategy_summary(window, max_items: int = 2) -> str:
         return "Профили"
 
 
-def update_current_strategy_display(window, strategy_name: str) -> None:
-    store = getattr(window, "ui_state_store", None)
-    if store is not None:
-        store.set_current_strategy_summary(strategy_name)
+def update_current_strategy_display_in_store(ui_state_store, strategy_name: str) -> None:
+    if ui_state_store is not None:
+        ui_state_store.set_current_strategy_summary(strategy_name)
 
 
-def update_autostart_display(window, enabled: bool, strategy_name: str = None) -> None:
-    app_runtime_state = getattr(window, "app_runtime_state", None)
-    store = getattr(window, "ui_state_store", None)
+def update_autostart_display_state(app_runtime_state, ui_state_store, enabled: bool, strategy_name: str = None) -> None:
     if app_runtime_state is not None:
         app_runtime_state.set_autostart(bool(enabled))
-    if store is not None:
-        if strategy_name:
-            store.set_current_strategy_summary(strategy_name)
+    if ui_state_store is not None and strategy_name:
+        ui_state_store.set_current_strategy_summary(strategy_name)
 
 
-def update_subscription_display(window, is_premium: bool, days: int = None) -> None:
-    store = getattr(window, "ui_state_store", None)
-    if store is not None:
-        store.set_subscription(is_premium, days)
+def update_subscription_display_in_store(ui_state_store, is_premium: bool, days: int = None) -> None:
+    if ui_state_store is not None:
+        ui_state_store.set_subscription(is_premium, days)
 
 
-def on_profile_ui_mode_changed(window, mode: str) -> None:
+def on_profile_ui_mode_changed_in_store(ui_state_store, mode: str) -> None:
     """Сообщает UI-слою, что profile UI mode изменился и нужно обновить revision."""
     _ = mode
     try:
-        if getattr(window, "ui_state_store", None) is not None:
-            window.ui_state_store.bump_mode_revision()
+        if ui_state_store is not None:
+            ui_state_store.bump_mode_revision()
     except Exception:
         pass
 
 
-def refresh_pages_after_preset_switch(window) -> None:
+def refresh_pages_after_preset_switch_state(app_context, ui_state_store) -> None:
     """Обновляет краткое отображение активной стратегии после смены source preset."""
     try:
-        display_name = get_profile_strategy_summary(window)
+        display_name = get_profile_strategy_summary_for_context(app_context)
         if display_name:
-            update_current_strategy_display(window, display_name)
+            update_current_strategy_display_in_store(ui_state_store, display_name)
     except Exception as e:
         log(f"Ошибка обновления display стратегии после смены пресета: {e}", "DEBUG")

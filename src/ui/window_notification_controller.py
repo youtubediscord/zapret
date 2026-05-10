@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app_notifications import advisory_notification, normalize_notification_payload
 from log.log import global_logger, log
+import winws_runtime.public as runtime_commands
 
 
 
@@ -361,8 +362,7 @@ class WindowNotificationController(QObject):
         )
 
     def _run_launch_conflict_action(self, *, request_id: int, close_conflicts: bool, bar=None) -> None:
-        controller = getattr(self.host, "launch_controller", None)
-        if controller is None:
+        if not runtime_commands.is_runtime_available(self.host):
             self.notify(
                 advisory_notification(
                     level="warning",
@@ -384,10 +384,8 @@ class WindowNotificationController(QObject):
             pass
 
         try:
-            from winws_runtime.runtime.conflict_flow import resume_start_after_conflict_resolution
-
-            resume_start_after_conflict_resolution(
-                controller,
+            runtime_commands.resume_start_after_conflict_resolution(
+                self.host,
                 int(request_id or 0),
                 close_conflicts=bool(close_conflicts),
             )
@@ -407,8 +405,7 @@ class WindowNotificationController(QObject):
             )
 
     def _cancel_launch_conflict_action(self, *, request_id: int, bar=None) -> None:
-        controller = getattr(self.host, "launch_controller", None)
-        if controller is None:
+        if not runtime_commands.is_runtime_available(self.host):
             return
 
         try:
@@ -418,9 +415,7 @@ class WindowNotificationController(QObject):
             pass
 
         try:
-            from winws_runtime.runtime.conflict_flow import cancel_start_after_conflict_prompt
-
-            cancel_start_after_conflict_prompt(controller, int(request_id or 0))
+            runtime_commands.cancel_start_after_conflict_prompt(self.host, int(request_id or 0))
         except Exception as e:
             log(f"Не удалось отменить запуск после предупреждения о конфликтах: {e}", "DEBUG")
 

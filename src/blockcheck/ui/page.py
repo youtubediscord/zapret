@@ -397,7 +397,7 @@ class BlockcheckPage(BasePage):
         if self._dns_spoofing_tab_page is not None:
             return
         try:
-            from dns.ui.dns_check_page import DNSCheckPage
+            from dns.public import DNSCheckPage
 
             self._dns_spoofing_tab_page = DNSCheckPage(parent=self.parent_app)
             self._dns_spoofing_tab_page.setVisible(False)

@@ -90,9 +90,7 @@ def on_dpi_process_confirmed(controller, running: bool, verify_gen=None):
     if verify_gen is not None and verify_gen != controller._dpi_start_verify_generation:
         return
 
-    store = getattr(controller.app, "ui_state_store", None)
-    if store is not None:
-        store.set_launch_busy(False)
+    controller._runtime_service().set_busy(False)
 
     completed_restart_generation = int(controller._restart_active_start_generation or 0)
     if completed_restart_generation:
@@ -132,9 +130,7 @@ def on_dpi_start_finished(controller, success, error_message):
     """Обрабатывает завершение асинхронного запуска DPI."""
     completed_restart_generation = int(controller._restart_active_start_generation or 0)
     try:
-        store = getattr(controller.app, "ui_state_store", None)
-        if store is not None:
-            store.set_launch_busy(False)
+        controller._runtime_service().set_busy(False)
 
         bridge = ensure_runtime_ui_bridge(controller.app)
         if bridge is not None:
@@ -164,9 +160,7 @@ def on_dpi_start_finished(controller, success, error_message):
 
     except Exception as e:
         log(f"Ошибка при обработке результата запуска DPI: {e}", "❌ ERROR")
-        store = getattr(controller.app, "ui_state_store", None)
-        if store is not None:
-            store.set_launch_busy(False)
+        controller._runtime_service().set_busy(False)
         controller.app.set_status(f"Ошибка: {e}")
 
 
@@ -174,9 +168,7 @@ def on_dpi_stop_finished(controller, success, error_message):
     """Обрабатывает завершение асинхронной остановки DPI."""
     restart_generation_after_stop = int(controller._restart_pending_stop_generation or 0)
     try:
-        store = getattr(controller.app, "ui_state_store", None)
-        if store is not None:
-            store.set_launch_busy(False)
+        controller._runtime_service().set_busy(False)
 
         bridge = ensure_runtime_ui_bridge(controller.app)
         if bridge is not None:

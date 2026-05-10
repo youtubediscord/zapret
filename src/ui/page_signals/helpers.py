@@ -3,14 +3,18 @@ from __future__ import annotations
 from ui.page_contracts import get_page_signal
 from ui.page_names import PageName
 from ui.window_adapter import show_page
+from ui.window_ui_session import get_window_ui_session
 
 
 def connect_signal_once(window, key: str, signal_obj, slot_obj) -> None:
-    if key in window._lazy_signal_connections:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    if key in session.lazy_signal_connections:
         return
     try:
         signal_obj.connect(slot_obj)
-        window._lazy_signal_connections.add(key)
+        session.lazy_signal_connections.add(key)
     except Exception:
         pass
 

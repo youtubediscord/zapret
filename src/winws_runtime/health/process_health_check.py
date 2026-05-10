@@ -1118,7 +1118,7 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
 def _check_network_adapters() -> bool:
     """Return True if at least one network adapter is enabled/up."""
     try:
-        from dns.dns_core import get_adapters_info_native
+        from dns.public import get_adapters_info_native
 
         adapters = get_adapters_info_native()
         for adapter in adapters:

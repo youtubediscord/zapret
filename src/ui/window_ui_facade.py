@@ -27,7 +27,6 @@ except ImportError:
 
 from ui.page_names import PageName
 from ui.text_catalog import tr as tr_catalog
-from ui.window_display_state import get_profile_strategy_summary
 from ui.ui_root import WindowUiRoot
 
 # ---------------------------------------------------------------------------

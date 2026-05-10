@@ -23,6 +23,7 @@ from main.runtime_state import (
     startup_elapsed_ms,
 )
 from ui.window_adapter import sync_titlebar_search_width
+from winws_runtime.public import stop_and_exit_async as request_runtime_stop_and_exit
 
 
 class WindowLifecycleMixin:
@@ -72,22 +73,16 @@ class WindowLifecycleMixin:
 
     def _start_async_stop_and_exit(self) -> bool:
         try:
-            # Окно можно закрыть очень рано, до первой startup-фазы.
-            # Поэтому launch_controller здесь остаётся ленивой проверкой.
-            launch_controller = getattr(self, "launch_controller", None)
-            if launch_controller is None:
-                return False
-            launch_controller.stop_and_exit_async()
-            return True
+            return request_runtime_stop_and_exit(self)
         except Exception as e:
             log(f"stop_and_exit_async не удалось: {e}", "WARNING")
             return False
 
     def _shutdown_dpi_before_exit_sync(self, *, reason: str) -> None:
         try:
-            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+            from winws_runtime.public import shutdown_runtime_sync
 
-            shutdown_runtime_sync(window=self, reason=reason, include_cleanup=True)
+            shutdown_runtime_sync(host=self, reason=reason, include_cleanup=True)
         except Exception as e:
             log(f"Ошибка остановки DPI перед выходом: {e}", "WARNING")
 
@@ -143,9 +138,9 @@ class WindowLifecycleMixin:
             return
 
         try:
-            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+            from winws_runtime.public import shutdown_runtime_sync
 
-            result = shutdown_runtime_sync(window=self, reason="close_event exit_stop_dpi", include_cleanup=True)
+            result = shutdown_runtime_sync(host=self, reason="close_event exit_stop_dpi", include_cleanup=True)
             log(
                 f"Процессы winws завершены при закрытии приложения "
                 f"(running={result.had_running_processes}, still_running={result.still_running})",

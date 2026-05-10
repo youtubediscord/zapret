@@ -1,11 +1,11 @@
 # ui/theme_subscription_manager.py
+from typing import Optional
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget
 
 from log.log import log
-
-
-PREMIUM_TITLE_BADGE_TEXT = "Premium"
+from ui.window_ui_session import get_window_ui_session
 
 
 class ThemeSubscriptionManager:
@@ -20,6 +20,7 @@ class ThemeSubscriptionManager:
     def update_subscription_title_badge(
         self: QWidget,
         is_premium: bool = False,
+        days_remaining: Optional[int] = None,
         source: str = "api",
     ) -> None:
         """Добавляет или скрывает отдельную Premium-метку в верхней панели."""
@@ -37,13 +38,37 @@ class ThemeSubscriptionManager:
             log(f"Premium-метка не обновлена: titleBar недоступен (source: {source})", "WARNING")
             return
 
-        if badge.text() != PREMIUM_TITLE_BADGE_TEXT:
-            badge.setText(PREMIUM_TITLE_BADGE_TEXT)
+        badge_text = self._subscription_title_badge_text(days_remaining, source)
+        if badge.text() != badge_text:
+            badge.setText(badge_text)
             badge.adjustSize()
+            log(f"Premium-метка обновлена: {badge_text} (source: {source})", "DEBUG")
 
         if not badge.isVisible():
             badge.show()
             log(f"Premium-метка показана (source: {source})", "DEBUG")
+
+    def _subscription_title_badge_text(
+        self: QWidget,
+        days_remaining: Optional[int],
+        source: str,
+    ) -> str:
+        if source == "offline":
+            return "[PREMIUM - offline]"
+
+        if days_remaining is None:
+            return "[PREMIUM]"
+
+        try:
+            days = int(days_remaining)
+        except (TypeError, ValueError):
+            return "[PREMIUM]"
+
+        if days > 0:
+            return f"[PREMIUM - {days} дн.]"
+        if days == 0:
+            return "[PREMIUM - истекает сегодня]"
+        return "[PREMIUM - истёк]"
 
     def _ensure_subscription_title_badge(self: QWidget) -> QLabel | None:
         badge = getattr(self, "_subscription_title_badge", None)
@@ -58,7 +83,7 @@ class ThemeSubscriptionManager:
         if layout is None:
             return None
 
-        badge = QLabel(PREMIUM_TITLE_BADGE_TEXT, title_bar)
+        badge = QLabel("", title_bar)
         badge.setObjectName("premiumTitleBadge")
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         badge.setFixedHeight(22)
@@ -79,7 +104,15 @@ class ThemeSubscriptionManager:
         return badge
 
     def _subscription_title_badge_insert_index(self: QWidget, layout) -> int:
-        search_widget = getattr(self, "_sidebar_search_nav_widget", None)
+        title_bar = getattr(self, "titleBar", None)
+        title_label = getattr(title_bar, "titleLabel", None) if title_bar is not None else None
+        if title_label is not None:
+            title_index = layout.indexOf(title_label)
+            if title_index >= 0:
+                return title_index + 1
+
+        session = get_window_ui_session(self)
+        search_widget = None if session is None else session.sidebar_search_nav_widget
         if search_widget is not None:
             search_index = layout.indexOf(search_widget)
             if search_index >= 0:

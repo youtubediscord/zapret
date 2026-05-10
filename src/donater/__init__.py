@@ -1,36 +1,8 @@
-"""Публичная точка входа donater с ленивыми экспортами.
+"""Premium feature package.
 
-Важно: не импортируем тяжёлые подпакеты сразу на уровне модуля.
-Иначе даже простой импорт `donater.premium_worker` сначала выполняет
-`donater.__init__`, который может потянуть сетевой стек и внешние зависимости.
+Внешние слои должны импортировать Premium через `donater.public`.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-__all__ = [
-    "PremiumService",
-    "get_premium_service",
-    "PremiumStorage",
-]
-
-if TYPE_CHECKING:
-    from .service import PremiumService, get_premium_service
-    from .storage import PremiumStorage
-
-
-def __getattr__(name: str):
-    if name == "PremiumService":
-        from .service import PremiumService
-
-        return PremiumService
-    if name == "get_premium_service":
-        from .service import get_premium_service
-
-        return get_premium_service
-    if name == "PremiumStorage":
-        from .storage import PremiumStorage
-
-        return PremiumStorage
-    raise AttributeError(name)
+__all__: list[str] = []

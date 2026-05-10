@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from presets.file_store import PresetFileStore
     from presets.ui_store import PresetUiStore
     from presets.selection_service import PresetSelectionService
-    from winws_runtime.flow.preset_mode import PresetModeCoordinator
 
 
 _ENGINE_TO_HIERARCHY_SCOPE = {
@@ -52,7 +51,7 @@ class PresetFileService:
     engine: str
     launch_method: str
     app_paths: "AppPaths"
-    preset_mode_coordinator: "PresetModeCoordinator"
+    preset_mode_coordinator: object
     preset_file_store: "PresetFileStore"
     preset_selection_service: "PresetSelectionService"
     preset_store_winws2: "PresetUiStore"

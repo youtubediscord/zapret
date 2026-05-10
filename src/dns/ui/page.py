@@ -41,6 +41,17 @@ from ui.text_catalog import tr as tr_catalog
 from log.log import log
 
 from dns.dns_providers import DNS_PROVIDERS
+from dns.public import (
+    apply_auto_dns,
+    apply_custom_dns,
+    apply_provider_dns,
+    disable_force_dns,
+    enable_force_dns,
+    flush_dns_cache,
+    get_force_dns_status,
+    load_page_data,
+    refresh_dns_info,
+)
 from dns.network_page_controller import NetworkPageController
 from dns.ui.adapters import build_adapter_cards, refresh_adapter_cards
 from dns.ui.cards import DNSProviderCard, AdapterCard
@@ -412,7 +423,7 @@ class NetworkPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            state = NetworkPageController.load_page_data()
+            state = load_page_data()
             if self._cleanup_in_progress:
                 return
             apply_loaded_page_state(
@@ -575,10 +586,10 @@ class NetworkPage(BasePage):
         if not adapters:
             return
 
-        success = NetworkPageController.apply_auto_dns(adapters)
+        result = apply_auto_dns(adapters)
         plan = NetworkPageController.build_auto_dns_apply_result_plan(
             adapter_count=len(adapters),
-            success_count=success,
+            success_count=result.affected_count,
         )
         if plan.log_message:
             log(plan.log_message, plan.log_level or "INFO")
@@ -601,7 +612,7 @@ class NetworkPage(BasePage):
                 log(provider_plan.log_message, provider_plan.log_level or "WARNING")
             return
 
-        success = NetworkPageController.apply_provider_dns(
+        result = apply_provider_dns(
             adapters,
             provider_plan.ipv4,
             provider_plan.ipv6,
@@ -610,7 +621,7 @@ class NetworkPage(BasePage):
         result_plan = NetworkPageController.build_provider_dns_apply_result_plan(
             name=name,
             adapter_count=len(adapters),
-            success_count=success,
+            success_count=result.affected_count,
             ipv6_available=self._ipv6_available,
             ipv6=provider_plan.ipv6,
         )
@@ -647,11 +658,11 @@ class NetworkPage(BasePage):
         if not adapters:
             return
 
-        success = NetworkPageController.apply_custom_dns(adapters, primary, secondary)
+        result = apply_custom_dns(adapters, primary, secondary)
         plan = NetworkPageController.build_custom_dns_apply_result_plan(
             primary=primary,
             adapter_count=len(adapters),
-            success_count=success,
+            success_count=result.affected_count,
         )
         if plan.log_message:
             log(plan.log_message, plan.log_level or "INFO")
@@ -668,7 +679,7 @@ class NetworkPage(BasePage):
                 return
 
             adapter_names = [card.adapter_name for card in self.adapter_cards]
-            dns_info = NetworkPageController.refresh_dns_info(adapter_names)
+            dns_info = refresh_dns_info(adapter_names)
             self._dns_info = dns_info
             refresh_plan = refresh_adapter_cards(
                 adapter_cards=self.adapter_cards,
@@ -694,7 +705,7 @@ class NetworkPage(BasePage):
             tr_fn=self._tr,
             add_widget_fn=self.add_widget,
             get_theme_tokens_fn=get_theme_tokens,
-            get_force_dns_status_fn=NetworkPageController.get_force_dns_status,
+            get_force_dns_status_fn=get_force_dns_status,
             has_fluent_labels=_HAS_FLUENT_LABELS,
             setting_card_group_cls=SettingCardGroup,
             settings_card_cls=SettingsCard,
@@ -805,9 +816,9 @@ class NetworkPage(BasePage):
         """Обработчик переключения принудительного DNS"""
         handle_force_dns_toggled_action(
             enabled=enabled,
-            get_force_dns_status_fn=NetworkPageController.get_force_dns_status,
-            enable_force_dns_fn=NetworkPageController.enable_force_dns,
-            disable_force_dns_fn=NetworkPageController.disable_force_dns,
+            get_force_dns_status_fn=get_force_dns_status,
+            enable_force_dns_fn=enable_force_dns,
+            disable_force_dns_fn=disable_force_dns,
             build_toggle_plan_fn=NetworkPageController.build_force_dns_toggle_plan,
             build_toggle_error_plan_fn=NetworkPageController.build_force_dns_toggle_error_plan,
             set_force_dns_active_fn=lambda value: setattr(self, "_force_dns_active", value),
@@ -868,7 +879,7 @@ class NetworkPage(BasePage):
     def _flush_dns_cache(self):
         """Сбрасывает DNS кэш"""
         flush_dns_cache_action(
-            flush_dns_cache_fn=NetworkPageController.flush_dns_cache,
+            flush_dns_cache_fn=flush_dns_cache,
             build_result_plan_fn=NetworkPageController.build_flush_dns_cache_result_plan,
             language=self._ui_language,
             info_bar_cls=InfoBar,
@@ -888,8 +899,8 @@ class NetworkPage(BasePage):
     def _reset_dns_to_dhcp(self):
         """Явно сбрасывает DNS на DHCP и отключает Force DNS"""
         reset_dns_to_dhcp_action(
-            disable_force_dns_fn=NetworkPageController.disable_force_dns,
-            get_force_dns_status_fn=NetworkPageController.get_force_dns_status,
+            disable_force_dns_fn=disable_force_dns,
+            get_force_dns_status_fn=get_force_dns_status,
             build_result_plan_fn=NetworkPageController.build_reset_dhcp_result_plan,
             language=self._ui_language,
             set_force_dns_active_fn=lambda value: setattr(self, "_force_dns_active", value),

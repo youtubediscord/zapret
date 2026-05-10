@@ -6,7 +6,6 @@ from typing import Callable, Optional
 from PyQt6.QtCore import QFileSystemWatcher, QTimer, QObject
 
 from settings.mode import is_preset_launch_method, normalize_launch_method
-from winws_runtime.flow.preset_switch_policy import request_selected_source_preset_apply
 from winws_runtime.runners.preset_runner_support import publish_active_preset_content_changed
 from log.log import log
 
@@ -22,20 +21,26 @@ class PresetRuntimeCoordinator(QObject):
         self,
         parent: QObject | None = None,
         *,
+        app_context,
+        ui_state_store,
         get_launch_method: Callable[[], str],
         get_active_preset_path: Callable[[], str],
         is_dpi_running: Callable[[], bool],
         restart_dpi_async: Callable[[], None],
         switch_presets_async: Callable[[str], None],
         refresh_after_switch: Callable[[], None],
+        request_runtime_content_apply: Callable[[str, str, str], bool],
     ) -> None:
         super().__init__(parent)
+        self._app_context = app_context
+        self._ui_state_store = ui_state_store
         self._get_launch_method = get_launch_method
         self._get_active_preset_path = get_active_preset_path
         self._is_dpi_running = is_dpi_running
         self._restart_dpi_async = restart_dpi_async
         self._switch_presets_async = switch_presets_async
         self._refresh_after_switch = refresh_after_switch
+        self._request_runtime_content_apply = request_runtime_content_apply
 
         self._active_preset_file_watcher: QFileSystemWatcher | None = None
         self._active_preset_file_refresh_timer: QTimer | None = None
@@ -83,8 +88,7 @@ class PresetRuntimeCoordinator(QObject):
         self.setup_active_preset_file_watcher()
         self._request_selected_source_preset_apply()
         try:
-            parent = self.parent()
-            store = getattr(parent, "ui_state_store", None)
+            store = self._ui_state_store
             if store is not None:
                 store.bump_active_preset_revision()
         except Exception:
@@ -96,8 +100,7 @@ class PresetRuntimeCoordinator(QObject):
         self._last_switched_preset_file_name = str(preset_file_name or "").strip()
         self.setup_active_preset_file_watcher()
         try:
-            parent = self.parent()
-            store = getattr(parent, "ui_state_store", None)
+            store = self._ui_state_store
             if store is not None:
                 store.bump_active_preset_revision()
         except Exception:
@@ -132,23 +135,17 @@ class PresetRuntimeCoordinator(QObject):
     def _request_selected_source_preset_apply(self, *, reason: str = "preset_switched") -> None:
         try:
             launch_method = str(self._get_launch_method() or "").strip().lower()
-            parent = self.parent()
-            if parent is None:
-                return
-            request_selected_source_preset_apply(
-                parent,
-                launch_method=launch_method,
-                reason=reason,
-                preset_file_name=str(getattr(self, "_last_switched_preset_file_name", "") or ""),
+            self._request_runtime_content_apply(
+                launch_method,
+                reason,
+                str(getattr(self, "_last_switched_preset_file_name", "") or ""),
             )
         except Exception:
             return
 
     def _is_selected_source_preset(self, launch_method: str, preset_file_name: str) -> bool:
         try:
-            parent = self.parent()
-            app_context = getattr(parent, "app_context", None)
-            coordinator = getattr(app_context, "preset_mode_coordinator", None)
+            coordinator = self._app_context.preset_mode_coordinator
             if coordinator is None:
                 return False
             selected = str(coordinator.get_selected_source_file_name(launch_method) or "").strip()

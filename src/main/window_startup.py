@@ -37,7 +37,7 @@ def window_bootstrap_for(window_cls, *, start_in_tray: bool):
 
 
 def startup_bootstrap_for(window) -> None:
-    from donater.subscription_manager import SubscriptionManager
+    from donater.public import SubscriptionManager
     from main.startup_coordinator import StartupCoordinator
     from winws_runtime.monitoring import ProcessMonitorManager
 

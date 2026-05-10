@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from presets.public import get_preset_source_path_by_file_name
 from presets.ui.common.preset_subpage_base import PresetSubpageBase
-from settings.mode import ENGINE_WINWS1, ZAPRET1_MODE
+from settings.mode import ZAPRET1_MODE
 
 
 class Zapret1PresetRawEditorPage(PresetSubpageBase):
@@ -11,7 +12,11 @@ class Zapret1PresetRawEditorPage(PresetSubpageBase):
         return "Пресет Zapret 1"
 
     def _get_preset_path(self, name: str) -> Path:
-        return self._require_app_context().preset_file_store.get_source_path(ENGINE_WINWS1, str(name or "").strip())
+        return get_preset_source_path_by_file_name(
+            ZAPRET1_MODE,
+            str(name or "").strip(),
+            app_context=self._require_app_context(),
+        )
 
     def _preset_launch_method(self) -> str | None:
         return ZAPRET1_MODE

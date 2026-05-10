@@ -1,7 +1,6 @@
 # dpi/ui/zapret1_mode/page.py
 """Zapret 1 mode management page (entry point for zapret1_mode mode)."""
 
-import os
 import webbrowser
 
 from PyQt6.QtCore import QTimer, pyqtSignal
@@ -33,9 +32,13 @@ from ui.compat_widgets import (
 from ui.state.main_window_state import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
-    attach_program_settings_runtime,
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
+)
+from program_settings.public import (
+    attach_program_settings_runtime,
+    refresh_program_settings_snapshot,
+    set_auto_dpi_enabled,
 )
 from ui.text_catalog import tr as tr_catalog
 
@@ -259,7 +262,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _attach_program_settings_runtime(self) -> None:
         attach_program_settings_runtime(
             self,
-            require_app_context_fn=self._require_app_context,
+            app_context=self._require_app_context(),
             apply_snapshot_fn=self._apply_program_settings_snapshot,
             require_attr_name="auto_dpi_toggle",
         )
@@ -275,8 +278,9 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
 
     def _sync_program_settings(self) -> None:
-        snapshot = self._require_app_context().program_settings_runtime_service.refresh()
-        self._apply_program_settings_snapshot(snapshot)
+        snapshot = refresh_program_settings_snapshot(self._require_app_context())
+        if snapshot is not None:
+            self._apply_program_settings_snapshot(snapshot)
 
     def _require_app_context(self):
         return require_page_app_context(
@@ -285,26 +289,23 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             error_message="AppContext is required for Zapret1 mode control page",
         )
 
-    def _get_program_settings_runtime_service(self):
-        return self._require_app_context().program_settings_runtime_service
-
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         try:
-            plan = ControlPageController.save_auto_dpi(enabled)
+            plan = set_auto_dpi_enabled(enabled)
             InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
         finally:
             self._sync_program_settings()
 
     def _load_preset_name(self) -> tuple[str, str]:
         try:
-            selected_manifest = self._require_app_context().preset_mode_coordinator.get_selected_source_manifest(
-                ZAPRET1_MODE
+            from presets.public import get_selected_source_preset_display
+
+            display = get_selected_source_preset_display(
+                ZAPRET1_MODE,
+                app_context=self._require_app_context(),
             )
-            file_name = str(getattr(selected_manifest, "file_name", "") or "").strip()
-            if file_name:
-                display_name = str(getattr(selected_manifest, "name", "") or "").strip()
-                display_name = display_name or os.path.splitext(os.path.basename(file_name))[0].strip() or file_name
-                return display_name, display_name
+            if display[0]:
+                return display
         except Exception:
             pass
 

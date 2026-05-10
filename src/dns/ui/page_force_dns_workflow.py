@@ -54,20 +54,20 @@ def handle_force_dns_toggled_action(
             return
 
         if enabled:
-            success, ok_count, total, message = enable_force_dns_fn(include_disconnected=False)
-            log_fn(message, "DNS")
+            result = enable_force_dns_fn(include_disconnected=False)
+            log_fn(result.message, "DNS")
             plan = build_toggle_plan_fn(
                 requested_enabled=True,
-                success=success,
-                ok_count=ok_count,
-                total=total,
+                success=result.success,
+                ok_count=result.affected_count,
+                total=result.total_count,
             )
         else:
-            success, message = disable_force_dns_fn(reset_to_auto=False)
-            log_fn(message, "DNS")
+            result = disable_force_dns_fn(reset_to_auto=False)
+            log_fn(result.message, "DNS")
             plan = build_toggle_plan_fn(
                 requested_enabled=False,
-                success=success,
+                success=result.success,
             )
 
         set_force_dns_active_fn(plan.force_dns_active)
@@ -99,10 +99,10 @@ def flush_dns_cache_action(
     info_bar_cls,
     parent_window,
 ) -> None:
-    success, message = flush_dns_cache_fn()
+    result = flush_dns_cache_fn()
     plan = build_result_plan_fn(
-        success=success,
-        message=message,
+        success=result.success,
+        message=result.message,
         language=language,
     )
     if plan.infobar_level == "warning" and info_bar_cls:
@@ -140,12 +140,12 @@ def reset_dns_to_dhcp_action(
     log_fn,
 ) -> None:
     try:
-        success, message = disable_force_dns_fn(reset_to_auto=True)
-        log_fn(message, "DNS")
+        result = disable_force_dns_fn(reset_to_auto=True)
+        log_fn(result.message, "DNS")
 
         result_plan = build_result_plan_fn(
-            success=success,
-            message=message,
+            success=result.success,
+            message=result.message,
             force_dns_active=get_force_dns_status_fn(),
             language=language,
         )

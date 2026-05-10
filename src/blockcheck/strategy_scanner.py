@@ -1571,7 +1571,7 @@ class StrategyScanner:
         # Fallback: force-kill all winws processes if graceful kill failed
         if not killed_cleanly:
             try:
-                from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+                from winws_runtime.public import shutdown_runtime_sync
 
                 shutdown_runtime_sync(reason="blockcheck_kill_fallback", include_cleanup=True)
             except Exception as e:
@@ -1583,7 +1583,7 @@ class StrategyScanner:
         errors = []
 
         try:
-            from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
+            from winws_runtime.public import shutdown_runtime_sync
 
             result = shutdown_runtime_sync(reason="blockcheck_pre_scan", include_cleanup=True)
             if result.still_running:

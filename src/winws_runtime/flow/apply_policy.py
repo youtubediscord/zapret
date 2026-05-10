@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from log.log import log
+from presets.public import get_launch_snapshot
 from settings.mode import is_preset_launch_method, is_zapret1_launch_method, normalize_launch_method
 
 
@@ -33,7 +34,7 @@ def _get_selected_presets_path(app: "LupiDPIApp", launch_method: str) -> Path | 
     if not is_preset_launch_method(method):
         return None
     try:
-        snapshot = app.app_context.preset_mode_coordinator.get_startup_snapshot(method, require_filters=False)
+        snapshot = get_launch_snapshot(method, app_context=app.app_context, require_filters=False)
         return Path(snapshot.preset_path)
     except Exception:
         return None

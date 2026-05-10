@@ -272,29 +272,21 @@ class UserPresetsPageController:
     def _require_app_context(self):
         return self._config.require_app_context()
 
-    def _get_preset_mode_coordinator(self):
-        return self._require_app_context().preset_mode_coordinator
-
-    def _get_selection_service(self):
-        return self._require_app_context().preset_selection_service
-
     def _get_app_paths(self):
         return self._require_app_context().app_paths
-
-    def _get_preset_file_service(self):
-        from presets.file_service import PresetFileService
-
-        return PresetFileService.from_launch_method(
-            self._config.launch_method,
-            app_context=self._require_app_context(),
-        )
 
     def get_preset_store(self):
         return self._config.get_preset_store()
 
     def create_preset(self, *, name: str, from_current: bool) -> UserPresetActionResult:
-        service = self._get_preset_file_service()
-        service.create(name, from_current=from_current)
+        from presets.public import create_preset
+
+        create_preset(
+            self._config.launch_method,
+            name,
+            from_current=from_current,
+            app_context=self._require_app_context(),
+        )
         return UserPresetActionResult(
             ok=True,
             log_level="INFO",
@@ -306,9 +298,23 @@ class UserPresetsPageController:
         )
 
     def rename_preset(self, *, current_name: str, new_name: str) -> UserPresetActionResult:
-        service = self._get_preset_file_service()
-        updated = service.rename_by_file_name(current_name, new_name)
-        switched_file_name = updated.file_name if service.is_selected_file_name(updated.file_name) else None
+        from presets.public import is_selected_preset_file_name, rename_preset_by_file_name
+
+        updated = rename_preset_by_file_name(
+            self._config.launch_method,
+            current_name,
+            new_name,
+            app_context=self._require_app_context(),
+        )
+        switched_file_name = (
+            updated.file_name
+            if is_selected_preset_file_name(
+                self._config.launch_method,
+                updated.file_name,
+                app_context=self._require_app_context(),
+            )
+            else None
+        )
 
         return UserPresetActionResult(
             ok=True,
@@ -322,9 +328,15 @@ class UserPresetsPageController:
         )
 
     def import_preset_from_file(self, *, file_path: str) -> UserPresetImportResult:
+        from presets.public import import_preset_from_file
+
         requested_name = str(Path(file_path).stem or "").strip() or "Imported"
-        service = self._get_preset_file_service()
-        imported = service.import_from_file(Path(file_path), requested_name)
+        imported = import_preset_from_file(
+            self._config.launch_method,
+            file_path,
+            requested_name,
+            app_context=self._require_app_context(),
+        )
         actual_name = imported.name
         actual_file_name = imported.file_name
 
@@ -352,9 +364,16 @@ class UserPresetsPageController:
         )
 
     def reset_all_presets(self) -> UserPresetResetAllResult:
-        service = self._get_preset_file_service()
-        success_count, total, failed = service.reset_all_to_builtin()
-        selected_file_name = service.get_selected_file_name()
+        from presets.public import get_selected_source_preset_file_name, reset_all_presets_to_builtin
+
+        success_count, total, failed = reset_all_presets_to_builtin(
+            self._config.launch_method,
+            app_context=self._require_app_context(),
+        )
+        selected_file_name = get_selected_source_preset_file_name(
+            self._config.launch_method,
+            app_context=self._require_app_context(),
+        )
 
         failed_count = len(failed or [])
         if failed_count:
@@ -379,9 +398,15 @@ class UserPresetsPageController:
         )
 
     def duplicate_preset(self, *, file_name: str, display_name: str) -> UserPresetActionResult:
+        from presets.public import duplicate_preset_by_file_name
+
         new_name = f"{display_name} (копия)"
-        service = self._get_preset_file_service()
-        service.duplicate_by_file_name(file_name, new_name)
+        duplicate_preset_by_file_name(
+            self._config.launch_method,
+            file_name,
+            new_name,
+            app_context=self._require_app_context(),
+        )
         return UserPresetActionResult(
             ok=True,
             log_level="INFO",
@@ -393,8 +418,13 @@ class UserPresetsPageController:
         )
 
     def reset_preset_to_builtin(self, *, file_name: str, display_name: str) -> UserPresetActionResult:
-        service = self._get_preset_file_service()
-        service.reset_to_builtin_by_file_name(file_name)
+        from presets.public import reset_preset_to_builtin_by_file_name
+
+        reset_preset_to_builtin_by_file_name(
+            self._config.launch_method,
+            file_name,
+            app_context=self._require_app_context(),
+        )
 
         return UserPresetActionResult(
             ok=True,
@@ -418,9 +448,14 @@ class UserPresetsPageController:
                 structure_changed=False,
             )
 
-        service = self._get_preset_file_service()
         try:
-            service.delete_by_file_name(file_name)
+            from presets.public import delete_preset_by_file_name
+
+            delete_preset_by_file_name(
+                self._config.launch_method,
+                file_name,
+                app_context=self._require_app_context(),
+            )
         except Exception as e:
             if "Preset not found" in str(e):
                 return UserPresetActionResult(
@@ -445,8 +480,14 @@ class UserPresetsPageController:
         )
 
     def export_preset(self, *, file_name: str, file_path: str, display_name: str) -> UserPresetActionResult:
-        service = self._get_preset_file_service()
-        service.export_plain_text_by_file_name(file_name, Path(file_path))
+        from presets.public import export_preset_plain_text
+
+        export_preset_plain_text(
+            self._config.launch_method,
+            file_name,
+            file_path,
+            app_context=self._require_app_context(),
+        )
         return UserPresetActionResult(
             ok=True,
             log_level="INFO",
@@ -486,13 +527,13 @@ class UserPresetsPageController:
     @staticmethod
     def open_new_configs_post() -> UserPresetActionResult:
         try:
-            from winws_runtime.flow.preset_mode import PresetModeCoordinator
+            from config.urls import SUPPORT_DISCUSSIONS_URL
 
-            webbrowser.open(PresetModeCoordinator.PRESETS_DOWNLOAD_URL)
+            webbrowser.open(SUPPORT_DISCUSSIONS_URL)
             return UserPresetActionResult(
                 ok=True,
                 log_level="INFO",
-                log_message=f"Открыта страница пресетов: {PresetModeCoordinator.PRESETS_DOWNLOAD_URL}",
+                log_message=f"Открыта страница пресетов: {SUPPORT_DISCUSSIONS_URL}",
                 infobar_level=None,
                 infobar_title="",
                 infobar_content="",
@@ -513,9 +554,14 @@ class UserPresetsPageController:
         candidate = str(name or "").strip()
         if not candidate or not candidate.lower().endswith(".txt"):
             return False
-        service = self._get_preset_file_service()
         try:
-            manifest = service.get_manifest_by_file_name(candidate)
+            from presets.public import get_preset_manifest_by_file_name
+
+            manifest = get_preset_manifest_by_file_name(
+                self._config.launch_method,
+                candidate,
+                app_context=self._require_app_context(),
+            )
             if manifest is not None:
                 return str(manifest.kind or "").strip().lower() == "builtin"
         except Exception:
@@ -524,7 +570,8 @@ class UserPresetsPageController:
 
     def list_preset_entries_light(self) -> list[dict[str, object]]:
         try:
-            service = self._get_preset_file_service()
+            from presets.public import list_preset_manifests
+
             return [
                 {
                     "file_name": item.file_name,
@@ -533,7 +580,10 @@ class UserPresetsPageController:
                     "storage_scope": item.storage_scope,
                     "is_builtin": str(item.kind or "").strip().lower() == "builtin",
                 }
-                for item in service.list_manifests()
+                for item in list_preset_manifests(
+                    self._config.launch_method,
+                    app_context=self._require_app_context(),
+                )
             ]
         except Exception as e:
             log(f"{self._config.list_log_prefix}: не удалось загрузить lightweight список пресетов: {e}", "ERROR")
@@ -541,14 +591,27 @@ class UserPresetsPageController:
 
     def get_active_preset_name_light(self) -> str:
         try:
-            preset = self._require_app_context().preset_mode_coordinator.get_selected_source_manifest(self._config.launch_method)
+            from presets.public import get_selected_source_preset_manifest
+
+            preset = get_selected_source_preset_manifest(
+                self._config.launch_method,
+                app_context=self._require_app_context(),
+            )
             return str(preset.name if preset is not None else "").strip()
         except Exception:
             return ""
 
     def get_selected_source_preset_file_name_light(self) -> str:
         try:
-            return str(self._require_app_context().preset_selection_service.get_selected_file_name(self._config.selection_key) or "").strip()
+            from presets.public import get_selected_source_preset_file_name
+
+            return str(
+                get_selected_source_preset_file_name(
+                    self._config.launch_method,
+                    app_context=self._require_app_context(),
+                )
+                or ""
+            ).strip()
         except Exception:
             return ""
 
@@ -557,9 +620,9 @@ class UserPresetsPageController:
 
     def load_preset_list_metadata_light(self) -> dict[str, dict[str, object]]:
         from presets.lightweight_metadata import build_lightweight_preset_metadata
+        from presets.public import get_preset_source_path_by_file_name
 
         metadata: dict[str, dict[str, object]] = {}
-        service = self._get_preset_file_service()
 
         for entry in self.list_preset_entries_light():
             file_name = str(entry.get("file_name") or "").strip()
@@ -568,7 +631,11 @@ class UserPresetsPageController:
             is_builtin = bool(entry.get("is_builtin", False))
             if not file_name:
                 continue
-            path = service.get_source_path_by_file_name(file_name)
+            path = get_preset_source_path_by_file_name(
+                self._config.launch_method,
+                file_name,
+                app_context=self._require_app_context(),
+            )
             metadata[file_name] = build_lightweight_preset_metadata(
                 path,
                 display_name=display_name,
@@ -600,7 +667,13 @@ class UserPresetsPageController:
         display_name = str(matched_entry.get("display_name") or candidate_file_name).strip()
         kind = str(matched_entry.get("kind") or "").strip() or "user"
         is_builtin = bool(matched_entry.get("is_builtin", False))
-        path = self._get_preset_file_service().get_source_path_by_file_name(candidate_file_name)
+        from presets.public import get_preset_source_path_by_file_name
+
+        path = get_preset_source_path_by_file_name(
+            self._config.launch_method,
+            candidate_file_name,
+            app_context=self._require_app_context(),
+        )
 
         metadata = build_lightweight_preset_metadata(
             path,
@@ -616,9 +689,14 @@ class UserPresetsPageController:
         if not candidate:
             return ""
         if candidate.lower().endswith(".txt"):
-            service = self._get_preset_file_service()
             try:
-                manifest = service.get_manifest_by_file_name(candidate)
+                from presets.public import get_preset_manifest_by_file_name
+
+                manifest = get_preset_manifest_by_file_name(
+                    self._config.launch_method,
+                    candidate,
+                    app_context=self._require_app_context(),
+                )
                 if manifest is not None:
                     return manifest.name
             except Exception:
@@ -787,7 +865,13 @@ class UserPresetsPageController:
         preset_display_name = str(display_name or preset_file_name).strip() or preset_file_name
 
         try:
-            self._get_preset_file_service().activate_preset_file(preset_file_name)
+            from presets.public import activate_preset_file
+
+            activate_preset_file(
+                self._config.launch_method,
+                preset_file_name,
+                app_context=self._require_app_context(),
+            )
             return UserPresetActivationResult(
                 ok=True,
                 log_level="INFO",

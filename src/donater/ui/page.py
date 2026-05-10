@@ -21,6 +21,7 @@ except ImportError:
     _HAS_FLUENT = False
 
 from donater.premium_page_controller import PremiumPageController
+from donater.public import check_device_activation, start_pairing
 from ui.pages.base_page import BasePage
 from donater.ui.build import (
     build_premium_actions_section,
@@ -551,7 +552,7 @@ class PremiumPage(BasePage):
         self._activation_in_progress = plan.activation_in_progress
 
         self._start_worker_thread(
-            PremiumPageController.create_worker_thread(self.checker.pair_start),
+            PremiumPageController.create_worker_thread(lambda checker=self.checker: start_pairing(checker)),
             self._on_pair_code_created,
             self._on_activation_error,
         )
@@ -612,7 +613,7 @@ class PremiumPage(BasePage):
         )
 
         self._start_worker_thread(
-            PremiumPageController.create_worker_thread(self.checker.check_device_activation),
+            PremiumPageController.create_worker_thread(lambda checker=self.checker: check_device_activation(checker)),
             self._on_status_complete,
             self._on_status_error,
         )

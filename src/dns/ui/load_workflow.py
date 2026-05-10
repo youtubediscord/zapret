@@ -36,7 +36,7 @@ def apply_loaded_page_state(
     emit_dns_info_loaded_fn,
 ) -> None:
     set_ipv6_available_fn(state.ipv6_available)
-    set_force_dns_active_fn(state.force_dns_active)
+    set_force_dns_active_fn(state.force_dns_enabled)
     set_adapters_fn(state.adapters)
     set_dns_info_fn(state.dns_info)
     emit_adapters_loaded_fn(state.adapters)

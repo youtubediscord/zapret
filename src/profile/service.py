@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from types import SimpleNamespace
 
-from presets.file_service import PresetFileService
-from presets.file_store import PresetFileStore
+from presets.public import PresetFileStore, get_selected_source_preset_manifest, save_selected_preset_source
 from settings.mode import DEFAULT_LAUNCH_METHOD, ENGINE_WINWS2, engine_for_launch_method, normalize_launch_method
 
 from .match_filters import ports_label_from_match_lines, protocol_label_from_match_lines, strategy_catalog_from_match_lines
@@ -81,16 +80,16 @@ class ProfilePresetService:
         return self._engine
 
     def load_selected_preset(self) -> tuple[Preset, object]:
-        manifest = self._app_context.preset_mode_coordinator.get_selected_source_manifest(self._launch_method)
+        manifest = get_selected_source_preset_manifest(self._launch_method, app_context=self._app_context)
         source_text = self._preset_file_store.read_source_text(self._engine, manifest.file_name)
         return parse_preset_text(source_text, engine=self._engine, source_name=manifest.file_name), manifest
 
     def save_selected_preset(self, preset: Preset) -> None:
-        source_text = serialize_preset(preset)
-        PresetFileService.from_launch_method(
+        save_selected_preset_source(
             self._launch_method,
+            serialize_preset(preset),
             app_context=self._app_context,
-        ).save_selected_source_text(source_text)
+        )
 
     def list_profiles(self) -> ProfileListPayload:
         preset, manifest = self.load_selected_preset()

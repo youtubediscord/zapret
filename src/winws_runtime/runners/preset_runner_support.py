@@ -9,7 +9,6 @@ import threading
 import time
 from typing import Callable, Optional
 
-from app_notifications import advisory_notification
 from log.log import log
 
 
@@ -395,23 +394,10 @@ def notify_ui_launch_error(message: str) -> None:
         return
     try:
         from ui.app_window_locator import find_app_window
+        from winws_runtime.runtime.notifications import notify_runner_launch_error_threadsafe
 
         target = find_app_window("window_notification_controller")
-        if target is not None and hasattr(target, "window_notification_controller"):
-            controller = getattr(target, "window_notification_controller", None)
-            if controller is None:
-                return
-            controller.notify_threadsafe(
-                advisory_notification(
-                    level="error",
-                    title="Ошибка",
-                    content=text,
-                    source="launch.runner_error",
-                    presentation="infobar",
-                    queue="immediate",
-                    duration=10000,
-                    dedupe_key=f"launch.runner_error:{' '.join(text.split()).lower()}",
-                )
-            )
+        if target is not None:
+            notify_runner_launch_error_threadsafe(target, text)
     except Exception:
         pass

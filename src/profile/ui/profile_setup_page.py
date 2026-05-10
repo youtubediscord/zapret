@@ -6,7 +6,13 @@ from PyQt6.QtCore import pyqtSignal, Qt, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from log.log import log
-from profile.service import ProfilePresetService
+from profile.public import (
+    apply_strategy_to_profile,
+    get_profile_setup,
+    set_current_strategy_state,
+    set_profile_enabled,
+    update_winws2_profile_settings,
+)
 from profile.winws2_editable_settings import normalize_winws2_filter_value
 from qfluentwidgets import BodyLabel, BreadcrumbBar, CheckBox, ComboBox, LineEdit, PlainTextEdit, PushButton, TitleLabel
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_zapret2_launch_method
@@ -63,9 +69,6 @@ class ProfileSetupPageBase(BasePage):
             parent=self.parent(),
             error_message="Не удалось открыть настройку профиля: нет контекста приложения.",
         )
-
-    def _service(self) -> ProfilePresetService:
-        return ProfilePresetService(self._require_app_context(), self.launch_method)
 
     def _build_content(self) -> None:
         if self.title_label is not None:
@@ -261,7 +264,7 @@ class ProfileSetupPageBase(BasePage):
         if not self._profile_key:
             return
         try:
-            payload = self._service().get_profile_setup(self._profile_key)
+            payload = get_profile_setup(self._require_app_context(), self.launch_method, self._profile_key)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось прочитать профиль {self._profile_key}: {exc}", "ERROR")
             payload = None
@@ -444,7 +447,9 @@ class ProfileSetupPageBase(BasePage):
         if filter_enabled and not filter_value:
             return
         try:
-            new_key = self._service().update_winws2_editable_settings(
+            new_key = update_winws2_profile_settings(
+                self._require_app_context(),
+                self.launch_method,
                 self._profile_key,
                 filter_kind=str(self._filter_combo.itemData(self._filter_combo.currentIndex()) or "hostlist"),
                 filter_value=filter_value,
@@ -463,7 +468,7 @@ class ProfileSetupPageBase(BasePage):
             return
         enabled = bool(state == Qt.CheckState.Checked.value or state == 2)
         try:
-            new_key = self._service().set_profile_enabled(self._profile_key, enabled)
+            new_key = set_profile_enabled(self._require_app_context(), self.launch_method, self._profile_key, enabled)
             if new_key:
                 self._profile_key = new_key
             self.reload_current_profile()
@@ -478,7 +483,12 @@ class ProfileSetupPageBase(BasePage):
         if not strategy_id or strategy_id in {"none", "custom"}:
             return
         try:
-            new_key = self._service().apply_strategy(self._profile_key, strategy_id)
+            new_key = apply_strategy_to_profile(
+                self._require_app_context(),
+                self.launch_method,
+                self._profile_key,
+                strategy_id,
+            )
             if new_key:
                 self._profile_key = new_key
             self.reload_current_profile()
@@ -490,7 +500,12 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or not self._profile_key:
             return
         try:
-            self._service().set_current_strategy_state(self._profile_key, rating=rating)
+            set_current_strategy_state(
+                self._require_app_context(),
+                self.launch_method,
+                self._profile_key,
+                rating=rating,
+            )
             self.reload_current_profile()
             self.profile_changed.emit(self._profile_key, "feedback")
         except Exception as exc:
@@ -501,7 +516,12 @@ class ProfileSetupPageBase(BasePage):
             return
         try:
             current = bool(getattr(getattr(self._payload, "current_strategy_state", None), "favorite", False))
-            self._service().set_current_strategy_state(self._profile_key, favorite=not current)
+            set_current_strategy_state(
+                self._require_app_context(),
+                self.launch_method,
+                self._profile_key,
+                favorite=not current,
+            )
             self.reload_current_profile()
             self.profile_changed.emit(self._profile_key, "feedback")
         except Exception as exc:

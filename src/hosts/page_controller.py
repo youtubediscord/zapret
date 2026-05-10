@@ -232,9 +232,9 @@ class HostsPageController:
             pass
 
         try:
-            from hosts.hosts import HostsManager
+            from hosts.public import create_hosts_manager
 
-            return HostsManager(status_callback=lambda m: log(f"Hosts: {m}", "INFO"))
+            return create_hosts_manager(status_callback=lambda m: log(f"Hosts: {m}", "INFO"))
         except Exception as e:
             log(f"Ошибка инициализации HostsManager: {e}", "ERROR")
             return None
@@ -290,46 +290,30 @@ class HostsPageController:
 
     @staticmethod
     def execute_operation(*, hosts_manager, operation: str, payload=None) -> HostsOperationResult:
-        success = False
-        message = ""
+        from hosts.public import add_adobe_domains, apply_service_profiles, clear_hosts, remove_adobe_domains
 
         if operation == "apply_selection":
-            service_dns = payload or {}
-            success = hosts_manager.apply_service_dns_selections(service_dns)
-            if success:
-                message = "Применено"
-            else:
-                message = getattr(hosts_manager, "last_status", None) or "Ошибка"
+            result = apply_service_profiles(hosts_manager, payload or {})
 
         elif operation == "clear_all":
-            success = hosts_manager.clear_hosts_file()
-            if success:
-                message = "Hosts очищен"
-            else:
-                message = getattr(hosts_manager, "last_status", None) or "Ошибка"
+            result = clear_hosts(hosts_manager)
 
         elif operation == "adobe_add":
-            success = hosts_manager.add_adobe_domains()
-            if success:
-                message = "Adobe заблокирован"
-            else:
-                message = getattr(hosts_manager, "last_status", None) or "Ошибка"
+            result = add_adobe_domains(hosts_manager)
 
         elif operation == "adobe_remove":
-            success = hosts_manager.remove_adobe_domains()
-            if success:
-                message = "Adobe разблокирован"
-            else:
-                message = getattr(hosts_manager, "last_status", None) or "Ошибка"
+            result = remove_adobe_domains(hosts_manager)
+        else:
+            return HostsOperationResult(success=False, message="Неизвестная операция")
 
-        return HostsOperationResult(success=success, message=message)
+        return HostsOperationResult(success=result.success, message=result.message)
 
     @staticmethod
     def restore_hosts_permissions() -> HostsOperationResult:
-        from hosts.hosts import restore_hosts_permissions
+        from hosts.public import restore_hosts_permissions
 
-        success, message = restore_hosts_permissions()
-        return HostsOperationResult(success=bool(success), message=str(message or ""))
+        result = restore_hosts_permissions()
+        return HostsOperationResult(success=result.success, message=result.message)
 
     @staticmethod
     def ensure_ipv6_catalog_sections() -> tuple[bool, bool]:
