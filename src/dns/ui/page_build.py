@@ -21,6 +21,9 @@ class NetworkPageShellWidgets:
     custom_primary: object
     custom_secondary: object
     custom_apply_btn: object
+    ipv6_label: object = None
+    custom_primary_v6: object = None
+    custom_secondary_v6: object = None
     adapters_container: object
     adapters_layout: object
     tools_section_label: object
@@ -56,6 +59,7 @@ def build_network_page_shell(
     on_flush_dns_cache,
     set_tooltip_fn,
     dns_provider_card_cls,
+    show_ipv6: bool = False,
 ):
     loading_card = settings_card_cls()
     loading_layout = qvbox_layout_cls()
@@ -98,6 +102,7 @@ def build_network_page_shell(
         action_button_cls=action_button_cls,
         on_apply=on_apply_custom_dns,
         indicator_off_qss=dns_provider_card_cls.indicator_off(),
+        show_ipv6=show_ipv6,
     )
 
     adapters_container = QWidget()
@@ -134,6 +139,9 @@ def build_network_page_shell(
         custom_primary=custom_widgets.primary_input,
         custom_secondary=custom_widgets.secondary_input,
         custom_apply_btn=custom_widgets.apply_button,
+        ipv6_label=custom_widgets.ipv6_label,
+        custom_primary_v6=custom_widgets.primary_v6_input,
+        custom_secondary_v6=custom_widgets.secondary_v6_input,
         adapters_container=adapters_container,
         adapters_layout=adapters_layout,
         tools_section_label=tools_widgets.section_label,
