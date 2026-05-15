@@ -17,10 +17,10 @@ from main.shell import shell_bootstrap
 
 def _configure_window_appearance(window) -> None:
     try:
-        from settings.store import get_background_preset
+        from settings.appearance import load_background_preset
         from ui.theme import apply_window_background
 
-        background_preset = get_background_preset()
+        background_preset = load_background_preset().preset
         apply_window_background(window, preset=background_preset)
     except Exception:
         pass
@@ -34,9 +34,9 @@ def _configure_window_appearance(window) -> None:
         pass
 
     try:
-        from settings.store import get_window_opacity
+        from settings.appearance import load_window_opacity
 
-        opacity = get_window_opacity()
+        opacity = load_window_opacity().value
         if opacity != 100:
             window.set_window_opacity(opacity)
     except Exception:
@@ -66,7 +66,7 @@ def main() -> None:
 
     from main.window import window_bootstrap
 
-    _app_context, window = window_bootstrap(start_in_tray=start_in_tray)
+    window = window_bootstrap(start_in_tray=start_in_tray)
     _configure_window_appearance(window)
 
     ipc_manager = IPCManager()

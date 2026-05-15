@@ -22,6 +22,8 @@ class StrategyScanWorker(QObject):
         start_index: int = 0,
         scan_protocol: str = "tcp_https",
         udp_games_scope: str = "all",
+        *,
+        runtime_feature,
         parent=None,
     ):
         super().__init__(parent)
@@ -29,6 +31,7 @@ class StrategyScanWorker(QObject):
         self._mode = mode
         self._scan_protocol = scan_protocol
         self._udp_games_scope = udp_games_scope
+        self._runtime_feature = runtime_feature
         try:
             self._start_index = max(0, int(start_index))
         except Exception:
@@ -57,6 +60,7 @@ class StrategyScanWorker(QObject):
                 callback=self,
                 scan_protocol=self._scan_protocol,
                 udp_games_scope=self._udp_games_scope,
+                runtime_feature=self._runtime_feature,
             )
             report = self._scanner.run()
             self.scan_finished.emit(report)

@@ -1,19 +1,14 @@
 from __future__ import annotations
 
 from ui.navigation.text_sync import resolve_ui_language
-from ui.page_signals.registry import connect_lazy_page_signals
 from ui.startup_ui_metrics import log_startup_page_init_summary
-from ui.window_signal_bindings import connect_window_page_signals
 from ui.page_factory import UiPageFactory
 from ui.page_host import WindowPageHost
 from ui.page_registry import PAGE_CLASS_SPECS
 from ui.runtime_ui_bridge import ensure_runtime_ui_bridge
-from ui.window_display_state import refresh_pages_after_preset_switch_state
+from ui.window_appearance_bindings import initialize_window_appearance_bindings
 from ui.window_ui_session import WindowUiSession, get_window_ui_session
-from presets.public import get_selected_source_path
-from winws_runtime.public import (
-    create_preset_runtime_coordinator as build_preset_runtime_coordinator,
-)
+from presets.ui_bindings import bind_preset_stores_to_runtime
 
 
 def initialize_build_ui_state(
@@ -27,11 +22,7 @@ def initialize_build_ui_state(
     sidebar_search_widget_cls,
 ) -> None:
     page_factory = UiPageFactory(window, PAGE_CLASS_SPECS)
-    page_host = WindowPageHost(
-        window,
-        page_factory,
-        connect_page_signals=connect_lazy_page_signals,
-    )
+    page_host = WindowPageHost(window, page_factory)
     window.ui_session = WindowUiSession(
         page_factory=page_factory,
         page_host=page_host,
@@ -45,65 +36,75 @@ def initialize_build_ui_state(
         sidebar_search_widget_cls=sidebar_search_widget_cls,
         ui_language=resolve_ui_language(window),
     )
-    window.runtime_ui_bridge = ensure_runtime_ui_bridge(window)
+    window.ui_session.runtime_ui_bridge = ensure_runtime_ui_bridge(
+        window,
+        notify=window.window_notification_center.notify,
+        set_status=window.set_status,
+        mark_content_changed=window.app_runtime.state.ui.bump_preset_content_revision,
+    )
+    window.app_runtime.features.runtime.configure_runtime_ui_bridge(window.ui_session.runtime_ui_bridge)
 
 
 def create_preset_runtime_coordinator(window):
-    return build_preset_runtime_coordinator(
-        window,
-        app_context=window.app_context,
-        ui_state_store=window.ui_state_store,
+    state = window.app_runtime.state
+    runtime_feature = window.app_runtime.features.runtime
+    presets_feature = window.app_runtime.features.presets
+    profile_feature = window.app_runtime.features.profile
+    return runtime_feature.create_preset_runtime_coordinator(
+        ui_state_store=state.ui,
         get_launch_method=get_current_launch_method_for_preset_runtime,
-        get_active_preset_path=lambda: resolve_active_preset_watch_path(window.app_context),
-        refresh_after_switch=lambda: refresh_pages_after_preset_switch_state(window.app_context, window.ui_state_store),
+        get_active_preset_path=lambda: resolve_active_preset_watch_path(
+            presets_feature=presets_feature,
+        ),
+        refresh_after_switch=lambda: presets_feature.refresh_profile_strategy_summary_in_store(
+            method=get_current_launch_method_for_preset_runtime(),
+            profile_feature=profile_feature,
+            ui_state_store=state.ui,
+        ),
     )
 
 
-def finalize_page_signal_bootstrap(window) -> None:
-    window._page_signal_bootstrap_complete = True
+def finalize_page_stack_bootstrap(window) -> None:
     session = get_window_ui_session(window)
     if session is None:
         return
-    for page_name, page in list(session.pages.items()):
-        connect_lazy_page_signals(window, page_name, page)
-        session.page_host.ensure_page_in_stacked_widget(page)
+    session.page_host.finalize_stack_bootstrap()
 
 
 def ensure_session_memory_defaults(window) -> None:
-    if not hasattr(window, "_window_page_signals_connected"):
-        window._window_page_signals_connected = False
+    session = get_window_ui_session(window)
+    if session is not None:
+        session.ui_bootstrap_bindings_connected = False
 
 
 def finish_ui_bootstrap(window) -> None:
-    if bool(getattr(window, "_window_page_signals_connected", False)):
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    if bool(session.ui_bootstrap_bindings_connected):
         return
 
-    connect_window_page_signals(window)
-    window._window_page_signals_connected = True
+    bind_preset_stores_to_runtime(
+        presets_feature=window.app_runtime.features.presets,
+        preset_runtime=session.preset_runtime_coordinator,
+    )
+    initialize_window_appearance_bindings(window)
+    session.ui_bootstrap_bindings_connected = True
     log_startup_page_init_summary(window)
 
 
 def get_current_launch_method_for_preset_runtime() -> str:
-    try:
-        from settings.dpi.strategy_settings import get_strategy_launch_method
+    from ui.workflows.common import get_current_launch_method
 
-        return str(get_strategy_launch_method() or "").strip().lower()
-    except Exception:
+    return get_current_launch_method(default="")
+
+
+def resolve_active_preset_watch_path(*, presets_feature) -> str:
+    from settings.mode import is_preset_launch_method
+
+    method = get_current_launch_method_for_preset_runtime()
+    if not is_preset_launch_method(method):
         return ""
 
-
-def resolve_active_preset_watch_path(app_context) -> str:
-    try:
-        from settings.mode import is_preset_launch_method
-
-        method = get_current_launch_method_for_preset_runtime()
-        if not is_preset_launch_method(method):
-            return ""
-
-        if app_context is None:
-            return ""
-
-        preset_path = get_selected_source_path(method, app_context=app_context)
-        return str(preset_path or "")
-    except Exception:
-        return ""
+    preset_path = presets_feature.get_selected_source_path(method)
+    return str(preset_path or "")

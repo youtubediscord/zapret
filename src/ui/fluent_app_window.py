@@ -85,6 +85,19 @@ class ZapretFluentWindow(FluentWindow):
         except Exception:
             pass
 
+    def set_zoom_chrome_compact(self, compact: bool) -> None:
+        """Обновляет служебные элементы окна при maximized/normal режиме."""
+        normal_mode = not bool(compact)
+        if hasattr(self, "_update_border_radius"):
+            self._update_border_radius(normal_mode)
+        if hasattr(self, "_set_handles_visible"):
+            self._set_handles_visible(normal_mode)
+
+    def prepare_transparent_mica_background(self) -> None:
+        """Готовит прозрачный фон перед отключением Mica на Windows 11."""
+        self._darkBackgroundColor = QColor(0, 0, 0, 0)
+        self._lightBackgroundColor = QColor(0, 0, 0, 0)
+
     # ------------------------------------------------------------------
     # Navigation helpers
     # ------------------------------------------------------------------

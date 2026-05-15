@@ -10,7 +10,6 @@ _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
     "Zapret1PresetSetupPage": ("profile.ui.preset_setup_page", "Zapret1PresetSetupPage"),
     "Zapret1UserPresetsPage": ("presets.ui.zapret1.user_presets_page", "Zapret1UserPresetsPage"),
     "Zapret1ProfileSetupPage": ("profile.ui.profile_setup_page", "Zapret1ProfileSetupPage"),
-    "Zapret1PresetRawEditorPage": ("presets.ui.zapret1.preset_raw_editor_page", "Zapret1PresetRawEditorPage"),
 }
 
 __all__ = list(_PAGE_EXPORTS)

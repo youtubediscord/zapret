@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QCheckBox
 
-from ui.compat_widgets import SettingsCard, SemanticNotice
+from ui.fluent_widgets import SettingsCard, SemanticNotice
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from ui.theme_semantic import get_semantic_palette
 

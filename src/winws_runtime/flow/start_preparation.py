@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from log.log import log
-from presets.public import get_launch_snapshot
 from settings.mode import (
     ENGINE_WINWS2,
     is_orchestra_launch_method,
@@ -17,9 +15,6 @@ from settings.mode import (
 
 
 from winws_runtime.runtime.start_workers import PreparedDpiStartRequest
-
-if TYPE_CHECKING:
-    from app_context import AppContext
 
 
 def resolve_launch_method(launch_method=None) -> str:
@@ -50,7 +45,7 @@ def resolve_mode_name(selected_mode) -> str:
     return "Неизвестная стратегия"
 
 
-def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, app_context: "AppContext"):
+def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, presets_feature):
     method = normalize_launch_method(launch_method, default="")
 
     if is_orchestra_launch_method(method):
@@ -60,9 +55,8 @@ def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, app_co
         return selected_mode
 
     if is_preset_launch_method(method):
-        snapshot = get_launch_snapshot(
+        snapshot = presets_feature.get_launch_snapshot(
             method,
-            app_context=app_context,
             require_filters=True,
         )
         log(f"Используется выбранный source-пресет: {snapshot.preset_path}", "INFO")
@@ -93,7 +87,7 @@ def _preset_selected_mode_has_placeholder_unknown(selected_mode) -> bool:
     return bool(selected_mode.get("_preset_mode_has_placeholder_unknown"))
 
 
-def validate_preset_selected_mode(selected_mode, launch_method: str, *, app_context: "AppContext") -> None:
+def validate_preset_selected_mode(selected_mode, launch_method: str) -> None:
     method = normalize_launch_method(launch_method, default="")
     if not is_preset_launch_method(method):
         return
@@ -146,8 +140,6 @@ def validate_preset_selected_mode(selected_mode, launch_method: str, *, app_cont
 def sanitize_presets_before_launch(
     selected_mode,
     launch_method: str,
-    *,
-    app_context: "AppContext",
 ) -> tuple[list[str], str | None]:
     method = normalize_launch_method(launch_method, default="")
     if not is_zapret2_launch_method(method):
@@ -215,7 +207,7 @@ def prepare_start_request(
     selected_mode=None,
     launch_method=None,
     *,
-    app_context: "AppContext",
+    presets_feature,
 ) -> tuple[PreparedDpiStartRequest, list[str]]:
     resolved_method = resolve_launch_method(launch_method)
     log(f"Используется метод запуска: {resolved_method}", "INFO")
@@ -223,18 +215,16 @@ def prepare_start_request(
     prepared_selected_mode = prepare_selected_mode_for_start(
         selected_mode,
         resolved_method,
-        app_context=app_context,
+        presets_feature=presets_feature,
     )
     validate_preset_selected_mode(
         prepared_selected_mode,
         resolved_method,
-        app_context=app_context,
     )
 
     prelaunch_warnings, prelaunch_error = sanitize_presets_before_launch(
         prepared_selected_mode,
         resolved_method,
-        app_context=app_context,
     )
     if prelaunch_error:
         raise RuntimeError(prelaunch_error)

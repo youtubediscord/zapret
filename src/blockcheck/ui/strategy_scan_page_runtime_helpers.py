@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from blockcheck.strategy_scan_page_controller import StrategyScanPageController
-from ui.compat_widgets import InfoBarHelper
-from ui.text_catalog import tr as tr_catalog
+from ui.fluent_widgets import InfoBarHelper
+from app.text_catalog import tr as tr_catalog
 
 
 logger = logging.getLogger(__name__)
@@ -14,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 def apply_log_expand_state(
     *,
+    blockcheck_feature,
     expanded: bool,
     language: str,
     control_card,
@@ -22,7 +22,7 @@ def apply_log_expand_state(
     log_edit,
     expand_log_btn,
 ) -> None:
-    plan = StrategyScanPageController.build_log_expand_plan(
+    plan = blockcheck_feature.build_log_expand_plan(
         expanded=expanded,
         language=language,
     )
@@ -37,6 +37,7 @@ def apply_log_expand_state(
 
 def apply_language_plan_ui(
     *,
+    blockcheck_feature,
     language: str,
     log_expanded: bool,
     control_card,
@@ -53,7 +54,7 @@ def apply_language_plan_ui(
     games_scope_combo,
     quick_domain_btn,
 ) -> None:
-    plan = StrategyScanPageController.build_language_plan(
+    plan = blockcheck_feature.build_language_plan(
         language=language,
         log_expanded=log_expanded,
     )
@@ -66,18 +67,18 @@ def apply_language_plan_ui(
     stop_btn.setText(plan.stop_text)
     if actions_title_label is not None:
         actions_title_label.setText(
-            tr_catalog("page.strategy_scan.actions.title", language=language, default="Действия")
+            tr_catalog("page.blockcheck_public.actions.title", language=language, default="Действия")
         )
     start_btn.setToolTip(
         tr_catalog(
-            "page.strategy_scan.action.start.description",
+            "page.blockcheck_public.action.start.description",
             language=language,
             default="Запустить автоматический перебор стратегий обхода DPI для выбранной цели.",
         )
     )
     stop_btn.setToolTip(
         tr_catalog(
-            "page.strategy_scan.action.stop.description",
+            "page.blockcheck_public.action.stop.description",
             language=language,
             default="Остановить текущее сканирование стратегий и вернуть страницу в обычный режим.",
         )
@@ -105,6 +106,7 @@ def set_support_status(label, text: str) -> None:
 
 def prepare_strategy_scan_support(
     *,
+    blockcheck_feature,
     cleanup_in_progress: bool,
     run_log_file,
     stored_scan_protocol: str,
@@ -114,13 +116,13 @@ def prepare_strategy_scan_support(
     raw_protocol_label: str,
     raw_mode_label: str,
     stored_mode: str,
-    window,
+    parent_widget,
     support_status_label,
 ) -> None:
     if cleanup_in_progress:
         return
 
-    support_context = StrategyScanPageController.build_support_context(
+    support_context = blockcheck_feature.build_support_context(
         stored_scan_protocol=stored_scan_protocol,
         stored_scan_target=stored_scan_target,
         raw_protocol_value=raw_protocol_value,
@@ -131,7 +133,7 @@ def prepare_strategy_scan_support(
     )
 
     try:
-        feedback = StrategyScanPageController.prepare_support(
+        feedback = blockcheck_feature.prepare_support(
             run_log_file=run_log_file,
             target=support_context.target,
             protocol_label=support_context.protocol_label,
@@ -142,12 +144,12 @@ def prepare_strategy_scan_support(
         if result.zip_path:
             logger.info("Prepared Strategy Scan support archive: %s", result.zip_path)
 
-        message_plan = StrategyScanPageController.build_support_success_plan(feedback)
+        message_plan = blockcheck_feature.build_support_success_plan(feedback)
         set_support_status(support_status_label, message_plan.status_text)
 
         try:
             InfoBarHelper.success(
-                window,
+                parent_widget,
                 tr_catalog(message_plan.title_key, default=message_plan.title_default),
                 message_plan.body_text,
             )
@@ -155,11 +157,11 @@ def prepare_strategy_scan_support(
             pass
     except Exception as exc:
         logger.warning("Failed to prepare strategy-scan support bundle: %s", exc)
-        message_plan = StrategyScanPageController.build_support_error_plan(str(exc))
+        message_plan = blockcheck_feature.build_support_error_plan(str(exc))
         set_support_status(support_status_label, message_plan.status_text)
         try:
             InfoBarHelper.warning(
-                window,
+                parent_widget,
                 tr_catalog(message_plan.title_key, default=message_plan.title_default),
                 message_plan.body_text,
             )

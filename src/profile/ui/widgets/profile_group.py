@@ -9,7 +9,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QCursor
 
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from ui.theme_refresh import ThemeRefreshController
+from ui.theme_refresh import ThemeRefreshBinding
 
 try:
     from qfluentwidgets import StrongBodyLabel, HorizontalSeparator
@@ -95,7 +95,7 @@ class ProfileGroupHeader(QFrame):
             self._line = QFrame()
             self._line.setFrameShape(QFrame.Shape.HLine)
         layout.addWidget(self._line, 1)
-        self._theme_refresh = ThemeRefreshController(self, self._update_chevron)
+        self._theme_refresh = ThemeRefreshBinding(self, self._update_chevron)
 
     def _update_chevron(self):
         icon_name = "fa5s.chevron-down" if self._expanded else "fa5s.chevron-right"

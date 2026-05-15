@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
-
 
 def open_presets_folder_action(
     *,
-    get_presets_dir_fn,
+    open_presets_folder_fn,
     info_bar_cls,
     tr_fn,
     parent_window,
@@ -19,13 +15,7 @@ def open_presets_folder_action(
     log_fn,
 ) -> None:
     try:
-        presets_dir = get_presets_dir_fn()
-        presets_dir.mkdir(parents=True, exist_ok=True)
-        path = str(presets_dir)
-        if sys.platform == "win32":
-            os.startfile(path)  # type: ignore[attr-defined]
-        else:
-            subprocess.Popen(["xdg-open", path])  # noqa: S603 - user-triggered opener
+        open_presets_folder_fn()
     except Exception as exc:
         log_fn(f"{log_prefix}: open presets folder failed: {exc}", "WARNING")
         if info_bar_cls:

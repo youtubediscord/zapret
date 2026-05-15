@@ -539,7 +539,6 @@ class PremiumService:
                 subscription_level="–",
             )
 
-    # Back-compat helpers used around the app:
     def check_device_activation(self, *, use_cache: bool = False, automatic: bool = False) -> Dict[str, Any]:
         st = self.check_status(allow_network=not use_cache, automatic=automatic)
         found = st.is_linked if st.is_linked is not None else (PremiumStorage.get_device_token() is not None)

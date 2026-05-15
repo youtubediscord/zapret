@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import os
-
 from PyQt6.QtWidgets import QLabel
 
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 from blobs.ui.components import AddBlobDialog, BlobItemWidget
 
 
@@ -26,16 +24,15 @@ def load_blobs_into_ui(
     on_delete_blob,
     count_label,
     apply_page_theme,
+    get_blobs_info_fn,
     log_error,
     log_debug,
 ) -> None:
     if cleanup_in_progress:
         return
     try:
-        from blobs.service import get_blobs_info
-
         clear_blobs_layout(blobs_layout)
-        blobs_info = get_blobs_info()
+        blobs_info = get_blobs_info_fn()
 
         user_blobs = {k: v for k, v in blobs_info.items() if v.get("is_user")}
         system_blobs = {k: v for k, v in blobs_info.items() if not v.get("is_user")}
@@ -108,16 +105,16 @@ def add_blob_via_dialog(
     reload_callback,
     tr_fn,
     info_bar_cls,
+    get_bin_folder_fn,
+    save_user_blob_fn,
     log_info,
     log_error,
 ) -> None:
-    dialog = AddBlobDialog(window, language=ui_language)
+    dialog = AddBlobDialog(window, language=ui_language, bin_folder=get_bin_folder_fn())
     if dialog.exec():
         data = dialog.get_data()
         try:
-            from blobs.service import save_user_blob
-
-            if save_user_blob(data["name"], data["type"], data["value"], data["description"]):
+            if save_user_blob_fn(data["name"], data["type"], data["value"], data["description"]):
                 log_info(f"Добавлен блоб: {data['name']}")
                 reload_callback()
             else:
@@ -141,14 +138,13 @@ def delete_blob_named(
     reload_callback,
     tr_fn,
     info_bar_cls,
+    delete_user_blob_fn,
     window,
     log_info,
     log_error,
 ) -> None:
     try:
-        from blobs.service import delete_user_blob
-
-        if delete_user_blob(name):
+        if delete_user_blob_fn(name):
             log_info(f"Удалён блоб: {name}")
             reload_callback()
         else:
@@ -171,6 +167,7 @@ def reload_blobs_data(
     cleanup_in_progress: bool,
     reload_btn,
     reload_callback,
+    reload_blobs_fn,
     log_info,
     log_error,
 ) -> None:
@@ -178,9 +175,7 @@ def reload_blobs_data(
         return
     reload_btn.set_loading(True)
     try:
-        from blobs.service import reload_blobs
-
-        reload_blobs()
+        reload_blobs_fn()
         reload_callback()
         log_info("Блобы перезагружены")
     except Exception as exc:
@@ -189,12 +184,9 @@ def reload_blobs_data(
         reload_btn.set_loading(False)
 
 
-def open_bin_folder_action(*, tr_fn, info_bar_cls, window, log_error) -> None:
+def open_bin_folder_action(*, tr_fn, info_bar_cls, window, open_bin_folder_fn, log_error) -> None:
     try:
-        from config.config import BIN_FOLDER
-
-
-        os.startfile(BIN_FOLDER)
+        open_bin_folder_fn()
     except Exception as exc:
         log_error(f"Ошибка открытия папки: {exc}")
         info_bar_cls.warning(
@@ -204,13 +196,9 @@ def open_bin_folder_action(*, tr_fn, info_bar_cls, window, log_error) -> None:
         )
 
 
-def open_json_action(*, tr_fn, info_bar_cls, window, log_error) -> None:
+def open_json_action(*, tr_fn, info_bar_cls, window, open_blobs_json_fn, log_error) -> None:
     try:
-        from config.config import INDEXJSON_FOLDER
-
-
-        json_path = os.path.join(INDEXJSON_FOLDER, "blobs.json")
-        os.startfile(json_path)
+        open_blobs_json_fn()
     except Exception as exc:
         log_error(f"Ошибка открытия JSON: {exc}")
         info_bar_cls.warning(

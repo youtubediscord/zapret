@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from donater.premium_page_controller import PremiumPageController
+import donater.ui.page_plans as premium_page_plans
 
 
 def render_server_status_label(
@@ -91,12 +91,12 @@ def apply_status_check_success(
     set_activation_section_visible: Callable[[bool], None],
     stop_autopoll: Callable[[], None],
     sync_autopoll: Callable[[], None],
-    emit_subscription_updated: Callable[[bool, int], None],
+    apply_subscription_state: Callable[[bool, int], None],
 ) -> tuple[bool, int]:
     refresh_btn.set_loading(False)
     update_device_info()
     linked_hint, unlinked_hint = build_status_check_hints(tr=tr)
-    plan = PremiumPageController.build_status_check_plan(
+    plan = premium_page_plans.build_status_check_plan(
         result,
         linked_hint=linked_hint,
         unlinked_hint=unlinked_hint,
@@ -118,7 +118,7 @@ def apply_status_check_success(
     elif plan.sync_autopoll:
         sync_autopoll()
 
-    emit_subscription_updated(plan.emitted_is_premium, plan.emitted_days)
+    apply_subscription_state(plan.emitted_is_premium, plan.emitted_days)
     return plan.days_plan.kind, plan.days_plan.value
 
 
@@ -133,7 +133,7 @@ def apply_status_check_exception(
     sync_autopoll()
     refresh_btn.set_loading(False)
     linked_hint, unlinked_hint = build_status_check_hints(tr=tr)
-    plan = PremiumPageController.build_status_check_plan(
+    plan = premium_page_plans.build_status_check_plan(
         {"activated": False, "status": str(error or ""), "found": False},
         linked_hint=linked_hint,
         unlinked_hint=unlinked_hint,
@@ -167,8 +167,7 @@ def apply_connection_test_plan(
 
 def apply_reset_plan_ui(
     *,
-    checker,
-    storage,
+    premium_feature,
     key_input,
     set_activation_status: Callable[..., None],
     update_device_info: Callable[[], None],
@@ -176,10 +175,10 @@ def apply_reset_plan_ui(
     render_days_label: Callable[[], None],
     set_activation_section_visible: Callable[[bool], None],
     stop_autopoll: Callable[[], None],
-    emit_subscription_updated: Callable[[bool, int], None],
+    apply_subscription_state: Callable[[bool, int], None],
 ) -> tuple[str, int]:
-    PremiumPageController.reset_premium_storage(checker, storage)
-    plan = PremiumPageController.build_reset_plan()
+    premium_feature.reset_premium_storage()
+    plan = premium_page_plans.build_reset_plan()
 
     if plan.clear_pair_input:
         key_input.clear()
@@ -203,5 +202,5 @@ def apply_reset_plan_ui(
     set_activation_section_visible(plan.show_activation_section)
     if plan.stop_autopoll:
         stop_autopoll()
-    emit_subscription_updated(plan.emitted_is_premium, plan.emitted_days)
+    apply_subscription_state(plan.emitted_is_premium, plan.emitted_days)
     return plan.days_plan.kind, plan.days_plan.value

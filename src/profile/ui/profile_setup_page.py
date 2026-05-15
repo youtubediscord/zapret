@@ -2,32 +2,21 @@ from __future__ import annotations
 
 import re
 
-from PyQt6.QtCore import pyqtSignal, Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from log.log import log
-from profile.public import (
-    apply_strategy_to_profile,
-    get_profile_setup,
-    set_current_strategy_state,
-    set_profile_enabled,
-    update_winws2_profile_settings,
-)
 from profile.winws2_editable_settings import normalize_winws2_filter_value
 from qfluentwidgets import BodyLabel, BreadcrumbBar, CheckBox, ComboBox, LineEdit, PlainTextEdit, PushButton, TitleLabel
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_zapret2_launch_method
-from ui.page_dependencies import require_page_app_context
 from ui.pages.base_page import BasePage
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 
 _SIMPLE_RANGE_RE = re.compile(r"^-?(?P<mode>[nd])(?P<value>\d+)$", re.IGNORECASE)
 
 
 class ProfileSetupPageBase(BasePage):
-    profile_changed = pyqtSignal(str, str)
-    back_clicked = pyqtSignal()
-    navigate_to_root = pyqtSignal()
     profile_ui_mode_override: str | None = None
     launch_method = ZAPRET2_MODE
     title_key_name = "page.winws2_profile_setup.title"
@@ -35,13 +24,16 @@ class ProfileSetupPageBase(BasePage):
     profiles_key = "page.winws2_pages.title"
     profiles_default = "Настройка пресета"
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, profile_feature, open_profiles, open_root, on_profile_changed):
         super().__init__(
             title="",
             parent=parent,
             title_key=self.title_key_name,
         )
-        self.parent_app = parent
+        self._profile = profile_feature
+        self._open_profiles = open_profiles
+        self._open_root = open_root
+        self._on_profile_changed_callback = on_profile_changed
         self._profile_key = ""
         self._loading = False
         self._payload = None
@@ -62,13 +54,6 @@ class ProfileSetupPageBase(BasePage):
         self._settings_save_timer.setInterval(350)
         self._settings_save_timer.timeout.connect(self._autosave_editable_settings)
         self._build_content()
-
-    def _require_app_context(self):
-        return require_page_app_context(
-            self,
-            parent=self.parent(),
-            error_message="Не удалось открыть настройку профиля: нет контекста приложения.",
-        )
 
     def _build_content(self) -> None:
         if self.title_label is not None:
@@ -243,9 +228,9 @@ class ProfileSetupPageBase(BasePage):
 
     def _on_breadcrumb_item_changed(self, key: str) -> None:
         if key == "control":
-            self.navigate_to_root.emit()
+            self._open_root()
         elif key == "profiles":
-            self.back_clicked.emit()
+            self._open_profiles()
         elif key == "profile":
             self._profile_subpage = "profile"
             self._sync_subpage_visibility()
@@ -264,7 +249,7 @@ class ProfileSetupPageBase(BasePage):
         if not self._profile_key:
             return
         try:
-            payload = get_profile_setup(self._require_app_context(), self.launch_method, self._profile_key)
+            payload = self._profile.get_profile_setup(self.launch_method, self._profile_key)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось прочитать профиль {self._profile_key}: {exc}", "ERROR")
             payload = None
@@ -447,8 +432,7 @@ class ProfileSetupPageBase(BasePage):
         if filter_enabled and not filter_value:
             return
         try:
-            new_key = update_winws2_profile_settings(
-                self._require_app_context(),
+            new_key = self._profile.update_winws2_profile_settings(
                 self.launch_method,
                 self._profile_key,
                 filter_kind=str(self._filter_combo.itemData(self._filter_combo.currentIndex()) or "hostlist"),
@@ -459,7 +443,7 @@ class ProfileSetupPageBase(BasePage):
             if new_key:
                 self._profile_key = new_key
             self.reload_current_profile()
-            self.profile_changed.emit(self._profile_key, "settings")
+            self._on_profile_changed_callback(self._profile_key, "settings")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {exc}", "ERROR")
 
@@ -468,11 +452,11 @@ class ProfileSetupPageBase(BasePage):
             return
         enabled = bool(state == Qt.CheckState.Checked.value or state == 2)
         try:
-            new_key = set_profile_enabled(self._require_app_context(), self.launch_method, self._profile_key, enabled)
+            new_key = self._profile.set_profile_enabled(self.launch_method, self._profile_key, enabled)
             if new_key:
                 self._profile_key = new_key
             self.reload_current_profile()
-            self.profile_changed.emit(self._profile_key, "enabled" if enabled else "disabled")
+            self._on_profile_changed_callback(self._profile_key, "enabled" if enabled else "disabled")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось изменить состояние профиля: {exc}", "ERROR")
 
@@ -483,8 +467,7 @@ class ProfileSetupPageBase(BasePage):
         if not strategy_id or strategy_id in {"none", "custom"}:
             return
         try:
-            new_key = apply_strategy_to_profile(
-                self._require_app_context(),
+            new_key = self._profile.apply_strategy_to_profile(
                 self.launch_method,
                 self._profile_key,
                 strategy_id,
@@ -492,7 +475,7 @@ class ProfileSetupPageBase(BasePage):
             if new_key:
                 self._profile_key = new_key
             self.reload_current_profile()
-            self.profile_changed.emit(self._profile_key, "strategy")
+            self._on_profile_changed_callback(self._profile_key, "strategy")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось применить стратегию: {exc}", "ERROR")
 
@@ -500,14 +483,13 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or not self._profile_key:
             return
         try:
-            set_current_strategy_state(
-                self._require_app_context(),
+            self._profile.set_current_strategy_state(
                 self.launch_method,
                 self._profile_key,
                 rating=rating,
             )
             self.reload_current_profile()
-            self.profile_changed.emit(self._profile_key, "feedback")
+            self._on_profile_changed_callback(self._profile_key, "feedback")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось обновить оценку стратегии: {exc}", "ERROR")
 
@@ -515,15 +497,14 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or not self._profile_key or self._payload is None:
             return
         try:
-            current = bool(getattr(getattr(self._payload, "current_strategy_state", None), "favorite", False))
-            set_current_strategy_state(
-                self._require_app_context(),
+            current = bool(self._payload.current_strategy_state.favorite)
+            self._profile.set_current_strategy_state(
                 self.launch_method,
                 self._profile_key,
                 favorite=not current,
             )
             self.reload_current_profile()
-            self.profile_changed.emit(self._profile_key, "feedback")
+            self._on_profile_changed_callback(self._profile_key, "feedback")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось обновить избранную стратегию: {exc}", "ERROR")
 

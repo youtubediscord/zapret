@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
@@ -9,7 +9,6 @@ from profile.ui.profile_item import ProfileItem
 from profile.ui.widgets.profile_group import ProfileGroup
 from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
 from profile.match_filters import is_voice_match, ports_label_from_match_lines, protocol_label_from_match_lines
-from profile.public import ProfileListItem
 
 
 class ProfilesList(QWidget):
@@ -30,7 +29,7 @@ class ProfilesList(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._items_by_key: Dict[str, ProfileItem] = {}
-        self._profile_items: Dict[str, ProfileListItem] = {}
+        self._profile_items: Dict[str, Any] = {}
         self._groups: Dict[str, ProfileGroup] = {}
         self._profile_to_group: Dict[str, str] = {}
         self.setAcceptDrops(True)
@@ -52,9 +51,9 @@ class ProfilesList(QWidget):
         self._content_layout.addStretch()
         layout.addWidget(self._content)
 
-    def build_profiles(self, items: tuple[ProfileListItem, ...]) -> None:
+    def build_profiles(self, items: tuple[Any, ...]) -> None:
         self.clear()
-        grouped: dict[str, list[ProfileListItem]] = {}
+        grouped: dict[str, list[Any]] = {}
         for item in items:
             grouped.setdefault(item.group or "default", []).append(item)
 
@@ -94,7 +93,7 @@ class ProfilesList(QWidget):
         for group in self._groups.values():
             group.set_expanded(False)
 
-    def _create_item(self, item: ProfileListItem) -> ProfileItem:
+    def _create_item(self, item: Any) -> ProfileItem:
         ports = ports_label_from_match_lines(item.match_lines)
         description_parts = [part for part in (protocol_label_from_match_lines(item.match_lines), f"порты: {ports}" if ports else "") if part]
         description = " | ".join(description_parts)
@@ -192,6 +191,6 @@ class ProfilesList(QWidget):
             return
         event.ignore()
 
-def _match_summary(item: ProfileListItem) -> str:
+def _match_summary(item: Any) -> str:
     parts = [part for part in (protocol_label_from_match_lines(item.match_lines), ports_label_from_match_lines(item.match_lines), item.list_type) if part]
     return " • ".join(parts) or "без явных условий"

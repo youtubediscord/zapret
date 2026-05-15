@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from settings.mode import EXE_NAME_WINWS1
-from ui.text_catalog import tr as tr_catalog
-from presets.ui.control.control_runtime_controller import ControlPageController
+from settings.mode import EXE_NAME_WINWS1, ZAPRET1_MODE
+from app.text_catalog import tr as tr_catalog
+import presets.ui.control.control_runtime as control_runtime
 from presets.ui.control.control_page_runtime_shared import (
     apply_program_settings_toggles,
     apply_status_plan as apply_status_plan_shared,
@@ -170,3 +170,19 @@ def show_simple_infobar_result(*, ok: bool, message: str, window, info_bar_cls) 
     if ok:
         return
     info_bar_cls.warning(title="Ошибка", content=f"Не удалось очистить кэш: {message}", parent=window)
+
+
+def save_wssize_enabled(enabled: bool, *, profile_feature, runtime_feature) -> None:
+    profile_feature.set_wssize_enabled(
+        bool(enabled),
+        launch_method=ZAPRET1_MODE,
+    )
+    runtime_feature.apply_preset_content(launch_method=ZAPRET1_MODE, reason="wssize_toggled")
+
+
+def save_debug_log_enabled(enabled: bool, *, profile_feature, runtime_feature) -> None:
+    profile_feature.set_debug_log_enabled(
+        bool(enabled),
+        launch_method=ZAPRET1_MODE,
+    )
+    runtime_feature.apply_preset_content(launch_method=ZAPRET1_MODE, reason="debug_log_toggled")

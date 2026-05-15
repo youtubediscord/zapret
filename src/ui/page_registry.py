@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from ui.navigation.schema import iter_page_specs
-from ui.page_names import PageName
+from app.page_names import PageName
 
 
-PAGE_CLASS_SPECS: dict[PageName, tuple[str, str, str]] = {
-    spec.page_name: (spec.attr_name, spec.module_name, spec.class_name)
+PAGE_CLASS_SPECS: dict[PageName, tuple[str, str]] = {
+    spec.page_name: (spec.module_name, spec.class_name)
     for spec in iter_page_specs()
 }
 
@@ -103,7 +103,7 @@ def get_page_performance_profile(page_name: PageName) -> PagePerformanceProfile:
 def iter_lazy_page_modules() -> tuple[str, ...]:
     seen: set[str] = set()
     modules: list[str] = []
-    for _attr_name, module_name, _class_name in PAGE_CLASS_SPECS.values():
+    for module_name, _class_name in PAGE_CLASS_SPECS.values():
         module = str(module_name or "").strip()
         if not module or module in seen:
             continue
@@ -112,5 +112,5 @@ def iter_lazy_page_modules() -> tuple[str, ...]:
     return tuple(modules)
 
 
-def iter_lazy_page_specs() -> Iterable[tuple[PageName, tuple[str, str, str]]]:
+def iter_lazy_page_specs() -> Iterable[tuple[PageName, tuple[str, str]]]:
     return PAGE_CLASS_SPECS.items()

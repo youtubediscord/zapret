@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
-from ui.compat_widgets import QuickActionsBar, RefreshButton
+from ui.fluent_widgets import QuickActionsBar, RefreshButton
 from ui.theme import get_theme_tokens, get_themed_qta_icon
 from qfluentwidgets import BodyLabel, PushButton, PrimaryPushButton
 

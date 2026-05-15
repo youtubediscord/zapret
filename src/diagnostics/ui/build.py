@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QWidget, QHBoxLayout
 
-from ui.compat_widgets import QuickActionsBar, SettingsCard
+from ui.fluent_widgets import QuickActionsBar, SettingsCard
 from diagnostics.ui.components import ConnectionStatusBadge, ScrollBlockingConnectionTextEdit
 from ui.theme import get_themed_qta_icon
 

@@ -288,9 +288,6 @@ class ServerPool:
             log("⚠️ Нет других доступных серверов", "POOL")
             return False
     
-    # Алиас для совместимости
-    force_switch = force_switch_server
-    
     def is_server_blocked(self, server_id: str) -> bool:
         """Проверяет заблокирован ли сервер"""
         stats = self.stats.get(server_id, {})

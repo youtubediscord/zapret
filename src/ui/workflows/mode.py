@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from settings.mode import DEFAULT_LAUNCH_METHOD, normalize_launch_method
+from ui.navigation.sidebar_builder import sync_nav_visibility
 from ui.navigation_pages import (
     resolve_control_page_for_method,
     resolve_preset_setup_page_for_method,
@@ -9,9 +10,8 @@ from ui.navigation_pages import (
     resolve_zapret1_navigation_pages,
     resolve_zapret2_navigation_pages,
 )
-from ui.page_contracts import PageMethodName
-from ui.page_names import PageName
-from ui.window_adapter import ensure_page, get_loaded_page, show_page
+from app.page_names import PageName
+from ui.window_adapter import ensure_page, get_current_page, get_loaded_page, show_page
 from ui.workflows.common import (
     get_current_launch_method,
     open_preset_raw_editor_page,
@@ -55,11 +55,10 @@ def open_profile_setup_for_method(
     if setup_page is None:
         return False
 
-    handler = getattr(setup_page, PageMethodName.SHOW_PROFILE, None)
-    if not callable(handler):
+    try:
+        setup_page.show_profile(profile_key)
+    except Exception:
         return False
-
-    handler(profile_key)
 
     if show_page_after_open:
         if not show_page(window, page_name, allow_internal=allow_internal):
@@ -96,11 +95,7 @@ def open_preset_raw_editor_for_method(
 
 
 def redirect_to_preset_setup_page_for_method(window, method: str) -> None:
-    current = None
-    try:
-        current = window.stackedWidget.currentWidget() if hasattr(window, "stackedWidget") else None
-    except Exception:
-        current = None
+    current = get_current_page(window)
 
     mode_context_pages = get_mode_context_pages(window)
 
@@ -114,6 +109,35 @@ def redirect_to_preset_setup_page_for_method(window, method: str) -> None:
     )
 
 
+def apply_launch_method_changed_ui(window, method: str) -> None:
+    try:
+        from log.log import log
+
+        log(f"Метод '{method}' сохранён, UI переключается на страницы выбранного режима", "INFO")
+    except Exception:
+        pass
+
+    try:
+        from ui.window_ui_session import get_window_ui_session
+
+        session = get_window_ui_session(window)
+        preset_runtime = session.preset_runtime_coordinator if session is not None else None
+        if preset_runtime is not None:
+            preset_runtime.setup_active_preset_file_watcher()
+    except Exception:
+        pass
+
+    try:
+        sync_nav_visibility(window, method)
+    except Exception:
+        pass
+
+    try:
+        redirect_to_preset_setup_page_for_method(window, method)
+    except Exception:
+        pass
+
+
 def show_active_mode_control_page(window, *, allow_internal: bool) -> None:
     method = get_current_launch_method(default=DEFAULT_LAUNCH_METHOD)
     show_page(
@@ -124,6 +148,7 @@ def show_active_mode_control_page(window, *, allow_internal: bool) -> None:
 
 
 __all__ = [
+    "apply_launch_method_changed_ui",
     "get_mode_context_pages",
     "open_preset_raw_editor_for_method",
     "open_profile_setup_for_method",

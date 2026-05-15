@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     SettingsCard,
     QuickActionsBar,
     enable_setting_card_group_auto_height,
@@ -165,7 +165,7 @@ def build_telegram_proxy_settings_panel(
         "Авто-настройка Telegram",
         "При первом запуске прокси автоматически открыть ссылку настройки в Telegram",
     )
-    auto_deeplink_toggle.toggle.setChecked(True)
+    auto_deeplink_toggle.setChecked(True)
     settings_card.addSettingCard(auto_deeplink_toggle)
     enable_setting_card_group_auto_height(settings_card)
 
@@ -185,7 +185,7 @@ def build_telegram_proxy_settings_panel(
         "Использовать внешний прокси",
         "Маршрутизировать заблокированные DC через внешний SOCKS5 прокси",
     )
-    upstream_toggle.toggle.setChecked(False)
+    upstream_toggle.setChecked(False)
     upstream_card.addSettingCard(upstream_toggle)
 
     upstream_catalog = UpstreamCatalog.load_from_runtime()
@@ -264,7 +264,7 @@ def build_telegram_proxy_settings_panel(
         "Весь трафик через прокси",
         "Если выключено — только заблокированные DC. Если включено — весь трафик Telegram.",
     )
-    upstream_mode_toggle.toggle.setChecked(True)
+    upstream_mode_toggle.setChecked(True)
     upstream_card.addSettingCard(upstream_mode_toggle)
     enable_setting_card_group_auto_height(upstream_card)
 

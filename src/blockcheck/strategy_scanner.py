@@ -45,6 +45,7 @@ from settings.mode import (
     ZAPRET2_MODE,
     exe_path_for_launch_method,
 )
+from winws_runtime.public import CREATE_NO_WINDOW, STARTF_USESHOWWINDOW, SW_HIDE
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,10 @@ class StrategyScanner:
         callback: StrategyScanCallback | None = None,
         scan_protocol: str = _PROTOCOL_TCP_HTTPS,
         udp_games_scope: str = _UDP_GAMES_SCOPE_ALL,
+        *,
+        runtime_feature,
     ):
+        self._runtime_feature = runtime_feature
         self._scan_protocol = self._normalize_scan_protocol(scan_protocol)
         self._udp_games_scope = self._normalize_udp_games_scope(udp_games_scope)
         if self._scan_protocol != _PROTOCOL_UDP_GAMES:
@@ -1517,19 +1521,9 @@ class StrategyScanner:
         cmd = [self._winws2_exe, f"@{preset_path}"]
 
         startupinfo = subprocess.STARTUPINFO()
-        try:
-            from winws_runtime.runners.constants import STARTF_USESHOWWINDOW, SW_HIDE
-            startupinfo.dwFlags = STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = SW_HIDE
-        except ImportError:
-            startupinfo.dwFlags = 0x00000001
-            startupinfo.wShowWindow = 0
-
-        try:
-            from winws_runtime.runners.constants import CREATE_NO_WINDOW
-            creation_flags = CREATE_NO_WINDOW
-        except ImportError:
-            creation_flags = 0x08000000
+        startupinfo.dwFlags = STARTF_USESHOWWINDOW
+        startupinfo.wShowWindow = SW_HIDE
+        creation_flags = CREATE_NO_WINDOW
 
         return subprocess.Popen(
             cmd,
@@ -1568,14 +1562,11 @@ class StrategyScanner:
         except OSError as e:
             logger.warning("Error killing %s process: %s", ENGINE_WINWS2, e)
 
-        # Fallback: force-kill all winws processes if graceful kill failed
         if not killed_cleanly:
             try:
-                from winws_runtime.public import shutdown_runtime_sync
-
-                shutdown_runtime_sync(reason="blockcheck_kill_fallback", include_cleanup=True)
+                self._runtime_feature.shutdown_sync(reason="blockcheck_kill_failed", include_cleanup=True)
             except Exception as e:
-                logger.debug("canonical runtime shutdown fallback failed: %s", e)
+                logger.debug("runtime shutdown after failed strategy kill failed: %s", e)
 
     def _pre_scan_cleanup(self) -> None:
         """Kill any running winws and clean WinDivert before scanning."""
@@ -1583,9 +1574,7 @@ class StrategyScanner:
         errors = []
 
         try:
-            from winws_runtime.public import shutdown_runtime_sync
-
-            result = shutdown_runtime_sync(reason="blockcheck_pre_scan", include_cleanup=True)
+            result = self._runtime_feature.shutdown_sync(reason="blockcheck_pre_scan", include_cleanup=True)
             if result.still_running:
                 errors.append("runtime still running after canonical shutdown")
         except Exception as e:

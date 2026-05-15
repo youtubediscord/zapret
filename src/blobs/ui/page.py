@@ -1,7 +1,7 @@
 # blobs/ui/page.py
 """Страница управления блобами (Zapret 2 / Direct режим)"""
 
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
     QLabel
 )
@@ -19,14 +19,14 @@ from blobs.ui.runtime_helpers import (
     open_json_action,
     reload_blobs_data,
 )
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     ActionButton,
     PrimaryActionButton,
     QuickActionsBar,
     RefreshButton,
 )
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from log.log import log
 
 
@@ -49,9 +49,7 @@ except ImportError:
 class BlobsPage(BasePage):
     """Страница управления блобами"""
 
-    back_clicked = pyqtSignal()  # → PageName.ZAPRET2_MODE_CONTROL
-
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, blobs_feature, open_control):
         super().__init__(
             "Блобы",
             "Управление бинарными данными для стратегий",
@@ -60,6 +58,8 @@ class BlobsPage(BasePage):
             subtitle_key="page.blobs.subtitle",
         )
 
+        self._blobs = blobs_feature
+        self._open_control_callback = open_control
         self._desc_label = None
         self._filter_icon_label = None
         self._runtime_initialized = False
@@ -100,7 +100,7 @@ class BlobsPage(BasePage):
             refresh_button_cls=RefreshButton,
             add_widget=self.add_widget,
             tr_fn=self._tr,
-            on_back=self.back_clicked.emit,
+            on_back=self._open_control_callback,
             on_add_blob=self._add_blob,
             on_reload_blobs=self._reload_blobs,
             on_open_bin_folder=self._open_bin_folder,
@@ -178,6 +178,7 @@ class BlobsPage(BasePage):
             on_delete_blob=self._delete_blob,
             count_label=self.count_label,
             apply_page_theme=self._apply_page_theme,
+            get_blobs_info_fn=self._blobs.get_blobs_info,
             log_error=lambda text: log(text, "ERROR"),
             log_debug=lambda text: log(text, "DEBUG"),
         )
@@ -198,6 +199,8 @@ class BlobsPage(BasePage):
             reload_callback=self._load_blobs,
             tr_fn=self._tr,
             info_bar_cls=InfoBar,
+            get_bin_folder_fn=self._blobs.get_bin_folder,
+            save_user_blob_fn=self._blobs.save_user_blob,
             log_info=lambda text: log(text, "INFO"),
             log_error=lambda text: log(text, "ERROR"),
         )
@@ -209,6 +212,7 @@ class BlobsPage(BasePage):
             reload_callback=self._load_blobs,
             tr_fn=self._tr,
             info_bar_cls=InfoBar,
+            delete_user_blob_fn=self._blobs.delete_user_blob,
             window=self.window(),
             log_info=lambda text: log(text, "INFO"),
             log_error=lambda text: log(text, "ERROR"),
@@ -220,6 +224,7 @@ class BlobsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
             reload_btn=self.reload_btn,
             reload_callback=self._load_blobs,
+            reload_blobs_fn=self._blobs.reload_blobs,
             log_info=lambda text: log(text, "INFO"),
             log_error=lambda text: log(text, "ERROR"),
         )
@@ -230,6 +235,7 @@ class BlobsPage(BasePage):
             tr_fn=self._tr,
             info_bar_cls=InfoBar,
             window=self.window(),
+            open_bin_folder_fn=self._blobs.open_bin_folder,
             log_error=lambda text: log(text, "ERROR"),
         )
             
@@ -239,6 +245,7 @@ class BlobsPage(BasePage):
             tr_fn=self._tr,
             info_bar_cls=InfoBar,
             window=self.window(),
+            open_blobs_json_fn=self._blobs.open_blobs_json,
             log_error=lambda text: log(text, "ERROR"),
         )
 

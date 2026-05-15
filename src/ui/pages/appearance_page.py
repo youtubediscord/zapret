@@ -1,12 +1,12 @@
 # ui/pages/appearance_page.py
 """Страница настроек оформления - темы"""
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt6.QtGui import QColor
 
 from .base_page import BasePage
-from ui.appearance_page_controller import AppearancePageController
+import settings.appearance as appearance_settings
 from ui.pages.appearance_page_lower_build import (
     build_holiday_sections,
     build_opacity_section,
@@ -23,15 +23,15 @@ from ui.pages.appearance_page_top_build import (
     build_display_mode_section,
     build_language_section,
 )
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     SettingsCard,
     SettingsRow,
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
 )
-from ui.state.main_window_state import AppUiState, MainWindowStateStore
+from app.state_store import AppUiState, MainWindowStateStore
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_rkn_background_options
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from ui.widgets.win11_controls import Win11ToggleRow
 
 try:
@@ -59,32 +59,22 @@ except ImportError:
 class AppearancePage(BasePage):
     """Страница настроек оформления"""
 
-    # Сигнал смены режима отображения
-    display_mode_changed = pyqtSignal(str)   # "dark" / "light" / "system"
-    # Сигнал смены фонового пресета
-    background_preset_changed = pyqtSignal(str)  # "standard" / "amoled" / "rkn_chan"
-    # Сигнал изменения состояния гирлянды
-    garland_changed = pyqtSignal(bool)
-    # Сигнал изменения состояния снежинок
-    snowflakes_changed = pyqtSignal(bool)
-    # Сигнал изменения прозрачности окна (0-100)
-    opacity_changed = pyqtSignal(int)
-    # Сигнал изменения акцентного цвета (hex string)
-    accent_color_changed = pyqtSignal(str)
-    # Сигнал запроса обновления фона окна (при смене тонировки или акцента)
-    background_refresh_needed = pyqtSignal()
-    # Сигнал изменения Mica-эффекта
-    mica_changed = pyqtSignal(bool)
-    # Сигнал изменения анимаций интерфейса
-    animations_changed = pyqtSignal(bool)
-    # Сигнал изменения плавной прокрутки
-    smooth_scroll_changed = pyqtSignal(bool)
-    # Сигнал изменения плавной прокрутки внутри редакторов
-    editor_smooth_scroll_changed = pyqtSignal(bool)
-    # Сигнал смены языка интерфейса
-    ui_language_changed = pyqtSignal(str)
-
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        on_garland_changed,
+        on_snowflakes_changed,
+        on_background_refresh_needed,
+        on_background_preset_changed,
+        on_opacity_changed,
+        on_mica_changed,
+        on_animations_changed,
+        on_smooth_scroll_changed,
+        on_editor_smooth_scroll_changed,
+        on_ui_language_changed,
+        ui_state_store,
+    ):
         super().__init__(
             "Оформление",
             "Настройка внешнего вида приложения",
@@ -92,6 +82,16 @@ class AppearancePage(BasePage):
             title_key="page.appearance.title",
             subtitle_key="page.appearance.subtitle",
         )
+        self._on_garland_changed_callback = on_garland_changed
+        self._on_snowflakes_changed_callback = on_snowflakes_changed
+        self._on_background_refresh_needed_callback = on_background_refresh_needed
+        self._on_background_preset_changed_callback = on_background_preset_changed
+        self._on_opacity_changed_callback = on_opacity_changed
+        self._on_mica_changed_callback = on_mica_changed
+        self._on_animations_changed_callback = on_animations_changed
+        self._on_smooth_scroll_changed_callback = on_smooth_scroll_changed
+        self._on_editor_smooth_scroll_changed_callback = on_editor_smooth_scroll_changed
+        self._on_ui_language_changed_callback = on_ui_language_changed
 
         self._display_mode_seg = None    # SegmentedWidget
         self._display_mode_section_title = None
@@ -151,6 +151,7 @@ class AppearancePage(BasePage):
             self.set_ui_language(self._ui_language)
         except Exception:
             pass
+        self.bind_ui_state_store(ui_state_store)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
         if self._ui_state_store is store:
@@ -242,11 +243,9 @@ class AppearancePage(BasePage):
             self._background_refresh_queued = False
             return
         self._background_refresh_queued = False
-        self.background_refresh_needed.emit()
+        self._on_background_refresh_needed_callback()
 
     def _emit_accent_update(self, hex_color: str | None = None, *, refresh_background: bool = False) -> None:
-        if hex_color:
-            self.accent_color_changed.emit(hex_color)
         if refresh_background:
             self._schedule_background_refresh()
 
@@ -274,7 +273,7 @@ class AppearancePage(BasePage):
         # ═══════════════════════════════════════════════════════════
         # ЯЗЫК ИНТЕРФЕЙСА
         # ═══════════════════════════════════════════════════════════
-        _lang = AppearancePageController.load_ui_language().language
+        _lang = appearance_settings.load_ui_language().language
         language_widgets = build_language_section(
             tr_language=_lang,
             add_section_title=self.add_section_title,
@@ -335,7 +334,7 @@ class AppearancePage(BasePage):
         # ═══════════════════════════════════════════════════════════
         # ПРОЗРАЧНОСТЬ ОКНА
         # ═══════════════════════════════════════════════════════════
-        initial_opacity = AppearancePageController.load_window_opacity().value
+        initial_opacity = appearance_settings.load_window_opacity().value
         opacity_widgets = build_opacity_section(
             page=self,
             tr_language=self._ui_language,
@@ -545,7 +544,7 @@ class AppearancePage(BasePage):
 
     def _load_display_mode(self):
         """Load saved display mode from registry."""
-        mode = AppearancePageController.load_display_mode()
+        mode = appearance_settings.load_display_mode()
         if self._display_mode_seg is not None:
             self._begin_ui_sync()
             try:
@@ -559,7 +558,7 @@ class AppearancePage(BasePage):
         """Handle display mode toggle."""
         if self._is_ui_syncing():
             return
-        plan = AppearancePageController.save_display_mode(mode)
+        plan = appearance_settings.save_display_mode(mode)
         effective_mode = plan.effective_mode
 
         if self._display_mode_seg is not None and effective_mode != mode:
@@ -589,13 +588,12 @@ class AppearancePage(BasePage):
                 apply_window_background(win)
         except Exception:
             pass
-        self.display_mode_changed.emit(effective_mode)
 
     def _load_ui_language(self):
         if self._language_combo is None:
             return
 
-        plan = AppearancePageController.load_ui_language()
+        plan = appearance_settings.load_ui_language()
         lang = plan.language
 
         index = -1
@@ -629,8 +627,8 @@ class AppearancePage(BasePage):
         if not isinstance(lang, str) or not lang:
             return
 
-        plan = AppearancePageController.save_ui_language(lang)
-        self.ui_language_changed.emit(plan.language)
+        plan = appearance_settings.save_ui_language(lang)
+        self._on_ui_language_changed_callback(plan.language)
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -656,7 +654,7 @@ class AppearancePage(BasePage):
 
     def _load_bg_preset(self):
         """Load saved background preset from registry."""
-        plan = AppearancePageController.load_background_preset()
+        plan = appearance_settings.load_background_preset()
         self._apply_bg_preset_ui(plan.preset)
 
     def _apply_bg_preset_ui(self, preset: str):
@@ -678,7 +676,7 @@ class AppearancePage(BasePage):
 
     def _update_display_mode_section_state(self, preset: str | None = None) -> None:
         if preset is None:
-            preset = AppearancePageController.load_background_preset().preset
+            preset = appearance_settings.load_background_preset().preset
 
         show_section = self._should_show_display_mode_for_preset(preset)
 
@@ -697,7 +695,7 @@ class AppearancePage(BasePage):
         if self._rkn_background_combo is None:
             return
 
-        saved_value = AppearancePageController.load_rkn_background().value
+        saved_value = appearance_settings.load_rkn_background().value
 
         options = get_rkn_background_options()
 
@@ -726,7 +724,7 @@ class AppearancePage(BasePage):
 
                 selected_rel = self._rkn_background_combo.itemData(index)
                 if isinstance(selected_rel, str) and selected_rel:
-                    AppearancePageController.save_rkn_background(selected_rel)
+                    appearance_settings.save_rkn_background(selected_rel)
             else:
                 self._rkn_background_combo.addItem(
                     tr_catalog("page.appearance.background.rkn.none", language=self._ui_language, default="Фоны не найдены"),
@@ -766,7 +764,7 @@ class AppearancePage(BasePage):
         if not isinstance(selected_rel, str) or not selected_rel:
             return
 
-        AppearancePageController.save_rkn_background(selected_rel)
+        appearance_settings.save_rkn_background(selected_rel)
 
         if self._bg_radio_rkn_chan is not None and self._bg_radio_rkn_chan.isChecked():
             self._schedule_background_refresh()
@@ -777,7 +775,7 @@ class AppearancePage(BasePage):
             return
         if not checked:
             return
-        plan = AppearancePageController.save_background_preset(preset)
+        plan = appearance_settings.save_background_preset(preset)
         preset = plan.preset
         if self._mica_switch:
             self._mica_switch.setEnabled(preset == "standard")
@@ -796,13 +794,13 @@ class AppearancePage(BasePage):
             self._reload_rkn_background_options()
         self._update_rkn_background_control_state()
         self._update_display_mode_section_state(preset)
-        self.background_preset_changed.emit(preset)
+        self._on_background_preset_changed_callback(preset)
 
     def _on_mica_changed(self, checked: bool):
         """Handle Mica SwitchButton toggle."""
         if self._is_ui_syncing():
             return
-        self.mica_changed.emit(checked)
+        self._on_mica_changed_callback(checked)
 
     def set_mica_state(self, enabled: bool):
         """Set Mica SwitchButton state without triggering signal."""
@@ -811,10 +809,10 @@ class AppearancePage(BasePage):
 
     def _load_mica_state(self):
         """Load Mica state from registry."""
-        mica_plan = AppearancePageController.load_mica_enabled()
+        mica_plan = appearance_settings.load_mica_enabled()
         self.set_mica_state(mica_plan.enabled)
         if self._mica_switch:
-            preset = AppearancePageController.load_background_preset().preset
+            preset = appearance_settings.load_background_preset().preset
             self._mica_switch.setEnabled(preset == "standard")
 
     def _apply_theme_tokens(self, theme_name: str) -> None:
@@ -833,10 +831,10 @@ class AppearancePage(BasePage):
         if self._opacity_label:
             self._opacity_label.setText(f"{value}%")
 
-        opacity_plan = AppearancePageController.save_window_opacity(value)
+        opacity_plan = appearance_settings.save_window_opacity(value)
 
         # Уведомляем главное окно
-        self.opacity_changed.emit(opacity_plan.value)
+        self._on_opacity_changed_callback(opacity_plan.value)
 
         from log.log import log
 
@@ -847,16 +845,16 @@ class AppearancePage(BasePage):
         if self._is_ui_syncing():
             return
         enabled = state == Qt.CheckState.Checked.value
-        plan = AppearancePageController.save_snowflakes_enabled(enabled)
-        self.snowflakes_changed.emit(plan.enabled)
+        plan = appearance_settings.save_snowflakes_enabled(enabled)
+        self._on_snowflakes_changed_callback(plan.enabled)
 
     def _on_garland_changed(self, state):
         """Обработчик изменения состояния гирлянды"""
         if self._is_ui_syncing():
             return
         enabled = state == Qt.CheckState.Checked.value
-        plan = AppearancePageController.save_garland_enabled(enabled)
-        self.garland_changed.emit(plan.enabled)
+        plan = appearance_settings.save_garland_enabled(enabled)
+        self._on_garland_changed_callback(plan.enabled)
 
     def _on_accent_color_changed(self, color: QColor):
         """Обработчик изменения акцентного цвета через ColorPickerButton."""
@@ -869,8 +867,8 @@ class AppearancePage(BasePage):
         except Exception:
             pass
         hex_color = color.name()
-        plan = AppearancePageController.save_accent_color(hex_color)
-        tinted_plan = AppearancePageController.load_tinted_settings()
+        plan = appearance_settings.save_accent_color(hex_color)
+        tinted_plan = appearance_settings.load_tinted_settings()
         self._emit_accent_update(
             plan.hex_color,
             refresh_background=bool(tinted_plan.tinted_background),
@@ -912,7 +910,7 @@ class AppearancePage(BasePage):
         if self._is_ui_syncing():
             return
         enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
-        plan = AppearancePageController.save_follow_windows_accent(enabled)
+        plan = appearance_settings.save_follow_windows_accent(enabled)
         if plan.enabled:
             self._apply_windows_accent()
             if self._color_picker_btn is not None:
@@ -924,7 +922,7 @@ class AppearancePage(BasePage):
     def _apply_windows_accent(self):
         """Читает системный акцент Windows и применяет его."""
         try:
-            plan = AppearancePageController.load_windows_system_accent()
+            plan = appearance_settings.load_windows_system_accent()
             hex_color = plan.hex_color
             if hex_color:
                 color = QColor(hex_color)
@@ -932,7 +930,7 @@ class AppearancePage(BasePage):
                     self._begin_ui_sync()
                     try:
                         setThemeColor(color)
-                        AppearancePageController.save_accent_color(hex_color)
+                        appearance_settings.save_accent_color(hex_color)
                         if self._color_picker_btn is not None:
                             self._color_picker_btn.setColor(color)
                     finally:
@@ -946,7 +944,7 @@ class AppearancePage(BasePage):
         if self._is_ui_syncing():
             return
         enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
-        plan = AppearancePageController.save_tinted_background(enabled)
+        plan = appearance_settings.save_tinted_background(enabled)
         if self._tinted_intensity_container is not None:
             self._tinted_intensity_container.setVisible(plan.enabled)
         self._schedule_background_refresh()
@@ -955,7 +953,7 @@ class AppearancePage(BasePage):
         """Обработчик изменения интенсивности тонировки."""
         if self._is_ui_syncing():
             return
-        plan = AppearancePageController.save_tinted_background_intensity(value)
+        plan = appearance_settings.save_tinted_background_intensity(value)
         if self._tinted_intensity_value_label is not None:
             self._tinted_intensity_value_label.setText(str(plan.value))
         self._schedule_background_refresh()
@@ -981,9 +979,9 @@ class AppearancePage(BasePage):
             self._bg_radio_rkn_chan.setEnabled(is_premium)
         self._update_rkn_background_control_state()
 
-        current_preset = AppearancePageController.load_background_preset().preset
-        premium_effects = AppearancePageController.load_premium_effects()
-        premium_plan = AppearancePageController.build_premium_status_plan(
+        current_preset = appearance_settings.load_background_preset().preset
+        premium_effects = appearance_settings.load_premium_effects()
+        premium_plan = appearance_settings.build_premium_status_plan(
             is_premium=is_premium,
             current_preset=current_preset,
             was_garland_enabled=was_garland_enabled,
@@ -992,9 +990,9 @@ class AppearancePage(BasePage):
         )
 
         if premium_plan.effective_preset is not None:
-            preset_plan = AppearancePageController.save_background_preset(premium_plan.effective_preset)
+            preset_plan = appearance_settings.save_background_preset(premium_plan.effective_preset)
             self._apply_bg_preset_ui(preset_plan.preset)
-            self.background_preset_changed.emit(preset_plan.preset)
+            self._on_background_preset_changed_callback(preset_plan.preset)
 
         if self._garland_checkbox:
             self._garland_checkbox.setEnabled(is_premium)
@@ -1005,12 +1003,12 @@ class AppearancePage(BasePage):
             self._set_checked_silently(self._snowflakes_checkbox, premium_plan.snowflakes_checked)
 
         if premium_plan.disable_garland:
-            plan = AppearancePageController.save_garland_enabled(False)
-            self.garland_changed.emit(plan.enabled)
+            plan = appearance_settings.save_garland_enabled(False)
+            self._on_garland_changed_callback(plan.enabled)
 
         if premium_plan.disable_snowflakes:
-            plan = AppearancePageController.save_snowflakes_enabled(False)
-            self.snowflakes_changed.emit(plan.enabled)
+            plan = appearance_settings.save_snowflakes_enabled(False)
+            self._on_snowflakes_changed_callback(plan.enabled)
 
         self._update_display_mode_section_state()
 
@@ -1054,26 +1052,26 @@ class AppearancePage(BasePage):
         """Handle animations SwitchButton toggle."""
         if self._is_ui_syncing():
             return
-        plan = AppearancePageController.save_animations_enabled(enabled)
-        self.animations_changed.emit(plan.enabled)
+        plan = appearance_settings.save_animations_enabled(enabled)
+        self._on_animations_changed_callback(plan.enabled)
         self._sync_performance_dependencies(plan.enabled)
 
-        editor_plan = AppearancePageController.load_editor_smooth_scroll_enabled()
-        self.editor_smooth_scroll_changed.emit(editor_plan.enabled)
+        editor_plan = appearance_settings.load_editor_smooth_scroll_enabled()
+        self._on_editor_smooth_scroll_changed_callback(editor_plan.enabled)
 
     def _on_smooth_scroll_changed(self, enabled: bool):
         """Handle smooth scroll SwitchButton toggle."""
         if self._is_ui_syncing():
             return
-        plan = AppearancePageController.save_smooth_scroll_enabled(enabled)
-        self.smooth_scroll_changed.emit(plan.enabled)
+        plan = appearance_settings.save_smooth_scroll_enabled(enabled)
+        self._on_smooth_scroll_changed_callback(plan.enabled)
 
     def _on_editor_smooth_scroll_changed(self, enabled: bool):
         """Handle editor smooth scroll toggle."""
         if self._is_ui_syncing():
             return
-        plan = AppearancePageController.save_editor_smooth_scroll_enabled(enabled)
-        self.editor_smooth_scroll_changed.emit(plan.enabled)
+        plan = appearance_settings.save_editor_smooth_scroll_enabled(enabled)
+        self._on_editor_smooth_scroll_changed_callback(plan.enabled)
 
     def _sync_performance_dependencies(self, animations_enabled: bool) -> None:
         """Редакторская плавность зависит от мастер-переключателя анимаций."""

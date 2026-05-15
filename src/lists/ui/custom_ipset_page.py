@@ -26,8 +26,7 @@ except ImportError:
     _HAS_FLUENT_LABELS = False
 
 from ui.pages.base_page import BasePage, ScrollBlockingPlainTextEdit
-from lists.controller import HostlistPageController
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     SettingsCard,
     ActionButton,
     PrimaryActionButton,
@@ -36,7 +35,7 @@ from ui.compat_widgets import (
     set_tooltip,
 )
 from ui.theme import get_theme_tokens
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from log.log import log
 
 
@@ -46,7 +45,7 @@ class CustomIpSetPage(BasePage):
 
     ipset_changed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, lists_feature):
         super().__init__(
             "Кастомные (мои) IP и подсети для ipset-all",
             "Здесь Вы можете редактировать пользовательский список IP/подсетей `lists/user/ipset-all.txt`. Пишите только IP/CIDR, изменения сохраняются автоматически.",
@@ -54,6 +53,7 @@ class CustomIpSetPage(BasePage):
             title_key="page.custom_ipset.title",
             subtitle_key="page.custom_ipset.subtitle",
         )
+        self._lists = lists_feature
         self._desc_label = None
         self._add_card = None
         self._actions_card = None
@@ -262,7 +262,7 @@ class CustomIpSetPage(BasePage):
         if self._cleanup_in_progress:
             return
         try:
-            state = HostlistPageController.load_custom_ipset_text()
+            state = self._lists.load_custom_ipset_text()
 
             # Блокируем сигнал чтобы не срабатывало автосохранение
             self.text_edit.blockSignals(True)
@@ -415,7 +415,7 @@ class CustomIpSetPage(BasePage):
         """Сохраняет пользовательский список в lists/user/ipset-all.txt."""
         try:
             text = self.text_edit.toPlainText()
-            state = HostlistPageController.save_custom_ipset_text(text)
+            state = self._lists.save_custom_ipset_text(text)
 
             # Обновляем UI - заменяем URL на IP
             new_text = state.normalized_text
@@ -440,7 +440,7 @@ class CustomIpSetPage(BasePage):
     def _update_status(self):
         if self._cleanup_in_progress:
             return
-        plan = HostlistPageController.build_custom_ipset_status_plan(self.text_edit.toPlainText())
+        plan = self._lists.build_custom_ipset_status_plan(self.text_edit.toPlainText())
 
         # Обновляем UI
         if plan.invalid_lines:
@@ -466,7 +466,7 @@ class CustomIpSetPage(BasePage):
         self._render_status_label()
 
     def _add_entry(self):
-        plan = HostlistPageController.build_add_custom_ipset_plan(
+        plan = self._lists.build_add_custom_ipset_plan(
             raw_text=self.input.text().strip(),
             current_text=self.text_edit.toPlainText(),
         )
@@ -515,7 +515,7 @@ class CustomIpSetPage(BasePage):
         try:
             # Сохраняем перед открытием
             self._save_entries()
-            HostlistPageController.open_ipset_all_user_file()
+            self._lists.open_ipset_all_user_file()
         except Exception as e:
             log(f"Ошибка открытия lists/user/ipset-all.txt: {e}", "ERROR")
             if InfoBar:

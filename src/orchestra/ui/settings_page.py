@@ -9,7 +9,7 @@
 """
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
-from ui.text_catalog import normalize_language, tr as tr_catalog
+from app.text_catalog import normalize_language, tr as tr_catalog
 
 try:
     from qfluentwidgets import SegmentedWidget
@@ -31,12 +31,12 @@ class OrchestraSettingsPage(QWidget):
     ]
     TAB_LABELS = ["Залоченные", "Заблокированные", "Белый список", "Рейтинги"]
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, orchestra_feature):
         super().__init__(parent)
         self.setObjectName("OrchestraSettingsPage")
         self._ui_language = self._resolve_ui_language()
 
-        self._app_parent = parent
+        self._orchestra = orchestra_feature
         self.locked_page = None
         self.blocked_page = None
         self.whitelist_page = None
@@ -91,22 +91,31 @@ class OrchestraSettingsPage(QWidget):
         if index == 0:
             from orchestra.ui.locked_page import OrchestraLockedPage
 
-            page = OrchestraLockedPage(self._app_parent)
+            page = OrchestraLockedPage(
+                self,
+                orchestra_feature=self._orchestra,
+            )
             self.locked_page = page
         elif index == 1:
             from orchestra.ui.blocked_page import OrchestraBlockedPage
 
-            page = OrchestraBlockedPage(self._app_parent)
+            page = OrchestraBlockedPage(
+                self,
+                orchestra_feature=self._orchestra,
+            )
             self.blocked_page = page
         elif index == 2:
             from orchestra.ui.whitelist_page import OrchestraWhitelistPage
 
-            page = OrchestraWhitelistPage(self._app_parent)
+            page = OrchestraWhitelistPage(
+                self,
+                orchestra_feature=self._orchestra,
+            )
             self.whitelist_page = page
         else:
             from orchestra.ui.ratings_page import OrchestraRatingsPage
 
-            page = OrchestraRatingsPage(self._app_parent)
+            page = OrchestraRatingsPage(self, orchestra_feature=self._orchestra)
             self.ratings_page = page
 
         set_lang = getattr(page, "set_ui_language", None)
@@ -127,9 +136,9 @@ class OrchestraSettingsPage(QWidget):
 
     def _resolve_ui_language(self) -> str:
         try:
-            from settings.store import get_ui_language
+            from settings.appearance import load_ui_language
 
-            return normalize_language(get_ui_language())
+            return normalize_language(load_ui_language().language)
         except Exception:
             return normalize_language(None)
 

@@ -16,17 +16,14 @@ from importlib import import_module
 
 _PAGE_EXPORTS: dict[str, tuple[str, str]] = {
     "Zapret2ModeControlPage": ("presets.ui.control.zapret2.page", "Zapret2ModeControlPage"),
-    "Zapret2PresetRawEditorPage": ("presets.ui.zapret2.preset_raw_editor_page", "Zapret2PresetRawEditorPage"),
     "Zapret2PresetSetupPage": ("profile.ui.preset_setup_page", "Zapret2PresetSetupPage"),
     "Zapret2UserPresetsPage": ("presets.ui.zapret2.user_presets_page", "Zapret2UserPresetsPage"),
     "Zapret2ProfileSetupPage": ("profile.ui.profile_setup_page", "Zapret2ProfileSetupPage"),
     "Zapret1ModeControlPage": ("presets.ui.control.zapret1.page", "Zapret1ModeControlPage"),
-    "Zapret1PresetRawEditorPage": ("presets.ui.zapret1.preset_raw_editor_page", "Zapret1PresetRawEditorPage"),
     "Zapret1PresetSetupPage": ("profile.ui.preset_setup_page", "Zapret1PresetSetupPage"),
     "Zapret1ProfileSetupPage": ("profile.ui.profile_setup_page", "Zapret1ProfileSetupPage"),
     "Zapret1UserPresetsPage": ("presets.ui.zapret1.user_presets_page", "Zapret1UserPresetsPage"),
     "HostlistPage": ("lists.ui.hostlist_page", "HostlistPage"),
-    "IpsetPage": ("lists.ui.ipset_page", "IpsetPage"),
     "BlobsPage": ("blobs.ui.page", "BlobsPage"),
     "DpiSettingsPage": ("settings.dpi.page", "DpiSettingsPage"),
     "AutostartPage": ("autostart.ui.page", "AutostartPage"),

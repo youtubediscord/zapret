@@ -9,7 +9,7 @@ from presets.ui.control.shared_builders import (
     build_push_setting_card_common,
 )
 from presets.ui.control.windows_features.build import build_windows_feature_toggles
-from ui.compat_widgets import build_advanced_settings_section, enable_setting_card_group_auto_height
+from ui.fluent_widgets import build_advanced_settings_section, enable_setting_card_group_auto_height
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 
 

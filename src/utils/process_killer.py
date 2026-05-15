@@ -84,20 +84,18 @@ def kill_process_by_pid_winapi(pid: int, wait_timeout_ms: int = 3000) -> bool:
     return False
 
 
-def kill_process_by_pid(pid: int, force: bool = True, wait_timeout_ms: int = 3000) -> bool:
+def kill_process_by_pid(pid: int, wait_timeout_ms: int = 3000) -> bool:
     """
     Завершает процесс по PID через Windows API.
     Ждёт реального завершения процесса.
 
     Args:
         pid: ID процесса
-        force: Сохранён для совместимости вызовов; WinAPI-завершение здесь всегда принудительное
         wait_timeout_ms: Таймаут ожидания завершения в миллисекундах
 
     Returns:
         True если процесс успешно завершён
     """
-    _ = force
     return kill_process_by_pid_winapi(pid, wait_timeout_ms=wait_timeout_ms)
 
 

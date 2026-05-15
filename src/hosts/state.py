@@ -11,6 +11,10 @@ class HostsState:
     last_message: str = ""
     error: str = ""
 
+    @property
+    def error_message(self) -> str | None:
+        return self.error or None
+
 
 @dataclass(frozen=True, slots=True)
 class HostsCommandResult:

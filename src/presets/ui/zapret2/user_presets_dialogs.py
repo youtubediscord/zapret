@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QLabel, QPushButton, QHBoxLayout, QLineEdit, QListView
 
-from ui.compat_widgets import style_semantic_caption_label
-from ui.text_catalog import tr as tr_catalog
+from ui.fluent_widgets import style_semantic_caption_label
+from app.text_catalog import tr as tr_catalog
 
 try:
     from qfluentwidgets import (

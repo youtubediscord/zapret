@@ -36,10 +36,10 @@ except ImportError:
     StrongBodyLabel = QLabel
     HAS_FLUENT_LABELS = False
 
-from ui.compat_widgets import SettingsCard
+from ui.fluent_widgets import SettingsCard
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from ui.theme_refresh import ThemeRefreshController
-from ui.text_catalog import tr as tr_catalog
+from ui.theme_refresh import ThemeRefreshBinding
+from app.text_catalog import tr as tr_catalog
 
 
 class DNSProviderCard(SettingsCard):
@@ -88,7 +88,7 @@ class DNSProviderCard(SettingsCard):
         self.setProperty("selected", False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._setup_ui()
-        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
+        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_refresh)
 
     @staticmethod
     def _normalize_ip_list(value) -> list[str]:
@@ -272,7 +272,7 @@ class AdapterCard(SettingsCard):
         self._name_label = None
         self._network_icon_label = None
         self._setup_ui()
-        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_styles)
+        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_styles)
 
     def _setup_ui(self):
         tokens = get_theme_tokens()

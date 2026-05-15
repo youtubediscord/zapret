@@ -56,7 +56,7 @@ def build_servers_settings_section(
         )
         auto_check_card.setChecked(auto_check_enabled, block_signals=True)
         auto_check_card.toggled.connect(on_auto_check_toggled)
-        auto_check_toggle = auto_check_card.toggle
+        auto_check_toggle = auto_check_card
         settings_card.addSettingCard(auto_check_card)
 
         version_card = settings_card_cls()

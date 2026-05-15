@@ -48,6 +48,10 @@ class StrategyRunnerBase(ABC):
         self.running_process: Optional[subprocess.Popen] = None
         self.current_launch_label: Optional[str] = None
         self.current_strategy_args: Optional[List[str]] = None
+        self._transition_in_progress_callback = None
+        self._runner_failure_callback = None
+        self._launch_error_callback = None
+        self._active_preset_content_changed_callback = None
 
         # Verify exe exists
         if not os.path.exists(self.winws_exe):
@@ -63,6 +67,55 @@ class StrategyRunnerBase(ABC):
         log(f"Working directory: {self.work_dir}", "DEBUG")
         log(f"Lists folder: {self.lists_dir}", "DEBUG")
         log(f"Bin folder: {self.bin_dir}", "DEBUG")
+
+    def configure_runtime_callbacks(
+        self,
+        *,
+        transition_in_progress=None,
+        runner_failure=None,
+        launch_error=None,
+        active_preset_content_changed=None,
+    ) -> None:
+        self._transition_in_progress_callback = transition_in_progress
+        self._runner_failure_callback = runner_failure
+        self._launch_error_callback = launch_error
+        self._active_preset_content_changed_callback = active_preset_content_changed
+
+    def launch_transition_in_progress(self, launch_method: str) -> bool:
+        callback = self._transition_in_progress_callback
+        if not callable(callback):
+            return False
+        try:
+            return bool(callback(launch_method))
+        except Exception:
+            return False
+
+    def publish_runner_failure(self, *, launch_method: str, error: str) -> None:
+        callback = self._runner_failure_callback
+        if not callable(callback):
+            return
+        try:
+            callback(launch_method=launch_method, error=error)
+        except Exception:
+            return
+
+    def notify_launch_error(self, message: str) -> None:
+        callback = self._launch_error_callback
+        if not callable(callback):
+            return
+        try:
+            callback(message)
+        except Exception:
+            return
+
+    def publish_active_preset_content_changed(self, path: str) -> None:
+        callback = self._active_preset_content_changed_callback
+        if not callable(callback):
+            return
+        try:
+            callback(str(path or ""))
+        except Exception:
+            return
 
     @abstractmethod
     def start_from_preset_file(self, preset_path: str, strategy_name: str = "Preset") -> bool:

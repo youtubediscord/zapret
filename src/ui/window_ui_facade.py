@@ -25,8 +25,8 @@ except ImportError:
     FluentIcon = cast(Any, None)
     SearchLineEdit = QLineEdit
 
-from ui.page_names import PageName
-from ui.text_catalog import tr as tr_catalog
+from app.page_names import PageName
+from app.text_catalog import tr as tr_catalog
 from ui.ui_root import WindowUiRoot
 
 # ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ class MainWindowUI:
         """Build UI: create pages and populate FluentWindow navigation sidebar.
 
         Note: window geometry (size/position) is restored in __init__ via the
-        dedicated window geometry controller before this is called — do NOT
+        dedicated window geometry runtime before this is called - do NOT
         resize here, that would overwrite the saved geometry.
         """
         self._get_ui_root().build(
@@ -190,21 +190,17 @@ class MainWindowUI:
         """Дозавершает тяжёлые связи главного окна после первого показа UI.
 
         На старте нам важно как можно быстрее показать рабочее окно и первую
-        страницу. Общие подписки окна на preset-store, file watcher активного
-        пресета и часть сервисных связей можно подключить позже, отдельным
-        шагом, не блокируя первый визуальный отклик.
+        страницу. Общие подписки окна на preset-store и watcher активного
+        preset-а подключаются во второй фазе старта, не блокируя первый
+        визуальный отклик.
         """
         self._get_ui_root().finish_bootstrap()
 
-    def _get_launch_method(self) -> str:
+    def get_launch_method(self) -> str:
         from settings.mode import DEFAULT_LAUNCH_METHOD
+        from ui.workflows.common import get_current_launch_method
 
-        try:
-            from settings.dpi.strategy_settings import get_strategy_launch_method
-
-            method = (get_strategy_launch_method() or "").strip().lower()
-        except Exception:
-            method = ""
+        method = get_current_launch_method(default="")
         return method or DEFAULT_LAUNCH_METHOD
 
     # Window-facing API intentionally kept minimal. Page opening and routing go

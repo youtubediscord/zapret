@@ -8,7 +8,7 @@ from config.config import CHANNEL_DEV, CHANNEL_STABLE
 
 from log.log import log
 
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from updater.channel_utils import normalize_update_channel
 from updater.github_release import normalize_version
 from updater.server_config import CONNECT_TIMEOUT, READ_TIMEOUT, should_verify_ssl
@@ -22,11 +22,19 @@ class ServerCheckWorker(QThread):
     all_complete = pyqtSignal()
     dpi_restart_needed = pyqtSignal()
 
-    def __init__(self, update_pool_stats: bool = False, telegram_only: bool = False, *, language: str = "ru"):
+    def __init__(
+        self,
+        update_pool_stats: bool = False,
+        telegram_only: bool = False,
+        *,
+        language: str = "ru",
+        runtime_feature,
+    ):
         super().__init__()
         self._update_pool_stats = update_pool_stats
         self._telegram_only = telegram_only
         self._ui_language = language
+        self._runtime_feature = runtime_feature
         self._first_online_server_id = None
         self._stop_requested = False
 
@@ -188,11 +196,9 @@ class ServerCheckWorker(QThread):
                 verify_ssl=should_verify_ssl(),
             )
             if data is None:
-                from winws_runtime.runtime.sync_shutdown import is_any_runtime_running_sync, shutdown_runtime_sync
-
-                if is_any_runtime_running_sync():
+                if self._runtime_feature.is_any_running():
                     log("⚠️ DPI мешает проверке серверов — временно останавливаем", "🔄 UPDATE")
-                    shutdown_runtime_sync(reason="server_status_probe", include_cleanup=True)
+                    self._runtime_feature.shutdown_sync(reason="server_status_probe", include_cleanup=True)
                     _time.sleep(0.5)
                     dpi_was_stopped = True
 

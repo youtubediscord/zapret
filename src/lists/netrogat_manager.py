@@ -345,7 +345,7 @@ def save_netrogat(domains: List[str]) -> bool:
 
 
 def ensure_netrogat_base_defaults() -> int:
-    """Возвращает число доменов системной базы для совместимости старых use-site'ов."""
+    """Возвращает число доменов системной базы netrogat."""
     return len(get_netrogat_base_entries())
 
 

@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from log.log import log
 from settings.mode import is_preset_launch_method, normalize_launch_method
 
 
-if TYPE_CHECKING:
-    from main.window import LupiDPIApp
-
-
 def request_selected_source_preset_apply(
-    app: "LupiDPIApp",
     *,
+    runtime_feature,
     launch_method: str,
     reason: str,
     preset_file_name: str = "",
@@ -21,27 +15,22 @@ def request_selected_source_preset_apply(
     method = normalize_launch_method(launch_method, default="")
     selected_preset = str(preset_file_name or "").strip()
 
-    if not hasattr(app, "launch_controller") or not app.launch_controller:
-        log("Применение выбранного source preset пропущено: launch_controller не найден", "DEBUG")
+    launch_runtime = runtime_feature.objects.launch_runtime
+    if launch_runtime is None:
+        log("Применение выбранного source preset пропущено: launch_runtime не найден", "DEBUG")
         return False
 
     try:
-        controller = getattr(app, "launch_controller", None)
-        if controller is None:
-            log("Применение выбранного source preset пропущено: launch_controller не найден", "DEBUG")
-            return False
-        if not controller.is_running():
-            runtime_service = getattr(app, "launch_runtime_service", None)
+        if not launch_runtime.is_running():
             phase = ""
             running = False
-            if runtime_service is not None:
-                try:
-                    snapshot = runtime_service.snapshot()
-                    phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
-                    running = bool(getattr(snapshot, "running", False))
-                except Exception:
-                    phase = ""
-                    running = False
+            try:
+                snapshot = runtime_feature.objects.snapshot()
+                phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
+                running = bool(getattr(snapshot, "running", False))
+            except Exception:
+                phase = ""
+                running = False
             log(
                 f"Применение выбранного source preset пропущено: DPI не запущен ({method}, phase={phase or 'unknown'}, running={running})",
                 "WARNING",
@@ -58,12 +47,12 @@ def request_selected_source_preset_apply(
             f"Применение выбранного source preset ({method}, reason={reason}{preset_info}) -> preset mode switch pipeline",
             "INFO",
         )
-        app.launch_controller.switch_presets_async(method)
+        launch_runtime.switch_presets_async(method)
         return True
 
     log(
         f"Применение выбранного source preset ({method or 'unknown'}, reason={reason}{preset_info}) -> restart pipeline",
         "INFO",
     )
-    app.launch_controller.restart_dpi_async()
+    launch_runtime.restart_dpi_async()
     return True

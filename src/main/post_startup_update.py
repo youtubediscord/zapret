@@ -8,7 +8,6 @@ from app_notifications import advisory_notification
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_window_alive
 from main.post_startup_threading import schedule_after, start_daemon_thread
-from main.post_startup_update_workers import run_startup_update_check
 from ui.window_adapter import get_loaded_page, show_page
 
 if TYPE_CHECKING:
@@ -21,7 +20,13 @@ class _UpdateCheckBridge(QObject):
     check_error = pyqtSignal(str)
 
 
-def install_update_check(window: "LupiDPIApp") -> None:
+def install_update_check(
+    window: "LupiDPIApp",
+    *,
+    updater_feature,
+    notify,
+    set_status,
+) -> None:
     update_bridge = _UpdateCheckBridge()
 
     def _on_update_found(version: str, release_notes: str) -> None:
@@ -29,11 +34,11 @@ def install_update_check(window: "LupiDPIApp") -> None:
             return
         try:
             try:
-                window.set_status(f"Доступно обновление v{version}")
+                set_status(f"Доступно обновление v{version}")
             except Exception:
                 pass
             from qfluentwidgets import MessageBox as FluentMessageBox
-            from ui.page_names import PageName as StartupPageName
+            from app.page_names import PageName as StartupPageName
 
             box = FluentMessageBox(
                 "Доступно обновление",
@@ -60,23 +65,21 @@ def install_update_check(window: "LupiDPIApp") -> None:
             return
         try:
             try:
-                window.set_status(f"Обновлений нет, установлена версия {current_version}")
+                set_status(f"Обновлений нет, установлена версия {current_version}")
             except Exception:
                 pass
-            controller = getattr(window, "window_notification_controller", None)
-            if controller is not None:
-                controller.notify(
-                    advisory_notification(
-                        level="success",
-                        title="Обновлений нет",
-                        content=f"Установлена актуальная версия {current_version}",
-                        source="startup.update_check",
-                        presentation="infobar",
-                        queue="immediate",
-                        duration=4000,
-                        dedupe_key=f"startup.update_check:{current_version}",
-                    )
+            notify(
+                advisory_notification(
+                    level="success",
+                    title="Обновлений нет",
+                    content=f"Установлена актуальная версия {current_version}",
+                    source="startup.update_check",
+                    presentation="infobar",
+                    queue="immediate",
+                    duration=4000,
+                    dedupe_key=f"startup.update_check:{current_version}",
                 )
+            )
         except Exception as exc:
             log(f"Ошибка при показе InfoBar: {exc}", "❌ ERROR")
 
@@ -84,7 +87,7 @@ def install_update_check(window: "LupiDPIApp") -> None:
         if not is_window_alive(window):
             return
         try:
-            window.set_status("Не удалось проверить обновления")
+            set_status("Не удалось проверить обновления")
         except Exception:
             pass
         log(f"Не удалось проверить обновления при запуске: {error}", "⚠️ UPDATE")
@@ -95,7 +98,7 @@ def install_update_check(window: "LupiDPIApp") -> None:
 
     def _startup_update_worker() -> None:
         try:
-            result = run_startup_update_check()
+            result = updater_feature.run_startup_update_check()
             if result.get("skipped"):
                 log(
                     f"Автопроверка обновлений пропущена: {result.get('skip_reason') or 'нет необходимости'}",
@@ -116,16 +119,11 @@ def install_update_check(window: "LupiDPIApp") -> None:
     def _schedule_startup_update_check() -> None:
         if not is_window_alive(window):
             return
+        if not updater_feature.is_auto_update_enabled():
+            log("Автопроверка обновлений при запуске отключена", "🔁 UPDATE")
+            return
         try:
-            from settings.store import get_auto_update_enabled
-
-            if not get_auto_update_enabled():
-                log("Автопроверка обновлений при запуске отключена", "🔁 UPDATE")
-                return
-        except Exception:
-            pass
-        try:
-            window.set_status("Проверка обновлений...")
+            set_status("Проверка обновлений...")
         except Exception:
             pass
 
@@ -144,5 +142,5 @@ def install_update_check(window: "LupiDPIApp") -> None:
     bind_startup_gate(
         window.startup_post_init_ready,
         _schedule_startup_update_check_deferred,
-        is_ready=lambda: bool(getattr(window, "_startup_post_init_ready", False)),
+        is_ready=lambda: bool(window.startup_state.post_init_ready),
     )

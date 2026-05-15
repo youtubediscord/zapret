@@ -6,9 +6,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QListWidgetItem
 
-from orchestra.page_controller import OrchestraPageController
+import orchestra.page_runtime as orchestra_page_runtime
 from orchestra.orchestra_runner import MAX_ORCHESTRA_LOGS
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 
 
 def protocol_filter_items(*, tr_fn) -> list[tuple[str, str]]:
@@ -186,7 +186,7 @@ def append_log_line(*, text: str, full_log_lines: list[str], max_log_lines: int,
 
 
 def apply_log_filter_to_view(*, lines: list[str], domain_filter: str, protocol_filter: str, log_text) -> None:
-    filtered_lines = OrchestraPageController.filter_lines(
+    filtered_lines = orchestra_page_runtime.filter_lines(
         lines=lines,
         domain_filter=domain_filter,
         protocol_filter=protocol_filter,
@@ -203,7 +203,7 @@ def update_log_history_view(*, runner, tr_fn, log_history_list) -> None:
     log_history_list.clear()
 
     logs = runner.get_log_history()
-    plan = OrchestraPageController.build_log_history_plan(
+    plan = orchestra_page_runtime.build_log_history_plan(
         logs=logs,
         current_suffix_text=tr_fn("page.orchestra.log_history.current_suffix", " (текущий)"),
         none_text=tr_fn("page.orchestra.log_history.none", "  Нет сохранённых логов"),

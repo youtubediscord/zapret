@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout
 
 from qfluentwidgets import CardWidget
 
-from ui.compat_widgets import PulsingDot
+from ui.fluent_widgets import PulsingDot
 from ui.theme import get_cached_qta_pixmap
 
 

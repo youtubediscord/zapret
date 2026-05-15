@@ -1,20 +1,14 @@
 import time as _time
+from dataclasses import dataclass
+from typing import Callable
 
 from log.log import log
 from main.qt_dispatch import run_queued, run_queued_with_str
-from main.tray_startup import init_tray
-from main.window_startup_services import init_theme_manager
 from settings.mode import normalize_launch_method
-from winws_runtime.public import (
-    init_core_startup,
-    init_launch_controller,
-    init_launch_runtime_api,
-    init_process_monitor,
-)
 
 
 TASK_LAUNCH_RUNTIME_API = "launch_runtime_api"
-TASK_LAUNCH_CONTROLLER = "launch_controller"
+TASK_LAUNCH_RUNTIME = "launch_runtime"
 TASK_INTERACTIVE_READY = "interactive_ready"
 TASK_PROCESS_MONITOR = "process_monitor"
 TASK_CORE_STARTUP = "core_startup"
@@ -24,9 +18,21 @@ TASK_STARTUP_CORE_READY = "startup_core_ready"
 
 REQUIRED_STARTUP_COMPONENTS = (
     TASK_LAUNCH_RUNTIME_API,
-    TASK_LAUNCH_CONTROLLER,
+    TASK_LAUNCH_RUNTIME,
     TASK_STARTUP_CORE_READY,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class StartupWindowShell:
+    """Минимальный UI-интерфейс, который нужен startup-координатору."""
+
+    start_in_tray: bool
+    set_status: Callable[[str], None]
+    mark_startup_interactive: Callable[[str], None]
+    mark_startup_core_ready: Callable[[str], None]
+    mark_startup_post_init_done: Callable[[str], None]
+    init_theme_manager: Callable[[], None]
 
 
 class StartupCoordinator:
@@ -42,8 +48,17 @@ class StartupCoordinator:
     первые 2-3 секунды после появления окна.
     """
 
-    def __init__(self, app_instance):
-        self.app = app_instance
+    def __init__(
+        self,
+        app_runtime,
+        window_shell: StartupWindowShell,
+        *,
+        log_startup_metric,
+    ):
+        self.window_shell = window_shell
+        self.runtime = app_runtime.features.runtime
+        self.tray = app_runtime.features.tray
+        self.log_startup_metric = log_startup_metric
         self.startup_tasks_completed = set()
 
         # Финализация старта теперь идёт по прямому жизненному циклу, а не через
@@ -56,23 +71,25 @@ class StartupCoordinator:
 
     def _log_startup_step(self, marker: str, details: str = "") -> None:
         try:
-            self.app.log_startup_metric(marker, details)
+            self.log_startup_metric(marker, details)
         except Exception as e:
             log(f"Не удалось записать startup-метрику {marker}: {e}", "DEBUG")
 
+    def _init_tray(self) -> None:
+        self.tray.init()
+
     def ensure_tray_initialized(self):
-        """Синхронно гарантирует наличие tray manager перед сценарием сворачивания."""
-        tray_manager = getattr(self.app, "tray_manager", None)
-        if tray_manager is not None:
-            return tray_manager
+        """Синхронно гарантирует, что системный трей готов к работе."""
+        if self.tray.is_initialized():
+            return True
 
         self._run_step(
             TASK_TRAY,
             "tray",
-            lambda: init_tray(self.app),
+            self._init_tray,
             error_status=None,
         )
-        return getattr(self.app, "tray_manager", None)
+        return self.tray.is_initialized()
 
     # ───────────────────────── запуск и планирование ─────────────────────────
 
@@ -80,7 +97,7 @@ class StartupCoordinator:
         """Запускает старт в два этапа без блокировки первого показа окна."""
         log("🟡 StartupCoordinator: начало оптимизированной инициализации", "DEBUG")
 
-        self.app.set_status("Инициализация компонентов...")
+        self.window_shell.set_status("Инициализация компонентов...")
 
         # Фаза 1: только минимальный контур, который нужен для немедленного
         # взаимодействия с окном. Всё остальное — позже отдельным queued-шагом.
@@ -88,14 +105,14 @@ class StartupCoordinator:
             (
                 TASK_LAUNCH_RUNTIME_API,
                 "launch runtime API",
-                lambda: init_launch_runtime_api(self.app),
+                self.runtime.init_launch_runtime_api,
                 lambda exc: f"Ошибка запуска: {exc}",
             ),
             (
-                TASK_LAUNCH_CONTROLLER,
-                "launch controller",
-                lambda: init_launch_controller(self.app),
-                lambda exc: f"Ошибка контроллера: {exc}",
+                TASK_LAUNCH_RUNTIME,
+                "launch runtime",
+                self.runtime.init_launch_runtime,
+                lambda exc: f"Ошибка runtime запуска: {exc}",
             ),
             (
                 TASK_INTERACTIVE_READY,
@@ -122,29 +139,29 @@ class StartupCoordinator:
             (
                 TASK_PROCESS_MONITOR,
                 "process monitor",
-                lambda: init_process_monitor(self.app),
+                self.runtime.init_process_monitor,
                 None,
             ),
             (
                 TASK_CORE_STARTUP,
                 "core startup",
-                lambda: init_core_startup(self.app),
+                self.runtime.init_core_startup,
                 None,
             ),
             (
                 TASK_THEME_MANAGER,
                 "theme manager",
-                lambda: init_theme_manager(self.app),
+                self.window_shell.init_theme_manager,
                 None,
             ),
         ]
 
-        if bool(getattr(self.app, "start_in_tray", False)):
+        if bool(self.window_shell.start_in_tray):
             phase_two_steps.append(
                 (
                     TASK_TRAY,
                     "tray",
-                    lambda: init_tray(self.app),
+                    self._init_tray,
                     None,
                 )
             )
@@ -175,20 +192,20 @@ class StartupCoordinator:
             log(f"Ошибка startup-шага {label}: {exc}", "❌ ERROR")
             if error_status is not None:
                 try:
-                    self.app.set_status(error_status(exc))
+                    self.window_shell.set_status(error_status(exc))
                 except Exception:
                     pass
             return False
 
     def _mark_interactive_ready(self):
         """Фиксирует момент, когда минимальный контур окна уже готов к кликам."""
-        self.app._mark_startup_interactive("startup_minimal_ready")
+        self.window_shell.mark_startup_interactive("startup_minimal_ready")
 
     def _finalize_startup_core(self):
         """Фиксирует готовность основного startup-контура."""
         log("Основной startup-контур готов", "✅ SUCCESS")
-        self.app._mark_startup_core_ready("startup_coordinator")
-        self.app.set_status("Инициализация завершена")
+        self.window_shell.mark_startup_core_ready("startup_coordinator")
+        self.window_shell.set_status("Инициализация завершена")
         self._check_and_complete_initialization()
         log("✅ Startup core finalized", "DEBUG")
 
@@ -214,7 +231,7 @@ class StartupCoordinator:
         # Все компоненты готовы
         if not self._verify_done:
             self._verify_done = True
-            self.app.set_status("✅ Инициализация завершена")
+            self.window_shell.set_status("✅ Инициализация завершена")
             log("Критический startup-контур успешно инициализирован", "✅ SUCCESS")
 
             # Финальные задачи запускаем сразу по факту готовности, без таймерной оркестрации.
@@ -261,7 +278,7 @@ class StartupCoordinator:
             log(traceback.format_exc(), "DEBUG")
         finally:
             self._log_startup_step("StartupPostInitQuickPhase", f"{(_time.perf_counter() - t_total)*1000:.0f}ms")
-            self.app._mark_startup_post_init_done(post_init_metric_source)
+            self.window_shell.mark_startup_post_init_done(post_init_metric_source)
 
     def _run_deferred_post_init_launch(self, launch_method: str) -> None:
         """Запускает тяжёлую post-init часть позже, когда окно уже стабилизировалось."""
@@ -274,9 +291,7 @@ class StartupCoordinator:
         self._log_startup_step("StartupPostInitDeferredStart", method or "unknown")
 
         try:
-            from winws_runtime.public import start_dpi_autostart
-
-            start_dpi_autostart(self.app, launch_method=method)
+            self.runtime.start_autostart(launch_method=method)
         except Exception as e:
             log(f"Ошибка deferred post-init запуска ({method}): {e}", "ERROR")
             import traceback

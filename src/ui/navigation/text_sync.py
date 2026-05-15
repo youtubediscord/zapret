@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QWidget
 
-from ui.page_names import PageName
-from ui.text_catalog import (
+from app.page_names import PageName
+from app.text_catalog import (
     get_nav_page_label,
     normalize_language,
     tr as tr_catalog,
@@ -13,9 +13,9 @@ from ui.window_ui_session import get_window_ui_session
 
 def resolve_ui_language(window) -> str:
     try:
-        from settings.store import get_ui_language
+        from settings.appearance import load_ui_language
 
-        return normalize_language(get_ui_language())
+        return normalize_language(load_ui_language().language)
     except Exception:
         return normalize_language(None)
 

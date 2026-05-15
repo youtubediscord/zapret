@@ -24,10 +24,10 @@ except ImportError:
     _HAS_FLUENT = False
 
 from ui.pages.base_page import BasePage
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme import get_theme_tokens, get_themed_qta_icon
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from log.log import log
 
 
@@ -35,7 +35,7 @@ from log.log import log
 class OrchestraRatingsPage(BasePage):
     """Страница истории стратегий с рейтингами"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, orchestra_feature):
         super().__init__(
             "История стратегий (рейтинги)",
             "Рейтинг = успехи / (успехи + провалы). При UNLOCK выбирается лучшая стратегия из истории.",
@@ -44,6 +44,7 @@ class OrchestraRatingsPage(BasePage):
             subtitle_key="page.orchestra.ratings.subtitle",
         )
         self.setObjectName("orchestraRatingsPage")
+        self._orchestra = orchestra_feature
         self._refresh_loading = False
         self._has_loaded_once = False
         self._no_runner = False
@@ -160,8 +161,7 @@ class OrchestraRatingsPage(BasePage):
             self.refresh_btn.setIcon(get_themed_qta_icon(icon_name, color=icon_color))
 
     def _get_runner(self):
-        """Получает orchestra_runner из главного окна"""
-        return getattr(self, "orchestra_runner", None)
+        return self._orchestra.runner
 
     def _refresh_data(self):
         """Обновляет данные истории"""

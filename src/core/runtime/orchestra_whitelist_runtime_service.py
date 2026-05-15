@@ -18,7 +18,7 @@ class OrchestraWhitelistRuntimeService:
 
     Страница whitelist не должна сама создавать и хранить запасной
     OrchestraRunner. Этот сервис держит detached runner, когда живого
-    orchestra_runner у окна нет, и выдаёт готовый snapshot данных.
+    runner у OrchestraFeature нет, и выдаёт готовый snapshot данных.
     """
 
     def __init__(self) -> None:
@@ -26,11 +26,8 @@ class OrchestraWhitelistRuntimeService:
         self._detached_runner: OrchestraRunner | None = None
         self._cached_snapshot: OrchestraWhitelistSnapshot | None = None
 
-    def _live_runner(self, window) -> OrchestraRunner | None:
-        if window is None:
-            return None
-        runner = getattr(window, "orchestra_runner", None)
-        return runner if runner is not None else None
+    def _live_runner(self, orchestra_runner) -> OrchestraRunner | None:
+        return orchestra_runner if orchestra_runner is not None else None
 
     def _detached_runner_instance(self) -> OrchestraRunner:
         with self._lock:
@@ -38,8 +35,8 @@ class OrchestraWhitelistRuntimeService:
                 self._detached_runner = OrchestraRunner()
             return self._detached_runner
 
-    def _resolve_runner(self, window) -> OrchestraRunner:
-        live_runner = self._live_runner(window)
+    def _resolve_runner(self, orchestra_runner) -> OrchestraRunner:
+        live_runner = self._live_runner(orchestra_runner)
         if live_runner is not None:
             return live_runner
         return self._detached_runner_instance()
@@ -50,8 +47,8 @@ class OrchestraWhitelistRuntimeService:
 
         return "|".join(get_orchestra_whitelist_user_domains())
 
-    def _revision(self, window) -> tuple[object, ...]:
-        live_runner = self._live_runner(window)
+    def _revision(self, orchestra_runner) -> tuple[object, ...]:
+        live_runner = self._live_runner(orchestra_runner)
         is_running = bool(live_runner is not None and live_runner.is_running())
         return (
             bool(live_runner is not None),
@@ -63,8 +60,8 @@ class OrchestraWhitelistRuntimeService:
         with self._lock:
             self._cached_snapshot = None
 
-    def get_snapshot(self, window=None, *, refresh: bool = False) -> OrchestraWhitelistSnapshot:
-        revision = self._revision(window)
+    def get_snapshot(self, orchestra_runner=None, *, refresh: bool = False) -> OrchestraWhitelistSnapshot:
+        revision = self._revision(orchestra_runner)
         with self._lock:
             if not refresh and self._cached_snapshot is not None and self._cached_snapshot.revision == revision:
                 return self._cached_snapshot
@@ -73,7 +70,7 @@ class OrchestraWhitelistRuntimeService:
         orchestra_running = False
 
         try:
-            runner = self._resolve_runner(window)
+            runner = self._resolve_runner(orchestra_runner)
             load_whitelist = getattr(runner, "load_whitelist", None)
             if callable(load_whitelist):
                 load_whitelist()
@@ -86,7 +83,8 @@ class OrchestraWhitelistRuntimeService:
                 for entry in raw_entries
                 if str(entry.get("domain") or "").strip()
             )
-            orchestra_running = bool(self._live_runner(window) is not None and self._live_runner(window).is_running())
+            live_runner = self._live_runner(orchestra_runner)
+            orchestra_running = bool(live_runner is not None and live_runner.is_running())
         except Exception:
             entries = ()
             orchestra_running = False
@@ -100,8 +98,8 @@ class OrchestraWhitelistRuntimeService:
             self._cached_snapshot = snapshot
         return snapshot
 
-    def add_domain(self, window, domain: str) -> bool:
-        runner = self._resolve_runner(window)
+    def add_domain(self, orchestra_runner, domain: str) -> bool:
+        runner = self._resolve_runner(orchestra_runner)
         load_whitelist = getattr(runner, "load_whitelist", None)
         if callable(load_whitelist):
             load_whitelist()
@@ -109,8 +107,8 @@ class OrchestraWhitelistRuntimeService:
         self.invalidate()
         return ok
 
-    def remove_domain(self, window, domain: str) -> bool:
-        runner = self._resolve_runner(window)
+    def remove_domain(self, orchestra_runner, domain: str) -> bool:
+        runner = self._resolve_runner(orchestra_runner)
         load_whitelist = getattr(runner, "load_whitelist", None)
         if callable(load_whitelist):
             load_whitelist()
@@ -118,8 +116,8 @@ class OrchestraWhitelistRuntimeService:
         self.invalidate()
         return ok
 
-    def clear_user_domains(self, window, domains: list[str]) -> int:
-        runner = self._resolve_runner(window)
+    def clear_user_domains(self, orchestra_runner, domains: list[str]) -> int:
+        runner = self._resolve_runner(orchestra_runner)
         load_whitelist = getattr(runner, "load_whitelist", None)
         if callable(load_whitelist):
             load_whitelist()

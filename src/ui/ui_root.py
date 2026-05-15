@@ -5,12 +5,12 @@ from ui.window_ui_session import get_window_ui_session
 from ui.window_bootstrap_runtime import (
     create_preset_runtime_coordinator,
     ensure_session_memory_defaults,
-    finalize_page_signal_bootstrap,
+    finalize_page_stack_bootstrap,
     finish_ui_bootstrap,
     initialize_build_ui_state,
 )
 from ui.navigation.schema import get_eager_page_names_for_method
-from ui.page_names import PageName
+from app.page_names import PageName
 
 
 class WindowUiRoot:
@@ -43,23 +43,21 @@ class WindowUiRoot:
             nav_scroll_position=nav_scroll_position,
             sidebar_search_widget_cls=sidebar_search_widget_cls,
         )
-        self._window._preset_runtime_coordinator = create_preset_runtime_coordinator(self._window)
-        self._window._page_signal_bootstrap_complete = False
-
-        launch_method = ""
-        getter = getattr(self._window, "_get_launch_method", None)
-        if callable(getter):
-            try:
-                launch_method = getter()
-            except Exception:
-                launch_method = ""
-
         session = get_window_ui_session(self._window)
+        if session is not None:
+            session.preset_runtime_coordinator = create_preset_runtime_coordinator(self._window)
+            session.page_host.mark_stack_bootstrap_pending()
+
+        try:
+            launch_method = self._window.get_launch_method()
+        except Exception:
+            launch_method = ""
+
         if session is not None:
             session.page_host.create_eager_pages(get_eager_page_names_for_method(launch_method))
 
         init_navigation(self._window)
-        finalize_page_signal_bootstrap(self._window)
+        finalize_page_stack_bootstrap(self._window)
         ensure_session_memory_defaults(self._window)
 
     def finish_bootstrap(self) -> None:

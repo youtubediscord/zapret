@@ -5,35 +5,35 @@ import os
 from settings.mode import is_preset_launch_method, normalize_launch_method
 
 
-def transition_pipeline_in_progress(controller, launch_method: str | None = None) -> bool:
+def transition_pipeline_in_progress(runtime_owner, launch_method: str | None = None) -> bool:
     method = normalize_launch_method(launch_method, default="")
 
     try:
-        if controller._dpi_start_thread and controller._dpi_start_thread.isRunning():
+        if runtime_owner._dpi_start_thread and runtime_owner._dpi_start_thread.isRunning():
             return True
     except RuntimeError:
-        controller._dpi_start_thread = None
+        runtime_owner._dpi_start_thread = None
 
     try:
-        if controller._dpi_stop_thread and controller._dpi_stop_thread.isRunning():
+        if runtime_owner._dpi_stop_thread and runtime_owner._dpi_stop_thread.isRunning():
             return True
     except RuntimeError:
-        controller._dpi_stop_thread = None
+        runtime_owner._dpi_stop_thread = None
 
     try:
-        if controller._presets_switch_thread and controller._presets_switch_thread.isRunning():
+        if runtime_owner._presets_switch_thread and runtime_owner._presets_switch_thread.isRunning():
             if not method or is_preset_launch_method(method):
                 return True
     except RuntimeError:
-        controller._presets_switch_thread = None
+        runtime_owner._presets_switch_thread = None
 
-    if int(controller._restart_request_generation or 0) > int(controller._restart_completed_generation or 0):
+    if int(runtime_owner._restart_request_generation or 0) > int(runtime_owner._restart_completed_generation or 0):
         return True
-    if int(controller._restart_active_start_generation or 0) > 0:
+    if int(runtime_owner._restart_active_start_generation or 0) > 0:
         return True
-    if int(controller._restart_pending_stop_generation or 0) > 0:
+    if int(runtime_owner._restart_pending_stop_generation or 0) > 0:
         return True
-    if int(controller._presets_switch_requested_generation or 0) > int(controller._presets_switch_completed_generation or 0):
+    if int(runtime_owner._presets_switch_requested_generation or 0) > int(runtime_owner._presets_switch_completed_generation or 0):
         if not method or is_preset_launch_method(method):
             return True
 
@@ -44,7 +44,7 @@ def is_runner_transition_state(state_value: object) -> bool:
     return str(state_value or "").strip().lower() in {"starting", "stopping"}
 
 
-def runner_transition_in_progress(controller, *, launch_method: str | None = None) -> bool:
+def runner_transition_in_progress(runtime_owner, *, launch_method: str | None = None) -> bool:
     try:
         from winws_runtime.runners.runner_factory import get_current_runner
 
@@ -73,9 +73,9 @@ def runner_transition_in_progress(controller, *, launch_method: str | None = Non
         return False
 
 
-def is_running(controller) -> bool:
+def is_running(runtime_owner) -> bool:
     try:
-        snapshot = controller.app.launch_runtime_service.snapshot()
+        snapshot = runtime_owner._runtime_service().snapshot()
         phase = str(snapshot.phase or "").strip().lower()
         if bool(snapshot.running) and phase == "running":
             return True
@@ -100,4 +100,4 @@ def is_running(controller) -> bool:
     except Exception:
         pass
 
-    return bool(controller.app.launch_runtime_api.is_any_running(silent=True))
+    return bool(runtime_owner._runtime_api().is_any_running(silent=True))

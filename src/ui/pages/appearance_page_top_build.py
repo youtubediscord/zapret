@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 
-from ui.compat_widgets import SettingsCard, build_premium_badge
-from ui.text_catalog import LANGUAGE_OPTIONS, tr as tr_catalog
+from ui.fluent_widgets import SettingsCard, build_premium_badge
+from app.text_catalog import LANGUAGE_OPTIONS, tr as tr_catalog
 
 
 @dataclass(slots=True)

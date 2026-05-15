@@ -6,9 +6,6 @@ import threading
 
 from PyQt6.QtCore import QTimer
 
-from telegram_proxy.page_actions_controller import TelegramProxyPageActionsController
-from telegram_proxy.diagnostics_controller import TelegramProxyDiagnosticsController
-
 
 def start_diagnostics(
     *,
@@ -18,6 +15,7 @@ def start_diagnostics(
     diag_edit,
     existing_poll_timer,
     proxy_port: int,
+    telegram_proxy_feature,
     publish_diag_result,
     set_diag_result,
     set_thread_done,
@@ -26,7 +24,7 @@ def start_diagnostics(
     if cleanup_in_progress:
         return None
 
-    plan = TelegramProxyPageActionsController.build_diagnostics_start_plan()
+    plan = telegram_proxy_feature.build_diagnostics_start_plan()
     btn_run_diag.setEnabled(plan.button_enabled)
     btn_run_diag.setText(plan.button_text)
     diag_edit.clear()
@@ -36,7 +34,7 @@ def start_diagnostics(
     set_thread_done(False)
 
     def _run_diag_tests():
-        result_text = TelegramProxyDiagnosticsController.run_all(
+        result_text = telegram_proxy_feature.run_diagnostics(
             proxy_port=proxy_port,
             progress_callback=publish_diag_result,
         )
@@ -63,6 +61,7 @@ def poll_diagnostics(
     diag_poll_timer,
     diag_result,
     diag_thread_done: bool,
+    telegram_proxy_feature,
     update_diag,
     finish_diag,
 ):
@@ -71,7 +70,7 @@ def poll_diagnostics(
             diag_poll_timer.stop()
         return
 
-    plan = TelegramProxyPageActionsController.build_diagnostics_poll_plan(
+    plan = telegram_proxy_feature.build_diagnostics_poll_plan(
         result_text=diag_result,
         thread_done=diag_thread_done,
     )
@@ -83,7 +82,7 @@ def poll_diagnostics(
         finish_diag()
 
 
-def finish_diagnostics(*, btn_run_diag) -> None:
-    plan = TelegramProxyPageActionsController.build_diagnostics_finish_plan()
+def finish_diagnostics(*, btn_run_diag, telegram_proxy_feature) -> None:
+    plan = telegram_proxy_feature.build_diagnostics_finish_plan()
     btn_run_diag.setEnabled(plan.button_enabled)
     btn_run_diag.setText(plan.button_text)

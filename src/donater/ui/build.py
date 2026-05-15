@@ -26,7 +26,7 @@ except ImportError:
     PushButton = QPushButton  # type: ignore[assignment]
     PrimaryPushButton = QPushButton  # type: ignore[assignment]
 
-from ui.compat_widgets import SettingsCard, RefreshButton, QuickActionsBar
+from ui.fluent_widgets import SettingsCard, RefreshButton, QuickActionsBar
 from ui.theme import get_themed_qta_icon
 
 

@@ -8,9 +8,9 @@ from winws_runtime.runtime.process_probe import get_canonical_winws_process_pids
 class ProcessMonitorManager(QObject):
     """Менеджер для мониторинга процессов DPI"""
     
-    def __init__(self, app_instance):
+    def __init__(self, *, observe_process_details):
         super().__init__()
-        self.app = app_instance
+        self._observe_process_details = observe_process_details
         self.process_monitor = None
         self._process_details: dict[str, list[int]] = {}
 
@@ -33,11 +33,8 @@ class ProcessMonitorManager(QObject):
     def _apply_process_details(self, details: dict | None) -> dict[str, list[int]]:
         normalized = details or {}
         self._process_details = normalized
-        self.app.process_details = normalized
-
-        runtime_service = getattr(self.app, "launch_runtime_service", None)
-        if runtime_service is not None:
-            runtime_service.observe_process_details(normalized)
+        if callable(self._observe_process_details):
+            self._observe_process_details(normalized)
 
         return normalized
 

@@ -21,7 +21,7 @@ def apply_program_settings_toggles(
         set_toggle_checked(max_block_toggle, getattr(snapshot, "max_blocked", False))
 
 
-def show_action_result_plan(plan, *, window, set_status, info_bar_cls, toggle=None) -> None:
+def show_action_result_plan(plan, *, parent_widget, set_status, info_bar_cls, toggle=None) -> None:
     if plan.revert_checked is not None and toggle is not None:
         set_toggle_checked(toggle, plan.revert_checked)
 
@@ -29,11 +29,11 @@ def show_action_result_plan(plan, *, window, set_status, info_bar_cls, toggle=No
         set_status(plan.final_status)
 
     if plan.level == "success":
-        info_bar_cls.success(title=plan.title, content=plan.content, parent=window)
+        info_bar_cls.success(title=plan.title, content=plan.content, parent=parent_widget)
     elif plan.level == "warning":
-        info_bar_cls.warning(title=plan.title, content=plan.content, parent=window)
+        info_bar_cls.warning(title=plan.title, content=plan.content, parent=parent_widget)
     else:
-        info_bar_cls.error(title=plan.title, content=plan.content, parent=window)
+        info_bar_cls.error(title=plan.title, content=plan.content, parent=parent_widget)
 
 
 def apply_status_plan(
@@ -58,8 +58,8 @@ def apply_status_plan(
     return plan.phase == "running"
 
 
-def run_confirmation_dialog(dialog_plan, *, message_box_cls, window, toggle=None) -> bool:
-    box = message_box_cls(dialog_plan.title, dialog_plan.content, window)
+def run_confirmation_dialog(dialog_plan, *, message_box_cls, parent_widget, toggle=None) -> bool:
+    box = message_box_cls(dialog_plan.title, dialog_plan.content, parent_widget)
     if box.exec():
         return True
 

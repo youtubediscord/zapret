@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QTimer
 
-from telegram_proxy.page_settings_controller import TelegramProxySettingsController
+import telegram_proxy.settings as telegram_proxy_settings
 
 
 def schedule_upstream_restart(*, page, timer, restart_callback, delay_ms: int = 800):
@@ -87,7 +87,7 @@ def save_upstream_fields(
     user: str,
     password: str,
 ) -> None:
-    TelegramProxySettingsController.set_upstream_fields(
+    telegram_proxy_settings.set_upstream_fields(
         host.strip(),
         port,
         user.strip(),
@@ -96,4 +96,4 @@ def save_upstream_fields(
 
 
 def save_upstream_mode(*, checked: bool) -> None:
-    TelegramProxySettingsController.set_upstream_mode(checked)
+    telegram_proxy_settings.set_upstream_mode(checked)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ui.state.main_window_state import AppUiState, MainWindowStateStore
+from app.state_store import AppUiState, MainWindowStateStore
 from settings.mode import ALL_WINWS_EXE_NAMES, normalize_launch_method
 from winws_runtime.runtime.process_probe import is_winws_process_pid_alive
 
@@ -79,40 +79,35 @@ class LaunchRuntimeService:
 
         return LaunchRuntimeOwnershipMap(
             canonical_writers=(
-                "winws_runtime.runtime.controller.PresetLaunchController._begin_runtime_start",
-                "winws_runtime.runtime.controller.PresetLaunchController._mark_runtime_running",
-                "winws_runtime.runtime.controller.PresetLaunchController._mark_runtime_failed",
-                "winws_runtime.runtime.controller.PresetLaunchController._begin_runtime_stop",
-                "winws_runtime.runtime.controller.PresetLaunchController._mark_runtime_stopped",
+                "winws_runtime.state.LaunchRuntimeService.build_initial_ui_state",
+                "winws_runtime.state.LaunchRuntimeService.begin_start",
+                "winws_runtime.state.LaunchRuntimeService.mark_running",
+                "winws_runtime.state.LaunchRuntimeService.mark_start_failed",
+                "winws_runtime.state.LaunchRuntimeService.begin_stop",
+                "winws_runtime.state.LaunchRuntimeService.mark_stopped",
+                "winws_runtime.state.LaunchRuntimeService.bootstrap_probe",
+                "winws_runtime.state.LaunchRuntimeService.observe_process_details",
+                "winws_runtime.state.LaunchRuntimeService.set_busy",
             ),
             canonical_readers=(
-                "main.LupiDPIApp._apply_runner_failure_update",
+                "app.feature_facades.runtime_parts.RuntimeEvents.handle_runner_failure",
                 "winws_runtime.runtime.lifecycle_feedback.verify_dpi_process_running",
                 "presets.ui.control.zapret1.page.Zapret1ModeControlPage._get_current_dpi_runtime_state",
                 "presets.ui.control.zapret2.page.Zapret2ModeControlPage._on_ui_state_changed",
-                "tray.SystemTrayManager._is_launch_running/_launch_phase via AppRuntimeState",
+                "tray.SystemTrayManager._is_launch_running/_launch_phase via RuntimeFeature.snapshot",
             ),
             allowed_auxiliary_writers=(
-                "winws_runtime.runtime.startup.init_process_monitor -> bootstrap_probe",
-                "winws_runtime.runtime.autostart._mark_runtime_stopped",
-                "main.LupiDPIApp._apply_runner_failure_update",
+                "нет: внешние места должны вызывать методы LaunchRuntimeService",
             ),
-            single_source_of_truth="ui.state.main_window_state.MainWindowStateStore",
+            single_source_of_truth="app.state_store.MainWindowStateStore",
         )
 
-    def __init__(self, app_instance_or_store) -> None:
-        self.app = None
-        self._store_override = None
+    def __init__(self, store: MainWindowStateStore) -> None:
+        self._store_ref = store
         self._tracking_state = _LaunchRuntimeTrackingState()
-        if isinstance(app_instance_or_store, MainWindowStateStore):
-            self._store_override = app_instance_or_store
-        else:
-            self.app = app_instance_or_store
 
     def _store(self) -> MainWindowStateStore | None:
-        if isinstance(self._store_override, MainWindowStateStore):
-            return self._store_override
-        store = getattr(self.app, "ui_state_store", None)
+        store = self._store_ref
         if isinstance(store, MainWindowStateStore):
             return store
         return None

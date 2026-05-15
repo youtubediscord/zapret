@@ -18,9 +18,9 @@ except ImportError:
     _FluentTextEdit = QTextEdit
     _USE_FLUENT = False
 
-from ui.text_catalog import tr as tr_catalog, normalize_language
+from app.text_catalog import tr as tr_catalog, normalize_language
 from ui.page_performance import log_page_metric
-from ui.theme_refresh import ThemeRefreshController
+from ui.theme_refresh import ThemeRefreshBinding
 from ui.smooth_scroll import (
     apply_editor_smooth_scroll_preference,
     apply_page_smooth_scroll_preference,
@@ -70,8 +70,7 @@ class BasePage(_FluentScrollArea):
 
     Uses qfluentwidgets ScrollArea for smooth Fluent-style scrolling.
     The public API (self.layout, add_widget, add_spacing, add_section_title,
-    self.parent_app, self.title_label, self.subtitle_label) is shared by
-    all pages.
+    self.title_label, self.subtitle_label) is shared by all pages.
     """
 
     def __init__(
@@ -84,7 +83,6 @@ class BasePage(_FluentScrollArea):
         subtitle_key: str | None = None,
     ):
         super().__init__(parent)
-        self.parent_app = parent
         self._ui_language = self._resolve_ui_language()
         self._title_key = title_key
         self._subtitle_key = subtitle_key
@@ -97,7 +95,7 @@ class BasePage(_FluentScrollArea):
         self._page_load_generation = 0
         self._ready_callbacks: list[object] = []
         self._cleanup_in_progress = False
-        self._page_theme_refresh = ThemeRefreshController(
+        self._page_theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_page_theme,
             is_build_pending=lambda: False,
@@ -217,9 +215,9 @@ class BasePage(_FluentScrollArea):
 
     def _resolve_ui_language(self) -> str:
         try:
-            from settings.store import get_ui_language
+            from settings.appearance import load_ui_language
 
-            return normalize_language(get_ui_language())
+            return normalize_language(load_ui_language().language)
         except Exception:
             return normalize_language(None)
 

@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal, QTimer
+from PyQt6.QtCore import QTimer
 
 from log.log import log
-from profile.public import list_profiles, move_profile_before, move_profile_to_end
 from profile.ui.profiles_list import ProfilesList
 from profile.ui.shell import build_profile_shell
 from qfluentwidgets import BodyLabel, BreadcrumbBar, MessageBox
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
-from ui.page_dependencies import require_page_app_context
 from ui.pages.base_page import BasePage
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 
 class PresetSetupPageBase(BasePage):
-    open_profile_setup = pyqtSignal(str)
-    back_clicked = pyqtSignal()
     profile_ui_mode_override: str | None = None
     launch_method = ZAPRET2_MODE
     engine_label = "Zapret 2"
@@ -27,13 +23,15 @@ class PresetSetupPageBase(BasePage):
     request_hint_key = "page.winws2_pages.request.hint"
     loading_key = "page.winws2_pages.loading"
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, profile_feature, open_control, open_profile_setup):
         super().__init__(
             title=self.page_title,
             parent=parent,
             title_key=self.title_key,
         )
-        self.parent_app = parent
+        self._profile = profile_feature
+        self._open_control = open_control
+        self._open_profile_setup = open_profile_setup
         self._breadcrumb = BreadcrumbBar()
         self._rebuild_breadcrumb()
         self._breadcrumb.currentItemChanged.connect(self._on_breadcrumb_item_changed)
@@ -53,13 +51,6 @@ class PresetSetupPageBase(BasePage):
         self._build_content()
         QTimer.singleShot(0, self.refresh_from_preset_switch)
 
-    def _require_app_context(self):
-        return require_page_app_context(
-            self,
-            parent=self.parent(),
-            error_message=f"AppContext is required for {self.engine_label} preset setup page",
-        )
-
     def _rebuild_breadcrumb(self) -> None:
         self._breadcrumb.blockSignals(True)
         try:
@@ -72,7 +63,7 @@ class PresetSetupPageBase(BasePage):
     def _on_breadcrumb_item_changed(self, key: str) -> None:
         self._rebuild_breadcrumb()
         if key == "control":
-            self.back_clicked.emit()
+            self._open_control()
 
     def on_page_activated(self) -> None:
         self._rebuild_breadcrumb()
@@ -116,7 +107,7 @@ class PresetSetupPageBase(BasePage):
         except Exception:
             pass
         try:
-            payload = list_profiles(self._require_app_context(), self.launch_method)
+            payload = self._profile.list_profiles(self.launch_method)
             self._apply_payload(payload)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось прочитать профили: {exc}", "ERROR")
@@ -172,12 +163,11 @@ class PresetSetupPageBase(BasePage):
         self._empty_state_label = label
 
     def _on_profile_clicked(self, profile_key: str) -> None:
-        self.open_profile_setup.emit(profile_key)
+        self._open_profile_setup(profile_key)
 
     def _on_profile_move_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
         try:
-            move_profile_before(
-                self._require_app_context(),
+            self._profile.move_profile_before(
                 self.launch_method,
                 source_profile_key,
                 destination_profile_key,
@@ -188,7 +178,7 @@ class PresetSetupPageBase(BasePage):
 
     def _on_profile_move_to_end_requested(self, profile_key: str) -> None:
         try:
-            move_profile_to_end(self._require_app_context(), self.launch_method, profile_key)
+            self._profile.move_profile_to_end(self.launch_method, profile_key)
             self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось переместить профиль в конец: {exc}", "ERROR")

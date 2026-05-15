@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QTextEdit
 
 from ui.theme import get_themed_qta_icon
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 
 
 @dataclass(slots=True)

@@ -54,16 +54,14 @@ from telegram_proxy.ui.upstream_workflow import (
 from telegram_proxy.ui.settings_build import (
     build_telegram_proxy_settings_panel,
 )
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
 )
 from log.log import log
 
-from telegram_proxy.page_actions_controller import TelegramProxyPageActionsController
-from telegram_proxy.diagnostics_controller import TelegramProxyDiagnosticsController
-from telegram_proxy.page_runtime_controller import TelegramProxyRuntimeController
-from telegram_proxy.page_settings_controller import TelegramProxySettingsController
+import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
+import telegram_proxy.settings as telegram_proxy_settings
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
@@ -78,12 +76,6 @@ from qfluentwidgets import (
     PushButton,
     PrimaryPushButton,
 )
-
-def _get_proxy_manager():
-    from telegram_proxy.manager import get_proxy_manager
-
-    return get_proxy_manager()
-
 
 # How often (ms) the GUI reads new log lines from the ring buffer
 _LOG_REFRESH_MS = 500
@@ -116,13 +108,14 @@ class _StatusDot(QWidget):
 class TelegramProxyPage(BasePage):
     """Telegram WebSocket Proxy settings page."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, runtime_feature, telegram_proxy_feature):
         super().__init__(
             "Telegram Proxy",
             "Маршрутизация трафика Telegram через WebSocket для обхода ЗАМЕДЛЕНИЯ (не поддерживает полный блок) по IP",
             parent,
         )
-        self.parent_app = parent
+        self._runtime_feature = runtime_feature
+        self._telegram_proxy = telegram_proxy_feature
         self._log_timer = None
         self._stats_timer = None
         self._diag_poll_timer = None
@@ -134,6 +127,9 @@ class TelegramProxyPage(BasePage):
         self._after_ui_built()
         # Запуск Telegram Proxy живёт в общем старте приложения,
         # поэтому страница не поднимает его сама.
+
+    def _proxy_manager(self):
+        return self._telegram_proxy.get_proxy_manager()
 
     def _after_ui_built(self) -> None:
         self._connect_signals()
@@ -150,7 +146,7 @@ class TelegramProxyPage(BasePage):
         self._run_runtime_init_once()
 
     def _run_runtime_init_once(self) -> None:
-        plan = TelegramProxyRuntimeController.build_page_init_plan(
+        plan = telegram_proxy_page_runtime.build_page_init_plan(
             runtime_initialized=self._runtime_initialized,
         )
         if not plan.ensure_hosts_once:
@@ -324,6 +320,7 @@ class TelegramProxyPage(BasePage):
             diag_edit=self._diag_edit,
             existing_poll_timer=self._diag_poll_timer,
             proxy_port=self._port_spin.value(),
+            telegram_proxy_feature=self._telegram_proxy,
             publish_diag_result=self._publish_diag_result,
             set_diag_result=lambda value: setattr(self, "_diag_result", value),
             set_thread_done=lambda value: setattr(self, "_diag_thread_done", value),
@@ -341,16 +338,10 @@ class TelegramProxyPage(BasePage):
             diag_poll_timer=self._diag_poll_timer,
             diag_result=self._diag_result,
             diag_thread_done=self._diag_thread_done,
+            telegram_proxy_feature=self._telegram_proxy,
             update_diag=self._update_diag,
             finish_diag=self._diag_finished,
         )
-
-    def _run_diag_tests(self):
-        self._diag_result = TelegramProxyDiagnosticsController.run_all(
-            proxy_port=getattr(self, "_diag_proxy_port", 1353),
-            progress_callback=self._publish_diag_result,
-        )
-        self._diag_thread_done = True
 
     def _publish_diag_result(self, text: str) -> None:
         if self._cleanup_in_progress:
@@ -364,13 +355,16 @@ class TelegramProxyPage(BasePage):
             sb.setValue(sb.maximum())
 
     def _diag_finished(self):
-        finish_diagnostics(btn_run_diag=self._btn_run_diag)
+        finish_diagnostics(
+            btn_run_diag=self._btn_run_diag,
+            telegram_proxy_feature=self._telegram_proxy,
+        )
 
     def _refresh_pivot_texts(self) -> None:
         refresh_pivot_texts(self._pivot)
 
     def _refresh_status_texts(self) -> None:
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         refresh_status_texts(
             manager=mgr,
             status_label=getattr(self, "_status_label", None),
@@ -427,7 +421,7 @@ class TelegramProxyPage(BasePage):
 
     def _on_copy_diag(self):
         text = self._diag_edit.toPlainText()
-        plan = TelegramProxyPageActionsController.copy_text(
+        plan = self._telegram_proxy.copy_text(
             text,
             success_title="Скопировано",
             success_content="Результат диагностики",
@@ -467,7 +461,7 @@ class TelegramProxyPage(BasePage):
         enable_setting_card_group_auto_height(self._upstream_card)
 
     def _connect_signals(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         mgr.status_changed.connect(self._on_status_changed)
 
         self._port_spin.valueChanged.connect(self._on_port_changed)
@@ -504,7 +498,7 @@ class TelegramProxyPage(BasePage):
 
     def _try_auto_deeplink(self):
         """Open tg:// deep link automatically on first start."""
-        if not TelegramProxySettingsController.consume_auto_deeplink_request():
+        if not telegram_proxy_settings.consume_auto_deeplink_request():
             return
         QTimer.singleShot(2000, self._on_open_in_telegram)
         self._append_log_line("Auto-opening Telegram proxy setup link...")
@@ -513,7 +507,7 @@ class TelegramProxyPage(BasePage):
 
     def _flush_log_buffer(self):
         """Called every 500ms by QTimer. Drains new lines from ProxyLogger."""
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         new_lines = mgr.proxy_logger.drain()
         if not new_lines:
             return
@@ -532,14 +526,14 @@ class TelegramProxyPage(BasePage):
 
     def _append_log_line(self, msg: str):
         """Append a single line to the log."""
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         mgr.proxy_logger.log(msg)
 
     # -- Log tab buttons --
 
     def _on_copy_all_logs(self):
         text = self._log_edit.toPlainText()
-        plan = TelegramProxyPageActionsController.copy_text(
+        plan = self._telegram_proxy.copy_text(
             text,
             success_title="Скопировано",
             success_content=f"{len(text.splitlines())} строк",
@@ -557,9 +551,9 @@ class TelegramProxyPage(BasePage):
                 pass
 
     def _on_open_log_file(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         path = mgr.proxy_logger.log_file_path
-        plan = TelegramProxyPageActionsController.open_log_file(path)
+        plan = self._telegram_proxy.open_log_file(path)
         if plan.log_line:
             self._append_log_line(plan.log_line)
 
@@ -569,7 +563,7 @@ class TelegramProxyPage(BasePage):
     # -- Handlers --
 
     def _on_toggle_proxy(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         handle_toggle_proxy(
             manager=mgr,
             restarting=bool(getattr(self, "_restarting", False)),
@@ -580,7 +574,7 @@ class TelegramProxyPage(BasePage):
         )
 
     def _restart_if_running(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         restart_proxy_if_running(
             page=self,
             manager=mgr,
@@ -609,7 +603,7 @@ class TelegramProxyPage(BasePage):
 
     @pyqtSlot()
     def _start_proxy(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         start_proxy_runtime(
             page=self,
             manager=mgr,
@@ -636,7 +630,7 @@ class TelegramProxyPage(BasePage):
         )
 
     def _check_relay_after_start(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         start_relay_check(
             page=self,
             manager=mgr,
@@ -644,9 +638,7 @@ class TelegramProxyPage(BasePage):
             set_generation=lambda value: setattr(self, "_relay_check_gen", value),
             status_label=self._status_label,
             set_relay_diag=lambda value: setattr(self, "_relay_diag", value),
-            get_zapret_running=lambda: bool(
-                getattr(getattr(self, "launch_runtime_api", None), "is_any_running", lambda silent=True: False)(silent=True)
-            ),
+            get_zapret_running=lambda: telegram_proxy_page_runtime.is_zapret_runtime_running(self._runtime_feature),
             log_warning=lambda text: log(text, "WARNING"),
         )
 
@@ -654,7 +646,7 @@ class TelegramProxyPage(BasePage):
     def _apply_relay_result(self):
         if self._cleanup_in_progress:
             return
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         apply_relay_result(
             manager=mgr,
             diag=getattr(self, "_relay_diag", {}),
@@ -665,11 +657,11 @@ class TelegramProxyPage(BasePage):
         )
 
     def _stop_proxy(self):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         stop_proxy_runtime(manager=mgr)
 
     def _on_status_changed(self, running: bool):
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         apply_status_changed(
             manager=mgr,
             running=bool(running),
@@ -699,7 +691,7 @@ class TelegramProxyPage(BasePage):
     def _emit_stats_if_visible(self):
         if self._cleanup_in_progress or not self.isVisible():
             return
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         if not mgr.is_running:
             if self._stats_timer is not None:
                 self._stats_timer.stop()
@@ -725,7 +717,7 @@ class TelegramProxyPage(BasePage):
         )
 
     def _on_port_changed(self, port: int):
-        normalized = TelegramProxySettingsController.set_port(port)
+        normalized = telegram_proxy_settings.set_port(port)
         if normalized != port:
             self._port_spin.blockSignals(True)
             self._port_spin.setValue(normalized)
@@ -733,7 +725,7 @@ class TelegramProxyPage(BasePage):
         self._update_manual_instructions()
 
     def _on_host_changed(self):
-        host = TelegramProxySettingsController.set_host(self._host_edit.text().strip())
+        host = telegram_proxy_settings.set_host(self._host_edit.text().strip())
         self._host_edit.setText(host)
         self._update_manual_instructions()
 
@@ -742,7 +734,7 @@ class TelegramProxyPage(BasePage):
     def _on_upstream_changed(self, checked: bool):
         handle_upstream_toggle(
             checked=checked,
-            set_upstream_enabled=TelegramProxySettingsController.set_upstream_enabled,
+            set_upstream_enabled=telegram_proxy_settings.set_upstream_enabled,
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
             current_index=self._upstream_preset_row.combo.currentIndex(),
             restart_if_running=self._restart_if_running,
@@ -758,7 +750,7 @@ class TelegramProxyPage(BasePage):
             upstream_port_spin=self._upstream_port_spin,
             upstream_user_edit=self._upstream_user_edit,
             upstream_pass_edit=self._upstream_pass_edit,
-            set_upstream_fields=TelegramProxySettingsController.set_upstream_fields,
+            set_upstream_fields=telegram_proxy_settings.set_upstream_fields,
             restart_if_running=self._restart_if_running,
         )
 
@@ -807,7 +799,7 @@ class TelegramProxyPage(BasePage):
         link = getattr(self, '_current_mtproxy_link', '')
         if not link:
             return
-        plan = TelegramProxyPageActionsController.open_external_link(
+        plan = self._telegram_proxy.open_external_link(
             link,
             success_log="Opened MTProxy link",
             error_prefix="Failed to open MTProxy link",
@@ -818,7 +810,7 @@ class TelegramProxyPage(BasePage):
     def _update_manual_instructions(self):
         """Update manual instructions label with current host/port."""
         self._manual_host_port_label.setText(
-            TelegramProxySettingsController.build_manual_instruction_text(
+            telegram_proxy_settings.build_manual_instruction_text(
                 self._host_edit.text().strip(),
                 self._port_spin.value(),
             )
@@ -826,11 +818,11 @@ class TelegramProxyPage(BasePage):
 
     def _on_open_in_telegram(self):
         """Open tg://socks deep link to auto-configure Telegram."""
-        url = TelegramProxySettingsController.build_proxy_url(
+        url = telegram_proxy_settings.build_proxy_url(
             self._host_edit.text().strip(),
             self._port_spin.value(),
         )
-        plan = TelegramProxyPageActionsController.open_external_link(
+        plan = self._telegram_proxy.open_external_link(
             url,
             success_log=f"Opened deep link: {url}",
             error_prefix="Failed to open link",
@@ -840,11 +832,11 @@ class TelegramProxyPage(BasePage):
 
     def _on_copy_link(self):
         """Copy proxy deep link to clipboard."""
-        url = TelegramProxySettingsController.build_proxy_url(
+        url = telegram_proxy_settings.build_proxy_url(
             self._host_edit.text().strip(),
             self._port_spin.value(),
         )
-        plan = TelegramProxyPageActionsController.copy_text(
+        plan = self._telegram_proxy.copy_text(
             url,
             success_title="Скопировано",
             success_content=url,
@@ -872,7 +864,7 @@ class TelegramProxyPage(BasePage):
         ).start()
 
     def _ensure_telegram_hosts_worker(self):
-        plan = TelegramProxyPageActionsController.ensure_telegram_hosts()
+        plan = self._telegram_proxy.ensure_telegram_hosts()
         if not plan.ok and plan.log_line:
             log(plan.log_line, "WARNING")
 
@@ -880,7 +872,7 @@ class TelegramProxyPage(BasePage):
         super().showEvent(event)
         if self._log_timer is not None and not self._log_timer.isActive():
             self._log_timer.start(_LOG_REFRESH_MS)
-        if self._stats_timer is not None and _get_proxy_manager().is_running and not self._stats_timer.isActive():
+        if self._stats_timer is not None and self._proxy_manager().is_running and not self._stats_timer.isActive():
             self._stats_timer.start(2000)
             self._emit_stats_if_visible()
 
@@ -909,5 +901,5 @@ class TelegramProxyPage(BasePage):
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
             self._upstream_restart_timer = None
-        mgr = _get_proxy_manager()
+        mgr = self._proxy_manager()
         mgr.cleanup()

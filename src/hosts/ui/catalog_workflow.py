@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from PyQt6.QtCore import QTimer
 
-from hosts.page_controller import HostsPageController
+import hosts.page_plans as hosts_page_plans
 
 
 def ensure_catalog_watcher(
@@ -46,12 +46,13 @@ def refresh_catalog_if_needed(
     trigger: str,
     services_layout_exists: bool,
     page_visible: bool,
+    get_catalog_signature_fn: Callable[[], object],
     invalidate_catalog_cache: Callable[[], None],
     rebuild_services_selectors: Callable[[], None],
     log_info: Callable[[str], None],
 ):
-    sig = HostsPageController.get_catalog_signature()
-    refresh_plan = HostsPageController.build_catalog_refresh_plan(
+    sig = get_catalog_signature_fn()
+    refresh_plan = hosts_page_plans.build_catalog_refresh_plan(
         current_signature=current_signature,
         new_signature=sig,
         trigger=trigger,
@@ -93,7 +94,12 @@ def refresh_catalog_if_needed(
     }
 
 
-def rebuild_services_runtime_state(*, clear_layout: Callable[[], None], build_services_selectors: Callable[[], None]):
+def rebuild_services_runtime_state(
+    *,
+    get_catalog_signature_fn: Callable[[], object],
+    clear_layout: Callable[[], None],
+    build_services_selectors: Callable[[], None],
+):
     clear_layout()
     build_services_selectors()
-    return HostsPageController.get_catalog_signature()
+    return get_catalog_signature_fn()

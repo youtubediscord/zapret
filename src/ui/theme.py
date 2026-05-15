@@ -188,9 +188,10 @@ def _compute_tint_color(opacity_pct: int) -> tuple:
         r, g, b = 32, 32, 32
 
     try:
-        from settings.store import get_tinted_background, get_tinted_background_intensity
-        if get_tinted_background():
-            intensity = get_tinted_background_intensity()
+        from settings.appearance import load_tinted_settings
+        tinted_plan = load_tinted_settings()
+        if tinted_plan.tinted_background:
+            intensity = tinted_plan.tinted_intensity
             accent_rgb = _get_qfluent_themecolor()
             if accent_rgb is not None and intensity > 0:
                 r, g, b = _mix_rgb((r, g, b), accent_rgb, intensity / 100.0)
@@ -390,14 +391,14 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
     # Determine preset
     if preset is None:
         try:
-            from settings.store import get_background_preset
-            preset = get_background_preset()
+            from settings.appearance import load_background_preset
+            preset = load_background_preset().preset
         except Exception:
             preset = "standard"
 
     try:
-        from settings.store import get_mica_enabled
-        mica_enabled = bool(get_mica_enabled())
+        from settings.appearance import load_mica_enabled
+        mica_enabled = bool(load_mica_enabled().enabled)
     except Exception:
         mica_enabled = True
 
@@ -410,9 +411,9 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
         # setMicaEffectEnabled(False) immediately calls setBackgroundColor(solid)
         # which causes a flash frame before apply_aero_effect makes it transparent.
         if not should_mica and _is_win11_plus:
-            if hasattr(window, '_darkBackgroundColor') and hasattr(window, '_lightBackgroundColor'):
-                window._darkBackgroundColor = QColor(0, 0, 0, 0)
-                window._lightBackgroundColor = QColor(0, 0, 0, 0)
+            prepare_transparent_mica_background = getattr(window, "prepare_transparent_mica_background", None)
+            if callable(prepare_transparent_mica_background):
+                prepare_transparent_mica_background()
 
         window.setMicaEffectEnabled(should_mica)
 
@@ -420,8 +421,8 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
     if hasattr(window, 'set_background_image'):
         if preset == "rkn_chan":
             try:
-                from settings.store import get_rkn_background
-                selected_rkn_bg = get_rkn_background()
+                from settings.appearance import load_rkn_background
+                selected_rkn_bg = load_rkn_background().value
             except Exception:
                 selected_rkn_bg = None
 
@@ -471,8 +472,8 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
             # Apply tint overlay based on current slider value (0%=pure Mica, 100%=heavy tint)
             if hasattr(window, 'set_tint_overlay'):
                 try:
-                    from settings.store import get_window_opacity
-                    opacity_pct = get_window_opacity()
+                    from settings.appearance import load_window_opacity
+                    opacity_pct = load_window_opacity().value
                 except Exception:
                     opacity_pct = 0
                 r, g, b, overlay_alpha = _compute_tint_color(opacity_pct)
@@ -504,8 +505,8 @@ def apply_window_background(window, theme_name: str | None = None, preset: str |
 
         # Non-standard fallback path.
         try:
-            from settings.store import get_window_opacity
-            opacity_pct = get_window_opacity()
+            from settings.appearance import load_window_opacity
+            opacity_pct = load_window_opacity().value
         except Exception:
             opacity_pct = 100
 
@@ -542,8 +543,8 @@ def _sync_theme_accent_to_qfluent(theme_name: str) -> None:
         from PyQt6.QtGui import QColor as _QColor
 
         try:
-            from settings.store import get_accent_color
-            hex_color = get_accent_color()
+            from settings.appearance import load_accent_color
+            hex_color = load_accent_color().hex_color
             if hex_color:
                 c = _QColor(hex_color)
                 if c.isValid():

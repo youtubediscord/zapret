@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PyQt6.QtGui import QColor
 
-from ui.appearance_page_controller import AppearancePageController
-from ui.text_catalog import normalize_language, tr as tr_catalog
+import settings.appearance as appearance_settings
+from app.text_catalog import normalize_language, tr as tr_catalog
 
 
 def apply_appearance_language(
@@ -158,7 +158,7 @@ def apply_appearance_language(
 def load_accent_color(*, has_color_picker: bool, color_picker_btn, begin_ui_sync, end_ui_sync) -> None:
     if not has_color_picker or color_picker_btn is None:
         return
-    plan = AppearancePageController.load_accent_color()
+    plan = appearance_settings.load_accent_color()
     hex_color = plan.hex_color
     if hex_color:
         color = QColor(hex_color)
@@ -188,7 +188,7 @@ def load_extra_accent_settings(
 ) -> None:
     if not has_color_picker:
         return
-    plan = AppearancePageController.load_tinted_settings()
+    plan = appearance_settings.load_tinted_settings()
 
     if follow_windows_accent_cb is not None:
         set_checked_silently(follow_windows_accent_cb, plan.follow_windows_accent)
@@ -219,9 +219,9 @@ def load_performance_settings(
     set_checked_silently,
     sync_performance_dependencies,
 ) -> None:
-    anim_plan = AppearancePageController.load_animations_enabled()
-    smooth_plan = AppearancePageController.load_smooth_scroll_enabled()
-    editor_plan = AppearancePageController.load_editor_smooth_scroll_enabled()
+    anim_plan = appearance_settings.load_animations_enabled()
+    smooth_plan = appearance_settings.load_smooth_scroll_enabled()
+    editor_plan = appearance_settings.load_editor_smooth_scroll_enabled()
 
     if animations_switch is not None:
         set_checked_silently(animations_switch, anim_plan.enabled)

@@ -551,12 +551,6 @@ class DNSManager:
         
         return adapters
     
-    @staticmethod
-    def get_network_adapters(include_ignored=False, include_disconnected=True):
-        """Обратная совместимость"""
-        manager = DNSManager()
-        return manager.get_network_adapters_fast(include_ignored, include_disconnected)
-    
     def get_adapter_guid(self, adapter_name: str) -> Optional[str]:
         """Получает GUID адаптера с кешированием"""
         norm_name = _normalize_alias(adapter_name)

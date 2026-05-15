@@ -5,16 +5,14 @@ from importlib import import_module
 
 from PyQt6.QtWidgets import QWidget
 
-from log.log import log
-
 from ui.navigation.schema import get_page_route_key
-from ui.page_names import PageName
+from app.page_names import PageName
+from ui.page_composition import build_page_deps, validate_page_deps_builder_coverage
 
 
 @dataclass(frozen=True, slots=True)
 class CreatedPage:
     page_name: PageName
-    attr_name: str
     page: QWidget
     elapsed_ms: int
 
@@ -22,15 +20,16 @@ class CreatedPage:
 class UiPageFactory:
     """Создаёт page-экземпляры по канонической registry-схеме."""
 
-    def __init__(self, window, page_class_specs: dict[PageName, tuple[str, str, str]]):
+    def __init__(self, window, page_class_specs: dict[PageName, tuple[str, str]]):
         self._window = window
         self._page_class_specs = dict(page_class_specs or {})
+        validate_page_deps_builder_coverage(self._page_class_specs)
 
     @property
-    def page_class_specs(self) -> dict[PageName, tuple[str, str, str]]:
+    def page_class_specs(self) -> dict[PageName, tuple[str, str]]:
         return self._page_class_specs
 
-    def get_page_spec(self, page_name: PageName) -> tuple[str, str, str] | None:
+    def get_page_spec(self, page_name: PageName) -> tuple[str, str] | None:
         return self._page_class_specs.get(page_name)
 
     def create_page(self, page_name: PageName) -> CreatedPage | None:
@@ -38,18 +37,14 @@ class UiPageFactory:
         if spec is None:
             return None
 
-        attr_name, module_name, class_name = spec
+        module_name, class_name = spec
 
         import time as _time
 
         started_at = _time.perf_counter()
-        try:
-            module = import_module(module_name)
-            page_cls = getattr(module, class_name)
-            page = page_cls(self._window)
-        except Exception as e:
-            log(f"Ошибка lazy-инициализации страницы {page_name}: {e}", "ERROR")
-            return None
+        module = import_module(module_name)
+        page_cls = getattr(module, class_name)
+        page = page_cls(parent=self._window, **build_page_deps(self._window, page_name))
 
         route_key = get_page_route_key(page_name)
         if route_key:
@@ -66,7 +61,6 @@ class UiPageFactory:
         elapsed_ms = int((_time.perf_counter() - started_at) * 1000)
         return CreatedPage(
             page_name=page_name,
-            attr_name=attr_name,
             page=page,
             elapsed_ms=elapsed_ms,
         )

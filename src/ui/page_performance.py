@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ui.page_names import PageName
+from app.page_names import PageName
 from log.log import log
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 
-from hosts.page_controller import HostsPageController
+import hosts.page_plans as hosts_page_plans
 
 
 def dismiss_hosts_error_bar(current_bar) -> None:
@@ -40,7 +40,7 @@ def show_hosts_access_error(
     try:
         from qfluentwidgets import InfoBarPosition
 
-        error_plan = HostsPageController.build_error_bar_plan(
+        error_plan = hosts_page_plans.build_error_bar_plan(
             message=message,
             title=tr_fn("page.hosts.error.title", "Нет доступа к hosts"),
             action_text=tr_fn("page.hosts.button.restore_access", "Восстановить права доступа"),
@@ -81,7 +81,7 @@ def check_hosts_access(
     hide_error,
     show_error,
 ) -> None:
-    access_plan = HostsPageController.build_access_plan(
+    access_plan = hosts_page_plans.build_access_plan(
         runtime_state,
         hosts_path=hosts_path,
         read_error_message=tr_fn("page.hosts.error.read_hosts", "Ошибка чтения hosts: {error}", error=runtime_state.error_message),
@@ -99,6 +99,7 @@ def check_hosts_access(
 
 def restore_hosts_permissions_flow(
     *,
+    restore_hosts_permissions_fn,
     info_bar_cls,
     window,
     dismiss_error_bar,
@@ -109,8 +110,8 @@ def restore_hosts_permissions_flow(
     log_error,
 ) -> tuple[bool, str | None]:
     try:
-        result = HostsPageController.restore_hosts_permissions()
-        restore_plan = HostsPageController.build_restore_permissions_plan(
+        result = restore_hosts_permissions_fn()
+        restore_plan = hosts_page_plans.build_restore_permissions_plan(
             success=result.success,
             message=result.message,
         )

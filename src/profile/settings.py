@@ -20,7 +20,7 @@ _WINWS2_WSSIZE_LINE = "--lua-desync=wssize:wsize=1:scale=6"
 _WINWS1_WSSIZE_LINES = ("--wssize", "1:6", "--wssize-forced-cutoff=0")
 
 
-def get_advanced_settings_state(app_context, launch_method: str = DEFAULT_LAUNCH_METHOD) -> dict[str, bool]:
+def get_advanced_settings_state(profile_services, launch_method: str = DEFAULT_LAUNCH_METHOD) -> dict[str, bool]:
     discord_restart = True
     try:
         from discord.discord_restart import get_discord_restart_setting
@@ -31,13 +31,13 @@ def get_advanced_settings_state(app_context, launch_method: str = DEFAULT_LAUNCH
 
     return {
         "discord_restart": discord_restart,
-        "wssize_enabled": get_wssize_enabled(app_context, launch_method=launch_method),
-        "debug_log_enabled": get_debug_log_enabled(app_context, launch_method=launch_method),
+        "wssize_enabled": get_wssize_enabled(profile_services, launch_method=launch_method),
+        "debug_log_enabled": get_debug_log_enabled(profile_services, launch_method=launch_method),
     }
 
 
-def get_wssize_enabled(app_context, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
-    preset, _manifest = _load_selected_profile_preset(app_context, launch_method)
+def get_wssize_enabled(profile_services, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
+    preset, _manifest = _load_selected_profile_preset(profile_services, launch_method)
     for profile in preset.profiles:
         if not _profile_tcp_includes_443(profile):
             continue
@@ -46,8 +46,8 @@ def get_wssize_enabled(app_context, *, launch_method: str = DEFAULT_LAUNCH_METHO
     return False
 
 
-def set_wssize_enabled(app_context, enabled: bool, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
-    preset, _manifest = _load_selected_profile_preset(app_context, launch_method)
+def set_wssize_enabled(profile_services, enabled: bool, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
+    preset, _manifest = _load_selected_profile_preset(profile_services, launch_method)
     changed = False
     touched_any_tcp_443 = False
 
@@ -69,60 +69,50 @@ def set_wssize_enabled(app_context, enabled: bool, *, launch_method: str = DEFAU
     if not touched_any_tcp_443:
         return False if enabled else True
     if changed:
-        _save_selected_profile_preset(app_context, preset, launch_method)
+        _save_selected_profile_preset(profile_services, preset, launch_method)
     return True
 
 
-def get_debug_log_enabled(app_context, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
-    return bool(get_debug_log_file(app_context, launch_method=launch_method))
+def get_debug_log_enabled(profile_services, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
+    return bool(get_debug_log_file(profile_services, launch_method=launch_method))
 
 
-def get_debug_log_file(app_context, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> str:
-    text, _manifest = _load_selected_source_text(app_context, launch_method)
+def get_debug_log_file(profile_services, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> str:
+    text, _manifest = _load_selected_source_text(profile_services, launch_method)
     return _extract_debug_log_file(text)
 
 
-def set_debug_log_enabled(app_context, enabled: bool, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
-    text, manifest = _load_selected_source_text(app_context, launch_method)
+def set_debug_log_enabled(profile_services, enabled: bool, *, launch_method: str = DEFAULT_LAUNCH_METHOD) -> bool:
+    text, manifest = _load_selected_source_text(profile_services, launch_method)
     display_name = str(getattr(manifest, "name", "") or "").strip() or Path(str(getattr(manifest, "file_name", "") or "")).stem
     rewritten = _rewrite_debug_log_setting(text, display_name, bool(enabled))
     if rewritten != text:
-        _save_selected_source_text(app_context, rewritten, launch_method)
+        _save_selected_source_text(profile_services, rewritten, launch_method)
     return True
 
 
-def _load_selected_profile_preset(app_context, launch_method: str):
-    text, manifest = _load_selected_source_text(app_context, launch_method)
+def _load_selected_profile_preset(profile_services, launch_method: str):
+    text, manifest = _load_selected_source_text(profile_services, launch_method)
     engine = _engine_for_method(launch_method)
     return parse_preset_text(text, engine=engine, source_name=getattr(manifest, "file_name", "")), manifest
 
 
-def _save_selected_profile_preset(app_context, preset, launch_method: str) -> None:
-    _save_selected_source_text(app_context, serialize_preset(preset), launch_method)
+def _save_selected_profile_preset(profile_services, preset, launch_method: str) -> None:
+    _save_selected_source_text(profile_services, serialize_preset(preset), launch_method)
 
 
-def _load_selected_source_text(app_context, launch_method: str) -> tuple[str, object]:
-    method = normalize_launch_method(launch_method, default="")
-    engine = _engine_for_method(method)
-    if not is_preset_launch_method(method):
-        raise ValueError(f"Unsupported profile settings launch method: {launch_method}")
-    from presets.public import get_selected_source_preset_manifest
-
-    manifest = get_selected_source_preset_manifest(method, app_context=app_context)
-    return app_context.preset_file_store.read_source_text(engine, manifest.file_name), manifest
-
-
-def _save_selected_source_text(app_context, source_text: str, launch_method: str) -> None:
+def _load_selected_source_text(profile_services, launch_method: str) -> tuple[str, object]:
     method = normalize_launch_method(launch_method, default="")
     if not is_preset_launch_method(method):
         raise ValueError(f"Unsupported profile settings launch method: {launch_method}")
-    from presets.public import save_selected_preset_source
+    return profile_services._presets_feature.read_selected_preset_source(method)
 
-    save_selected_preset_source(
-        method,
-        source_text,
-        app_context=app_context,
-    )
+
+def _save_selected_source_text(profile_services, source_text: str, launch_method: str) -> None:
+    method = normalize_launch_method(launch_method, default="")
+    if not is_preset_launch_method(method):
+        raise ValueError(f"Unsupported profile settings launch method: {launch_method}")
+    profile_services._presets_feature.save_selected_preset_source(method, source_text)
 
 
 def _engine_for_method(launch_method: str) -> str:

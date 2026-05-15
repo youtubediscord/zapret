@@ -6,8 +6,8 @@ import threading
 
 from PyQt6.QtCore import QMetaObject, Qt as QtNS
 
-from telegram_proxy.page_runtime_controller import TelegramProxyRuntimeController
-from telegram_proxy.page_settings_controller import TelegramProxySettingsController
+import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
+import telegram_proxy.settings as telegram_proxy_settings
 
 
 def handle_toggle_proxy(
@@ -19,7 +19,7 @@ def handle_toggle_proxy(
     stop_proxy,
     start_proxy,
 ) -> None:
-    plan = TelegramProxyRuntimeController.build_toggle_action_plan(
+    plan = telegram_proxy_page_runtime.build_toggle_action_plan(
         running=bool(manager.is_running),
         restarting=bool(restarting),
         starting=bool(starting),
@@ -28,7 +28,7 @@ def handle_toggle_proxy(
         set_restarting(False)
         manager.status_changed.emit(False)
         if plan.persist_enabled is not None:
-            TelegramProxySettingsController.set_proxy_enabled(plan.persist_enabled)
+            telegram_proxy_settings.set_proxy_enabled(plan.persist_enabled)
         return
     if plan.action == "ignore":
         return
@@ -46,7 +46,7 @@ def restart_proxy_if_running(
     set_restarting,
     status_label,
 ) -> None:
-    plan = TelegramProxyRuntimeController.build_restart_plan(
+    plan = telegram_proxy_page_runtime.build_restart_plan(
         running=bool(manager.is_running),
         restarting=bool(restarting),
     )
@@ -57,7 +57,7 @@ def restart_proxy_if_running(
     status_label.setText(plan.status_text)
 
     def _bg_stop():
-        manager._stop_controller_only()
+        manager._stop_runtime_only()
         QMetaObject.invokeMethod(
             page,
             "_finish_restart",
@@ -80,8 +80,8 @@ def start_proxy_runtime(
     status_label,
     append_log_line,
 ) -> None:
-    upstream_config = TelegramProxySettingsController.build_upstream_config()
-    plan = TelegramProxyRuntimeController.build_start_plan(
+    upstream_config = telegram_proxy_settings.build_upstream_config()
+    plan = telegram_proxy_page_runtime.build_start_plan(
         starting=bool(starting),
         running=bool(running),
         host=host,
@@ -123,10 +123,10 @@ def finish_proxy_start(
     on_status_changed,
 ) -> None:
     set_starting(False)
-    plan = TelegramProxyRuntimeController.build_finish_start_plan(start_ok)
+    plan = telegram_proxy_page_runtime.build_finish_start_plan(start_ok)
     btn_toggle.setEnabled(plan.toggle_enabled)
     if plan.persist_enabled is not None:
-        TelegramProxySettingsController.set_proxy_enabled(plan.persist_enabled)
+        telegram_proxy_settings.set_proxy_enabled(plan.persist_enabled)
     if plan.should_check_relay:
         check_relay_after_start()
     elif plan.fallback_to_stopped_status:
@@ -144,7 +144,7 @@ def start_relay_check(
     get_zapret_running,
     log_warning,
 ) -> None:
-    start_plan = TelegramProxyRuntimeController.build_relay_start_plan(
+    start_plan = telegram_proxy_page_runtime.build_relay_start_plan(
         current_generation=current_generation,
         host=manager.host,
         port=manager.port,
@@ -182,7 +182,7 @@ def start_relay_check(
             if best_result and best_result["reachable"]:
                 set_relay_diag({"status": "ok", "ms": best_result["ms"]})
             else:
-                http_ok = TelegramProxyRuntimeController.check_relay_http()
+                http_ok = telegram_proxy_page_runtime.check_relay_http()
                 set_relay_diag(
                     {
                         "status": "fail",
@@ -217,7 +217,7 @@ def apply_relay_result(
     if not manager.is_running:
         return
 
-    plan = TelegramProxyRuntimeController.build_relay_result_plan(
+    plan = telegram_proxy_page_runtime.build_relay_result_plan(
         host=manager.host,
         port=manager.port,
         status=diag.get("status", "fail"),
@@ -238,7 +238,7 @@ def apply_relay_result(
 
 def stop_proxy_runtime(*, manager) -> None:
     manager.stop_proxy()
-    TelegramProxySettingsController.set_proxy_enabled(False)
+    telegram_proxy_settings.set_proxy_enabled(False)
 
 
 def apply_status_changed(
@@ -257,7 +257,7 @@ def apply_status_changed(
     set_speed_state,
     set_generation,
 ) -> None:
-    plan = TelegramProxyRuntimeController.build_status_plan(
+    plan = telegram_proxy_page_runtime.build_status_plan(
         running=bool(running),
         restarting=bool(restarting),
         starting=bool(starting),
@@ -290,7 +290,7 @@ def apply_stats_updated(
 ) -> None:
     if stats is None:
         return
-    plan = TelegramProxyRuntimeController.build_stats_plan(
+    plan = telegram_proxy_page_runtime.build_stats_plan(
         stats=stats,
         prev_sent=prev_sent,
         prev_recv=prev_recv,

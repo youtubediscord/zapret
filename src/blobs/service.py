@@ -425,10 +425,6 @@ def delete_user_blob(name: str) -> bool:
         return False
 
 
-# Для обратной совместимости - будет заполнен при первом использовании
-# Используйте get_blobs() для гарантированно правильных путей
-BLOBS = {}
-
 # Регулярка для поиска --blob=name:value в строке аргументов
 BLOB_PATTERN = re.compile(r'--blob=([^:\s]+):([^\s]+)')
 
@@ -570,7 +566,7 @@ def get_blob_definition(blob_name: str) -> str:
     Возвращает строку определения блоба для командной строки.
 
     Args:
-        blob_name: Имя блоба из словаря BLOBS
+        blob_name: Имя блоба из текущего каталога блобов
 
     Returns:
         Строка вида "--blob=name:@path" или "--blob=name:0xHEX"

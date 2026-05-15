@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ui.page_names import PageName
+from app.page_names import PageName
 
 
 @dataclass
@@ -25,7 +25,6 @@ class WindowUiSession:
     nav_scroll_position: Any
 
     sidebar_search_widget_cls: type | None
-    lazy_signal_connections: set[str] = field(default_factory=set)
     startup_ui_pump_counter: int = 0
     nav_search_query: str = ""
     nav_mode_visibility: dict[PageName, bool] = field(default_factory=dict)
@@ -39,6 +38,11 @@ class WindowUiSession:
 
     ui_language: str = "ru"
     startup_page_init_metrics: list[tuple[str, int]] = field(default_factory=list)
+
+    preset_runtime_coordinator: Any | None = None
+    runtime_ui_bridge: Any | None = None
+    page_stack_bootstrap_complete: bool = False
+    ui_bootstrap_bindings_connected: bool = False
 
 
 def get_window_ui_session(window) -> WindowUiSession | None:

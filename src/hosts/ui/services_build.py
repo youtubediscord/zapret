@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QScrollArea, QFrame
 
-from ui.compat_widgets import SettingsCard
+from ui.fluent_widgets import SettingsCard
 from ui.theme import get_theme_tokens
 
 

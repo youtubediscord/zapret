@@ -1,9 +1,6 @@
 import os
 import time
-from typing import Optional, Callable, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from main.window import LupiDPIApp
+from typing import Optional, Callable
 
 from log.log import log
 from settings.mode import EXE_NAME_WINWS1, WINWS_ENGINE_FAMILY_LABEL
@@ -29,7 +26,6 @@ class PresetLaunchRuntimeApi:
         self,
         expected_exe_path: str,
         status_callback: Optional[Callable[[str], None]] = None,
-        app_instance: Optional["LupiDPIApp"] = None,
     ):
         """
         Инициализирует PresetLaunchRuntimeApi.
@@ -37,11 +33,9 @@ class PresetLaunchRuntimeApi:
         Args:
             expected_exe_path: Путь к ожидаемому winws.exe/winws2.exe
             status_callback: Функция обратного вызова для отображения статуса
-            app_instance: Ссылка на главное приложение
         """
         self.expected_exe_path = expected_exe_path
         self.status_callback = status_callback
-        self.app_instance = app_instance
 
     def _set_status(self, text: str) -> None:
         """Внутренний метод для установки статуса"""

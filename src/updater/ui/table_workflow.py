@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QTableWidgetItem
 
-from updater.update_page_view_controller import UpdatePageViewController
+import updater.update_page_plans as update_page_plans
 
 
 def apply_server_table_headers(table, *, tr_fn) -> None:
@@ -27,7 +27,7 @@ def render_server_row(
     language: str,
     accent_hex: str,
 ) -> None:
-    plan = UpdatePageViewController.build_server_row_plan(
+    plan = update_page_plans.build_server_row_plan(
         row_server_name=server_name,
         status=status,
         channel=channel,

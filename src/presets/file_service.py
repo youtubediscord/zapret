@@ -26,7 +26,6 @@ from settings.mode import (
 )
 
 if TYPE_CHECKING:
-    from app_context import AppContext
     from core.paths import AppPaths
     from presets.file_store import PresetFileStore
     from presets.ui_store import PresetUiStore
@@ -58,7 +57,7 @@ class PresetFileService:
     preset_store_winws1: "PresetUiStore"
 
     @classmethod
-    def from_launch_method(cls, launch_method: str, *, app_context: "AppContext") -> "PresetFileService":
+    def from_launch_method(cls, launch_method: str, *, preset_services) -> "PresetFileService":
         method = normalize_launch_method(launch_method, default="")
         engine = engine_for_launch_method_or_none(method)
         if engine is None:
@@ -66,12 +65,12 @@ class PresetFileService:
         return cls(
             engine=engine,
             launch_method=method,
-            app_paths=app_context.app_paths,
-            preset_mode_coordinator=app_context.preset_mode_coordinator,
-            preset_file_store=app_context.preset_file_store,
-            preset_selection_service=app_context.preset_selection_service,
-            preset_store_winws2=app_context.preset_store_winws2,
-            preset_store_winws1=app_context.preset_store_winws1,
+            app_paths=preset_services.app_paths,
+            preset_mode_coordinator=preset_services.preset_mode_coordinator,
+            preset_file_store=preset_services.preset_file_store,
+            preset_selection_service=preset_services.preset_selection_service,
+            preset_store_winws2=preset_services.preset_store_winws2,
+            preset_store_winws1=preset_services.preset_store_winws1,
         )
 
     def _ui_store(self):

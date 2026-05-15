@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QSizePolicy
 
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     SettingsCard,
     ActionButton,
     PrimaryActionButton,

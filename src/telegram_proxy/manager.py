@@ -7,7 +7,7 @@ Integrates with PyQt6 event system — emits signals on status changes.
 from PyQt6.QtCore import QThread, pyqtSignal
 from typing import Optional, Callable
 
-from telegram_proxy import ProxyController
+from telegram_proxy import TelegramProxyRuntime
 from telegram_proxy.wss_proxy import ProxyStats, UpstreamProxyConfig
 from telegram_proxy.proxy_logger import get_proxy_logger
 
@@ -19,40 +19,38 @@ class TelegramProxyManager(QThread):
 
     Signals:
         status_changed(bool)   — emitted when proxy starts/stops
-        log_message(str)       — emitted on proxy log events
     """
 
     status_changed = pyqtSignal(bool)
-    log_message = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._controller: Optional[ProxyController] = None
+        self._runtime: Optional[TelegramProxyRuntime] = None
         self._proxy_logger = get_proxy_logger()
 
     @property
     def is_running(self) -> bool:
-        c = self._controller
+        c = self._runtime
         return c is not None and c.is_running
 
     @property
     def stats(self) -> Optional[ProxyStats]:
-        c = self._controller
+        c = self._runtime
         return c.stats if c else None
 
     @property
     def port(self) -> int:
-        c = self._controller
+        c = self._runtime
         return c.port if c else 1353
 
     @property
     def mode(self) -> str:
-        c = self._controller
+        c = self._runtime
         return c.mode if c else "socks5"
 
     @property
     def host(self) -> str:
-        c = self._controller
+        c = self._runtime
         return c.host if c else "127.0.0.1"
 
     @property
@@ -65,14 +63,14 @@ class TelegramProxyManager(QThread):
         if self.is_running:
             return False
 
-        self._controller = ProxyController(
+        self._runtime = TelegramProxyRuntime(
             port=port,
             mode=mode,
             on_log=self._on_log,
             host=host,
             upstream_config=upstream_config,
         )
-        ok = self._controller.start()
+        ok = self._runtime.start()
         if ok:
             self.status_changed.emit(True)
         else:
@@ -81,23 +79,23 @@ class TelegramProxyManager(QThread):
 
     def stop_proxy(self) -> None:
         """Stop the proxy. Thread-safe."""
-        if not self._controller:
+        if not self._runtime:
             return
 
-        self._controller.stop()
-        self._controller = None
+        self._runtime.stop()
+        self._runtime = None
         self.status_changed.emit(False)
 
-    def _stop_controller_only(self) -> None:
-        """Stop only the ProxyController (blocking, pure-Python, no Qt).
+    def _stop_runtime_only(self) -> None:
+        """Stop only the TelegramProxyRuntime (blocking, pure-Python, no Qt).
         Safe to call from any thread. Qt cleanup (timer, signal) must be
         done separately on the GUI thread."""
-        controller = self._controller
-        if controller:
-            controller.stop()
-            # Only clear if no new controller was created during stop
-            if self._controller is controller:
-                self._controller = None
+        runtime = self._runtime
+        if runtime:
+            runtime.stop()
+            # Only clear if no new runtime was created during stop
+            if self._runtime is runtime:
+                self._runtime = None
 
     def restart_proxy(self, port: int = 1353, mode: str = "socks5", host: str = "127.0.0.1",
                       upstream_config: Optional[UpstreamProxyConfig] = None) -> bool:
@@ -108,17 +106,14 @@ class TelegramProxyManager(QThread):
     def cleanup(self) -> None:
         """Called on app exit."""
         try:
-            if self._controller:
-                self._controller.stop()
+            if self._runtime:
+                self._runtime.stop()
         except Exception:
             pass
-        self._controller = None
+        self._runtime = None
 
     def _on_log(self, msg: str) -> None:
-        # Write to file logger + ring buffer (thread-safe)
         self._proxy_logger.log(msg)
-        # Emit signal for backward compat (UI now uses drain() instead)
-        self.log_message.emit(msg)
 
 
 def get_proxy_manager() -> TelegramProxyManager:

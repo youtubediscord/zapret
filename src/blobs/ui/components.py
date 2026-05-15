@@ -10,10 +10,10 @@ from PyQt6.QtWidgets import (
     QFrame, QFileDialog, QSizePolicy
 )
 
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
-from ui.theme_refresh import ThemeRefreshController
-from ui.text_catalog import tr as tr_catalog
+from ui.theme_refresh import ThemeRefreshBinding
+from app.text_catalog import tr as tr_catalog
 
 try:
     from qfluentwidgets import (
@@ -56,7 +56,7 @@ class BlobItemWidget(QFrame):
 
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
         self._build_ui()
-        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
+        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = tr_catalog(key, language=self._ui_language, default=default)
@@ -210,9 +210,10 @@ class BlobItemWidget(QFrame):
 class AddBlobDialog(MessageBoxBase):
     """Диалог добавления нового блоба."""
 
-    def __init__(self, parent=None, language: str = "ru"):
+    def __init__(self, parent=None, language: str = "ru", *, bin_folder: str):
         super().__init__(parent)
         self._ui_language = language
+        self._bin_folder = str(bin_folder or "")
 
         def _tr(key: str, default: str, **kwargs) -> str:
             text = tr_catalog(key, language=self._ui_language, default=default)
@@ -293,18 +294,15 @@ class AddBlobDialog(MessageBoxBase):
             )
 
     def _browse_file(self):
-        from config.config import BIN_FOLDER
-
-
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             self._tr("page.blobs.dialog.add.browse.title", "Выберите файл блоба"),
-            BIN_FOLDER,
+            self._bin_folder,
             "Binary files (*.bin);;All files (*.*)",
         )
         if file_path:
-            if file_path.startswith(BIN_FOLDER):
-                file_path = os.path.relpath(file_path, BIN_FOLDER)
+            if self._bin_folder and file_path.startswith(self._bin_folder):
+                file_path = os.path.relpath(file_path, self._bin_folder)
             self.value_edit.setText(file_path)
 
     def validate(self) -> bool:

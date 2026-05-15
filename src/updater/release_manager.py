@@ -264,7 +264,7 @@ class ReleaseManager:
             if self.server_pool.is_server_blocked(server_id):
                 log(f"⏭️ {current_server['name']} заблокирован, пропускаем", "🔄 RELEASE")
                 # Принудительно переключаемся на другой сервер
-                self.server_pool.force_switch()
+                self.server_pool.force_switch_server()
                 if server_id in tried_servers:
                     continue  # Уже пробовали этот сервер
                 tried_servers.add(server_id)

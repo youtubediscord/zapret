@@ -32,12 +32,12 @@ from diagnostics.ui.runtime_helpers import (
     start_connection_test,
     stop_connection_test,
 )
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 class ConnectionTestPage(BasePage):
     """Страница теста соединений, заменяющая старое диалоговое окно."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, diagnostics_feature):
         super().__init__(
             "Диагностика соединения",
             "Автотест Discord и YouTube, проверка DNS подмены и быстрая подготовка обращения в GitHub Discussions",
@@ -45,6 +45,7 @@ class ConnectionTestPage(BasePage):
             title_key="page.connection.title",
             subtitle_key="page.connection.subtitle",
         )
+        self._diagnostics = diagnostics_feature
         self.is_testing = False
         self.worker = None
         self.worker_thread = None
@@ -181,6 +182,7 @@ class ConnectionTestPage(BasePage):
             set_status_callback=self._set_status,
             status_badge=self.status_badge,
             progress_badge=self.progress_badge,
+            create_worker_fn=self._diagnostics.create_connection_test_worker,
             worker_update_handler=self._on_worker_update,
             worker_finished_handler=self._on_worker_finished,
         )

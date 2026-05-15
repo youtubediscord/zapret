@@ -14,9 +14,9 @@ from ui.navigation.schema import (
     get_nav_visibility,
     get_page_route_key,
 )
-from ui.page_names import PageName
+from app.page_names import PageName
 from ui.startup_ui_metrics import pump_startup_ui
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from ui.window_ui_session import get_window_ui_session
 
 
@@ -35,6 +35,12 @@ def _ensure_page(window, page_name: PageName):
 def _get_loaded_pages(window) -> dict[PageName, QWidget]:
     session = get_window_ui_session(window)
     return {} if session is None else session.pages
+
+
+def _ensure_page_in_stack(window, page: QWidget | None) -> None:
+    page_host = _get_page_host(window)
+    if page_host is not None:
+        page_host.ensure_page_in_stacked_widget(page)
 
 
 def _scroll_layout_index(window, widget) -> int:
@@ -95,7 +101,7 @@ def add_nav_item(
 
     icon = session.nav_icons.get(page_name, session.default_nav_icon)
     text = get_nav_label(window, page_name)
-    eager_pages = set(get_eager_page_names_for_method(window._get_launch_method()))
+    eager_pages = set(get_eager_page_names_for_method(window.get_launch_method()))
 
     if insert_index is not None:
         if page_name in eager_pages:
@@ -168,7 +174,7 @@ def init_navigation(window) -> None:
     )
 
     pos_scroll = session.nav_scroll_position
-    current_method = window._get_launch_method()
+    current_method = window.get_launch_method()
 
     session.nav_items = {}
     session.nav_search_query = ""
@@ -222,7 +228,7 @@ def init_navigation(window) -> None:
         if page is not None:
             if not page.objectName():
                 page.setObjectName(page.__class__.__name__)
-            window.stackedWidget.addWidget(page)
+            _ensure_page_in_stack(window, page)
             pump_startup_ui(window)
 
     window.navigationInterface.setMinimumExpandWidth(700)
@@ -237,14 +243,9 @@ def sync_nav_visibility(window, method: str | None = None) -> None:
     from ui.navigation.search import update_sidebar_search_suggestions
 
     if method is None:
-        try:
-            from settings.dpi.strategy_settings import get_strategy_launch_method
+        from ui.workflows.common import get_current_launch_method
 
-            method = (get_strategy_launch_method() or "").strip().lower()
-        except Exception:
-            from settings.mode import DEFAULT_LAUNCH_METHOD
-
-            method = DEFAULT_LAUNCH_METHOD
+        method = get_current_launch_method(default="")
     if not method:
         from settings.mode import DEFAULT_LAUNCH_METHOD
 

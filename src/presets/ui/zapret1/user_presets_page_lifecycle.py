@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 
 
 def handle_user_presets_ui_state_changed(*, cleanup_in_progress: bool, runtime_service, state, changed_fields: frozenset[str]) -> None:
@@ -28,15 +28,16 @@ def activate_user_presets_page(*, cleanup_in_progress: bool, resync_layout_metri
     schedule_layout_resync_fn(include_delayed=True)
 
 
-def after_user_presets_ui_built(*, apply_page_theme_fn, get_preset_store_fn, on_store_changed_fn, on_store_switched_fn, on_store_content_changed_fn, log_fn) -> None:
+def after_user_presets_ui_built(*, apply_page_theme_fn, connect_preset_signals_fn, on_store_changed_fn, on_store_switched_fn, on_store_content_changed_fn, log_fn) -> None:
     started_at = time.perf_counter()
     apply_page_theme_fn(force=True)
     try:
-        store = get_preset_store_fn()
-        store.presets_changed.connect(on_store_changed_fn)
-        store.preset_switched.connect(on_store_switched_fn)
-        store.preset_identity_changed.connect(on_store_switched_fn)
-        store.preset_content_changed.connect(on_store_content_changed_fn)
+        connect_preset_signals_fn(
+            on_changed=on_store_changed_fn,
+            on_switched=on_store_switched_fn,
+            on_identity_changed=on_store_switched_fn,
+            on_content_changed=on_store_content_changed_fn,
+        )
     except Exception:
         pass
     elapsed_ms = int((time.perf_counter() - started_at) * 1000)

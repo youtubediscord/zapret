@@ -8,7 +8,7 @@ from settings.mode import (
     is_orchestra_launch_method,
     normalize_launch_method,
 )
-from ui.page_names import PageName
+from app.page_names import PageName
 
 
 @dataclass(frozen=True)

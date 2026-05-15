@@ -17,20 +17,23 @@ class _DeferredMaintenanceBridge(QObject):
     finished = pyqtSignal(dict)
 
 
-def install_deferred_maintenance(window: "LupiDPIApp") -> None:
+def install_deferred_maintenance(
+    window: "LupiDPIApp",
+    *,
+    notify_many,
+    log_startup_metric,
+) -> None:
     deferred_maintenance_bridge = _DeferredMaintenanceBridge()
 
     def _on_deferred_maintenance_finished(payload: dict) -> None:
         if not is_window_alive(window):
             return
         try:
-            controller = getattr(window, "window_notification_controller", None)
             duration_ms = int(payload.get("duration_ms") or 0)
             if duration_ms > 0:
-                window.log_startup_metric("StartupPostInitMaintenanceFinished", f"{duration_ms}ms")
+                log_startup_metric("StartupPostInitMaintenanceFinished", f"{duration_ms}ms")
 
-            if controller is not None:
-                controller.notify_many(payload.get("notifications") or [])
+            notify_many(payload.get("notifications") or [])
         except Exception as exc:
             log(f"Ошибка поздней служебной проверки: {exc}", "❌ ERROR")
 
@@ -52,7 +55,7 @@ def install_deferred_maintenance(window: "LupiDPIApp") -> None:
         if not is_window_alive(window):
             return
 
-        window.log_startup_metric("StartupPostInitMaintenanceStarted", "telega_association_worker")
+        log_startup_metric("StartupPostInitMaintenanceStarted", "telega_association_worker")
         start_daemon_thread("DeferredMaintenanceWorker", _deferred_maintenance_worker)
 
     def _schedule_deferred_maintenance() -> None:
@@ -71,5 +74,5 @@ def install_deferred_maintenance(window: "LupiDPIApp") -> None:
     bind_startup_gate(
         window.startup_post_init_ready,
         _schedule_deferred_maintenance,
-        is_ready=lambda: bool(getattr(window, "_startup_post_init_ready", False)),
+        is_ready=lambda: bool(window.startup_state.post_init_ready),
     )

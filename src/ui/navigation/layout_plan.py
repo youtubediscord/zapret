@@ -7,7 +7,7 @@ from ui.navigation.schema import (
     get_sidebar_pages_for_method,
     normalize_launch_method_for_ui,
 )
-from ui.page_names import PageName
+from app.page_names import PageName
 
 
 SIDEBAR_GROUP_HEADER_KEYS: dict[str, str] = {

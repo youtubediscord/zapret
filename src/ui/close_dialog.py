@@ -110,7 +110,7 @@ class CloseDialog(MessageBoxBase):
         self.accept()
 
 
-def ask_close_action(parent=None):
+def ask_close_action(parent=None, *, launch_running: bool = False):
     """
     Возвращает действие закрытия приложения:
       - None   -> пользователь отменил
@@ -119,20 +119,8 @@ def ask_close_action(parent=None):
       - True   -> закрыть GUI + остановить DPI
 
     """
-    is_launch_running = _is_launch_running(parent)
-
-    dlg = CloseDialog(parent, launch_running=is_launch_running)
+    dlg = CloseDialog(parent, launch_running=bool(launch_running))
     dlg.exec()
     if dlg.result_tray:
         return "tray"
     return dlg.result_stop_dpi
-
-
-def _is_launch_running(parent=None) -> bool:
-    app_runtime_state = getattr(parent, "app_runtime_state", None)
-    if app_runtime_state is None:
-        return False
-    try:
-        return bool(app_runtime_state.is_launch_running())
-    except Exception:
-        return False

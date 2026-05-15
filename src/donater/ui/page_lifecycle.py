@@ -50,7 +50,7 @@ def render_activation_status_label(
     activation_status_label.setText(activation_status_state.get("text") or "")
 
 
-def bind_premium_ui_state_store(
+def bind_premium_subscription_state_store(
     *,
     current_store,
     store,

@@ -10,7 +10,7 @@ from log.log import log
 class SubscriptionInitWorker(QObject):
     """Фоновый worker для первичной проверки Premium-статуса."""
 
-    finished = pyqtSignal(object, object, bool)  # premium_checker, activation_info, success
+    finished = pyqtSignal(object, bool)  # activation_info, success
     progress = pyqtSignal(str)
 
     def run(self) -> None:
@@ -27,8 +27,8 @@ class SubscriptionInitWorker(QObject):
             activation_info = check_device_activation(premium_checker, use_cache=True)
 
             log(f"Статус подписки: {activation_info.get('status', 'unknown')}", "INFO")
-            self.finished.emit(premium_checker, activation_info, True)
+            self.finished.emit(activation_info, True)
         except Exception as e:
             log(f"Ошибка инициализации подписок: {e}", "❌ ERROR")
             log(f"Traceback: {traceback.format_exc()}", "DEBUG")
-            self.finished.emit(None, None, False)
+            self.finished.emit(None, False)

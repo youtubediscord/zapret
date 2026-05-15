@@ -17,22 +17,26 @@ class _StartupChecksBridge(QObject):
     finished = pyqtSignal(dict)
 
 
-def install_startup_checks(window: "LupiDPIApp") -> None:
+def install_startup_checks(
+    window: "LupiDPIApp",
+    *,
+    notify_many,
+    set_status,
+    log_startup_metric,
+) -> None:
     startup_bridge = _StartupChecksBridge()
 
     def _on_startup_checks_finished(payload: dict) -> None:
         if not is_window_alive(window):
             return
         try:
-            controller = getattr(window, "window_notification_controller", None)
             notifications = payload.get("notifications") or []
             duration_ms = int(payload.get("duration_ms") or 0)
 
             if duration_ms > 0:
-                window.log_startup_metric("StartupPostInitChecksFinished", f"{duration_ms}ms")
+                log_startup_metric("StartupPostInitChecksFinished", f"{duration_ms}ms")
 
-            if controller is not None:
-                controller.notify_many([item for item in notifications if isinstance(item, dict)])
+            notify_many([item for item in notifications if isinstance(item, dict)])
 
             log("✅ Все проверки пройдены", "🔹 main")
         except Exception as exc:
@@ -48,11 +52,10 @@ def install_startup_checks(window: "LupiDPIApp") -> None:
             startup_bridge.finished.emit(payload)
         except Exception as exc:
             log(f"Ошибка при асинхронных проверках: {exc}", "❌ ERROR")
-            if hasattr(window, "set_status"):
-                try:
-                    window.set_status(f"Ошибка проверок: {exc}")
-                except Exception:
-                    pass
+            try:
+                set_status(f"Ошибка проверок: {exc}")
+            except Exception:
+                pass
             startup_bridge.finished.emit(
                 {
                     "notifications": [],
@@ -61,11 +64,11 @@ def install_startup_checks(window: "LupiDPIApp") -> None:
             )
 
     def _start_startup_checks() -> None:
-        window.log_startup_metric("StartupPostInitChecksStarted", "startup_checks_worker")
+        log_startup_metric("StartupPostInitChecksStarted", "startup_checks_worker")
         start_daemon_thread("StartupChecksWorker", _startup_checks_worker)
 
     bind_startup_gate(
         window.startup_interactive_ready,
         _start_startup_checks,
-        is_ready=lambda: bool(getattr(window, "_startup_interactive_logged", False)),
+        is_ready=lambda: bool(window.startup_state.interactive_logged),
     )

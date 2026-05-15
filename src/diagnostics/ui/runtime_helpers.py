@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QThread, QTimer
 
-from diagnostics.worker import ConnectionTestWorker
-from diagnostics.controller import ConnectionPageController
-from ui.text_catalog import tr as tr_catalog
+import diagnostics.page_plans as connection_page_plans
+from app.text_catalog import tr as tr_catalog
 
 
 def apply_interaction_state(
@@ -73,6 +72,7 @@ def start_connection_test(
     set_status_callback,
     status_badge,
     progress_badge,
+    create_worker_fn,
     worker_update_handler,
     worker_finished_handler,
 ) -> dict | None:
@@ -82,7 +82,7 @@ def start_connection_test(
 
     selection = test_combo.currentText()
     test_type = test_combo.currentData() or "all"
-    plan = ConnectionPageController.build_start_plan(
+    plan = connection_page_plans.build_start_plan(
         selection=selection,
         test_type=str(test_type),
     )
@@ -103,7 +103,7 @@ def start_connection_test(
     progress_badge.set_status(plan.progress_badge_text, plan.status_tone)
 
     worker_thread = QThread(page)
-    worker = ConnectionTestWorker(plan.test_type)
+    worker = create_worker_fn(plan.test_type)
     worker.moveToThread(worker_thread)
     worker_thread.started.connect(worker.run)
     worker.update_signal.connect(worker_update_handler)
@@ -138,7 +138,7 @@ def stop_connection_test(
     if stop_check_timer is not None:
         return None, stop_check_timer
 
-    plan = ConnectionPageController.build_stop_plan()
+    plan = connection_page_plans.build_stop_plan()
     for line in plan.append_lines:
         append_callback(line)
     set_status_callback(plan.status_text, plan.status_tone)
@@ -150,7 +150,7 @@ def stop_connection_test(
 
     def check_thread():
         attempts["count"] += 1
-        poll_plan = ConnectionPageController.build_stop_poll_plan(
+        poll_plan = connection_page_plans.build_stop_poll_plan(
             attempt_count=attempts["count"],
             thread_running=bool(worker_thread and worker_thread.isRunning()),
             max_attempts=plan.max_attempts,
@@ -175,7 +175,7 @@ def stop_connection_test(
 
 
 def apply_worker_update(*, message: str, append_callback, result_text) -> None:
-    for line in ConnectionPageController.build_worker_update_lines(message):
+    for line in connection_page_plans.build_worker_update_lines(message):
         append_callback(line)
 
     scrollbar = result_text.verticalScrollBar()
@@ -220,9 +220,9 @@ def finish_connection_test(
     release_worker_resources(worker)
 
     if finish_mode == "stopped":
-        plan = ConnectionPageController.build_stopped_finish_plan()
+        plan = connection_page_plans.build_stopped_finish_plan()
     else:
-        plan = ConnectionPageController.build_finish_plan()
+        plan = connection_page_plans.build_finish_plan()
 
     apply_interaction_state_callback(
         start_enabled=plan.start_enabled,
@@ -247,7 +247,7 @@ def finish_connection_test(
 
 
 def open_support_with_log(*, selection: str, append_callback, set_status_callback) -> None:
-    plan = ConnectionPageController.prepare_support_request_for_connection(
+    plan = connection_page_plans.prepare_support_request_for_connection(
         selection=selection,
     )
     for line in plan.log_lines:
@@ -337,7 +337,7 @@ def cleanup_connection_runtime(
         stop_check_timer.deleteLater()
         stop_check_timer = None
 
-    cleanup_plan = ConnectionPageController.build_cleanup_plan(
+    cleanup_plan = connection_page_plans.build_cleanup_plan(
         has_worker=worker is not None,
         thread_running=bool(worker_thread and worker_thread.isRunning()),
     )

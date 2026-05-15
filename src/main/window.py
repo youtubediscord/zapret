@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from PyQt6.QtCore import pyqtSignal
 
 from main.runtime_state import log_startup_metric as emit_startup_metric
@@ -16,13 +14,6 @@ from main.window_state_sync import WindowStateSyncMixin
 from ui.fluent_app_window import ZapretFluentWindow
 from ui.theme_subscription_manager import ThemeSubscriptionManager
 from ui.window_ui_facade import MainWindowUI
-
-if TYPE_CHECKING:
-    from app_context import AppContext
-    from donater.public import SubscriptionManager
-    from main.startup_coordinator import StartupCoordinator
-    from winws_runtime.monitoring import ProcessMonitorManager
-
 
 class LupiDPIApp(
     WindowStartupMixin,
@@ -40,18 +31,12 @@ class LupiDPIApp(
     finalize_ui_bootstrap_requested = pyqtSignal()
     startup_interactive_ready = pyqtSignal(str)
     startup_post_init_ready = pyqtSignal(str)
-    runner_failure_requested = pyqtSignal(object)
-    active_preset_content_changed_requested = pyqtSignal(str)
-
-    process_monitor_manager: "ProcessMonitorManager"
-    subscription_manager: "SubscriptionManager"
-    startup_coordinator: "StartupCoordinator"
 
     def log_startup_metric(self, marker: str, details: str = "") -> None:
         emit_startup_metric(marker, details)
 
 
-def window_bootstrap(*, start_in_tray: bool) -> tuple["AppContext", "LupiDPIApp"]:
+def window_bootstrap(*, start_in_tray: bool) -> "LupiDPIApp":
     return window_bootstrap_for(LupiDPIApp, start_in_tray=start_in_tray)
 
 

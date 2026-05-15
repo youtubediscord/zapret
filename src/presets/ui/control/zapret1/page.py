@@ -1,12 +1,9 @@
 # dpi/ui/zapret1_mode/page.py
 """Zapret 1 mode management page (entry point for zapret1_mode mode)."""
 
-import webbrowser
-
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer
 
 from ui.pages.base_page import BasePage
-from ui.page_dependencies import require_page_app_context
 from settings.mode import EXE_NAME_WINWS1, ZAPRET1_MODE
 from presets.ui.control.zapret1.build import (
     build_winws1_pages_management_section,
@@ -20,27 +17,24 @@ from presets.ui.control.zapret1.runtime_helpers import (
     apply_program_settings_snapshot,
     apply_status_plan,
     apply_winws1_pages_language,
+    save_debug_log_enabled,
+    save_wssize_enabled,
     set_toggle_checked,
 )
-from presets.ui.control.control_runtime_controller import ControlPageController
+import presets.ui.control.control_runtime as control_runtime
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     ActionButton,
     PrimaryActionButton,
     set_tooltip,
 )
-from ui.state.main_window_state import AppUiState, MainWindowStateStore
+from app.state_store import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
 )
-from program_settings.public import (
-    attach_program_settings_runtime,
-    refresh_program_settings_snapshot,
-    set_auto_dpi_enabled,
-)
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 from qfluentwidgets import (
     CaptionLabel, StrongBodyLabel,
@@ -62,11 +56,24 @@ class StopButton(ActionButton):
 class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMixin, BasePage):
     """Страница управления для zapret1_mode."""
 
-    navigate_to_preset_setup = pyqtSignal() # -> "Настройка пресета": профили выбранного пресета
-    navigate_to_presets = pyqtSignal()      # -> "Мои пресеты": выбор, активация, raw-редактор
-    navigate_to_blobs = pyqtSignal()         # → PageName.BLOBS
-
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        presets_feature,
+        profile_feature,
+        runtime_feature,
+        program_settings_feature,
+        set_status,
+        request_exit,
+        open_connection_test,
+        open_folder,
+        open_presets,
+        open_preset_setup,
+        open_blobs,
+        external_actions_feature,
+        ui_state_store,
+    ):
         super().__init__(
             "Управление Zapret 1",
             f"Настройка и запуск Zapret 1 ({EXE_NAME_WINWS1}). В «Мои пресеты» выбирается пресет, "
@@ -75,7 +82,18 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             title_key="page.winws1_control.title",
             subtitle_key="page.winws1_control.subtitle",
         )
-        self.parent_app = parent
+        self._presets = presets_feature
+        self._profile = profile_feature
+        self._runtime_feature = runtime_feature
+        self._program_settings = program_settings_feature
+        self._set_status_callback = set_status
+        self._request_exit_callback = request_exit
+        self._open_connection_test_callback = open_connection_test
+        self._open_folder_callback = open_folder
+        self._open_presets_callback = open_presets
+        self._open_preset_setup_callback = open_preset_setup
+        self._open_blobs_callback = open_blobs
+        self._external_actions = external_actions_feature
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
         self._program_settings_runtime_unsubscribe = None
@@ -106,6 +124,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.preset_setup_card = None
         self.preset_setup_open_btn = None
         self._build_ui()
+        self.bind_ui_state_store(ui_state_store)
         try:
             preset_name_text, preset_name_tooltip = self._load_preset_name()
             if preset_name_text:
@@ -119,7 +138,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         try:
             from config.urls import DOCS_URL
 
-            webbrowser.open(DOCS_URL)
+            self._external_actions.open_url(DOCS_URL)
         except Exception:
             pass
 
@@ -192,7 +211,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         preset_widgets = build_winws1_presets_section(
             tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
             push_setting_card_cls=PushSettingCard,
-            on_open_presets=self.navigate_to_presets.emit,
+            on_open_presets=self._open_presets_callback,
         )
         self.preset_name_label = preset_widgets.title_label
         self.preset_caption_label = preset_widgets.caption_label
@@ -222,7 +241,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             on_discord_restart_changed=self._on_discord_restart_changed,
             on_wssize_toggled=self._on_wssize_toggled,
             on_debug_log_toggled=self._on_debug_log_toggled,
-            on_navigate_to_blobs=self.navigate_to_blobs.emit,
+            on_navigate_to_blobs=self._open_blobs_callback,
             on_open_connection_test=self._open_connection_test,
             on_open_folder=self._open_folder,
             on_open_docs=self._open_docs,
@@ -260,11 +279,9 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.add_widget(self.extra_card)
 
     def _attach_program_settings_runtime(self) -> None:
-        attach_program_settings_runtime(
+        self._program_settings.attach_program_settings_runtime(
             self,
-            app_context=self._require_app_context(),
             apply_snapshot_fn=self._apply_program_settings_snapshot,
-            require_attr_name="auto_dpi_toggle",
         )
 
     def _apply_program_settings_snapshot(self, snapshot) -> None:
@@ -278,31 +295,21 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
 
     def _sync_program_settings(self) -> None:
-        snapshot = refresh_program_settings_snapshot(self._require_app_context())
+        snapshot = self._program_settings.refresh_program_settings_snapshot()
         if snapshot is not None:
             self._apply_program_settings_snapshot(snapshot)
 
-    def _require_app_context(self):
-        return require_page_app_context(
-            self,
-            parent=self.parent(),
-            error_message="AppContext is required for Zapret1 mode control page",
-        )
-
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         try:
-            plan = set_auto_dpi_enabled(enabled)
+            plan = self._program_settings.set_auto_dpi_enabled(enabled)
             InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
         finally:
             self._sync_program_settings()
 
     def _load_preset_name(self) -> tuple[str, str]:
         try:
-            from presets.public import get_selected_source_preset_display
-
-            display = get_selected_source_preset_display(
+            display = self._presets.get_selected_source_preset_display(
                 ZAPRET1_MODE,
-                app_context=self._require_app_context(),
             )
             if display[0]:
                 return display
@@ -317,12 +324,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _load_advanced_settings_state(self, *, refresh: bool = False) -> dict:
         _ = refresh
         try:
-            from profile.settings import get_advanced_settings_state
-
-            return get_advanced_settings_state(
-                self._require_app_context(),
-                launch_method=ZAPRET1_MODE,
-            )
+            return self._profile.get_advanced_settings_state(ZAPRET1_MODE)
         except Exception:
             return {}
 
@@ -378,12 +380,10 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_wssize_toggled(self, enabled: bool) -> None:
         try:
-            from settings.dpi.strategy_settings import set_wssize_enabled
-
-            set_wssize_enabled(
+            save_wssize_enabled(
                 bool(enabled),
-                app_context=self._require_app_context(),
-                launch_method=ZAPRET1_MODE,
+                profile_feature=self._profile,
+                runtime_feature=self._runtime_feature,
             )
             self._advanced_settings_dirty = False
         except Exception:
@@ -391,19 +391,17 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_debug_log_toggled(self, enabled: bool) -> None:
         try:
-            from settings.dpi.strategy_settings import set_debug_log_enabled
-
-            set_debug_log_enabled(
+            save_debug_log_enabled(
                 bool(enabled),
-                app_context=self._require_app_context(),
-                launch_method=ZAPRET1_MODE,
+                profile_feature=self._profile,
+                runtime_feature=self._runtime_feature,
             )
             self._advanced_settings_dirty = False
         except Exception:
             pass
 
     def _open_preset_setup_page(self) -> None:
-        self.navigate_to_preset_setup.emit()
+        self._open_preset_setup_callback()
 
     def set_loading(self, loading: bool, text: str = ""):
         if loading:
@@ -451,21 +449,21 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         if store is not None:
             try:
                 snapshot = store.snapshot()
-                plan = ControlPageController.resolve_runtime_state(
+                plan = control_runtime.resolve_runtime_state(
                     snapshot_state=snapshot,
                     last_known_dpi_running=self._last_known_dpi_running,
                 )
                 return plan.phase, plan.last_error
             except Exception:
                 pass
-        plan = ControlPageController.resolve_runtime_state(
+        plan = control_runtime.resolve_runtime_state(
             snapshot_state=None,
             last_known_dpi_running=bool(getattr(self, "_last_known_dpi_running", False)),
         )
         return plan.phase, plan.last_error
 
     def update_status(self, state: str | bool, last_error: str = ""):
-        plan = ControlPageController.build_status_plan(
+        plan = control_runtime.build_status_plan(
             state=state,
             last_error=last_error,
             language=self._ui_language,

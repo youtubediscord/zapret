@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from queue import Empty
 
-from orchestra.page_controller import OrchestraPageController
+import orchestra.page_runtime as orchestra_page_runtime
 
 
 def detect_state_transition_from_line(
@@ -17,7 +17,7 @@ def detect_state_transition_from_line(
     unlocked_state: str,
     update_status,
 ) -> None:
-    plan = OrchestraPageController.detect_state_from_line(
+    plan = orchestra_page_runtime.detect_state_from_line(
         line=line,
         current_state=current_state,
         idle_state=idle_state,
@@ -48,11 +48,11 @@ def start_monitoring(
     run_update_now,
 ) -> None:
     try:
-        OrchestraPageController.ensure_output_callback(runner, emit_log_callback)
+        orchestra_page_runtime.ensure_output_callback(runner, emit_log_callback)
     except Exception:
         pass
 
-    plan = OrchestraPageController.build_start_monitoring_plan()
+    plan = orchestra_page_runtime.build_start_monitoring_plan()
     if plan.reset_log_position:
         set_last_log_position(0)
     if plan.queue_timer_interval_ms is not None:
@@ -64,7 +64,7 @@ def start_monitoring(
 
 
 def stop_monitoring(*, log_queue_timer, update_timer) -> None:
-    plan = OrchestraPageController.build_stop_monitoring_plan()
+    plan = orchestra_page_runtime.build_stop_monitoring_plan()
     if plan.queue_timer_interval_ms is None:
         log_queue_timer.stop()
     if plan.update_timer_interval_ms is None:
@@ -73,7 +73,7 @@ def stop_monitoring(*, log_queue_timer, update_timer) -> None:
 
 def run_update_cycle(*, is_runner_alive, state_idle: str, update_status, update_learned_domains, update_log_history) -> None:
     try:
-        plan = OrchestraPageController.build_update_cycle_plan(runner_alive=bool(is_runner_alive()))
+        plan = orchestra_page_runtime.build_update_cycle_plan(runner_alive=bool(is_runner_alive()))
         if plan.next_state == state_idle:
             update_status(state_idle)
         if plan.refresh_learned:

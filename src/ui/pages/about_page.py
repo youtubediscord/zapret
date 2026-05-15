@@ -3,21 +3,21 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QFrame, QSizePolicy, QLayout,
 )
 
 from .base_page import BasePage
-from ui.about_page_controller import AboutPageController
+import about.plans as about_page_plans
 from ui.pages.about_page_about_build import build_about_page_about_content
 from ui.pages.about_page_help_build import build_about_page_help_content
 from ui.pages.about_page_kvn_build import build_about_page_kvn_content
 from ui.pages.about_page_support_build import build_about_page_support_content
 from ui.pages.about_page_tabs_build import build_about_page_tabs
-from ui.state.main_window_state import AppUiState, MainWindowStateStore
-from ui.text_catalog import tr as tr_catalog
+from app.state_store import AppUiState, MainWindowStateStore
+from app.text_catalog import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from log.log import log
 
@@ -41,10 +41,24 @@ def _make_section_label(text: str, parent: QWidget | None = None) -> QLabel:
 class AboutPage(BasePage):
     """Страница О программе с вкладками: О программе / Поддержка / Справка"""
 
-    open_premium_requested = pyqtSignal()
-    open_updates_requested = pyqtSignal()
-
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        open_premium,
+        open_updates,
+        open_discussions,
+        open_support_telegram,
+        open_support_discord,
+        open_forum_for_beginners,
+        open_help_folder,
+        open_telegram_news,
+        open_kvn_channel,
+        open_kvn_bot,
+        open_kvn_bypass,
+        open_kvn_github,
+        ui_state_store,
+    ):
         super().__init__(
             "О программе",
             "Версия, подписка и информация",
@@ -54,6 +68,18 @@ class AboutPage(BasePage):
         )
 
         # UI refs (support tab)
+        self._open_premium_callback = open_premium
+        self._open_updates_callback = open_updates
+        self._open_discussions_action = open_discussions
+        self._open_support_telegram_action = open_support_telegram
+        self._open_support_discord_action = open_support_discord
+        self._open_forum_for_beginners_action = open_forum_for_beginners
+        self._open_help_folder_action = open_help_folder
+        self._open_telegram_news_action = open_telegram_news
+        self._open_kvn_channel_action = open_kvn_channel
+        self._open_kvn_bot_action = open_kvn_bot
+        self._open_kvn_bypass_action = open_kvn_bypass
+        self._open_kvn_github_action = open_kvn_github
         self._support_icon_label: QLabel | None = None
         self._support_discussions_card = None
         self._support_telegram_card = None
@@ -71,6 +97,7 @@ class AboutPage(BasePage):
 
         self._build_ui()
         self.set_ui_language(self._ui_language)
+        self.bind_ui_state_store(ui_state_store)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
         if self._ui_state_store is store:
@@ -129,12 +156,12 @@ class AboutPage(BasePage):
         if not self.is_page_ready():
             return
         self._pending_tab_key = None
-        index = AboutPageController.resolve_tab_index(pending_tab_key)
+        index = about_page_plans.resolve_tab_index(pending_tab_key)
         if index is not None:
             self._switch_tab(index)
 
     def _switch_tab(self, index: int):
-        plan = AboutPageController.build_tab_switch_plan(
+        plan = about_page_plans.build_tab_switch_plan(
             index=index,
             support_initialized=self._support_tab_initialized,
             help_initialized=self._help_tab_initialized,
@@ -172,11 +199,11 @@ class AboutPage(BasePage):
         """External API: switch to About/Support/Help tab by key."""
         if self._cleanup_in_progress:
             return
-        index = AboutPageController.resolve_tab_index(key)
+        index = about_page_plans.resolve_tab_index(key)
         if index is None:
             return
         if not self.is_page_ready():
-            self._pending_tab_key = AboutPageController.TAB_KEYS[index]
+            self._pending_tab_key = about_page_plans.TAB_KEYS[index]
             self.run_when_page_ready(self._apply_pending_tab_if_ready)
             return
         self._pending_tab_key = None
@@ -286,8 +313,8 @@ class AboutPage(BasePage):
             tokens=tokens,
             app_version=APP_VERSION,
             make_section_label=lambda text: _make_section_label(text),
-            on_open_updates=self.open_updates_requested.emit,
-            on_open_premium=self.open_premium_requested.emit,
+            on_open_updates=self._open_updates_callback,
+            on_open_premium=self._open_premium_callback,
         )
         self.about_section_version_label = widgets.about_section_version_label
         self.about_app_name_label = widgets.about_app_name_label
@@ -302,7 +329,7 @@ class AboutPage(BasePage):
     def update_subscription_status(self, is_premium: bool, days: int | None = None):
         """Обновляет отображение статуса подписки"""
         tokens = get_theme_tokens()
-        plan = AboutPageController.build_subscription_status_plan(
+        plan = about_page_plans.build_subscription_status_plan(
             is_premium=is_premium,
             days=days,
             free_text=tr_catalog("page.about.subscription.free", language=self._ui_language, default="Free версия"),
@@ -356,19 +383,19 @@ class AboutPage(BasePage):
         self._support_discord_card = widgets.discord_card
 
     def _open_support_discussions(self) -> None:
-        result = AboutPageController.open_support_discussions()
+        result = self._open_discussions_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть GitHub Discussions:\n{result.message}",
                             parent=self.window())
 
     def _open_telegram_support(self) -> None:
-        result = AboutPageController.open_telegram("zaprethelp")
+        result = self._open_support_telegram_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
                             parent=self.window())
 
     def _open_discord(self) -> None:
-        result = AboutPageController.open_discord("https://discord.gg/kkcBDG2uws")
+        result = self._open_support_discord_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Discord:\n{result.message}",
                             parent=self.window())
@@ -463,13 +490,13 @@ class AboutPage(BasePage):
         layout.addWidget(motto_wrap)
 
     def _open_forum_for_beginners(self):
-        result = AboutPageController.open_telegram("bypassblock", post=1359)
+        result = self._open_forum_for_beginners_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
                             parent=self.window())
 
     def _open_help_folder(self):
-        result = AboutPageController.open_help_folder()
+        result = self._open_help_folder_action()
         if (not result.ok) and InfoBar:
             if result.message == "Папка с инструкциями не найдена":
                 InfoBar.warning(title="Ошибка", content=result.message, parent=self.window())
@@ -478,7 +505,7 @@ class AboutPage(BasePage):
                                 parent=self.window())
 
     def _open_telegram_news(self):
-        result = AboutPageController.open_telegram("bypassblock")
+        result = self._open_telegram_news_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
                             parent=self.window())
@@ -503,25 +530,25 @@ class AboutPage(BasePage):
         )
 
     def _open_kvn_channel(self):
-        result = AboutPageController.open_telegram("vpndiscordyooutube")
+        result = self._open_kvn_channel_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
                             parent=self.window())
 
     def _open_kvn_bot(self):
-        result = AboutPageController.open_telegram("zapretvpns_bot")
+        result = self._open_kvn_bot_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
                             parent=self.window())
 
     def _open_kvn_bypass(self):
-        result = AboutPageController.open_telegram("bypassblock")
+        result = self._open_kvn_bypass_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
                             parent=self.window())
 
     def _open_kvn_github(self):
-        result = AboutPageController.open_github("https://github.com/youtubediscord/zapret-kvn")
+        result = self._open_kvn_github_action()
         if (not result.ok) and InfoBar:
             InfoBar.warning(title="Ошибка", content=f"Не удалось открыть GitHub:\n{result.message}",
                             parent=self.window())

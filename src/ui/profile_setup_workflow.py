@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from log.log import log
 
-from ui.page_method_dispatch import dispatch_setup_page_result
-from ui.page_contracts import PageMethodName
 from ui.navigation_pages import resolve_preset_setup_page_for_method
+from ui.window_adapter import get_loaded_page
 from ui.workflows.mode import open_profile_setup_for_method
 
 
@@ -35,11 +34,12 @@ def on_profile_setup_changed(window, method: str, profile_key: str, change_kind:
     preset_setup_page = resolve_preset_setup_page_for_method(method)
     if preset_setup_page is None:
         return False
-    return dispatch_setup_page_result(
-        window,
-        preset_setup_page,
-        PageMethodName.APPLY_PROFILE_SETUP_CHANGE,
-        profile_key,
-        change_kind,
-        log_message=f"Profile setup changed: {profile_key} = {change_kind}",
-    )
+    page = get_loaded_page(window, preset_setup_page)
+    if page is None:
+        return False
+    log(f"Profile setup changed: {profile_key} = {change_kind}", "INFO")
+    try:
+        page.apply_profile_setup_change(profile_key, change_kind)
+        return True
+    except Exception:
+        return False

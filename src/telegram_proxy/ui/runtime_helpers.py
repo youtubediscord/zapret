@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from telegram_proxy.page_runtime_controller import TelegramProxyRuntimeController
-from telegram_proxy.page_settings_controller import TelegramProxySettingsController
+import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
+import telegram_proxy.settings as telegram_proxy_settings
 
 
 def refresh_pivot_texts(pivot) -> None:
@@ -17,7 +17,7 @@ def refresh_pivot_texts(pivot) -> None:
 
 def refresh_status_texts(*, manager, status_label, btn_toggle, restarting: bool, starting: bool) -> None:
     running = bool(manager.is_running)
-    plan = TelegramProxyRuntimeController.build_status_plan(
+    plan = telegram_proxy_page_runtime.build_status_plan(
         running=running,
         restarting=bool(restarting),
         starting=bool(starting),
@@ -43,7 +43,7 @@ def apply_upstream_preset_ui(
     upstream_mode_toggle,
     index: int,
 ) -> str:
-    upstream_enabled = upstream_toggle.toggle.isChecked()
+    upstream_enabled = upstream_toggle.isChecked()
     preset = upstream_catalog.preset_at(index)
     has_bundled_presets = upstream_catalog.has_bundled_presets()
     is_manual = bool(preset is not None and upstream_catalog.is_manual(index))
@@ -55,7 +55,6 @@ def apply_upstream_preset_ui(
     mtproxy_action_widget.setVisible(upstream_enabled and is_mtproxy)
     upstream_mode_toggle.setVisible(upstream_enabled)
     upstream_mode_toggle.setEnabled(upstream_enabled)
-    upstream_mode_toggle.toggle.setEnabled(upstream_enabled)
 
     if preset is not None and is_mtproxy:
         return upstream_catalog.mtproxy_link(index)
@@ -108,7 +107,7 @@ def load_settings_into_ui(
     refresh_upstream_preset_combo_callback,
     upstream_mode_toggle,
 ) -> None:
-    state = TelegramProxySettingsController.load_state(upstream_catalog)
+    state = telegram_proxy_settings.load_state(upstream_catalog)
 
     port_spin.blockSignals(True)
     port_spin.setValue(state.port)
@@ -117,9 +116,7 @@ def load_settings_into_ui(
     host_edit.setText(state.host)
     update_manual_instructions()
 
-    upstream_toggle.toggle.blockSignals(True)
-    upstream_toggle.toggle.setChecked(state.upstream_enabled)
-    upstream_toggle.toggle.blockSignals(False)
+    upstream_toggle.setChecked(state.upstream_enabled, block_signals=True)
 
     upstream_host_edit.setText(state.upstream_host)
     upstream_port_spin.blockSignals(True)
@@ -130,9 +127,7 @@ def load_settings_into_ui(
 
     refresh_upstream_preset_combo_callback(select_index=state.upstream_preset_index)
 
-    upstream_mode_toggle.toggle.blockSignals(True)
-    upstream_mode_toggle.toggle.setChecked(state.upstream_mode == "always")
-    upstream_mode_toggle.toggle.blockSignals(False)
+    upstream_mode_toggle.setChecked(state.upstream_mode == "always", block_signals=True)
 
 
 def apply_ui_texts(

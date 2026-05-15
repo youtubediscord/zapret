@@ -6,16 +6,7 @@ from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 
 def set_force_dns_toggle(toggle_row, checked: bool) -> None:
-    try:
-        toggle_row.setChecked(checked, block_signals=True)
-        return
-    except TypeError:
-        pass
-    toggle_row.toggle.blockSignals(True)
-    try:
-        toggle_row.setChecked(checked)
-    finally:
-        toggle_row.toggle.blockSignals(False)
+    toggle_row.setChecked(checked, block_signals=True)
 
 
 def update_force_dns_status_label(

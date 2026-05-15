@@ -10,9 +10,9 @@ from ui.navigation.schema import (
     PAGE_ROUTE_SPECS,
     get_sidebar_search_pages_for_method,
 )
-from ui.page_method_dispatch import switch_page_tab
-from ui.page_names import PageName
-from ui.text_catalog import (
+from ui.page_actions import switch_page_tab
+from app.page_names import PageName
+from app.text_catalog import (
     find_search_entries,
     format_search_result,
 )
@@ -92,7 +92,7 @@ def on_sidebar_search_changed(window, text: str) -> None:
 
 def get_sidebar_search_pages(window) -> set[PageName]:
     return get_sidebar_search_pages_for_method(
-        window._get_launch_method(),
+        window.get_launch_method(),
         set(PAGE_ROUTE_SPECS.keys()),
     )
 

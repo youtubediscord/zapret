@@ -7,7 +7,6 @@ import re
 from typing import Optional
 from PyQt6.QtCore import (
     Qt,
-    pyqtSignal,
     QSize,
     QTimer,
     QPoint,
@@ -22,17 +21,24 @@ from PyQt6.QtWidgets import (
     QListView,
 )
 from ui.pages.base_page import BasePage
-from settings.mode import ENGINE_WINWS1, PRESETS_SCOPE_WINWS1, ZAPRET1_MODE
-from ui.page_dependencies import require_page_app_context
+from settings.mode import PRESETS_SCOPE_WINWS1, ZAPRET1_MODE
 from presets.ui.common.preset_actions_menu import show_preset_actions_menu
 from presets.ui.common.preset_rating_menu import show_preset_rating_menu
-from core.runtime.user_presets_runtime_service import UserPresetsRuntimeAdapter
-from presets.ui.common.user_presets_page_controller import (
-    UserPresetsPageController,
-    UserPresetsPageControllerConfig,
+from presets.user_presets_runtime_service import (
+    UserPresetsRuntimeAdapter,
+    UserPresetsRuntimeService,
+)
+from presets.ui.common.user_presets_page_runtime import (
+    UserPresetsPageRuntime,
+    UserPresetsPageRuntimeConfig,
+    apply_preset_content_reload,
+    apply_preset_search,
+    rebuild_presets_rows,
+    schedule_preset_search,
+    update_presets_view_height,
 )
 from presets.ui.common.user_presets_page_actions import open_presets_folder_action
-from presets.ui.zapret1.user_presets_actions_workflow import (
+from presets.ui.common.user_presets_actions_workflow import (
     import_preset_action,
     restore_reset_all_button_label,
     run_reset_all_presets_action,
@@ -46,7 +52,7 @@ from presets.ui.zapret1.user_presets_dialogs import (
     RenamePresetDialog,
     ResetAllPresetsDialog,
 )
-from presets.ui.zapret1.user_presets_item_actions_workflow import (
+from presets.ui.common.user_presets_item_actions_workflow import (
     activate_preset_action,
     delete_preset_action,
     duplicate_preset_action,
@@ -72,13 +78,7 @@ from presets.ui.zapret1.user_presets_page_lifecycle import (
     resync_user_presets_layout_metrics,
     schedule_user_presets_layout_resync,
 )
-from presets.ui.zapret1.user_presets_runtime_helpers import (
-    apply_preset_search,
-    rebuild_presets_rows,
-    schedule_preset_search,
-    update_presets_view_height,
-)
-from ui.state.main_window_state import MainWindowStateStore
+from app.state_store import MainWindowStateStore
 
 try:
     from qfluentwidgets import (
@@ -129,18 +129,33 @@ from ui.presets_menu.model import PresetListModel
 from ui.presets_menu.common import tr_text as _tr_text
 
 
-class Zapret1UserPresetsPage(BasePage):
-    preset_open_requested = pyqtSignal(str)  # file_name
-    back_clicked = pyqtSignal()
+_TR_PREFIX = "page.winws1_user_presets"
 
-    def __init__(self, parent=None):
+
+class Zapret1UserPresetsPage(BasePage):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        presets_feature,
+        runtime_feature,
+        open_control,
+        open_preset_raw_editor,
+        external_actions_feature,
+        ui_state_store,
+    ):
         super().__init__(
             "Мои пресеты",
             "",
             parent,
             title_key="page.winws1_user_presets.title",
         )
-        self._page_api = self._build_controller().build_page_api()
+        self._presets_feature = presets_feature
+        self._runtime_feature = runtime_feature
+        self._external_actions = external_actions_feature
+        self._open_control_callback = open_control
+        self._open_preset_raw_editor_callback = open_preset_raw_editor
+        self._page_api = self._build_page_runtime().build_page_api()
         self._runtime_service = self._build_runtime_service()
         self._runtime_service.attach_page(self, self._build_runtime_adapter())
 
@@ -155,7 +170,7 @@ class Zapret1UserPresetsPage(BasePage):
             _back_btn.setText(self._tr("page.winws1_user_presets.back.control", "Управление"))
             _back_btn.setIcon(get_themed_qta_icon("fa5s.chevron-left", color=tokens.fg_muted))
             _back_btn.setIconSize(QSize(12, 12))
-            _back_btn.clicked.connect(self.back_clicked.emit)
+            _back_btn.clicked.connect(self._open_control_callback)
             self._back_btn = _back_btn
             _back_row_layout = QHBoxLayout()
             _back_row_layout.setContentsMargins(0, 0, 0, 0)
@@ -192,35 +207,31 @@ class Zapret1UserPresetsPage(BasePage):
         self._cleanup_in_progress = False
         self._build_ui()
         self._after_ui_built()
-
-    def _require_app_context(self):
-        return require_page_app_context(
-            self,
-            parent=self.parent(),
-            error_message="AppContext is required for Zapret1 user presets page",
-        )
+        self.bind_ui_state_store(ui_state_store)
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         return _tr_text(key, self._ui_language, default, **kwargs)
 
-    def _build_controller(self):
-        return UserPresetsPageController(
-            UserPresetsPageControllerConfig(
+    def _resolve_presets_feature(self):
+        return self._presets_feature
+
+    def _build_page_runtime(self):
+        return UserPresetsPageRuntime(
+            UserPresetsPageRuntimeConfig(
                 launch_method=ZAPRET1_MODE,
-                selection_key=ENGINE_WINWS1,
                 hierarchy_scope=PRESETS_SCOPE_WINWS1,
                 empty_not_found_key="page.winws1_user_presets.empty.not_found",
                 empty_none_key="page.winws1_user_presets.empty.none",
                 list_log_prefix="Winws1UserPresetsPage",
                 activate_error_level="warning",
                 activate_error_mode="friendly",
-                require_app_context=self._require_app_context,
-                get_preset_store=lambda: self._require_app_context().preset_store_winws1,
+                get_presets_feature=self._resolve_presets_feature,
+                open_url=self._external_actions.open_url,
             )
         )
 
     def _build_runtime_service(self):
-        return self._require_app_context().user_presets_runtime_service_factory(PRESETS_SCOPE_WINWS1)
+        return UserPresetsRuntimeService(scope_key=PRESETS_SCOPE_WINWS1)
 
     def _build_runtime_adapter(self) -> UserPresetsRuntimeAdapter:
         return UserPresetsRuntimeAdapter(
@@ -253,17 +264,17 @@ class Zapret1UserPresetsPage(BasePage):
             changed_fields=changed_fields,
         )
 
-    def _controller_api(self):
+    def _page_runtime_api(self):
         return self._page_api
 
     def _listing_api(self):
-        return self._controller_api().listing
+        return self._page_runtime_api().listing
 
     def _actions_api(self):
-        return self._controller_api().actions
+        return self._page_runtime_api().actions
 
     def _storage_api(self):
-        return self._controller_api().storage
+        return self._page_runtime_api().storage
 
     def _list_preset_entries_light(self) -> list[dict[str, object]]:
         return self._listing_api().list_preset_entries_light()
@@ -282,9 +293,6 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _resolve_display_name(self, reference: str) -> str:
         return self._listing_api().resolve_display_name(reference)
-
-    def _get_preset_store(self):
-        return self._storage_api().get_preset_store()
 
     def _is_builtin_preset_file(self, name: str) -> bool:
         return self._storage_api().is_builtin_preset_file_with_cache(
@@ -322,7 +330,10 @@ class Zapret1UserPresetsPage(BasePage):
     def _after_ui_built(self) -> None:
         after_user_presets_ui_built(
             apply_page_theme_fn=self._apply_page_theme,
-            get_preset_store_fn=self._get_preset_store,
+            connect_preset_signals_fn=lambda **callbacks: self._presets.connect_preset_signals(
+                ZAPRET1_MODE,
+                **callbacks,
+            ),
             on_store_changed_fn=self._on_store_changed,
             on_store_switched_fn=self._on_store_switched,
             on_store_content_changed_fn=self._on_store_content_changed,
@@ -444,8 +455,8 @@ class Zapret1UserPresetsPage(BasePage):
         self.add_spacing(4)
         self.add_widget(self._preset_search_input)
         try:
-            from settings.store import get_smooth_scroll_enabled
-            smooth_enabled = get_smooth_scroll_enabled()
+            from settings.appearance import load_smooth_scroll_enabled
+            smooth_enabled = load_smooth_scroll_enabled().enabled
             self.set_smooth_scroll_enabled(smooth_enabled)
         except Exception:
             pass
@@ -472,7 +483,7 @@ class Zapret1UserPresetsPage(BasePage):
 
     def _open_presets_folder(self) -> None:
         open_presets_folder_action(
-            get_presets_dir_fn=self._get_presets_dir_light,
+            open_presets_folder_fn=lambda: self._presets.open_user_presets_folder(self.launch_method),
             info_bar_cls=InfoBar,
             tr_fn=self._tr,
             parent_window=self.window(),
@@ -528,6 +539,7 @@ class Zapret1UserPresetsPage(BasePage):
             log_fn=log,
             info_bar_cls=InfoBar,
             tr_fn=self._tr,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _show_inline_action_rename(self, current_name: str):
@@ -543,6 +555,7 @@ class Zapret1UserPresetsPage(BasePage):
             log_fn=log,
             info_bar_cls=InfoBar,
             tr_fn=self._tr,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_create_clicked(self):
@@ -558,6 +571,7 @@ class Zapret1UserPresetsPage(BasePage):
             runtime_service=self._runtime_service,
             log_fn=log,
             info_bar_cls=InfoBar,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_reset_all_presets_clicked(self):
@@ -574,6 +588,7 @@ class Zapret1UserPresetsPage(BasePage):
             is_visible=self.isVisible(),
             refresh_view_fn=self.refresh_presets_view_if_possible,
             set_bulk_reset_running_fn=lambda value: setattr(self, "_bulk_reset_running", value),
+            tr_prefix=_TR_PREFIX,
         )
 
     def _show_reset_all_result(self, success_count: int, total_count: int) -> None:
@@ -595,6 +610,7 @@ class Zapret1UserPresetsPage(BasePage):
             tr_fn=self._tr,
             themed_icon_fn=get_themed_qta_icon,
             get_theme_tokens_fn=get_theme_tokens,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _load_presets(self):
@@ -620,6 +636,7 @@ class Zapret1UserPresetsPage(BasePage):
             log_fn=log,
             all_presets=all_presets,
             started_at=started_at,
+            log_source="Winws1UserPresetsPage",
         )
 
     def _on_preset_list_action(self, action: str, name: str):
@@ -642,7 +659,7 @@ class Zapret1UserPresetsPage(BasePage):
             handler(name)
 
     def _open_preset_subpage(self, name: str):
-        self.preset_open_requested.emit(name)
+        self._open_preset_raw_editor_callback(name)
 
     def _on_preset_context_requested(self, name: str, global_pos: QPoint):
         self._on_edit_preset(name, global_pos=global_pos)
@@ -705,6 +722,7 @@ class Zapret1UserPresetsPage(BasePage):
             round_menu_cls=RoundMenu if RoundMenu is not None and Action is not None else None,
             on_preset_list_action_fn=self._on_preset_list_action,
             show_preset_actions_menu_fn=show_preset_actions_menu,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _show_rating_menu(self, name: str, global_pos: QPoint | None = None):
@@ -717,6 +735,7 @@ class Zapret1UserPresetsPage(BasePage):
             refresh_callback=lambda: self._refresh_presets_view_from_cache(),
             tr_fn=self._tr,
             show_preset_rating_menu_fn=show_preset_rating_menu,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_rename_preset(self, name: str):
@@ -739,6 +758,7 @@ class Zapret1UserPresetsPage(BasePage):
             tr_fn=self._tr,
             parent_window=self.window(),
             log_fn=log,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_reset_preset(self, name: str):
@@ -751,6 +771,7 @@ class Zapret1UserPresetsPage(BasePage):
             tr_fn=self._tr,
             parent_window=self.window(),
             log_fn=log,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_delete_preset(self, name: str):
@@ -765,6 +786,7 @@ class Zapret1UserPresetsPage(BasePage):
             tr_fn=self._tr,
             parent_window=self.window(),
             log_fn=log,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_export_preset(self, name: str):
@@ -778,21 +800,16 @@ class Zapret1UserPresetsPage(BasePage):
             tr_fn=self._tr,
             parent_window=self.window(),
             log_fn=log,
+            tr_prefix=_TR_PREFIX,
         )
 
     def _on_dpi_reload_needed(self):
-        try:
-            from winws_runtime.public import request_preset_runtime_content_apply
-
-            parent_app = getattr(self, "parent_app", None)
-            if parent_app is not None:
-                request_preset_runtime_content_apply(
-                    parent_app,
-                    launch_method=ZAPRET1_MODE,
-                    reason="preset_content_changed",
-                )
-        except Exception as e:
-            log(f"Ошибка перезапуска DPI: {e}", "ERROR")
+        apply_preset_content_reload(
+            runtime_feature=self._runtime_feature,
+            launch_method=ZAPRET1_MODE,
+            reason="preset_content_changed",
+            log_fn=log,
+        )
 
     def _open_presets_info(self):
         open_presets_info_action(

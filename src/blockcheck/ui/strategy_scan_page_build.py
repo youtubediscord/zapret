@@ -8,7 +8,7 @@ from ui.theme import get_themed_qta_icon
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QHeaderView
 
-from ui.compat_widgets import ActionButton, QuickActionsBar, SettingsCard
+from ui.fluent_widgets import ActionButton, QuickActionsBar, SettingsCard
 from ui.pages.base_page import ScrollBlockingTextEdit
 
 

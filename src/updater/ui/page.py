@@ -1,7 +1,7 @@
 # updater/ui/page.py
 """Страница мониторинга серверов обновлений"""
 
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel,
@@ -9,12 +9,12 @@ from PyQt6.QtWidgets import (
 import qtawesome as qta
 
 from ui.pages.base_page import BasePage
-from ui.compat_widgets import SettingsCard, ActionButton
+from ui.fluent_widgets import SettingsCard, ActionButton
 from ui.theme import get_theme_tokens
-from ui.text_catalog import tr as tr_catalog
-from updater.update_page_controller import UpdatePageController
+from app.text_catalog import tr as tr_catalog
+from updater.update_page_runtime import UpdatePageRuntime
 from updater.server_status_table_state import ServerStatusTableState
-from updater.update_page_view_controller import UpdatePageViewController
+import updater.update_page_plans as update_page_plans
 from updater.ui.main_build import (
     build_servers_header_widgets,
     build_servers_table_widget,
@@ -64,9 +64,7 @@ from updater.ui.changelog_card import ChangelogCard
 class ServersPage(BasePage):
     """Страница мониторинга серверов обновлений"""
 
-    update_requested = pyqtSignal()
-
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, runtime_feature, updater_feature, open_about, external_actions_feature):
         super().__init__(
             "Серверы",
             "Мониторинг серверов обновлений",
@@ -77,7 +75,13 @@ class ServersPage(BasePage):
 
         self._tokens = get_theme_tokens()
         self._server_table_state = ServerStatusTableState()
-        self._update_controller = UpdatePageController(self)
+        self._update_runtime = UpdatePageRuntime(
+            self,
+            runtime_feature=runtime_feature,
+            updater_feature=updater_feature,
+        )
+        self._external_actions = external_actions_feature
+        self._open_about = open_about
         self._runtime_initialized = False
         self._cleanup_in_progress = False
 
@@ -89,7 +93,7 @@ class ServersPage(BasePage):
         return tr_catalog(key, language=self._ui_language, default=default)
 
     def _run_runtime_init_once(self) -> None:
-        plan = self._update_controller.build_page_init_plan(
+        plan = self._update_runtime.build_page_init_plan(
             runtime_initialized=self._runtime_initialized,
         )
         if not plan.should_apply_idle_view_state:
@@ -97,7 +101,7 @@ class ServersPage(BasePage):
         self._runtime_initialized = True
         QTimer.singleShot(
             0,
-            lambda action=plan.view_action, elapsed=plan.elapsed_seconds: (not self._cleanup_in_progress) and self._update_controller.apply_idle_view_state(
+            lambda action=plan.view_action, elapsed=plan.elapsed_seconds: (not self._cleanup_in_progress) and self._update_runtime.apply_idle_view_state(
                 view_action=action,
                 elapsed_seconds=elapsed,
             ),
@@ -192,7 +196,10 @@ class ServersPage(BasePage):
         self.add_widget(self.update_card)
 
         # Changelog card (hidden by default)
-        self.changelog_card = ChangelogCard(language=self._ui_language)
+        self.changelog_card = ChangelogCard(
+            language=self._ui_language,
+            open_url=self._external_actions.open_url,
+        )
         self.changelog_card.install_clicked.connect(self._request_install_update)
         self.changelog_card.dismiss_clicked.connect(self._request_dismiss_update)
         self.add_widget(self.changelog_card)
@@ -209,7 +216,7 @@ class ServersPage(BasePage):
             content_parent=self.content,
             tr_fn=self._tr,
             accent_hex=get_theme_tokens().accent_hex,
-            auto_check_enabled=self._update_controller.auto_check_enabled,
+            auto_check_enabled=self._update_runtime.auto_check_enabled,
             app_version=APP_VERSION,
             channel=CHANNEL,
             has_fluent=_HAS_FLUENT,
@@ -326,23 +333,23 @@ class ServersPage(BasePage):
         self.update_card.check_btn.setEnabled(bool(enabled))
 
     def present_startup_update(self, version: str, release_notes: str, *, install_after_show: bool = True) -> bool:
-        return self._update_controller.present_startup_update(
+        return self._update_runtime.present_startup_update(
             version,
             release_notes,
             install_after_show=install_after_show,
         )
 
     def _request_check_updates(self) -> None:
-        self._update_controller.request_manual_check()
+        self._update_runtime.request_manual_check()
 
     def _request_install_update(self) -> None:
-        self._update_controller.install_update()
+        self._update_runtime.install_update()
 
     def _request_dismiss_update(self) -> None:
-        self._update_controller.dismiss_update()
+        self._update_runtime.dismiss_update()
 
     def _open_telegram_channel(self):
-        result = UpdatePageViewController.open_update_channel(CHANNEL)
+        result = update_page_plans.open_update_channel(CHANNEL)
         if not result.ok:
             try:
                 from qfluentwidgets import InfoBar
@@ -360,17 +367,13 @@ class ServersPage(BasePage):
 
     def _on_back_to_about(self):
         try:
-            from ui.page_names import PageName
-            from ui.window_adapter import show_page
-            win = self.window()
-            if win is not None:
-                show_page(win, PageName.ABOUT)
+            self._open_about()
         except Exception:
             pass
 
     def _on_auto_check_toggled(self, enabled: bool):
-        self._update_controller.set_auto_check_enabled(bool(enabled))
+        self._update_runtime.set_auto_check_enabled(bool(enabled))
 
     def cleanup(self):
         self._cleanup_in_progress = True
-        self._update_controller.cleanup()
+        self._update_runtime.cleanup()

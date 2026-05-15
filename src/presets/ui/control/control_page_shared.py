@@ -1,64 +1,41 @@
 from __future__ import annotations
 
-from ui.state.main_window_state import MainWindowStateStore
+from app.state_store import MainWindowStateStore
 from presets.ui.control.control_page_runtime_shared import set_toggle_checked
-from winws_runtime.public import start_dpi_async, stop_dpi_async, stop_and_exit_async
-
-
-def _resolve_control_window(source):
-    try:
-        window = source.window()
-        if window is not None:
-            return window
-    except Exception:
-        pass
-
-    try:
-        parent_app = getattr(source, "parent_app", None)
-        if parent_app is not None:
-            return parent_app
-    except Exception:
-        pass
-
-    return source
 
 
 class ControlPageActionMixin:
-    """Общие action-wrapper'ы для control-page слоёв."""
+    """Общие действия для страниц управления."""
 
     def _start_dpi(self) -> None:
-        start_dpi_async(_resolve_control_window(self))
+        self._runtime_feature.start()
 
     def _stop_dpi(self) -> None:
-        stop_dpi_async(_resolve_control_window(self))
+        self._runtime_feature.stop()
 
     def _stop_and_exit(self) -> None:
         from log.log import log
         from PyQt6.QtWidgets import QApplication
 
-        window = _resolve_control_window(self)
         log("Остановка winws и закрытие программы...", "INFO")
 
-        if window is not None:
-            request_exit = getattr(window, "request_exit", None)
-            if callable(request_exit):
-                request_exit(stop_dpi=True)
-                return
+        request_exit = getattr(self, "_request_exit_callback", None)
+        if callable(request_exit):
+            request_exit(stop_dpi=True)
+            return
 
-            if stop_and_exit_async(window):
-                return
+        if self._runtime_feature.stop_and_exit():
+            return
 
         QApplication.quit()
 
     def _open_connection_test(self) -> None:
-        window = _resolve_control_window(self)
-        handler = getattr(window, "open_connection_test", None)
+        handler = getattr(self, "_open_connection_test_callback", None)
         if callable(handler):
             handler()
 
     def _open_folder(self) -> None:
-        window = _resolve_control_window(self)
-        handler = getattr(window, "open_folder", None)
+        handler = getattr(self, "_open_folder_callback", None)
         if callable(handler):
             handler()
 
@@ -67,7 +44,7 @@ class ControlPageActionMixin:
 
     def _set_status(self, msg: str) -> None:
         try:
-            status_setter = getattr(self, "set_status", None)
+            status_setter = getattr(self, "_set_status_callback", None)
             if callable(status_setter):
                 status_setter(msg)
         except Exception:
@@ -81,7 +58,7 @@ def bind_control_ui_state_store(
     callback,
     fields: set[str] | frozenset[str],
 ) -> None:
-    if getattr(owner, "_ui_state_store", None) is store:
+    if owner._ui_state_store is store:
         return
 
     unsubscribe = getattr(owner, "_ui_state_unsubscribe", None)

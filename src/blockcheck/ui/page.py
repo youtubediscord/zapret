@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
 
-from blockcheck.page_controller import BlockcheckPageController
+import blockcheck.page_runtime as blockcheck_page_runtime
 from blockcheck.ui.domain_chip import DomainChip
 from blockcheck.ui.domains_build import build_blockcheck_domains_ui
 from blockcheck.ui.sections_build import build_actions_section, build_results_section
@@ -28,9 +28,8 @@ from blockcheck.ui.helpers import (
     sort_results_by_family,
     truncate_detail,
 )
-from blockcheck.ui.worker import BlockcheckWorker
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 from qfluentwidgets import (
     ComboBox,
@@ -47,7 +46,7 @@ from qfluentwidgets import (
     SegmentedWidget,
 )
 
-from ui.compat_widgets import SettingsCard, InfoBarHelper, QuickActionsBar
+from ui.fluent_widgets import SettingsCard, InfoBarHelper, QuickActionsBar
 
 # ---------------------------------------------------------------------------
 # DPI badge colors
@@ -101,7 +100,7 @@ class BlockcheckPage(BasePage):
         "dns": TAB_DNS_SPOOFING,
     }
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, blockcheck_feature, diagnostics_feature, dns_feature, runtime_feature):
         super().__init__(
             title=tr_catalog("page.blockcheck.title", default="BlockCheck"),
             subtitle=tr_catalog("page.blockcheck.subtitle",
@@ -112,7 +111,11 @@ class BlockcheckPage(BasePage):
         )
         self.setObjectName("BlockcheckPage")
 
-        self._worker: BlockcheckWorker | None = None
+        self._blockcheck = blockcheck_feature
+        self._diagnostics = diagnostics_feature
+        self._dns = dns_feature
+        self._runtime_feature = runtime_feature
+        self._worker = None
         self._last_report = None
         self._run_log_file: str | None = None
         self._tab_widgets: list[QWidget] = []
@@ -364,7 +367,12 @@ class BlockcheckPage(BasePage):
             return
         try:
             from blockcheck.ui.strategy_scan_page import StrategyScanPage
-            self._strategy_tab_page = StrategyScanPage(parent=self, embedded=True)
+            self._strategy_tab_page = StrategyScanPage(
+                parent=self,
+                embedded=True,
+                blockcheck_feature=self._blockcheck,
+                runtime_feature=self._runtime_feature,
+            )
             self._strategy_tab_page.setVisible(False)
             self.add_widget(self._strategy_tab_page)
             try:
@@ -381,7 +389,10 @@ class BlockcheckPage(BasePage):
         try:
             from diagnostics.ui.page import ConnectionTestPage
 
-            self._diagnostics_tab_page = ConnectionTestPage(parent=self.parent_app)
+            self._diagnostics_tab_page = ConnectionTestPage(
+                parent=self,
+                diagnostics_feature=self._diagnostics,
+            )
             self._diagnostics_tab_page.setVisible(False)
             self.add_widget(self._diagnostics_tab_page)
 
@@ -397,9 +408,12 @@ class BlockcheckPage(BasePage):
         if self._dns_spoofing_tab_page is not None:
             return
         try:
-            from dns.public import DNSCheckPage
+            from dns.ui.dns_check_page import DNSCheckPage
 
-            self._dns_spoofing_tab_page = DNSCheckPage(parent=self.parent_app)
+            self._dns_spoofing_tab_page = DNSCheckPage(
+                parent=self,
+                dns_feature=self._dns,
+            )
             self._dns_spoofing_tab_page.setVisible(False)
             self.add_widget(self._dns_spoofing_tab_page)
 
@@ -490,14 +504,14 @@ class BlockcheckPage(BasePage):
 
     def _start_run_log(self, mode: str, extra_domains: list[str]) -> None:
         """Create a dedicated history log for current blockcheck run."""
-        state = BlockcheckPageController.start_run_log(mode, extra_domains)
+        state = blockcheck_page_runtime.start_run_log(mode, extra_domains)
         self._run_log_file = state.path
         if not state.created:
             logger.warning("Failed to create blockcheck run log")
 
     def _append_run_log(self, message: str) -> None:
         """Append line(s) to current blockcheck run log."""
-        BlockcheckPageController.append_run_log(self._run_log_file, message)
+        blockcheck_page_runtime.append_run_log(self._run_log_file, message)
 
     def _on_start(self):
         if self._worker and self._worker.is_running:
@@ -539,7 +553,7 @@ class BlockcheckPage(BasePage):
 
         # Create worker (QObject on main thread) — work runs in daemon thread
         skip_failed = self._skip_failed_cb.isChecked()
-        self._worker = BlockcheckWorker(
+        self._worker = self._blockcheck.create_blockcheck_worker(
             mode=mode, extra_domains=extra or None,
             skip_preflight_failed=skip_failed, parent=self,
         )
@@ -807,7 +821,7 @@ class BlockcheckPage(BasePage):
         extra_domains = self._get_extra_domains()
 
         try:
-            feedback = BlockcheckPageController.prepare_support(
+            feedback = blockcheck_page_runtime.prepare_support(
                 run_log_file=self._run_log_file,
                 mode_label=mode_label,
                 extra_domains=extra_domains,
@@ -1054,7 +1068,7 @@ class BlockcheckPage(BasePage):
     def _load_domain_chips(self):
         """Load persisted user domains and create chips."""
         load_domain_chips(
-            load_domains_fn=BlockcheckPageController.load_user_domains,
+            load_domains_fn=blockcheck_page_runtime.load_user_domains,
             add_chip_fn=self._add_chip,
         )
 
@@ -1064,7 +1078,7 @@ class BlockcheckPage(BasePage):
         if not text:
             return
         try:
-            normalized = BlockcheckPageController.add_user_domain(text)
+            normalized = blockcheck_page_runtime.add_user_domain(text)
             if normalized:
                 self._add_chip(normalized)
                 self._domain_input.clear()
@@ -1085,7 +1099,7 @@ class BlockcheckPage(BasePage):
     def _on_remove_domain(self, domain: str):
         """Remove a domain chip and delete from persistence."""
         try:
-            BlockcheckPageController.remove_user_domain(domain)
+            blockcheck_page_runtime.remove_user_domain(domain)
         except Exception:
             pass
         remove_domain_chip(

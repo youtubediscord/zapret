@@ -20,8 +20,7 @@ except ImportError:
     PrimaryPushSettingCard = None  # type: ignore[assignment]
     SettingCardGroup = None  # type: ignore[assignment]
 
-from ui.about_page_controller import AboutPageController
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens, get_themed_qta_icon
 
 from .base_page import BasePage
@@ -30,7 +29,7 @@ from .base_page import BasePage
 class SupportPage(BasePage):
     """Страница поддержки с одним основным маршрутом через GitHub Discussions."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, open_discussions, open_telegram, open_discord):
         super().__init__(
             "Поддержка",
             "GitHub Discussions и каналы сообщества",
@@ -38,6 +37,9 @@ class SupportPage(BasePage):
             title_key="page.support.title",
             subtitle_key="page.support.subtitle",
         )
+        self._open_discussions_action = open_discussions
+        self._open_telegram_action = open_telegram
+        self._open_discord_action = open_discord
 
         self._support_card = None
         self._support_group = None
@@ -174,7 +176,7 @@ class SupportPage(BasePage):
                 pass
 
     def _open_support_discussions(self) -> None:
-        result = AboutPageController.open_support_discussions()
+        result = self._open_discussions_action()
         if (not result.ok) and InfoBar is not None:
             InfoBar.warning(
                 title=self._tr("page.support.error.title", "Ошибка"),
@@ -186,7 +188,7 @@ class SupportPage(BasePage):
             )
 
     def _open_telegram_support(self) -> None:
-        result = AboutPageController.open_telegram("zaprethelp")
+        result = self._open_telegram_action()
         if (not result.ok) and InfoBar is not None:
             InfoBar.warning(
                 title=self._tr("page.support.error.title", "Ошибка"),
@@ -198,7 +200,7 @@ class SupportPage(BasePage):
             )
 
     def _open_discord(self) -> None:
-        result = AboutPageController.open_discord("https://discord.gg/kkcBDG2uws")
+        result = self._open_discord_action()
         if (not result.ok) and InfoBar is not None:
             InfoBar.warning(
                 title=self._tr("page.support.error.title", "Ошибка"),

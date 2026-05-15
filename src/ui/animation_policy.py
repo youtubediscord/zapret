@@ -6,9 +6,9 @@ from ui.window_ui_session import get_window_ui_session
 def are_animations_enabled() -> bool:
     """Читает текущее пользовательское состояние мастер-переключателя анимаций."""
     try:
-        from settings.store import get_animations_enabled
+        from settings.appearance import load_animations_enabled
 
-        return bool(get_animations_enabled())
+        return bool(load_animations_enabled().enabled)
     except Exception:
         return False
 
@@ -61,9 +61,9 @@ def apply_window_animation_policy(window, enabled: bool) -> None:
     apply_process_animation_fallback(enabled)
 
     try:
-        from settings.store import get_editor_smooth_scroll_enabled
+        from settings.appearance import load_editor_smooth_scroll_enabled
 
-        apply_window_editor_smooth_scroll_policy(window, get_editor_smooth_scroll_enabled())
+        apply_window_editor_smooth_scroll_policy(window, load_editor_smooth_scroll_enabled().enabled)
     except Exception:
         pass
 

@@ -14,7 +14,7 @@ from ui.theme import (
     to_qcolor,
 )
 from ui.animation_policy import register_managed_animation, start_managed_animation
-from ui.theme_refresh import ThemeRefreshController
+from ui.theme_refresh import ThemeRefreshBinding
 
 try:
     from qfluentwidgets import (
@@ -45,12 +45,6 @@ except ImportError:
     StrongBodyLabel = QLabel  # type: ignore[assignment,misc]
     _BodyLabel = QLabel  # type: ignore[assignment,misc]
     _CaptionLabel = QLabel  # type: ignore[assignment,misc]
-
-try:
-    _LEGACY_DEFAULT_ACCENT = get_theme_tokens("Темная синяя").accent_hex.lower()
-except Exception:
-    _LEGACY_DEFAULT_ACCENT = ""
-
 
 def _build_theme_refresh_key(tokens) -> tuple[str, str, str]:
     return (str(tokens.theme_name), str(tokens.accent_hex), str(tokens.font_family_qss))
@@ -146,36 +140,6 @@ class Win11ToggleSwitch(QCheckBox):
         return self.rect().contains(pos)
 
 
-class _ToggleProxy:
-    """Совместимая прокладка для старого `.toggle` API Win11ToggleRow."""
-
-    def __init__(self, switch_button) -> None:
-        self._switch_button = switch_button
-        primary_signal = getattr(switch_button, "checkedChanged", None)
-        if primary_signal is None:
-            primary_signal = getattr(switch_button, "toggled", None)
-        self.checkedChanged = primary_signal
-        self.toggled = primary_signal
-
-    def setChecked(self, checked: bool) -> None:
-        self._switch_button.setChecked(bool(checked))
-
-    def isChecked(self) -> bool:
-        return bool(self._switch_button.isChecked())
-
-    def blockSignals(self, block: bool):
-        return self._switch_button.blockSignals(bool(block))
-
-    def setEnabled(self, enabled: bool) -> None:
-        self._switch_button.setEnabled(bool(enabled))
-
-    def isEnabled(self) -> bool:
-        return bool(self._switch_button.isEnabled())
-
-    def __getattr__(self, name: str):
-        return getattr(self._switch_button, name)
-
-
 class Win11ToggleRow(FluentSettingCard if _HAS_FLUENT else QWidget):
     """Строка с toggle switch в стиле Windows 11."""
 
@@ -218,7 +182,6 @@ class Win11ToggleRow(FluentSettingCard if _HAS_FLUENT else QWidget):
                 except Exception:
                     pass
 
-            self.toggle = _ToggleProxy(self._switch_button) if self._switch_button is not None else None
             if self._switch_button is not None:
                 try:
                     signal = getattr(self._switch_button, "toggled", None) or getattr(self._switch_button, "checkedChanged", None)
@@ -256,8 +219,7 @@ class Win11ToggleRow(FluentSettingCard if _HAS_FLUENT else QWidget):
             self._switch_button = Win11ToggleSwitch()
             self._switch_button.toggled.connect(self.toggled.emit)
             layout.addWidget(self._switch_button)
-            self.toggle = self._switch_button
-        self._theme_refresh = ThemeRefreshController(
+        self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
             key_builder=_build_theme_refresh_key,
@@ -267,8 +229,6 @@ class Win11ToggleRow(FluentSettingCard if _HAS_FLUENT else QWidget):
         theme_tokens = tokens or get_theme_tokens()
         c = str(self._icon_color or "").strip()
         if not c:
-            return theme_tokens.accent_hex
-        if _LEGACY_DEFAULT_ACCENT and c.lower() == _LEGACY_DEFAULT_ACCENT:
             return theme_tokens.accent_hex
         return c
 
@@ -408,7 +368,7 @@ class Win11RadioOption(QWidget):
         layout.addLayout(text_layout, 1)
 
         self._update_style(initial_tokens)
-        self._theme_refresh = ThemeRefreshController(
+        self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
             key_builder=_build_theme_refresh_key,
@@ -418,8 +378,6 @@ class Win11RadioOption(QWidget):
         theme_tokens = tokens or get_theme_tokens()
         c = str(self._icon_color or "").strip()
         if not c:
-            return theme_tokens.accent_hex
-        if _LEGACY_DEFAULT_ACCENT and c.lower() == _LEGACY_DEFAULT_ACCENT:
             return theme_tokens.accent_hex
         return c
 
@@ -634,7 +592,7 @@ class Win11NumberRow(FluentSettingCard if _HAS_FLUENT else QWidget):
         layout.addWidget(self.spinbox)
         if _HAS_FLUENT:
             layout.addSpacing(16)
-        self._theme_refresh = ThemeRefreshController(
+        self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
             key_builder=_build_theme_refresh_key,
@@ -644,8 +602,6 @@ class Win11NumberRow(FluentSettingCard if _HAS_FLUENT else QWidget):
         theme_tokens = tokens or get_theme_tokens()
         c = str(self._icon_color or "").strip()
         if not c:
-            return theme_tokens.accent_hex
-        if _LEGACY_DEFAULT_ACCENT and c.lower() == _LEGACY_DEFAULT_ACCENT:
             return theme_tokens.accent_hex
         return c
 
@@ -820,7 +776,7 @@ class Win11ComboRow(FluentSettingCard if _HAS_FLUENT else QWidget):
         layout.addWidget(self.combo)
         if _HAS_FLUENT:
             layout.addSpacing(16)
-        self._theme_refresh = ThemeRefreshController(
+        self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
             key_builder=_build_theme_refresh_key,
@@ -830,8 +786,6 @@ class Win11ComboRow(FluentSettingCard if _HAS_FLUENT else QWidget):
         theme_tokens = tokens or get_theme_tokens()
         c = str(self._icon_color or "").strip()
         if not c:
-            return theme_tokens.accent_hex
-        if _LEGACY_DEFAULT_ACCENT and c.lower() == _LEGACY_DEFAULT_ACCENT:
             return theme_tokens.accent_hex
         return c
 

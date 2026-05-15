@@ -2,12 +2,10 @@
 """Zapret 2 mode management page (Strategies landing for zapret2_mode)."""
 
 import time as _time
-import webbrowser
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
 from ui.pages.base_page import BasePage
-from ui.page_dependencies import require_page_app_context
 from settings.mode import ZAPRET2_MODE
 from presets.ui.control.zapret2.build import (
     build_winws2_pages_management_section,
@@ -25,26 +23,21 @@ from presets.ui.control.zapret2.runtime_helpers import (
     set_toggle_checked,
     sync_profile_ui_mode_label,
 )
-from ui.compat_widgets import (
+from ui.fluent_widgets import (
     ActionButton,
     PrimaryActionButton,
     enable_setting_card_group_auto_height,
     set_tooltip,
 )
-from ui.state.main_window_state import AppUiState, MainWindowStateStore
+from app.state_store import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
 )
-from program_settings.public import (
-    attach_program_settings_runtime,
-    refresh_program_settings_snapshot,
-    set_auto_dpi_enabled,
-)
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
-from presets.ui.control.zapret2.controller import Zapret2ModeControlPageController
+import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 
 from qfluentwidgets import (
     CaptionLabel, StrongBodyLabel, SubtitleLabel, BodyLabel,
@@ -167,13 +160,26 @@ class StopButton(ActionButton):
 class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMixin, BasePage):
     """Главная страница управления для Zapret 2."""
 
-    navigate_to_presets = pyqtSignal()        # -> "Мои пресеты": выбор, активация, raw-редактор
-    navigate_to_preset_setup = pyqtSignal()   # -> "Настройка пресета": профили выбранного пресета
-    navigate_to_blobs = pyqtSignal()          # → PageName.BLOBS
-    profile_ui_mode_changed = pyqtSignal(str)     # "basic" | "advanced"
     deferred_show_requested = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        presets_feature,
+        profile_feature,
+        runtime_feature,
+        program_settings_feature,
+        set_status,
+        request_exit,
+        open_connection_test,
+        open_folder,
+        open_presets,
+        open_preset_setup,
+        open_blobs,
+        external_actions_feature,
+        ui_state_store,
+    ):
         _t_init = _time.perf_counter()
         _t_base = _time.perf_counter()
         super().__init__(
@@ -186,6 +192,18 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
         _log_startup_winws2_control_metric("__init__.base_page", (_time.perf_counter() - _t_base) * 1000)
 
+        self._presets = presets_feature
+        self._profile = profile_feature
+        self._runtime_feature = runtime_feature
+        self._program_settings = program_settings_feature
+        self._set_status_callback = set_status
+        self._request_exit_callback = request_exit
+        self._open_connection_test_callback = open_connection_test
+        self._open_folder_callback = open_folder
+        self._open_presets_callback = open_presets
+        self._open_preset_setup_callback = open_preset_setup
+        self._open_blobs_callback = open_blobs
+        self._external_actions = external_actions_feature
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
         self._program_settings_runtime_unsubscribe = None
@@ -194,7 +212,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._startup_showevent_profile_logged = False
         self._deferred_sections_built = False
         self._deferred_sections_hydrated = False
-        self._refresh_runtime = Zapret2ModeControlPageController.create_refresh_runtime()
+        self._refresh_runtime = zapret2_page_runtime.create_refresh_runtime()
         self.profile_ui_mode_label = None
         self.profile_ui_mode_caption = None
         self.preset_setup_open_btn = None
@@ -224,6 +242,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             Qt.ConnectionType.QueuedConnection,
         )
         self._build_ui()
+        self.bind_ui_state_store(ui_state_store)
         self._after_ui_built()
         _log_startup_winws2_control_metric("__init__.total", (_time.perf_counter() - _t_init) * 1000)
 
@@ -256,21 +275,11 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _load_selected_preset_name(self) -> tuple[str, str]:
         try:
-            from presets.public import get_selected_source_preset_display
-
-            return get_selected_source_preset_display(
+            return self._presets.get_selected_source_preset_display(
                 ZAPRET2_MODE,
-                app_context=self._require_app_context(),
             )
         except Exception:
             return "", ""
-
-    def _require_app_context(self):
-        return require_page_app_context(
-            self,
-            parent=self.parent(),
-            error_message="AppContext is required for Zapret2 mode control page",
-        )
 
     def _apply_selected_preset_name_fast(self) -> None:
         default_text = tr_catalog(
@@ -330,7 +339,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
 
     def _open_preset_setup_page(self) -> None:
-        self.navigate_to_preset_setup.emit()
+        self._open_preset_setup_callback()
 
     def _build_ui(self):
         _t_total = _time.perf_counter()
@@ -384,7 +393,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             add_section_title=self.add_section_title,
             tr_fn=lambda key, default: tr_catalog(key, language=self._ui_language, default=default),
             push_setting_card_cls=PushSettingCard,
-            on_open_presets=self.navigate_to_presets.emit,
+            on_open_presets=self._open_presets_callback,
         )
         self.preset_section_label = preset_widgets.section_label
         self.preset_card = preset_widgets.card
@@ -419,7 +428,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             on_discord_restart_changed=self._on_discord_restart_changed,
             on_wssize_toggled=self._on_wssize_toggled,
             on_debug_log_toggled=self._on_debug_log_toggled,
-            on_navigate_to_blobs=self.navigate_to_blobs.emit,
+            on_navigate_to_blobs=self._open_blobs_callback,
             on_open_connection_test=self._open_connection_test,
             on_open_folder=self._open_folder,
             on_open_docs=self._open_docs,
@@ -489,9 +498,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
                 pass
 
         request_id = runtime.next_advanced_settings_request_id()
-        worker = Zapret2ModeControlPageController.create_advanced_settings_worker(
+        worker = zapret2_page_runtime.create_advanced_settings_worker(
             request_id,
-            self._require_app_context(),
+            self._profile,
             self,
         )
         runtime.advanced_settings_worker = worker
@@ -502,25 +511,27 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _on_advanced_settings_loaded(self, request_id: int, state: dict) -> None:
         if not self._refresh_runtime.accept_advanced_settings_result(request_id):
             return
-        plan = Zapret2ModeControlPageController.build_advanced_settings_apply_plan(state if isinstance(state, dict) else {})
+        plan = zapret2_page_runtime.build_advanced_settings_apply_plan(state if isinstance(state, dict) else {})
         self._apply_advanced_settings_plan(plan)
 
     def _on_discord_restart_changed(self, enabled: bool) -> None:
         self._refresh_runtime.mark_advanced_settings_written()
-        Zapret2ModeControlPageController.save_discord_restart_setting(enabled)
+        zapret2_page_runtime.save_discord_restart_setting(enabled)
 
     def _on_wssize_toggled(self, enabled: bool) -> None:
         self._refresh_runtime.mark_advanced_settings_written()
-        Zapret2ModeControlPageController.save_wssize_enabled(
+        zapret2_page_runtime.save_wssize_enabled(
             enabled,
-            app_context=self._require_app_context(),
+            profile_feature=self._profile,
+            runtime_feature=self._runtime_feature,
         )
 
     def _on_debug_log_toggled(self, enabled: bool) -> None:
         self._refresh_runtime.mark_advanced_settings_written()
-        Zapret2ModeControlPageController.save_debug_log_enabled(
+        zapret2_page_runtime.save_debug_log_enabled(
             enabled,
-            app_context=self._require_app_context(),
+            profile_feature=self._profile,
+            runtime_feature=self._runtime_feature,
         )
 
     # ==================== Profile UI mode: Basic/Advanced ====================
@@ -533,7 +544,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_profile_ui_mode_selected(self, mode: str) -> None:
         _ = mode
-        plan = Zapret2ModeControlPageController.build_profile_ui_mode_change_plan(
+        plan = zapret2_page_runtime.build_profile_ui_mode_change_plan(
             wanted_mode="basic",
             current_mode="basic",
         )
@@ -541,16 +552,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self._sync_profile_ui_mode_from_settings()
 
     def _sync_program_settings(self) -> None:
-        snapshot = refresh_program_settings_snapshot(self._require_app_context())
+        snapshot = self._program_settings.refresh_program_settings_snapshot()
         if snapshot is not None:
             self._apply_program_settings_snapshot(snapshot)
 
     def _attach_program_settings_runtime(self) -> None:
-        attach_program_settings_runtime(
+        self._program_settings.attach_program_settings_runtime(
             self,
-            app_context=self._require_app_context(),
             apply_snapshot_fn=self._apply_program_settings_snapshot,
-            require_attr_name="auto_dpi_toggle",
         )
 
     def _apply_program_settings_snapshot(self, snapshot) -> None:
@@ -565,14 +574,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         try:
-            plan = set_auto_dpi_enabled(enabled)
+            plan = self._program_settings.set_auto_dpi_enabled(enabled)
             self._set_status(plan.message)
             InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
         finally:
             self._sync_program_settings()
 
     def _update_stop_winws_button_text(self):
-        plan = Zapret2ModeControlPageController.build_stop_button_plan(language=self._ui_language)
+        plan = zapret2_page_runtime.build_stop_button_plan(language=self._ui_language)
         self.stop_winws_btn.setText(plan.text)
 
     def set_loading(self, loading: bool, text: str = ""):
@@ -630,7 +639,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.update_strategy(str(state.current_strategy_summary or ""))
 
     def update_status(self, state: str | bool, last_error: str = ""):
-        plan = Zapret2ModeControlPageController.build_status_plan(
+        plan = zapret2_page_runtime.build_status_plan(
             state=state,
             last_error=last_error,
             language=self._ui_language,
@@ -683,7 +692,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         try:
             from config.urls import DOCS_URL
 
-            webbrowser.open(DOCS_URL)
+            result = self._external_actions.open_url(DOCS_URL)
+            if not result.ok:
+                raise RuntimeError(result.error)
         except Exception as e:
             InfoBar.warning(title="Документация", content=f"Не удалось открыть документацию: {e}", parent=self.window())
 

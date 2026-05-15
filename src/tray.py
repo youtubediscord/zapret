@@ -49,36 +49,6 @@ from ui.window_adapter import (
 )
 
 
-def _toggle_github_api_removal(*, status_callback=None) -> bool:
-    """Переключает флаг удаления api.github.com из hosts при запуске."""
-    from settings.store import get_remove_github_api, set_remove_github_api
-
-
-    try:
-        current_state = bool(get_remove_github_api())
-        new_state = not current_state
-
-        if set_remove_github_api(new_state):
-            state_text = "включено" if new_state else "отключено"
-            message = f"Удаление api.github.com из hosts {state_text}"
-            log(message, "INFO")
-            if status_callback:
-                status_callback(message)
-            return True
-
-        error_message = "Ошибка при сохранении настройки удаления GitHub API"
-        log(error_message, "❌ ERROR")
-        if status_callback:
-            status_callback(error_message)
-        return False
-    except Exception as exc:
-        error_message = f"Ошибка при переключении удаления GitHub API: {exc}"
-        log(error_message, "❌ ERROR")
-        if status_callback:
-            status_callback(error_message)
-        return False
-
-
 if sys.platform == "win32":
     user32 = ctypes.windll.user32
     shell32 = ctypes.windll.shell32
@@ -263,12 +233,6 @@ def _get_y_lparam(value: int) -> int:
     return _signed_word(int(value) >> 16)
 
 
-def _resolve_tg_proxy_manager():
-    from telegram_proxy.manager import get_proxy_manager
-
-    return get_proxy_manager()
-
-
 def _fluent_icon(name: str):
     if FluentIcon is None:
         return None
@@ -349,8 +313,9 @@ class SystemTrayManager:
     native tray icon через Shell_NotifyIcon без Qt-tray слоя.
     """
 
-    def __init__(self, parent, icon_path, app_version):
+    def __init__(self, parent, icon_path, app_version, *, tray_feature):
         self.parent = parent
+        self._tray_feature = tray_feature
         self.icon_path = os.path.abspath(icon_path)
         self.app_version = str(app_version or "").strip()
         self._icon_visible = False
@@ -513,9 +478,7 @@ class SystemTrayManager:
             is_visible = False
 
         try:
-            mgr = _resolve_tg_proxy_manager()
-            if mgr.is_running:
-                tg_label = f"Telegram Proxy: вкл ({mgr.port})"
+            tg_label = self._tray_feature.telegram_proxy_label()
         except Exception:
             pass
 
@@ -814,77 +777,13 @@ class SystemTrayManager:
         shell32.Shell_NotifyIconW(NIM_MODIFY, ctypes.byref(data))
 
     def _connect_proxy_status_signal(self) -> None:
-        try:
-            mgr = _resolve_tg_proxy_manager()
-            mgr.status_changed.connect(self._on_tg_proxy_status_changed)
-        except Exception:
-            pass
+        self._tray_feature.connect_telegram_proxy_status_changed(self._on_tg_proxy_status_changed)
 
     def _toggle_tg_proxy(self):
-        try:
-            mgr = _resolve_tg_proxy_manager()
-            if mgr.is_running:
-                mgr.stop_proxy()
-                try:
-                    from settings.store import set_tg_proxy_enabled
-                    set_tg_proxy_enabled(False)
-                except Exception:
-                    pass
-                return
-
-            from settings.store import (
-                get_tg_proxy_host,
-                get_tg_proxy_port,
-                get_tg_proxy_upstream_enabled,
-                get_tg_proxy_upstream_host,
-                get_tg_proxy_upstream_mode,
-                get_tg_proxy_upstream_pass,
-                get_tg_proxy_upstream_port,
-                get_tg_proxy_upstream_user,
-            )
-
-            port = get_tg_proxy_port()
-            host = get_tg_proxy_host()
-            upstream_config = None
-            try:
-                if get_tg_proxy_upstream_enabled():
-                    up_host = get_tg_proxy_upstream_host()
-                    up_port = get_tg_proxy_upstream_port()
-                    if up_host and up_port > 0:
-                        from telegram_proxy.wss_proxy import UpstreamProxyConfig
-
-                        upstream_config = UpstreamProxyConfig(
-                            enabled=True,
-                            host=up_host,
-                            port=up_port,
-                            mode=get_tg_proxy_upstream_mode(),
-                            username=get_tg_proxy_upstream_user(),
-                            password=get_tg_proxy_upstream_pass(),
-                        )
-            except Exception:
-                pass
-
-            import threading
-
-            threading.Thread(
-                target=lambda: mgr.start_proxy(
-                    port=port,
-                    mode="socks5",
-                    host=host,
-                    upstream_config=upstream_config,
-                ),
-                daemon=True,
-                name="TrayTelegramProxyStart",
-            ).start()
-        except Exception as e:
-            log(f"Tray TG proxy toggle error: {e}", "WARNING")
+        self._tray_feature.toggle_telegram_proxy()
 
     def _on_tg_proxy_status_changed(self, running: bool):
-        try:
-            from settings.store import set_tg_proxy_enabled
-            set_tg_proxy_enabled(bool(running))
-        except Exception:
-            pass
+        self._tray_feature.set_telegram_proxy_enabled(bool(running))
 
     def _save_window_geometry(self):
         try:
@@ -892,27 +791,12 @@ class SystemTrayManager:
         except Exception as e:
             log(f"Ошибка сохранения геометрии окна: {e}", "ERROR")
 
-    def _cleanup_loaded_setup_page_overlays(self) -> None:
-        try:
-            from ui.navigation_pages import get_profile_setup_pages
-            from ui.page_method_dispatch import close_page_transient_overlays
-
-            for page_name in get_profile_setup_pages():
-                try:
-                    close_page_transient_overlays(self.parent, page_name)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
     def _cleanup_transient_overlays(self) -> None:
         try:
             from ui.widgets.strategies_tooltip import strategies_tooltip_manager
             strategies_tooltip_manager.hide_immediately()
         except Exception:
             pass
-
-        self._cleanup_loaded_setup_page_overlays()
 
     def hide_to_tray(self, show_hint: bool = True) -> bool:
         try:
@@ -958,8 +842,6 @@ class SystemTrayManager:
         request_exit(self.parent, stop_dpi=True)
 
     def show_console(self):
-        from discord.discord_restart import toggle_discord_restart
-
         cmd, ok = QInputDialog.getText(
             self.parent,
             "Консоль",
@@ -971,14 +853,13 @@ class SystemTrayManager:
             return
 
         if cmd.lower() == "ркн":
-            toggle_discord_restart(
-                self.parent,
+            self._tray_feature.toggle_discord_restart(
                 status_callback=lambda m: self.show_notification("Консоль", m),
             )
             return
 
         if cmd.lower() == "апигитхаб":
-            _toggle_github_api_removal(
+            self._tray_feature.toggle_github_api_removal(
                 status_callback=lambda m: self.show_notification("Консоль", m),
             )
 
@@ -994,36 +875,13 @@ class SystemTrayManager:
             pass
 
     def _set_window_opacity(self, value: int) -> None:
-        try:
-            from settings.store import set_window_opacity as _set_window_opacity
-            _set_window_opacity(int(value))
-        except Exception:
-            pass
-
-        try:
-            if hasattr(self.parent, "set_window_opacity"):
-                self.parent.set_window_opacity(int(value))
-        except Exception:
-            pass
+        self._tray_feature.apply_window_opacity(int(value))
 
     def _is_launch_running(self) -> bool:
-        app_runtime_state = getattr(self.parent, "app_runtime_state", None)
-        if app_runtime_state is None:
-            return False
-        try:
-            return bool(app_runtime_state.is_launch_running())
-        except Exception:
-            return False
+        return bool(self._tray_feature.launch_state()[0])
 
     def _launch_phase(self) -> str:
-        app_runtime_state = getattr(self.parent, "app_runtime_state", None)
-        if app_runtime_state is None:
-            return "stopped"
-        try:
-            phase = str(app_runtime_state.current_launch_phase() or "").strip().lower()
-            return phase or ("running" if app_runtime_state.is_launch_running() else "stopped")
-        except Exception:
-            return "running" if self._is_launch_running() else "stopped"
+        return str(self._tray_feature.launch_state()[1] or "").strip().lower()
 
     def _is_windows_11_or_newer(self) -> bool:
         try:

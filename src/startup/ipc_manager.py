@@ -66,8 +66,9 @@ class IPCManager(QObject):
     def _handle_show_window(self):
         """Обработчик сигнала показа окна (выполняется в главном потоке)"""
         if self.window:
-            if hasattr(self.window, 'tray_manager'):
-                self.window.tray_manager.show_window()
+            tray_manager = getattr(getattr(self.window, "visual_state", None), "tray_manager", None)
+            if tray_manager is not None:
+                tray_manager.show_window()
             else:
                 self.window.showNormal()
                 self.window.activateWindow()

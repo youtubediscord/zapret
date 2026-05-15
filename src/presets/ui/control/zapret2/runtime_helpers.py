@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ui.text_catalog import tr as tr_catalog
-from presets.ui.control.zapret2.controller import Zapret2ModeControlPageController
+from app.text_catalog import tr as tr_catalog
+import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 from presets.ui.control.control_page_runtime_shared import (
     apply_program_settings_toggles,
     apply_status_plan as apply_status_plan_shared,
@@ -49,7 +49,7 @@ def apply_advanced_settings_plan(plan, *, discord_restart_toggle, wssize_toggle,
 def sync_profile_ui_mode_label(*, language: str, profile_ui_mode_label) -> None:
     if profile_ui_mode_label is None:
         return
-    plan = Zapret2ModeControlPageController.build_profile_ui_mode_label_plan(language=language)
+    plan = zapret2_page_runtime.build_profile_ui_mode_label_plan(language=language)
     profile_ui_mode_label.setText(plan.label_text)
 
 

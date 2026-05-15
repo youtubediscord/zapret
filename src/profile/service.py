@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from functools import lru_cache
 from types import SimpleNamespace
 
-from presets.public import PresetFileStore, get_selected_source_preset_manifest, save_selected_preset_source
 from settings.mode import DEFAULT_LAUNCH_METHOD, ENGINE_WINWS2, engine_for_launch_method, normalize_launch_method
 
 from .match_filters import ports_label_from_match_lines, protocol_label_from_match_lines, strategy_catalog_from_match_lines
@@ -21,58 +19,18 @@ from .serializer import (
 )
 from .strategy_state import ProfileStrategyState, ProfileStrategyStateStore
 from .strategy_catalog import StrategyEntry, load_strategy_catalogs
+from .state import ProfileListItem, ProfileListPayload, ProfileSetupPayload
 from .template_catalog import load_profile_templates
 from .winws2_editable_settings import Winws2EditableSettings, read_winws2_editable_settings, with_winws2_editable_settings
 
 
-@dataclass(frozen=True)
-class ProfileListItem:
-    key: str
-    persistent_key: str
-    profile_index: int
-    template_id: str
-    display_name: str
-    enabled: bool
-    in_preset: bool
-    strategy_id: str
-    strategy_name: str
-    match_lines: tuple[str, ...]
-    list_type: str
-    rating: str
-    favorite: bool
-    group: str
-    order: int
-
-
-@dataclass(frozen=True)
-class ProfileListPayload:
-    items: tuple[ProfileListItem, ...]
-    strategy_names_by_profile: dict[str, dict[str, str]]
-    selected_preset_file_name: str
-    selected_preset_name: str
-
-
-@dataclass(frozen=True)
-class ProfileSetupPayload:
-    item: ProfileListItem
-    strategy_entries: dict[str, StrategyEntry]
-    raw_profile_text: str
-    raw_strategy_text: str
-    match_summary: str
-    editable_filter_kind: str = ""
-    editable_filter_value: str = ""
-    editable_filter_enabled: bool = True
-    in_range: str = "x"
-    out_range: str = "a"
-    current_strategy_state: ProfileStrategyState = ProfileStrategyState()
-
-
 class ProfilePresetService:
-    def __init__(self, app_context, launch_method: str = DEFAULT_LAUNCH_METHOD) -> None:
-        self._app_context = app_context
+    def __init__(self, profile_services, launch_method: str = DEFAULT_LAUNCH_METHOD) -> None:
+        self._profile_services = profile_services
+        self._presets = profile_services._presets_feature
+        self._app_paths = profile_services._app_paths
         self._launch_method = normalize_launch_method(launch_method)
         self._engine = _engine_for_method(self._launch_method)
-        self._preset_file_store: PresetFileStore = app_context.preset_file_store
         self._state_store = ProfileStrategyStateStore()
 
     @property
@@ -80,20 +38,15 @@ class ProfilePresetService:
         return self._engine
 
     def load_selected_preset(self) -> tuple[Preset, object]:
-        manifest = get_selected_source_preset_manifest(self._launch_method, app_context=self._app_context)
-        source_text = self._preset_file_store.read_source_text(self._engine, manifest.file_name)
+        source_text, manifest = self._presets.read_selected_preset_source(self._launch_method)
         return parse_preset_text(source_text, engine=self._engine, source_name=manifest.file_name), manifest
 
     def save_selected_preset(self, preset: Preset) -> None:
-        save_selected_preset_source(
-            self._launch_method,
-            serialize_preset(preset),
-            app_context=self._app_context,
-        )
+        self._presets.save_selected_preset_source(self._launch_method, serialize_preset(preset))
 
     def list_profiles(self) -> ProfileListPayload:
         preset, manifest = self.load_selected_preset()
-        catalogs = load_strategy_catalogs(self._app_context.app_paths, self._engine)
+        catalogs = load_strategy_catalogs(self._app_paths, self._engine)
         templates = self._load_profile_templates()
         existing_signatures = {profile.match_signature for profile in preset.profiles if profile.match_signature}
 
@@ -142,7 +95,7 @@ class ProfilePresetService:
         profile = self._resolve_profile(profile_key)
         if profile is None:
             return None
-        catalogs = load_strategy_catalogs(self._app_context.app_paths, self._engine)
+        catalogs = load_strategy_catalogs(self._app_paths, self._engine)
         strategy_entries = dict(_basic_strategy_entries(profile, catalogs))
         winws2_editable = read_winws2_editable_settings(profile) if self._engine == ENGINE_WINWS2 else Winws2EditableSettings()
         return ProfileSetupPayload(
@@ -378,7 +331,7 @@ class ProfilePresetService:
 
     @lru_cache(maxsize=1)
     def _load_profile_templates(self) -> dict[str, Profile]:
-        return load_profile_templates(self._app_context.app_paths, self._engine)
+        return load_profile_templates(self._app_paths, self._engine)
 
 
 def _engine_for_method(launch_method: str) -> EngineName:

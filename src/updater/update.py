@@ -38,7 +38,7 @@ CHUNK_SIZE = 1024 * 1024  # 1 MB
 # Проверено 25.12.2025.
 
 
-def launch_installer_winapi(exe_path: str, arguments: str, working_dir: str = None) -> bool:
+def launch_installer_winapi(exe_path: str, arguments: str) -> bool:
     """
     Запускает установщик с правами администратора через PowerShell Start-Process.
 
@@ -47,7 +47,6 @@ def launch_installer_winapi(exe_path: str, arguments: str, working_dir: str = No
     Args:
         exe_path: Путь к установщику (.exe)
         arguments: Аргументы командной строки (разделённые пробелами)
-        working_dir: Рабочая директория (не используется, оставлен для совместимости)
 
     Returns:
         True если процесс успешно запущен
@@ -325,12 +324,13 @@ class UpdateWorker(QObject):
     download_failed = pyqtSignal(str)
     dpi_restart_needed = pyqtSignal()
 
-    def __init__(self, parent=None, silent: bool = False, skip_rate_limit: bool = False):
+    def __init__(self, parent=None, silent: bool = False, skip_rate_limit: bool = False, *, runtime_feature):
         super().__init__()
         self._parent = parent
         self._silent = silent
         self._skip_rate_limit = skip_rate_limit
         self._stop_requested = False
+        self._runtime_feature = runtime_feature
 
     def stop(self) -> None:
         self._stop_requested = True
@@ -405,15 +405,13 @@ class UpdateWorker(QObject):
 
     def _stop_dpi_for_download(self) -> bool:
         """Останавливает winws/winws2 если запущены. Возвращает True если что-то остановили."""
-        from winws_runtime.runtime.sync_shutdown import is_any_runtime_running_sync, shutdown_runtime_sync
-
-        if not is_any_runtime_running_sync():
+        if not self._runtime_feature.is_any_running():
             return False
 
         log("⚠️ DPI (winws) мешает скачиванию — временно останавливаем", "🔁 UPDATE")
         self._emit("Остановка DPI для скачивания...")
 
-        shutdown_runtime_sync(reason="updater_download_connectivity", include_cleanup=True)
+        self._runtime_feature.shutdown_sync(reason="updater_download_connectivity", include_cleanup=True)
         time.sleep(0.5)
         return True
 
@@ -459,7 +457,7 @@ class UpdateWorker(QObject):
                 arguments = f'{base_args} /DIR={install_dir}'
 
             # Запускаем установщик через WinAPI с правами администратора
-            success = launch_installer_winapi(persistent_exe, arguments, persistent_dir)
+            success = launch_installer_winapi(persistent_exe, arguments)
 
             if not success:
                 self._emit("Не удалось запустить установщик")
@@ -654,8 +652,3 @@ class UpdateWorker(QObject):
             return False
 
         return self._download_update(release_info)
-
-# ──────────────────────────── public-API ──────────────────────────────────
-# ПРИМЕЧАНИЕ: Автообновление при запуске ОТКЛЮЧЕНО.
-# Обновления проверяются и устанавливаются только через вкладку "Серверы" (updater/ui/page.py)
-# Функция run_update_async оставлена для обратной совместимости, но не используется.

@@ -3,7 +3,6 @@ from __future__ import annotations
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from log.log import log
-from presets.public import get_launch_snapshot
 from settings.dpi.strategy_settings import get_strategy_launch_method
 from settings.mode import is_orchestra_launch_method, is_preset_launch_method
 from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
@@ -17,15 +16,17 @@ class PresetLaunchStopWorker(QObject):
 
     def __init__(
         self,
-        app_instance,
         launch_method,
         *,
+        runtime_feature,
+        runtime_api,
         force_cleanup: bool = False,
         cleanup_services: bool = True,
     ):
         super().__init__()
-        self.app_instance = app_instance
         self.launch_method = launch_method
+        self._runtime_feature = runtime_feature
+        self._runtime_api = runtime_api
         self.force_cleanup = bool(force_cleanup)
         self.cleanup_services = bool(cleanup_services)
 
@@ -38,7 +39,8 @@ class PresetLaunchStopWorker(QObject):
         try:
             self.progress.emit("Остановка DPI...")
 
-            process_running = self.app_instance.launch_runtime_api.has_residual_processes(silent=True)
+            runtime_api = self._runtime_api
+            process_running = runtime_api.has_residual_processes(silent=True)
             if (not process_running) and not self.force_cleanup:
                 self.progress.emit("DPI уже остановлен")
                 self.finished.emit(True, "DPI уже был остановлен")
@@ -84,7 +86,7 @@ class PresetLaunchStopWorker(QObject):
 
     def _shutdown_runtime(self, *, reason: str) -> bool:
         result = shutdown_runtime_sync(
-            window=self.app_instance,
+            runtime_feature=self._runtime_feature,
             reason=reason,
             include_cleanup=self.cleanup_services,
             cleanup_services=self.cleanup_services,
@@ -99,9 +101,9 @@ class PresetSwitchWorker(QObject):
     finished = pyqtSignal(bool, str, int, str, bool)
     progress = pyqtSignal(str)
 
-    def __init__(self, app_instance, launch_method: str, generation: int, is_generation_current):
+    def __init__(self, presets_feature, launch_method: str, generation: int, is_generation_current):
         super().__init__()
-        self.app_instance = app_instance
+        self._presets_feature = presets_feature
         from settings.mode import normalize_launch_method
 
         self.launch_method = normalize_launch_method(launch_method, default="")
@@ -129,9 +131,8 @@ class PresetSwitchWorker(QObject):
 
             from winws_runtime.runners.runner_factory import get_strategy_runner
 
-            snapshot = get_launch_snapshot(
+            snapshot = self._presets_feature.get_launch_snapshot(
                 self.launch_method,
-                app_context=self.app_instance.app_context,
                 require_filters=True,
             )
             preset = snapshot.to_launch_preset()
@@ -175,9 +176,9 @@ class StopAndExitWorker(QObject):
     finished = pyqtSignal()
     progress = pyqtSignal(str)
 
-    def __init__(self, app_instance):
+    def __init__(self, *, runtime_feature):
         super().__init__()
-        self.app_instance = app_instance
+        self._runtime_feature = runtime_feature
         self.launch_method = get_strategy_launch_method()
 
     def _get_winws_exe(self) -> str:
@@ -189,7 +190,7 @@ class StopAndExitWorker(QObject):
         try:
             self.progress.emit("Остановка DPI перед закрытием...")
             shutdown_runtime_sync(
-                window=self.app_instance,
+                runtime_feature=self._runtime_feature,
                 reason=f"stop_and_exit_worker:{self.launch_method}",
                 include_cleanup=True,
                 update_runtime_state=True,

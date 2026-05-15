@@ -74,43 +74,38 @@ class Patterns:
     # LUA: strategy-stats: PRELOADED youtube.com = strategy 15 [tls]
     preloaded = re.compile(r"PRELOADED (\S+) = strategy (\d+)(?: \[(\S+)\])?")
 
-    # LUA: slm_quality: [tls] LOCK: dns.sb -> strat=6  (NEW with protocol tag)
-    # LUA: slm_quality: LOCK youtube.com -> strat=2  (NEW without tag)
-    # LUA: strategy_quality: LOCK youtube.com -> strat=2  (LEGACY)
+    # LUA: slm_quality: [tls] LOCK: dns.sb -> strat=6
+    # LUA: slm_quality: LOCK youtube.com -> strat=2
     # Groups: 1=protocol (tls/quic/unknown/None), 2=hostname, 3=strategy
-    lock = re.compile(r"(?:strategy_quality|slm_quality):? (?:\[(\w+)\] )?LOCK:? (.+?) -> strat=(\d+)")
+    lock = re.compile(r"slm_quality:? (?:\[(\w+)\] )?LOCK:? (.+?) -> strat=(\d+)")
 
-    # LUA: slm_quality: [tls] UNLOCK: dns.sb strat=5 (now blocked)  (NEW with protocol tag)
-    # LUA: slm_quality: UNLOCK youtube.com strat=5 (now blocked)  (NEW without tag)
-    # LUA: strategy_quality: UNLOCK youtube.com  (LEGACY)
+    # LUA: slm_quality: [tls] UNLOCK: dns.sb strat=5 (now blocked)
+    # LUA: slm_quality: UNLOCK youtube.com strat=5 (now blocked)
     # Groups: 1=protocol (tls/quic/unknown/None), 2=hostname
-    unlock = re.compile(r"(?:strategy_quality|slm_quality):? (?:\[(\w+)\] )?UNLOCK:? (\S+)")
+    unlock = re.compile(r"slm_quality:? (?:\[(\w+)\] )?UNLOCK:? (\S+)")
 
-    # LUA: slm_quality: RESET hostname  (NEW)
-    # LUA: strategy_quality: RESET hostname  (LEGACY)
-    reset = re.compile(r"(?:strategy_quality|slm_quality): RESET (\S+)")
+    # LUA: slm_quality: RESET hostname
+    reset = re.compile(r"slm_quality: RESET (\S+)")
 
-    # LUA: slm_quality: [tls] github.com strat=1 SUCCESS 1/1  (NEW with protocol tag)
+    # LUA: slm_quality: [tls] github.com strat=1 SUCCESS 1/1
     # LUA: slm_quality: [unknown] udp 103.3.0.0 strat=1 SUCCESS 1/1  (UDP with protocol tag)
     # LUA: slm_quality: [quic] google.com strat=2 SUCCESS 1/1  (QUIC with protocol tag)
-    # LUA: slm_quality: youtube.com strat=2 SUCCESS 3/5  (NEW without tag)
+    # LUA: slm_quality: youtube.com strat=2 SUCCESS 3/5
     # LUA: slm_quality: udp 178.18.0.0 strat=1 SUCCESS 1/1  (UDP without tag)
-    # LUA: strategy_quality: youtube.com strat=2 SUCCESS 3/5  (LEGACY)
     # NOTE: (?:\[(\w+)\] )? captures optional "[protocol] " prefix (e.g. [tls], [unknown], [quic]) into group 1
     # NOTE: (?:udp )? skips optional "udp " prefix to avoid capturing it in hostname
     # Groups: 1=protocol (tls/quic/unknown/discord/None), 2=hostname, 3=strategy, 4=successes, 5=total
-    success = re.compile(r"(?:strategy_quality|slm_quality): (?:\[(\w+)\] )?(?:udp )?(.+?) strat=(\d+) SUCCESS (\d+)/(\d+)")
+    success = re.compile(r"slm_quality: (?:\[(\w+)\] )?(?:udp )?(.+?) strat=(\d+) SUCCESS (\d+)/(\d+)")
 
-    # LUA: slm_quality: [tls] github.com strat=1 FAIL 0/1  (NEW with protocol tag)
+    # LUA: slm_quality: [tls] github.com strat=1 FAIL 0/1
     # LUA: slm_quality: [unknown] udp 239.192.0.0 strat=1 FAIL 0/1  (UDP with protocol tag)
     # LUA: slm_quality: [quic] google.com strat=2 FAIL 0/1  (QUIC with protocol tag)
-    # LUA: slm_quality: youtube.com strat=2 FAIL 1/4  (NEW without tag)
+    # LUA: slm_quality: youtube.com strat=2 FAIL 1/4
     # LUA: slm_quality: udp 178.18.0.0 strat=1 FAIL 0/3  (UDP without tag)
-    # LUA: strategy_quality: youtube.com strat=2 FAIL 1/4  (LEGACY)
     # NOTE: (?:\[(\w+)\] )? captures optional "[protocol] " prefix (e.g. [tls], [unknown], [quic]) into group 1
     # NOTE: (?:udp )? skips optional "udp " prefix to avoid capturing it in hostname
     # Groups: 1=protocol (tls/quic/unknown/discord/None), 2=hostname, 3=strategy, 4=successes, 5=total
-    fail = re.compile(r"(?:strategy_quality|slm_quality): (?:\[(\w+)\] )?(?:udp )?(.+?) strat=(\d+) FAIL (\d+)/(\d+)")
+    fail = re.compile(r"slm_quality: (?:\[(\w+)\] )?(?:udp )?(.+?) strat=(\d+) FAIL (\d+)/(\d+)")
 
     # LUA: strategy-stats: HISTORY youtube.com s2 successes=10 failures=2 rate=83%
     history = re.compile(r"HISTORY (\S+) s(\d+) successes=(\d+) failures=(\d+) rate=(\d+)%")
@@ -157,13 +152,9 @@ class Patterns:
         r"dpi desync src=([\d.:a-fA-F]+):(\d+) dst=([\d.:a-fA-F]+):(\d+) .* connection_proto=(\S+)"
     )
 
-    # --- Older log line shapes ---
-    old_lock = re.compile(r"LOCKED (\S+) to strategy=(\d+)(?:\s+\[(TLS|HTTP|UDP)\])?")
-    old_unlock = re.compile(r"UNLOCKING (\S+)(?:\s+\[(TLS|HTTP|UDP)\])?")
     unsticky = re.compile(r"strategy-stats: UNSTICKY (\S+)(?:\s+\[(TLS|HTTP|UDP)\])?")
 
     # circular_quality variants
-    auto_unlock = re.compile(r"circular_quality: AUTO-UNLOCK (\S+) after")
     cq_current_strategy = re.compile(r"circular_quality: current strategy (\d+)")
     # LUA: circular_quality: rotate to strategy 7 [stats...]
     cq_rotate = re.compile(r"circular_quality: rotate to strategy (\d+)")
@@ -556,7 +547,7 @@ class LogParser:
 
         # === UDP Protocol Success Detector ===
         # LUA: udp_protocol_success_detector: QUIC (QUIC_SHORT_HEADER) - SUCCESS
-        # Устанавливает UDP контекст для последующих событий (strategy_quality)
+        # Устанавливает UDP контекст для последующих событий slm_quality.
         m = Patterns.udp_success.search(line)
         if m:
             proto_detail = m.group(1)  # "QUIC (QUIC_SHORT_HEADER)" or just "QUIC"
@@ -565,7 +556,7 @@ class LogParser:
             self.current_proto = "udp"
             self.current_l7proto = base_proto
             # Не возвращаем событие - это информационная строка
-            # Контекст будет использован следующим strategy_quality событием
+            # Контекст будет использован следующим slm_quality событием.
 
         # === UDP Aggressive Failure Detector ===
         # LUA: udp_aggressive_failure_detector: FAIL out=2>=2 in=0<=0
@@ -640,7 +631,6 @@ class LogParser:
 
         # === LOCK ===
         # Patterns.lock: Groups: 1=protocol, 2=hostname, 3=strategy
-        # Patterns.old_lock: Groups: 1=hostname, 2=strategy, 3=proto_tag
         m = Patterns.lock.search(line)
         if m:
             proto_from_log = m.group(1)  # [tls], [quic], [unknown], or None
@@ -673,50 +663,8 @@ class LogParser:
                 raw_line=line
             )
 
-        # Older LOCK shape: Groups: 1=hostname, 2=strategy, 3=proto_tag
-        m = Patterns.old_lock.search(line)
-        if m:
-            hostname = m.group(1)
-            strategy = int(m.group(2))
-            proto_tag = m.group(3) if len(m.groups()) >= 3 else None
-
-            # Определяем протокол динамически по контексту
-            proto = self._get_proto_from_context()
-            is_udp = proto in ("udp", "quic", "stun", "discord", "wireguard", "dht")
-
-            # Переопределяем из proto_tag если есть
-            if proto_tag:
-                proto_tag_upper = proto_tag.upper()
-                if proto_tag_upper == "UDP":
-                    is_udp = True
-                    proto = "udp"
-                elif proto_tag_upper == "HTTP":
-                    is_udp = False
-                    proto = "http"
-                elif proto_tag_upper == "TLS":
-                    is_udp = False
-                    proto = "tls"
-
-            # Fallback: проверяем hostname если контекст не определён
-            if not self.current_proto and not is_udp:
-                is_udp = self._is_udp_hostname(hostname)
-                if is_udp:
-                    proto = "udp"
-
-            # Для UDP НЕ режем IP (используем полный)
-            host_key = hostname if is_udp else nld_cut(hostname, 2)
-
-            return ParsedEvent(
-                event_type=EventType.LOCK,
-                hostname=host_key,
-                strategy=strategy,
-                l7proto=proto,
-                raw_line=line
-            )
-
         # === UNLOCK ===
         # Patterns.unlock: Groups: 1=protocol (or None), 2=hostname
-        # Patterns.auto_unlock, Patterns.old_unlock: Groups: 1=hostname
         m = Patterns.unlock.search(line)
         if m:
             proto_from_log = m.group(1)  # [tls], [quic], [unknown], or None
@@ -732,16 +680,6 @@ class LogParser:
                 event_type=EventType.UNLOCK,
                 hostname=hostname,
                 l7proto=proto,
-                raw_line=line
-            )
-
-        # Older UNLOCK / AUTO-UNLOCK shape: Groups: 1=hostname
-        m = Patterns.auto_unlock.search(line) or Patterns.old_unlock.search(line)
-        if m:
-            hostname = m.group(1)
-            return ParsedEvent(
-                event_type=EventType.UNLOCK,
-                hostname=hostname,
                 raw_line=line
             )
 

@@ -8,7 +8,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLayout, QCheckBox
 )
 
-from hosts.page_controller import HostsPageController
+import hosts.page_plans as hosts_page_plans
+from hosts.ui.page_runtime import create_page_hosts_runtime, create_runtime_cache
 from ui.pages.base_page import BasePage
 from hosts.ui.sections_build import (
     build_hosts_adobe_section,
@@ -39,7 +40,7 @@ from hosts.ui.access_workflow import (
     restore_hosts_permissions_flow,
     show_hosts_access_error,
 )
-from hosts.ui.operation_workflow import (
+from hosts.operation_workflow import (
     complete_hosts_operation,
     reset_all_service_profiles_ui,
     start_hosts_operation,
@@ -53,7 +54,7 @@ from hosts.ui.page_lifecycle_helpers import (
     install_host_window_event_filter,
     run_hosts_runtime_init_once,
 )
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 from log.log import log
 
@@ -129,7 +130,7 @@ def _is_fluent_combo(obj) -> bool:
 class HostsPage(BasePage):
     """Страница управления Hosts файлом"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, deps):
         super().__init__(
             "Hosts",
             "Управление разблокировкой сервисов через hosts файл",
@@ -138,7 +139,8 @@ class HostsPage(BasePage):
             subtitle_key="page.hosts.subtitle",
         )
 
-        self.hosts_manager = None
+        self._hosts = deps.hosts_feature
+        self.hosts_runtime = None
         self.service_combos = {}
         self.service_icon_labels = {}
         self.service_icon_names = {}
@@ -161,17 +163,16 @@ class HostsPage(BasePage):
         self._catalog_dirty = False
         self._catalog_watch_timer = None
         self._host_window = None
-        self._app_parent = parent
         self._worker = None
         self._thread = None
         self._applying = False
         self._cleanup_in_progress = False
-        self._runtime_cache = HostsPageController.create_runtime_cache()
+        self._runtime_cache = create_runtime_cache()
         self._last_error = None  # Последняя ошибка
         self._current_operation = None
         self._startup_initialized = False
         self._runtime_initialized = False
-        self._service_dns_selection = HostsPageController.load_user_selection()
+        self._service_dns_selection = self._hosts.load_user_selection()
         self._ipv6_infobar_shown = False
 
         self._build_ui()
@@ -203,7 +204,7 @@ class HostsPage(BasePage):
         self._start_catalog_watcher()
         activate_hosts_page(
             install_host_window_event_filter_fn=self._install_host_window_event_filter,
-            build_activation_plan_fn=HostsPageController.build_activation_plan,
+            build_activation_plan_fn=hosts_page_plans.build_activation_plan,
             catalog_dirty=self._catalog_dirty,
             reconcile_hidden_refresh_fn=self._reconcile_catalog_after_hidden_refresh,
             invalidate_cache_fn=self._invalidate_cache,
@@ -216,9 +217,9 @@ class HostsPage(BasePage):
             set_runtime_initialized_fn=lambda value: setattr(self, "_runtime_initialized", value),
             install_host_window_event_filter_fn=self._install_host_window_event_filter,
             ensure_ipv6_catalog_sections_fn=self._ensure_ipv6_catalog_sections,
-            build_page_init_plan_fn=HostsPageController.build_page_init_plan,
-            has_hosts_manager=self.hosts_manager is not None,
-            init_hosts_manager_fn=self._init_hosts_manager,
+            build_page_init_plan_fn=hosts_page_plans.build_page_init_plan,
+            has_hosts_runtime=self.hosts_runtime is not None,
+            init_hosts_runtime_fn=self._init_hosts_runtime,
             check_access_fn=self._check_hosts_access,
             rebuild_services_fn=self._rebuild_services_selectors,
             mark_startup_initialized_fn=lambda: setattr(self, "_startup_initialized", True),
@@ -273,35 +274,32 @@ class HostsPage(BasePage):
             update_ui_fn=self._update_ui,
         )
 
-    def _init_hosts_manager(self):
-        if self.hosts_manager is not None:
+    def _init_hosts_runtime(self):
+        if self.hosts_runtime is not None:
             return
 
-        self.hosts_manager = HostsPageController.resolve_hosts_manager(
-            getattr(self, "parent_app", None),
-            self._app_parent,
-        )
+        self.hosts_runtime = create_page_hosts_runtime(self._hosts.create_hosts_runtime)
 
     def _invalidate_cache(self):
         """Сбрасывает кеш активных доменов"""
         self._runtime_cache.invalidate()
 
     def _get_hosts_runtime_state(self):
-        return self._runtime_cache.get_runtime_state(self.hosts_manager)
+        return self._runtime_cache.get_runtime_state(self.hosts_runtime, self._hosts.get_hosts_state)
 
     def _get_hosts_path_str(self) -> str:
-        return HostsPageController.get_hosts_path_str()
+        return self._hosts.get_hosts_path_str()
 
     def _sync_selections_from_hosts(self) -> None:
         """
         Делает UI «источником истины» = реальный hosts.
         Сбрасывает combo/конфиг к тому, что реально присутствует в hosts сейчас.
         """
-        if not self.hosts_manager:
+        if not self.hosts_runtime:
             return
 
-        active_domains_map = HostsPageController.read_active_domains_map(self.hosts_manager)
-        sync_plan = HostsPageController.build_selection_sync_plan(
+        active_domains_map = self._hosts.read_active_domains_map(self.hosts_runtime)
+        sync_plan = hosts_page_plans.build_selection_sync_plan(
             service_names=list(self.service_combos.keys()),
             active_domains_map=active_domains_map,
         )
@@ -348,7 +346,7 @@ class HostsPage(BasePage):
             self._building_services_ui = was_building
 
         self._service_dns_selection = dict(sync_plan.new_selection)
-        HostsPageController.save_user_selection(self._service_dns_selection)
+        self._hosts.save_user_selection(self._service_dns_selection)
 
     def _get_active_domains(self) -> set:
         """Возвращает активные домены с кешированием (чтобы не читать hosts 28 раз)"""
@@ -371,7 +369,7 @@ class HostsPage(BasePage):
         else:
             self._hide_error()
 
-        return self._runtime_cache.get_active_domains(self.hosts_manager)
+        return self._runtime_cache.get_active_domains(self.hosts_runtime, self._hosts.get_hosts_state)
 
     def _build_ui(self):
         # Информационная заметка
@@ -444,7 +442,7 @@ class HostsPage(BasePage):
     def _ensure_ipv6_catalog_sections(self) -> tuple[bool, bool]:
         """Добавляет managed IPv6 секции в hosts.ini при доступном IPv6."""
         try:
-            changed, ipv6_available = HostsPageController.ensure_ipv6_catalog_sections()
+            changed, ipv6_available = self._hosts.ensure_ipv6_catalog_sections()
             if changed:
                 log("Hosts: обнаружен IPv6, каталог hosts.ini дополнен IPv6 секциями", "INFO")
                 if InfoBar is not None and not self._ipv6_infobar_shown:
@@ -468,7 +466,8 @@ class HostsPage(BasePage):
             trigger=trigger,
             services_layout_exists=self._services_layout is not None,
             page_visible=self.isVisible(),
-            invalidate_catalog_cache=HostsPageController.invalidate_catalog_cache,
+            get_catalog_signature_fn=self._hosts.get_catalog_signature,
+            invalidate_catalog_cache=self._hosts.invalidate_catalog_cache,
             rebuild_services_selectors=self._rebuild_services_selectors,
             log_info=lambda message: log(message, "INFO"),
         )
@@ -504,6 +503,7 @@ class HostsPage(BasePage):
         if self._services_layout is None:
             return
         self._catalog_sig = rebuild_services_runtime_state(
+            get_catalog_signature_fn=self._hosts.get_catalog_signature,
             clear_layout=lambda: (self._clear_layout(self._services_layout), self._reset_services_runtime_bindings()),
             build_services_selectors=self._build_services_selectors,
         )
@@ -541,6 +541,7 @@ class HostsPage(BasePage):
         self._hosts_error_bar = None
         self._last_error = None
         restore_hosts_permissions_flow(
+            restore_hosts_permissions_fn=self._hosts.restore_hosts_permissions,
             info_bar_cls=InfoBar,
             window=self.window(),
             dismiss_error_bar=self._dismiss_hosts_error_bar,
@@ -603,7 +604,7 @@ class HostsPage(BasePage):
         if self._applying:
             return
 
-        plan = HostsPageController.build_bulk_profile_selection_plan(
+        plan = hosts_page_plans.build_bulk_profile_selection_plan(
             current_selection=self._service_dns_selection,
             service_names=service_names,
             profile_name=profile_name,
@@ -627,8 +628,8 @@ class HostsPage(BasePage):
 
     def _build_services_selectors(self):
         OFF_LABEL = self._tr("page.hosts.services.off", "Откл.")
-        active_domains_map = HostsPageController.read_active_domains_map(self.hosts_manager)
-        catalog_plan = HostsPageController.build_services_catalog_plan(
+        active_domains_map = self._hosts.read_active_domains_map(self.hosts_runtime)
+        catalog_plan = hosts_page_plans.build_services_catalog_plan(
             current_selection=self._service_dns_selection,
             active_domains_map=active_domains_map,
             direct_title=self._tr("page.hosts.group.direct", "Напрямую из hosts"),
@@ -682,7 +683,7 @@ class HostsPage(BasePage):
 
         self._service_dns_selection = dict(catalog_plan.new_selection)
         if catalog_plan.selection_changed:
-            HostsPageController.save_user_selection(self._service_dns_selection)
+            self._hosts.save_user_selection(self._service_dns_selection)
 
     def _on_direct_toggle_changed(self, service_name: str, checked: bool) -> None:
         if getattr(self, "_building_services_ui", False):
@@ -692,7 +693,7 @@ class HostsPage(BasePage):
             self._update_profile_row_visual(service_name)
             return
 
-        plan = HostsPageController.build_mode_toggle_plan(
+        plan = hosts_page_plans.build_mode_toggle_plan(
             current_selection=self._service_dns_selection,
             service_name=service_name,
             checked=checked,
@@ -710,7 +711,7 @@ class HostsPage(BasePage):
 
     def _build_adobe_section(self):
         self.add_section_title(text_key="page.hosts.section.additional")
-        is_adobe_active = self.hosts_manager.is_adobe_domains_active() if self.hosts_manager else False
+        is_adobe_active = self.hosts_runtime.is_adobe_domains_active() if self.hosts_runtime else False
         widgets = build_hosts_adobe_section(
             tr_fn=self._tr,
             adobe_active=is_adobe_active,
@@ -735,7 +736,7 @@ class HostsPage(BasePage):
             self._update_profile_row_visual(service_name)
             return
 
-        plan = HostsPageController.build_profile_selection_plan(
+        plan = hosts_page_plans.build_profile_selection_plan(
             current_selection=self._service_dns_selection,
             service_name=service_name,
             selected_profile=selected_profile,
@@ -799,7 +800,7 @@ class HostsPage(BasePage):
         self._run_operation('clear_all')
 
     def _open_hosts_file(self):
-        result = HostsPageController.open_hosts_file()
+        result = self._hosts.open_hosts_file()
         if result.success:
             return
         if InfoBar:
@@ -821,10 +822,11 @@ class HostsPage(BasePage):
     def _run_operation(self, operation: str, payload=None):
         self._cleanup_in_progress = False
         runtime = start_hosts_operation(
-            hosts_manager=self.hosts_manager,
+            hosts_runtime=self.hosts_runtime,
             applying=self._applying,
             operation=operation,
             payload=payload,
+            execute_hosts_operation_fn=self._hosts.execute_hosts_operation,
             on_operation_complete=self._on_operation_complete,
             on_thread_finished=self._on_hosts_thread_finished,
             parent=self,
@@ -869,12 +871,13 @@ class HostsPage(BasePage):
             get_building_state=self._get_building_services_ui,
             set_building_state=self._set_building_services_ui,
             update_profile_visual=self._update_profile_row_visual,
+            save_user_selection_fn=self._hosts.save_user_selection,
         )
 
     def _update_ui(self):
         """Обновляет весь UI"""
         runtime_state = self._get_hosts_runtime_state()
-        status_display = HostsPageController.build_status_display_plan(
+        status_display = hosts_page_plans.build_status_display_plan(
             runtime_state,
             active_text=self._tr("page.hosts.status.active_domains", "Активно {count} доменов", count=len(runtime_state.active_domains)),
             none_text=self._tr("page.hosts.status.none_active", "Нет активных"),

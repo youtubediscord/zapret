@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton, QGraphics
 
 from ui.animation_policy import register_managed_animation, start_managed_animation
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
-from ui.theme_refresh import ThemeRefreshController
+from ui.theme_refresh import ThemeRefreshBinding
 
 
 class NotificationBanner(QWidget):
@@ -57,7 +57,7 @@ class NotificationBanner(QWidget):
         super().__init__(parent)
         self._setup_ui()
         self._setup_animation()
-        self._theme_refresh = ThemeRefreshController(self, self._refresh_theme)
+        self._theme_refresh = ThemeRefreshBinding(self, self._refresh_theme)
         self._refresh_theme()
         self.hide()  # Скрыт по умолчанию
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
-from ui.page_names import PageName
+from app.page_names import PageName
 from ui.window_ui_session import get_window_ui_session
 
 

@@ -13,23 +13,13 @@ class RuntimeShutdownResult:
     still_running: bool
 
 
-def _find_runtime_window():
+def _resolve_launch_method(runtime_feature) -> str:
     try:
-        from ui.app_window_locator import find_app_window
-
-        return find_app_window()
-    except Exception:
-        return None
-
-
-def _resolve_launch_method(window=None) -> str:
-    try:
-        runtime_service = getattr(window, "launch_runtime_service", None) if window is not None else None
-        if runtime_service is not None:
-            snapshot = runtime_service.snapshot()
-            method = str(getattr(snapshot, "launch_method", "") or "").strip().lower()
-            if method:
-                return method
+        runtime_service = runtime_feature.objects.runtime_service
+        snapshot = runtime_service.snapshot()
+        method = str(getattr(snapshot, "launch_method", "") or "").strip().lower()
+        if method:
+            return method
     except Exception:
         pass
 
@@ -43,55 +33,26 @@ def _resolve_launch_method(window=None) -> str:
         return DEFAULT_LAUNCH_METHOD
 
 
-def _resolve_runtime_api(window, launch_method: str):
-    runtime_api = getattr(window, "launch_runtime_api", None) if window is not None else None
+def _resolve_runtime_api(runtime_feature, launch_method: str):
+    _ = launch_method
+    runtime_api = runtime_feature.objects.launch_runtime_api
     if runtime_api is not None:
         return runtime_api
 
-    try:
-        from settings.mode import exe_path_for_launch_method
-        from winws_runtime.runtime.runtime_api import PresetLaunchRuntimeApi
-
-        from settings.mode import normalize_launch_method
-
-        method = normalize_launch_method(launch_method, default="")
-        expected_exe_path = exe_path_for_launch_method(method)
-        return PresetLaunchRuntimeApi(expected_exe_path=expected_exe_path, app_instance=window)
-    except Exception:
-        return None
-
-
-def is_any_runtime_running_sync(*, window=None) -> bool:
-    target = window or _find_runtime_window()
-    launch_method = _resolve_launch_method(target)
-    runtime_api = _resolve_runtime_api(target, launch_method)
-    if runtime_api is None:
-        return False
-    try:
-        return bool(runtime_api.has_residual_processes(silent=True))
-    except Exception:
-        return False
+    raise RuntimeError("Runtime API is not initialized")
 
 
 def shutdown_runtime_sync(
     *,
-    window=None,
+    runtime_feature,
     reason: str = "",
     include_cleanup: bool = True,
     cleanup_services: bool = True,
     update_runtime_state: bool = True,
 ) -> RuntimeShutdownResult:
-    target = window or _find_runtime_window()
-    launch_method = _resolve_launch_method(target)
-    runtime_api = _resolve_runtime_api(target, launch_method)
-
-    if runtime_api is None:
-        return RuntimeShutdownResult(
-            had_running_processes=False,
-            stop_ok=False,
-            cleanup_ok=False,
-            still_running=False,
-        )
+    launch_method = _resolve_launch_method(runtime_feature)
+    runtime_api = _resolve_runtime_api(runtime_feature, launch_method)
+    runtime_service = runtime_feature.objects.runtime_service
 
     had_running_processes = bool(runtime_api.has_residual_processes(silent=True))
     stop_ok = True
@@ -120,19 +81,13 @@ def shutdown_runtime_sync(
         log(f"Ошибка доступа к runner в sync shutdown: {e}", "DEBUG")
 
     try:
-        orchestra_runner = getattr(target, "orchestra_runner", None) if target is not None else None
-        if orchestra_runner is not None:
+        orchestra_feature = runtime_feature.dependencies.orchestra_feature
+        if orchestra_feature is not None:
             try:
-                orchestra_runner.stop()
+                orchestra_feature.stop_runner()
             except Exception as e:
                 stop_ok = False
-                log(f"Ошибка остановки orchestra_runner в sync shutdown: {e}", "DEBUG")
-        orchestra_page = getattr(target, "orchestra_page", None) if target is not None else None
-        if orchestra_page is not None and hasattr(orchestra_page, "stop_monitoring"):
-            try:
-                orchestra_page.stop_monitoring()
-            except Exception:
-                pass
+                log(f"Ошибка остановки оркестратора при синхронном завершении: {e}", "DEBUG")
     except Exception:
         pass
 
@@ -153,7 +108,6 @@ def shutdown_runtime_sync(
 
     if update_runtime_state:
         try:
-            runtime_service = getattr(target, "launch_runtime_service", None) if target is not None else None
             if runtime_service is not None:
                 if still_running:
                     runtime_service.bootstrap_probe(True, launch_method=launch_method)

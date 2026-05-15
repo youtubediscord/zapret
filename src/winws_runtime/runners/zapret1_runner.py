@@ -19,15 +19,12 @@ from settings.mode import EXE_NAME_WINWS1, ZAPRET1_MODE
 from .constants import CREATE_NO_WINDOW
 from .runner_base import StrategyRunnerBase
 from .preset_runner_support import (
-    controller_transition_in_progress,
     ConfigFileWatcher,
     PreparedPresetArtifact,
     PresetRunnerState,
     PresetRunnerStateMachine,
     is_process_alive_with_expected_name,
     launch_args_from_preset_text,
-    notify_ui_launch_error,
-    publish_runner_failure,
     preset_cache_key,
     remember_cache_entry,
     wait_for_process_exit,
@@ -62,14 +59,14 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         self._last_spawn_exit_code: Optional[int] = None
         self._last_spawn_stderr: str = ""
 
-    def _set_last_error(self, message: Optional[str]) -> None:
+    def _set_last_error(self, message: Optional[str], *, notify: bool = True) -> None:
         try:
             text = str(message or "").strip()
         except Exception:
             text = ""
         self.last_error = text or None
-        if text:
-            notify_ui_launch_error(text)
+        if text and notify:
+            self.notify_launch_error(text)
 
     def get_runner_state_snapshot(self):
         with self._state_lock:
@@ -85,6 +82,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         error: str = "",
         reason: str = "",
         allow_same: bool = False,
+        publish_failure: bool = True,
     ):
         snapshot = self._runner_state.transition(
             state,
@@ -100,8 +98,8 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             f"(gen={snapshot.generation}, reason={snapshot.reason}, preset={snapshot.preset_path})",
             "DEBUG",
         )
-        if state == PresetRunnerState.FAILED:
-            publish_runner_failure(
+        if state == PresetRunnerState.FAILED and publish_failure:
+            self.publish_runner_failure(
                 launch_method=ZAPRET1_MODE,
                 error=error,
             )
@@ -109,8 +107,8 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
     def _on_config_changed(self) -> None:
         """Called when the preset file changes. Performs full restart."""
-        if controller_transition_in_progress(ZAPRET1_MODE):
-            log(f"Hot-reload пропущен: controller уже выполняет transition для {ZAPRET1_MODE}", "DEBUG")
+        if self.launch_transition_in_progress(ZAPRET1_MODE):
+            log(f"Hot-reload пропущен: runtime уже выполняет transition для {ZAPRET1_MODE}", "DEBUG")
             return
         log(f"Preset file changed, restarting {EXE_NAME_WINWS1}...", "INFO")
         try:
@@ -187,6 +185,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             callback=self._on_config_changed,
             interval=1.0,
             thread_name="ConfigFileWatcherWinws1",
+            content_changed_callback=self.publish_active_preset_content_changed,
         )
         with self._state_lock:
             self._config_watcher = watcher
@@ -256,9 +255,18 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             return False
         return is_process_alive_with_expected_name(pid, self.winws_exe)
 
-    def _spawn_process_locked(self, artifact: PreparedPresetArtifact, strategy_name: str) -> bool:
+    def _spawn_process_locked(
+        self,
+        artifact: PreparedPresetArtifact,
+        strategy_name: str,
+        *,
+        notify_failure: bool = True,
+    ) -> bool:
         if not artifact.launch_args:
-            self._set_last_error("Не удалось подготовить аргументы запуска из preset файла")
+            self._set_last_error(
+                "Не удалось подготовить аргументы запуска из preset файла",
+                notify=notify_failure,
+            )
             return False
 
         try:
@@ -303,23 +311,25 @@ class Winws1StrategyRunner(StrategyRunnerBase):
                 return True
 
             exit_code = self.running_process.returncode
+            failure_log_level = "ERROR" if notify_failure else "WARNING"
             stderr_output = ""
             try:
                 stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
                 if stderr_output:
-                    log(f"Error: {stderr_output[:500]}", "ERROR")
+                    log(f"Error: {stderr_output[:500]}", failure_log_level)
             except Exception:
                 stderr_output = ""
 
             self._last_spawn_exit_code = int(exit_code)
             self._last_spawn_stderr = str(stderr_output or "")
-            log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", "ERROR")
+            log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", failure_log_level)
             self._set_runner_state_locked(
                 PresetRunnerState.FAILED,
                 preset_path=artifact.preset_path,
                 strategy_name=strategy_name,
                 error=str(stderr_output or ""),
                 reason="process_exited_during_start",
+                publish_failure=notify_failure,
             )
 
             from winws_runtime.health.process_health_check import diagnose_winws_exit
@@ -327,7 +337,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             diag = diagnose_winws_exit(exit_code, stderr_output)
             if diag:
                 prefix = f"[AUTOFIX:{diag.auto_fix}]" if diag.auto_fix else ""
-                self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}")
+                self._set_last_error(f"{prefix}{diag.cause}. {diag.solution}", notify=notify_failure)
                 log(f"Diagnosis: {diag.cause} | Fix: {diag.solution} | auto_fix={diag.auto_fix}", "INFO")
             else:
                 first_line = ""
@@ -336,26 +346,31 @@ class Winws1StrategyRunner(StrategyRunnerBase):
                 except Exception:
                     first_line = ""
                 if first_line:
-                    self._set_last_error(f"winws завершился сразу (код {exit_code}): {first_line[:200]}")
+                    self._set_last_error(
+                        f"winws завершился сразу (код {exit_code}): {first_line[:200]}",
+                        notify=notify_failure,
+                    )
                 else:
-                    self._set_last_error(f"winws завершился сразу (код {exit_code})")
+                    self._set_last_error(f"winws завершился сразу (код {exit_code})", notify=notify_failure)
 
             self._clear_process_state_locked()
             return False
         except Exception as e:
             diagnosis = diagnose_startup_error(e, self.winws_exe)
+            failure_log_level = "ERROR" if notify_failure else "WARNING"
             for line in diagnosis.split('\n'):
-                log(line, "ERROR")
+                log(line, failure_log_level)
             try:
-                self._set_last_error(diagnosis.split("\n")[0].strip())
+                self._set_last_error(diagnosis.split("\n")[0].strip(), notify=notify_failure)
             except Exception:
-                self._set_last_error(None)
+                self._set_last_error(None, notify=notify_failure)
             self._set_runner_state_locked(
                 PresetRunnerState.FAILED,
                 preset_path=artifact.preset_path,
                 strategy_name=strategy_name,
                 error=diagnosis.split("\n")[0].strip(),
                 reason="spawn_exception",
+                publish_failure=notify_failure,
             )
             import traceback
             log(traceback.format_exc(), "DEBUG")
@@ -366,7 +381,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         """Fast path for switching running preset mode without full aggressive cleanup."""
         if not os.path.exists(preset_path):
             log(f"Fast switch preset file not found: {preset_path}", "ERROR")
-            self._set_last_error(f"Preset файл не найден: {preset_path}")
+            self._set_last_error(f"Preset файл не найден: {preset_path}", notify=False)
             return False
 
         self._set_last_error(None)
@@ -381,15 +396,16 @@ class Winws1StrategyRunner(StrategyRunnerBase):
                     strategy_name=strategy_name,
                     error=artifact.validation_report,
                     reason="manual_switch_compile_failed",
+                    publish_failure=False,
                 )
-                self._set_last_error(artifact.validation_report)
+                self._set_last_error(artifact.validation_report, notify=False)
                 return False
 
             if self.running_process and self.is_running():
                 self._stop_process_only_locked()
 
             self._preset_file_path = preset_path
-            success = self._spawn_process_locked(artifact, strategy_name)
+            success = self._spawn_process_locked(artifact, strategy_name, notify_failure=False)
             if not success:
                 log(
                     "Fast preset switch failed, retrying via full start path with cleanup",

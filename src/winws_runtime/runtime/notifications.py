@@ -3,9 +3,9 @@ from __future__ import annotations
 from app_notifications import advisory_notification, notification_action
 
 
-def notify_conflicting_processes(app, conflicting: list[dict], request_id: int) -> None:
+def notify_conflicting_processes(notify, conflicting: list[dict], request_id: int) -> None:
     names = ", ".join(str(item.get("name") or item.get("exe") or "неизвестно") for item in conflicting)
-    app.window_notification_controller.notify(
+    notify(
         advisory_notification(
             level="warning",
             title="Обнаружены конфликтующие программы",
@@ -30,8 +30,8 @@ def notify_conflicting_processes(app, conflicting: list[dict], request_id: int) 
     )
 
 
-def notify_conflict_kill_failed(app, request_id: int) -> None:
-    app.window_notification_controller.notify(
+def notify_conflict_kill_failed(notify, request_id: int) -> None:
+    notify(
         advisory_notification(
             level="warning",
             title="Не удалось закрыть процессы",
@@ -49,26 +49,5 @@ def notify_conflict_kill_failed(app, request_id: int) -> None:
                 notification_action("launch_conflict_ignore_start", "Продолжить запуск", value=request_id),
                 notification_action("launch_conflict_cancel", "Отмена", value=request_id),
             ],
-        )
-    )
-
-
-def notify_runner_launch_error_threadsafe(app, message: str) -> None:
-    text = str(message or "").strip()
-    if not text:
-        return
-    controller = getattr(app, "window_notification_controller", None)
-    if controller is None:
-        return
-    controller.notify_threadsafe(
-        advisory_notification(
-            level="error",
-            title="Ошибка",
-            content=text,
-            source="launch.runner_error",
-            presentation="infobar",
-            queue="immediate",
-            duration=10000,
-            dedupe_key=f"launch.runner_error:{' '.join(text.split()).lower()}",
         )
     )

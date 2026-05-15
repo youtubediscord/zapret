@@ -43,7 +43,7 @@ class PresetsToolbarLayout:
         accent: bool = False,
         fixed_height: int = 32,
     ) -> QWidget:
-        from ui.compat_widgets import ActionButton, PrimaryActionButton
+        from ui.fluent_widgets import ActionButton, PrimaryActionButton
 
         button_cls = PrimaryActionButton if accent else ActionButton
         button = button_cls(text, icon_name, parent=self.container)

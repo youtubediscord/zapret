@@ -10,11 +10,11 @@ from PyQt6.QtCore import QThread
 from PyQt6.QtGui import QFont, QTextCursor
 
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
-from dns.dns_check_page_controller import DNSCheckPageController
-from ui.compat_widgets import QuickActionsBar, SettingsCard
+import dns.dns_check_plans as dns_check_page_plans
+from ui.fluent_widgets import QuickActionsBar, SettingsCard
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from ui.theme_semantic import get_semantic_palette
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 
 from qfluentwidgets import (
     IndeterminateProgressBar,
@@ -29,7 +29,7 @@ from qfluentwidgets import (
 class DNSCheckPage(BasePage):
     """Страница проверки DNS подмены провайдером."""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, dns_feature):
         super().__init__(
             "Проверка DNS подмены",
             "Проверка резолвинга доменов YouTube и Discord через различные DNS серверы",
@@ -37,6 +37,7 @@ class DNSCheckPage(BasePage):
             title_key="page.dns_check.title",
             subtitle_key="page.dns_check.subtitle",
         )
+        self._dns = dns_feature
         self.worker = None
         self.thread = None
         self._cleanup_in_progress = False
@@ -267,7 +268,7 @@ class DNSCheckPage(BasePage):
         self._cleanup_in_progress = False
         
         self.result_text.clear()
-        start_plan = DNSCheckPageController.build_start_plan()
+        start_plan = dns_check_page_plans.build_start_plan()
         self._apply_interaction_state(
             check_enabled=start_plan.check_enabled,
             quick_enabled=start_plan.quick_enabled,
@@ -278,7 +279,7 @@ class DNSCheckPage(BasePage):
         
         # Создаём поток и worker
         self.thread = QThread(self)
-        self.worker = DNSCheckPageController.create_worker()
+        self.worker = self._dns.create_dns_check_worker()
         self.worker.moveToThread(self.thread)
         
         # Подключаем сигналы
@@ -298,7 +299,7 @@ class DNSCheckPage(BasePage):
             return
         tokens = get_theme_tokens()
         semantic = get_semantic_palette()
-        plan = DNSCheckPageController.build_result_line_plan(text)
+        plan = dns_check_page_plans.build_result_line_plan(text)
         role_map = {
             "success": semantic.success,
             "error": semantic.error,
@@ -328,7 +329,7 @@ class DNSCheckPage(BasePage):
         if self._cleanup_in_progress:
             return
         # Обновляем статус
-        plan = DNSCheckPageController.build_finish_plan(results)
+        plan = dns_check_page_plans.build_finish_plan(results)
         self._apply_interaction_state(
             check_enabled=plan.check_enabled,
             quick_enabled=plan.quick_enabled,
@@ -338,7 +339,7 @@ class DNSCheckPage(BasePage):
         self._set_status(plan.status_text, tone=plan.status_tone, bold=True)
         
         # Очистка потока
-        cleanup_plan = DNSCheckPageController.build_cleanup_plan(
+        cleanup_plan = dns_check_page_plans.build_cleanup_plan(
             has_thread=self.thread is not None,
             thread_running=bool(self.thread and self.thread.isRunning()),
         )
@@ -350,7 +351,7 @@ class DNSCheckPage(BasePage):
     def quick_dns_check(self):
         """Выполняет быструю проверку только системного DNS."""
         self.result_text.clear()
-        plan = DNSCheckPageController.run_quick_dns_check()
+        plan = dns_check_page_plans.run_quick_dns_check()
         for line in plan.lines:
             self.append_result(line)
         self.save_button.setEnabled(plan.enable_save)
@@ -360,7 +361,7 @@ class DNSCheckPage(BasePage):
         from PyQt6.QtWidgets import QFileDialog
         
         # Выбираем путь для сохранения
-        default_filename = DNSCheckPageController.build_save_default_filename()
+        default_filename = dns_check_page_plans.build_save_default_filename()
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить результаты DNS проверки",
@@ -369,7 +370,7 @@ class DNSCheckPage(BasePage):
         )
         
         if file_path:
-            plan = DNSCheckPageController.save_results_text(
+            plan = dns_check_page_plans.save_results_text(
                 file_path=file_path,
                 plain_text=self.result_text.toPlainText(),
             )
@@ -385,7 +386,7 @@ class DNSCheckPage(BasePage):
 
         try:
             self._cleanup_in_progress = True
-            cleanup_plan = DNSCheckPageController.build_cleanup_plan(
+            cleanup_plan = dns_check_page_plans.build_cleanup_plan(
                 has_thread=self.thread is not None,
                 thread_running=bool(self.thread and self.thread.isRunning()),
             )

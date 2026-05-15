@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QTimer
 
 from log.log import log
-from presets.public import get_launch_snapshot
 from settings.mode import (
     ALL_LAUNCH_METHODS,
     ZAPRET1_MODE,
@@ -31,43 +30,49 @@ class MethodSwitchRuntimePlan:
     requires_cleanup_stop: bool
 
 
-def handle_launch_method_changed_runtime(window, method: str) -> MethodSwitchRuntimePlan:
+def handle_launch_method_changed_runtime(
+    method: str,
+    *,
+    runtime_feature,
+    ui_state,
+    set_status=None,
+) -> MethodSwitchRuntimePlan:
     log(f"Метод запуска изменён на: {method}", "INFO")
 
     try:
-        controller = getattr(window, "launch_controller", None)
-        if controller is not None:
-            controller._dpi_start_verify_generation += 1
-            controller._pending_launch_warnings = []
+        launch_runtime = runtime_feature.objects.launch_runtime
+        if launch_runtime is not None:
+            launch_runtime._dpi_start_verify_generation += 1
+            launch_runtime._pending_launch_warnings = []
     except Exception:
         pass
 
     try:
-        store = getattr(window, "ui_state_store", None)
-        if store is not None:
-            store.bump_mode_revision()
+        ui_state.bump_mode_revision()
     except Exception:
         pass
 
-    plan = build_method_switch_runtime_plan(window, method)
-    apply_method_switch_runtime_plan(window, plan)
+    plan = build_method_switch_runtime_plan(
+        method,
+        runtime_feature=runtime_feature,
+        set_status=set_status,
+    )
+    apply_method_switch_runtime_plan(runtime_feature, plan)
 
     try:
-        window._preset_runtime_coordinator.setup_active_preset_file_watcher()
-    except Exception:
-        pass
-
-    try:
-        store = getattr(window, "ui_state_store", None)
-        if store is not None:
-            store.bump_mode_revision()
+        ui_state.bump_mode_revision()
     except Exception:
         pass
 
     return plan
 
 
-def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntimePlan:
+def build_method_switch_runtime_plan(
+    method: str,
+    *,
+    runtime_feature,
+    set_status=None,
+) -> MethodSwitchRuntimePlan:
     from program_settings.public import is_auto_dpi_enabled
 
     normalized_method = normalize_launch_method(method, default="")
@@ -79,7 +84,7 @@ def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntime
 
     residual_runtime_detected = False
     try:
-        runtime_api = getattr(window, "launch_runtime_api", None)
+        runtime_api = runtime_feature.objects.launch_runtime_api
         if runtime_api is not None:
             residual_runtime_detected = bool(runtime_api.has_residual_processes(silent=True))
     except Exception:
@@ -87,26 +92,28 @@ def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntime
 
     active_runtime_detected = bool(residual_runtime_detected)
     try:
-        runtime_service = getattr(window, "launch_runtime_service", None)
-        if runtime_service is not None:
-            snapshot = runtime_service.snapshot()
-            phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
-            active_runtime_detected = bool(
-                active_runtime_detected
-                or getattr(snapshot, "running", False)
-                or phase in {"starting", "running", "stopping"}
-            )
+        snapshot = runtime_feature.objects.snapshot()
+        phase = str(getattr(snapshot, "phase", "") or "").strip().lower()
+        active_runtime_detected = bool(
+            active_runtime_detected
+            or getattr(snapshot, "running", False)
+            or phase in {"starting", "running", "stopping"}
+        )
     except Exception:
         pass
 
     try:
-        controller = getattr(window, "launch_controller", None)
-        if controller is not None and controller.transition_pipeline_in_progress():
+        launch_runtime = runtime_feature.objects.launch_runtime
+        if launch_runtime is not None and launch_runtime.transition_pipeline_in_progress():
             active_runtime_detected = True
     except Exception:
         pass
 
-    can_autostart = _can_autostart_for_method(window, normalized_method)
+    can_autostart = _can_autostart_for_method(
+        normalized_method,
+        runtime_feature=runtime_feature,
+        set_status=set_status,
+    )
     autostart_enabled = bool(is_auto_dpi_enabled())
 
     if active_runtime_detected:
@@ -131,49 +138,47 @@ def build_method_switch_runtime_plan(window, method: str) -> MethodSwitchRuntime
     )
 
 
-def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> None:
-    runtime_api = getattr(window, "launch_runtime_api", None)
+def apply_method_switch_runtime_plan(runtime_feature, plan: MethodSwitchRuntimePlan) -> None:
+    runtime_api = runtime_feature.objects.launch_runtime_api
     if runtime_api is not None:
         try:
             runtime_api.set_expected_exe_path(plan.expected_exe_path)
         except Exception:
             pass
 
-    runtime_service = getattr(window, "launch_runtime_service", None)
-
-    if runtime_service is not None:
-        try:
-            if plan.dispatch_action == "restart":
-                if plan.requires_cleanup_stop:
-                    runtime_service.begin_stop()
-                else:
-                    runtime_service.mark_autostart_pending(
-                        launch_method=plan.method,
-                        expected_process=plan.expected_process_name,
-                    )
-            elif plan.dispatch_action == "stop":
-                runtime_service.begin_stop()
-            else:
-                runtime_service.mark_stopped(clear_error=True)
-                runtime_service.bootstrap_probe(
-                    False,
-                    launch_method=plan.method,
-                    expected_process="",
-                )
-        except Exception:
-            pass
+    runtime_service = runtime_feature.objects.runtime_service
 
     try:
-        if runtime_service is not None:
-            if plan.dispatch_action in {"restart", "stop"}:
-                runtime_service.set_busy(True, "Переключаем режим запуска...")
+        if plan.dispatch_action == "restart":
+            if plan.requires_cleanup_stop:
+                runtime_service.begin_stop()
             else:
-                runtime_service.set_busy(False)
+                runtime_service.mark_autostart_pending(
+                    launch_method=plan.method,
+                    expected_process=plan.expected_process_name,
+                )
+        elif plan.dispatch_action == "stop":
+            runtime_service.begin_stop()
+        else:
+            runtime_service.mark_stopped(clear_error=True)
+            runtime_service.bootstrap_probe(
+                False,
+                launch_method=plan.method,
+                expected_process="",
+            )
     except Exception:
         pass
 
-    controller = getattr(window, "launch_controller", None)
-    if controller is None:
+    try:
+        if plan.dispatch_action in {"restart", "stop"}:
+            runtime_service.set_busy(True, "Переключаем режим запуска...")
+        else:
+            runtime_service.set_busy(False)
+    except Exception:
+        pass
+
+    launch_runtime = runtime_feature.objects.launch_runtime
+    if launch_runtime is None:
         return
 
     if plan.dispatch_action == "restart":
@@ -183,7 +188,7 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
         )
         QTimer.singleShot(
             0,
-            lambda c=controller, force_stop=plan.requires_cleanup_stop: c.restart_dpi_async(
+            lambda runtime=launch_runtime, force_stop=plan.requires_cleanup_stop: runtime.restart_dpi_async(
                 force_full_stop=force_stop,
             ),
         )
@@ -196,28 +201,32 @@ def apply_method_switch_runtime_plan(window, plan: MethodSwitchRuntimePlan) -> N
         )
         QTimer.singleShot(
             0,
-            lambda c=controller, force_cleanup=plan.requires_cleanup_stop: c.stop_dpi_async(
+            lambda runtime=launch_runtime, force_cleanup=plan.requires_cleanup_stop: runtime.stop_dpi_async(
                 force_cleanup=force_cleanup,
             ),
         )
 
 
-def _can_autostart_for_method(window, method: str) -> bool:
+def _set_status(set_status, text: str) -> None:
+    if callable(set_status):
+        set_status(text)
+
+
+def _can_autostart_for_method(method: str, *, runtime_feature, set_status=None) -> bool:
     normalized_method = normalize_launch_method(method, default="")
     if is_orchestra_launch_method(normalized_method):
         return True
     if not is_preset_launch_method(normalized_method):
         try:
-            window.set_status("Ошибка: выбран удалённый или неподдерживаемый режим запуска")
+            _set_status(set_status, "Ошибка: выбран удалённый или неподдерживаемый режим запуска")
         except Exception:
             pass
         log(f"Удалённый или неподдерживаемый режим запуска: {normalized_method}", "ERROR")
         return False
 
     try:
-        get_launch_snapshot(
+        runtime_feature.dependencies.presets_feature.get_launch_snapshot(
             normalized_method,
-            app_context=window.app_context,
             require_filters=False,
         )
         return True
@@ -225,7 +234,7 @@ def _can_autostart_for_method(window, method: str) -> bool:
         if is_zapret2_launch_method(normalized_method):
             log(f"{ZAPRET2_MODE}: выбранный source-пресет не подготовлен", "ERROR")
             try:
-                window.set_status("Ошибка: отсутствует Default v1 (game filter).txt (built-in пресет)")
+                _set_status(set_status, "Ошибка: отсутствует Default v1 (game filter).txt (built-in пресет)")
             except Exception:
                 pass
             return False

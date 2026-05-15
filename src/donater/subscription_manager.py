@@ -8,6 +8,7 @@ from donater.subscription_ui import (
     apply_subscription_init_failed_to_ui,
     apply_subscription_ready_to_ui,
     apply_subscription_starting_to_ui,
+    SubscriptionUiActions,
 )
 from donater.subscription_worker import SubscriptionInitWorker
 from log.log import log
@@ -17,9 +18,9 @@ from log.log import log
 class SubscriptionManager:
     """Запускает PremiumService в фоне и передаёт результат в UI-слой."""
 
-    def __init__(self, app_instance):
-        self.app = app_instance
-        self.premium_checker = None
+    def __init__(self, *, thread_parent, ui_actions: SubscriptionUiActions):
+        self.thread_parent = thread_parent
+        self.ui_actions = ui_actions
         self._subscription_thread: Optional[QThread] = None
         self._subscription_worker: Optional[QObject] = None
         self._cleanup_in_progress = False
@@ -53,9 +54,9 @@ class SubscriptionManager:
                 self._subscription_thread = None
                 self._subscription_worker = None
 
-        apply_subscription_starting_to_ui(self.app)
+        apply_subscription_starting_to_ui(set_status=self.ui_actions.set_status)
 
-        self._subscription_thread = QThread(self.app)
+        self._subscription_thread = QThread(self.thread_parent)
         self._subscription_worker = SubscriptionInitWorker()
         self._subscription_worker.moveToThread(self._subscription_thread)
 
@@ -65,7 +66,10 @@ class SubscriptionManager:
 
         self._subscription_thread.started.connect(self._subscription_worker.run)
         self._subscription_worker.progress.connect(
-            lambda message, app=self.app: apply_subscription_progress_to_ui(app, message)
+            lambda message, actions=self.ui_actions: apply_subscription_progress_to_ui(
+                set_status=actions.set_status,
+                message=message,
+            )
         )
         self._subscription_worker.finished.connect(self._on_subscription_ready)
         self._subscription_worker.finished.connect(self._subscription_thread.quit)
@@ -75,16 +79,18 @@ class SubscriptionManager:
 
         self._subscription_thread.start()
 
-    def _on_subscription_ready(self, premium_checker, activation_info, success):
+    def _on_subscription_ready(self, activation_info, success):
         """Обрабатывает результат фоновой проверки подписки."""
         if self._cleanup_in_progress:
             return
-        if not success or not premium_checker:
+        if not success:
             log("PremiumService не инициализирован", "⚠ WARNING")
-            apply_subscription_init_failed_to_ui(self.app)
+            apply_subscription_init_failed_to_ui(
+                update_title_badge=self.ui_actions.update_title_badge,
+                set_status=self.ui_actions.set_status,
+                mark_startup_ready=self.ui_actions.mark_startup_ready,
+            )
             return
-
-        self.premium_checker = premium_checker
 
         state = premium_state_from_activation_info(activation_info)
         log(
@@ -94,8 +100,17 @@ class SubscriptionManager:
             "DEBUG",
         )
 
-        apply_premium_state_to_ui(self.app, state)
-        apply_subscription_ready_to_ui(self.app)
+        apply_premium_state_to_ui(
+            ui_state_store=self.ui_actions.ui_state_store,
+            update_title_badge=self.ui_actions.update_title_badge,
+            state=state,
+        )
+        apply_subscription_ready_to_ui(
+            init_holiday_effects=self.ui_actions.init_holiday_effects,
+            effects_allowed=state.is_premium,
+            set_status=self.ui_actions.set_status,
+            mark_startup_ready=self.ui_actions.mark_startup_ready,
+        )
 
         log(
             f"Подписка готова: {'Premium' if state.is_premium else 'Free'} "

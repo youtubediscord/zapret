@@ -4,9 +4,10 @@ from PyQt6.QtCore import QTimer
 
 
 def is_window_alive(window) -> bool:
+    close_state = window.close_state
     return not bool(
-        getattr(window, "_is_exiting", False)
-        or getattr(window, "_closing_completely", False)
+        close_state.is_exiting
+        or close_state.closing_completely
     )
 
 

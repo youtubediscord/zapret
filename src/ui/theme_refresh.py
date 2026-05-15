@@ -23,7 +23,7 @@ def build_theme_refresh_key(tokens) -> tuple[str, str, str, str, str]:
     )
 
 
-class ThemeRefreshController(QObject):
+class ThemeRefreshBinding(QObject):
     """Единый lifecycle обновления локальных theme-зависимых стилей."""
 
     def __init__(

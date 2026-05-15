@@ -43,14 +43,13 @@ except ImportError:
     _HAS_FLUENT = False
 
 from ui.pages.base_page import BasePage
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
-from ui.theme_refresh import ThemeRefreshController
-from ui.text_catalog import tr as tr_catalog
+from ui.theme_refresh import ThemeRefreshBinding
+from app.text_catalog import tr as tr_catalog
 from log.log import log
 
 from orchestra.ignored_targets import is_orchestra_ignored_target
-from orchestra.blocked_strategies_manager import ASKEY_ALL
 
 
 class BlockedDomainRow(QFrame):
@@ -88,7 +87,7 @@ class BlockedDomainRow(QFrame):
         self._delete_btn = None
 
         self._setup_ui(hostname, strategy, askey, is_default)
-        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
+        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme)
 
     def _setup_ui(self, hostname: str, strategy: int, askey: str, is_default: bool):
         self.setFixedHeight(40)
@@ -226,7 +225,7 @@ class BlockedDomainRow(QFrame):
 class OrchestraBlockedPage(BasePage):
     """Страница управления заблокированными стратегиями (чёрный список)"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, orchestra_feature):
         super().__init__(
             "Заблокированные стратегии",
             "Системные блокировки (strategy=1 для заблокированных РКН сайтов) + пользовательский чёрный список. Оркестратор не будет их использовать.",
@@ -235,11 +234,13 @@ class OrchestraBlockedPage(BasePage):
             subtitle_key="page.orchestra.blocked.subtitle",
         )
         self.setObjectName("orchestraBlockedPage")
+        self._orchestra = orchestra_feature
+        self._askey_all = tuple(self._orchestra.ASKEY_ALL)
         self._hint_label = None
         self._add_card = None
         self._list_card = None
         # Инициализируем пустые данные. Первый reload выполняется после build/init страницы.
-        self._direct_blocked_by_askey = {askey: {} for askey in ASKEY_ALL}
+        self._direct_blocked_by_askey = {askey: {} for askey in self._askey_all}
         self._runtime_initialized = False
         self._refresh_loading = False
         self._cleanup_in_progress = False
@@ -308,7 +309,7 @@ class OrchestraBlockedPage(BasePage):
 
         # Протокол (askey)
         self.proto_combo = ComboBox()
-        self.proto_combo.addItems([askey.upper() for askey in ASKEY_ALL])
+        self.proto_combo.addItems([askey.upper() for askey in self._askey_all])
         self.proto_combo.setFixedWidth(90)
         add_layout.addWidget(self.proto_combo)
 
@@ -497,8 +498,7 @@ class OrchestraBlockedPage(BasePage):
         self._refresh_data()
 
     def _get_runner(self):
-        """Получает orchestra_runner из главного окна"""
-        return getattr(self, "orchestra_runner", None)
+        return self._orchestra.runner
 
     def _refresh_data(self):
         """Обновляет все данные на странице"""
@@ -550,12 +550,9 @@ class OrchestraBlockedPage(BasePage):
 
     def _load_directly_from_registry(self):
         """Загружает данные напрямую из реестра (без активного runner)"""
-        from orchestra.blocked_strategies_manager import BlockedStrategiesManager
-        # Создаём временный менеджер для загрузки данных
-        temp_manager = BlockedStrategiesManager()
-        temp_manager.load()
+        temp_manager = self._orchestra.create_loaded_blocked_manager()
         # Сохраняем данные для отображения
-        self._direct_blocked_by_askey = {askey: dict(temp_manager.blocked_by_askey[askey]) for askey in ASKEY_ALL}
+        self._direct_blocked_by_askey = {askey: dict(temp_manager.blocked_by_askey[askey]) for askey in self._askey_all}
         # Логируем количество загруженных записей
         total = sum(len(strategies) for askey_data in temp_manager.blocked_by_askey.values() for strategies in askey_data.values())
         log(f"Загружено напрямую из реестра: {total} заблокированных стратегий", "INFO")
@@ -583,20 +580,23 @@ class OrchestraBlockedPage(BasePage):
         else:
             # Нет данных - попробуем загрузить
             self._load_directly_from_registry()
-            blocked_data = getattr(self, '_direct_blocked_by_askey', {askey: {} for askey in ASKEY_ALL})
+            blocked_data = getattr(self, '_direct_blocked_by_askey', {askey: {} for askey in self._askey_all})
             blocked_manager = None
 
         # Собираем все блокировки с флагом is_default по всем askey
         all_blocked = []
-        for askey in ASKEY_ALL:
+        for askey in self._askey_all:
             for hostname, strategies in blocked_data.get(askey, {}).items():
                 for strategy in strategies:
                     if blocked_manager:
                         is_default = blocked_manager.is_default_blocked(hostname, strategy)
                     else:
                         # Без менеджера - проверяем только strategy=1 для TLS
-                        from orchestra.blocked_strategies_manager import is_default_blocked_pass_domain
-                        is_default = (strategy == 1 and askey == "tls" and is_default_blocked_pass_domain(hostname))
+                        is_default = (
+                            strategy == 1
+                            and askey == "tls"
+                            and self._orchestra.is_default_blocked_pass_domain(hostname)
+                        )
                     all_blocked.append((hostname, strategy, askey, is_default))
 
         # Сортируем: сначала пользовательские, потом дефолтные, внутри групп по алфавиту
@@ -750,14 +750,17 @@ class OrchestraBlockedPage(BasePage):
 
         user_count = 0
         default_count = 0
-        for askey in ASKEY_ALL:
+        for askey in self._askey_all:
             for hostname, strategies in blocked_data.get(askey, {}).items():
                 for strategy in strategies:
                     if blocked_manager:
                         is_default = blocked_manager.is_default_blocked(hostname, strategy)
                     else:
-                        from orchestra.blocked_strategies_manager import is_default_blocked_pass_domain
-                        is_default = (strategy == 1 and askey == "tls" and is_default_blocked_pass_domain(hostname))
+                        is_default = (
+                            strategy == 1
+                            and askey == "tls"
+                            and self._orchestra.is_default_blocked_pass_domain(hostname)
+                        )
                     if is_default:
                         default_count += 1
                     else:
@@ -826,7 +829,7 @@ class OrchestraBlockedPage(BasePage):
 
         # Считаем только пользовательские блокировки по всем askey
         user_count = 0
-        for askey in ASKEY_ALL:
+        for askey in self._askey_all:
             for hostname, strategies in runner.blocked_manager.blocked_by_askey.get(askey, {}).items():
                 for strategy in strategies:
                     if not runner.blocked_manager.is_default_blocked(hostname, strategy):

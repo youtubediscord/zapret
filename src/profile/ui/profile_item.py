@@ -18,9 +18,9 @@ from PyQt6.QtCore import QMimeData, QPoint, Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QCursor, QDrag, QResizeEvent
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from ui.theme_refresh import ThemeRefreshController
+from ui.theme_refresh import ThemeRefreshBinding
 
 try:
     from qfluentwidgets import CardWidget, BodyLabel, CaptionLabel, InfoBadge, InfoLevel
@@ -165,7 +165,7 @@ class ProfileItem(CardWidget):
 
         if self._tooltip:
             set_tooltip(self, self._tooltip.replace("\n", "<br>"))
-        self._theme_refresh = ThemeRefreshController(self, self._apply_theme_refresh)
+        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_refresh)
 
     def _emit_item_activated(self):
         if self._suppress_next_click:

@@ -1,34 +1,6 @@
-"""Support/orchestra workflow helper'ы для страницы логов."""
+"""Support workflow helper'ы для страницы логов."""
 
 from __future__ import annotations
-
-
-def get_orchestra_runner(*, window_getter, qapp_instance_getter):
-    try:
-        app = window_getter()
-        runner = getattr(app, "orchestra_runner", None) if app else None
-        if runner:
-            return runner
-    except Exception:
-        pass
-
-    try:
-        qapp = qapp_instance_getter()
-        if qapp:
-            active_window_getter = getattr(qapp, "activeWindow", None)
-            main_window = active_window_getter() if callable(active_window_getter) else None
-            runner = getattr(main_window, "orchestra_runner", None) if main_window else None
-            if runner:
-                return runner
-
-            for widget in qapp.topLevelWidgets():
-                runner = getattr(widget, "orchestra_runner", None)
-                if runner:
-                    return runner
-    except Exception:
-        pass
-
-    return None
 
 
 def update_orchestra_indicator(*, container, is_orchestra_mode: bool) -> None:

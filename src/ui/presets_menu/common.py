@@ -6,7 +6,7 @@ from typing import Optional
 from PyQt6.QtGui import QAction, QColor
 from PyQt6.QtWidgets import QListView
 
-from ui.text_catalog import tr as tr_catalog
+from app.text_catalog import tr as tr_catalog
 from ui.theme import get_theme_tokens, get_themed_qta_icon
 
 try:

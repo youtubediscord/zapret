@@ -131,9 +131,9 @@ def application_bootstrap() -> QApplication:
     from PyQt6.QtGui import QColor
 
     try:
-        from settings.store import get_display_mode
+        from settings.appearance import load_display_mode
 
-        display_mode = get_display_mode()
+        display_mode = load_display_mode()
     except Exception:
         display_mode = "dark"
 
@@ -145,23 +145,24 @@ def application_bootstrap() -> QApplication:
         setTheme(Theme.DARK)
 
     try:
-        from settings.store import (
-            get_follow_windows_accent,
-            get_windows_system_accent,
-            get_accent_color,
-            set_accent_color,
+        from settings.appearance import (
+            load_accent_color,
+            load_tinted_settings,
+            load_windows_system_accent,
+            save_accent_color,
         )
 
-        if get_follow_windows_accent():
-            accent_hex = get_windows_system_accent()
+        tinted_settings = load_tinted_settings()
+        if tinted_settings.follow_windows_accent:
+            accent_hex = load_windows_system_accent().hex_color
         else:
-            accent_hex = get_accent_color()
+            accent_hex = load_accent_color().hex_color
         if accent_hex:
             color = QColor(accent_hex)
             if color.isValid():
                 qconfig.set(qconfig.themeColor, color)
-                if get_follow_windows_accent():
-                    set_accent_color(accent_hex)
+                if tinted_settings.follow_windows_accent:
+                    save_accent_color(accent_hex)
     except Exception:
         pass
 

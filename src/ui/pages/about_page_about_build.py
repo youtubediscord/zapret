@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout
 
-from ui.compat_widgets import SettingsCard
+from ui.fluent_widgets import SettingsCard
 from qfluentwidgets import SubtitleLabel, StrongBodyLabel, CaptionLabel, PushButton, PrimaryPushButton
 from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon
 

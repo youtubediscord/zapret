@@ -2,13 +2,13 @@
 """Telegram WebSocket Proxy — routes Telegram traffic through WSS to bypass IP blocks.
 
 Public API:
-    from telegram_proxy import ProxyController
+    from telegram_proxy import TelegramProxyRuntime
 
-    controller = ProxyController(port=1353, mode="socks5")
-    controller.start()
-    controller.stop()
-    print(controller.is_running)
-    print(controller.stats)
+    runtime = TelegramProxyRuntime(port=1353, mode="socks5")
+    runtime.start()
+    runtime.stop()
+    print(runtime.is_running)
+    print(runtime.stats)
 """
 
 import asyncio
@@ -85,8 +85,8 @@ def _install_loop_exception_handler(
     loop.set_exception_handler(_handler)
 
 
-class ProxyController:
-    """Thread-safe controller for the Telegram WSS proxy.
+class TelegramProxyRuntime:
+    """Thread-safe runtime wrapper for the Telegram WSS proxy.
 
     Runs the asyncio event loop in a dedicated daemon thread.
     Safe to call start/stop from any thread (e.g., PyQt GUI thread).

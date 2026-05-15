@@ -3,28 +3,28 @@ from __future__ import annotations
 from .service import ProfilePresetService
 
 
-def _profile_preset_service(app_context, launch_method: str) -> ProfilePresetService:
-    return ProfilePresetService(app_context, launch_method)
+def _profile_preset_service(profile_services, launch_method: str) -> ProfilePresetService:
+    return ProfilePresetService(profile_services, launch_method)
 
 
-def list_profiles(app_context, launch_method: str):
-    return _profile_preset_service(app_context, launch_method).list_profiles()
+def list_profiles(profile_services, launch_method: str):
+    return _profile_preset_service(profile_services, launch_method).list_profiles()
 
 
-def get_profile_setup(app_context, launch_method: str, profile_key: str):
-    return _profile_preset_service(app_context, launch_method).get_profile_setup(profile_key)
+def get_profile_setup(profile_services, launch_method: str, profile_key: str):
+    return _profile_preset_service(profile_services, launch_method).get_profile_setup(profile_key)
 
 
-def apply_strategy_to_profile(app_context, launch_method: str, profile_key: str, strategy_id: str) -> str | None:
-    return _profile_preset_service(app_context, launch_method).apply_strategy(profile_key, strategy_id)
+def apply_strategy_to_profile(profile_services, launch_method: str, profile_key: str, strategy_id: str) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).apply_strategy(profile_key, strategy_id)
 
 
-def set_profile_enabled(app_context, launch_method: str, profile_key: str, enabled: bool) -> str | None:
-    return _profile_preset_service(app_context, launch_method).set_profile_enabled(profile_key, enabled)
+def set_profile_enabled(profile_services, launch_method: str, profile_key: str, enabled: bool) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).set_profile_enabled(profile_key, enabled)
 
 
 def update_winws2_profile_settings(
-    app_context,
+    profile_services,
     launch_method: str,
     profile_key: str,
     *,
@@ -33,7 +33,7 @@ def update_winws2_profile_settings(
     in_range: str,
     out_range: str,
 ) -> str | None:
-    return _profile_preset_service(app_context, launch_method).update_winws2_editable_settings(
+    return _profile_preset_service(profile_services, launch_method).update_winws2_editable_settings(
         profile_key,
         filter_kind=filter_kind,
         filter_value=filter_value,
@@ -43,7 +43,7 @@ def update_winws2_profile_settings(
 
 
 def set_current_strategy_state(
-    app_context,
+    profile_services,
     launch_method: str,
     profile_key: str,
     *,
@@ -51,7 +51,7 @@ def set_current_strategy_state(
     favorite: bool | None = None,
     clear: bool = False,
 ):
-    return _profile_preset_service(app_context, launch_method).set_current_strategy_state(
+    return _profile_preset_service(profile_services, launch_method).set_current_strategy_state(
         profile_key,
         rating=rating,
         favorite=favorite,
@@ -60,7 +60,7 @@ def set_current_strategy_state(
 
 
 def set_strategy_state(
-    app_context,
+    profile_services,
     launch_method: str,
     profile_key: str,
     strategy_id: str,
@@ -69,7 +69,7 @@ def set_strategy_state(
     favorite: bool | None = None,
     clear: bool = False,
 ):
-    return _profile_preset_service(app_context, launch_method).set_strategy_state(
+    return _profile_preset_service(profile_services, launch_method).set_strategy_state(
         profile_key,
         strategy_id,
         rating=rating,
@@ -78,25 +78,25 @@ def set_strategy_state(
     )
 
 
-def delete_profile(app_context, launch_method: str, profile_key: str) -> bool:
-    return _profile_preset_service(app_context, launch_method).delete_profile(profile_key)
+def delete_profile(profile_services, launch_method: str, profile_key: str) -> bool:
+    return _profile_preset_service(profile_services, launch_method).delete_profile(profile_key)
 
 
-def duplicate_profile(app_context, launch_method: str, profile_key: str) -> str | None:
-    return _profile_preset_service(app_context, launch_method).duplicate_profile(profile_key)
+def duplicate_profile(profile_services, launch_method: str, profile_key: str) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).duplicate_profile(profile_key)
 
 
 def move_profile_before(
-    app_context,
+    profile_services,
     launch_method: str,
     source_profile_key: str,
     destination_profile_key: str,
 ) -> str | None:
-    return _profile_preset_service(app_context, launch_method).move_profile_before(
+    return _profile_preset_service(profile_services, launch_method).move_profile_before(
         source_profile_key,
         destination_profile_key,
     )
 
 
-def move_profile_to_end(app_context, launch_method: str, profile_key: str) -> str | None:
-    return _profile_preset_service(app_context, launch_method).move_profile_to_end(profile_key)
+def move_profile_to_end(profile_services, launch_method: str, profile_key: str) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).move_profile_to_end(profile_key)

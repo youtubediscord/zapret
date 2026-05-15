@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.pages.base_page import BasePage
-from ui.compat_widgets import set_tooltip
+from ui.fluent_widgets import set_tooltip
 
 try:
     from qfluentwidgets import (
@@ -45,12 +45,11 @@ except ImportError:
 
 from ui.widgets.notification_banner import NotificationBanner
 from ui.theme import get_theme_tokens, get_themed_qta_icon
-from ui.theme_refresh import ThemeRefreshController
-from ui.text_catalog import tr as tr_catalog
+from ui.theme_refresh import ThemeRefreshBinding
+from app.text_catalog import tr as tr_catalog
 from log.log import log
 
 from orchestra.ignored_targets import is_orchestra_ignored_target
-from orchestra.locked_strategies_manager import ASKEY_ALL
 
 
 class LockedDomainRow(QFrame):
@@ -76,7 +75,7 @@ class LockedDomainRow(QFrame):
         self._proto_label = None
         self._delete_btn = None
         self._setup_ui(domain, strategy, proto)
-        self._theme_refresh = ThemeRefreshController(self, self._apply_theme)
+        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme)
 
     def _setup_ui(self, domain: str, strategy: int, proto: str):
         self.setFixedHeight(40)
@@ -162,7 +161,7 @@ class LockedDomainRow(QFrame):
 class OrchestraLockedPage(BasePage):
     """Страница управления залоченными стратегиями"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, orchestra_feature):
         super().__init__(
             "Залоченные стратегии",
             "Домены с фиксированной стратегией. Оркестратор не будет менять стратегию для этих доменов. Это значит что оркестратор нашёл для этих сайтов наилучшую стратегию. Вы можете зафиксировать свою стратегию для домена здесь.\nЕсли Вас не устраивает текущая стратегия - заблокируйте её здесь и оркестратор начнёт обучение заново при следующем посещении сайта.\nЕсли Вы просто хотите начать обучение заново - разлочьте стратегию.",
@@ -171,12 +170,14 @@ class OrchestraLockedPage(BasePage):
             subtitle_key="page.orchestra.locked.subtitle",
         )
         self.setObjectName("orchestraLockedPage")
+        self._orchestra = orchestra_feature
+        self._askey_all = tuple(self._orchestra.ASKEY_ALL)
         self._hint_label = None
         self._add_card = None
         self._list_card = None
         self._all_locked_data = []  # Кэш данных для фильтрации
         # Инициализируем пустые данные. Первый reload выполняется после build/init страницы.
-        self._direct_locked_by_askey = {askey: {} for askey in ASKEY_ALL}
+        self._direct_locked_by_askey = {askey: {} for askey in self._askey_all}
         self._runtime_initialized = False
         self._refresh_loading = False
         self._cleanup_in_progress = False
@@ -248,7 +249,7 @@ class OrchestraLockedPage(BasePage):
 
         # Протокол (askey)
         self.proto_combo = ComboBox()
-        self.proto_combo.addItems([askey.upper() for askey in ASKEY_ALL])
+        self.proto_combo.addItems([askey.upper() for askey in self._askey_all])
         self.proto_combo.setFixedWidth(90)
         add_layout.addWidget(self.proto_combo)
 
@@ -405,19 +406,14 @@ class OrchestraLockedPage(BasePage):
         self._refresh_data()
 
     def _get_runner(self):
-        """Получает orchestra_runner из главного окна"""
-        return getattr(self, "orchestra_runner", None)
+        return self._orchestra.runner
 
     def _get_blocked_manager(self):
         """Получает blocked_strategies_manager из runner или создает временный"""
         runner = self._get_runner()
         if runner and hasattr(runner, 'blocked_manager'):
             return runner.blocked_manager
-        # Создаем временный менеджер для проверки
-        from orchestra.blocked_strategies_manager import BlockedStrategiesManager
-        temp_manager = BlockedStrategiesManager()
-        temp_manager.load()
-        return temp_manager
+        return self._orchestra.create_loaded_blocked_manager()
 
     def _show_blocked_warning(self, domain: str, strategy: int):
         """
@@ -480,12 +476,9 @@ class OrchestraLockedPage(BasePage):
 
     def _load_directly_from_registry(self):
         """Загружает данные напрямую из реестра (без активного runner)"""
-        from orchestra.locked_strategies_manager import LockedStrategiesManager
-        # Создаём временный менеджер для загрузки данных
-        temp_manager = LockedStrategiesManager()
-        temp_manager.load()
+        temp_manager = self._orchestra.create_loaded_locked_manager()
         # Сохраняем данные для отображения
-        self._direct_locked_by_askey = {askey: dict(temp_manager.locked_by_askey[askey]) for askey in ASKEY_ALL}
+        self._direct_locked_by_askey = {askey: dict(temp_manager.locked_by_askey[askey]) for askey in self._askey_all}
         total = sum(len(strategies) for strategies in self._direct_locked_by_askey.values())
         log(f"Загружено напрямую из реестра: {total} залоченных стратегий", "INFO")
 
@@ -512,10 +505,10 @@ class OrchestraLockedPage(BasePage):
         else:
             # Нет данных - попробуем загрузить
             self._load_directly_from_registry()
-            locked_data = getattr(self, '_direct_locked_by_askey', {askey: {} for askey in ASKEY_ALL})
+            locked_data = getattr(self, '_direct_locked_by_askey', {askey: {} for askey in self._askey_all})
 
         # Собираем все данные по всем askey
-        for askey in ASKEY_ALL:
+        for askey in self._askey_all:
             for hostname, strategy in locked_data.get(askey, {}).items():
                 self._all_locked_data.append((hostname, strategy, askey))
 
@@ -589,9 +582,7 @@ class OrchestraLockedPage(BasePage):
                 runner.restart()
         else:
             # Без runner - сохраняем напрямую в реестр
-            from orchestra.locked_strategies_manager import LockedStrategiesManager
-            temp_manager = LockedStrategiesManager()
-            temp_manager.load()
+            temp_manager = self._orchestra.create_loaded_locked_manager()
             temp_manager.lock(domain, new_strategy, askey, user_lock=True)
             # Обновляем локальный кэш
             if askey in self._direct_locked_by_askey:
@@ -622,9 +613,7 @@ class OrchestraLockedPage(BasePage):
                     )
         else:
             # Без runner - удаляем напрямую из реестра
-            from orchestra.locked_strategies_manager import LockedStrategiesManager
-            temp_manager = LockedStrategiesManager()
-            temp_manager.load()
+            temp_manager = self._orchestra.create_loaded_locked_manager()
             temp_manager.unlock(domain, askey)
             # Обновляем локальный кэш
             if askey in self._direct_locked_by_askey and domain in self._direct_locked_by_askey[askey]:
@@ -646,7 +635,7 @@ class OrchestraLockedPage(BasePage):
             return
 
         # Подсчёт по всем askey
-        counts = {askey: len(locked_data.get(askey, {})) for askey in ASKEY_ALL}
+        counts = {askey: len(locked_data.get(askey, {})) for askey in self._askey_all}
         total = sum(counts.values())
 
         # Формируем вывод с разбиением по TCP/UDP
@@ -697,9 +686,7 @@ class OrchestraLockedPage(BasePage):
                 runner.restart()
         else:
             # Без runner - сохраняем напрямую
-            from orchestra.locked_strategies_manager import LockedStrategiesManager
-            temp_manager = LockedStrategiesManager()
-            temp_manager.load()
+            temp_manager = self._orchestra.create_loaded_locked_manager()
             temp_manager.lock(domain, strategy, askey, user_lock=True)
             # Обновляем локальный кэш
             if askey in self._direct_locked_by_askey:
@@ -738,7 +725,7 @@ class OrchestraLockedPage(BasePage):
 
         if confirmed:
             # Разлочиваем все домены по всем askey
-            for askey in ASKEY_ALL:
+            for askey in self._askey_all:
                 for domain in list(runner.locked_manager.locked_by_askey.get(askey, {}).keys()):
                     runner.locked_manager.unlock(domain, askey)
             log(f"Разлочены все {total} стратегий", "INFO")

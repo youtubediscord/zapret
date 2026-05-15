@@ -10,7 +10,13 @@ if TYPE_CHECKING:
     from main.window import LupiDPIApp
 
 
-def install_dns_startup(window: "LupiDPIApp") -> None:
+def install_dns_startup(
+    window: "LupiDPIApp",
+    *,
+    apply_dns_on_startup_async,
+    set_status,
+    log_startup_metric,
+) -> None:
     def _handle_startup_dns_status(message: str) -> None:
         text = str(message or "").strip()
         if not text:
@@ -26,7 +32,7 @@ def install_dns_startup(window: "LupiDPIApp") -> None:
             return
 
         try:
-            window.set_status(text)
+            set_status(text)
         except Exception as exc:
             log(f"Не удалось обновить DNS-статус запуска: {exc}", "DEBUG")
 
@@ -34,8 +40,11 @@ def install_dns_startup(window: "LupiDPIApp") -> None:
         if not is_window_alive(window):
             return
         try:
-            duration_ms = schedule_dns_startup(status_callback=_handle_startup_dns_status)
-            window.log_startup_metric(
+            duration_ms = schedule_dns_startup(
+                apply_dns_on_startup_async=apply_dns_on_startup_async,
+                status_callback=_handle_startup_dns_status,
+            )
+            log_startup_metric(
                 "StartupPostInitDnsQueued",
                 f"{duration_ms}ms",
             )
@@ -45,5 +54,5 @@ def install_dns_startup(window: "LupiDPIApp") -> None:
     bind_startup_gate(
         window.startup_post_init_ready,
         _schedule_dns_startup,
-        is_ready=lambda: bool(getattr(window, "_startup_post_init_ready", False)),
+        is_ready=lambda: bool(window.startup_state.post_init_ready),
     )

@@ -11,12 +11,12 @@ def init_theme_manager(app) -> None:
     from PyQt6.QtWidgets import QApplication
     from ui.theme import ThemeManager
 
-    app.theme_manager = ThemeManager(
+    app.visual_state.theme_manager = ThemeManager(
         app=QApplication.instance(),
         widget=app,
     )
 
-    current_theme = app.theme_manager.current_theme
+    current_theme = app.visual_state.theme_manager.current_theme
     log(f"🎨 Тема инициализирована: '{current_theme}'", "DEBUG")
 
     # qfluentwidgets управляет темой сам. Старый qt-material CSS здесь не нужен:
