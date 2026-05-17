@@ -54,7 +54,7 @@ def _display_item_from_profile(item: Any) -> ProfileDisplayItem:
         list_type=str(getattr(item, "list_type", "") or ""),
         rating=str(getattr(item, "rating", "") or ""),
         favorite=bool(getattr(item, "favorite", False)),
-        group=str(getattr(item, "group", "") or "default"),
+        group=_display_group(item),
         order=int(getattr(item, "order", 0) or 0),
         variants=variants,
     )
@@ -71,6 +71,12 @@ def _variants_for_item(item: Any) -> tuple[ProfileDisplayVariant, ...]:
         ProfileDisplayVariant(filter_kind="hostlist", label="Hostlist"),
         ProfileDisplayVariant(filter_kind="ipset", label="IPset"),
     )
+
+
+def _display_group(item: Any) -> str:
+    if bool(getattr(item, "in_preset", False)):
+        return "current"
+    return str(getattr(item, "group", "") or "default")
 
 
 def _has_file_based_filter(match_lines: tuple[str, ...], list_type: str) -> bool:

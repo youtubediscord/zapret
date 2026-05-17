@@ -27,7 +27,6 @@ class ProfileListItem:
 @dataclass(frozen=True)
 class ProfileListPayload:
     items: tuple[ProfileListItem, ...]
-    strategy_names_by_profile: dict[str, dict[str, str]]
     selected_preset_file_name: str
     selected_preset_name: str
 

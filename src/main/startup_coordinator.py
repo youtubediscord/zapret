@@ -127,7 +127,6 @@ class StartupCoordinator:
             log(f"🟡 Выполняем {task_name} сразу", "DEBUG")
             self._run_step(task_name, label, task, error_status=error_status)
 
-        self._check_and_complete_initialization()
         run_queued(self._run_phase_two_init)
 
     def _run_phase_two_init(self) -> None:
@@ -188,6 +187,7 @@ class StartupCoordinator:
         try:
             func()
             self.startup_tasks_completed.add(task_name)
+            self._check_and_complete_initialization()
             return True
         except Exception as exc:
             log(f"Ошибка startup-шага {label}: {exc}", "❌ ERROR")
@@ -207,7 +207,6 @@ class StartupCoordinator:
         log("Основной startup-контур готов", "✅ SUCCESS")
         self.window_shell.mark_startup_core_ready("startup_coordinator")
         self.window_shell.set_status("Инициализация завершена")
-        self._check_and_complete_initialization()
         log("✅ Startup core finalized", "DEBUG")
 
     # ───────────────────────── верификация и пост-задачи ─────────────────────

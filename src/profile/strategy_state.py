@@ -25,12 +25,24 @@ class ProfileStrategyStateStore:
         return settings_store.get_settings_path()
 
     def get_strategy_state(self, profile_key: str, strategy_id: str) -> ProfileStrategyState:
-        data = self._read()
-        row = _strategy_row(data, profile_key, strategy_id)
-        return ProfileStrategyState(
-            rating=_normalize_rating(row.get("rating") if isinstance(row, dict) else ""),
-            favorite=bool(row.get("favorite")) if isinstance(row, dict) else False,
+        states = self.get_strategy_states(profile_key, (strategy_id,))
+        return states.get(_normalize_strategy_id(strategy_id), ProfileStrategyState())
+
+    def get_strategy_states(self, profile_key: str, strategy_ids) -> dict[str, ProfileStrategyState]:
+        clean_profile_key = _normalize_profile_key(profile_key)
+        clean_strategy_ids = tuple(
+            strategy_id
+            for strategy_id in (_normalize_strategy_id(value) for value in tuple(strategy_ids or ()))
+            if strategy_id
         )
+        if not clean_profile_key or not clean_strategy_ids:
+            return {}
+
+        data = self._read()
+        return {
+            strategy_id: _state_from_row(_strategy_row(data, clean_profile_key, strategy_id))
+            for strategy_id in clean_strategy_ids
+        }
 
     def set_strategy_state(
         self,
@@ -172,6 +184,13 @@ def _strategy_row(data: dict[str, Any], profile_key: str, strategy_id: str) -> d
         return {}
     row = strategies.get(_normalize_strategy_id(strategy_id))
     return row if isinstance(row, dict) else {}
+
+
+def _state_from_row(row: dict[str, Any]) -> ProfileStrategyState:
+    return ProfileStrategyState(
+        rating=_normalize_rating(row.get("rating") if isinstance(row, dict) else ""),
+        favorite=bool(row.get("favorite")) if isinstance(row, dict) else False,
+    )
 
 
 def _normalize_profile_key(value: object) -> str:

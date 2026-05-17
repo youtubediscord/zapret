@@ -15,8 +15,8 @@ class HostsPageController:
     def save_user_selection(self, selection: dict[str, str]) -> bool:
         return bool(self._hosts.save_user_selection(selection))
 
-    def create_hosts_runtime(self):
-        return self._hosts.create_hosts_runtime()
+    def create_hosts_runtime(self, *, status_callback=None):
+        return self._hosts.create_hosts_runtime(status_callback=status_callback)
 
     def get_hosts_state(self, hosts_runtime):
         return self._hosts.get_hosts_state(hosts_runtime)

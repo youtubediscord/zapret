@@ -31,7 +31,14 @@ def start_dpi_autostart(
         _mark_runtime_stopped(runtime_feature)
         return
 
-    startup_snapshot = _resolve_startup_snapshot(runtime_feature, resolved_method)
+    try:
+        startup_snapshot = _resolve_startup_snapshot(runtime_feature, resolved_method)
+    except Exception as e:
+        message = f"Не удалось подготовить стартовый preset для {resolved_method}: {e}"
+        log(message, "ERROR")
+        _mark_runtime_failed(runtime_feature, message)
+        return
+
     _refresh_autostart_launch_summary(
         runtime_feature=runtime_feature,
         ui_state=ui_state,
@@ -50,16 +57,17 @@ def _mark_runtime_stopped(runtime_feature) -> None:
     runtime_feature.objects.runtime_service.mark_stopped(clear_error=True)
 
 
+def _mark_runtime_failed(runtime_feature, message: str) -> None:
+    runtime_feature.objects.runtime_service.mark_start_failed(str(message or "").strip())
+
+
 def _resolve_startup_snapshot(runtime_feature, launch_method: str):
     method = str(launch_method or "").strip().lower()
-    try:
-        if is_preset_launch_method(method):
-            return runtime_feature.dependencies.presets_feature.get_launch_snapshot(
-                method,
-                require_filters=True,
-            )
-    except Exception as e:
-        log(f"Не удалось подготовить стартовый пресет для {method}: {e}", "DEBUG")
+    if is_preset_launch_method(method):
+        return runtime_feature.dependencies.presets_feature.get_launch_snapshot(
+            method,
+            require_filters=True,
+        )
 
     return None
 

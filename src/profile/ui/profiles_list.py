@@ -19,6 +19,7 @@ class ProfilesList(QWidget):
     profile_move_to_end_requested = pyqtSignal(str)
 
     GROUP_NAMES = {
+        "current": "В текущем preset",
         "youtube": "YouTube",
         "discord": "Discord",
         "telegram": "Telegram",
@@ -26,7 +27,7 @@ class ProfilesList(QWidget):
         "ipsets": "IPset",
         "default": "Прочее",
     }
-    GROUP_ORDER = ["youtube", "discord", "telegram", "hostlists", "ipsets", "default"]
+    GROUP_ORDER = ["current", "youtube", "discord", "telegram", "hostlists", "ipsets", "default"]
 
     def __init__(self, parent=None):
         super().__init__(parent)

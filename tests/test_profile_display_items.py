@@ -96,6 +96,29 @@ class ProfileDisplayItemsTests(unittest.TestCase):
 
         self.assertEqual(rows[0].display_name, "list-youtube")
 
+    def test_real_preset_profile_is_shown_in_current_group(self) -> None:
+        rows = build_profile_display_items((
+            _item(
+                "active-youtube",
+                name="youtube.com",
+                list_type="hostlist",
+                lines=("--filter-tcp=80,443", "--hostlist=lists/youtube.txt"),
+                in_preset=True,
+                enabled=True,
+            ),
+            _item(
+                "catalog-discord",
+                name="discord.com",
+                list_type="hostlist",
+                lines=("--filter-tcp=443", "--hostlist=lists/discord.txt"),
+                in_preset=False,
+            ),
+        ))
+
+        by_key = {row.key: row for row in rows}
+        self.assertEqual(by_key["active-youtube"].group, "current")
+        self.assertEqual(by_key["catalog-discord"].group, "youtube")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,6 +120,10 @@ def build_profile_persistent_key(name: str, match_signature: str) -> str:
     return f"sig:{_logical_match_signature(match_signature)}"
 
 
+def build_profile_logical_key(match_signature: str) -> str:
+    return _logical_match_signature(match_signature)
+
+
 def _logical_match_signature(match_signature: str) -> str:
     parts: list[str] = []
     for raw_part in str(match_signature or "").strip().split("|"):

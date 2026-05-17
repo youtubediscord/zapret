@@ -15,6 +15,61 @@ if str(PROJECT_SRC) not in sys.path:
 
 
 class StartupRuntimeSetupTests(unittest.TestCase):
+    def test_phase_two_completion_dispatches_deferred_autostart(self) -> None:
+        from main import startup_coordinator
+        from main.startup_coordinator import StartupCoordinator
+
+        class Runtime:
+            def __init__(self) -> None:
+                self.autostart_calls: list[str | None] = []
+
+            def init_launch_runtime_api(self) -> None:
+                pass
+
+            def init_launch_runtime(self) -> None:
+                pass
+
+            def init_process_monitor(self) -> None:
+                pass
+
+            def init_core_startup(self) -> None:
+                pass
+
+            def start_autostart(self, launch_method: str | None = None) -> None:
+                self.autostart_calls.append(launch_method)
+
+        runtime = Runtime()
+        window_shell = SimpleNamespace(
+            start_in_tray=False,
+            set_status=Mock(),
+            mark_startup_interactive=Mock(),
+            mark_startup_core_ready=Mock(),
+            mark_startup_post_init_done=Mock(),
+            init_theme_manager=Mock(),
+        )
+        tray = SimpleNamespace(
+            init=Mock(),
+            is_initialized=Mock(return_value=False),
+        )
+        coordinator = StartupCoordinator(
+            runtime_feature=runtime,
+            tray_feature=tray,
+            window_shell=window_shell,
+            log_startup_metric=Mock(),
+        )
+
+        with (
+            patch.object(startup_coordinator, "run_queued", side_effect=lambda _callback: None),
+            patch.object(startup_coordinator, "run_queued_with_str", side_effect=lambda callback, value: callback(value)),
+            patch("settings.dpi.strategy_settings.get_strategy_launch_method", return_value="zapret2_mode"),
+        ):
+            coordinator.run_async_init()
+            coordinator._run_phase_two_init()
+
+        self.assertTrue(coordinator._post_init_scheduled)
+        self.assertEqual(runtime.autostart_calls, ["zapret2_mode"])
+        window_shell.mark_startup_post_init_done.assert_called_once()
+
     def test_page_actions_are_built_after_notifications_are_attached(self) -> None:
         from main import window_runtime_setup
 
