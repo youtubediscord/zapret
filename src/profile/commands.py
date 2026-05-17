@@ -42,6 +42,15 @@ def update_winws2_profile_settings(
     )
 
 
+def set_profile_filter_kind(
+    profile_services,
+    launch_method: str,
+    profile_key: str,
+    filter_kind: str,
+) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).set_profile_filter_kind(profile_key, filter_kind)
+
+
 def set_current_strategy_state(
     profile_services,
     launch_method: str,

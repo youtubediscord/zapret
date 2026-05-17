@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import PureWindowsPath
+import re
 from typing import Literal
 
 from settings.mode import ENGINE_WINWS1, ENGINE_WINWS2
@@ -115,4 +117,31 @@ def build_profile_persistent_key(name: str, match_signature: str) -> str:
     clean_name = str(name or "").strip()
     if clean_name:
         return f"name:{clean_name}"
-    return f"sig:{str(match_signature or '').strip()}"
+    return f"sig:{_logical_match_signature(match_signature)}"
+
+
+def _logical_match_signature(match_signature: str) -> str:
+    parts: list[str] = []
+    for raw_part in str(match_signature or "").strip().split("|"):
+        part = raw_part.strip()
+        if not part:
+            continue
+        if part.startswith("hostlist=") or part.startswith("ipset="):
+            _name, _sep, value = part.partition("=")
+            normalized = _logical_list_value(value)
+            if normalized:
+                parts.append(f"list={normalized}")
+                continue
+        parts.append(part)
+    return "|".join(sorted(parts))
+
+
+def _logical_list_value(value: str) -> str:
+    name = PureWindowsPath(str(value or "").replace("\\", "/")).name.lower().strip()
+    if not name:
+        return ""
+    name = re.sub(r"\.(txt|lst|list|json)$", "", name, flags=re.IGNORECASE)
+    for prefix in ("ipset-", "hostlist-"):
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+    return name.strip()

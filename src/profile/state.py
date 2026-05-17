@@ -11,7 +11,6 @@ class ProfileListItem:
     key: str
     persistent_key: str
     profile_index: int
-    template_id: str
     display_name: str
     enabled: bool
     in_preset: bool

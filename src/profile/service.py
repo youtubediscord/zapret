@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from types import SimpleNamespace
 
 from settings.mode import DEFAULT_LAUNCH_METHOD, ENGINE_WINWS2, engine_for_launch_method, normalize_launch_method
@@ -9,7 +8,6 @@ from .match_filters import ports_label_from_match_lines, protocol_label_from_mat
 from .models import EngineName, Preset, Profile
 from .parser import parse_preset_text
 from .serializer import (
-    append_profile_from_template,
     serialize_preset,
     with_profile_deleted,
     with_profile_duplicated,
@@ -20,7 +18,6 @@ from .serializer import (
 from .strategy_state import ProfileStrategyState, ProfileStrategyStateStore
 from .strategy_catalog import StrategyEntry, load_strategy_catalogs
 from .state import ProfileListItem, ProfileListPayload, ProfileSetupPayload
-from .template_catalog import load_profile_templates
 from .winws2_editable_settings import Winws2EditableSettings, read_winws2_editable_settings, with_winws2_editable_settings
 
 
@@ -47,8 +44,6 @@ class ProfilePresetService:
     def list_profiles(self) -> ProfileListPayload:
         preset, manifest = self.load_selected_preset()
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)
-        templates = self._load_profile_templates()
-        existing_signatures = {profile.match_signature for profile in preset.profiles if profile.match_signature}
 
         items: list[ProfileListItem] = []
         strategy_names: dict[str, dict[str, str]] = {}
@@ -57,21 +52,6 @@ class ProfilePresetService:
             item = self._item_for_profile(profile, catalogs=catalogs, in_preset=True)
             items.append(item)
             strategy_names[item.key] = _strategy_names_for_catalog(_basic_strategy_entries(profile, catalogs))
-
-        template_order = len(items)
-        for template_id, template in templates.items():
-            if template.match_signature in existing_signatures:
-                continue
-            item = self._item_for_profile(
-                template,
-                catalogs=catalogs,
-                in_preset=False,
-                key=f"template:{template_id}",
-                order=template_order,
-            )
-            items.append(item)
-            strategy_names[item.key] = _strategy_names_for_catalog(_basic_strategy_entries(template, catalogs))
-            template_order += 1
 
         return ProfileListPayload(
             items=tuple(items),
@@ -126,14 +106,6 @@ class ProfilePresetService:
             self.save_selected_preset(preset)
             return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
 
-        if profile_key.startswith("template:") and enabled:
-            template = self._load_profile_templates().get(profile_key.split(":", 1)[1])
-            if template is None:
-                return None
-            new_index = len(preset.profiles)
-            preset = append_profile_from_template(preset, template, enabled=True)
-            self.save_selected_preset(preset)
-            return preset.profiles[new_index].key if 0 <= new_index < len(preset.profiles) else None
         return None
 
     def apply_strategy(self, profile_key: str, strategy_id: str) -> str | None:
@@ -151,16 +123,7 @@ class ProfilePresetService:
             return None
 
         preset, _manifest = self.load_selected_preset()
-        resolved_key = profile_key
-        if profile_key.startswith("template:"):
-            template = self._load_profile_templates().get(profile_key.split(":", 1)[1])
-            if template is None:
-                return None
-            new_index = len(preset.profiles)
-            preset = append_profile_from_template(preset, template, enabled=True)
-            resolved_key = preset.profiles[new_index].key if 0 <= new_index < len(preset.profiles) else ""
-
-        index = _profile_index_for_key(preset, resolved_key)
+        index = _profile_index_for_key(preset, profile_key)
         if index is None:
             return None
         preset = with_profile_strategy_lines(preset, index, entry.args.splitlines())
@@ -239,6 +202,37 @@ class ProfilePresetService:
         self.save_selected_preset(preset)
         return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
 
+    def set_profile_filter_kind(self, profile_key: str, filter_kind: str) -> str | None:
+        if self._engine != ENGINE_WINWS2:
+            return None
+        filter_kind = str(filter_kind or "").strip().lower()
+        if filter_kind not in {"hostlist", "ipset"}:
+            return None
+
+        preset, _manifest = self.load_selected_preset()
+        index = _profile_index_for_key(preset, profile_key)
+        if index is None:
+            return None
+        profile = preset.profiles[index]
+        current = read_winws2_editable_settings(profile)
+        if not current.filter_editable:
+            return None
+        if current.filter_kind == filter_kind:
+            return profile.key
+
+        preset = with_winws2_editable_settings(
+            preset,
+            index,
+            Winws2EditableSettings(
+                filter_kind=filter_kind,
+                filter_value=current.filter_value,
+                in_range=current.in_range,
+                out_range=current.out_range,
+            ),
+        )
+        self.save_selected_preset(preset)
+        return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
+
     def delete_profile(self, profile_key: str) -> bool:
         preset, _manifest = self.load_selected_preset()
         index = _profile_index_for_key(preset, profile_key)
@@ -286,8 +280,6 @@ class ProfilePresetService:
         index = _profile_index_for_key(preset, profile_key)
         if index is not None:
             return preset.profiles[index]
-        if profile_key.startswith("template:"):
-            return self._load_profile_templates().get(profile_key.split(":", 1)[1])
         return None
 
     def _persistent_key_for_profile(self, profile_key: str) -> str:
@@ -321,7 +313,6 @@ class ProfilePresetService:
             key=key or profile.key,
             persistent_key=profile.persistent_key,
             profile_index=profile.index if in_preset else -1,
-            template_id=(key.split(":", 1)[1] if key and key.startswith("template:") else ""),
             display_name=profile.display_name,
             enabled=profile.enabled if in_preset else False,
             in_preset=in_preset,
@@ -334,11 +325,6 @@ class ProfilePresetService:
             group=_group_for_profile(profile),
             order=profile.index if order is None else int(order),
         )
-
-    @lru_cache(maxsize=1)
-    def _load_profile_templates(self) -> dict[str, Profile]:
-        return load_profile_templates(self._app_paths, self._engine)
-
 
 def _engine_for_method(launch_method: str) -> EngineName:
     return engine_for_launch_method(launch_method)  # type: ignore[return-value]
@@ -368,13 +354,13 @@ def _basic_strategy_entries(profile: Profile, catalogs: dict[str, dict[str, Stra
 
 
 def _resolve_strategy(profile: Profile, entries: dict[str, StrategyEntry]) -> tuple[str, str]:
-    current = _normalize_lines(getattr(profile.strategy, "strategy_lines", ()) or ())
+    current = _strategy_identity_lines(profile, getattr(profile.strategy, "strategy_lines", ()) or ())
     if not current:
         return "none", "Отключено"
     matches = [
         entry
         for entry in entries.values()
-        if _normalize_lines(entry.args.splitlines()) == current
+        if _strategy_identity_lines(profile, entry.args.splitlines()) == current
     ]
     if len(matches) == 1:
         return matches[0].strategy_id, matches[0].name
@@ -383,6 +369,13 @@ def _resolve_strategy(profile: Profile, entries: dict[str, StrategyEntry]) -> tu
 
 def _normalize_lines(lines) -> tuple[str, ...]:
     return tuple(str(line or "").strip() for line in lines if str(line or "").strip())
+
+
+def _strategy_identity_lines(profile: Profile, lines) -> tuple[str, ...]:
+    normalized = _normalize_lines(lines)
+    if profile.engine != ENGINE_WINWS2:
+        return normalized
+    return tuple(line for line in normalized if line.lower().startswith("--lua-desync="))
 
 
 def _catalog_name_for_profile(profile: Profile) -> str:

@@ -44,6 +44,9 @@ class ProfileFeature:
             out_range=out_range,
         )
 
+    def set_profile_filter_kind(self, launch_method: str, profile_key: str, filter_kind: str) -> str | None:
+        return profile_internal_commands.set_profile_filter_kind(self, launch_method, profile_key, filter_kind)
+
     def set_current_strategy_state(
         self,
         launch_method: str,
