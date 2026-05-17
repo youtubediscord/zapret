@@ -52,6 +52,22 @@ class ApplicationLifecycle:
         self._shutdown_dpi_before_exit_sync(reason="exit_stop_dpi")
         self._quit_application()
 
+    def exit_for_windows_session_end(self) -> None:
+        close_state = self._close_state
+        if bool(getattr(close_state, "windows_session_ending", False)):
+            return
+
+        close_state.windows_session_ending = True
+        close_state.is_exiting = True
+        close_state.closing_completely = True
+        close_state.stop_dpi_on_exit = False
+
+        log("Windows завершает сеанс: закрываем GUI без диалога", "INFO")
+        self._window_port.persist_geometry(context="windows_session_end", level="DEBUG")
+        self._tray_feature.hide_icon_for_exit()
+        self._try_fast_dpi_stop_for_windows_session_end()
+        self._quit_application()
+
     def close_to_tray(self) -> bool:
         try:
             return bool(self._tray_feature.hide_to_tray(show_hint=True))
@@ -87,6 +103,17 @@ class ApplicationLifecycle:
             self._runtime_feature.shutdown_sync(reason=reason, include_cleanup=True)
         except Exception as e:
             log(f"Ошибка остановки DPI перед выходом: {e}", "WARNING")
+
+    def _try_fast_dpi_stop_for_windows_session_end(self) -> None:
+        try:
+            self._runtime_feature.shutdown_sync(
+                reason="windows_session_end",
+                include_cleanup=False,
+                cleanup_services=False,
+                update_runtime_state=False,
+            )
+        except Exception as e:
+            log(f"Быстрая остановка DPI при завершении Windows не удалась: {e}", "WARNING")
 
     def _quit_application(self) -> None:
         QApplication.closeAllWindows()

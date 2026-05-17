@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from ui.log_limits import (
+    ERROR_LOG_VIEW_MAX_LINES,
+    MAIN_LOG_VIEW_MAX_LINES,
+    WINWS_OUTPUT_MAX_LINES,
+    apply_text_line_limit,
+)
 
 from settings.mode import EXE_NAME_WINWS1
 from ui.theme import get_themed_qta_icon
@@ -151,6 +157,7 @@ def build_logs_tab_ui(
     log_text.setLineWrapMode(text_edit_cls.LineWrapMode.NoWrap)
     log_text.setFont(qfont_cls("Consolas", 9))
     log_text.setMinimumHeight(260)
+    apply_text_line_limit(log_text, MAIN_LOG_VIEW_MAX_LINES)
     log_layout.addWidget(log_text)
 
     stats_label = caption_label_cls()
@@ -192,6 +199,7 @@ def build_logs_tab_ui(
     errors_text.setFont(qfont_cls("Consolas", 9))
     errors_text.setMinimumHeight(errors_text_min_height)
     errors_text.setMaximumHeight(errors_text_max_height)
+    apply_text_line_limit(errors_text, ERROR_LOG_VIEW_MAX_LINES)
     errors_text.document().contentsChanged.connect(on_update_errors_height)
     errors_layout.addWidget(errors_text)
 
@@ -234,6 +242,7 @@ def build_logs_tab_ui(
     winws_text.setLineWrapMode(text_edit_cls.LineWrapMode.NoWrap)
     winws_text.setFont(qfont_cls("Consolas", 9))
     winws_text.setFixedHeight(150)
+    apply_text_line_limit(winws_text, WINWS_OUTPUT_MAX_LINES)
     winws_layout.addWidget(winws_text)
 
     winws_card.add_layout(winws_layout)

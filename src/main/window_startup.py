@@ -15,19 +15,19 @@ from main.window_visual_state import WindowVisualState
 
 class WindowStartupMixin:
     def __init__(self, start_in_tray: bool = False):
-        super().__init__()
-
-        from settings.dpi.strategy_settings import get_strategy_launch_method
-
-        current_method = get_strategy_launch_method()
-        log(f"Метод запуска стратегий: {current_method}", "INFO")
-
         self.start_in_tray = start_in_tray
         self.close_state = WindowCloseState()
         self.startup_state = WindowStartupState(
             tray_launch_notification_pending=bool(self.start_in_tray),
         )
         self.visual_state = WindowVisualState()
+
+        super().__init__()
+
+        from settings.dpi.strategy_settings import get_strategy_launch_method
+
+        current_method = get_strategy_launch_method()
+        log(f"Метод запуска стратегий: {current_method}", "INFO")
 
     @staticmethod
     def _queued_connection():

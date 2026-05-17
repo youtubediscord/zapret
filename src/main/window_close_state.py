@@ -10,3 +10,4 @@ class WindowCloseState:
     is_exiting: bool = False
     stop_dpi_on_exit: bool = False
     closing_completely: bool = False
+    windows_session_ending: bool = False

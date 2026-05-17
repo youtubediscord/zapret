@@ -15,7 +15,7 @@ from presets.preset_file_ops import (
     reset_all_to_builtin as _reset_all_to_builtin,
     reset_to_builtin_by_file_name as _reset_to_builtin_by_file_name,
 )
-from presets.preset_text_ops import _normalize_presets_source_text
+from presets.preset_text_ops import normalize_preset_source_text_for_engine
 from settings.mode import (
     ENGINE_WINWS1,
     ENGINE_WINWS2,
@@ -191,11 +191,14 @@ class PresetFileService:
             return ""
         return self.read_source_text_by_file_name(selected_file_name)
 
+    def normalize_source_text(self, source_text: str) -> str:
+        return normalize_preset_source_text_for_engine(source_text, self.engine)
+
     def save_source_text_by_file_name(self, file_name: str, source_text: str) -> PresetManifest:
         manifest = self.get_manifest_by_file_name(file_name)
         if manifest is None:
             raise ValueError(f"Preset not found: {file_name}")
-        normalized = _normalize_presets_source_text(source_text)
+        normalized = self.normalize_source_text(source_text)
         updated = self.preset_file_store.update_preset(self.engine, manifest.file_name, normalized, None)
         self.notify_preset_content_changed(updated.file_name)
         if self.is_selected_file_name(updated.file_name):

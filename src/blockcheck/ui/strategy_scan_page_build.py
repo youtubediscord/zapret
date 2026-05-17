@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QHeaderView
 from qfluentwidgets import CaptionLabel
 
 from ui.fluent_widgets import ActionButton, QuickActionsBar, SettingsCard
+from ui.log_limits import BLOCKCHECK_LOG_VIEW_MAX_LINES, apply_text_line_limit
 from ui.pages.base_page import ScrollBlockingTextEdit
 
 
@@ -288,6 +289,7 @@ def build_strategy_scan_log_section(*, tr_fn, push_button_cls, parent, on_toggle
     log_edit.setMinimumHeight(180)
     log_edit.setMaximumHeight(300)
     log_edit.setFont(QFont("Consolas", 9))
+    apply_text_line_limit(log_edit, BLOCKCHECK_LOG_VIEW_MAX_LINES)
     log_card.add_widget(log_edit)
 
     return StrategyScanLogWidgets(

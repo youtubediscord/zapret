@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.log_limits import BLOCKCHECK_LOG_VIEW_MAX_LINES, apply_text_line_limit
 from ui.theme import get_themed_qta_icon
 
 
@@ -60,6 +61,7 @@ def build_log_card_section(
     log_edit.setMinimumHeight(180)
     log_edit.setMaximumHeight(300)
     log_edit.setFont(qfont_cls("Consolas", 9))
+    apply_text_line_limit(log_edit, BLOCKCHECK_LOG_VIEW_MAX_LINES)
     card.add_widget(log_edit)
 
     return BlockcheckLogWidgets(

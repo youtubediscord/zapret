@@ -16,12 +16,9 @@ class PreparedLaunchPresetText:
 
 
 def is_winws2_circular_preset_text(source_content: str) -> bool:
-    lowered = str(source_content or "").lower()
-    return (
-        "(circular)" in lowered
-        or "--lua-desync=circular" in lowered
-        or "--lua-desync=circular_quality" in lowered
-    )
+    from profile.winws2_preset_source import is_winws2_circular_preset_source
+
+    return is_winws2_circular_preset_source(source_content)
 
 
 def prepare_winws2_preset_text_for_launch(
@@ -31,15 +28,18 @@ def prepare_winws2_preset_text_for_launch(
     source_is_circular: bool = False,
 ) -> PreparedLaunchPresetText:
     from profile.parser import parse_preset_text
+    from profile.winws2_preset_source import has_winws2_strategy_tags
     from profile.winws2_transport import parse_out_range_expression, validate_winws2_payload_filter
 
     raw_text = str(source_content or "")
+    if not bool(source_is_circular) and has_winws2_strategy_tags(raw_text):
+        raise ValueError(":strategy=N разрешён только в circular preset")
+
     source = parse_preset_text(
         raw_text,
         engine=ENGINE_WINWS2,
         source_name=source_name,
     )
-    _ = source_is_circular
 
     for profile in source.profiles or ():
         if not bool(getattr(profile, "enabled", True)):

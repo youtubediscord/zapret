@@ -75,8 +75,8 @@ class ApplicationController:
         attach_app_runtime_to_window(
             window,
             app_runtime,
-            page_actions=build_window_page_actions(
-                window=window,
+            page_actions_factory=lambda target_window: build_window_page_actions(
+                window=target_window,
                 appearance_actions=self.window_state_actions,
             ),
         )

@@ -4,6 +4,7 @@ import re
 from typing import Optional
 
 from log.log import log
+from settings.mode import ENGINE_WINWS2
 
 
 
@@ -134,6 +135,16 @@ def _normalize_presets_source_text(source_text: str) -> str:
         and not line.strip().lower().startswith("# modified:")
     ]
     return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def normalize_preset_source_text_for_engine(source_text: str, engine: str) -> str:
+    normalized = _normalize_presets_source_text(source_text)
+    if str(engine or "").strip().lower() != ENGINE_WINWS2:
+        return normalized
+
+    from profile.winws2_preset_source import ensure_winws2_lua_init_lines
+
+    return _normalize_presets_source_text(ensure_winws2_lua_init_lines(normalized))
 
 
 def _extract_debug_log_file(source_text: str) -> str:

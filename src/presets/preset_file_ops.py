@@ -38,6 +38,7 @@ def rename_by_file_name(backend, file_name: str, new_name: str):
         new_name,
         preset_kind=_header_preset_kind(manifest.kind),
     )
+    rewritten = backend.normalize_source_text(rewritten)
     updated = backend.preset_file_store.update_preset(backend.engine, renamed.file_name, rewritten, None)
     backend._rename_library_meta(
         manifest.file_name,
@@ -60,6 +61,7 @@ def duplicate_by_file_name(backend, file_name: str, new_name: str):
         new_name,
         preset_kind=_header_preset_kind(manifest.kind),
     )
+    rewritten = backend.normalize_source_text(rewritten)
     duplicated = backend.preset_file_store.create_preset(backend.engine, new_name, rewritten)
     backend._copy_library_meta(
         manifest.file_name,
@@ -72,6 +74,7 @@ def duplicate_by_file_name(backend, file_name: str, new_name: str):
 def create_preset(backend, name: str, *, from_current: bool = True):
     source_text = backend.read_selected_source_text() if from_current else _read_standard_builtin_preset(backend)
     rewritten = _rewrite_preset_headers(source_text, name)
+    rewritten = backend.normalize_source_text(rewritten)
     created = backend.preset_file_store.create_preset(backend.engine, name, rewritten)
     backend.notify_presets_changed()
     return created
@@ -88,6 +91,7 @@ def import_from_file(backend, src_path: Path, name: str | None = None):
         preset_name,
         preset_kind="imported",
     )
+    rewritten = backend.normalize_source_text(rewritten)
     imported = backend.preset_file_store.create_preset(backend.engine, preset_name, rewritten, kind="imported")
     backend._delete_library_meta(imported.file_name)
     backend.notify_presets_changed()

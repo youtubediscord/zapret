@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 
 from ui.pages.base_page import ScrollBlockingPlainTextEdit
+from ui.log_limits import (
+    TELEGRAM_PROXY_DIAG_VIEW_MAX_LINES,
+    TELEGRAM_PROXY_LOG_VIEW_MAX_LINES,
+    apply_text_line_limit,
+)
 from ui.theme import get_themed_qta_icon
 
 
@@ -112,6 +117,7 @@ def build_telegram_proxy_logs_panel(
     log_edit = ScrollBlockingPlainTextEdit()
     log_edit.setReadOnly(True)
     log_edit.setPlaceholderText("Лог подключений появится здесь...")
+    apply_text_line_limit(log_edit, TELEGRAM_PROXY_LOG_VIEW_MAX_LINES)
     layout.addWidget(log_edit)
 
     return TelegramProxyLogsWidgets(
@@ -159,6 +165,7 @@ def build_telegram_proxy_diag_panel(
     diag_edit = ScrollBlockingPlainTextEdit()
     diag_edit.setReadOnly(True)
     diag_edit.setPlaceholderText("Нажмите 'Запустить диагностику'...")
+    apply_text_line_limit(diag_edit, TELEGRAM_PROXY_DIAG_VIEW_MAX_LINES)
     layout.addWidget(diag_edit)
 
     return TelegramProxyDiagWidgets(

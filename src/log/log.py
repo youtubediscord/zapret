@@ -391,6 +391,7 @@ def _build_log_viewer_dialog_class():
     from PyQt6.QtGui import QFont
     from PyQt6.QtCore import QThread, Qt
     from log_tail import LogTailWorker
+    from ui.log_limits import MAIN_LOG_VIEW_MAX_LINES, apply_text_line_limit
 
     class _LogViewerDialog(QDialog):
         """Просмотр лог-файла в реальном времени."""
@@ -411,6 +412,7 @@ def _build_log_viewer_dialog_class():
             self.log_text = QTextEdit(readOnly=True)
             self.log_text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
             self.log_text.setFont(QFont("Courier New", 9))
+            apply_text_line_limit(self.log_text, MAIN_LOG_VIEW_MAX_LINES)
             layout.addWidget(self.log_text)
 
             btn_layout = QHBoxLayout()

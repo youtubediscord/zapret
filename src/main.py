@@ -1,3 +1,9 @@
+from main.early_startup_crash import install_early_startup_crash_handler
+
+
+install_early_startup_crash_handler()
+
+
 def _run() -> None:
     from main.prelaunch import prepare_prelaunch
 

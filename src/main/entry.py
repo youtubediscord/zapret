@@ -73,6 +73,9 @@ def main() -> None:
         start_in_tray=start_in_tray,
     )
     window = application_controller.create_window()
+    from main.windows_session_shutdown import connect_windows_session_shutdown
+
+    connect_windows_session_shutdown(app, window)
     _configure_window_appearance(window, application_controller.window_state_actions)
 
     ipc_manager = IPCManager()

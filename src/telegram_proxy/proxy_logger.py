@@ -15,6 +15,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Optional
 
 from config.config import LOGS_FOLDER
+from ui.log_limits import TELEGRAM_PROXY_PENDING_MAX_LINES, append_bounded_line
 
 
 _LOG_FILENAME = "tg_proxy.log"
@@ -78,7 +79,11 @@ class ProxyLogger:
         # Add to ring buffer + pending list
         with self._lock:
             self._ring.append(message)
-            self._pending.append(message)
+            append_bounded_line(
+                self._pending,
+                message,
+                max_lines=TELEGRAM_PROXY_PENDING_MAX_LINES,
+            )
 
     def drain(self) -> list[str]:
         """Return and clear pending log lines (new since last drain).

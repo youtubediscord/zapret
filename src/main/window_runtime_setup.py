@@ -11,10 +11,11 @@ from main.window_startup_signal_setup import (
 )
 
 
-def attach_app_runtime_to_window(window, app_runtime, *, page_actions) -> None:
+def attach_app_runtime_to_window(window, app_runtime, *, page_actions_factory) -> None:
     features = app_runtime.features
     attach_window_lifecycle(window, features)
     attach_window_notifications(window, features)
+    page_actions = page_actions_factory(window)
     startup_runtime = attach_startup_deps_to_window(window, features)
     attach_window_ui_root(
         window,

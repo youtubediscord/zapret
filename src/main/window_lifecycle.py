@@ -16,13 +16,36 @@ from ui.window_adapter import sync_titlebar_search_width
 
 
 class WindowLifecycleMixin:
+    def _get_window_geometry_runtime(self):
+        return getattr(self, "window_geometry_runtime", None)
+
+    def _get_visual_state(self):
+        return getattr(self, "visual_state", None)
+
+    def _get_startup_state(self):
+        return getattr(self, "startup_state", None)
+
+    def _get_window_notification_center(self):
+        return getattr(self, "window_notification_center", None)
+
+    def _require_application_lifecycle(self):
+        lifecycle = getattr(self, "application_lifecycle", None)
+        if lifecycle is None:
+            raise RuntimeError("ApplicationLifecycle ещё не подключён к окну")
+        return lifecycle
+
     def closeEvent(self, event):
         """Обрабатывает событие закрытия окна."""
-        if not self.window_close_flow.should_continue_final_close(event):
+        close_flow = getattr(self, "window_close_flow", None)
+        if close_flow is not None and not close_flow.should_continue_final_close(event):
             return
 
-        self.close_state.is_exiting = True
-        self.application_lifecycle.run_final_close_cleanup()
+        close_state = getattr(self, "close_state", None)
+        if close_state is not None:
+            close_state.is_exiting = True
+        lifecycle = getattr(self, "application_lifecycle", None)
+        if lifecycle is not None:
+            lifecycle.run_final_close_cleanup()
 
         super().closeEvent(event)
 
@@ -31,19 +54,23 @@ class WindowLifecycleMixin:
 
     def request_exit(self, stop_dpi: bool) -> None:
         """Общий вход для tray и adapter-слоя."""
-        self.application_lifecycle.request_exit(stop_dpi=bool(stop_dpi))
+        self._require_application_lifecycle().request_exit(stop_dpi=bool(stop_dpi))
 
     def exit_keep_dpi(self) -> None:
         """Полный выход из GUI без остановки DPI."""
-        self.application_lifecycle.exit_keep_dpi()
+        self._require_application_lifecycle().exit_keep_dpi()
 
     def exit_stop_dpi(self) -> None:
         """Полный выход из GUI с остановкой DPI."""
-        self.application_lifecycle.exit_stop_dpi()
+        self._require_application_lifecycle().exit_stop_dpi()
+
+    def exit_for_windows_session_end(self) -> None:
+        """Быстрый выход, когда Windows завершает сеанс пользователя."""
+        self._require_application_lifecycle().exit_for_windows_session_end()
 
     def close_to_tray(self) -> bool:
         """Скрывает окно в трей (без выхода из GUI)."""
-        return self.application_lifecycle.close_to_tray()
+        return self._require_application_lifecycle().close_to_tray()
 
     def changeEvent(self, event):
         if event.type() == QEvent.Type.ActivationChange:
@@ -54,10 +81,13 @@ class WindowLifecycleMixin:
                 log(f"Не удалось сбросить состояние ввода при смене активности окна: {e}", "DEBUG")
 
         if event.type() == QEvent.Type.WindowStateChange:
-            self.window_geometry_runtime.on_window_state_change()
+            geometry_runtime = self._get_window_geometry_runtime()
+            if geometry_runtime is not None:
+                geometry_runtime.on_window_state_change()
 
             try:
-                effects = self.visual_state.holiday_effects
+                visual_state = self._get_visual_state()
+                effects = None if visual_state is None else visual_state.holiday_effects
                 if effects is not None:
                     QTimer.singleShot(0, effects.sync_geometry)
             except Exception as e:
@@ -74,7 +104,9 @@ class WindowLifecycleMixin:
 
     def moveEvent(self, event):
         super().moveEvent(event)
-        self.window_geometry_runtime.on_geometry_changed()
+        geometry_runtime = self._get_window_geometry_runtime()
+        if geometry_runtime is not None:
+            geometry_runtime.on_geometry_changed()
 
     def resizeEvent(self, event):
         """Обновляем геометрию при изменении размера окна."""
@@ -83,9 +115,12 @@ class WindowLifecycleMixin:
             sync_titlebar_search_width(self)
         except Exception as e:
             log(f"Не удалось синхронизировать ширину поиска в заголовке: {e}", "DEBUG")
-        self.window_geometry_runtime.on_geometry_changed()
+        geometry_runtime = self._get_window_geometry_runtime()
+        if geometry_runtime is not None:
+            geometry_runtime.on_geometry_changed()
         try:
-            effects = self.visual_state.holiday_effects
+            visual_state = self._get_visual_state()
+            effects = None if visual_state is None else visual_state.holiday_effects
             if effects is not None:
                 effects.sync_geometry()
         except Exception as e:
@@ -95,24 +130,29 @@ class WindowLifecycleMixin:
         """Первый показ окна."""
         super().showEvent(event)
 
-        startup_state = self.startup_state
-        if not startup_state.ttff_logged:
+        startup_state = self._get_startup_state()
+        if startup_state is not None and not startup_state.ttff_logged:
             startup_state.ttff_logged = True
             startup_state.ttff_ms = startup_elapsed_ms()
             emit_startup_metric("StartupTTFF", "first showEvent")
 
-        self.window_geometry_runtime.apply_saved_maximized_state_if_needed()
-        QTimer.singleShot(350, self.window_geometry_runtime.enable_persistence)
+        geometry_runtime = self._get_window_geometry_runtime()
+        if geometry_runtime is not None:
+            geometry_runtime.apply_saved_maximized_state_if_needed()
+            QTimer.singleShot(350, geometry_runtime.enable_persistence)
 
         try:
-            effects = self.visual_state.holiday_effects
+            visual_state = self._get_visual_state()
+            effects = None if visual_state is None else visual_state.holiday_effects
             if effects is not None:
                 effects.sync_geometry()
                 QTimer.singleShot(0, effects.sync_geometry)
         except Exception as e:
             log(f"Не удалось синхронизировать визуальные эффекты при показе окна: {e}", "DEBUG")
 
-        self.window_notification_center.schedule_startup_notification_queue(0)
+        notification_center = self._get_window_notification_center()
+        if notification_center is not None:
+            notification_center.schedule_startup_notification_queue(0)
 
     def _force_style_refresh(self) -> None:
         """Принудительно обновляет стили всех виджетов после показа окна."""

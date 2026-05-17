@@ -32,9 +32,6 @@ from .preset_runner_support import (
     wait_for_process_exit,
     wait_for_process_stable_start,
 )
-from utils.circular_strategy_numbering import (
-    strip_strategy_tags,
-)
 from .constants import CREATE_NO_WINDOW
 from winws_runtime.health.process_health_check import (
     diagnose_startup_error
@@ -43,95 +40,6 @@ from winws_runtime.runtime.system_ops import get_all_winws_process_pids, get_pro
 
 
 _WINDOWS_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
-
-# Core lua-init files required by any preset that uses --lua-desync.
-# Order matters — zapret-lib must come first (defines base primitives).
-_CORE_LUA_INITS = [
-    "lua/zapret-lib.lua",
-    "lua/zapret-antidpi.lua",
-    "lua/zapret-auto.lua",
-    "lua/custom_funcs.lua",
-    "lua/custom_diag.lua",
-]
-
-# Extension lua files required only when specific desync functions are used.
-# key = lua file (relative to work_dir), value = set of function names it defines.
-_EXTENSION_LUA_INITS: dict[str, set[str]] = {
-    "lua/zapret-multishake.lua": {
-        "hostfakesplit_stealth", "hostfakesplit_chaos",
-        "hostfakesplit_multi", "hostfakesplit_gradual",
-        "hostfakesplit_decoy",
-    },
-    "lua/fakemultisplit.lua": {
-        "fakemultisplit",
-    },
-    "lua/fakemultidisorder.lua": {
-        "fakemultidisorder",
-    },
-}
-
-_LUA_DESYNC_FUNC_RE = re.compile(r"--lua-desync=([a-z_]+)")
-_LUA_INIT_RE = re.compile(r"--lua-init=@?(.+)")
-
-
-def _ensure_lua_init_lines(content: str, work_dir: str) -> tuple[str, bool]:
-    """Check preset content and add missing --lua-init lines.
-
-    Returns (possibly_modified_content, was_modified).
-    """
-    lines = content.split("\n")
-
-    # Collect existing lua-init paths (normalized: strip @, lowercase, forward slashes).
-    existing_inits: set[str] = set()
-    for line in lines:
-        m = _LUA_INIT_RE.match(line.strip())
-        if m:
-            existing_inits.add(m.group(1).strip().replace("\\", "/").lower())
-
-    # Collect desync function names used in this preset.
-    used_funcs: set[str] = set()
-    for line in lines:
-        for m in _LUA_DESYNC_FUNC_RE.finditer(line):
-            used_funcs.add(m.group(1))
-
-    if not used_funcs:
-        return content, False
-
-    # Determine which lua-init files are needed.
-    needed: list[str] = []
-
-    # Core files — always needed when any --lua-desync is present.
-    for lua_path in _CORE_LUA_INITS:
-        if lua_path.lower() not in existing_inits:
-            full = os.path.join(work_dir, lua_path) if work_dir else lua_path
-            if not work_dir or os.path.isfile(full):
-                needed.append(lua_path)
-
-    # Extension files — needed only when matching functions are used.
-    for lua_path, funcs in _EXTENSION_LUA_INITS.items():
-        if lua_path.lower() not in existing_inits and used_funcs & funcs:
-            full = os.path.join(work_dir, lua_path) if work_dir else lua_path
-            if not work_dir or os.path.isfile(full):
-                needed.append(lua_path)
-
-    if not needed:
-        return content, False
-
-    # Insert missing lines right after the last existing --lua-init line,
-    # or after the header comments if no lua-init lines exist.
-    insert_idx = 0
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith("--lua-init="):
-            insert_idx = i + 1
-        elif insert_idx == 0 and (stripped.startswith("#") or stripped == ""):
-            insert_idx = i + 1
-
-    new_lines = [f"--lua-init=@{p}" for p in needed]
-    lines = lines[:insert_idx] + new_lines + lines[insert_idx:]
-
-    log(f"Auto-added missing lua-init lines: {', '.join(needed)}", "WARNING")
-    return "\n".join(lines), True
 
 
 def _is_windows_abs(path: str) -> bool:
@@ -428,21 +336,13 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             lines.append(f"... и еще {hidden} файл(ов)")
         return "\n".join(lines)
 
-    def _normalize_preset_text(self, source_content: str) -> str:
-        normalized, lua_fixed = _ensure_lua_init_lines(source_content, self.work_dir)
-        if lua_fixed:
-            log("Applying implicit lua-init lines before launch", "DEBUG")
-
-        source_is_circular = self._is_circular_preset_text(normalized)
-        cleaned = normalized if source_is_circular else strip_strategy_tags(normalized)
-        if (not source_is_circular) and cleaned != normalized:
-            log("Ignoring service :strategy=N tags before launch", "DEBUG")
-
+    def _prepare_preset_text_for_launch(self, source_content: str) -> str:
         from winws_runtime.preset_launch_text import prepare_winws2_preset_text_for_launch
 
+        source_is_circular = self._is_circular_preset_text(source_content)
         prepared = prepare_winws2_preset_text_for_launch(
-            cleaned,
-            source_is_circular=self._is_circular_preset_text(cleaned),
+            source_content,
+            source_is_circular=source_is_circular,
         )
         return prepared.text
 
@@ -468,7 +368,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 return PreparedPresetArtifact(p, cache_key, "", tuple(), False, f"Preset файл не найден: {p}")
 
             try:
-                normalized_text = self._normalize_preset_text(source_content)
+                normalized_text = self._prepare_preset_text_for_launch(source_content)
                 launch_args = tuple(launch_args_from_preset_text(normalized_text))
                 missing = self._collect_missing_preset_references_from_text(normalized_text)
                 validation_ok = not missing

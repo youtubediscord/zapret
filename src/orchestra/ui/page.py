@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 import orchestra.page_runtime as orchestra_page_runtime
 from orchestra.page_controller import OrchestraPageController
 from ui.pages.base_page import BasePage
+from ui.log_limits import ORCHESTRA_PENDING_MAX_LINES, apply_text_line_limit, put_latest_bounded
 from orchestra.ui.page_build import (
     build_orchestra_log_card,
     build_orchestra_log_history_card,
@@ -112,6 +113,7 @@ class OrchestraPage(BasePage):
         # Хранилище всех строк лога для фильтрации
         self._full_log_lines = []
         self._max_log_lines = 1000  # Максимум строк в памяти
+        apply_text_line_limit(self.log_text, self._max_log_lines)
 
         # Таймер для обновления статуса и логов
         self.update_timer = QTimer(self)
@@ -409,8 +411,12 @@ class OrchestraPage(BasePage):
         """
         if self._cleanup_in_progress:
             return
-        # Кладём в очередь - это thread-safe операция
-        self._log_queue.put(text)
+        # Кладём в очередь с лимитом, чтобы UI не копил бесконечный хвост логов.
+        put_latest_bounded(
+            self._log_queue,
+            text,
+            max_items=ORCHESTRA_PENDING_MAX_LINES,
+        )
 
     def _process_log_queue(self):
         """Обрабатывает очередь логов из main thread (вызывается таймером)"""

@@ -13,7 +13,24 @@
 `window_runtime_setup.attach_app_runtime_to_window(...)` — единственное место,
 где готовый `AppRuntime` подключается к окну. Сам файл остаётся коротким
 координатором, а подробная сборка разнесена по маленьким setup-файлам:
-page deps, lifecycle, уведомления и стартовые сигналы.
+lifecycle, уведомления, page deps и стартовые сигналы.
+
+Порядок внутри этого шага важен:
+
+```text
+attach_window_lifecycle(...)
+attach_window_notifications(...)
+build_window_page_actions(...)
+attach_startup_deps_to_window(...)
+attach_window_ui_root(...)
+restore_window_geometry(...)
+connect_window_startup_signals(...)
+show_initial_window_if_needed(...)
+start_window_deferred_init(...)
+```
+
+`WindowPageActions` создаётся после уведомлений, потому что действия страниц
+используют `window_notification_center.notify`.
 
 Feature-зависимости не собираются из полного окна. Для этого есть
 `FeatureWindowDeps`: маленький явный набор Qt-parent, startup/close state и

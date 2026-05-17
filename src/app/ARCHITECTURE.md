@@ -14,8 +14,8 @@
 src/main/entry.py
   -> создаёт QApplication
   -> создаёт ApplicationController
-  -> ApplicationController создаёт AppRuntime
   -> ApplicationController создаёт LupiDPIApp
+  -> ApplicationController создаёт AppRuntime
   -> window_runtime_setup.attach_app_runtime_to_window(...)
   -> окно показывает Fluent UI
   -> app.exec()
@@ -87,6 +87,10 @@ window_lifecycle_setup.py
 
 window_notifications_setup.py
   уведомления runtime/tray
+
+WindowPageActions создаётся только после `window_notifications_setup.py`.
+Причина простая: действия страниц используют `window_notification_center.notify`,
+а центр уведомлений появляется именно на этапе `window_notifications_setup.py`.
 
 window_startup_setup.py
   WindowStartupRuntime для позднего старта

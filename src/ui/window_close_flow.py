@@ -31,6 +31,9 @@ class WindowCloseFlow:
 
     def should_continue_final_close(self, event) -> bool:
         """Возвращает True только для окончательного закрытия приложения."""
+        if bool(getattr(self._close_state, "windows_session_ending", False)):
+            return True
+
         if self._close_state.closing_completely:
             return True
 

@@ -1081,7 +1081,8 @@ def check_no_hidden_winws2_launch_normalization(files: list[Path]) -> list[Probl
         re.compile(
             r"\b(?:normalize_winws2_action_lines|normalize_out_range_action_lines|"
             r"applied_default_out_range|defaulted_profiles|repaired_profiles|"
-            r"removed_placeholder_profiles|_OUT_RANGE_UNSIGNED_SIMPLE_RE)\b"
+            r"removed_placeholder_profiles|_OUT_RANGE_UNSIGNED_SIMPLE_RE|"
+            r"sanitize_presets_before_launch|_ensure_lua_init_lines|strip_strategy_tags)\b"
         ),
         "winws2 preset перед запуском нельзя скрыто нормализовать; только проверка и явная ошибка",
     )

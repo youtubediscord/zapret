@@ -95,7 +95,7 @@ def validate_preset_selected_mode(selected_mode, launch_method: str, *, prepared
         raise RuntimeError(f"Ошибка чтения preset: {e}") from e
 
 
-def sanitize_presets_before_launch(
+def validate_presets_before_launch(
     selected_mode,
     launch_method: str,
 ) -> tuple[object, list[str], str | None, str | None]:
@@ -123,8 +123,8 @@ def sanitize_presets_before_launch(
         )
         return selected_mode, list(prepared.warnings), None, None
     except Exception as e:
-        log(f"Не удалось подготовить preset mode перед запуском: {e}", "DEBUG")
-        return selected_mode, [], f"Не удалось подготовить preset для запуска: {e}", None
+        log(f"Preset не прошёл проверку перед запуском: {e}", "DEBUG")
+        return selected_mode, [], f"Preset не прошёл проверку перед запуском: {e}", None
 
 
 def prepare_start_request(
@@ -142,7 +142,7 @@ def prepare_start_request(
         presets_feature=presets_feature,
     )
 
-    prepared_selected_mode, prelaunch_warnings, prelaunch_error, prepared_text = sanitize_presets_before_launch(
+    prepared_selected_mode, prelaunch_warnings, prelaunch_error, prepared_text = validate_presets_before_launch(
         prepared_selected_mode,
         resolved_method,
     )
