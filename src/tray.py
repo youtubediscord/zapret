@@ -377,6 +377,10 @@ class SystemTrayManager:
             QTimer.singleShot(0, lambda: self.show_context_menu(anchor_x=anchor_x, anchor_y=anchor_y))
             return
 
+        if callback_code == WM_RBUTTONUP:
+            QTimer.singleShot(0, lambda: self.show_context_menu(anchor_x=None, anchor_y=None))
+            return
+
         if callback_code in (WM_LBUTTONUP, WM_LBUTTONDBLCLK, NIN_SELECT, NIN_KEYSELECT):
             self._schedule_visibility_toggle()
 
@@ -520,7 +524,7 @@ class SystemTrayManager:
         menu.addAction(exit_only_action)
 
         exit_stop_action = _make_menu_action(
-            "Выход и остановить DPI",
+            "Выход и остановить",
             icon=_fluent_icon("POWER_BUTTON"),
             parent=menu,
         )

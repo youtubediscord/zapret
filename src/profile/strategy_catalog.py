@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from core.paths import AppPaths
+from .strategy_visuals import StrategyVisual, describe_strategy_visual
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,7 @@ class StrategyEntry:
     catalog_name: str
     name: str
     args: str
+    visual: StrategyVisual
 
 
 _STRATEGY_CATALOGS_CACHE: dict[
@@ -59,6 +61,7 @@ def _parse_catalog_file(path: Path, catalog_name: str) -> dict[str, StrategyEntr
             catalog_name=catalog_name,
             name=current_name or current_id,
             args=args,
+            visual=describe_strategy_visual(args),
         )
 
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():

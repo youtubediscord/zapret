@@ -35,6 +35,7 @@ from presets.ui.control.control_page_shared import (
     cleanup_control_page_subscriptions,
 )
 from app.text_catalog import tr as tr_catalog
+from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
 
 from qfluentwidgets import (
     CaptionLabel, StrongBodyLabel,
@@ -71,6 +72,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         open_presets,
         open_preset_setup,
         open_blobs,
+        open_premium,
         external_actions_feature,
         ui_state_store,
     ):
@@ -93,6 +95,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._open_presets_callback = open_presets
         self._open_preset_setup_callback = open_preset_setup
         self._open_blobs_callback = open_blobs
+        self._open_premium_callback = open_premium
         self._external_actions = external_actions_feature
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -103,8 +106,10 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._deferred_sections_built = False
         self._deferred_sections_hydrated = False
         self._advanced_settings_dirty = True
+        self.top_summary = None
         self.program_settings_card = None
         self.auto_dpi_toggle = None
+        self.hide_to_tray_toggle = None
         self.defender_toggle = None
         self.max_block_toggle = None
         self.discord_restart_toggle = None
@@ -130,6 +135,8 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             if preset_name_text:
                 self.preset_name_label.setText(preset_name_text)
                 set_tooltip(self.preset_name_label, preset_name_tooltip)
+                if self.top_summary is not None:
+                    self.top_summary.set_preset(preset_name_text)
         except Exception:
             pass
         self.run_when_page_ready(self._run_deferred_show_work)
@@ -170,6 +177,17 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._apply_pending_advanced_settings_refresh()
 
     def _build_ui(self):
+        self.top_summary = ControlTopSummaryWidget(
+            language=self._ui_language,
+            mode_value="Zapret 1",
+            parent=self.content,
+        )
+        self.top_summary.presetClicked.connect(self._open_presets_callback)
+        self.top_summary.profilesClicked.connect(self._open_preset_setup_page)
+        self.top_summary.premiumClicked.connect(self._open_premium_callback)
+        self.add_widget(self.top_summary)
+        self.add_spacing(16)
+
         # ── Статус работы ──────────────────────────────────────────────────
         self.add_section_title(text_key="page.winws1_control.section.status")
         status_widgets = build_winws1_pages_status_section(
@@ -231,6 +249,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             win11_toggle_row_cls=Win11ToggleRow,
             on_open_preset_setup_page=self._open_preset_setup_page,
             on_auto_dpi_toggled=self._on_auto_dpi_toggled,
+            on_hide_to_tray_toggled=self._on_hide_to_tray_toggled,
             on_defender_toggled=self._on_defender_toggled,
             on_max_blocker_toggled=self._on_max_blocker_toggled,
             on_discord_restart_changed=self._on_discord_restart_changed,
@@ -249,6 +268,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.program_settings_section_label = deferred_widgets.program_settings_section_label
         self.program_settings_card = deferred_widgets.program_settings_card
         self.auto_dpi_toggle = deferred_widgets.auto_dpi_toggle
+        self.hide_to_tray_toggle = deferred_widgets.hide_to_tray_toggle
         self.defender_toggle = deferred_widgets.defender_toggle
         self.max_block_toggle = deferred_widgets.max_block_toggle
         self.add_widget(self.program_settings_card)
@@ -285,6 +305,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         apply_program_settings_snapshot(
             snapshot,
             auto_dpi_toggle=self.auto_dpi_toggle,
+            hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
         )
@@ -298,6 +319,12 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         try:
             plan = self._program_settings.set_auto_dpi_enabled(enabled)
             InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
+        finally:
+            self._sync_program_settings()
+
+    def _on_hide_to_tray_toggled(self, enabled: bool) -> None:
+        try:
+            self._program_settings.set_hide_to_tray_on_minimize_close(bool(enabled))
         finally:
             self._sync_program_settings()
 
@@ -363,6 +390,32 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         text, tooltip = self._load_preset_name()
         self.preset_name_label.setText(text)
         set_tooltip(self.preset_name_label, tooltip)
+        if self.top_summary is not None:
+            self.top_summary.set_preset(text)
+
+    def _load_enabled_profile_count(self) -> int | None:
+        try:
+            return int(self._profile.count_enabled_profiles(ZAPRET1_MODE))
+        except Exception:
+            return None
+
+    def _refresh_top_summary(self, state: AppUiState | None = None) -> None:
+        summary = self.top_summary
+        if summary is None:
+            return
+        preset_text, _tooltip = self._load_preset_name()
+        summary.set_preset(preset_text)
+        summary.set_profile_count(self._load_enabled_profile_count())
+        snapshot = state
+        if snapshot is None and self._ui_state_store is not None:
+            try:
+                snapshot = self._ui_state_store.snapshot()
+            except Exception:
+                snapshot = None
+        summary.set_premium(
+            is_premium=bool(getattr(snapshot, "subscription_is_premium", False)),
+            days_remaining=getattr(snapshot, "subscription_days_remaining", None),
+        )
 
     def _on_discord_restart_changed(self, enabled: bool) -> None:
         try:
@@ -415,7 +468,18 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self,
             store,
             callback=self._on_ui_state_changed,
-            fields={"launch_phase", "launch_running", "launch_busy", "launch_busy_text", "launch_last_error", "current_strategy_summary", "active_preset_revision"},
+            fields={
+                "launch_phase",
+                "launch_running",
+                "launch_busy",
+                "launch_busy_text",
+                "launch_last_error",
+                "current_strategy_summary",
+                "active_preset_revision",
+                "preset_content_revision",
+                "subscription_is_premium",
+                "subscription_days_remaining",
+            },
         )
 
     def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
@@ -431,6 +495,14 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             else:
                 self.run_when_page_ready(self._apply_pending_preset_name_refresh)
                 self.run_when_page_ready(self._apply_pending_advanced_settings_refresh)
+        if (
+            not changed
+            or "active_preset_revision" in changed
+            or "preset_content_revision" in changed
+            or "subscription_is_premium" in changed
+            or "subscription_days_remaining" in changed
+        ):
+            self._refresh_top_summary(state)
         self.set_loading(bool(state.launch_busy), str(state.launch_busy_text or ""))
         self.update_status(
             state.launch_phase or ("running" if state.launch_running else "stopped"),
@@ -482,6 +554,9 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
+        if self.top_summary is not None:
+            self.top_summary.set_language(self._ui_language)
+            self._refresh_top_summary()
         apply_winws1_pages_language(
             language=self._ui_language,
             start_btn=self.start_btn,
@@ -493,6 +568,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             preset_setup_card=self.preset_setup_card,
             program_settings_card=self.program_settings_card,
             auto_dpi_toggle=self.auto_dpi_toggle,
+            hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
             test_card=self.test_card,

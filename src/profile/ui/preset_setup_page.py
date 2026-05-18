@@ -135,7 +135,6 @@ class PresetSetupPageBase(BasePage):
             return
         profiles_list = ProfilesList(self)
         profiles_list.profile_selected.connect(self._on_profile_clicked)
-        profiles_list.profile_filter_kind_changed.connect(self._on_profile_filter_kind_changed)
         profiles_list.profile_move_requested.connect(self._on_profile_move_requested)
         profiles_list.profile_move_to_end_requested.connect(self._on_profile_move_to_end_requested)
         profiles_list.build_profiles(tuple(payload.items))
@@ -165,13 +164,6 @@ class PresetSetupPageBase(BasePage):
 
     def _on_profile_clicked(self, profile_key: str) -> None:
         self._open_profile_setup(profile_key)
-
-    def _on_profile_filter_kind_changed(self, profile_key: str, filter_kind: str) -> None:
-        try:
-            self._profile.set_profile_filter_kind(self.launch_method, profile_key, filter_kind)
-            self.refresh_from_preset_switch()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось сменить тип списка профиля: {exc}", "ERROR")
 
     def _on_profile_move_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
         try:

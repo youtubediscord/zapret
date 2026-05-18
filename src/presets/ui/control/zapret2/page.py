@@ -37,6 +37,7 @@ from presets.ui.control.control_page_shared import (
 )
 from app.text_catalog import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
+from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
 import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 
 from qfluentwidgets import (
@@ -177,6 +178,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         open_presets,
         open_preset_setup,
         open_blobs,
+        open_premium,
         external_actions_feature,
         ui_state_store,
     ):
@@ -203,6 +205,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._open_presets_callback = open_presets
         self._open_preset_setup_callback = open_preset_setup
         self._open_blobs_callback = open_blobs
+        self._open_premium_callback = open_premium
         self._external_actions = external_actions_feature
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -215,10 +218,12 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._refresh_runtime = zapret2_page_runtime.create_refresh_runtime()
         self.profile_ui_mode_label = None
         self.profile_ui_mode_caption = None
+        self.top_summary = None
         self.preset_setup_open_btn = None
         self.profile_ui_mode_btn = None
         self.program_settings_card = None
         self.auto_dpi_toggle = None
+        self.hide_to_tray_toggle = None
         self.defender_toggle = None
         self.max_block_toggle = None
         self.advanced_settings_section_label = None
@@ -298,6 +303,38 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         tooltip = str(preset_name_tooltip or "").strip()
         self.preset_name_label.setText(text)
         set_tooltip(self.preset_name_label, tooltip)
+        if self.top_summary is not None:
+            self.top_summary.set_preset(text)
+
+    def _load_enabled_profile_count(self) -> int | None:
+        try:
+            return int(self._profile.count_enabled_profiles(ZAPRET2_MODE))
+        except Exception:
+            return None
+
+    def _refresh_top_summary(self, state: AppUiState | None = None) -> None:
+        summary = self.top_summary
+        if summary is None:
+            return
+        try:
+            preset_name_text, _preset_name_tooltip = self._load_selected_preset_name()
+        except Exception:
+            preset_name_text = ""
+        summary.set_preset(
+            str(preset_name_text or "").strip()
+            or tr_catalog("page.winws2_control.preset.not_selected", language=self._ui_language, default="Не выбран")
+        )
+        summary.set_profile_count(self._load_enabled_profile_count())
+        snapshot = state
+        if snapshot is None and self._ui_state_store is not None:
+            try:
+                snapshot = self._ui_state_store.snapshot()
+            except Exception:
+                snapshot = None
+        summary.set_premium(
+            is_premium=bool(getattr(snapshot, "subscription_is_premium", False)),
+            days_remaining=getattr(snapshot, "subscription_days_remaining", None),
+        )
 
     def _run_deferred_show_work(self) -> None:
         if self._cleanup_in_progress:
@@ -343,6 +380,17 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _build_ui(self):
         _t_total = _time.perf_counter()
+        self.top_summary = ControlTopSummaryWidget(
+            language=self._ui_language,
+            mode_value="Zapret 2",
+            parent=self.content,
+        )
+        self.top_summary.presetClicked.connect(self._open_presets_callback)
+        self.top_summary.profilesClicked.connect(self._open_preset_setup_page)
+        self.top_summary.premiumClicked.connect(self._open_premium_callback)
+        self.add_widget(self.top_summary)
+        self.add_spacing(16)
+
         # Статус работы
         _t_status = _time.perf_counter()
         status_widgets = build_winws2_pages_status_section(
@@ -418,6 +466,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             on_open_preset_setup_page=self._open_preset_setup_page,
             on_open_profile_ui_mode_dialog=self._open_profile_ui_mode_dialog,
             on_auto_dpi_toggled=self._on_auto_dpi_toggled,
+            on_hide_to_tray_toggled=self._on_hide_to_tray_toggled,
             on_defender_toggled=self._on_defender_toggled,
             on_max_blocker_toggled=self._on_max_blocker_toggled,
             on_discord_restart_changed=self._on_discord_restart_changed,
@@ -440,6 +489,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.program_settings_section_label = deferred_widgets.program_settings_section_label
         self.program_settings_card = deferred_widgets.program_settings_card
         self.auto_dpi_toggle = deferred_widgets.auto_dpi_toggle
+        self.hide_to_tray_toggle = deferred_widgets.hide_to_tray_toggle
         self.defender_toggle = deferred_widgets.defender_toggle
         self.max_block_toggle = deferred_widgets.max_block_toggle
         self.add_spacing(8)
@@ -563,6 +613,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         apply_program_settings_snapshot(
             snapshot,
             auto_dpi_toggle=self.auto_dpi_toggle,
+            hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
         )
@@ -572,6 +623,12 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             plan = self._program_settings.set_auto_dpi_enabled(enabled)
             self._set_status(plan.message)
             InfoBar.success(title=plan.title, content=plan.message, parent=self.window())
+        finally:
+            self._sync_program_settings()
+
+    def _on_hide_to_tray_toggled(self, enabled: bool) -> None:
+        try:
+            self._program_settings.set_hide_to_tray_on_minimize_close(bool(enabled))
         finally:
             self._sync_program_settings()
 
@@ -605,7 +662,10 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
                 "launch_last_error",
                 "current_strategy_summary",
                 "active_preset_revision",
+                "preset_content_revision",
                 "mode_revision",
+                "subscription_is_premium",
+                "subscription_days_remaining",
             },
         )
 
@@ -614,6 +674,15 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             return
         changed = set(changed_fields or ())
         presets_changed = "active_preset_revision" in changed
+        summary_changed = (
+            not changed
+            or presets_changed
+            or "preset_content_revision" in changed
+            or "subscription_is_premium" in changed
+            or "subscription_days_remaining" in changed
+        )
+        if summary_changed:
+            self._refresh_top_summary(state)
         if "mode_revision" in changed:
             self._sync_profile_ui_mode_from_settings()
         if presets_changed:
@@ -656,6 +725,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
+        if self.top_summary is not None:
+            self.top_summary.set_language(self._ui_language)
+            self._refresh_top_summary()
         apply_profile_language(
             language=self._ui_language,
             start_btn=self.start_btn,
@@ -672,6 +744,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             advanced_notice=self.advanced_notice,
             program_settings_card=self.program_settings_card,
             auto_dpi_toggle=self.auto_dpi_toggle,
+            hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
             advanced_card=self.advanced_card,

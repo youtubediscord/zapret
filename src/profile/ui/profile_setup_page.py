@@ -26,6 +26,7 @@ from profile.ui.profile_setup_controls import (
     sync_range_value_enabled,
 )
 from profile.setup_controller import ProfileSetupController
+from profile.strategy_visuals import describe_strategy_visual
 from qfluentwidgets import (
     BodyLabel,
     BreadcrumbBar,
@@ -33,53 +34,45 @@ from qfluentwidgets import (
     ComboBox,
     LineEdit,
     PlainTextEdit,
-    PushButton,
     SearchLineEdit,
     SegmentedWidget,
-    StrongBodyLabel,
     TitleLabel,
+    PushButton,
 )
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_zapret2_launch_method
 from ui.pages.base_page import BasePage
 from app.text_catalog import tr as tr_catalog
-from ui.theme import get_theme_tokens, to_qcolor
+from ui.theme import get_cached_qta_pixmap, get_theme_tokens, to_qcolor
+from ui.widgets.hover_row import paint_profile_hover_row, profile_hover_row_rect
 
 
 class ProfileStrategyListDelegate(QStyledItemDelegate):
-    """Рисует строки готовых стратегий в стиле списка «Мои пресеты»."""
+    """Рисует готовые стратегии как единый текстовый список."""
 
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         tokens = get_theme_tokens()
-        rect = option.rect.adjusted(8, 3, -8, -3)
+        rect = profile_hover_row_rect(option.rect)
         is_active = bool(index.data(ProfileStrategyListWidget._ROLE_IS_ACTIVE))
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
 
-        if is_active:
-            bg = to_qcolor(
-                tokens.accent_soft_bg_hover if (hovered or selected) else tokens.accent_soft_bg,
-                tokens.accent_hex,
-            )
-        elif hovered or selected:
-            bg = to_qcolor(tokens.surface_bg_hover, tokens.surface_bg)
-        else:
-            bg = to_qcolor(tokens.surface_bg, "#1f1f1f")
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(bg)
-        painter.drawRoundedRect(rect, 10, 10)
-
-        if is_active:
-            marker_rect = QRect(rect.left() + 6, rect.top() + 7, 5, max(12, rect.height() - 14))
-            painter.setBrush(to_qcolor(tokens.accent_hex, "#5caee8"))
-            painter.drawRoundedRect(marker_rect, 2, 2)
+        paint_profile_hover_row(
+            painter,
+            rect,
+            active=is_active,
+            hovered=hovered,
+            selected=selected,
+        )
 
         left = rect.left() + (24 if is_active else 18)
         right = rect.right() - 16
         status = str(index.data(ProfileStrategyListWidget._ROLE_STATUS_TEXT) or "")
+        icon_name = str(index.data(ProfileStrategyListWidget._ROLE_VISUAL_ICON_NAME) or "")
+        visual_color = str(index.data(ProfileStrategyListWidget._ROLE_VISUAL_COLOR) or "")
+        visual_label = str(index.data(ProfileStrategyListWidget._ROLE_VISUAL_LABEL_TEXT) or "")
         status_rect = QRect()
 
         font = painter.font()
@@ -92,6 +85,24 @@ class ProfileStrategyListDelegate(QStyledItemDelegate):
             status_rect = QRect(right - status_width, rect.center().y() - 10, status_width, 20)
             right = status_rect.left() - 12
 
+        icon_size = 14
+        if icon_name:
+            icon_rect = QRect(left, rect.center().y() - icon_size // 2, icon_size, icon_size)
+            pixmap = get_cached_qta_pixmap(icon_name, color=visual_color or tokens.fg_faint, size=icon_size)
+            if not pixmap.isNull():
+                painter.drawPixmap(icon_rect, pixmap)
+            else:
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(to_qcolor(visual_color or tokens.fg_faint, "#aeb5c1"))
+                painter.drawEllipse(icon_rect)
+            left = icon_rect.right() + 10
+
+        visual_rect = QRect()
+        if visual_label:
+            visual_width = min(metrics.horizontalAdvance(visual_label) + 4, max(0, rect.width() // 3))
+            visual_rect = QRect(max(left, right - visual_width), rect.top(), visual_width, rect.height())
+            right = visual_rect.left() - 12
+
         name = str(index.data(ProfileStrategyListWidget._ROLE_NAME_TEXT) or "")
         name_rect = QRect(left, rect.top(), max(0, right - left), rect.height())
         painter.setPen(to_qcolor(tokens.fg, "#f5f5f5"))
@@ -100,6 +111,14 @@ class ProfileStrategyListDelegate(QStyledItemDelegate):
             int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
             metrics.elidedText(name, Qt.TextElideMode.ElideRight, name_rect.width()),
         )
+
+        if visual_rect.width() > 0:
+            painter.setPen(to_qcolor(visual_color or tokens.fg_faint, "#aeb5c1"))
+            painter.drawText(
+                visual_rect,
+                int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                metrics.elidedText(visual_label, Qt.TextElideMode.ElideRight, visual_rect.width()),
+            )
 
         if status_rect.width() > 0:
             if is_active:
@@ -121,7 +140,7 @@ class ProfileStrategyListDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
         _ = (option, index)
-        return QSize(0, 34)
+        return QSize(0, 31)
 
 
 class ProfileStrategyListWidget(QWidget):
@@ -133,6 +152,10 @@ class ProfileStrategyListWidget(QWidget):
     _ROLE_NAME_TEXT = int(Qt.ItemDataRole.UserRole) + 2
     _ROLE_STATUS_TEXT = int(Qt.ItemDataRole.UserRole) + 3
     _ROLE_IS_ACTIVE = int(Qt.ItemDataRole.UserRole) + 4
+    _ROLE_VISUAL_ICON_NAME = int(Qt.ItemDataRole.UserRole) + 5
+    _ROLE_VISUAL_COLOR = int(Qt.ItemDataRole.UserRole) + 6
+    _ROLE_VISUAL_LABEL_TEXT = int(Qt.ItemDataRole.UserRole) + 7
+    _ROLE_VISUAL_DESCRIPTION = int(Qt.ItemDataRole.UserRole) + 8
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -171,7 +194,8 @@ class ProfileStrategyListWidget(QWidget):
         self._list.itemActivated.connect(self._on_item_activated)
         self._list.itemClicked.connect(self._on_item_clicked)
         self._list.setStyleSheet(
-            "QListWidget { background: transparent; border: none; outline: none; }"
+            "QListWidget { background: rgba(255, 255, 255, 0.035); border: none; border-radius: 6px; outline: none; padding: 4px 0; }"
+            "QListWidget::viewport { background: transparent; }"
             "QListWidget::item { border: none; padding: 0; }"
             "QListWidget::item:selected { background: transparent; }"
             "QListWidget::item:hover { background: transparent; }"
@@ -199,7 +223,11 @@ class ProfileStrategyListWidget(QWidget):
         for strategy_id, entry in rows:
             name = str(getattr(entry, "name", "") or strategy_id)
             args = str(getattr(entry, "args", "") or "")
-            if search_text and search_text not in name.lower() and search_text not in args.lower():
+            visual = getattr(entry, "visual", None) or describe_strategy_visual(args)
+            visual_label = str(visual.label or "")
+            visual_description = str(visual.description or "")
+            visual_search = f"{visual_label} {visual_description}".lower()
+            if search_text and search_text not in name.lower() and search_text not in args.lower() and search_text not in visual_search:
                 continue
 
             item = QListWidgetItem()
@@ -221,8 +249,13 @@ class ProfileStrategyListWidget(QWidget):
             item.setData(self._ROLE_NAME_TEXT, name)
             item.setData(self._ROLE_STATUS_TEXT, " • ".join(status_parts))
             item.setData(self._ROLE_IS_ACTIVE, is_current)
-            item.setToolTip(args)
-            item.setSizeHint(QSize(0, 34))
+            item.setData(self._ROLE_VISUAL_ICON_NAME, str(visual.icon_name or ""))
+            item.setData(self._ROLE_VISUAL_COLOR, str(visual.color or ""))
+            item.setData(self._ROLE_VISUAL_LABEL_TEXT, visual_label)
+            item.setData(self._ROLE_VISUAL_DESCRIPTION, visual_description)
+            tooltip_parts = [visual_description.strip(), args]
+            item.setToolTip("\n\n".join(part for part in tooltip_parts if part))
+            item.setSizeHint(QSize(0, 31))
             if is_current:
                 current_item = item
             self._list.addItem(item)
@@ -239,22 +272,44 @@ class ProfileStrategyListWidget(QWidget):
     def _strategy_id_for_item(self, item) -> str:
         return str(item.data(self._ROLE_STRATEGY_ID) or "").strip() if item is not None else ""
 
-    def _on_item_clicked(self, item, _column: int) -> None:
+    def _on_item_clicked(self, item) -> None:
         strategy_id = self._strategy_id_for_item(item)
         if strategy_id:
             self.strategy_activated.emit(strategy_id)
 
-    def _on_item_activated(self, item, _column: int) -> None:
+    def _on_item_activated(self, item) -> None:
         strategy_id = self._strategy_id_for_item(item)
         if strategy_id:
             self.strategy_activated.emit(strategy_id)
 
 
-def _section_label(text: str, parent=None) -> StrongBodyLabel:
-    label = StrongBodyLabel(parent)
-    label.setText(text)
-    label.setProperty("tone", "primary")
-    return label
+def _match_tab_text(payload) -> str:
+    item = getattr(payload, "item", None)
+    strategy_id = str(getattr(item, "strategy_id", "") or "").strip()
+    strategy_name = str(getattr(item, "strategy_name", "") or "").strip()
+    strategy_entries = getattr(payload, "strategy_entries", {}) or {}
+    entry = strategy_entries.get(strategy_id)
+    strategy_args = str(getattr(entry, "args", "") or getattr(payload, "raw_strategy_text", "") or "").strip()
+
+    if not strategy_name or strategy_id in {"", "none"}:
+        strategy_name = "Стратегия не выбрана"
+    elif strategy_id == "custom":
+        strategy_name = "Своя стратегия"
+
+    blocks = [
+        ("Когда profile применяется", str(getattr(payload, "match_summary", "") or "без явных условий").strip()),
+        ("Текущая готовая стратегия", strategy_name),
+        ("Аргументы готовой стратегии", strategy_args or "Стратегия не выбрана"),
+        ("Что записано в profile", str(getattr(payload, "raw_profile_text", "") or "").strip() or "Profile пустой"),
+    ]
+
+    lines: list[str] = []
+    for title, text in blocks:
+        lines.append(title)
+        lines.append("=" * len(title))
+        lines.append(text)
+        lines.append("")
+    return "\n".join(lines).strip()
 
 
 class ProfileSetupPageBase(BasePage):
@@ -281,16 +336,8 @@ class ProfileSetupPageBase(BasePage):
         self._profile_key = ""
         self._loading = False
         self._payload = None
-        self._profile_subpage = "profile"
-        self._detail_strategy_id = ""
-        self._main_widgets = []
-        self._detail_widgets = []
         self._settings_title = None
         self._settings_container = None
-        self._feedback_container = None
-        self._open_feedback_button = None
-        self._feedback_strategy_label = None
-        self._feedback_status_label = None
         self._work_button = None
         self._notwork_button = None
         self._favorite_button = None
@@ -329,7 +376,6 @@ class ProfileSetupPageBase(BasePage):
         controls_layout.addStretch(1)
 
         self.layout.addWidget(controls)
-        self._main_widgets.append(controls)
 
         self._settings_container = QWidget(self)
         settings_layout = QHBoxLayout(self._settings_container)
@@ -382,7 +428,6 @@ class ProfileSetupPageBase(BasePage):
 
         self._settings_title = self.add_section_title("Настройки профиля", return_widget=True)
         self.layout.addWidget(self._settings_container)
-        self._main_widgets.extend([self._settings_title, self._settings_container])
 
         self._strategy_stack = QStackedWidget(self)
         self._strategy_tabs = SegmentedWidget()
@@ -390,7 +435,6 @@ class ProfileSetupPageBase(BasePage):
         self._strategy_tabs.addItem("match", "Когда применяется", lambda: self._strategy_stack.setCurrentIndex(1))
         self._strategy_tabs.setCurrentItem("strategies")
         self.layout.addWidget(self._strategy_tabs)
-        self._main_widgets.append(self._strategy_tabs)
 
         self._strategy_list = ProfileStrategyListWidget(self)
         self._strategy_list.strategy_activated.connect(self._on_strategy_list_activated)
@@ -402,74 +446,10 @@ class ProfileSetupPageBase(BasePage):
         match_layout.setSpacing(10)
         self._match_text = PlainTextEdit()
         self._match_text.setReadOnly(True)
-        self._match_text.setMinimumHeight(180)
+        self._match_text.setMinimumHeight(520)
         match_layout.addWidget(self._match_text)
-        self._strategy_stack.addWidget(match_tab)
 
-        self.layout.addWidget(self._strategy_stack, 1)
-        self._main_widgets.append(self._strategy_stack)
-
-        self._strategy_detail_container = QWidget(self)
-        detail_layout = QVBoxLayout(self._strategy_detail_container)
-        detail_layout.setContentsMargins(0, 0, 0, 0)
-        detail_layout.setSpacing(12)
-
-        self._strategy_detail_title = TitleLabel("Готовая стратегия")
-        detail_layout.addWidget(self._strategy_detail_title)
-
-        self._strategy_detail_summary = BodyLabel("")
-        self._strategy_detail_summary.setWordWrap(True)
-        detail_layout.addWidget(self._strategy_detail_summary)
-
-        detail_actions = QWidget(self._strategy_detail_container)
-        detail_actions_layout = QHBoxLayout(detail_actions)
-        detail_actions_layout.setContentsMargins(0, 0, 0, 0)
-        detail_actions_layout.setSpacing(10)
-        self._open_feedback_button = PushButton("Оценка стратегии")
-        self._open_feedback_button.clicked.connect(self._open_feedback_subpage)
-        detail_actions_layout.addWidget(self._open_feedback_button)
-        detail_actions_layout.addStretch(1)
-        detail_layout.addWidget(detail_actions)
-
-        self._strategy_detail_args_title = _section_label("Аргументы готовой стратегии", self._strategy_detail_container)
-        detail_layout.addWidget(self._strategy_detail_args_title)
-        self._strategy_text = PlainTextEdit()
-        self._strategy_text.setReadOnly(True)
-        self._strategy_text.setMinimumHeight(190)
-        detail_layout.addWidget(self._strategy_text)
-
-        self._raw_title = _section_label("Что записано в профиль", self._strategy_detail_container)
-        detail_layout.addWidget(self._raw_title)
-        self._raw_text = PlainTextEdit()
-        self._raw_text.setReadOnly(True)
-        self._raw_text.setMinimumHeight(220)
-        detail_layout.addWidget(self._raw_text)
-
-        self._detail_match_title = _section_label("Когда профиль применяется", self._strategy_detail_container)
-        detail_layout.addWidget(self._detail_match_title)
-        self._detail_match_text = PlainTextEdit()
-        self._detail_match_text.setReadOnly(True)
-        self._detail_match_text.setMinimumHeight(120)
-        detail_layout.addWidget(self._detail_match_text)
-
-        self._strategy_detail_container.hide()
-        self.layout.addWidget(self._strategy_detail_container)
-        self._detail_widgets.append(self._strategy_detail_container)
-
-        self._feedback_container = QWidget(self)
-        feedback_layout = QVBoxLayout(self._feedback_container)
-        feedback_layout.setContentsMargins(0, 0, 0, 0)
-        feedback_layout.setSpacing(12)
-
-        self._feedback_strategy_label = BodyLabel("")
-        self._feedback_strategy_label.setWordWrap(True)
-        feedback_layout.addWidget(self._feedback_strategy_label)
-
-        self._feedback_status_label = BodyLabel("")
-        self._feedback_status_label.setWordWrap(True)
-        feedback_layout.addWidget(self._feedback_status_label)
-
-        feedback_actions = QWidget(self._feedback_container)
+        feedback_actions = QWidget(match_tab)
         feedback_actions_layout = QHBoxLayout(feedback_actions)
         feedback_actions_layout.setContentsMargins(0, 0, 0, 0)
         feedback_actions_layout.setSpacing(12)
@@ -490,10 +470,11 @@ class ProfileSetupPageBase(BasePage):
         self._clear_feedback_button.clicked.connect(lambda: self._set_current_strategy_feedback(rating=""))
         feedback_actions_layout.addWidget(self._clear_feedback_button)
         feedback_actions_layout.addStretch(1)
-        feedback_layout.addWidget(feedback_actions)
+        match_layout.addWidget(feedback_actions)
 
-        self._feedback_container.hide()
-        self.layout.addWidget(self._feedback_container)
+        self._strategy_stack.addWidget(match_tab)
+
+        self.layout.addWidget(self._strategy_stack, 1)
 
     def _fill_range_combo(self, combo: ComboBox) -> None:
         combo.addItem("a", userData="a")
@@ -510,10 +491,6 @@ class ProfileSetupPageBase(BasePage):
             self._breadcrumb.addItem("profiles", tr_catalog(self.profiles_key, language=self._ui_language, default=self.profiles_default))
             title = str(getattr(getattr(self._payload, "item", None), "display_name", "") or "Профиль")
             self._breadcrumb.addItem("profile", title)
-            if self._profile_subpage in {"strategy_detail", "feedback"}:
-                self._breadcrumb.addItem("strategy_detail", self._detail_strategy_name())
-            if self._profile_subpage == "feedback":
-                self._breadcrumb.addItem("feedback", "Оценка стратегии")
         finally:
             self._breadcrumb.blockSignals(False)
 
@@ -523,22 +500,10 @@ class ProfileSetupPageBase(BasePage):
         elif key == "profiles":
             self._open_profiles()
         elif key == "profile":
-            self._profile_subpage = "profile"
-            self._sync_subpage_visibility()
-            self._rebuild_breadcrumb()
-        elif key == "strategy_detail":
-            self._profile_subpage = "strategy_detail"
-            self._sync_subpage_visibility()
-            self._rebuild_breadcrumb()
-        elif key == "feedback":
-            self._profile_subpage = "feedback"
-            self._sync_subpage_visibility()
             self._rebuild_breadcrumb()
 
     def show_profile(self, profile_key: str) -> None:
         self._profile_key = str(profile_key or "").strip()
-        self._profile_subpage = "profile"
-        self._detail_strategy_id = ""
         self.reload_current_profile()
 
     def handle_page_command(self, command: str, payload: dict) -> bool:
@@ -571,66 +536,16 @@ class ProfileSetupPageBase(BasePage):
             self._enabled_checkbox.setEnabled(True)
             self._apply_editable_settings(payload)
 
-            self._match_text.setPlainText(payload.match_summary)
+            self._match_text.setPlainText(_match_tab_text(payload))
             self._strategy_list.set_rows(
                 entries=payload.strategy_entries,
                 states=payload.strategy_states,
                 current_strategy_id=item.strategy_id or "none",
             )
-            if self._profile_subpage in {"strategy_detail", "feedback"}:
-                if not self._is_active_detail_strategy():
-                    self._profile_subpage = "profile"
-                    self._detail_strategy_id = ""
-                else:
-                    self._apply_strategy_detail(payload)
-            self._strategy_text.setPlainText(payload.raw_strategy_text or "Стратегия не выбрана")
-            self._raw_text.setPlainText(payload.raw_profile_text)
-            self._detail_match_text.setPlainText(payload.match_summary)
             self._apply_feedback_buttons(payload)
-            self._sync_subpage_visibility()
             self._rebuild_breadcrumb()
         finally:
             self._loading = False
-
-    def _detail_strategy_name(self) -> str:
-        payload = self._payload
-        strategy_id = str(self._detail_strategy_id or "").strip()
-        if payload is None or not strategy_id:
-            return "Готовая стратегия"
-        entry = payload.strategy_entries.get(strategy_id)
-        return str(getattr(entry, "name", "") or "Готовая стратегия")
-
-    def _is_active_detail_strategy(self) -> bool:
-        payload = self._payload
-        if payload is None:
-            return False
-        return bool(
-            self._detail_strategy_id
-            and self._detail_strategy_id == str(payload.item.strategy_id or "").strip()
-            and self._detail_strategy_id not in {"none", "custom"}
-        )
-
-    def _apply_strategy_detail(self, payload) -> None:
-        strategy_id = str(self._detail_strategy_id or "").strip()
-        entry = payload.strategy_entries.get(strategy_id)
-        if entry is None:
-            return
-        state = payload.strategy_states.get(strategy_id)
-        status_parts = ["Активная готовая стратегия"]
-        if bool(getattr(state, "favorite", False)):
-            status_parts.append("в избранном")
-        rating = str(getattr(state, "rating", "") or "")
-        if rating == "work":
-            status_parts.append("оценка: работает")
-        elif rating == "notwork":
-            status_parts.append("оценка: не работает")
-        else:
-            status_parts.append("оценка не выбрана")
-        self._strategy_detail_title.setText(str(getattr(entry, "name", "") or "Готовая стратегия"))
-        self._strategy_detail_summary.setText(" • ".join(status_parts))
-        self._strategy_text.setPlainText(str(getattr(entry, "args", "") or "Стратегия не выбрана"))
-        self._raw_text.setPlainText(payload.raw_profile_text)
-        self._detail_match_text.setPlainText(payload.match_summary)
 
     def _apply_feedback_buttons(self, payload) -> None:
         item = payload.item
@@ -640,56 +555,15 @@ class ProfileSetupPageBase(BasePage):
             and item.enabled
             and item.strategy_id not in {"", "none", "custom"}
         )
-        if self._open_feedback_button is not None:
-            self._open_feedback_button.setEnabled(editable and self._is_active_detail_strategy())
         for button in (self._work_button, self._notwork_button, self._favorite_button, self._clear_feedback_button):
             if button is not None:
                 button.setEnabled(editable)
-        if self._feedback_strategy_label is not None:
-            self._feedback_strategy_label.setText(f"Готовая стратегия: {item.strategy_name}")
-        if self._feedback_status_label is not None:
-            status_parts = []
-            if state.rating == "work":
-                status_parts.append("Оценка: работает")
-            elif state.rating == "notwork":
-                status_parts.append("Оценка: не работает")
-            else:
-                status_parts.append("Оценка не выбрана")
-            status_parts.append("В избранном" if state.favorite else "Не в избранном")
-            if not editable:
-                status_parts.append("Оценка доступна только для готовой стратегии внутри включённого профиля")
-            self._feedback_status_label.setText(" • ".join(status_parts))
         if self._favorite_button is not None:
             self._favorite_button.setText("Убрать из избранного" if state.favorite else "В избранное")
         if self._work_button is not None:
             self._work_button.setProperty("selected", state.rating == "work")
         if self._notwork_button is not None:
             self._notwork_button.setProperty("selected", state.rating == "notwork")
-
-    def _open_feedback_subpage(self) -> None:
-        if not self._is_active_detail_strategy():
-            return
-        self._profile_subpage = "feedback"
-        self._sync_subpage_visibility()
-        self._rebuild_breadcrumb()
-
-    def _sync_subpage_visibility(self) -> None:
-        main_visible = self._profile_subpage == "profile"
-        detail_visible = self._profile_subpage == "strategy_detail"
-        feedback_visible = self._profile_subpage == "feedback"
-        for widget in self._main_widgets:
-            if widget is not None:
-                widget.setVisible(main_visible)
-        for widget in self._detail_widgets:
-            if widget is not None:
-                widget.setVisible(detail_visible)
-        if main_visible and not is_zapret2_launch_method(self.launch_method):
-            if self._settings_title is not None:
-                self._settings_title.hide()
-            if self._settings_container is not None:
-                self._settings_container.hide()
-        if self._feedback_container is not None:
-            self._feedback_container.setVisible(feedback_visible)
 
     def _apply_editable_settings(self, payload) -> None:
         is_winws2 = is_zapret2_launch_method(self.launch_method)
@@ -772,13 +646,6 @@ class ProfileSetupPageBase(BasePage):
             return
         strategy_id = str(strategy_id or "").strip()
         if not strategy_id or strategy_id in {"none", "custom"}:
-            return
-        if self._payload is not None and strategy_id == str(self._payload.item.strategy_id or "").strip():
-            self._detail_strategy_id = strategy_id
-            self._profile_subpage = "strategy_detail"
-            self._apply_strategy_detail(self._payload)
-            self._sync_subpage_visibility()
-            self._rebuild_breadcrumb()
             return
         try:
             new_key = self._controller.apply_strategy(

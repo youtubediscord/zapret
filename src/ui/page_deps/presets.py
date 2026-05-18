@@ -29,6 +29,7 @@ def build_control_page_kwargs(context: PageDepsContext, page_name: PageName) -> 
         "open_presets": lambda page=user_presets_page: context.show_page(page, allow_internal=True),
         "open_preset_setup": lambda page=preset_setup_page: context.show_page(page, allow_internal=True),
         "open_blobs": lambda: context.show_page(PageName.BLOBS, allow_internal=True),
+        "open_premium": lambda: context.show_page(PageName.PREMIUM, allow_internal=True),
         "external_actions_feature": context.external_actions_feature,
         "ui_state_store": context.ui_state_store,
     }

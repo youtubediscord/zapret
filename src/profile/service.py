@@ -67,6 +67,10 @@ class ProfilePresetService:
             selected_preset_name=str(getattr(manifest, "name", "") or ""),
         )
 
+    def count_enabled_profiles(self) -> int:
+        preset, _manifest = self.load_selected_preset()
+        return sum(1 for profile in preset.profiles if bool(getattr(profile, "enabled", False)))
+
     def get_profile_setup(self, profile_key: str) -> ProfileSetupPayload | None:
         preset, _manifest = self.load_selected_preset()
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)

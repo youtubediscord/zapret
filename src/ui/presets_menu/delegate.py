@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt6.QtCore import QEvent, QModelIndex, QRect, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFontMetrics, QHelpEvent, QMouseEvent, QPainter, QTransform
+from PyQt6.QtGui import QFontMetrics, QHelpEvent, QMouseEvent, QPainter, QTransform
 from PyQt6.QtWidgets import QListView, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QToolTip
 
 from ui.theme import get_theme_tokens
+from ui.widgets.hover_row import paint_profile_hover_row, profile_hover_row_rect
 
 from .common import (
     cached_icon,
@@ -26,7 +27,6 @@ class PresetListDelegate(QStyledItemDelegate):
     _EMPTY_HEIGHT = 64
     _ACTION_SIZE = 28
     _ACTION_SPACING = 6
-    _ACTIVE_MARKER_WIDTH = 4
     _BADGE_HEIGHT = 18
     _BADGE_H_PADDING = 8
     _BADGE_GAP = 8
@@ -293,7 +293,7 @@ class PresetListDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
         tokens = get_theme_tokens()
-        rect = option.rect.adjusted(8, 2, -8, -2)
+        rect = profile_hover_row_rect(option.rect)
 
         name = str(index.data(PresetListModel.NameRole) or "")
         date_text = str(index.data(PresetListModel.DateRole) or "")
@@ -306,30 +306,14 @@ class PresetListDelegate(QStyledItemDelegate):
         hovered = option.state & QStyle.StateFlag.State_MouseOver
         pressed = self._pressed_row == index.row()
 
-        if is_active:
-            bg = to_qcolor(
-                tokens.accent_soft_bg_hover if (hovered or pressed) else tokens.accent_soft_bg,
-                tokens.accent_hex,
-            )
-        elif hovered or pressed:
-            bg = to_qcolor(tokens.surface_bg_hover, tokens.surface_bg)
-        else:
-            bg = to_qcolor(tokens.surface_bg, "#1f1f1f")
-
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(bg)
-        painter.drawRoundedRect(rect, 10, 10)
-
-        if is_active:
-            marker_rect = QRect(
-                rect.left() + 6,
-                rect.top() + 6,
-                self._ACTIVE_MARKER_WIDTH,
-                max(12, rect.height() - 12),
-            )
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(to_qcolor(tokens.accent_hex, "#5caee8"))
-            painter.drawRoundedRect(marker_rect, 2, 2)
+        row_paint = paint_profile_hover_row(
+            painter,
+            rect,
+            active=is_active,
+            hovered=bool(hovered),
+            pressed=pressed,
+        )
+        bg = row_paint.background
 
         icon_rect = self._icon_rect_for_row(rect, depth)
         icon_color = pick_contrast_color(

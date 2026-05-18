@@ -26,6 +26,9 @@ class ProgramSettingsFeature:
     def set_auto_dpi_enabled(self, enabled: bool):
         return program_settings_commands.set_auto_dpi_enabled(enabled)
 
+    def set_hide_to_tray_on_minimize_close(self, enabled: bool) -> bool:
+        return bool(program_settings_commands.set_hide_to_tray_on_minimize_close(enabled))
+
     def set_defender_disabled(self, disable: bool, *, status_callback=None):
         return program_settings_commands.set_defender_disabled(disable, status_callback=status_callback)
 

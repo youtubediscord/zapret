@@ -14,7 +14,6 @@ from profile.match_filters import is_voice_match, ports_label_from_match_lines, 
 
 class ProfilesList(QWidget):
     profile_selected = pyqtSignal(str)
-    profile_filter_kind_changed = pyqtSignal(str, str)
     profile_move_requested = pyqtSignal(str, str)
     profile_move_to_end_requested = pyqtSignal(str)
 
@@ -119,21 +118,13 @@ class ProfilesList(QWidget):
         )
         widget.set_drag_enabled(bool(item.in_preset))
         widget.item_activated.connect(self._on_item_clicked)
-        widget.variant_selected.connect(self._on_variant_selected)
         widget.item_dropped.connect(self._on_item_dropped)
         widget.set_strategy(item.strategy_id, item.strategy_name)
         widget.set_feedback_state(item.rating, item.favorite)
-        widget.set_variants(getattr(item, "variants", ()))
         return widget
 
     def _on_item_clicked(self, profile_key: str) -> None:
         self.profile_selected.emit(profile_key)
-
-    def _on_variant_selected(self, filter_kind: str) -> None:
-        widget = self.sender()
-        profile_key = str(getattr(widget, "item_key", "") or "")
-        if profile_key and filter_kind:
-            self.profile_filter_kind_changed.emit(profile_key, filter_kind)
 
     def _on_item_dropped(self, source_key: str, destination_key: str) -> None:
         source = self._profile_items.get(source_key)

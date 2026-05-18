@@ -38,6 +38,12 @@ class ProfileStrategyResolutionTests(unittest.TestCase):
         self.assertEqual(self._resolved_strategy_id(self.preset.profiles[3]), "stock_default_v5_12")
         self.assertEqual(self._resolved_strategy_id(self.preset.profiles[8]), "stock_default_v5_13")
 
+    def test_catalog_entry_contains_strategy_visual_description(self) -> None:
+        entry = self.catalogs["tcp"]["stock_default_v5_11"]
+
+        self.assertEqual(entry.visual.technique_keys, ("fake", "multidisorder"))
+        self.assertEqual(entry.visual.label, "Fake + MultiDisorder")
+
     def _resolved_strategy_id(self, profile) -> str:
         catalog = strategy_catalog_from_match_lines(tuple(profile.match.all_lines()))
         self.assertIn(catalog, self.catalogs)

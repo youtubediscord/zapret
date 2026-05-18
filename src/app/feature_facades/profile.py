@@ -15,6 +15,9 @@ class ProfileFeature:
     def list_profiles(self, launch_method: str):
         return profile_internal_commands.list_profiles(self, launch_method)
 
+    def count_enabled_profiles(self, launch_method: str) -> int:
+        return int(profile_internal_commands.count_enabled_profiles(self, launch_method))
+
     def get_profile_setup(self, launch_method: str, profile_key: str):
         return profile_internal_commands.get_profile_setup(self, launch_method, profile_key)
 

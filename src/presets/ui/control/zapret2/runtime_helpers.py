@@ -11,10 +11,11 @@ from presets.ui.control.control_page_runtime_shared import (
 )
 
 
-def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, defender_toggle, max_block_toggle) -> None:
+def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, hide_to_tray_toggle, defender_toggle, max_block_toggle) -> None:
     apply_program_settings_toggles(
         snapshot,
         auto_dpi_toggle=auto_dpi_toggle,
+        hide_to_tray_toggle=hide_to_tray_toggle,
         defender_toggle=defender_toggle,
         max_block_toggle=max_block_toggle,
     )
@@ -83,6 +84,7 @@ def apply_profile_language(
     advanced_notice,
     program_settings_card,
     auto_dpi_toggle,
+    hide_to_tray_toggle,
     defender_toggle,
     max_block_toggle,
     advanced_card,
@@ -118,6 +120,10 @@ def apply_profile_language(
     auto_dpi_toggle.set_texts(
         tr_catalog("page.winws2_control.setting.autostart.title", language=language, default="Автозапуск DPI после старта программы"),
         tr_catalog("page.winws2_control.setting.autostart.desc", language=language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим"),
+    )
+    hide_to_tray_toggle.set_texts(
+        tr_catalog("page.control.setting.hide_to_tray.title", language=language, default="Всегда скрывать в трей при сворачивании и закрытии"),
+        tr_catalog("page.control.setting.hide_to_tray.desc", language=language, default="Кнопка свернуть и крестик прячут окно в системный трей"),
     )
     defender_toggle.set_texts(
         tr_catalog("page.control.setting.defender.title", language=language, default="Отключить Windows Defender"),

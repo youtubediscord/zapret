@@ -43,6 +43,14 @@ class WindowCloseFlow:
             pass
 
         try:
+            from settings.store import get_hide_to_tray_on_minimize_close
+
+            if get_hide_to_tray_on_minimize_close():
+                minimized = bool(self._close_to_tray())
+                if not minimized:
+                    log("Сценарий 'закрыть в трей' не выполнен: tray manager не готов", "WARNING")
+                return False
+
             from ui.close_dialog import ask_close_action
 
             result = ask_close_action(

@@ -136,6 +136,38 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Определение состояния процесса",
         "en": "Detecting process state",
     },
+    "page.control.summary.preset.caption": {
+        "ru": "Текущий preset",
+        "en": "Current preset",
+    },
+    "page.control.summary.profiles.caption": {
+        "ru": "Профили",
+        "en": "Profiles",
+    },
+    "page.control.summary.profiles.enabled_template": {
+        "ru": "{count} включено",
+        "en": "{count} enabled",
+    },
+    "page.control.summary.profiles.unavailable": {
+        "ru": "Не удалось проверить",
+        "en": "Could not check",
+    },
+    "page.control.summary.mode.caption": {
+        "ru": "Текущий режим",
+        "en": "Current mode",
+    },
+    "page.control.summary.premium.free_details": {
+        "ru": "Базовые функции",
+        "en": "Basic features",
+    },
+    "page.control.summary.premium.days_left": {
+        "ru": "Осталось {days} дней",
+        "en": "{days} days left",
+    },
+    "page.control.summary.premium.active_details": {
+        "ru": "Активен",
+        "en": "Active",
+    },
     "page.control.status.running": {
         "ru": "Zapret работает",
         "en": "Zapret is running",
@@ -183,6 +215,14 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.control.setting.autostart.desc": {
         "ru": "После запуска ZapretGUI автоматически запускать текущий DPI-режим",
         "en": "Automatically start the current DPI mode after ZapretGUI launches",
+    },
+    "page.control.setting.hide_to_tray.title": {
+        "ru": "Всегда скрывать в трей при сворачивании и закрытии",
+        "en": "Always hide to tray when minimizing and closing",
+    },
+    "page.control.setting.hide_to_tray.desc": {
+        "ru": "Кнопка свернуть и крестик прячут окно в системный трей",
+        "en": "The minimize button and close button hide the window to the system tray",
     },
     "page.control.setting.defender.title": {
         "ru": "Отключить Windows Defender",

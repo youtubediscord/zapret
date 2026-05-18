@@ -58,6 +58,12 @@ def set_auto_dpi_enabled(enabled: bool) -> AutoDpiUpdateResult:
     )
 
 
+def set_hide_to_tray_on_minimize_close(enabled: bool) -> bool:
+    from settings.store import set_hide_to_tray_on_minimize_close
+
+    return bool(set_hide_to_tray_on_minimize_close(bool(enabled)))
+
+
 def set_defender_disabled(
     disable: bool,
     *,

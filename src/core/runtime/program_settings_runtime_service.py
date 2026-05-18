@@ -7,8 +7,9 @@ import weakref
 
 @dataclass(frozen=True, slots=True)
 class ProgramSettingsSnapshot:
-    revision: tuple[bool, bool, bool]
+    revision: tuple[bool, bool, bool, bool]
     auto_dpi_enabled: bool
+    hide_to_tray_on_minimize_close: bool
     defender_disabled: bool
     max_blocked: bool
 
@@ -46,6 +47,15 @@ class ProgramSettingsRuntimeService:
             return False
 
     @staticmethod
+    def _read_hide_to_tray_on_minimize_close() -> bool:
+        try:
+            from settings.store import get_hide_to_tray_on_minimize_close
+
+            return bool(get_hide_to_tray_on_minimize_close())
+        except Exception:
+            return False
+
+    @staticmethod
     def _read_max_blocked() -> bool:
         try:
             from windows_features.max_blocker import is_max_blocked
@@ -56,16 +66,19 @@ class ProgramSettingsRuntimeService:
 
     def _read_snapshot(self) -> ProgramSettingsSnapshot:
         auto_dpi_enabled = self._read_auto_dpi_enabled()
+        hide_to_tray_on_minimize_close = self._read_hide_to_tray_on_minimize_close()
         defender_disabled = self._read_defender_disabled()
         max_blocked = self._read_max_blocked()
         revision = (
             bool(auto_dpi_enabled),
+            bool(hide_to_tray_on_minimize_close),
             bool(defender_disabled),
             bool(max_blocked),
         )
         return ProgramSettingsSnapshot(
             revision=revision,
             auto_dpi_enabled=auto_dpi_enabled,
+            hide_to_tray_on_minimize_close=hide_to_tray_on_minimize_close,
             defender_disabled=defender_disabled,
             max_blocked=max_blocked,
         )

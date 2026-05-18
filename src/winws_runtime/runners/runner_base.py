@@ -204,6 +204,7 @@ class StrategyRunnerBase(ABC):
         conflict_signatures = [
             "guid or luid already exists",
             "object with that guid",
+            "already running with the same filter",
         ]
         return any(sig in stderr_lower for sig in conflict_signatures)
 

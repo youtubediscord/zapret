@@ -9,12 +9,6 @@ from profile.match_filters import filter_values
 
 
 @dataclass(frozen=True)
-class ProfileDisplayVariant:
-    filter_kind: str
-    label: str
-
-
-@dataclass(frozen=True)
 class ProfileDisplayItem:
     key: str
     persistent_key: str
@@ -30,7 +24,6 @@ class ProfileDisplayItem:
     favorite: bool
     group: str
     order: int
-    variants: tuple[ProfileDisplayVariant, ...]
 
 
 def build_profile_display_items(items: tuple[Any, ...]) -> tuple[ProfileDisplayItem, ...]:
@@ -40,7 +33,6 @@ def build_profile_display_items(items: tuple[Any, ...]) -> tuple[ProfileDisplayI
 
 
 def _display_item_from_profile(item: Any) -> ProfileDisplayItem:
-    variants = _variants_for_item(item)
     return ProfileDisplayItem(
         key=str(getattr(item, "key", "") or ""),
         persistent_key=str(getattr(item, "persistent_key", "") or ""),
@@ -56,20 +48,6 @@ def _display_item_from_profile(item: Any) -> ProfileDisplayItem:
         favorite=bool(getattr(item, "favorite", False)),
         group=_display_group(item),
         order=int(getattr(item, "order", 0) or 0),
-        variants=variants,
-    )
-
-
-def _variants_for_item(item: Any) -> tuple[ProfileDisplayVariant, ...]:
-    if not bool(getattr(item, "in_preset", False)):
-        return ()
-    list_type = str(getattr(item, "list_type", "") or "").strip().lower()
-    match_lines = tuple(getattr(item, "match_lines", ()) or ())
-    if list_type not in {"hostlist", "ipset"} or not _has_file_based_filter(match_lines, list_type):
-        return ()
-    return (
-        ProfileDisplayVariant(filter_kind="hostlist", label="Hostlist"),
-        ProfileDisplayVariant(filter_kind="ipset", label="IPset"),
     )
 
 
@@ -77,11 +55,6 @@ def _display_group(item: Any) -> str:
     if bool(getattr(item, "in_preset", False)):
         return "current"
     return str(getattr(item, "group", "") or "default")
-
-
-def _has_file_based_filter(match_lines: tuple[str, ...], list_type: str) -> bool:
-    prefix = "--hostlist=" if list_type == "hostlist" else "--ipset="
-    return any(str(line or "").strip().lower().startswith(prefix) for line in match_lines)
 
 
 def _resource_identity(match_lines: tuple[str, ...], list_type: str) -> str:
@@ -137,4 +110,4 @@ def _logical_display_name(item: Any) -> str:
     return name or "Профиль"
 
 
-__all__ = ["ProfileDisplayItem", "ProfileDisplayVariant", "build_profile_display_items"]
+__all__ = ["ProfileDisplayItem", "build_profile_display_items"]

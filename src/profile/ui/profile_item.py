@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidg
 from ui.fluent_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
-from qfluentwidgets import BodyLabel, CaptionLabel, CardWidget, ComboBox, InfoBadge, InfoLevel
+from qfluentwidgets import BodyLabel, CaptionLabel, CardWidget, InfoBadge, InfoLevel
 
 
 class ElidedTextLabel(QLabel):
@@ -111,7 +111,6 @@ class ProfileItem(CardWidget):
 
     item_activated = pyqtSignal(str)
     item_dropped = pyqtSignal(str, str)
-    variant_selected = pyqtSignal(str)
 
     MIME_TYPE = "application/x-zapret-profile-key"
 
@@ -137,7 +136,6 @@ class ProfileItem(CardWidget):
         self._icon_label = None
         self._desc_label = None
         self._list_badge = None
-        self._variant_combo = None
         self._feedback_label = None
         self._drag_enabled = False
         self._drag_start_pos: QPoint | None = None
@@ -214,12 +212,6 @@ class ProfileItem(CardWidget):
 
         if self._list_type:
             self._ensure_list_badge(parent=left_widget)
-
-        self._variant_combo = ComboBox(left_widget)
-        self._variant_combo.setMinimumWidth(118)
-        self._variant_combo.currentIndexChanged.connect(self._on_variant_combo_changed)
-        self._variant_combo.hide()
-        left_layout.addWidget(self._variant_combo, 0, Qt.AlignmentFlag.AlignVCenter)
 
         left_layout.addStretch(1)
 
@@ -410,38 +402,6 @@ class ProfileItem(CardWidget):
             self._ensure_list_badge()
         elif self._list_badge:
             self._apply_list_badge()
-
-    def set_variants(self, variants) -> None:
-        variants = tuple(variants or ())
-        if self._variant_combo is None:
-            return
-        self._variant_combo.blockSignals(True)
-        try:
-            self._variant_combo.clear()
-            for variant in variants:
-                self._variant_combo.addItem(
-                    str(getattr(variant, "label", "") or "Профиль"),
-                    userData=str(getattr(variant, "filter_kind", "") or ""),
-                )
-            current_kind = str(self._list_type or "")
-            for index in range(self._variant_combo.count()):
-                if str(self._variant_combo.itemData(index) or "") == current_kind:
-                    self._variant_combo.setCurrentIndex(index)
-                    break
-        finally:
-            self._variant_combo.blockSignals(False)
-
-        has_variants = len(variants) > 1
-        self._variant_combo.setVisible(has_variants)
-        if self._list_badge is not None:
-            self._list_badge.setVisible(bool(self._list_type) and not has_variants)
-
-    def _on_variant_combo_changed(self, index: int) -> None:
-        if self._variant_combo is None:
-            return
-        filter_kind = str(self._variant_combo.itemData(index) or "").strip()
-        if filter_kind and filter_kind != str(self._list_type or ""):
-            self.variant_selected.emit(filter_kind)
 
     def get_strategy_id(self) -> str:
         return self._strategy_id

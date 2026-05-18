@@ -20,6 +20,7 @@ class Zapret1DeferredBuildWidgets:
     program_settings_section_label: object | None
     program_settings_card: object
     auto_dpi_toggle: object
+    hide_to_tray_toggle: object
     defender_toggle: object
     max_block_toggle: object
     advanced_card: object
@@ -45,6 +46,7 @@ def build_winws1_pages_deferred_sections(
     win11_toggle_row_cls,
     on_open_preset_setup_page,
     on_auto_dpi_toggled,
+    on_hide_to_tray_toggled,
     on_defender_toggled,
     on_max_blocker_toggled,
     on_discord_restart_changed,
@@ -76,6 +78,13 @@ def build_winws1_pages_deferred_sections(
     )
     auto_dpi_toggle.toggled.connect(on_auto_dpi_toggled)
 
+    hide_to_tray_toggle = win11_toggle_row_cls(
+        "fa5s.window-minimize",
+        tr_fn("page.control.setting.hide_to_tray.title", "Всегда скрывать в трей при сворачивании и закрытии"),
+        tr_fn("page.control.setting.hide_to_tray.desc", "Кнопка свернуть и крестик прячут окно в системный трей"),
+    )
+    hide_to_tray_toggle.toggled.connect(on_hide_to_tray_toggled)
+
     windows_feature_toggles = build_windows_feature_toggles(
         tr_fn=tr_fn,
         win11_toggle_row_cls=win11_toggle_row_cls,
@@ -84,6 +93,7 @@ def build_winws1_pages_deferred_sections(
     )
 
     program_settings_card.addSettingCard(auto_dpi_toggle)
+    program_settings_card.addSettingCard(hide_to_tray_toggle)
     program_settings_card.addSettingCard(windows_feature_toggles.defender_toggle)
     program_settings_card.addSettingCard(windows_feature_toggles.max_block_toggle)
 
@@ -186,6 +196,7 @@ def build_winws1_pages_deferred_sections(
         program_settings_section_label=program_settings_section_label,
         program_settings_card=program_settings_card,
         auto_dpi_toggle=auto_dpi_toggle,
+        hide_to_tray_toggle=hide_to_tray_toggle,
         defender_toggle=windows_feature_toggles.defender_toggle,
         max_block_toggle=windows_feature_toggles.max_block_toggle,
         advanced_card=advanced_card,

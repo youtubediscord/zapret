@@ -457,11 +457,37 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             cleanup_required = self._stop_process_only_locked()
             if cleanup_required:
                 self._perform_standard_windivert_cleanup()
-            self._spawn_process_locked(
+            success = self._spawn_process_locked(
                 artifact,
                 strategy_name,
                 hot_reload=True,
+                notify_failure=False,
             )
+            if success:
+                return
+
+            exit_code = int(self._last_spawn_exit_code or -1)
+            stderr_output = str(self._last_spawn_stderr or "")
+            if self._is_windivert_conflict_error(stderr_output, exit_code):
+                log(
+                    "Hot-reload hit WinDivert/filter conflict, retrying via full start path with cleanup",
+                    "WARNING",
+                )
+                self._start_from_preset_file_locked(
+                    preset_path,
+                    strategy_name,
+                    force_cleanup=True,
+                    retry_count=0,
+                )
+                return
+
+            message = str(self.last_error or "").strip()
+            if not message:
+                if exit_code >= 0:
+                    message = f"Hot-reload failed (код {exit_code})"
+                else:
+                    message = "Hot-reload failed"
+            self._set_last_error(message, notify=True)
 
     def _stop_process_only_locked(self) -> bool:
         """

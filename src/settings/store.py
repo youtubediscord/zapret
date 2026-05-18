@@ -439,6 +439,14 @@ def set_window_opacity(value: int) -> bool:
     return _set_int(("window", "opacity"), value)
 
 
+def get_hide_to_tray_on_minimize_close() -> bool:
+    return _get_bool(("window", "hide_to_tray_on_minimize_close"), False)
+
+
+def set_hide_to_tray_on_minimize_close(value: bool) -> bool:
+    return _set_bool(("window", "hide_to_tray_on_minimize_close"), value)
+
+
 def get_display_mode() -> str:
     return _get_str(("appearance", "display_mode"), "dark")
 
@@ -1147,6 +1155,7 @@ __all__ = [
     "get_gui_autostart_enabled",
     "get_hosts_bootstrap_signature",
     "get_hosts_selection",
+    "get_hide_to_tray_on_minimize_close",
     "get_isp_dns_info_shown",
     "get_kaspersky_warning_disabled",
     "get_max_blocked",
@@ -1230,6 +1239,7 @@ __all__ = [
     "set_gui_autostart_enabled",
     "set_hosts_bootstrap_signature",
     "set_hosts_selection",
+    "set_hide_to_tray_on_minimize_close",
     "set_isp_dns_info_shown",
     "set_kaspersky_warning_disabled",
     "set_max_blocked",

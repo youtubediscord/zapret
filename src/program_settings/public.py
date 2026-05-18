@@ -7,6 +7,7 @@ from program_settings.commands import (
     is_user_admin,
     set_auto_dpi_enabled,
     set_defender_disabled,
+    set_hide_to_tray_on_minimize_close,
     set_max_block_enabled,
 )
 from program_settings.runtime import (
@@ -23,5 +24,6 @@ __all__ = [
     "refresh_program_settings_snapshot",
     "set_auto_dpi_enabled",
     "set_defender_disabled",
+    "set_hide_to_tray_on_minimize_close",
     "set_max_block_enabled",
 ]

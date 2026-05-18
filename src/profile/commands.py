@@ -11,6 +11,10 @@ def list_profiles(profile_services, launch_method: str):
     return _profile_preset_service(profile_services, launch_method).list_profiles()
 
 
+def count_enabled_profiles(profile_services, launch_method: str) -> int:
+    return _profile_preset_service(profile_services, launch_method).count_enabled_profiles()
+
+
 def get_profile_setup(profile_services, launch_method: str, profile_key: str):
     return _profile_preset_service(profile_services, launch_method).get_profile_setup(profile_key)
 

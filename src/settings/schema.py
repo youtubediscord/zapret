@@ -63,6 +63,7 @@ def default_window() -> dict[str, Any]:
         "height": None,
         "maximized": False,
         "opacity": DEFAULT_WINDOW_OPACITY,
+        "hide_to_tray_on_minimize_close": False,
     }
 
 

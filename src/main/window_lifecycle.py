@@ -73,17 +73,27 @@ class WindowLifecycleMixin:
         return self._require_application_lifecycle().close_to_tray()
 
     def changeEvent(self, event):
-        if event.type() == QEvent.Type.ActivationChange:
+        event_type = event.type()
+
+        if event_type == QEvent.Type.ActivationChange:
             try:
                 if not self.isActiveWindow():
                     self.release_input_interaction_states()
             except Exception as e:
                 log(f"Не удалось сбросить состояние ввода при смене активности окна: {e}", "DEBUG")
 
-        if event.type() == QEvent.Type.WindowStateChange:
+        if event_type == QEvent.Type.WindowStateChange:
             geometry_runtime = self._get_window_geometry_runtime()
             if geometry_runtime is not None:
                 geometry_runtime.on_window_state_change()
+
+            try:
+                from settings.store import get_hide_to_tray_on_minimize_close
+
+                if get_hide_to_tray_on_minimize_close() and self.isMinimized():
+                    self.close_to_tray()
+            except Exception as e:
+                log(f"Не удалось скрыть окно в трей при сворачивании: {e}", "DEBUG")
 
             try:
                 visual_state = self._get_visual_state()

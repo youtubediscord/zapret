@@ -36,7 +36,7 @@ def _item(
 
 
 class ProfileDisplayItemsTests(unittest.TestCase):
-    def test_hostlist_and_ipset_with_same_target_stay_separate_real_profiles(self) -> None:
+    def test_hostlist_and_ipset_with_same_target_are_plain_badge_rows(self) -> None:
         rows = build_profile_display_items((
             _item(
                 "hostlist-youtube",
@@ -61,7 +61,7 @@ class ProfileDisplayItemsTests(unittest.TestCase):
         self.assertEqual(row.display_name, "YouTube")
         self.assertEqual(row.key, "hostlist-youtube")
         self.assertEqual(row.list_type, "hostlist")
-        self.assertEqual([variant.label for variant in row.variants], ["Hostlist", "IPset"])
+        self.assertFalse(hasattr(row, "variants"))
 
     def test_udp_ipset_does_not_merge_with_tcp_youtube_profile(self) -> None:
         rows = build_profile_display_items((
