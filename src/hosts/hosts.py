@@ -189,24 +189,29 @@ def _iter_managed_hosts_block_rows(lines: list[str]) -> list[tuple[str, str]]:
     return rows
 
 
-def _append_managed_hosts_block(new_lines: list[str], rows: list[tuple[str, str]]) -> None:
-    """Добавляет новый блок ZapretGUI в конец hosts."""
+def _insert_managed_hosts_block(new_lines: list[str], rows: list[tuple[str, str]]) -> None:
+    """Добавляет блок ZapretGUI перед обычными строками hosts."""
     if not rows:
         return
 
-    while new_lines and new_lines[-1].strip() == "":
-        new_lines.pop()
+    insert_at = len(new_lines)
+    for index, line in enumerate(new_lines):
+        if _parse_hosts_mapping_line(line) is not None:
+            insert_at = index
+            break
 
-    if new_lines and not new_lines[-1].endswith("\n"):
-        new_lines[-1] += "\n"
-    if new_lines:
-        new_lines.append("\n")
-
-    new_lines.append(f"{_MANAGED_HOSTS_BEGIN}\n")
-    new_lines.append(f"{_MANAGED_HOSTS_NOTICE}\n")
+    block: list[str] = []
+    if insert_at > 0 and new_lines[insert_at - 1].strip() != "":
+        block.append("\n")
+    block.append(f"{_MANAGED_HOSTS_BEGIN}\n")
+    block.append(f"{_MANAGED_HOSTS_NOTICE}\n")
     for domain, ip in rows:
-        new_lines.append(f"{ip} {domain}\n")
-    new_lines.append(f"{_MANAGED_HOSTS_END}\n")
+        block.append(f"{ip} {domain}\n")
+    block.append(f"{_MANAGED_HOSTS_END}\n")
+    if insert_at < len(new_lines) and new_lines[insert_at].strip() != "":
+        block.append("\n")
+
+    new_lines[insert_at:insert_at] = block
 
 
 # ───────────────────────── hosts file read cache ─────────────────────────
@@ -891,7 +896,7 @@ class HostsManager:
                 self.set_status(f"Файл hosts обновлён: удалено {removed_count} записей")
                 return True
 
-            _append_managed_hosts_block(new_lines, desired_rows)
+            _insert_managed_hosts_block(new_lines, desired_rows)
 
             if not safe_write_hosts_file("".join(new_lines)):
                 self.set_status("Не удалось записать файл hosts")

@@ -313,7 +313,7 @@ def normalize_user_profiles(data: object) -> dict[str, Any]:
         ports = as_clean_str(profile.get("ports"))
         hostlist = as_clean_str(profile.get("hostlist"))
         ipset = as_clean_str(profile.get("ipset"))
-        if not profile_id or not name or protocol not in {"tcp", "udp"} or not ports or not hostlist or not ipset:
+        if not profile_id or not name or protocol not in {"tcp", "udp", "l7"} or not ports or not hostlist or not ipset:
             continue
         profiles[profile_id] = {
             "name": name,

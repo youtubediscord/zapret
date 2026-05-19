@@ -1,5 +1,5 @@
 [pass]
-name = pass (равносильно ничего не делать, то есть отключено)
+name = pass (ничего не делает)
 author = loop-uh
 --lua-desync=pass
 

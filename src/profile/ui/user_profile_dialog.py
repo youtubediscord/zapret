@@ -6,16 +6,23 @@ from ui.fluent_widgets import style_semantic_caption_label
 
 
 class CreateUserProfileDialog(MessageBoxBase):
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        title: str = "Добавить profile",
+        subtitle: str = "Создаёт пользовательский profile и два пустых файла списка: hostlist и ipset.",
+        button_text: str = "Добавить",
+        name: str = "",
+        protocol: str = "tcp",
+        ports: str = "",
+    ):
         if parent is not None and not parent.isWindow():
             parent = parent.window()
         super().__init__(parent)
 
-        self.titleLabel = SubtitleLabel("Добавить profile", self.widget)
-        self.subtitleLabel = BodyLabel(
-            "Создаёт пользовательский profile и два пустых файла списка: hostlist и ipset.",
-            self.widget,
-        )
+        self.titleLabel = SubtitleLabel(title, self.widget)
+        self.subtitleLabel = BodyLabel(subtitle, self.widget)
         self.subtitleLabel.setWordWrap(True)
 
         self.nameEdit = LineEdit(self.widget)
@@ -25,10 +32,14 @@ class CreateUserProfileDialog(MessageBoxBase):
         self.protocolCombo = ComboBox(self.widget)
         self.protocolCombo.addItem("TCP", userData="tcp")
         self.protocolCombo.addItem("UDP", userData="udp")
+        self.protocolCombo.addItem("L7", userData="l7")
+        self._set_protocol(protocol)
 
         self.portsEdit = LineEdit(self.widget)
-        self.portsEdit.setPlaceholderText("Порты, например 80,443")
+        self.portsEdit.setPlaceholderText("Порты или L7, например 80,443 или stun,discord")
         self.portsEdit.setClearButtonEnabled(True)
+        self.nameEdit.setText(str(name or ""))
+        self.portsEdit.setText(str(ports or ""))
 
         self.warningLabel = CaptionLabel("", self.widget)
         style_semantic_caption_label(self.warningLabel, tone="error")
@@ -40,11 +51,11 @@ class CreateUserProfileDialog(MessageBoxBase):
         self.viewLayout.addWidget(self.nameEdit)
         self.viewLayout.addWidget(BodyLabel("Тип", self.widget))
         self.viewLayout.addWidget(self.protocolCombo)
-        self.viewLayout.addWidget(BodyLabel("Порты", self.widget))
+        self.viewLayout.addWidget(BodyLabel("Порты / L7", self.widget))
         self.viewLayout.addWidget(self.portsEdit)
         self.viewLayout.addWidget(self.warningLabel)
 
-        self.yesButton.setText("Добавить")
+        self.yesButton.setText(button_text)
         self.cancelButton.setText("Отмена")
         self.widget.setMinimumWidth(440)
         self.nameEdit.returnPressed.connect(self._validate_and_accept)
@@ -54,13 +65,20 @@ class CreateUserProfileDialog(MessageBoxBase):
         protocol = str(self.protocolCombo.itemData(self.protocolCombo.currentIndex()) or "tcp")
         return self.nameEdit.text().strip(), protocol, self.portsEdit.text().strip()
 
+    def _set_protocol(self, protocol: str) -> None:
+        wanted = str(protocol or "").strip().lower()
+        for index in range(self.protocolCombo.count()):
+            if str(self.protocolCombo.itemData(index) or "").strip().lower() == wanted:
+                self.protocolCombo.setCurrentIndex(index)
+                return
+
     def validate(self) -> bool:
         name, _protocol, ports = self.values()
         if not name:
             self._show_warning("Введите название profile.")
             return False
         if not ports:
-            self._show_warning("Введите порты.")
+            self._show_warning("Введите порты или L7.")
             return False
         self.warningLabel.hide()
         return True

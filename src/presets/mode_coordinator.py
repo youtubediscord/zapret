@@ -139,7 +139,7 @@ class PresetModeCoordinator:
 
             t_filters = time.perf_counter()
             if not self._has_required_filters(method, text):
-                raise PresetModeError("Выберите хотя бы одну категорию для запуска")
+                raise PresetModeError("В выбранном preset нет включённых profile для запуска")
             self._emit_timing(timing_callback, f"{label}.filter_validation", t_filters)
 
         self._emit_timing(timing_callback, f"{label}.total", started_at)

@@ -198,6 +198,37 @@ class HostsCatalogJsonTests(unittest.TestCase):
         self.assertIn("2.2.2.2 new.example", written[0])
         self.assertNotIn("1.1.1.1 old.example", written[0])
 
+    def test_apply_domain_rows_places_managed_block_before_manual_hosts_entries(self) -> None:
+        from hosts import hosts as hosts_module
+
+        original = "\n".join(
+            [
+                "# user header",
+                "10.0.0.1 chatgpt.com",
+                "10.0.0.2 another.example",
+                "",
+            ]
+        )
+        written: list[str] = []
+        manager = hosts_module.HostsManager()
+        manager.is_hosts_file_accessible = lambda: True
+
+        with (
+            patch.object(hosts_module, "safe_read_hosts_file", return_value=original),
+            patch.object(hosts_module, "safe_write_hosts_file", side_effect=lambda text: written.append(text) or True),
+            patch.object(hosts_module, "is_ipv6_available", return_value=True),
+        ):
+            self.assertTrue(manager.apply_domain_ip_rows([("chatgpt.com", "2.2.2.2")]))
+
+        self.assertEqual(len(written), 1)
+        self.assertIn("# user header", written[0])
+        self.assertIn("10.0.0.1 chatgpt.com", written[0])
+        self.assertIn("10.0.0.2 another.example", written[0])
+        self.assertIn("2.2.2.2 chatgpt.com", written[0])
+        self.assertLess(written[0].index("# user header"), written[0].index("# >>> zapretgui:hosts managed begin >>>"))
+        self.assertLess(written[0].index("2.2.2.2 chatgpt.com"), written[0].index("10.0.0.1 chatgpt.com"))
+        self.assertLess(written[0].index("2.2.2.2 chatgpt.com"), written[0].index("10.0.0.2 another.example"))
+
     def test_apply_service_selection_with_unknown_rows_does_not_clear_existing_block(self) -> None:
         from hosts import hosts as hosts_module
 

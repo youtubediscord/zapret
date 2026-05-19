@@ -55,7 +55,7 @@ def _display_item_from_profile(item: Any) -> ProfileDisplayItem:
         enabled=bool(getattr(item, "enabled", False)),
         in_preset=bool(getattr(item, "in_preset", False)),
         strategy_id=str(getattr(item, "strategy_id", "") or "none"),
-        strategy_name=str(getattr(item, "strategy_name", "") or "Отключено"),
+        strategy_name=str(getattr(item, "strategy_name", "") or "Стратегия не выбрана"),
         match_lines=tuple(getattr(item, "match_lines", ()) or ()),
         list_type=str(getattr(item, "list_type", "") or ""),
         rating=str(getattr(item, "rating", "") or ""),

@@ -142,7 +142,7 @@ class ProfileItem(CardWidget):
         self._suppress_next_click = False
 
         self._strategy_id = "none"
-        self._strategy_name = "Отключено"
+        self._strategy_name = "Стратегия не выбрана"
         self._rating = ""
         self._favorite = False
 
@@ -229,7 +229,7 @@ class ProfileItem(CardWidget):
         self._status_dot.setStyleSheet("background: transparent; color: #888888;")
         right_layout.addWidget(self._status_dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self._strategy_label = ElidedTextLabel("Отключено", right_widget, tooltip_mode="elided")
+        self._strategy_label = ElidedTextLabel("Стратегия не выбрана", right_widget, tooltip_mode="elided")
         self._strategy_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._strategy_label.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         right_layout.addWidget(self._strategy_label, 0, Qt.AlignmentFlag.AlignVCenter)

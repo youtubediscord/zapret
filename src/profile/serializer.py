@@ -72,6 +72,73 @@ def with_profile_strategy_lines(preset: Preset, profile_index: int, strategy_lin
     return _reparse(updated)
 
 
+def with_profile_user_match(
+    preset: Preset,
+    profile_index: int,
+    *,
+    name: str,
+    protocol: str,
+    ports: str,
+    hostlist: str,
+    ipset: str,
+) -> Preset:
+    updated = deepcopy(preset)
+    profile = updated.profiles[int(profile_index)]
+    clean_name = str(name or "").strip()
+    clean_protocol = str(protocol or "").strip().lower()
+    clean_ports = str(ports or "").strip()
+    hostlist = str(hostlist or "").strip()
+    ipset = str(ipset or "").strip()
+    if clean_protocol not in {"tcp", "udp", "l7"}:
+        raise ValueError("protocol must be tcp, udp or l7")
+    if not clean_name or not clean_ports:
+        raise ValueError("name and ports are required")
+
+    filter_line = f"--filter-{clean_protocol}={clean_ports}"
+    name_written = False
+    filter_written = False
+    list_written = False
+    insert_at: int | None = None
+    result: list[ProfileSegment] = []
+
+    for segment in profile.segments:
+        segment_name = str(segment.name or "").strip().lower()
+        if segment.kind == "directive" and segment_name == "--name":
+            result.append(ProfileSegment(kind="directive", text=f"--name={clean_name}", name="--name", value=clean_name))
+            name_written = True
+            continue
+        if segment.kind == "match" and segment_name.startswith("--filter-"):
+            if not filter_written:
+                result.append(_segment_for_match_line(filter_line))
+                filter_written = True
+            continue
+        if segment.kind == "match" and segment_name in {"--hostlist", "--ipset"}:
+            if segment_name == "--ipset":
+                if ipset:
+                    result.append(_segment_for_match_line(f"--ipset={ipset}"))
+                    list_written = True
+                continue
+            if hostlist:
+                result.append(_segment_for_match_line(f"--hostlist={hostlist}"))
+                list_written = True
+            continue
+        if insert_at is None and segment.kind in {"match", "strategy_filter", "strategy"}:
+            insert_at = len(result)
+        result.append(segment)
+
+    if not name_written:
+        result.insert(_directive_insert_index_for_segments(result), ProfileSegment(kind="directive", text=f"--name={clean_name}", name="--name", value=clean_name))
+    if not filter_written:
+        insert = _first_strategy_or_end_index(result)
+        result.insert(insert, _segment_for_match_line(filter_line))
+    if not list_written and hostlist:
+        insert = _first_strategy_or_end_index(result)
+        result.insert(insert, _segment_for_match_line(f"--hostlist={hostlist}"))
+
+    profile.segments = result
+    return _reparse(updated)
+
+
 def _preserve_missing_winws2_strategy_filters(engine: EngineName, profile: Profile, strategy_lines: list[str]) -> list[str]:
     if engine != ENGINE_WINWS2:
         return strategy_lines
@@ -174,6 +241,25 @@ def _segment_for_strategy_line(engine: EngineName, line: str) -> ProfileSegment:
         return ProfileSegment(kind="strategy_filter", text=line, name=name, value=value)
     name, value = _split_option(line)
     return ProfileSegment(kind="strategy", text=line, name=name, value=value)
+
+
+def _segment_for_match_line(line: str) -> ProfileSegment:
+    name, value = _split_option(line)
+    return ProfileSegment(kind="match", text=line, name=name, value=value)
+
+
+def _directive_insert_index_for_segments(segments: list[ProfileSegment]) -> int:
+    for index, segment in enumerate(segments):
+        if segment.kind not in {"blank", "comment", "directive"}:
+            return index
+    return len(segments)
+
+
+def _first_strategy_or_end_index(segments: list[ProfileSegment]) -> int:
+    for index, segment in enumerate(segments):
+        if segment.kind in {"strategy_filter", "strategy"}:
+            return index
+    return len(segments)
 
 
 def _split_option(line: str) -> tuple[str, str]:

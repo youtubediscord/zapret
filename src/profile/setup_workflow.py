@@ -30,7 +30,7 @@ def save_winws2_profile_settings(
 
 
 def set_profile_enabled(*, profile_feature, launch_method: str, profile_key: str, enabled: bool) -> str | None:
-    """Включает или отключает profile."""
+    """Включает или выключает profile."""
     return profile_feature.set_profile_enabled(launch_method, profile_key, enabled)
 
 

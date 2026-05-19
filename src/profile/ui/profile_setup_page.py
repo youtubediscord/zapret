@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from log.log import log
+from profile.match_filters import filter_values
 from profile.winws2_editable_settings import normalize_winws2_filter_value
 from profile.ui.profile_setup_controls import (
     range_expression_from_controls,
@@ -27,12 +28,15 @@ from profile.ui.profile_setup_controls import (
 )
 from profile.setup_controller import ProfileSetupController
 from profile.strategy_visuals import describe_strategy_visual
+from profile.ui.user_profile_dialog import CreateUserProfileDialog
 from qfluentwidgets import (
     BodyLabel,
     BreadcrumbBar,
     CheckBox,
     ComboBox,
+    InfoBar,
     LineEdit,
+    MessageBox,
     PlainTextEdit,
     SearchLineEdit,
     SegmentedWidget,
@@ -396,6 +400,8 @@ class ProfileSetupPageBase(BasePage):
         self._notwork_button = None
         self._favorite_button = None
         self._clear_feedback_button = None
+        self._update_user_profile_button = None
+        self._delete_user_profile_button = None
         self._settings_save_timer = QTimer(self)
         self._settings_save_timer.setSingleShot(True)
         self._settings_save_timer.setInterval(350)
@@ -423,6 +429,14 @@ class ProfileSetupPageBase(BasePage):
         self._enabled_checkbox = CheckBox("Включён")
         self._enabled_checkbox.stateChanged.connect(self._on_enabled_changed)
         header_layout.addWidget(self._enabled_checkbox, 0, Qt.AlignmentFlag.AlignRight)
+        self._update_user_profile_button = PushButton("Изменить")
+        self._update_user_profile_button.clicked.connect(self._on_update_user_profile_clicked)
+        self._update_user_profile_button.hide()
+        header_layout.addWidget(self._update_user_profile_button, 0, Qt.AlignmentFlag.AlignRight)
+        self._delete_user_profile_button = PushButton("Удалить")
+        self._delete_user_profile_button.clicked.connect(self._on_delete_user_profile_clicked)
+        self._delete_user_profile_button.hide()
+        header_layout.addWidget(self._delete_user_profile_button, 0, Qt.AlignmentFlag.AlignRight)
         self.layout.addWidget(header)
 
         self._settings_container = QWidget(self)
@@ -614,6 +628,14 @@ class ProfileSetupPageBase(BasePage):
             "Включает или выключает этот profile в текущем preset. Если выключить, profile останется в preset, но не будет применяться.",
         )
         set_tooltip(
+            self._update_user_profile_button,
+            "Изменяет пользовательский profile и обновляет все preset-ы, где он найден по старому --name.",
+        )
+        set_tooltip(
+            self._delete_user_profile_button,
+            "Удаляет пользовательский profile, его файлы списков и связанные profile-ы из preset-ов.",
+        )
+        set_tooltip(
             self._filter_combo,
             "Тип фильтра profile. Hostlist — список доменов, ipset — список IP-адресов или подсетей.",
         )
@@ -665,6 +687,81 @@ class ProfileSetupPageBase(BasePage):
         elif key == "profile":
             self._rebuild_breadcrumb()
 
+    def _on_update_user_profile_clicked(self) -> None:
+        if not self._profile_key.startswith("template:user:") or self._payload is None:
+            return
+        profile_id = self._profile_key.split("template:user:", 1)[1].strip()
+        if not profile_id:
+            return
+        item = self._payload.item
+        protocol, ports = _protocol_and_ports_from_match_lines(tuple(getattr(item, "match_lines", ()) or ()))
+        dialog = CreateUserProfileDialog(
+            self,
+            title="Изменить profile",
+            subtitle="Изменяет пользовательский profile и обновляет все preset-ы, где есть старое --name.",
+            button_text="Сохранить",
+            name=str(getattr(item, "display_name", "") or ""),
+            protocol=protocol,
+            ports=ports,
+        )
+        if not dialog.exec():
+            return
+        name, protocol, ports = dialog.values()
+        try:
+            changed = self._controller.update_user_profile(
+                profile_id=profile_id,
+                name=name,
+                protocol=protocol,
+                ports=ports,
+            )
+            InfoBar.success(
+                title="Profile изменён",
+                content=f"Обновлено profile-ов в preset-ах: {changed}.",
+                parent=self.window(),
+            )
+            self.reload_current_profile()
+            self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось изменить пользовательский profile: {exc}", "ERROR")
+            InfoBar.error(
+                title="Ошибка",
+                content=str(exc),
+                parent=self.window(),
+            )
+
+    def _on_delete_user_profile_clicked(self) -> None:
+        if not self._profile_key.startswith("template:user:"):
+            return
+        profile_id = self._profile_key.split("template:user:", 1)[1].strip()
+        if not profile_id:
+            return
+        dialog = MessageBox(
+            "Удалить profile",
+            "Пользовательский profile будет удалён из библиотеки, его файлы списков будут удалены, "
+            "а profile-ы с таким же --name будут убраны из preset-ов.",
+            self,
+        )
+        dialog.yesButton.setText("Удалить")
+        dialog.cancelButton.setText("Отмена")
+        if not dialog.exec():
+            return
+        try:
+            changed = self._controller.delete_user_profile(profile_id=profile_id)
+            InfoBar.success(
+                title="Profile удалён",
+                content=f"Удалено profile-ов из preset-ов: {changed}.",
+                parent=self.window(),
+            )
+            self._on_profile_changed_callback(self._profile_key, "user_profile_deleted")
+            self._open_profiles()
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось удалить пользовательский profile: {exc}", "ERROR")
+            InfoBar.error(
+                title="Ошибка",
+                content=str(exc),
+                parent=self.window(),
+            )
+
     def show_profile(self, profile_key: str) -> None:
         self._profile_key = str(profile_key or "").strip()
         self.reload_current_profile()
@@ -697,6 +794,10 @@ class ProfileSetupPageBase(BasePage):
             self._summary.setText(payload.match_summary)
             self._enabled_checkbox.setChecked(bool(item.enabled))
             self._enabled_checkbox.setEnabled(True)
+            if self._update_user_profile_button is not None:
+                self._update_user_profile_button.setVisible(self._profile_key.startswith("template:user:"))
+            if self._delete_user_profile_button is not None:
+                self._delete_user_profile_button.setVisible(self._profile_key.startswith("template:user:"))
             self._apply_editable_settings(payload)
 
             self._match_text.setPlainText(_match_tab_text(payload))
@@ -899,3 +1000,11 @@ class Zapret1ProfileSetupPage(ProfileSetupPageBase):
     control_key = "page.winws1_profile_setup.breadcrumb.control"
     profiles_key = "page.winws1_pages.title"
     profiles_default = "Настройка пресета"
+
+
+def _protocol_and_ports_from_match_lines(match_lines: tuple[str, ...]) -> tuple[str, str]:
+    for protocol, option_name in (("tcp", "--filter-tcp"), ("udp", "--filter-udp"), ("l7", "--filter-l7")):
+        values = filter_values(match_lines, option_name)
+        if values:
+            return protocol, values[0]
+    return "tcp", ""

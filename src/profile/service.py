@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from settings.mode import DEFAULT_LAUNCH_METHOD, ENGINE_WINWS2, engine_for_launch_method, normalize_launch_method
+from settings.mode import DEFAULT_LAUNCH_METHOD, ENGINE_WINWS2, PRESET_LAUNCH_METHODS, engine_for_launch_method, normalize_launch_method
 
 from .match_filters import ports_label_from_match_lines, protocol_label_from_match_lines, strategy_catalog_from_match_lines
 from .folders import (
@@ -24,12 +24,13 @@ from .serializer import (
     with_profile_duplicated,
     with_profile_enabled,
     with_profile_strategy_lines,
+    with_profile_user_match,
 )
 from .strategy_state import ProfileStrategyState, ProfileStrategyStateStore
 from .strategy_catalog import StrategyEntry, load_strategy_catalogs
 from .state import ProfileListItem, ProfileListPayload, ProfileSetupPayload
 from .template_library import load_profile_template_library
-from .user_profiles import create_user_profile
+from .user_profiles import create_user_profile, delete_user_profile, update_user_profile
 from .winws2_editable_settings import (
     Winws2EditableSettings,
     normalize_winws2_filter_value,
@@ -335,6 +336,95 @@ class ProfilePresetService:
         self._load_profile_templates.cache_clear()
         return profile_id
 
+    def update_user_profile(self, profile_id: str, *, name: str, protocol: str, ports: str) -> int:
+        old_name, row = update_user_profile(self._app_paths, profile_id, name=name, protocol=protocol, ports=ports)
+        self._load_profile_templates.cache_clear()
+        if not old_name:
+            return 0
+        return self._update_user_profile_in_all_presets(old_name, row)
+
+    def delete_user_profile(self, profile_id: str) -> int:
+        old_name, _row = delete_user_profile(self._app_paths, profile_id)
+        self._load_profile_templates.cache_clear()
+        if not old_name:
+            return 0
+        return self._delete_user_profile_from_all_presets(old_name)
+
+    def _update_user_profile_in_all_presets(self, old_name: str, row: dict[str, str]) -> int:
+        changed_profiles = 0
+        old_key = str(old_name or "").strip().casefold()
+        if not old_key:
+            return 0
+        needle = f"--name={old_name}"
+        for launch_method in sorted(PRESET_LAUNCH_METHODS):
+            list_manifests = getattr(self._presets, "list_preset_manifests", None)
+            read_source = getattr(self._presets, "read_preset_source_by_file_name", None)
+            save_source = getattr(self._presets, "save_preset_source_by_file_name", None)
+            if not callable(list_manifests) or not callable(read_source) or not callable(save_source):
+                continue
+            engine = _engine_for_method(launch_method)
+            for manifest in list_manifests(launch_method):
+                file_name = str(getattr(manifest, "file_name", "") or "").strip()
+                if not file_name:
+                    continue
+                source_text = str(read_source(launch_method, file_name) or "")
+                if needle not in source_text and old_name not in source_text:
+                    continue
+                preset = parse_preset_text(source_text, engine=engine, source_name=file_name)
+                changed_indexes = [
+                    profile.index
+                    for profile in preset.profiles
+                    if str(getattr(profile, "name", "") or "").strip().casefold() == old_key
+                ]
+                if not changed_indexes:
+                    continue
+                for index in changed_indexes:
+                    preset = with_profile_user_match(
+                        preset,
+                        index,
+                        name=str(row.get("name") or ""),
+                        protocol=str(row.get("protocol") or ""),
+                        ports=str(row.get("ports") or ""),
+                        hostlist=str(row.get("hostlist") or ""),
+                        ipset=str(row.get("ipset") or ""),
+                    )
+                save_source(launch_method, file_name, serialize_preset(preset))
+                changed_profiles += len(changed_indexes)
+        return changed_profiles
+
+    def _delete_user_profile_from_all_presets(self, old_name: str) -> int:
+        changed_profiles = 0
+        old_key = str(old_name or "").strip().casefold()
+        if not old_key:
+            return 0
+        for launch_method in sorted(PRESET_LAUNCH_METHODS):
+            list_manifests = getattr(self._presets, "list_preset_manifests", None)
+            read_source = getattr(self._presets, "read_preset_source_by_file_name", None)
+            save_source = getattr(self._presets, "save_preset_source_by_file_name", None)
+            if not callable(list_manifests) or not callable(read_source) or not callable(save_source):
+                continue
+            engine = _engine_for_method(launch_method)
+            for manifest in list_manifests(launch_method):
+                file_name = str(getattr(manifest, "file_name", "") or "").strip()
+                if not file_name:
+                    continue
+                source_text = str(read_source(launch_method, file_name) or "")
+                if old_name not in source_text:
+                    continue
+                preset = parse_preset_text(source_text, engine=engine, source_name=file_name)
+                changed_indexes = [
+                    profile.index
+                    for profile in preset.profiles
+                    if str(getattr(profile, "name", "") or "").strip().casefold() == old_key
+                ]
+                if not changed_indexes:
+                    continue
+                for index in sorted(changed_indexes, reverse=True):
+                    preset = with_profile_deleted(preset, index)
+                save_source(launch_method, file_name, serialize_preset(preset))
+                changed_profiles += len(changed_indexes)
+        return changed_profiles
+
     def _profile_sources_for_folder_order(self):
         preset, _manifest = self.load_selected_preset()
         templates = self._load_profile_templates()
@@ -441,7 +531,7 @@ def _basic_strategy_entries(profile: Profile, catalogs: dict[str, dict[str, Stra
 def _resolve_strategy(profile: Profile, entries: dict[str, StrategyEntry]) -> tuple[str, str]:
     current = _strategy_identity_lines(profile, getattr(profile.strategy, "strategy_lines", ()) or ())
     if not current:
-        return "none", "Отключено"
+        return "none", "Стратегия не выбрана"
     matches = [
         entry
         for entry in entries.values()
@@ -457,7 +547,7 @@ def _profile_status_name(*, in_preset: bool, enabled: bool, strategy_name: str) 
         return "Не добавлен"
     if not enabled:
         return "Выключен"
-    return str(strategy_name or "").strip() or "Отключено"
+    return str(strategy_name or "").strip() or "Стратегия не выбрана"
 
 
 def _normalize_lines(lines) -> tuple[str, ...]:

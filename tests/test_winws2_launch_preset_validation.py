@@ -71,6 +71,45 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
 
         self.assertTrue(PresetModeCoordinator._has_required_filters(ZAPRET2_MODE, source))
 
+    def test_winws1_launch_filter_check_ignores_only_skipped_profiles(self) -> None:
+        from presets.mode_coordinator import PresetModeCoordinator
+        from settings.mode import ZAPRET1_MODE
+
+        source = "\n".join(
+            (
+                "--wf-tcp=80,443",
+                "--skip",
+                "--filter-tcp=443",
+                "--hostlist=lists/youtube.txt",
+                "--dpi-desync=fake,split2",
+                "",
+            )
+        )
+
+        self.assertFalse(PresetModeCoordinator._has_required_filters(ZAPRET1_MODE, source))
+
+    def test_winws1_launch_filter_check_allows_some_skipped_profiles_when_one_is_enabled(self) -> None:
+        from presets.mode_coordinator import PresetModeCoordinator
+        from settings.mode import ZAPRET1_MODE
+
+        source = "\n".join(
+            (
+                "--wf-tcp=80,443",
+                "--skip",
+                "--filter-tcp=443",
+                "--hostlist=lists/disabled.txt",
+                "--dpi-desync=fake",
+                "",
+                "--new",
+                "--filter-tcp=443",
+                "--hostlist=lists/enabled.txt",
+                "--dpi-desync=fake,split2",
+                "",
+            )
+        )
+
+        self.assertTrue(PresetModeCoordinator._has_required_filters(ZAPRET1_MODE, source))
+
     def test_start_validation_rejects_preset_with_only_skipped_profiles(self) -> None:
         from winws_runtime.flow.start_preparation import validate_preset_selected_mode
         from settings.mode import ZAPRET2_MODE

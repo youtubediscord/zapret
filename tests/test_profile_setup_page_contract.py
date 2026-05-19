@@ -57,6 +57,19 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("create_user_profile", handler)
         self.assertIn("refresh_from_preset_switch", handler)
 
+    def test_profile_setup_page_has_update_user_profile_action(self) -> None:
+        build = inspect.getsource(ProfileSetupPageBase._build_content)
+        apply_payload = inspect.getsource(ProfileSetupPageBase._apply_payload)
+        handler = inspect.getsource(ProfileSetupPageBase._on_update_user_profile_clicked)
+        delete_handler = inspect.getsource(ProfileSetupPageBase._on_delete_user_profile_clicked)
+
+        self.assertIn("_update_user_profile_button", build)
+        self.assertIn("_delete_user_profile_button", build)
+        self.assertIn("template:user:", apply_payload)
+        self.assertIn("CreateUserProfileDialog", handler)
+        self.assertIn("update_user_profile", handler)
+        self.assertIn("delete_user_profile", delete_handler)
+
     def test_strategy_list_click_handlers_match_qlistwidget_signals(self) -> None:
         clicked = inspect.signature(ProfileStrategyListWidget._on_item_clicked)
         activated = inspect.signature(ProfileStrategyListWidget._on_item_activated)

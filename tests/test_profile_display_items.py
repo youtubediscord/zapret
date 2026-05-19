@@ -26,7 +26,7 @@ def _item(
         enabled=enabled,
         in_preset=in_preset,
         strategy_id=strategy_id,
-        strategy_name="Активная" if strategy_id != "none" else "Отключено",
+        strategy_name="Активная" if strategy_id != "none" else "Стратегия не выбрана",
         match_lines=lines,
         list_type=list_type,
         rating="",

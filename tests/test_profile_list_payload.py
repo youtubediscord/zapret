@@ -225,6 +225,35 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertEqual(payload.items[0].strategy_id, "none")
         self.assertEqual(payload.items[0].strategy_name, "Выключен")
 
+    def test_enabled_profile_without_strategy_is_shown_as_no_strategy_selected(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                payload = ProfilePresetService(feature, "zapret2_mode").list_profiles()
+
+        self.assertEqual(len(payload.items), 1)
+        self.assertTrue(payload.items[0].in_preset)
+        self.assertTrue(payload.items[0].enabled)
+        self.assertEqual(payload.items[0].strategy_id, "none")
+        self.assertEqual(payload.items[0].strategy_name, "Стратегия не выбрана")
+
     def test_same_profile_name_collapses_different_hostlist_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

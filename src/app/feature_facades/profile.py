@@ -118,6 +118,18 @@ class ProfileFeature:
             ports=ports,
         )
 
+    def update_user_profile(self, profile_id: str, *, name: str, protocol: str, ports: str) -> int:
+        return int(profile_internal_commands.update_user_profile(
+            self,
+            profile_id,
+            name=name,
+            protocol=protocol,
+            ports=ports,
+        ))
+
+    def delete_user_profile(self, profile_id: str) -> int:
+        return int(profile_internal_commands.delete_user_profile(self, profile_id))
+
     def get_advanced_settings_state(self, launch_method: str):
         return profile_settings.get_advanced_settings_state(self, launch_method=launch_method)
 

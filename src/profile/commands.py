@@ -121,3 +121,16 @@ def create_user_profile(profile_services, *, name: str, protocol: str, ports: st
         protocol=protocol,
         ports=ports,
     )
+
+
+def update_user_profile(profile_services, profile_id: str, *, name: str, protocol: str, ports: str) -> int:
+    return _profile_preset_service(profile_services, "").update_user_profile(
+        profile_id,
+        name=name,
+        protocol=protocol,
+        ports=ports,
+    )
+
+
+def delete_user_profile(profile_services, profile_id: str) -> int:
+    return _profile_preset_service(profile_services, "").delete_user_profile(profile_id)

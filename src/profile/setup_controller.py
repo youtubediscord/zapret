@@ -52,6 +52,17 @@ class ProfileSetupController:
             enabled=enabled,
         )
 
+    def update_user_profile(self, *, profile_id: str, name: str, protocol: str, ports: str) -> int:
+        return int(self._profile.update_user_profile(
+            profile_id,
+            name=name,
+            protocol=protocol,
+            ports=ports,
+        ))
+
+    def delete_user_profile(self, *, profile_id: str) -> int:
+        return int(self._profile.delete_user_profile(profile_id))
+
     def apply_strategy(self, *, profile_key: str, strategy_id: str) -> str | None:
         return apply_strategy_to_profile(
             profile_feature=self._profile,
