@@ -10,7 +10,7 @@ def _tr_key(tr_prefix: str, suffix: str) -> str:
 def toggle_pin_preset_action(*, name: str, resolve_display_name_fn, storage_api, refresh_presets_view_from_cache_fn, log_fn) -> None:
     try:
         display_name = resolve_display_name_fn(name)
-        pinned = storage_api.toggle_preset_pin(name)
+        pinned = storage_api.toggle_preset_pin(name, display_name=display_name)
         log_fn(f"Пресет '{display_name}' {'закреплён' if pinned else 'откреплён'}", "INFO")
         refresh_presets_view_from_cache_fn()
     except Exception as exc:
@@ -30,14 +30,13 @@ def move_preset_by_step_action(*, name: str, direction: int, storage_api, runtim
         log_fn(f"Ошибка перестановки пресета: {exc}", "ERROR")
 
 
-def handle_item_dropped_action(*, source_kind: str, source_id: str, destination_kind: str, destination_id: str, storage_api, runtime_service, refresh_presets_view_from_cache_fn, log_fn) -> None:
+def handle_item_dropped_action(*, source_kind: str, source_id: str, destination_kind: str, destination_id: str, storage_api, refresh_presets_view_from_cache_fn, log_fn) -> None:
     try:
         moved = storage_api.move_preset_on_drop(
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
             destination_id=destination_id,
-            cached_metadata=runtime_service.cached_presets_metadata(),
         )
         if moved:
             log_fn(f"Элемент '{source_id}' перенесён перетаскиванием", "INFO")
@@ -87,13 +86,13 @@ def open_edit_preset_menu_action(*, page, name: str, global_pos, is_builtin_pres
         on_preset_list_action_fn(chosen, name)
 
 
-def show_rating_menu_action(*, page, name: str, global_pos, resolve_display_name_fn, hierarchy_store, refresh_callback, tr_fn, show_preset_rating_menu_fn, tr_prefix: str) -> None:
+def show_rating_menu_action(*, page, name: str, global_pos, resolve_display_name_fn, folder_scope: str, refresh_callback, tr_fn, show_preset_rating_menu_fn, tr_prefix: str) -> None:
     display_name = resolve_display_name_fn(name)
     show_preset_rating_menu_fn(
         page,
         preset_file_name=name,
         display_name=display_name,
-        hierarchy_store=hierarchy_store,
+        folder_scope=folder_scope,
         refresh_callback=refresh_callback,
         clear_label=tr_fn(_tr_key(tr_prefix, "menu.rating_clear"), "Сбросить рейтинг"),
         global_pos=global_pos,

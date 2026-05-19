@@ -8,7 +8,10 @@ from log.log import log
 from main.window_lifecycle_cleanup import (
     release_input_interaction_states,
 )
-from main.window_native_commands import handle_native_minimize_command
+from main.window_native_commands import (
+    handle_minimize_request,
+    handle_native_minimize_command,
+)
 from main.runtime_state import (
     log_startup_metric as emit_startup_metric,
     startup_elapsed_ms,
@@ -77,6 +80,11 @@ class WindowLifecycleMixin:
         if handle_native_minimize_command(self, message):
             return (True, 0)
         return super().nativeEvent(event_type, message)
+
+    def showMinimized(self) -> None:  # noqa: N802 (Qt override)
+        if handle_minimize_request(self):
+            return
+        super().showMinimized()
 
     def changeEvent(self, event):
         event_type = event.type()

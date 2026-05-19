@@ -142,21 +142,12 @@ class PresetSwitchWorker(QObject):
                 return
 
             runner = get_strategy_runner(self._get_winws_exe())
-            switch_method = getattr(runner, "switch_preset_file_fast", None)
-            if callable(switch_method):
-                success = bool(
-                    switch_method(
-                        str(preset.preset_path),
-                        preset.display_name,
-                    )
+            success = bool(
+                runner.switch_preset_file_fast(
+                    str(preset.preset_path),
+                    preset.display_name,
                 )
-            else:
-                success = bool(
-                    runner.start_from_preset_file(
-                        str(preset.preset_path),
-                        preset.display_name,
-                    )
-                )
+            )
 
             if not success:
                 short_error = str(getattr(runner, "last_error", "") or "").strip()

@@ -7,7 +7,7 @@ import time
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from log.log import log
-from settings.mode import ENGINE_WINWS2, is_orchestra_launch_method, is_preset_launch_method, is_zapret2_launch_method
+from settings.mode import ENGINE_WINWS2, is_orchestra_launch_method, is_preset_launch_method
 from winws_runtime.health.process_health_check import diagnose_startup_error
 from winws_runtime.runtime.sync_shutdown import shutdown_runtime_sync
 from winws_runtime.runtime.system_ops import force_kill_all_winws_processes
@@ -85,28 +85,6 @@ class PresetLaunchStartWorker(QObject):
         ):
             return True, str(mode_param.get("preset_path") or "").strip()
         return False, ""
-
-    def _can_reuse_running_process(self, *, is_preset_file: bool, preset_path: str) -> bool:
-        if not is_preset_file or not preset_path:
-            return False
-        if not is_zapret2_launch_method(self.launch_method):
-            return False
-        try:
-            from winws_runtime.runners.runner_factory import get_strategy_runner
-
-            runner = get_strategy_runner(self._get_winws_exe())
-            self._configure_runner_runtime_callbacks(runner)
-            if hasattr(runner, "find_running_preset_pid"):
-                pid = runner.find_running_preset_pid(preset_path)
-                if pid:
-                    log(
-                        f"Preset уже запущен (PID: {pid}), пропускаем остановку",
-                        "INFO",
-                    )
-                    return True
-        except Exception as e:
-            log(f"Не удалось проверить уже запущенный preset: {e}", "DEBUG")
-        return False
 
     def _validate_preset_before_stop(self, *, is_preset_file: bool, preset_path: str, skip_stop: bool) -> bool:
         if not is_preset_file or not preset_path or skip_stop:
@@ -235,11 +213,7 @@ class PresetLaunchStartWorker(QObject):
             self.progress.emit("Подготовка к запуску...")
 
             is_preset_file, preset_path = self._extract_preset_launch_input()
-            process_running = self.launch_runtime_api.has_residual_processes(silent=True)
-            skip_stop = process_running and self._can_reuse_running_process(
-                is_preset_file=is_preset_file,
-                preset_path=preset_path,
-            )
+            skip_stop = False
 
             if not self._validate_preset_before_stop(
                 is_preset_file=is_preset_file,

@@ -139,7 +139,7 @@ class PresetRawEditorPage(BasePage):
         return self._launch_method
 
 
-    def _preset_hierarchy_scope_key(self) -> str | None:
+    def _preset_folder_scope_key(self) -> str | None:
         from settings.mode import (
             PRESETS_SCOPE_WINWS1,
             PRESETS_SCOPE_WINWS2,

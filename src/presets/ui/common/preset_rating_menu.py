@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import Action, RoundMenu
 
 from ui.popup_menu import exec_popup_menu
+from presets.folders import get_preset_item_meta, set_preset_rating
 
 
 def show_preset_rating_menu(
@@ -15,7 +16,7 @@ def show_preset_rating_menu(
     *,
     preset_file_name: str,
     display_name: str,
-    hierarchy_store,
+    folder_scope: str,
     refresh_callback: Callable[[], None],
     clear_label: str,
     global_pos: QPoint | None = None,
@@ -24,7 +25,7 @@ def show_preset_rating_menu(
 
     menu = RoundMenu(parent=parent)
     current_rating = int(
-        hierarchy_store.get_preset_meta(preset_file_name).get("rating", 0) or 0
+        get_preset_item_meta(folder_scope, preset_file_name).get("rating", 0) or 0
     )
 
     clear_action = Action(str(clear_label or "Сбросить рейтинг"), menu)
@@ -48,10 +49,10 @@ def show_preset_rating_menu(
         capture_action=True,
     )
     if chosen == clear_action:
-        hierarchy_store.set_preset_rating(preset_file_name, 0)
+        set_preset_rating(folder_scope, preset_file_name, 0, display_name=display_name)
         refresh_callback()
         return
 
     if chosen in actions:
-        hierarchy_store.set_preset_rating(preset_file_name, actions[chosen])
+        set_preset_rating(folder_scope, preset_file_name, actions[chosen], display_name=display_name)
         refresh_callback()

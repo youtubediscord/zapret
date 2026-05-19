@@ -1,58 +1,47 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 
 from app.page_names import PageName
 
 
 @dataclass(frozen=True, slots=True)
-class PageDepsContext:
-    autostart_feature: object
-    blobs_feature: object
-    blockcheck_feature: object
-    diagnostics_feature: object
-    dns_feature: object
-    dpi_settings_feature: object
-    external_actions_feature: object
-    hosts_feature: object
-    lists_feature: object
-    logs_feature: object
-    orchestra_feature: object
-    premium_feature: object
-    presets_feature: object
-    profile_feature: object
-    program_settings_feature: object
-    runtime_feature: object
-    telegram_proxy_feature: object
-    updater_feature: object
+class PageDepsSources:
+    """Внутренние источники deps для сборщика страниц.
+
+    Builder страницы этот объект не получает. Он нужен только в
+    `page_composition.py`, где по явной карте выбираются конкретные deps.
+    """
+
+    feature_deps: Mapping[str, object]
     ui_state_store: object
-    set_status: Callable
-    request_exit: Callable
-    open_connection_test: Callable
-    open_folder: Callable
-    show_page: Callable
-    show_active_mode_control_page: Callable
-    open_profile_setup: Callable
-    on_profile_setup_changed: Callable
-    open_preset_raw_editor: Callable
-    after_launch_method_changed: Callable
-    set_garland_enabled: Callable
-    set_snowflakes_enabled: Callable
-    on_background_refresh_needed: Callable
-    on_background_preset_changed: Callable
-    on_opacity_changed: Callable
-    on_mica_changed: Callable
-    on_animations_changed: Callable
-    on_smooth_scroll_changed: Callable
-    on_editor_smooth_scroll_changed: Callable
-    on_ui_language_changed: Callable
+    actions: Mapping[str, object]
 
 
-PageDepsBuilder = Callable[[PageDepsContext, PageName], dict]
+PageDepsBuilder = Callable[..., dict]
+
+
+@dataclass(frozen=True, slots=True)
+class PageDepsSpec:
+    builder: PageDepsBuilder
+    features: tuple[str, ...] = field(default_factory=tuple)
+    actions: tuple[str, ...] = field(default_factory=tuple)
+    include_ui_state_store: bool = False
+
+    def build(self, sources: PageDepsSources, page_name: PageName) -> dict:
+        kwargs = {"page_name": page_name}
+        for feature_name in self.features:
+            kwargs[f"{feature_name}_feature"] = sources.feature_deps[feature_name]
+        for action_name in self.actions:
+            kwargs[action_name] = sources.actions[action_name]
+        if self.include_ui_state_store:
+            kwargs["ui_state_store"] = sources.ui_state_store
+        return self.builder(**kwargs)
 
 
 __all__ = [
-    "PageDepsContext",
     "PageDepsBuilder",
+    "PageDepsSources",
+    "PageDepsSpec",
 ]

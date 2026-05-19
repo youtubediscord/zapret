@@ -464,28 +464,6 @@ def normalize_blockcheck(data: object) -> dict[str, Any]:
     }
 
 
-def normalize_preset_library(data: object) -> dict[str, Any]:
-    raw = as_dict(data)
-    scopes: dict[str, Any] = {}
-    for raw_scope, raw_state in as_dict(raw.get("scopes")).items():
-        scope = as_clean_str(raw_scope).lower()
-        state_raw = as_dict(raw_state)
-        presets: dict[str, Any] = {}
-        for raw_preset, raw_meta in as_dict(state_raw.get("presets")).items():
-            preset = as_clean_str(raw_preset)
-            if not preset:
-                continue
-            meta_raw = as_dict(raw_meta)
-            rating = as_int(meta_raw.get("rating"), 0, minimum=0, maximum=10)
-            pinned = as_bool(meta_raw.get("pinned"), False)
-            order = as_nullable_int(meta_raw.get("order"))
-            if rating or pinned or order is not None:
-                presets[preset] = {"rating": rating, "pinned": pinned, "order": order}
-        if scope:
-            scopes[scope] = {"version": 3, "presets": presets}
-    return {"version": 1, "scopes": scopes}
-
-
 def normalize_blobs(data: object) -> dict[str, Any]:
     raw = as_dict(data)
     user_blobs: dict[str, Any] = {}
@@ -540,7 +518,6 @@ def normalize_settings(data: object) -> dict[str, Any]:
         "orchestra": normalize_orchestra(raw.get("orchestra")),
         "updater": normalize_updater(raw.get("updater")),
         "blockcheck": normalize_blockcheck(raw.get("blockcheck")),
-        "preset_library": normalize_preset_library(raw.get("preset_library")),
         "blobs": normalize_blobs(raw.get("blobs")),
         "folders": normalize_folders(raw.get("folders")),
     }

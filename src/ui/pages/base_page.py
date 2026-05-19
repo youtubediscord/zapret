@@ -123,6 +123,7 @@ class BasePage(_FluentScrollArea):
         self.content.setStyleSheet("background-color: transparent;")
         # Expanding horizontally so the content fills the viewport width and
         # word-wrapped labels can actually wrap instead of overflowing.
+        self.content.setMinimumWidth(0)
         self.content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.setWidget(self.content)
 
@@ -255,8 +256,20 @@ class BasePage(_FluentScrollArea):
         except Exception:
             pass
 
+    def _sync_content_width_to_viewport(self) -> None:
+        """Не даёт странице становиться шире видимой области."""
+
+        try:
+            width = max(0, int(self.viewport().width()))
+            if width > 0 and self.content.maximumWidth() != width:
+                self.content.setMaximumWidth(width)
+                self.content.updateGeometry()
+        except Exception:
+            pass
+
     def showEvent(self, event):  # noqa: N802 (Qt override)
         super().showEvent(event)
+        self._sync_content_width_to_viewport()
         is_spontaneous = bool(event is not None and event.spontaneous())
         if is_spontaneous:
             self._flush_page_theme_refresh()
@@ -264,6 +277,10 @@ class BasePage(_FluentScrollArea):
         self._flush_ready_callbacks()
         self._schedule_activation()
         self._flush_page_theme_refresh()
+
+    def resizeEvent(self, event):  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self._sync_content_width_to_viewport()
 
     def hideEvent(self, event):  # noqa: N802 (Qt override)
         self._cancel_page_lifecycle(reason="hidden")

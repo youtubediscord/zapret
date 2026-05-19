@@ -16,6 +16,7 @@ class LinkedWheelListView(ListView):
     item_dropped = pyqtSignal(str, str, str, str)
     preset_context_requested = pyqtSignal(str, QPoint)
     folder_context_requested = pyqtSignal(str, QPoint)
+    background_context_requested = pyqtSignal(QPoint)
 
     def __init__(self, parent=None, *, draggable_kinds: set[str] | None = None):
         super().__init__(parent)
@@ -100,6 +101,10 @@ class LinkedWheelListView(ListView):
                     self.preset_context_requested.emit(name, self.viewport().mapToGlobal(event.position().toPoint()))
                     event.accept()
                     return
+            if not index.isValid():
+                self.background_context_requested.emit(self.viewport().mapToGlobal(event.position().toPoint()))
+                event.accept()
+                return
         super().mouseReleaseEvent(event)
 
     def focusInEvent(self, event):

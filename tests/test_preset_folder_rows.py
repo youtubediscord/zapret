@@ -1,36 +1,29 @@
 from __future__ import annotations
 
 import unittest
+import inspect
 
 from folders.defaults import COMMON_FOLDER_KEY, build_default_preset_folders
 from presets.user_presets_page_plans import build_preset_rows_plan
-
-
-class _Hierarchy:
-    def __init__(self, meta: dict[str, dict]) -> None:
-        self._meta = meta
-
-    def get_preset_meta(self, file_name: str) -> dict:
-        return dict(self._meta.get(file_name) or {})
+from presets import folders as preset_folders
 
 
 class PresetFolderRowsTests(unittest.TestCase):
+    def test_preset_rows_do_not_accept_old_hierarchy_source(self) -> None:
+        signature = inspect.signature(build_preset_rows_plan)
+        source = inspect.getsource(preset_folders.build_preset_folder_rows)
+
+        self.assertNotIn("hierarchy", signature.parameters)
+        self.assertNotIn("get_preset_meta", source)
+
     def test_rows_are_grouped_by_folders_with_pinned_folder_above_all(self) -> None:
         folder_state = build_default_preset_folders()
         folder_state["items"] = {
-            "Default.txt": {"folder_key": COMMON_FOLDER_KEY, "order": None},
-            "Manual.txt": {"folder_key": COMMON_FOLDER_KEY, "order": 0},
-            "Game.txt": {"folder_key": "game-filter", "order": None},
-            "Pinned.txt": {"folder_key": COMMON_FOLDER_KEY, "order": None},
+            "Default.txt": {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 9},
+            "Manual.txt": {"folder_key": COMMON_FOLDER_KEY, "order": 0, "rating": 0},
+            "Game.txt": {"folder_key": "game-filter", "order": None, "rating": 0},
+            "Pinned.txt": {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0, "pinned": True},
         }
-        hierarchy = _Hierarchy(
-            {
-                "Default.txt": {"rating": 9, "pinned": False, "order": None},
-                "Manual.txt": {"rating": 0, "pinned": False, "order": 0},
-                "Game.txt": {"rating": 0, "pinned": False, "order": None},
-                "Pinned.txt": {"rating": 0, "pinned": True, "order": None},
-            }
-        )
 
         plan = build_preset_rows_plan(
             all_presets={
@@ -42,7 +35,6 @@ class PresetFolderRowsTests(unittest.TestCase):
             query="",
             active_file_name="Default.txt",
             language="ru",
-            hierarchy=hierarchy,
             folder_state=folder_state,
             empty_not_found_key="missing",
             empty_none_key="empty",
@@ -77,7 +69,6 @@ class PresetFolderRowsTests(unittest.TestCase):
             query="game",
             active_file_name="",
             language="ru",
-            hierarchy=_Hierarchy({}),
             folder_state=folder_state,
             empty_not_found_key="missing",
             empty_none_key="empty",

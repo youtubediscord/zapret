@@ -1,4 +1,4 @@
-"""Build-helper'ы для страницы пользовательских пресетов Zapret 2."""
+"""Сборка общей страницы пользовательских preset-ов."""
 
 from __future__ import annotations
 
@@ -39,10 +39,12 @@ def build_user_presets_page_shell(
     parent,
     tr_fn,
     tokens,
-    body_label_cls,
     strong_body_label_cls,
     line_edit_cls,
     primary_tool_button_cls,
+    tr_prefix: str,
+    delegate_language_scope: str,
+    delegate_help_name_role: str,
     fluent_icon,
     get_cached_qta_pixmap_fn,
     on_open_new_configs_post,
@@ -58,6 +60,7 @@ def build_user_presets_page_shell(
     on_item_dropped,
     on_preset_context_requested,
     on_folder_context_requested,
+    on_background_context_requested,
     on_preset_list_action,
     ui_language: str,
 ):
@@ -72,7 +75,7 @@ def build_user_presets_page_shell(
 
     configs_title_label = strong_body_label_cls(
         tr_fn(
-            "page.winws2_user_presets.configs.title",
+            f"{tr_prefix}.configs.title",
             "Обменивайтесь пресетами и профилями в разделе GitHub Discussions",
         )
     )
@@ -82,7 +85,7 @@ def build_user_presets_page_shell(
     configs_layout.addWidget(configs_title_label, 1)
 
     get_configs_btn = PrimaryActionButton(
-        tr_fn("page.winws2_user_presets.configs.button", "Получить конфиги"),
+        tr_fn(f"{tr_prefix}.configs.button", "Получить конфиги"),
         "fa5s.external-link-alt",
     )
     get_configs_btn.setFixedHeight(36)
@@ -98,51 +101,51 @@ def build_user_presets_page_shell(
     )
     set_tooltip(
         create_btn,
-        tr_fn("page.winws2_user_presets.tooltip.create", "Создать новый пресет"),
+        tr_fn(f"{tr_prefix}.tooltip.create", "Создать новый пресет"),
     )
     create_btn.clicked.connect(on_create_clicked)
 
     import_btn = toolbar_layout.create_action_button(
-        tr_fn("page.winws2_user_presets.button.import", "Импорт"),
+        tr_fn(f"{tr_prefix}.button.import", "Импорт"),
         "fa5s.file-import",
     )
     set_tooltip(
         import_btn,
-        tr_fn("page.winws2_user_presets.tooltip.import", "Импорт пресета из файла"),
+        tr_fn(f"{tr_prefix}.tooltip.import", "Импорт пресета из файла"),
     )
     import_btn.clicked.connect(on_import_clicked)
 
     open_folder_btn = toolbar_layout.create_action_button(
-        tr_fn("page.winws2_user_presets.button.open_folder", "Открыть папку"),
+        tr_fn(f"{tr_prefix}.button.open_folder", "Открыть папку"),
         "fa5s.folder-open",
     )
     set_tooltip(
         open_folder_btn,
-        tr_fn("page.winws2_user_presets.tooltip.open_folder", "Открыть папку, где лежат ваши пресеты"),
+        tr_fn(f"{tr_prefix}.tooltip.open_folder", "Открыть папку, где лежат ваши пресеты"),
     )
     open_folder_btn.clicked.connect(on_open_folder_clicked)
 
     reset_all_btn = toolbar_layout.create_action_button(
-        tr_fn("page.winws2_user_presets.button.reset_all", "Вернуть встроенные"),
+        tr_fn(f"{tr_prefix}.button.reset_all", "Вернуть встроенные"),
         "fa5s.undo",
     )
     set_tooltip(
         reset_all_btn,
         tr_fn(
-            "page.winws2_user_presets.tooltip.reset_all",
+            f"{tr_prefix}.tooltip.reset_all",
             "Возвращает встроенные пресеты. Ваши изменения во встроенных пресетах будут потеряны.",
         ),
     )
     reset_all_btn.clicked.connect(on_reset_all_presets_clicked)
 
     presets_info_btn = toolbar_layout.create_action_button(
-        tr_fn("page.winws2_user_presets.button.wiki", "Вики по пресетам"),
+        tr_fn(f"{tr_prefix}.button.wiki", "Вики по пресетам"),
         "fa5s.info-circle",
     )
     presets_info_btn.clicked.connect(on_open_presets_info)
 
     info_btn = toolbar_layout.create_action_button(
-        tr_fn("page.winws2_user_presets.button.what_is_this", "Что это такое?"),
+        tr_fn(f"{tr_prefix}.button.what_is_this", "Что это такое?"),
         "fa5s.question-circle",
     )
     info_btn.clicked.connect(on_info_clicked)
@@ -159,7 +162,7 @@ def build_user_presets_page_shell(
 
     preset_search_input = line_edit_cls()
     preset_search_input.setPlaceholderText(
-        tr_fn("page.winws2_user_presets.search.placeholder", "Поиск пресетов по имени...")
+        tr_fn(f"{tr_prefix}.search.placeholder", "Поиск пресетов по имени...")
     )
     preset_search_input.setClearButtonEnabled(True)
     preset_search_input.setFixedHeight(34)
@@ -184,6 +187,7 @@ def build_user_presets_page_shell(
     presets_list.item_dropped.connect(on_item_dropped)
     presets_list.preset_context_requested.connect(on_preset_context_requested)
     presets_list.folder_context_requested.connect(on_folder_context_requested)
+    presets_list.background_context_requested.connect(on_background_context_requested)
     presets_list.setDragEnabled(True)
     presets_list.setAcceptDrops(True)
     presets_list.setDropIndicatorShown(True)
@@ -191,7 +195,11 @@ def build_user_presets_page_shell(
     presets_list.setDragDropMode(QListView.DragDropMode.DragDrop)
 
     presets_model = PresetListModel(presets_list)
-    presets_delegate = PresetListDelegate(presets_list)
+    presets_delegate = PresetListDelegate(
+        presets_list,
+        language_scope=delegate_language_scope,
+        help_name_role=delegate_help_name_role,
+    )
     presets_delegate.set_ui_language(ui_language)
     presets_delegate.action_triggered.connect(on_preset_list_action)
     presets_list.setModel(presets_model)

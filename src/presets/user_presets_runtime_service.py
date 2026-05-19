@@ -17,7 +17,7 @@ class UserPresetsRuntimeAdapter:
     presets_dir: Callable[[], Path]
     load_all_metadata: Callable[[], dict[str, dict[str, object]]]
     rebuild_rows: Callable[[dict[str, dict[str, object]], float | None], None]
-    delete_preset_meta: Callable[[str], None]
+    delete_preset_item_meta: Callable[[str], None]
 
 
 class UserPresetsRuntimeService:
@@ -484,7 +484,7 @@ class UserPresetsRuntimeService:
         page = self._resolve_page(page)
         adapter = self._resolve_adapter()
         try:
-            adapter.delete_preset_meta(name)
+            adapter.delete_preset_item_meta(name)
         except Exception:
             pass
 

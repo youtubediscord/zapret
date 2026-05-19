@@ -1035,8 +1035,34 @@ def check_page_deps_context_has_explicit_fields(files: list[Path]) -> list[Probl
     ]
     return _scan_lines(
         scopes,
-        re.compile(r"\b(?:context\.features|context\.state|features\s*:\s*object|state\s*:\s*object)\b"),
-        "PageDepsContext не должен быть общим мешком features/state; передавайте явные feature-поля и ui_state_store",
+        re.compile(
+            r"\b(?:PageDepsContext|def\s+build_[a-z_]+_page_kwargs\s*\(\s*context\b|"
+            r"context\.|features\s*:\s*object|state\s*:\s*object)\b"
+        ),
+        "page deps builder не должен получать общий context; зависимости страницы задаются через PageDepsSpec",
+    )
+
+
+def check_preset_switch_has_no_full_start_fallback() -> list[Problem]:
+    path = SRC_ROOT / "winws_runtime" / "runtime" / "control_workers.py"
+    if not path.exists():
+        return [Problem(path, 1, "control_workers.py не найден")]
+    return _scan_lines(
+        [path],
+        re.compile(r"\b(?:getattr\([^)]*switch_preset_file_fast|runner\.start_from_preset_file\s*\()"),
+        "PresetSwitchWorker должен использовать только switch_preset_file_fast без fallback на полный запуск",
+    )
+
+
+def check_no_running_preset_pid_probe(files: list[Path]) -> list[Problem]:
+    scopes = [
+        path for path in files
+        if _under(path, "src/winws_runtime/")
+    ]
+    return _scan_lines(
+        scopes,
+        re.compile(r"\bfind_running_preset_pid\b"),
+        "проверка запущенного preset через @preset больше не соответствует текущему запуску args и не должна использоваться",
     )
 
 
@@ -1140,6 +1166,8 @@ def run_checks() -> list[Problem]:
     problems.extend(check_nested_preset_pages_use_breadcrumbs())
     problems.extend(check_settings_json_is_single_app_storage(files))
     problems.extend(check_page_deps_context_has_explicit_fields(files))
+    problems.extend(check_preset_switch_has_no_full_start_fallback())
+    problems.extend(check_no_running_preset_pid_probe(files))
     problems.extend(check_ui_workflows_do_not_call_page_methods(files))
     problems.extend(check_launch_preparation_does_not_mutate_source_preset())
     problems.extend(check_no_runtime_launch_preset_files(files))

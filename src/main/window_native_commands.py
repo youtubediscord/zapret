@@ -24,6 +24,11 @@ def handle_native_minimize_command(window, message) -> bool:
     if (int(msg.wParam) & _SC_COMMAND_MASK) != SC_MINIMIZE:
         return False
 
+    return handle_minimize_request(window)
+
+
+def handle_minimize_request(window) -> bool:
+    """Общий обработчик команды «свернуть окно»."""
     try:
         from settings.store import get_hide_to_tray_on_minimize_close
 
@@ -52,5 +57,6 @@ def _read_msg(message):
 __all__ = [
     "SC_MINIMIZE",
     "WM_SYSCOMMAND",
+    "handle_minimize_request",
     "handle_native_minimize_command",
 ]

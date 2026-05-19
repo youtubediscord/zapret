@@ -5,11 +5,40 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock
 
-from profile.ui.profile_setup_page import ProfileSetupPageBase, ProfileStrategyListDelegate, ProfileStrategyListWidget, _match_tab_text
+from profile.ui.profile_setup_page import (
+    CompactDisplayComboBox,
+    ProfileSetupPageBase,
+    ProfileStrategyListDelegate,
+    ProfileStrategyListWidget,
+    _match_tab_text,
+)
+from profile.ui.preset_setup_page import preset_setup_title_for_payload
 from ui.presets_menu.delegate import PresetListDelegate
 
 
 class ProfileSetupPageContractTests(unittest.TestCase):
+    def test_preset_setup_title_shows_selected_preset_name(self) -> None:
+        payload = SimpleNamespace(
+            selected_preset_name="YouTube Russia RTMPS",
+            selected_preset_file_name="youtube-russia.txt",
+        )
+
+        self.assertEqual(
+            preset_setup_title_for_payload(payload),
+            "Настройка пресета: YouTube Russia RTMPS",
+        )
+
+    def test_preset_setup_title_falls_back_to_file_name(self) -> None:
+        payload = SimpleNamespace(
+            selected_preset_name="",
+            selected_preset_file_name="custom.txt",
+        )
+
+        self.assertEqual(
+            preset_setup_title_for_payload(payload),
+            "Настройка пресета: custom.txt",
+        )
+
     def test_strategy_list_click_handlers_match_qlistwidget_signals(self) -> None:
         clicked = inspect.signature(ProfileStrategyListWidget._on_item_clicked)
         activated = inspect.signature(ProfileStrategyListWidget._on_item_activated)
@@ -86,6 +115,31 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("Краткое условие profile", tooltips)
         self.assertIn("--in-range", tooltips)
         self.assertIn("--out-range", tooltips)
+
+    def test_range_mode_menu_explains_short_values(self) -> None:
+        compact_combo = inspect.getsource(CompactDisplayComboBox)
+        fill = inspect.getsource(ProfileSetupPageBase._fill_range_combo)
+        descriptions = inspect.getsource(ProfileSetupPageBase._range_mode_description)
+        change = inspect.getsource(ProfileSetupPageBase._on_range_mode_changed)
+
+        self.assertIn("_sync_compact_text", compact_combo)
+        self.assertIn("compactText=\"n\"", fill)
+        self.assertIn("compactText=\"d\"", fill)
+        self.assertIn("n — номер пакета", fill)
+        self.assertIn("d — пакет с данными", fill)
+        self.assertIn("userData=\"n\"", fill)
+        self.assertIn("userData=\"d\"", fill)
+        self.assertIn("Служебные пакеты без данных не считаются", descriptions)
+        self.assertIn("_update_range_tooltips", change)
+
+    def test_profile_settings_row_does_not_force_horizontal_overflow(self) -> None:
+        build = inspect.getsource(ProfileSetupPageBase._build_content)
+
+        self.assertIn("self._settings_container.setMinimumWidth(0)", build)
+        self.assertIn("self._filter_value.setMinimumWidth(0)", build)
+        self.assertIn("settings_layout = QHBoxLayout", build)
+        self.assertIn("CompactDisplayComboBox", build)
+        self.assertIn("setMinimumWidth(82)", build)
 
     def test_clicking_active_strategy_applies_without_opening_detail_page(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)

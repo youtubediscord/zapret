@@ -158,6 +158,33 @@ class ProfileStrategyListDelegate(QStyledItemDelegate):
         return True
 
 
+class CompactDisplayComboBox(ComboBox):
+    """ComboBox с подробным меню и коротким выбранным значением."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._compact_text_by_data: dict[str, str] = {}
+
+    def addItem(self, text: str, icon=None, userData=None, compactText: str | None = None):  # noqa: N802
+        super().addItem(text, icon=icon, userData=userData)
+        if compactText is not None:
+            self._compact_text_by_data[str(userData)] = str(compactText)
+            self._sync_compact_text()
+
+    def setCurrentIndex(self, index: int):  # noqa: N802
+        super().setCurrentIndex(index)
+        self._sync_compact_text()
+
+    def _sync_compact_text(self) -> None:
+        index = self.currentIndex()
+        if index < 0:
+            return
+        data = str(self.itemData(index))
+        compact = self._compact_text_by_data.get(data)
+        if compact:
+            self.setText(compact)
+
+
 class ProfileStrategyListWidget(QWidget):
     """Большой список готовых стратегий для profile."""
 
@@ -399,42 +426,44 @@ class ProfileSetupPageBase(BasePage):
         self.layout.addWidget(header)
 
         self._settings_container = QWidget(self)
+        self._settings_container.setMinimumWidth(0)
+        self._settings_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         settings_layout = QHBoxLayout(self._settings_container)
         settings_layout.setContentsMargins(0, 0, 0, 0)
-        settings_layout.setSpacing(12)
+        settings_layout.setSpacing(10)
 
         self._filter_combo = ComboBox()
-        self._filter_combo.setMinimumWidth(150)
+        self._filter_combo.setMinimumWidth(120)
         self._filter_combo.addItem(tr_catalog("page.winws2_profile_setup.filter.hostlist", language=self._ui_language, default="Hostlist"), userData="hostlist")
         self._filter_combo.addItem(tr_catalog("page.winws2_profile_setup.filter.ipset", language=self._ui_language, default="IPset"), userData="ipset")
         settings_layout.addWidget(self._filter_combo)
 
         self._filter_value = LineEdit()
-        self._filter_value.setMinimumWidth(260)
+        self._filter_value.setMinimumWidth(0)
         self._filter_value.setPlaceholderText("lists/example.txt")
         settings_layout.addWidget(self._filter_value, 1)
 
-        self._in_range_mode = ComboBox()
-        self._in_range_mode.setMinimumWidth(150)
+        self._in_range_mode = CompactDisplayComboBox()
+        self._in_range_mode.setMinimumWidth(82)
         self._fill_range_combo(self._in_range_mode)
         self._in_range_label = BodyLabel("--in-range")
         settings_layout.addWidget(self._in_range_label)
         settings_layout.addWidget(self._in_range_mode)
 
         self._in_range_value = LineEdit()
-        self._in_range_value.setMinimumWidth(90)
+        self._in_range_value.setMinimumWidth(72)
         self._in_range_value.setPlaceholderText("8")
         settings_layout.addWidget(self._in_range_value)
 
-        self._out_range_mode = ComboBox()
-        self._out_range_mode.setMinimumWidth(150)
+        self._out_range_mode = CompactDisplayComboBox()
+        self._out_range_mode.setMinimumWidth(82)
         self._fill_range_combo(self._out_range_mode)
         self._out_range_label = BodyLabel("--out-range")
         settings_layout.addWidget(self._out_range_label)
         settings_layout.addWidget(self._out_range_mode)
 
         self._out_range_value = LineEdit()
-        self._out_range_value.setMinimumWidth(90)
+        self._out_range_value.setMinimumWidth(72)
         self._out_range_value.setPlaceholderText("8")
         settings_layout.addWidget(self._out_range_value)
 
@@ -523,12 +552,12 @@ class ProfileSetupPageBase(BasePage):
 
         self.layout.addWidget(self._strategy_stack, 1)
 
-    def _fill_range_combo(self, combo: ComboBox) -> None:
-        combo.addItem("a — всегда", userData="a")
-        combo.addItem("x — никогда", userData="x")
-        combo.addItem("n — номер пакета", userData="n")
-        combo.addItem("d — пакет с данными", userData="d")
-        combo.addItem("своё выражение", userData="custom")
+    def _fill_range_combo(self, combo: CompactDisplayComboBox) -> None:
+        combo.addItem("a — всегда", userData="a", compactText="a")
+        combo.addItem("x — никогда", userData="x", compactText="x")
+        combo.addItem("n — номер пакета", userData="n", compactText="n")
+        combo.addItem("d — пакет с данными", userData="d", compactText="d")
+        combo.addItem("своё выражение", userData="custom", compactText="своё")
 
     def _range_mode_description(self, mode: str) -> str:
         descriptions = {

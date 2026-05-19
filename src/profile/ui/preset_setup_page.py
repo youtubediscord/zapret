@@ -11,6 +11,15 @@ from ui.pages.base_page import BasePage
 from app.text_catalog import tr as tr_catalog
 
 
+def preset_setup_title_for_payload(payload, default_title: str = "Настройка пресета") -> str:
+    preset_name = str(getattr(payload, "selected_preset_name", "") or "").strip()
+    if not preset_name:
+        preset_name = str(getattr(payload, "selected_preset_file_name", "") or "").strip()
+    if not preset_name:
+        return default_title
+    return f"{default_title}: {preset_name}"
+
+
 class PresetSetupPageBase(BasePage):
     profile_ui_mode_override: str | None = None
     launch_method = ZAPRET2_MODE
@@ -106,6 +115,7 @@ class PresetSetupPageBase(BasePage):
     def _apply_payload(self, payload) -> None:
         if self._content_host_layout is None:
             return
+        self._apply_selected_preset_title(payload)
         self._clear_dynamic_widgets()
         if not payload.items:
             self._show_empty_state(
@@ -121,6 +131,12 @@ class PresetSetupPageBase(BasePage):
         self._profiles_list = profiles_list
         self._content_host_layout.addWidget(profiles_list, 1)
         self._empty_state_label = None
+
+    def _apply_selected_preset_title(self, payload) -> None:
+        if self.title_label is None:
+            return
+        base_title = tr_catalog(self.title_key, language=self._ui_language, default=self.page_title)
+        self.title_label.setText(preset_setup_title_for_payload(payload, base_title))
 
     def _clear_dynamic_widgets(self) -> None:
         if self._content_host_layout is None:

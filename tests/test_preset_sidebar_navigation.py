@@ -106,19 +106,47 @@ class PresetSidebarNavigationTests(unittest.TestCase):
 
     def test_sidebar_preset_pages_do_not_build_breadcrumbs(self) -> None:
         import profile.ui.preset_setup_page as preset_setup_page
+        import presets.ui.common.user_presets_page as common_user_presets_page
         import presets.ui.zapret1.user_presets_page as zapret1_user_presets_page
         import presets.ui.zapret2.user_presets_page as zapret2_user_presets_page
 
         combined_source = "\n".join(
             (
                 inspect.getsource(preset_setup_page.PresetSetupPageBase.__init__),
-                inspect.getsource(zapret1_user_presets_page.Zapret1UserPresetsPage.__init__),
-                inspect.getsource(zapret2_user_presets_page.BaseZapret2UserPresetsPage.__init__),
+                inspect.getsource(common_user_presets_page.UserPresetsPageBase.__init__),
             )
         )
 
         self.assertNotIn("BreadcrumbBar", combined_source)
         self.assertNotIn("_rebuild_breadcrumb", combined_source)
+        self.assertTrue(
+            issubclass(
+                zapret1_user_presets_page.Zapret1UserPresetsPage,
+                common_user_presets_page.UserPresetsPageBase,
+            )
+        )
+        self.assertTrue(
+            issubclass(
+                zapret2_user_presets_page.Zapret2UserPresetsPage,
+                common_user_presets_page.UserPresetsPageBase,
+            )
+        )
+
+    def test_user_presets_pages_use_one_common_implementation(self) -> None:
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+        from presets.ui.zapret1.user_presets_page import Zapret1UserPresetsPage
+        from presets.ui.zapret2.user_presets_page import Zapret2UserPresetsPage
+
+        self.assertIs(Zapret1UserPresetsPage.__mro__[1], UserPresetsPageBase)
+        self.assertIs(Zapret2UserPresetsPage.__mro__[1], UserPresetsPageBase)
+        self.assertNotIn(
+            "build_user_presets_page_shell",
+            inspect.getsource(Zapret1UserPresetsPage),
+        )
+        self.assertNotIn(
+            "build_user_presets_page_shell",
+            inspect.getsource(Zapret2UserPresetsPage),
+        )
 
     def test_mode_switch_keeps_equivalent_preset_sidebar_page(self) -> None:
         from app.page_names import PageName

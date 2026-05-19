@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from folders.defaults import build_default_preset_folders, classify_preset_folder
+from folders.defaults import COMMON_FOLDER_KEY, PINNED_FOLDER_KEY, build_default_preset_folders, classify_preset_folder
 from folders.ordering import build_folder_rows
 from folders.store import FolderLibraryStore, normalize_folder_state
 from settings import store as settings_store
@@ -26,6 +26,63 @@ def save_preset_folder_state(scope_key: str, state: dict[str, Any]) -> dict[str,
     presets[scope] = normalize_folder_state(state, build_default_preset_folders())
     folders["presets"] = presets
     return settings_store.set_folders_settings(folders)["presets"][scope]
+
+
+def create_preset_folder(scope_key: str, name: str) -> str:
+    state = load_preset_folder_state(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    folder_key = store.create_folder_after(name, COMMON_FOLDER_KEY)
+    save_preset_folder_state(scope_key, store.to_dict())
+    return folder_key
+
+
+def rename_preset_folder(scope_key: str, folder_key: str, name: str) -> bool:
+    state = load_preset_folder_state(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    if not store.rename_folder(folder_key, name):
+        return False
+    save_preset_folder_state(scope_key, store.to_dict())
+    return True
+
+
+def delete_preset_folder(scope_key: str, folder_key: str) -> bool:
+    state = load_preset_folder_state(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    if not store.delete_folder(folder_key):
+        return False
+    save_preset_folder_state(scope_key, store.to_dict())
+    return True
+
+
+def move_preset_folder_by_step(scope_key: str, folder_key: str, direction: int) -> bool:
+    state = load_preset_folder_state(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    if not store.move_folder_by_step(folder_key, direction):
+        return False
+    save_preset_folder_state(scope_key, store.to_dict())
+    return True
+
+
+def set_preset_folder_collapsed(scope_key: str, folder_key: str, collapsed: bool) -> bool:
+    state = load_preset_folder_state(scope_key)
+    if str(folder_key or "").strip() == PINNED_FOLDER_KEY:
+        state.setdefault("folders", {})[PINNED_FOLDER_KEY] = {
+            "name": "Закрепленные",
+            "order": -1,
+            "collapsed": bool(collapsed),
+            "system": True,
+        }
+        save_preset_folder_state(scope_key, state)
+        return True
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    if not store.set_folder_collapsed(folder_key, collapsed):
+        return False
+    save_preset_folder_state(scope_key, store.to_dict())
+    return True
+
+
+def reset_preset_folders(scope_key: str) -> dict[str, Any]:
+    return save_preset_folder_state(scope_key, build_default_preset_folders())
 
 
 def move_preset_to_folder(scope_key: str, file_name: str, folder_key: str) -> bool:
@@ -77,11 +134,153 @@ def move_preset_to_end(scope_key: str, file_name: str) -> bool:
     return True
 
 
+def move_preset_by_step(
+    scope_key: str,
+    file_name: str,
+    direction: int,
+    *,
+    live_items: list[dict[str, Any]],
+) -> bool:
+    source = str(file_name or "").strip()
+    if not source:
+        return False
+    step = 1 if int(direction or 0) > 0 else -1
+    state = load_preset_folder_state(scope_key)
+    rows = build_folder_rows(
+        state,
+        live_items=live_items,
+        include_pinned_folder=True,
+    )
+    ordered = [
+        str(row.get("key") or "").strip()
+        for row in rows
+        if row.get("kind") == "item" and str(row.get("key") or "").strip()
+    ]
+    if source not in ordered:
+        return False
+    index = ordered.index(source)
+    target_index = index + step
+    if target_index < 0 or target_index >= len(ordered):
+        return False
+    if step < 0:
+        return move_preset_before(scope_key, source, ordered[target_index])
+
+    without_source = [key for key in ordered if key != source]
+    target = ordered[target_index]
+    after_target_index = without_source.index(target) + 1
+    if after_target_index < len(without_source):
+        return move_preset_before(scope_key, source, without_source[after_target_index])
+    return move_preset_to_end(scope_key, source)
+
+
+def get_preset_item_meta(scope_key: str, file_name: str) -> dict[str, Any]:
+    state = load_preset_folder_state(scope_key)
+    key = str(file_name or "").strip()
+    meta = state.get("items", {}).get(key) if key else None
+    if not isinstance(meta, dict):
+        return {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0}
+    return {
+        "folder_key": str(meta.get("folder_key") or COMMON_FOLDER_KEY),
+        "order": meta.get("order"),
+        "rating": int(meta.get("rating", 0) or 0),
+        **({"pinned": True} if bool(meta.get("pinned", False)) else {}),
+    }
+
+
+def set_preset_rating(scope_key: str, file_name: str, rating: int, *, display_name: str = "") -> bool:
+    state = load_preset_folder_state(scope_key)
+    key = str(file_name or "").strip()
+    if not key:
+        return False
+    meta = _ensure_item_meta(state, key, str(display_name or key))
+    try:
+        normalized = int(rating)
+    except Exception:
+        normalized = 0
+    meta["rating"] = max(0, min(10, normalized))
+    save_preset_folder_state(scope_key, state)
+    return True
+
+
+def toggle_preset_pin(scope_key: str, file_name: str, *, display_name: str = "") -> bool:
+    meta = get_preset_item_meta(scope_key, file_name)
+    next_value = not bool(meta.get("pinned", False))
+    set_preset_pin(scope_key, file_name, next_value, display_name=display_name)
+    return next_value
+
+
+def set_preset_pin(scope_key: str, file_name: str, pinned: bool, *, display_name: str = "") -> bool:
+    state = load_preset_folder_state(scope_key)
+    key = str(file_name or "").strip()
+    if not key:
+        return False
+    meta = _ensure_item_meta(state, key, str(display_name or key))
+    if pinned:
+        meta["pinned"] = True
+    else:
+        meta.pop("pinned", None)
+    save_preset_folder_state(scope_key, state)
+    return True
+
+
+def rename_preset_item_meta(scope_key: str, old_file_name: str, new_file_name: str) -> bool:
+    old_key = str(old_file_name or "").strip()
+    new_key = str(new_file_name or "").strip()
+    if not old_key or not new_key or old_key == new_key:
+        return False
+    state = load_preset_folder_state(scope_key)
+    items = state.setdefault("items", {})
+    raw = items.pop(old_key, None)
+    if not isinstance(raw, dict):
+        return False
+    items[new_key] = raw
+    save_preset_folder_state(scope_key, state)
+    return True
+
+
+def copy_preset_item_meta(
+    scope_key: str,
+    source_file_name: str,
+    new_file_name: str,
+    *,
+    reset_pin: bool = True,
+    reset_rating: bool = True,
+) -> bool:
+    source = str(source_file_name or "").strip()
+    new_key = str(new_file_name or "").strip()
+    if not source or not new_key or source == new_key:
+        return False
+    state = load_preset_folder_state(scope_key)
+    source_meta = state.setdefault("items", {}).get(source)
+    if not isinstance(source_meta, dict):
+        source_meta = {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0}
+    copied = dict(source_meta)
+    copied["order"] = None
+    if reset_rating:
+        copied["rating"] = 0
+    if reset_pin:
+        copied.pop("pinned", None)
+    state["items"][new_key] = copied
+    save_preset_folder_state(scope_key, state)
+    return True
+
+
+def delete_preset_item_meta(scope_key: str, file_name: str) -> bool:
+    key = str(file_name or "").strip()
+    if not key:
+        return False
+    state = load_preset_folder_state(scope_key)
+    removed = state.setdefault("items", {}).pop(key, None)
+    if removed is None:
+        return False
+    save_preset_folder_state(scope_key, state)
+    return True
+
+
 def build_preset_folder_rows(
     *,
     all_presets: dict[str, dict[str, Any]],
     visible_entries: list[dict[str, Any]],
-    hierarchy,
     active_file_name: str,
     folder_state: dict[str, Any] | None = None,
     query: str = "",
@@ -94,12 +293,13 @@ def build_preset_folder_rows(
             continue
         preset = all_presets.get(file_name) or {}
         display_name = str(preset.get("display_name") or entry.get("display_name") or file_name).strip()
-        meta = _preset_meta(hierarchy, file_name)
-        _ensure_item_meta(state, file_name, display_name, meta)
+        meta = _ensure_item_meta(state, file_name, display_name)
+        folder_key = str(meta.get("folder_key") or classify_preset_folder(display_name or file_name))
         live_items.append(
             {
                 "key": file_name,
                 "name": display_name,
+                "folder_key": folder_key,
                 "rating": int(meta.get("rating", 0) or 0),
                 "pinned": bool(meta.get("pinned", False)),
             }
@@ -131,7 +331,7 @@ def build_preset_folder_rows(
 
         file_name = str(row.get("key") or "").strip()
         preset = all_presets.get(file_name) or {}
-        meta = _preset_meta(hierarchy, file_name)
+        meta = state.get("items", {}).get(file_name) or {}
         rows.append(
             {
                 "kind": "preset",
@@ -151,31 +351,17 @@ def build_preset_folder_rows(
     return rows
 
 
-def _ensure_item_meta(state: dict[str, Any], file_name: str, display_name: str, meta: dict[str, Any]) -> None:
+def _ensure_item_meta(state: dict[str, Any], file_name: str, display_name: str) -> dict[str, Any]:
     items = state.setdefault("items", {})
     item = items.setdefault(
         file_name,
         {
             "folder_key": classify_preset_folder(display_name or file_name),
-            "order": meta.get("order"),
-            "rating": int(meta.get("rating", 0) or 0),
+            "order": None,
+            "rating": 0,
         },
     )
-    if item.get("order") is None and meta.get("order") is not None:
-        item["order"] = meta.get("order")
-    item["rating"] = int(meta.get("rating", item.get("rating", 0)) or 0)
-    if bool(meta.get("pinned", False)):
-        item["pinned"] = True
-    else:
-        item.pop("pinned", None)
-
-
-def _preset_meta(hierarchy, file_name: str) -> dict[str, Any]:
-    try:
-        meta = hierarchy.get_preset_meta(file_name)
-        return meta if isinstance(meta, dict) else {}
-    except Exception:
-        return {}
+    return item
 
 
 def _normalize_scope(scope_key: str) -> str:
@@ -214,9 +400,23 @@ def _ordered_item_meta(items: dict[str, Any]) -> list[tuple[str, dict[str, Any]]
 
 __all__ = [
     "build_preset_folder_rows",
+    "copy_preset_item_meta",
+    "create_preset_folder",
+    "delete_preset_folder",
+    "delete_preset_item_meta",
+    "get_preset_item_meta",
     "load_preset_folder_state",
+    "move_preset_by_step",
+    "move_preset_folder_by_step",
     "move_preset_before",
     "move_preset_to_end",
     "move_preset_to_folder",
+    "rename_preset_folder",
+    "rename_preset_item_meta",
+    "reset_preset_folders",
     "save_preset_folder_state",
+    "set_preset_pin",
+    "set_preset_rating",
+    "set_preset_folder_collapsed",
+    "toggle_preset_pin",
 ]

@@ -423,7 +423,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
     def start_from_preset_file(self, preset_path: str, strategy_name: str = "Preset", _retry_count: int = 0) -> bool:
         """
-        Запускает движок Zapret 1 из выбранного preset-файла через синтаксис @file.
+        Запускает движок Zapret 1 из выбранного preset-файла.
 
         Это основной путь для обычного запуска zapret1_mode.
         """

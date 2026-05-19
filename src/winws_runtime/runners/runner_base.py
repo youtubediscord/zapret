@@ -136,6 +136,16 @@ class StrategyRunnerBase(ABC):
         """
         pass
 
+    @abstractmethod
+    def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
+        """
+        Быстро применяет другой preset для уже работающего режима preset.
+
+        У этого контракта нет fallback на полный запуск: конкретный runner
+        обязан сам решить, как остановить старый процесс и запустить новый.
+        """
+        pass
+
     def _create_startup_info(self):
         """Creates STARTUPINFO for hidden process launch"""
         startupinfo = subprocess.STARTUPINFO()

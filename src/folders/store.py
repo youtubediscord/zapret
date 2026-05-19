@@ -71,11 +71,25 @@ class FolderLibraryStore:
         }
         return key
 
+    def create_folder_after(self, name: str, after_folder_key: str = COMMON_FOLDER_KEY) -> str:
+        key = self.create_folder(name)
+        after_key = str(after_folder_key or "").strip()
+        folders = self._ordered_folders()
+        after_index = next((index for index, (folder_key, _folder) in enumerate(folders) if folder_key == after_key), -1)
+        if after_index < 0:
+            after_index = len(folders) - 2
+        folder_keys = [folder_key for folder_key, _folder in folders if folder_key != key]
+        insert_index = max(0, min(len(folder_keys), after_index + 1))
+        folder_keys.insert(insert_index, key)
+        self._renumber_folders(folder_keys)
+        return key
+
     def rename_folder(self, folder_key: str, name: str) -> bool:
         key = str(folder_key or "").strip()
-        if key not in self._state["folders"]:
+        folder = self._state["folders"].get(key)
+        if not isinstance(folder, dict) or bool(folder.get("system", False)):
             return False
-        self._state["folders"][key]["name"] = _clean_folder_name(name)
+        folder["name"] = _clean_folder_name(name)
         return True
 
     def delete_folder(self, folder_key: str) -> bool:
@@ -94,6 +108,23 @@ class FolderLibraryStore:
         if key not in self._state["folders"]:
             return False
         self._state["folders"][key]["order"] = max(0, int(order))
+        return True
+
+    def move_folder_by_step(self, folder_key: str, direction: int) -> bool:
+        key = str(folder_key or "").strip()
+        if key not in self._state["folders"]:
+            return False
+        step = 1 if int(direction or 0) > 0 else -1
+        folders = self._ordered_folders()
+        index = next((i for i, (folder_key, _folder) in enumerate(folders) if folder_key == key), -1)
+        if index < 0:
+            return False
+        target_index = index + step
+        if target_index < 0 or target_index >= len(folders):
+            return False
+        folder_keys = [folder_key for folder_key, _folder in folders]
+        folder_keys[index], folder_keys[target_index] = folder_keys[target_index], folder_keys[index]
+        self._renumber_folders(folder_keys)
         return True
 
     def set_folder_collapsed(self, folder_key: str, collapsed: bool) -> bool:
@@ -140,6 +171,22 @@ class FolderLibraryStore:
         else:
             meta.pop("pinned", None)
         return True
+
+    def _ordered_folders(self) -> list[tuple[str, dict[str, Any]]]:
+        return sorted(
+            self._state["folders"].items(),
+            key=lambda pair: (
+                int(pair[1].get("order", 0) or 0),
+                str(pair[1].get("name") or pair[0]).lower(),
+                pair[0],
+            ),
+        )
+
+    def _renumber_folders(self, folder_keys: list[str]) -> None:
+        for index, key in enumerate(folder_keys):
+            folder = self._state["folders"].get(key)
+            if isinstance(folder, dict):
+                folder["order"] = index
 
 
 def _normalize_folders(value: object, *, fallback: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:

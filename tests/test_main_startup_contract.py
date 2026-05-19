@@ -325,6 +325,9 @@ class _BaseWindowEvents:
         self.calls.append("base_native")
         return (False, 123)
 
+    def showMinimized(self) -> None:
+        self.calls.append("base_minimize")
+
     def changeEvent(self, event) -> None:
         self.calls.append("base_change")
 
@@ -446,6 +449,42 @@ class WindowLifecycleEarlyEventTests(unittest.TestCase):
         window.close_to_tray.assert_not_called()
         self.assertEqual(window.calls, ["base_native"])
 
+    def test_show_minimized_hides_to_tray_when_window_setting_is_enabled(self) -> None:
+        from main.window_lifecycle import WindowLifecycleMixin
+
+        class Window(WindowLifecycleMixin, _BaseWindowEvents):
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+                self.close_to_tray = Mock(side_effect=self._close_to_tray)
+
+            def _close_to_tray(self) -> bool:
+                self.calls.append("hide_to_tray")
+                return True
+
+        window = Window()
+
+        with patch("settings.store.get_hide_to_tray_on_minimize_close", return_value=True, create=True):
+            window.showMinimized()
+
+        window.close_to_tray.assert_called_once()
+        self.assertEqual(window.calls, ["hide_to_tray"])
+
+    def test_show_minimized_uses_normal_window_flow_when_setting_is_disabled(self) -> None:
+        from main.window_lifecycle import WindowLifecycleMixin
+
+        class Window(WindowLifecycleMixin, _BaseWindowEvents):
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+                self.close_to_tray = Mock(return_value=True)
+
+        window = Window()
+
+        with patch("settings.store.get_hide_to_tray_on_minimize_close", return_value=False, create=True):
+            window.showMinimized()
+
+        window.close_to_tray.assert_not_called()
+        self.assertEqual(window.calls, ["base_minimize"])
+
 
 class WindowsSessionShutdownTests(unittest.TestCase):
     def test_close_flow_skips_dialog_when_windows_session_is_ending(self) -> None:
@@ -518,6 +557,84 @@ class WindowsSessionShutdownTests(unittest.TestCase):
         close_to_tray.assert_called_once()
         close_dialog_module.ask_close_action.assert_not_called()
         runtime.snapshot.assert_not_called()
+
+    def test_close_flow_shows_dialog_when_window_setting_is_disabled(self) -> None:
+        from ui.window_close_flow import WindowCloseFlow
+
+        close_dialog_module = types.ModuleType("ui.close_dialog")
+        close_dialog_module.ask_close_action = Mock(return_value=None)
+        original_close_dialog = sys.modules.get("ui.close_dialog")
+        sys.modules["ui.close_dialog"] = close_dialog_module
+        try:
+            event = SimpleNamespace(ignore=Mock())
+            close_state = SimpleNamespace(
+                closing_completely=False,
+                windows_session_ending=False,
+            )
+            runtime = SimpleNamespace(snapshot=Mock(return_value=SimpleNamespace(launch_running=True)))
+            close_to_tray = Mock(return_value=True)
+            flow = WindowCloseFlow(
+                parent=object(),
+                close_state=close_state,
+                runtime_feature=runtime,
+                close_to_tray=close_to_tray,
+                exit_stop_dpi=Mock(),
+                exit_keep_dpi=Mock(),
+            )
+
+            with patch("settings.store.get_hide_to_tray_on_minimize_close", return_value=False, create=True):
+                self.assertFalse(flow.should_continue_final_close(event))
+        finally:
+            if original_close_dialog is None:
+                sys.modules.pop("ui.close_dialog", None)
+            else:
+                sys.modules["ui.close_dialog"] = original_close_dialog
+
+        event.ignore.assert_called_once()
+        runtime.snapshot.assert_called_once()
+        close_dialog_module.ask_close_action.assert_called_once_with(
+            parent=flow._parent,
+            launch_running=True,
+        )
+        close_to_tray.assert_not_called()
+
+    def test_close_flow_still_shows_dialog_when_runtime_snapshot_fails(self) -> None:
+        from ui.window_close_flow import WindowCloseFlow
+
+        close_dialog_module = types.ModuleType("ui.close_dialog")
+        close_dialog_module.ask_close_action = Mock(return_value=None)
+        original_close_dialog = sys.modules.get("ui.close_dialog")
+        sys.modules["ui.close_dialog"] = close_dialog_module
+        try:
+            event = SimpleNamespace(ignore=Mock())
+            close_state = SimpleNamespace(
+                closing_completely=False,
+                windows_session_ending=False,
+            )
+            runtime = SimpleNamespace(snapshot=Mock(side_effect=RuntimeError("snapshot failed")))
+            flow = WindowCloseFlow(
+                parent=object(),
+                close_state=close_state,
+                runtime_feature=runtime,
+                close_to_tray=Mock(),
+                exit_stop_dpi=Mock(),
+                exit_keep_dpi=Mock(),
+            )
+
+            with patch("settings.store.get_hide_to_tray_on_minimize_close", return_value=False, create=True):
+                self.assertFalse(flow.should_continue_final_close(event))
+        finally:
+            if original_close_dialog is None:
+                sys.modules.pop("ui.close_dialog", None)
+            else:
+                sys.modules["ui.close_dialog"] = original_close_dialog
+
+        event.ignore.assert_called_once()
+        runtime.snapshot.assert_called_once()
+        close_dialog_module.ask_close_action.assert_called_once_with(
+            parent=flow._parent,
+            launch_running=False,
+        )
 
     def test_session_shutdown_attempts_fast_dpi_stop_and_quits_without_second_stop(self) -> None:
         from main.application_lifecycle import ApplicationLifecycle

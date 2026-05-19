@@ -294,15 +294,6 @@ def set_blockcheck_settings(values: dict[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(updated["blockcheck"])
 
 
-def get_preset_library_settings() -> dict[str, Any]:
-    return copy.deepcopy(read_settings()["preset_library"])
-
-
-def set_preset_library_settings(values: dict[str, Any]) -> dict[str, Any]:
-    updated = _update_settings(lambda data: data["preset_library"].update(_as_dict(values)))
-    return copy.deepcopy(updated["preset_library"])
-
-
 def get_blobs_settings() -> dict[str, Any]:
     return copy.deepcopy(read_settings()["blobs"])
 

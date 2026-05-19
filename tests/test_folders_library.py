@@ -92,6 +92,30 @@ class FolderOrderingTests(unittest.TestCase):
         self.assertEqual(rows[1]["kind"], "item")
         self.assertEqual(rows[1]["key"], "pinned.txt")
 
+    def test_collapsed_pinned_service_folder_hides_pinned_items(self) -> None:
+        state = build_default_preset_folders()
+        state["folders"][PINNED_FOLDER_KEY] = {
+            "name": "Закрепленные",
+            "order": 0,
+            "collapsed": True,
+            "system": True,
+        }
+        state["items"] = {
+            "pinned.txt": {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0, "pinned": True},
+        }
+
+        rows = build_folder_rows(
+            state,
+            live_items=[
+                {"key": "pinned.txt", "name": "Pinned", "rating": 0, "pinned": True},
+            ],
+            include_pinned_folder=True,
+        )
+
+        self.assertEqual(rows[0]["kind"], "folder")
+        self.assertEqual(rows[0]["key"], PINNED_FOLDER_KEY)
+        self.assertNotIn("pinned.txt", [row.get("key") for row in rows if row["kind"] == "item"])
+
 
 class FolderStoreTests(unittest.TestCase):
     def test_delete_folder_moves_items_to_common(self) -> None:
@@ -111,6 +135,37 @@ class FolderStoreTests(unittest.TestCase):
         self.assertFalse(store.delete_folder(COMMON_FOLDER_KEY))
         self.assertTrue(store.move_folder(COMMON_FOLDER_KEY, 3))
         self.assertEqual(store.to_dict()["folders"][COMMON_FOLDER_KEY]["order"], 3)
+
+    def test_create_folder_after_common_places_user_folder_next_to_common(self) -> None:
+        store = FolderLibraryStore(build_default_preset_folders())
+
+        folder_key = store.create_folder_after("Моя папка", COMMON_FOLDER_KEY)
+
+        folders = store.to_dict()["folders"]
+        ordered_names = [
+            folder["name"]
+            for _key, folder in sorted(folders.items(), key=lambda pair: pair[1]["order"])
+        ]
+        self.assertEqual(folder_key, "моя-папка")
+        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Моя папка", "Game filter", "Circular"])
+
+    def test_system_folder_cannot_be_renamed(self) -> None:
+        store = FolderLibraryStore(build_default_preset_folders())
+
+        self.assertFalse(store.rename_folder(COMMON_FOLDER_KEY, "Другое имя"))
+        self.assertEqual(store.to_dict()["folders"][COMMON_FOLDER_KEY]["name"], "Общие")
+
+    def test_move_folder_by_step_swaps_visible_order(self) -> None:
+        store = FolderLibraryStore(build_default_preset_folders())
+        folder_key = store.create_folder_after("Моя папка", COMMON_FOLDER_KEY)
+
+        self.assertTrue(store.move_folder_by_step(folder_key, 1))
+
+        ordered_names = [
+            folder["name"]
+            for _key, folder in sorted(store.to_dict()["folders"].items(), key=lambda pair: pair[1]["order"])
+        ]
+        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Game filter", "Моя папка", "Circular"])
 
 
 if __name__ == "__main__":

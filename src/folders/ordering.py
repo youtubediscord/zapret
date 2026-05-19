@@ -29,7 +29,8 @@ def build_folder_rows(
         if normalized_query and normalized_query not in name.lower() and normalized_query not in key.lower():
             continue
         meta = dict(item_meta.get(key) or {})
-        folder_key = str(meta.get("folder_key") or COMMON_FOLDER_KEY).strip() or COMMON_FOLDER_KEY
+        default_folder_key = str(live_item.get("folder_key") or COMMON_FOLDER_KEY).strip() or COMMON_FOLDER_KEY
+        folder_key = str(meta.get("folder_key") or default_folder_key).strip() or COMMON_FOLDER_KEY
         if folder_key not in folders:
             folder_key = COMMON_FOLDER_KEY
         row = {
@@ -49,20 +50,25 @@ def build_folder_rows(
 
     rows: list[dict[str, Any]] = []
     if pinned_rows:
+        pinned_meta = folders.get(PINNED_FOLDER_KEY, {})
+        pinned_collapsed = bool(pinned_meta.get("collapsed", False)) if isinstance(pinned_meta, dict) else False
         rows.append(
             {
                 "kind": "folder",
                 "key": PINNED_FOLDER_KEY,
                 "name": "Закрепленные",
-                "collapsed": False,
+                "collapsed": pinned_collapsed,
                 "system": True,
                 "service": True,
                 "count": len(pinned_rows),
             }
         )
-        rows.extend(_sort_items(pinned_rows))
+        if not pinned_collapsed or normalized_query:
+            rows.extend(_sort_items(pinned_rows))
 
     for folder_key, folder in _sort_folders(folders):
+        if folder_key == PINNED_FOLDER_KEY:
+            continue
         items = _sort_items(grouped.get(folder_key, []))
         if normalized_query and not items:
             continue

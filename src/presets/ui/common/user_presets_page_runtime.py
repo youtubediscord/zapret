@@ -63,7 +63,7 @@ class UserPresetActivationResult:
 @dataclass(frozen=True, slots=True)
 class UserPresetsPageRuntimeConfig:
     launch_method: str
-    hierarchy_scope: str
+    folder_scope: str
     empty_not_found_key: str
     empty_none_key: str
     list_log_prefix: str
@@ -106,10 +106,9 @@ class UserPresetsActionsApi(Protocol):
 
 
 class UserPresetsStorageApi(Protocol):
-    def get_hierarchy_store(self): ...
     def is_builtin_preset_file(self, name: str) -> bool: ...
     def is_builtin_preset_file_with_cache(self, name: str, cached_metadata: dict[str, dict[str, object]] | None) -> bool: ...
-    def toggle_preset_pin(self, name: str) -> bool: ...
+    def toggle_preset_pin(self, name: str, *, display_name: str = "") -> bool: ...
     def move_preset_by_step(self, name: str, direction: int, *, cached_metadata: dict[str, dict[str, object]] | None = None) -> bool: ...
     def move_preset_on_drop(
         self,
@@ -118,7 +117,6 @@ class UserPresetsStorageApi(Protocol):
         source_id: str,
         destination_kind: str,
         destination_id: str,
-        cached_metadata: dict[str, dict[str, object]] | None = None,
     ) -> bool: ...
 
 
@@ -311,17 +309,14 @@ class _UserPresetsStorageApiImpl:
     def __init__(self, runtime: "UserPresetsPageRuntime") -> None:
         self._runtime = runtime
 
-    def get_hierarchy_store(self):
-        return self._runtime.get_hierarchy_store()
-
     def is_builtin_preset_file(self, name: str) -> bool:
         return self._runtime.is_builtin_preset_file(name)
 
     def is_builtin_preset_file_with_cache(self, name: str, cached_metadata: dict[str, dict[str, object]] | None) -> bool:
         return self._runtime.is_builtin_preset_file_with_cache(name, cached_metadata)
 
-    def toggle_preset_pin(self, name: str) -> bool:
-        return self._runtime.toggle_preset_pin(name)
+    def toggle_preset_pin(self, name: str, *, display_name: str = "") -> bool:
+        return self._runtime.toggle_preset_pin(name, display_name=display_name)
 
     def move_preset_by_step(self, name: str, direction: int, *, cached_metadata: dict[str, dict[str, object]] | None = None) -> bool:
         return self._runtime.move_preset_by_step(name, direction, cached_metadata=cached_metadata)
@@ -333,14 +328,12 @@ class _UserPresetsStorageApiImpl:
         source_id: str,
         destination_kind: str,
         destination_id: str,
-        cached_metadata: dict[str, dict[str, object]] | None = None,
     ) -> bool:
         return self._runtime.move_preset_on_drop(
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
             destination_id=destination_id,
-            cached_metadata=cached_metadata,
         )
 
 
@@ -745,11 +738,6 @@ class UserPresetsPageRuntime:
                 pass
         return candidate
 
-    def get_hierarchy_store(self):
-        from presets.library_hierarchy import PresetHierarchyStore
-
-        return PresetHierarchyStore(self._config.hierarchy_scope)
-
     def is_builtin_preset_file_with_cache(self, name: str, cached_metadata: dict[str, dict[str, object]] | None) -> bool:
         candidate = str(name or "").strip()
         if not candidate or not candidate.lower().endswith(".txt"):
@@ -762,20 +750,36 @@ class UserPresetsPageRuntime:
 
         return self.is_builtin_preset_file(candidate)
 
-    def toggle_preset_pin(self, name: str) -> bool:
-        hierarchy = self.get_hierarchy_store()
-        return bool(hierarchy.toggle_preset_pin(name))
+    def toggle_preset_pin(self, name: str, *, display_name: str = "") -> bool:
+        from presets.folders import toggle_preset_pin
+
+        return bool(toggle_preset_pin(self._config.folder_scope, name, display_name=display_name))
 
     def move_preset_by_step(self, name: str, direction: int, *, cached_metadata: dict[str, dict[str, object]] | None = None) -> bool:
-        hierarchy = self.get_hierarchy_store()
-        return bool(
-            hierarchy.move_preset_by_step_flat(
-                self.list_preset_entries_light(),
-                name,
-                direction,
-                is_builtin_resolver=lambda file_name: self.is_builtin_preset_file_with_cache(str(file_name or ""), cached_metadata),
+        from folders.defaults import classify_preset_folder
+        from presets.folders import move_preset_by_step
+
+        live_items = []
+        metadata = cached_metadata if isinstance(cached_metadata, dict) else {}
+        for entry in self.list_preset_entries_light():
+            file_name = str(entry.get("file_name") or entry.get("key") or "").strip()
+            if not file_name:
+                continue
+            cached = metadata.get(file_name) if isinstance(metadata.get(file_name), dict) else {}
+            display_name = str(
+                (cached or {}).get("display_name")
+                or entry.get("display_name")
+                or entry.get("name")
+                or file_name
+            ).strip()
+            live_items.append(
+                {
+                    "key": file_name,
+                    "name": display_name or file_name,
+                    "folder_key": classify_preset_folder(display_name or file_name),
+                }
             )
-        )
+        return bool(move_preset_by_step(self._config.folder_scope, name, direction, live_items=live_items))
 
     def move_preset_on_drop(
         self,
@@ -784,7 +788,6 @@ class UserPresetsPageRuntime:
         source_id: str,
         destination_kind: str,
         destination_id: str,
-        cached_metadata: dict[str, dict[str, object]] | None = None,
     ) -> bool:
         if source_kind != "preset":
             return False
@@ -792,45 +795,12 @@ class UserPresetsPageRuntime:
         from presets.folders import move_preset_before, move_preset_to_end, move_preset_to_folder
 
         if destination_kind == "folder" and destination_id:
-            return move_preset_to_folder(self._config.hierarchy_scope, source_id, destination_id)
+            return move_preset_to_folder(self._config.folder_scope, source_id, destination_id)
 
         if destination_kind == "preset" and destination_id:
-            return move_preset_before(self._config.hierarchy_scope, source_id, destination_id)
+            return move_preset_before(self._config.folder_scope, source_id, destination_id)
 
-        return move_preset_to_end(self._config.hierarchy_scope, source_id)
-
-    def _move_preset_on_drop_legacy(
-        self,
-        *,
-        source_kind: str,
-        source_id: str,
-        destination_kind: str,
-        destination_id: str,
-        cached_metadata: dict[str, dict[str, object]] | None = None,
-    ) -> bool:
-        if source_kind != "preset":
-            return False
-
-        hierarchy = self.get_hierarchy_store()
-        all_names = self.list_preset_entries_light()
-
-        if destination_kind == "preset" and destination_id:
-            return bool(
-                hierarchy.move_preset_before_flat(
-                    all_names,
-                    source_id,
-                    destination_id,
-                    is_builtin_resolver=lambda file_name: self.is_builtin_preset_file_with_cache(str(file_name or ""), cached_metadata),
-                )
-            )
-
-        return bool(
-            hierarchy.move_preset_to_end_flat(
-                all_names,
-                source_id,
-                is_builtin_resolver=lambda file_name: self.is_builtin_preset_file_with_cache(str(file_name or ""), cached_metadata),
-            )
-        )
+        return move_preset_to_end(self._config.folder_scope, source_id)
 
     def build_preset_rows_plan(
         self,
@@ -845,8 +815,7 @@ class UserPresetsPageRuntime:
             query=query,
             active_file_name=active_file_name,
             language=language,
-            hierarchy=self.get_hierarchy_store(),
-            folder_scope=self._config.hierarchy_scope,
+            folder_scope=self._config.folder_scope,
             empty_not_found_key=self._config.empty_not_found_key,
             empty_none_key=self._config.empty_none_key,
         )

@@ -80,46 +80,41 @@ class PresetFileService:
             return self.preset_store_winws1
         raise ValueError(f"Unsupported preset mode engine: {self.engine}")
 
-    def _hierarchy_scope_key(self) -> str:
+    def _folder_scope_key(self) -> str:
         scope_key = _ENGINE_TO_HIERARCHY_SCOPE.get(self.engine)
         if scope_key is None:
             raise ValueError(f"Unsupported preset mode engine: {self.engine}")
         return scope_key
 
-    def _get_hierarchy_store(self):
-        from presets.library_hierarchy import PresetHierarchyStore
-
-        return PresetHierarchyStore(self._hierarchy_scope_key())
-
-    def _rename_library_meta(
+    def _rename_folder_item_meta(
         self,
         old_file_name: str,
         new_file_name: str,
     ) -> None:
         try:
-            self._get_hierarchy_store().rename_preset_meta(
-                old_file_name,
-                new_file_name,
-            )
+            from presets.folders import rename_preset_item_meta
+
+            rename_preset_item_meta(self._folder_scope_key(), old_file_name, new_file_name)
         except Exception:
             pass
 
-    def _copy_library_meta(
+    def _copy_folder_item_meta(
         self,
         source_file_name: str,
         new_file_name: str,
     ) -> None:
         try:
-            self._get_hierarchy_store().copy_preset_meta_to_new(
-                source_file_name,
-                new_file_name,
-            )
+            from presets.folders import copy_preset_item_meta
+
+            copy_preset_item_meta(self._folder_scope_key(), source_file_name, new_file_name)
         except Exception:
             pass
 
-    def _delete_library_meta(self, preset_file_name: str) -> None:
+    def _delete_folder_item_meta(self, preset_file_name: str) -> None:
         try:
-            self._get_hierarchy_store().delete_preset_meta(preset_file_name)
+            from presets.folders import delete_preset_item_meta
+
+            delete_preset_item_meta(self._folder_scope_key(), preset_file_name)
         except Exception:
             pass
 

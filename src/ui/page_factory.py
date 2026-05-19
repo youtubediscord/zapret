@@ -20,10 +20,10 @@ class CreatedPage:
 class UiPageFactory:
     """Создаёт page-экземпляры по канонической registry-схеме."""
 
-    def __init__(self, window, page_class_specs: dict[PageName, tuple[str, str]], page_deps_context):
+    def __init__(self, window, page_class_specs: dict[PageName, tuple[str, str]], page_deps_sources):
         self._window = window
         self._page_class_specs = dict(page_class_specs or {})
-        self._page_deps_context = page_deps_context
+        self._page_deps_sources = page_deps_sources
         validate_page_deps_builder_coverage(self._page_class_specs)
 
     @property
@@ -45,7 +45,7 @@ class UiPageFactory:
         started_at = _time.perf_counter()
         module = import_module(module_name)
         page_cls = getattr(module, class_name)
-        page = page_cls(parent=self._window, **build_page_deps(self._page_deps_context, page_name))
+        page = page_cls(parent=self._window, **build_page_deps(self._page_deps_sources, page_name))
 
         route_key = get_page_route_key(page_name)
         if route_key:

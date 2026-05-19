@@ -28,14 +28,14 @@ def initialize_build_ui_state(
     window,
     *,
     runtime_deps: WindowRuntimeBootstrapDeps,
-    page_deps_context,
+    page_deps_sources,
     nav_icons,
     nav_labels,
     default_nav_icon,
     nav_scroll_position,
     sidebar_search_widget_cls,
 ) -> None:
-    page_factory = UiPageFactory(window, PAGE_CLASS_SPECS, page_deps_context)
+    page_factory = UiPageFactory(window, PAGE_CLASS_SPECS, page_deps_sources)
     page_host = WindowPageHost(window, page_factory)
     window.ui_session = WindowUiSession(
         page_factory=page_factory,

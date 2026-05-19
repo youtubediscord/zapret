@@ -16,9 +16,9 @@ from app.page_names import PageName
 class WindowUiRoot:
     """Центральная точка сборки fluent UI-каркаса окна."""
 
-    def __init__(self, window, page_deps_context, runtime_bootstrap_deps):
+    def __init__(self, window, page_deps_sources, runtime_bootstrap_deps):
         self._window = window
-        self._page_deps_context = page_deps_context
+        self._page_deps_sources = page_deps_sources
         self._runtime_bootstrap_deps = runtime_bootstrap_deps
 
     def build(
@@ -38,7 +38,7 @@ class WindowUiRoot:
         initialize_build_ui_state(
             self._window,
             runtime_deps=self._runtime_bootstrap_deps,
-            page_deps_context=self._page_deps_context,
+            page_deps_sources=self._page_deps_sources,
             nav_icons=nav_icons,
             nav_labels=nav_labels,
             default_nav_icon=default_nav_icon,

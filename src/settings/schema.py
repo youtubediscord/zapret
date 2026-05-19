@@ -209,13 +209,6 @@ def default_blockcheck() -> dict[str, Any]:
     }
 
 
-def default_preset_library() -> dict[str, Any]:
-    return {
-        "version": 1,
-        "scopes": {},
-    }
-
-
 def default_blobs() -> dict[str, Any]:
     return {
         "user_blobs": {},
@@ -251,7 +244,6 @@ def build_default_settings() -> dict[str, Any]:
         "orchestra": default_orchestra(),
         "updater": default_updater(),
         "blockcheck": default_blockcheck(),
-        "preset_library": default_preset_library(),
         "blobs": default_blobs(),
         "folders": default_folders(),
     }

@@ -17,7 +17,6 @@ def build_preset_rows_plan(
     query: str,
     active_file_name: str,
     language: str,
-    hierarchy,
     folder_state: dict[str, object] | None = None,
     folder_scope: str = "winws2",
     empty_not_found_key: str,
@@ -61,7 +60,6 @@ def build_preset_rows_plan(
                     for file_name, meta in all_presets.items()
                 },
                 visible_entries=visible_entries,
-                hierarchy=hierarchy,
                 active_file_name=active_file_name,
                 folder_state=effective_folder_state,
                 query=normalized_query,

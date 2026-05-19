@@ -53,9 +53,15 @@ class WindowCloseFlow:
 
             from ui.close_dialog import ask_close_action
 
+            launch_running = False
+            try:
+                launch_running = bool(self._runtime.snapshot().launch_running)
+            except Exception as snapshot_error:
+                log(f"Не удалось прочитать состояние запуска перед диалогом закрытия: {snapshot_error}", "DEBUG")
+
             result = ask_close_action(
                 parent=self._parent,
-                launch_running=self._runtime.snapshot().launch_running,
+                launch_running=launch_running,
             )
             if result is None:
                 return False
