@@ -428,6 +428,9 @@ class UserPresetsPageBase(BasePage):
         self.presets_list = shell.presets_list
         self._presets_model = shell.presets_model
         self._presets_delegate = shell.presets_delegate
+        self._preset_status_bar = PresetStatusBar(self)
+        self._toolbar_layout.set_inline_widget(self._preset_status_bar, minimum_width=160)
+        self._toolbar_layout.refresh_for_viewport(self.viewport().width(), self.layout.contentsMargins())
 
         self.add_widget(shell.configs_card)
         self.add_spacing(12)
@@ -439,8 +442,6 @@ class UserPresetsPageBase(BasePage):
         except Exception:
             pass
         self.add_widget(self.presets_list)
-        self._preset_status_bar = PresetStatusBar(self)
-        self.add_widget(self._preset_status_bar)
         self._refresh_preset_status_bar()
 
         # Make outer page scrolling feel less sluggish on long lists.

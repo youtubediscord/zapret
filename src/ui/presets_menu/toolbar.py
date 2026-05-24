@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from qfluentwidgets import PrimaryPushButton, PushButton
 
@@ -22,6 +23,8 @@ class PresetsToolbarLayout:
         self._button_spacing = max(0, int(button_spacing))
         self._buttons: list[QWidget] = []
         self._rows: list[tuple[QWidget, QHBoxLayout]] = []
+        self._inline_widget: QWidget | None = None
+        self._inline_minimum_width = 0
         self._trailing_widget: QWidget | None = None
         self._trailing_minimum_width = 260
 
@@ -62,6 +65,16 @@ class PresetsToolbarLayout:
         for button in self._buttons:
             button.setParent(self.container)
 
+    def set_inline_widget(self, widget: QWidget | None, *, minimum_width: int = 0) -> None:
+        self._inline_widget = widget
+        self._inline_minimum_width = max(0, int(minimum_width))
+        if widget is None:
+            return
+        widget.setParent(self.container)
+        widget.setProperty("_zapret_toolbar_auto_hidden", False)
+        widget.setMinimumWidth(self._inline_minimum_width)
+        widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
     def set_trailing_widget(self, widget: QWidget | None, *, minimum_width: int = 260) -> None:
         self._trailing_widget = widget
         self._trailing_minimum_width = max(0, int(minimum_width))
@@ -80,17 +93,20 @@ class PresetsToolbarLayout:
 
     def refresh_layout(self, available_width: int) -> None:
         assigned_rows = self._compute_layout_rows(int(available_width))
+        self._sync_inline_visibility(any(row[1] for row in assigned_rows))
 
         for index, (row_widget, row_layout) in enumerate(self._rows):
             self._clear_row(row_layout)
-            row = assigned_rows[index] if index < len(assigned_rows) else ([], False)
-            row_buttons, has_trailing = row
+            row = assigned_rows[index] if index < len(assigned_rows) else ([], False, False)
+            row_buttons, has_inline, has_trailing = row
 
-            if row_buttons or has_trailing:
+            if row_buttons or has_inline or has_trailing:
                 for button in row_buttons:
                     row_layout.addWidget(button)
+                if has_inline and self._inline_widget is not None:
+                    row_layout.addWidget(self._inline_widget, 0, Qt.AlignmentFlag.AlignVCenter)
                 if has_trailing and self._trailing_widget is not None:
-                    if row_buttons:
+                    if row_buttons or has_inline:
                         row_layout.addStretch(1)
                     row_layout.addWidget(self._trailing_widget, 1)
                 else:
@@ -99,19 +115,49 @@ class PresetsToolbarLayout:
             else:
                 row_widget.setVisible(False)
 
-    def _compute_layout_rows(self, available_width: int) -> list[tuple[list[QWidget], bool]]:
+    def _compute_layout_rows(self, available_width: int) -> list[tuple[list[QWidget], bool, bool]]:
         button_rows = self._compute_rows(available_width)
         trailing = self._trailing_widget
         if trailing is None or trailing.isHidden():
-            return [(row, False) for row in button_rows]
+            return [(row, self._inline_fits(row, available_width), False) for row in button_rows]
 
         if not button_rows:
-            return [([], True)]
+            return [([], False, True)]
 
-        if len(button_rows) == 1 and self._row_fits_trailing(button_rows[0], available_width):
-            return [(button_rows[0], True)]
+        if len(button_rows) == 1:
+            row = button_rows[0]
+            if self._row_fits_inline_and_trailing(row, available_width):
+                return [(row, True, True)]
+            if self._row_fits_trailing(row, available_width):
+                return [(row, False, True)]
 
-        return [(row, False) for row in button_rows] + [([], True)]
+        return [(row, False, False) for row in button_rows] + [([], False, True)]
+
+    def _inline_fits(self, row_buttons: list[QWidget], available_width: int) -> bool:
+        inline = self._inline_widget
+        if not self._inline_available():
+            return False
+        if available_width <= 0:
+            return True
+        buttons_width = self._buttons_width(row_buttons)
+        inline_width = self._inline_width()
+        if buttons_width <= 0:
+            return inline_width <= available_width
+        return buttons_width + self._button_spacing + inline_width <= available_width
+
+    def _row_fits_inline_and_trailing(self, row_buttons: list[QWidget], available_width: int) -> bool:
+        inline = self._inline_widget
+        if not self._inline_available():
+            return False
+        if available_width <= 0:
+            return True
+        buttons_width = self._buttons_width(row_buttons)
+        inline_width = self._inline_width()
+        width = self._trailing_minimum_width
+        if buttons_width > 0:
+            width += buttons_width + self._button_spacing
+        width += inline_width + self._button_spacing
+        return width <= available_width
 
     def _row_fits_trailing(self, row_buttons: list[QWidget], available_width: int) -> bool:
         if available_width <= 0:
@@ -120,6 +166,28 @@ class PresetsToolbarLayout:
         if buttons_width <= 0:
             return self._trailing_minimum_width <= available_width
         return buttons_width + self._button_spacing + self._trailing_minimum_width <= available_width
+
+    def _inline_width(self) -> int:
+        inline = self._inline_widget
+        if inline is None:
+            return 0
+        return max(self._inline_minimum_width, int(inline.sizeHint().width()))
+
+    def _inline_available(self) -> bool:
+        inline = self._inline_widget
+        if inline is None:
+            return False
+        return not inline.isHidden() or inline.property("_zapret_toolbar_auto_hidden") is True
+
+    def _sync_inline_visibility(self, visible: bool) -> None:
+        inline = self._inline_widget
+        if inline is None:
+            return
+        was_auto_hidden = inline.property("_zapret_toolbar_auto_hidden") is True
+        if inline.isHidden() and not was_auto_hidden and visible:
+            return
+        inline.setProperty("_zapret_toolbar_auto_hidden", not visible)
+        inline.setVisible(visible)
 
     def _buttons_width(self, buttons: list[QWidget]) -> int:
         if not buttons:
