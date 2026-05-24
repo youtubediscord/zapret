@@ -12,14 +12,17 @@ from ui.theme import get_theme_tokens
 class ProfileLoadingSkeleton(QWidget):
     """Анимированные строки-заглушки на месте будущего списка profile-ов."""
 
+    _ROW_HEIGHT = 44
+    _ROW_GAP = 8
+    _TOP_MARGIN = 4
+
     def __init__(self, parent=None, *, rows: int = 5):
         super().__init__(parent)
         self._rows = max(1, int(rows))
         self._phase = 0.0
         self._active = False
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(self._rows * 52 + 10)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self._timer = QTimer(self)
         self._timer.setInterval(90)
@@ -80,10 +83,10 @@ class ProfileLoadingSkeleton(QWidget):
             shimmer_color = QColor(255, 255, 255, 42)
 
         width = max(1, self.width())
-        row_height = 44
-        gap = 8
-        top = 4
-        for index in range(self._rows):
+        row_height = self._ROW_HEIGHT
+        gap = self._ROW_GAP
+        top = self._TOP_MARGIN
+        for index in range(self._visible_row_count(self.height())):
             y = top + index * (row_height + gap)
             row_rect = QRectF(0, y, max(1, width - 2), row_height)
             painter.setPen(QPen(border_color, 1))
@@ -99,6 +102,11 @@ class ProfileLoadingSkeleton(QWidget):
             painter.drawEllipse(QRectF(max(16, width - 34), y + 15, 8, 8))
 
             self._paint_shimmer(painter, row_rect, shimmer_color)
+
+    def _visible_row_count(self, height: int) -> int:
+        available_height = max(0, int(height) - self._TOP_MARGIN)
+        row_step = self._ROW_HEIGHT + self._ROW_GAP
+        return max(self._rows, (available_height + self._ROW_GAP) // row_step)
 
     def _paint_shimmer(self, painter: QPainter, row_rect: QRectF, color: QColor) -> None:
         width = max(1.0, float(self.width()))

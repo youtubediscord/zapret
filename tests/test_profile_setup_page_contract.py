@@ -388,12 +388,19 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("preserved_widgets = 1 if self._loading_skeleton is not None else 0", clear_dynamic_widgets)
 
     def test_preset_setup_page_uses_visual_profile_loading_skeleton(self) -> None:
+        from profile.ui.profile_loading_skeleton import ProfileLoadingSkeleton
+
         shell_builder = inspect.getsource(build_profile_shell)
+        skeleton_source = inspect.getsource(ProfileLoadingSkeleton)
         request_profiles = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
         payload_loaded = inspect.getsource(PresetSetupPageBase._on_profile_payload_loaded)
         payload_failed = inspect.getsource(PresetSetupPageBase._on_profile_payload_failed)
 
         self.assertIn("ProfileLoadingSkeleton", shell_builder)
+        self.assertIn("content_host_layout.addWidget(loading_skeleton, 1)", shell_builder)
+        self.assertIn("QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding", skeleton_source)
+        self.assertIn("_visible_row_count", skeleton_source)
+        self.assertNotIn("setMinimumHeight(self._rows", skeleton_source)
         self.assertIn("_show_loading_skeleton()", request_profiles)
         self.assertIn("_hide_loading_skeleton()", payload_loaded)
         self.assertIn("_hide_loading_skeleton()", payload_failed)

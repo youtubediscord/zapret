@@ -147,7 +147,7 @@ def build_profile_shell(
     _ = loading_key
     loading_skeleton = ProfileLoadingSkeleton(content_host)
     loading_skeleton.hide()
-    content_host_layout.addWidget(loading_skeleton)
+    content_host_layout.addWidget(loading_skeleton, 1)
 
     content_layout.addWidget(content_host, 1)
 
