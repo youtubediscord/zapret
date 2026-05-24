@@ -266,7 +266,7 @@
 
 --new
 
---name=Исключения
+--name=Все сайты (исключение)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -274,3 +274,14 @@
 --out-range=-d5
 --lua-desync=send
 --lua-desync=multidisorder:pos=1
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--out-range=-d10
+--payload=all
+--lua-desync=fake:blob=quic_google:repeats=4

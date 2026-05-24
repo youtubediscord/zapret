@@ -79,13 +79,24 @@
 --wf-raw-part=@windivert.filter/windivert_part.stun.txt
 --wf-raw-part=@windivert.filter/windivert_part.wireguard.txt
 
---name=Исключения
+--name=Все сайты (исключение)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
 --ipset-exclude=lists/ipset-exclude.txt
 --out-range=-d8
 --lua-desync=multisplit:pos=2,sniext+1:seqovl=679:seqovl_pattern=tls_google
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--out-range=-n8
+--payload=quic_initial
+--lua-desync=fake:blob=quic_google:repeats=6
 
 --new
 

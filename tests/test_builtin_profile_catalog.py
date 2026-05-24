@@ -124,6 +124,8 @@ RUNTIME_ONLY_PROFILE_KEYS = {
     "winws1|ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=443",
     "winws1|hostlist-auto=autohostlist.txt;ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=80",
     "winws1|hostlist-auto=autohostlist.txt;ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=443",
+    "winws1|ipset=ipset-all.txt|udp=443-65535",
+    "winws1|ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|udp=443-65535",
     "winws1|ipset-ip=188.114.96.0/22|udp=8886",
 }
 
@@ -294,6 +296,49 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
             for profile in preset.profiles:
                 if _profile_has_udp_port_80(profile):
                     offenders.append(f"winws2/{path.name} profile {profile.index}: {profile.display_name}")
+
+        self.assertEqual(offenders, [])
+
+    def test_winws2_builtin_all_sites_exclusions_keep_udp_pair_without_port_80(self) -> None:
+        service_excludes = {
+            "--ipset-exclude=lists/ipset-ru.txt",
+            "--ipset-exclude=lists/ipset-dns.txt",
+            "--ipset-exclude=lists/ipset-exclude.txt",
+        }
+        offenders: list[str] = []
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            has_tcp_exclusion = False
+            udp_exclusions = []
+            for profile in preset.profiles:
+                lines = set(profile.match.all_lines())
+                if not service_excludes.issubset(lines):
+                    continue
+                clean_name = str(profile.name or "").strip()
+                if clean_name == "Все сайты (исключение)" and any(line.startswith("--filter-tcp=") for line in lines):
+                    has_tcp_exclusion = True
+                if clean_name != "Все сайты UDP (исключение)":
+                    continue
+                udp_exclusions.append(profile)
+                udp_filters = sorted(line for line in lines if line.startswith("--filter-udp="))
+                if udp_filters != ["--filter-udp=443-65535"]:
+                    offenders.append(f"winws2/{path.name} profile {profile.index}: {udp_filters}")
+                primary_lines = (
+                    profile.match.hostlist_lines
+                    + profile.match.hostlist_domains_lines
+                    + profile.match.ipset_lines
+                    + profile.match.inline_ipset_lines
+                )
+                if primary_lines:
+                    offenders.append(f"winws2/{path.name} profile {profile.index}: has primary list {primary_lines}")
+
+            if has_tcp_exclusion and len(udp_exclusions) != 1:
+                offenders.append(f"winws2/{path.name}: expected one UDP exclusion, got {len(udp_exclusions)}")
 
         self.assertEqual(offenders, [])
 

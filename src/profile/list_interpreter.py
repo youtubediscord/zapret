@@ -126,8 +126,8 @@ def _select_source(candidates: list[ProfileListSource]) -> ProfileListSource:
 
 
 def _template_kind_rank(profile: Profile) -> int:
-    if profile.match.hostlist_lines:
+    if profile.match.hostlist_lines or profile.match.hostlist_exclude_lines:
         return 0
-    if profile.match.ipset_lines:
+    if profile.match.ipset_lines or profile.match.ipset_exclude_lines:
         return 1
     return 2

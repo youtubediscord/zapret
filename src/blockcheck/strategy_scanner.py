@@ -354,8 +354,7 @@ class StrategyScanner:
             )
 
         # Post-scan cleanup
-        self._kill_current_process()
-        self._cleanup_temp_files()
+        self._post_scan_cleanup()
 
         return report
 
@@ -1588,6 +1587,29 @@ class StrategyScanner:
             self._cb.on_log(f"Cleanup finished with warnings: {'; '.join(errors)}")
         else:
             self._cb.on_log("Cleanup done")
+
+    def _post_scan_cleanup(self) -> None:
+        """Leave WinDivert in a stable state after temporary scan launches."""
+        self._kill_current_process()
+        errors = []
+
+        try:
+            result = self._runtime_feature.shutdown_sync(
+                reason="blockcheck_post_scan",
+                include_cleanup=True,
+            )
+            if result.still_running:
+                errors.append("runtime still running after post-scan cleanup")
+        except Exception as e:
+            errors.append(f"canonical_runtime_shutdown: {e}")
+            logger.debug("canonical post-scan runtime shutdown failed: %s", e)
+
+        self._cleanup_temp_files()
+
+        if errors:
+            self._cb.on_log(f"Post-scan cleanup finished with warnings: {'; '.join(errors)}")
+        else:
+            self._cb.on_log("Post-scan cleanup done")
 
     def _run_preflight_check(self) -> bool:
         """Быстрая preflight-проверка целевого хоста перед сканированием стратегий."""

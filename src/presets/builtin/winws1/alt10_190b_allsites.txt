@@ -5,7 +5,7 @@
 --wf-tcp=80,443,444-65535,2053,2083,2087,2096,8443
 --wf-udp=443,444-65535,19294-19344,50000-50100
 
---name=Исключения
+--name=Все сайты (исключение)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -16,6 +16,20 @@
 --dpi-desync-fake-tls-mod=rnd,sni=www.google.com
 --dpi-desync-fake-tls=bin/tls_clienthello_4pda_to.bin
 --dpi-desync-fake-tls-mod=none
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--dpi-desync=fake
+--dpi-desync-autottl=2
+--dpi-desync-repeats=12
+--dpi-desync-any-protocol=1
+--dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
+--dpi-desync-cutoff=n2
 
 --new
 

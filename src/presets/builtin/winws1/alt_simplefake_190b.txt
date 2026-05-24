@@ -236,3 +236,17 @@
 --dpi-desync-repeats=6
 --dpi-desync-fooling=ts
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--dpi-desync=fake
+--dpi-desync-autottl=2
+--dpi-desync-repeats=12
+--dpi-desync-any-protocol=1
+--dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
+--dpi-desync-cutoff=n3

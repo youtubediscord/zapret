@@ -264,3 +264,17 @@
 --dpi-desync-badseq-increment=10000000
 --dpi-desync-repeats=8
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--dpi-desync=fake
+--dpi-desync-autottl=2
+--dpi-desync-repeats=10
+--dpi-desync-any-protocol=1
+--dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
+--dpi-desync-cutoff=n2

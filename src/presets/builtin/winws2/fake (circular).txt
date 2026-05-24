@@ -84,7 +84,7 @@
 --blob=hex_0f0f0f0f:0x0F0F0F0F
 --blob=hex_00:0x00
 
---name=Исключения
+--name=Все сайты (исключение)
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -120,3 +120,28 @@
 --lua-desync=fake:blob=tls_google:tcp_ack=-66000:strategy=25 --lua-desync=multisplit:pos=1,sld+1:seqovl=1:tcp_ack=-66000:strategy=25
 --lua-desync=fakedsplit:pos=3:pattern=0x00:strategy=26
 --lua-desync=fakedsplit:pos=1:tcp_ack=-66000:repeats=10:ip_ttl=4:ip6_ttl=4:strategy=27
+
+--new
+
+--name=Все сайты UDP (исключение)
+--filter-udp=443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
+--out-range=-d10
+--in-range=-s5556
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=2
+--payload=all
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all:strategy=1
+--lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=2
+--lua-desync=fake:repeats=6:blob=fake_default_quic:strategy=3
+--lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2:strategy=4
+--lua-desync=fake:blob=quic_google:repeats=6:strategy=5
+--lua-desync=fake:blob=quic_google:repeats=2:strategy=6
+--lua-desync=fake:blob=quic_google:repeats=9:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=7
+--lua-desync=fake:blob=quic_google:repeats=10:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=8
+--lua-desync=fake:blob=0x00:strategy=9
+--lua-desync=fake:blob=quic6:repeats=2:ip_ttl=7:ip6_ttl=7:payload=all:strategy=10
+--lua-desync=fake:blob=quic_test:repeats=2:payload=all:strategy=11
+--lua-desync=fake:blob=fake_default_quic:repeats=11:payload=all:strategy=12
+--lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all:strategy=13
