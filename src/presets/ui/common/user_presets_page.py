@@ -630,6 +630,7 @@ class UserPresetsPageBase(BasePage):
     ) -> bool:
         if self._presets_model is None:
             return False
+        view_state = self._runtime_service.capture_presets_view_state()
         moved = self._presets_model.move_preset(
             file_name,
             destination_kind,
@@ -637,7 +638,7 @@ class UserPresetsPageBase(BasePage):
             destination_folder_key,
         )
         if moved:
-            self._runtime_service.ensure_preset_list_current_index()
+            self._runtime_service.restore_presets_view_state(view_state)
             self._update_presets_view_height()
             self._schedule_layout_resync()
         return moved

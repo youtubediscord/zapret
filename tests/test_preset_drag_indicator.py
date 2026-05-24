@@ -6,6 +6,7 @@ import unittest
 from ui.presets_menu import delegate as preset_delegate
 from ui.presets_menu.model import PresetListModel
 from ui.presets_menu import view as preset_view
+from presets.ui.common.user_presets_page import UserPresetsPageBase
 
 
 class PresetDragIndicatorTests(unittest.TestCase):
@@ -103,6 +104,13 @@ class PresetDragIndicatorTests(unittest.TestCase):
         self.assertTrue(model.move_preset("A.txt", "preset_after", "B.txt", "common"))
 
         self.assertEqual(model.index(0, 0).data(PresetListModel.CountRole), 2)
+
+    def test_local_preset_move_preserves_scroll_position(self) -> None:
+        move_source = inspect.getsource(UserPresetsPageBase._apply_preset_move_locally)
+
+        self.assertIn("capture_presets_view_state", move_source)
+        self.assertIn("restore_presets_view_state", move_source)
+        self.assertNotIn("ensure_preset_list_current_index", move_source)
 
 
 if __name__ == "__main__":
