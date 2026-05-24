@@ -803,6 +803,7 @@ class ProfilePresetService:
             order_is_manual=folder_order is not None,
             group_collapsed=profile_folder_collapsed(folder_key, folder_state),
             user_profile_id=_user_profile_id_from_template_key(user_template_key),
+            profile_name=profile.name,
         )
 
     @lru_cache(maxsize=1)

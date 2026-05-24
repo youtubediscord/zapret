@@ -36,6 +36,7 @@ class ProfileListItem:
     order_is_manual: bool = False
     group_collapsed: bool = False
     user_profile_id: str = ""
+    profile_name: str = ""
 
 
 @dataclass(frozen=True)

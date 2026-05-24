@@ -13,7 +13,7 @@
 --ipcache-lifetime=8400
 --ipcache-hostname=1
 
---wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443
+--wf-tcp-out=80,443,1080,2053,2083,2087,2096,5050,8443,8080
 --wf-udp-out=443-65535
 
 --wf-raw-part=@windivert.filter/windivert_part.discord_media.txt
@@ -122,6 +122,24 @@
 --payload=tls_client_hello
 --out-range=-d10
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Tanki X
+--filter-tcp=80,443,5050,8080
+--out-range=-n8
+--payload=all
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+
+--new
+
+--name=Tanki X UDP
+--filter-udp=443-65535
+--hostlist=lists/tankix.txt
+--out-range=-d8
+--payload=all
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
 
 --new
 
@@ -249,26 +267,6 @@
 --payload=tls_client_hello
 --out-range=-d10
 --lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
---name=Tanki X
---filter-tcp=80,443-65535
---hostlist=lists/tankix.txt
---payload=tls_client_hello
---out-range=-n8
---lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
---lua-desync=multidisorder:pos=host+1
-
---new
-
---name=discord.com
---filter-tcp=80,443-65535
---ipset=lists/ipset-discord.txt
---out-range=-d10
---payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
 
 --new
 

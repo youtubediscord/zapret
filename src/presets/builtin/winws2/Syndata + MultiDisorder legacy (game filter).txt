@@ -13,7 +13,7 @@
 --ipcache-lifetime=8400
 --ipcache-hostname=1
 
---wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443
+--wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443,8080
 --wf-udp-out=443-65535
 
 --wf-raw-part=@windivert.filter/windivert_part.discord_media.txt

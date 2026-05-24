@@ -17,12 +17,14 @@ def _item(
     in_preset: bool = True,
     order: int = 0,
     order_is_manual: bool = False,
+    profile_name: str = "",
 ):
     return SimpleNamespace(
         key=key,
         persistent_key=f"sig:{key}",
         profile_index=order,
         display_name=name,
+        profile_name=profile_name,
         enabled=enabled,
         in_preset=in_preset,
         strategy_id=strategy_id,
@@ -98,6 +100,20 @@ class ProfileDisplayItemsTests(unittest.TestCase):
         ))
 
         self.assertEqual(rows[0].display_name, "list-youtube")
+
+    def test_explicit_profile_name_wins_over_technical_ipset_name(self) -> None:
+        rows = build_profile_display_items((
+            _item(
+                "my-sites",
+                name="Мои сайты",
+                profile_name="Мои сайты",
+                list_type="ipset",
+                lines=("--filter-tcp=80,443-65535", "--ipset=lists/ipset-all.txt"),
+                order=1,
+            ),
+        ))
+
+        self.assertEqual(rows[0].display_name, "Мои сайты")
 
     def test_real_preset_profile_keeps_folder_group_instead_of_current_group(self) -> None:
         rows = build_profile_display_items((

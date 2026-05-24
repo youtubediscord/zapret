@@ -73,7 +73,7 @@
 --blob=hex_0f0f0f0f:0x0F0F0F0F
 --blob=hex_00:0x00
 
---wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443
+--wf-tcp-out=80,443,1080,2053,2083,2087,2096,8443,8080
 --wf-udp-out=443-65535
 
 --wf-raw-part=@windivert.filter/windivert_part.discord_media.txt

@@ -111,6 +111,10 @@ def _normalize_resource_name(value: str) -> str:
 
 
 def _logical_display_name(item: Any) -> str:
+    explicit_name = str(getattr(item, "profile_name", "") or "").strip()
+    if explicit_name:
+        return explicit_name
+
     list_type = str(getattr(item, "list_type", "") or "").strip().lower()
     identity = _resource_identity(tuple(getattr(item, "match_lines", ()) or ()), list_type)
     known = {
