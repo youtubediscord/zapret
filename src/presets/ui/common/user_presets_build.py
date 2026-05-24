@@ -192,7 +192,7 @@ def build_user_presets_page_shell(
     presets_list.background_context_requested.connect(on_background_context_requested)
     presets_list.setDragEnabled(True)
     presets_list.setAcceptDrops(True)
-    presets_list.setDropIndicatorShown(True)
+    presets_list.setDropIndicatorShown(False)
     presets_list.setDefaultDropAction(Qt.DropAction.MoveAction)
     presets_list.setDragDropMode(QListView.DragDropMode.DragDrop)
 

@@ -18,6 +18,23 @@ _CSS_RGBA_COLOR_RE = re.compile(
     r"^\s*rgba?\(\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*,\s*([0-9]{1,3})\s*(?:,\s*([0-9]*\.?[0-9]+)\s*)?\)\s*$",
     re.IGNORECASE,
 )
+PRESET_DROP_MARKER_PROPERTY = "presetDropMarker"
+
+
+def preset_drop_marker_for_target(row: int, destination_kind: str) -> dict[str, object]:
+    kind = str(destination_kind or "").strip()
+    try:
+        row_index = int(row)
+    except Exception:
+        row_index = -1
+
+    if row_index < 0:
+        return {"row": -1, "mode": ""}
+    if kind == "folder":
+        return {"row": row_index, "mode": "folder"}
+    if kind == "preset":
+        return {"row": row_index, "mode": "before"}
+    return {"row": -1, "mode": ""}
 
 
 def tr_text(key: str, language: str, default: str, **kwargs) -> str:
@@ -178,11 +195,13 @@ def to_qcolor(value, fallback_hex: str = "#000000") -> QColor:
 
 __all__ = [
     "QListView",
+    "PRESET_DROP_MARKER_PROPERTY",
     "cached_icon",
     "fluent_icon",
     "make_menu_action",
     "normalize_preset_icon_color",
     "pick_contrast_color",
+    "preset_drop_marker_for_target",
     "to_qcolor",
     "tr_text",
 ]

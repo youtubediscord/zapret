@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt6.QtCore import QEvent, QModelIndex, QRect, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QHelpEvent, QMouseEvent, QPainter, QTransform
+from PyQt6.QtGui import QFontMetrics, QHelpEvent, QMouseEvent, QPainter, QPen, QTransform
 from PyQt6.QtWidgets import QListView, QStyledItemDelegate, QStyle, QStyleOptionViewItem
 
 from ui.theme import get_theme_tokens
@@ -12,6 +12,7 @@ from ui.widgets.folder_header import FOLDER_HEADER_HEIGHT, is_folder_toggle_clic
 from ui.widgets.hover_row import paint_profile_hover_row, profile_hover_row_rect
 
 from .common import (
+    PRESET_DROP_MARKER_PROPERTY,
     cached_icon,
     normalize_preset_icon_color,
     pick_contrast_color,
@@ -129,6 +130,7 @@ class PresetListDelegate(QStyledItemDelegate):
 
         if kind == "folder":
             self._paint_folder_row(painter, option, index)
+            self._paint_drop_marker(painter, option, index)
             return
 
         if kind == "section":
@@ -140,6 +142,7 @@ class PresetListDelegate(QStyledItemDelegate):
             return
 
         self._paint_preset_row(painter, option, index)
+        self._paint_drop_marker(painter, option, index)
 
     def editorEvent(self, event, model, option: QStyleOptionViewItem, index: QModelIndex):
         _ = model
@@ -312,6 +315,39 @@ class PresetListDelegate(QStyledItemDelegate):
             expanded=not collapsed,
             count=count,
         )
+
+    def _paint_drop_marker(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        marker = self._view.property(PRESET_DROP_MARKER_PROPERTY)
+        if not isinstance(marker, dict):
+            return
+        try:
+            marker_row = int(marker.get("row", -1))
+        except Exception:
+            marker_row = -1
+        if marker_row != index.row():
+            return
+
+        tokens = get_theme_tokens()
+        accent = to_qcolor(tokens.accent_hex, "#5caee8")
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        if marker.get("mode") == "folder":
+            fill = to_qcolor(tokens.accent_soft_bg_hover, tokens.accent_hex)
+            fill.setAlpha(70)
+            rect = option.rect.adjusted(4, 2, -8, -2)
+            painter.setBrush(fill)
+            painter.setPen(QPen(accent, 2))
+            painter.drawRoundedRect(rect, 6, 6)
+        elif marker.get("mode") == "before":
+            line_rect = profile_hover_row_rect(option.rect).adjusted(12, 0, -12, 0)
+            pen = QPen(accent, 3)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            y = line_rect.top() + 2
+            painter.drawLine(line_rect.left(), y, line_rect.right(), y)
+
+        painter.restore()
 
     def _paint_empty_row(self, painter: QPainter, option: QStyleOptionViewItem, text: str) -> None:
         painter.save()

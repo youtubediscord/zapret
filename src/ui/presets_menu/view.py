@@ -6,6 +6,7 @@ from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import QApplication
 
+from .common import PRESET_DROP_MARKER_PROPERTY, preset_drop_marker_for_target
 from .model import PresetListModel
 from qfluentwidgets import ListView
 
@@ -22,6 +23,14 @@ class LinkedWheelListView(ListView):
         super().__init__(parent)
         self._drag_start_pos: QPoint | None = None
         self._draggable_kinds = {str(kind) for kind in (draggable_kinds or {"preset"})}
+        self.set_drop_marker(-1, "")
+
+    def set_drop_marker(self, row: int, destination_kind: str) -> None:
+        marker = preset_drop_marker_for_target(row, destination_kind)
+        if self.property(PRESET_DROP_MARKER_PROPERTY) == marker:
+            return
+        self.setProperty(PRESET_DROP_MARKER_PROPERTY, marker)
+        self.viewport().update()
 
     def wheelEvent(self, event):
         scrollbar = self.verticalScrollBar()
@@ -81,7 +90,10 @@ class LinkedWheelListView(ListView):
         drag = QDrag(self)
         drag.setMimeData(mime)
         self._drag_start_pos = None
-        drag.exec(Qt.DropAction.MoveAction)
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            self.set_drop_marker(-1, "")
         event.accept()
 
     def mouseReleaseEvent(self, event):
@@ -144,24 +156,34 @@ class LinkedWheelListView(ListView):
 
     def dragMoveEvent(self, event):
         if event.mimeData().hasFormat("application/x-zapret-preset-item"):
+            drop_index = self.indexAt(event.position().toPoint())
+            destination_kind = str(drop_index.data(PresetListModel.KindRole) or "") if drop_index.isValid() else ""
+            self.set_drop_marker(drop_index.row() if drop_index.isValid() else -1, destination_kind)
             event.acceptProposedAction()
             return
         super().dragMoveEvent(event)
 
+    def dragLeaveEvent(self, event):
+        self.set_drop_marker(-1, "")
+        super().dragLeaveEvent(event)
+
     def dropEvent(self, event):
         if not event.mimeData().hasFormat("application/x-zapret-preset-item"):
+            self.set_drop_marker(-1, "")
             super().dropEvent(event)
             return
 
         try:
             payload = json.loads(bytes(event.mimeData().data("application/x-zapret-preset-item")).decode("utf-8"))
         except Exception:
+            self.set_drop_marker(-1, "")
             event.ignore()
             return
 
         source_kind = str(payload.get("kind") or "")
         source_id = str(payload.get("file_name") or payload.get("name") or "").strip()
         if source_kind != "preset" or not source_id:
+            self.set_drop_marker(-1, "")
             event.ignore()
             return
 
@@ -179,7 +201,8 @@ class LinkedWheelListView(ListView):
                 destination_id = ""
 
         self.item_dropped.emit(source_kind, source_id, destination_kind, destination_id)
+        self.set_drop_marker(-1, "")
         event.acceptProposedAction()
 
 
-__all__ = ["LinkedWheelListView"]
+__all__ = ["LinkedWheelListView", "preset_drop_marker_for_target"]
