@@ -52,6 +52,7 @@ def build_start_request(
     *,
     selected_mode=None,
     launch_method=None,
+    startup_autostart: bool = False,
 ):
     """Строит launch request и сохраняет предупреждения подготовки запуска."""
     try:
@@ -90,6 +91,7 @@ def start_dpi_async(
         runtime_owner,
         selected_mode=selected_mode,
         launch_method=launch_method,
+        startup_autostart=startup_autostart,
     )
     if request is None:
         return

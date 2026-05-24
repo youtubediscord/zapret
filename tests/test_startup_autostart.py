@@ -121,6 +121,40 @@ class StartupAutostartTests(unittest.TestCase):
         self.assertEqual(request.selected_mode, selected_mode)
         self.assertEqual(warnings, [])
 
+    def test_start_flow_passes_startup_autostart_flag_to_request_builder(self) -> None:
+        from winws_runtime.runtime import start_flow
+        from winws_runtime.runtime.start_workers import PreparedDpiStartRequest
+
+        runtime_owner = SimpleNamespace(
+            _runtime_feature=SimpleNamespace(
+                dependencies=SimpleNamespace(
+                    presets_feature=object(),
+                ),
+            ),
+            _pending_launch_warnings=[],
+        )
+        request = PreparedDpiStartRequest(
+            launch_method="zapret2_mode",
+            selected_mode={"is_preset_file": True},
+            mode_name="Пресет",
+            method_name="прямой winws2",
+        )
+
+        with patch.object(
+            start_flow,
+            "prepare_start_request",
+            return_value=(request, []),
+        ) as prepare:
+            result = start_flow.build_start_request(
+                runtime_owner,
+                selected_mode={"is_preset_file": True},
+                launch_method="zapret2_mode",
+                startup_autostart=True,
+            )
+
+        self.assertIs(result, request)
+        self.assertTrue(prepare.call_args.kwargs["skip_preset_prevalidation"])
+
     def test_startup_worker_rejects_preset_without_enabled_profiles_before_stop(self) -> None:
         from winws_runtime.runtime.start_workers import PresetLaunchStartWorker
 
