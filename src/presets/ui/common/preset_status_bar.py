@@ -189,7 +189,7 @@ class PresetStatusIcon(QWidget):
         if mode == "error":
             background = "#d83b01"
         elif mode in {"success", "busy"}:
-            background = "#2fb344"
+            background = "#8cc63f"
         else:
             try:
                 is_light = bool(get_theme_tokens().is_light)
@@ -201,8 +201,8 @@ class PresetStatusIcon(QWidget):
             "color: #ffffff; "
             f"background-color: {background}; "
             f"border-radius: {self._icon_size // 2}px; "
-            f"font-size: {max(12, self._icon_size - 8)}px; "
-            "font-weight: 700;"
+            f"font-size: {max(12, self._icon_size - 10)}px; "
+            "font-weight: 600;"
         )
 
 
