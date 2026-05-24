@@ -55,7 +55,79 @@ def attach_sidebar_search_to_titlebar(window) -> None:
     if layout.indexOf(widget) < 0:
         insert_index = max(0, layout.count() - 1)
         layout.insertWidget(insert_index, widget, 0, Qt.AlignmentFlag.AlignVCenter)
+    _ensure_titlebar_search_right_stretch(layout, widget)
     session.sidebar_search_titlebar_attached = True
+
+
+def _ensure_titlebar_search_right_stretch(layout, widget) -> None:
+    widget_index = layout.indexOf(widget)
+    if widget_index < 0:
+        return
+    next_item = layout.itemAt(widget_index + 1)
+    if next_item is not None and next_item.spacerItem() is not None:
+        return
+    layout.insertStretch(widget_index + 1, 1)
+
+
+def _layout_item_width_hint(item) -> int:
+    if item is None or item.spacerItem() is not None:
+        return 0
+    widget = item.widget()
+    if widget is not None:
+        try:
+            if not widget.isVisible():
+                return 0
+        except Exception:
+            pass
+        try:
+            return max(int(widget.minimumWidth()), int(widget.sizeHint().width()))
+        except Exception:
+            return int(widget.width())
+    try:
+        return int(item.sizeHint().width())
+    except Exception:
+        return 0
+
+
+def _sync_titlebar_search_stretches(window, layout, widget) -> None:
+    widget_index = layout.indexOf(widget)
+    if widget_index < 0:
+        return
+
+    left_spacer_index = widget_index - 1
+    right_spacer_index = widget_index + 1
+    if left_spacer_index < 0 or right_spacer_index >= layout.count():
+        return
+    if layout.itemAt(left_spacer_index).spacerItem() is None:
+        return
+    if layout.itemAt(right_spacer_index).spacerItem() is None:
+        return
+
+    title_bar = getattr(window, "titleBar", None)
+    if title_bar is None:
+        return
+
+    title_bar_width = int(title_bar.width())
+    if title_bar_width <= 0:
+        return
+
+    left_fixed_width = sum(
+        _layout_item_width_hint(layout.itemAt(index))
+        for index in range(0, left_spacer_index)
+    )
+    right_fixed_width = sum(
+        _layout_item_width_hint(layout.itemAt(index))
+        for index in range(right_spacer_index + 1, layout.count())
+    )
+
+    window_center_in_titlebar = (int(window.width()) / 2) - int(title_bar.x())
+    left_stretch = round(window_center_in_titlebar - (int(widget.width()) / 2) - left_fixed_width)
+    total_stretch = title_bar_width - left_fixed_width - int(widget.width()) - right_fixed_width
+    left_stretch = max(0, min(left_stretch, total_stretch))
+    right_stretch = max(0, total_stretch - left_stretch)
+
+    layout.setStretch(left_spacer_index, int(left_stretch))
+    layout.setStretch(right_spacer_index, int(right_stretch))
 
 
 def update_titlebar_search_width(window) -> None:
@@ -75,6 +147,10 @@ def update_titlebar_search_width(window) -> None:
     target_width = int(title_bar_width * 0.42)
     target_width = max(280, min(560, target_width, available_width))
     widget.setFixedWidth(target_width)
+    layout = getattr(title_bar, "hBoxLayout", None)
+    if layout is not None:
+        _ensure_titlebar_search_right_stretch(layout, widget)
+        _sync_titlebar_search_stretches(window, layout, widget)
 
 
 def on_sidebar_search_changed(window, text: str) -> None:
