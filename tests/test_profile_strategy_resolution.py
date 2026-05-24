@@ -79,6 +79,29 @@ class ProfileStrategyResolutionTests(unittest.TestCase):
                 self.assertIn("fake_simple", entries)
                 self.assertEqual(_resolve_strategy(profile, entries), ("fake_simple", "Fake (простой)"))
 
+    def test_tcp_filter_only_profile_uses_tcp_catalog_without_list_file(self) -> None:
+        preset = parse_preset_text(
+            "\n".join(
+                (
+                    "--name=Tanki X",
+                    "--filter-tcp=80,443,5050,8080",
+                    "--out-range=-n8",
+                    "--payload=all",
+                    "--lua-desync=send:repeats=2",
+                    "--lua-desync=syndata:blob=stun_pat",
+                    "",
+                )
+            ),
+            engine="winws2",
+        )
+        profile = preset.profiles[0]
+        entries = _basic_strategy_entries(profile, self.catalogs)
+
+        self.assertEqual(strategy_catalog_from_match_lines(tuple(profile.match.all_lines())), "tcp")
+        self.assertEqual(_list_type(profile), "tcp")
+        self.assertIn("send_syndata", entries)
+        self.assertEqual(_resolve_strategy(profile, entries), ("send_syndata", "send repeats 2 + syndata (stun)"))
+
     def test_strategy_catalogs_do_not_contain_duplicate_args(self) -> None:
         for engine in ("winws1", "winws2"):
             catalogs = load_strategy_catalogs(self.paths, engine)

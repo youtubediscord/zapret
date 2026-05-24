@@ -1020,7 +1020,8 @@ def _catalog_name_for_profile(profile: Profile) -> str:
 
 
 def _list_type(profile: Profile) -> str:
-    if _catalog_name_for_profile(profile) == "voice":
+    catalog_name = _catalog_name_for_profile(profile)
+    if catalog_name == "voice":
         return "voice"
     has_hostlist = bool(profile.match.hostlist_lines or profile.match.hostlist_domains_lines)
     has_ipset = bool(profile.match.ipset_lines or profile.match.inline_ipset_lines)
@@ -1037,7 +1038,7 @@ def _list_type(profile: Profile) -> str:
         return "hostlist"
     if has_ipset:
         return "ipset"
-    return "custom"
+    return catalog_name
 
 
 def _visible_list_type(profile: Profile, app_paths) -> str:
