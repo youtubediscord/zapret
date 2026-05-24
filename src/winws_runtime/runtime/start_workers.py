@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from pathlib import Path
 import time
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -90,7 +91,24 @@ class PresetLaunchStartWorker(QObject):
         if not is_preset_file or not preset_path or skip_stop:
             return True
         try:
+            from profile.launch_validation import preset_has_enabled_profiles_for_launch
             from winws_runtime.runners.runner_factory import get_strategy_runner
+
+            try:
+                preset_text = Path(preset_path).read_text(encoding="utf-8", errors="replace")
+            except Exception as e:
+                self._last_error_message = f"Ошибка чтения preset: {e}"
+                self.progress.emit(self._last_error_message)
+                self.finished.emit(False, self._last_error_message)
+                return False
+
+            if not preset_has_enabled_profiles_for_launch(self.launch_method, preset_text):
+                message = "В выбранном preset нет включённых profile для запуска"
+                log(message, "❌ ERROR")
+                self._last_error_message = message
+                self.progress.emit(message)
+                self.finished.emit(False, message)
+                return False
 
             runner = get_strategy_runner(self._get_winws_exe())
             self._configure_runner_runtime_callbacks(runner)

@@ -66,7 +66,7 @@ def _resolve_startup_snapshot(runtime_feature, launch_method: str):
     if is_preset_launch_method(method):
         return runtime_feature.dependencies.presets_feature.get_launch_snapshot(
             method,
-            require_filters=True,
+            require_filters=False,
         )
 
     return None

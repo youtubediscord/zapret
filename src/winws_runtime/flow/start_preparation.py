@@ -133,6 +133,7 @@ def prepare_start_request(
     launch_method=None,
     *,
     presets_feature,
+    skip_preset_prevalidation: bool = False,
 ) -> tuple[PreparedDpiStartRequest, list[str]]:
     resolved_method = resolve_launch_method(launch_method)
     log(f"Используется метод запуска: {resolved_method}", "INFO")
@@ -143,20 +144,27 @@ def prepare_start_request(
         presets_feature=presets_feature,
     )
 
-    prepared_selected_mode, prelaunch_warnings, prelaunch_error, prepared_text = validate_presets_before_launch(
-        prepared_selected_mode,
-        resolved_method,
-    )
-    if prelaunch_error:
-        raise RuntimeError(prelaunch_error)
+    warnings: list[str] = []
+    if skip_preset_prevalidation:
+        if is_preset_launch_method(resolved_method) and isinstance(prepared_selected_mode, dict):
+            preset_path = Path(str(prepared_selected_mode.get("preset_path") or "").strip())
+            if not bool(prepared_selected_mode.get("is_preset_file")) or not preset_path.exists():
+                raise RuntimeError("Preset файл не найден. Создайте пресет в настройках")
+    else:
+        prepared_selected_mode, prelaunch_warnings, prelaunch_error, prepared_text = validate_presets_before_launch(
+            prepared_selected_mode,
+            resolved_method,
+        )
+        if prelaunch_error:
+            raise RuntimeError(prelaunch_error)
 
-    validate_preset_selected_mode(
-        prepared_selected_mode,
-        resolved_method,
-        prepared_text=prepared_text,
-    )
+        validate_preset_selected_mode(
+            prepared_selected_mode,
+            resolved_method,
+            prepared_text=prepared_text,
+        )
 
-    warnings = list(prelaunch_warnings)
+        warnings = list(prelaunch_warnings)
 
     return (
         PreparedDpiStartRequest(
