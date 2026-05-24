@@ -118,6 +118,32 @@ class ProfilePresetService:
         with self._profile_list_lock:
             return self._list_profiles_locked()
 
+    def get_cached_profile_list(self) -> ProfileListPayload | None:
+        lock_acquired = self._profile_list_lock.acquire(blocking=False)
+        if not lock_acquired:
+            return None
+        try:
+            snapshot = self._profile_list_snapshot
+            if snapshot is None or self._profile_list_snapshot_revision is None:
+                return None
+            try:
+                list_revision = self._current_profile_list_revision()
+            except Exception as exc:
+                log(f"profile_feature.list_profiles.cache_check_failed: {exc}", "DEBUG")
+                return None
+            if self._profile_list_snapshot_revision != list_revision:
+                return None
+            return snapshot
+        finally:
+            self._profile_list_lock.release()
+
+    def _current_profile_list_revision(self) -> tuple[object, ...]:
+        preset_revision, _manifest, _source_text = self._selected_preset_revision()
+        folder_state_started_at = time.perf_counter()
+        folder_state = load_profile_folder_state()
+        self._log_timing("profile_feature.folder_state.load", folder_state_started_at)
+        return (*preset_revision, ("profile_folders", _profile_folder_state_revision(folder_state)))
+
     def _list_profiles_locked(self) -> ProfileListPayload:
         total_started_at = time.perf_counter()
         preset_revision, manifest, source_text = self._selected_preset_revision()

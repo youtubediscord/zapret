@@ -25,6 +25,9 @@ class ProfileFeature:
     def list_profiles(self, launch_method: str):
         return self._commands().list_profiles(self, launch_method)
 
+    def get_cached_profile_list(self, launch_method: str):
+        return self._commands().get_cached_profile_list(self, launch_method)
+
     def count_enabled_profiles(self, launch_method: str) -> int:
         return int(self._commands().count_enabled_profiles(self, launch_method))
 

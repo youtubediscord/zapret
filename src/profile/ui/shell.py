@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
-from profile.ui.profile_loading_skeleton import ProfileLoadingSkeleton
 from ui.fluent_widgets import set_tooltip
 from ui.presets_menu.toolbar import PresetsToolbarLayout
 from qfluentwidgets import FluentIcon, PrimaryPushButton, PrimaryToolButton, PushButton, SearchLineEdit
@@ -23,7 +22,6 @@ class ProfileShellWidgets:
     profile_search_input: object
     content_host: object
     content_host_layout: object
-    loading_skeleton: object
 
 
 def build_profile_shell(
@@ -145,9 +143,6 @@ def build_profile_shell(
     content_host_layout.setSpacing(8)
 
     _ = loading_key
-    loading_skeleton = ProfileLoadingSkeleton(content_host)
-    loading_skeleton.hide()
-    content_host_layout.addWidget(loading_skeleton, 1)
 
     content_layout.addWidget(content_host, 1)
 
@@ -161,5 +156,4 @@ def build_profile_shell(
         profile_search_input=profile_search_input,
         content_host=content_host,
         content_host_layout=content_host_layout,
-        loading_skeleton=loading_skeleton,
     )

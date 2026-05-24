@@ -124,6 +124,28 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_preset_service_cache", source)
         self.assertIn("cache[key]", source)
 
+    def test_profile_service_exposes_cached_profile_payload_without_rebuilding(self) -> None:
+        service_source = inspect.getsource(ProfilePresetService.get_cached_profile_list)
+        revision_source = inspect.getsource(ProfilePresetService._current_profile_list_revision)
+        command_source = inspect.getsource(profile_commands.get_cached_profile_list)
+
+        self.assertIn("_profile_list_lock", service_source)
+        self.assertIn("acquire(blocking=False)", service_source)
+        self.assertIn("_profile_list_snapshot_revision", service_source)
+        self.assertIn("return snapshot", service_source)
+        self.assertNotIn("_list_profiles_locked(", service_source)
+        self.assertIn("_selected_preset_revision", revision_source)
+        self.assertIn("load_profile_folder_state", revision_source)
+        self.assertIn("get_cached_profile_list", command_source)
+
+    def test_preset_setup_page_uses_cached_profile_payload_before_worker(self) -> None:
+        source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
+
+        self.assertIn("get_cached_profile_list", source)
+        self.assertIn("_apply_cached_profile_payload", source)
+        self.assertLess(source.index("get_cached_profile_list"), source.index("create_profile_list_load_worker"))
+        self.assertNotIn("_show_loading_skeleton", source)
+
     def test_profile_service_has_selected_preset_snapshot(self) -> None:
         source = inspect.getsource(ProfilePresetService.load_selected_preset)
         helper_source = inspect.getsource(ProfilePresetService._load_selected_preset_for_revision)

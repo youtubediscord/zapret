@@ -21,6 +21,10 @@ def list_profiles(profile_services, launch_method: str):
     return _profile_preset_service(profile_services, launch_method).list_profiles()
 
 
+def get_cached_profile_list(profile_services, launch_method: str):
+    return _profile_preset_service(profile_services, launch_method).get_cached_profile_list()
+
+
 def count_enabled_profiles(profile_services, launch_method: str) -> int:
     return _profile_preset_service(profile_services, launch_method).count_enabled_profiles()
 
