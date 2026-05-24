@@ -6,7 +6,7 @@ import unittest
 from core.paths import AppPaths
 from profile.match_filters import strategy_catalog_from_match_lines
 from profile.parser import parse_preset_text
-from profile.service import _basic_strategy_entries, _normalize_lines, _resolve_strategy
+from profile.service import _basic_strategy_entries, _list_type, _normalize_lines, _resolve_strategy
 from profile.strategy_catalog import load_strategy_catalogs
 
 
@@ -55,6 +55,29 @@ class ProfileStrategyResolutionTests(unittest.TestCase):
         )
 
         self.assertEqual(self._resolved_strategy_id(preset.profiles[0]), "stock_general_fake_tls_auto_alt3_game_filter_38")
+
+    def test_voice_l7_profile_uses_voice_catalog_without_list_file(self) -> None:
+        for filter_l7 in ("stun", "discord", "stun,discord"):
+            with self.subTest(filter_l7=filter_l7):
+                preset = parse_preset_text(
+                    "\n".join(
+                        (
+                            "--name=Голосовые звонки/чаты",
+                            f"--filter-l7={filter_l7}",
+                            "--payload=stun,discord_ip_discovery",
+                            "--lua-desync=fake:blob=fake_default_udp",
+                            "",
+                        )
+                    ),
+                    engine="winws2",
+                )
+                profile = preset.profiles[0]
+                entries = _basic_strategy_entries(profile, self.catalogs)
+
+                self.assertEqual(strategy_catalog_from_match_lines(tuple(profile.match.all_lines())), "voice")
+                self.assertEqual(_list_type(profile), "voice")
+                self.assertIn("fake_simple", entries)
+                self.assertEqual(_resolve_strategy(profile, entries), ("fake_simple", "Fake (простой)"))
 
     def test_strategy_catalogs_do_not_contain_duplicate_args(self) -> None:
         for engine in ("winws1", "winws2"):

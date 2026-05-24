@@ -1016,6 +1016,8 @@ def _catalog_name_for_profile(profile: Profile) -> str:
 
 
 def _list_type(profile: Profile) -> str:
+    if _catalog_name_for_profile(profile) == "voice":
+        return "voice"
     has_hostlist = bool(profile.match.hostlist_lines or profile.match.hostlist_domains_lines)
     has_ipset = bool(profile.match.ipset_lines or profile.match.inline_ipset_lines)
     has_excludes = bool(profile.match.hostlist_exclude_lines or profile.match.ipset_exclude_lines)
