@@ -16,6 +16,7 @@ from presets.folders import (
     move_preset_folder_by_step,
     move_preset_by_step,
     move_preset_after,
+    move_preset_before,
     rename_preset_folder,
     rename_preset_item_meta,
     set_preset_rating,
@@ -163,6 +164,52 @@ class PresetFolderActionTests(unittest.TestCase):
         self.assertEqual(state["items"]["B.txt"]["order"], 0)
         self.assertEqual(state["items"]["A.txt"]["order"], 1)
         self.assertEqual(state["items"]["C.txt"]["order"], 2)
+
+    def test_move_preset_after_uses_visible_destination_folder(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                from presets.folders import move_preset_to_folder
+
+                self.assertTrue(move_preset_to_folder(PRESETS_SCOPE_WINWS2, "A.txt", COMMON_FOLDER_KEY))
+                self.assertTrue(move_preset_to_folder(PRESETS_SCOPE_WINWS2, "C.txt", COMMON_FOLDER_KEY))
+                self.assertTrue(
+                    move_preset_after(
+                        PRESETS_SCOPE_WINWS2,
+                        "A.txt",
+                        "B.txt",
+                        destination_folder_key="game-filter",
+                    )
+                )
+                state = load_preset_folder_state(PRESETS_SCOPE_WINWS2)
+
+        self.assertEqual(state["items"]["B.txt"]["folder_key"], "game-filter")
+        self.assertEqual(state["items"]["A.txt"]["folder_key"], "game-filter")
+        self.assertEqual(state["items"]["B.txt"]["order"], 0)
+        self.assertEqual(state["items"]["A.txt"]["order"], 1)
+        self.assertEqual(state["items"]["C.txt"]["folder_key"], COMMON_FOLDER_KEY)
+
+    def test_move_preset_before_uses_visible_destination_folder(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                from presets.folders import move_preset_to_folder
+
+                self.assertTrue(move_preset_to_folder(PRESETS_SCOPE_WINWS2, "A.txt", COMMON_FOLDER_KEY))
+                self.assertTrue(move_preset_to_folder(PRESETS_SCOPE_WINWS2, "C.txt", COMMON_FOLDER_KEY))
+                self.assertTrue(
+                    move_preset_before(
+                        PRESETS_SCOPE_WINWS2,
+                        "A.txt",
+                        "B.txt",
+                        destination_folder_key="game-filter",
+                    )
+                )
+                state = load_preset_folder_state(PRESETS_SCOPE_WINWS2)
+
+        self.assertEqual(state["items"]["A.txt"]["folder_key"], "game-filter")
+        self.assertEqual(state["items"]["B.txt"]["folder_key"], "game-filter")
+        self.assertEqual(state["items"]["A.txt"]["order"], 0)
+        self.assertEqual(state["items"]["B.txt"]["order"], 1)
+        self.assertEqual(state["items"]["C.txt"]["folder_key"], COMMON_FOLDER_KEY)
 
 
 if __name__ == "__main__":

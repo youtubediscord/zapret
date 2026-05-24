@@ -14,7 +14,7 @@ from qfluentwidgets import ListView
 class LinkedWheelListView(ListView):
     preset_activated = pyqtSignal(str)
     preset_move_requested = pyqtSignal(str, int)
-    item_dropped = pyqtSignal(str, str, str, str)
+    item_dropped = pyqtSignal(str, str, str, str, str)
     preset_context_requested = pyqtSignal(str, QPoint)
     folder_context_requested = pyqtSignal(str, QPoint)
     background_context_requested = pyqtSignal(QPoint)
@@ -35,10 +35,10 @@ class LinkedWheelListView(ListView):
         self.setProperty(PRESET_DROP_MARKER_PROPERTY, marker)
         self.viewport().update()
 
-    def _drop_target_at(self, point: QPoint) -> tuple[dict[str, object], str]:
+    def _drop_target_at(self, point: QPoint) -> tuple[dict[str, object], str, str]:
         drop_index = self.indexAt(point)
         if not drop_index.isValid():
-            return {"marker": {"row": -1, "mode": ""}, "destination_kind": "end", "destination_row": -1}, ""
+            return {"marker": {"row": -1, "mode": ""}, "destination_kind": "end", "destination_row": -1}, "", ""
         destination_kind = str(drop_index.data(PresetListModel.KindRole) or "")
         target = preset_drop_target_for_position(
             drop_index.row(),
@@ -48,10 +48,15 @@ class LinkedWheelListView(ListView):
             row_height=self.visualRect(drop_index).height(),
         )
         if target["destination_kind"] in {"preset", "preset_after"}:
-            return target, str(drop_index.data(PresetListModel.FileNameRole) or "")
+            return (
+                target,
+                str(drop_index.data(PresetListModel.FileNameRole) or ""),
+                str(drop_index.data(PresetListModel.FolderKeyRole) or ""),
+            )
         if target["destination_kind"] == "folder":
-            return target, str(drop_index.data(PresetListModel.FolderKeyRole) or "")
-        return target, ""
+            folder_key = str(drop_index.data(PresetListModel.FolderKeyRole) or "")
+            return target, folder_key, folder_key
+        return target, "", ""
 
     def wheelEvent(self, event):
         scrollbar = self.verticalScrollBar()
@@ -177,7 +182,7 @@ class LinkedWheelListView(ListView):
 
     def dragMoveEvent(self, event):
         if event.mimeData().hasFormat("application/x-zapret-preset-item"):
-            target, _destination_id = self._drop_target_at(event.position().toPoint())
+            target, _destination_id, _destination_folder_key = self._drop_target_at(event.position().toPoint())
             self.set_drop_marker_payload(dict(target.get("marker") or {}))
             event.acceptProposedAction()
             return
@@ -207,12 +212,12 @@ class LinkedWheelListView(ListView):
             event.ignore()
             return
 
-        target, destination_id = self._drop_target_at(event.position().toPoint())
+        target, destination_id, destination_folder_key = self._drop_target_at(event.position().toPoint())
         destination_kind = "end"
         if str(target.get("destination_kind") or "") in {"folder", "preset", "preset_after"}:
             destination_kind = str(target.get("destination_kind") or "")
 
-        self.item_dropped.emit(source_kind, source_id, destination_kind, destination_id)
+        self.item_dropped.emit(source_kind, source_id, destination_kind, destination_id, destination_folder_key)
         self.set_drop_marker(-1, "")
         event.acceptProposedAction()
 

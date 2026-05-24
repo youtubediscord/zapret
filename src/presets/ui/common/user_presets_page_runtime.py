@@ -117,6 +117,7 @@ class UserPresetsStorageApi(Protocol):
         source_id: str,
         destination_kind: str,
         destination_id: str,
+        destination_folder_key: str = "",
     ) -> bool: ...
 
 
@@ -368,12 +369,14 @@ class _UserPresetsStorageApiImpl:
         source_id: str,
         destination_kind: str,
         destination_id: str,
+        destination_folder_key: str = "",
     ) -> bool:
         return self._runtime.move_preset_on_drop(
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
             destination_id=destination_id,
+            destination_folder_key=destination_folder_key,
         )
 
 
@@ -831,6 +834,7 @@ class UserPresetsPageRuntime:
         source_id: str,
         destination_kind: str,
         destination_id: str,
+        destination_folder_key: str = "",
     ) -> bool:
         if source_kind != "preset":
             return False
@@ -841,10 +845,20 @@ class UserPresetsPageRuntime:
             return move_preset_to_folder(self._config.folder_scope, source_id, destination_id)
 
         if destination_kind == "preset" and destination_id:
-            return move_preset_before(self._config.folder_scope, source_id, destination_id)
+            return move_preset_before(
+                self._config.folder_scope,
+                source_id,
+                destination_id,
+                destination_folder_key=destination_folder_key,
+            )
 
         if destination_kind == "preset_after" and destination_id:
-            return move_preset_after(self._config.folder_scope, source_id, destination_id)
+            return move_preset_after(
+                self._config.folder_scope,
+                source_id,
+                destination_id,
+                destination_folder_key=destination_folder_key,
+            )
 
         return move_preset_to_end(self._config.folder_scope, source_id)
 

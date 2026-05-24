@@ -377,6 +377,12 @@ class PresetListDelegate(QStyledItemDelegate):
         depth = int(index.data(PresetListModel.DepthRole) or 0)
         is_pinned = bool(index.data(PresetListModel.PinnedRole))
         rating = int(index.data(PresetListModel.RatingRole) or 0)
+        marker = self._view.property(PRESET_DROP_MARKER_PROPERTY)
+        try:
+            drag_marker_row = int(marker.get("row", -1)) if isinstance(marker, dict) else -1
+        except Exception:
+            drag_marker_row = -1
+        drag_marker_visible = drag_marker_row >= 0
 
         hovered = option.state & QStyle.StateFlag.State_MouseOver
         pressed = self._pressed_row == index.row()
@@ -384,7 +390,7 @@ class PresetListDelegate(QStyledItemDelegate):
         row_paint = paint_profile_hover_row(
             painter,
             rect,
-            active=is_active,
+            active=is_active and not drag_marker_visible,
             hovered=bool(hovered),
             pressed=pressed,
         )

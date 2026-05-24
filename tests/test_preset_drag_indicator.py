@@ -39,6 +39,17 @@ class PresetDragIndicatorTests(unittest.TestCase):
         self.assertIn("dragLeaveEvent", view_source)
         self.assertIn("self.set_drop_marker(-1, \"\")", view_source)
 
+    def test_view_sends_destination_folder_with_drop(self) -> None:
+        view_source = inspect.getsource(preset_view.LinkedWheelListView)
+
+        self.assertIn("item_dropped = pyqtSignal(str, str, str, str, str)", view_source)
+        self.assertIn("PresetListModel.FolderKeyRole", view_source)
+        self.assertIn("destination_folder_key", view_source)
+        self.assertIn(
+            "self.item_dropped.emit(source_kind, source_id, destination_kind, destination_id, destination_folder_key)",
+            view_source,
+        )
+
     def test_delegate_draws_folder_and_before_row_drop_markers(self) -> None:
         delegate_source = inspect.getsource(preset_delegate.PresetListDelegate)
 
@@ -46,6 +57,8 @@ class PresetDragIndicatorTests(unittest.TestCase):
         self.assertIn('marker.get("mode") == "folder"', delegate_source)
         self.assertIn('marker.get("mode") == "before"', delegate_source)
         self.assertIn('marker.get("mode") == "after"', delegate_source)
+        self.assertIn("drag_marker_visible", delegate_source)
+        self.assertIn("active=is_active and not drag_marker_visible", delegate_source)
 
 
 if __name__ == "__main__":

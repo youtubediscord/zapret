@@ -103,7 +103,13 @@ def move_preset_to_folder(scope_key: str, file_name: str, folder_key: str) -> bo
     return True
 
 
-def move_preset_before(scope_key: str, source_file_name: str, destination_file_name: str) -> bool:
+def move_preset_before(
+    scope_key: str,
+    source_file_name: str,
+    destination_file_name: str,
+    *,
+    destination_folder_key: str = "",
+) -> bool:
     state = load_preset_folder_state(scope_key)
     source = str(source_file_name or "").strip()
     destination = str(destination_file_name or "").strip()
@@ -111,7 +117,8 @@ def move_preset_before(scope_key: str, source_file_name: str, destination_file_n
     if not source or not destination or source == destination:
         return False
     destination_meta = items.setdefault(destination, {"folder_key": "common", "order": None, "rating": 0})
-    folder_key = str(destination_meta.get("folder_key") or "common")
+    folder_key = str(destination_folder_key or destination_meta.get("folder_key") or "common")
+    destination_meta["folder_key"] = folder_key
     source_meta = items.setdefault(source, {"folder_key": folder_key, "order": None, "rating": 0})
     source_meta["folder_key"] = folder_key
     ordered = [
@@ -128,7 +135,13 @@ def move_preset_before(scope_key: str, source_file_name: str, destination_file_n
     return True
 
 
-def move_preset_after(scope_key: str, source_file_name: str, destination_file_name: str) -> bool:
+def move_preset_after(
+    scope_key: str,
+    source_file_name: str,
+    destination_file_name: str,
+    *,
+    destination_folder_key: str = "",
+) -> bool:
     state = load_preset_folder_state(scope_key)
     source = str(source_file_name or "").strip()
     destination = str(destination_file_name or "").strip()
@@ -136,7 +149,8 @@ def move_preset_after(scope_key: str, source_file_name: str, destination_file_na
     if not source or not destination or source == destination:
         return False
     destination_meta = items.setdefault(destination, {"folder_key": "common", "order": None, "rating": 0})
-    folder_key = str(destination_meta.get("folder_key") or "common")
+    folder_key = str(destination_folder_key or destination_meta.get("folder_key") or "common")
+    destination_meta["folder_key"] = folder_key
     source_meta = items.setdefault(source, {"folder_key": folder_key, "order": None, "rating": 0})
     source_meta["folder_key"] = folder_key
     ordered = [

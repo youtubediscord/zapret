@@ -719,12 +719,20 @@ class UserPresetsPageBase(BasePage):
             log_fn=log,
         )
 
-    def _on_item_dropped(self, source_kind: str, source_id: str, destination_kind: str, destination_id: str):
+    def _on_item_dropped(
+        self,
+        source_kind: str,
+        source_id: str,
+        destination_kind: str,
+        destination_id: str,
+        destination_folder_key: str = "",
+    ):
         handle_item_dropped_action(
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
             destination_id=destination_id,
+            destination_folder_key=destination_folder_key,
             storage_api=self._storage_api(),
             refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
             log_fn=log,

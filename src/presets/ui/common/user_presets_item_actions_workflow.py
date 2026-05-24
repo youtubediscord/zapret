@@ -30,13 +30,24 @@ def move_preset_by_step_action(*, name: str, direction: int, storage_api, runtim
         log_fn(f"Ошибка перестановки пресета: {exc}", "ERROR")
 
 
-def handle_item_dropped_action(*, source_kind: str, source_id: str, destination_kind: str, destination_id: str, storage_api, refresh_presets_view_from_cache_fn, log_fn) -> None:
+def handle_item_dropped_action(
+    *,
+    source_kind: str,
+    source_id: str,
+    destination_kind: str,
+    destination_id: str,
+    destination_folder_key: str = "",
+    storage_api,
+    refresh_presets_view_from_cache_fn,
+    log_fn,
+) -> None:
     try:
         moved = storage_api.move_preset_on_drop(
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
             destination_id=destination_id,
+            destination_folder_key=destination_folder_key,
         )
         if moved:
             log_fn(f"Элемент '{source_id}' перенесён перетаскиванием", "INFO")
