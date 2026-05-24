@@ -14,12 +14,15 @@ class DpiSettingsFeature:
 
 
 def build_dpi_settings_feature() -> DpiSettingsFeature:
-    from settings.dpi import public as dpi_public
+    def _public():
+        from settings.dpi import public as dpi_public
+
+        return dpi_public
 
     return DpiSettingsFeature(
-        load_initial_state=dpi_public.load_initial_state,
-        apply_launch_method=dpi_public.apply_launch_method,
-        get_launch_method=dpi_public.get_launch_method,
-        describe_visibility=dpi_public.describe_visibility,
-        load_orchestra_settings=dpi_public.load_orchestra_settings,
+        load_initial_state=lambda *args, **kwargs: _public().load_initial_state(*args, **kwargs),
+        apply_launch_method=lambda *args, **kwargs: _public().apply_launch_method(*args, **kwargs),
+        get_launch_method=lambda *args, **kwargs: _public().get_launch_method(*args, **kwargs),
+        describe_visibility=lambda *args, **kwargs: _public().describe_visibility(*args, **kwargs),
+        load_orchestra_settings=lambda *args, **kwargs: _public().load_orchestra_settings(*args, **kwargs),
     )

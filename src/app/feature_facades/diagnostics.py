@@ -10,8 +10,11 @@ class DiagnosticsFeature:
 
 
 def build_diagnostics_feature() -> DiagnosticsFeature:
-    from diagnostics import commands as diagnostics_commands
+    def _commands():
+        from diagnostics import commands as diagnostics_commands
+
+        return diagnostics_commands
 
     return DiagnosticsFeature(
-        create_connection_test_worker=diagnostics_commands.create_connection_test_worker,
+        create_connection_test_worker=lambda *args, **kwargs: _commands().create_connection_test_worker(*args, **kwargs),
     )

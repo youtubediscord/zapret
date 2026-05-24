@@ -14,7 +14,9 @@
 --dpi-desync-autottl
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist-domains=cloudflareok.com,cloudflareclient.com,cloudflareportal.com,cloudflarecp.com
 --dpi-desync=fake,multisplit
@@ -25,7 +27,9 @@
 --dpi-desync-autottl
 
 # === UDP порт 8886 ===
+
 --new
+
 --filter-udp=8886
 --ipset-ip=188.114.96.0/22
 --dpi-desync=fake
@@ -35,7 +39,9 @@
 --dpi-desync-autottl
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-seqovl=1
@@ -44,4 +50,3 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_5.bin
 --dpi-desync-fake-tls-mod=rnd
 --dpi-desync-autottl
---new

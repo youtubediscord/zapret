@@ -12,6 +12,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake
@@ -19,13 +20,19 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
---filter-udp=443
---hostlist=lists/other.txt
---dpi-desync=fake
---dpi-desync-repeats=11
---dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
+--dpi-desync=fake,fakedsplit
+--dpi-desync-split-pos=1
+--dpi-desync-fooling=badseq
+--dpi-desync-badseq-increment=10000000
+--dpi-desync-repeats=8
+--dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 --new
+
 --filter-udp=443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake
@@ -33,6 +40,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake
@@ -40,6 +48,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake
@@ -47,6 +56,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/roblox.txt
 --dpi-desync=fake
@@ -54,6 +64,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/itch.txt
 --dpi-desync=fake
@@ -61,6 +72,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake
@@ -68,6 +80,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake
@@ -75,6 +88,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/twitter.txt
 --dpi-desync=fake
@@ -82,6 +96,7 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 --new
+
 --filter-udp=443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake
@@ -96,7 +111,8 @@
 
 --new
 
---filter-tcp=2053,2083,2087,2096,8443
+--name=discord.media
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist-domains=discord.media
 --dpi-desync=fake,fakedsplit
 --dpi-desync-split-pos=1
@@ -119,6 +135,7 @@
 
 --new
 
+--name=General list TCP
 --filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,fakedsplit
@@ -130,7 +147,8 @@
 
 --new
 
---filter-tcp=80,443
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-split-pos=1
@@ -141,17 +159,7 @@
 
 --new
 
---filter-tcp=80,443
---hostlist=lists/other.txt
---dpi-desync=fake,fakedsplit
---dpi-desync-split-pos=1
---dpi-desync-fooling=badseq
---dpi-desync-badseq-increment=10000000
---dpi-desync-repeats=8
---dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
-
---new
-
+--name=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,fakedsplit
@@ -163,6 +171,7 @@
 
 --new
 
+--name=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,fakedsplit
@@ -174,6 +183,7 @@
 
 --new
 
+--name=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,fakedsplit
@@ -185,7 +195,8 @@
 
 --new
 
---filter-tcp=80,443
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-split-pos=1
@@ -196,6 +207,7 @@
 
 --new
 
+--name=itch.io
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,fakedsplit
@@ -207,6 +219,7 @@
 
 --new
 
+--name=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,fakedsplit
@@ -218,6 +231,7 @@
 
 --new
 
+--name=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,fakedsplit
@@ -229,6 +243,7 @@
 
 --new
 
+--name=Twitter/X
 --filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=fake,fakedsplit
@@ -240,6 +255,7 @@
 
 --new
 
+--name=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,fakedsplit
@@ -251,15 +267,10 @@
 
 --new
 
---filter-udp=443
---ipset-exclude=lists/ipset-exclude.txt
---dpi-desync=fake
---dpi-desync-repeats=11
---dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
-
---new
-
---filter-tcp=80,443,444-65535
+--name=Исключения
+--filter-tcp=80,443-65535
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
 --ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-split-pos=1
@@ -267,14 +278,3 @@
 --dpi-desync-badseq-increment=10000000
 --dpi-desync-repeats=8
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
-
---new
-
---filter-udp=444-65535
---ipset-exclude=lists/ipset-exclude.txt
---dpi-desync=fake
---dpi-desync-autottl=2
---dpi-desync-repeats=10
---dpi-desync-any-protocol=1
---dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
---dpi-desync-cutoff=n2

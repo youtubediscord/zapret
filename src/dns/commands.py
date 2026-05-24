@@ -3,6 +3,15 @@ from __future__ import annotations
 from dns.state import DnsCommandResult, DnsState
 
 
+def _to_dns_state(data) -> DnsState:
+    return DnsState(
+        adapters=tuple(data.adapters),
+        dns_info=dict(data.dns_info),
+        ipv6_available=bool(data.ipv6_available),
+        force_dns_enabled=bool(data.force_dns_active),
+    )
+
+
 def apply_dns_on_startup_async(status_callback=None):
     from dns.dns_worker import apply_dns_on_startup_async as _apply_dns_on_startup_async
 
@@ -82,17 +91,26 @@ def flush_dns_cache() -> DnsCommandResult:
 def get_dns_state() -> DnsState:
     from dns.runtime import load_page_data as _load_page_data
 
-    data = _load_page_data()
-    return DnsState(
-        adapters=tuple(data.adapters),
-        dns_info=dict(data.dns_info),
-        ipv6_available=bool(data.ipv6_available),
-        force_dns_enabled=bool(data.force_dns_active),
-    )
+    return _to_dns_state(_load_page_data())
 
 
 def load_page_data() -> DnsState:
     return get_dns_state()
+
+
+def warm_page_data_cache() -> DnsState:
+    from dns.runtime import warm_page_data_cache as _warm_page_data_cache
+
+    return _to_dns_state(_warm_page_data_cache())
+
+
+def consume_warmed_page_data() -> DnsState | None:
+    from dns.runtime import consume_warmed_page_data as _consume_warmed_page_data
+
+    data = _consume_warmed_page_data()
+    if data is None:
+        return None
+    return _to_dns_state(data)
 
 
 def refresh_dns_info(adapter_names: list[str]) -> dict[str, dict[str, list[str]]]:

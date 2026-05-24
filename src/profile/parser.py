@@ -120,7 +120,7 @@ def _split_preamble_and_profile_lines(body_lines: list[str]) -> tuple[list[str],
     if current:
         if saw_profile:
             if current_new_line and not _has_profile_content(current):
-                footer.extend([current_new_line, *current])
+                footer.extend(current)
             else:
                 _push_profile(current_new_line, current)
         else:

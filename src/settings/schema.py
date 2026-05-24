@@ -228,8 +228,8 @@ def default_folders() -> dict[str, Any]:
     return {
         "version": 1,
         "presets": {
-            "winws2": build_default_preset_folders(),
-            "winws1": build_default_preset_folders(),
+            "winws2": build_default_preset_folders("winws2"),
+            "winws1": build_default_preset_folders("winws1"),
         },
         "profiles": build_default_profile_folders(),
     }

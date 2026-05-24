@@ -41,7 +41,8 @@ def transition_pipeline_in_progress(runtime_owner, launch_method: str | None = N
 
 
 def is_runner_transition_state(state_value: object) -> bool:
-    return str(state_value or "").strip().lower() in {"starting", "stopping"}
+    normalized = str(getattr(state_value, "value", state_value) or "").strip().lower()
+    return normalized in {"starting", "stopping"}
 
 
 def runner_transition_in_progress(runtime_owner, *, launch_method: str | None = None) -> bool:
@@ -90,7 +91,8 @@ def is_running(runtime_owner) -> bool:
             snapshot_getter = getattr(runner, "get_runner_state_snapshot", None)
             if callable(snapshot_getter):
                 snapshot = snapshot_getter()
-                state_value = str(getattr(snapshot, "state", "") or "").strip().lower()
+                state = getattr(snapshot, "state", "")
+                state_value = str(getattr(state, "value", state) or "").strip().lower()
                 if state_value == "running":
                     return True
 

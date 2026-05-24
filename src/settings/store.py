@@ -414,13 +414,14 @@ def set_defender_disabled_memory(value: bool) -> bool:
 
 
 def get_window_geometry() -> dict[str, Any]:
+    data = read_settings()
     return copy.deepcopy(
         {
-            "x": _get_path_value(read_settings(), ("window", "x"), None),
-            "y": _get_path_value(read_settings(), ("window", "y"), None),
-            "width": _get_path_value(read_settings(), ("window", "width"), None),
-            "height": _get_path_value(read_settings(), ("window", "height"), None),
-            "maximized": _get_bool(("window", "maximized"), False),
+            "x": _get_path_value(data, ("window", "x"), None),
+            "y": _get_path_value(data, ("window", "y"), None),
+            "width": _get_path_value(data, ("window", "width"), None),
+            "height": _get_path_value(data, ("window", "height"), None),
+            "maximized": bool(_get_path_value(data, ("window", "maximized"), False)),
         }
     )
 

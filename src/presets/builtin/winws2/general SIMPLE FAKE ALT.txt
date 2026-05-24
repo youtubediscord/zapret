@@ -78,15 +78,17 @@
 --wf-raw-part=@windivert.filter/windivert_part.stun.txt
 --wf-raw-part=@windivert.filter/windivert_part.wireguard.txt
 
---filter-udp=443
---ipset-exclude=lists/ipset-exclude.txt
+--name=Исключения
+--filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
---out-range=-n8
---lua-desync=fake:blob=quic_google:repeats=6
+--ipset-exclude=lists/ipset-exclude.txt
+--out-range=-d8
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
 
 --new
 
+--name=Голосовые звонки/чаты
 --filter-l7=stun,discord
 --payload=stun,discord_ip_discovery
 --out-range=-n8
@@ -94,6 +96,7 @@
 
 --new
 
+--name=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --out-range=-d10
 --hostlist-domains=discord.media
@@ -101,6 +104,7 @@
 
 --new
 
+--name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --out-range=-d8
@@ -108,6 +112,7 @@
 
 --new
 
+--name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --out-range=-d8
@@ -115,6 +120,7 @@
 
 --new
 
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --out-range=-d10
@@ -122,13 +128,15 @@
 
 --new
 
---filter-tcp=80,443
---hostlist=lists/other.txt
---out-range=-d10
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
+--out-range=-d8
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
 
 --new
 
+--name=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --out-range=-d10
@@ -136,6 +144,7 @@
 
 --new
 
+--name=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --out-range=-d10
@@ -143,6 +152,7 @@
 
 --new
 
+--name=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --out-range=-d10
@@ -150,13 +160,15 @@
 
 --new
 
---filter-tcp=80,443
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --out-range=-d10
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
 
 --new
 
+--name=itch.io
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --out-range=-d10
@@ -164,6 +176,7 @@
 
 --new
 
+--name=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --out-range=-d10
@@ -171,6 +184,7 @@
 
 --new
 
+--name=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --out-range=-d10
@@ -178,6 +192,7 @@
 
 --new
 
+--name=Twitter/X
 --filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --out-range=-d10
@@ -185,30 +200,8 @@
 
 --new
 
+--name=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
-
---new
-
---filter-tcp=80,443
---ipset-exclude=lists/ipset-exclude.txt
---ipset-exclude=lists/ipset-ru.txt
---ipset-exclude=lists/ipset-dns.txt
---out-range=-d8
---lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
-
---new
-
---filter-udp=443
---ipset=lists/ipset-all.txt
---out-range=-n8
---lua-desync=fake:blob=quic_google:repeats=6
-
---new
-
---filter-tcp=80,443
---ipset=lists/ipset-all.txt
---out-range=-d8
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2

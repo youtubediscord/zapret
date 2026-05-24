@@ -10,6 +10,12 @@ from presets.ui.control.control_page_runtime_shared import (
     apply_status_plan as apply_status_plan_shared,
     set_toggle_checked,
 )
+from presets.ui.control.additional_settings_runtime import (
+    build_additional_settings_state,
+    create_additional_settings_worker,
+    create_refresh_runtime,
+    save_discord_restart_setting,
+)
 
 
 def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, hide_to_tray_toggle=None, defender_toggle=None, max_block_toggle=None) -> None:
@@ -49,8 +55,8 @@ def apply_winws1_pages_language(
     test_card,
     folder_card,
     docs_card,
-    advanced_card,
-    advanced_notice,
+    additional_settings_card,
+    additional_settings_notice,
     discord_restart_toggle,
     wssize_toggle,
     debug_log_toggle,
@@ -118,10 +124,10 @@ def apply_winws1_pages_language(
         tr_catalog("page.winws1_control.button.open", language=language, default="Открыть")
     )
 
-    advanced_card.titleLabel.setText(
+    additional_settings_card.titleLabel.setText(
         tr_catalog("page.winws1_control.card.advanced", language=language, default="Дополнительные настройки")
     )
-    advanced_notice.setText(
+    additional_settings_notice.setText(
         tr_catalog("page.winws1_control.advanced.warning", language=language, default="Изменяйте только если знаете что делаете")
     )
     discord_restart_toggle.set_texts(

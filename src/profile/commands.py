@@ -50,16 +50,40 @@ def get_profile_setup(profile_services, launch_method: str, profile_key: str):
     return _profile_preset_service(profile_services, launch_method).get_profile_setup(profile_key)
 
 
-def get_profile_list_file_editor_state(profile_services, launch_method: str, profile_key: str):
-    return _profile_preset_service(profile_services, launch_method).get_profile_list_file_editor_state(profile_key)
+def get_profile_list_file_editor_state(
+    profile_services,
+    launch_method: str,
+    profile_key: str,
+    *,
+    filter_kind: str = "",
+    filter_value: str = "",
+):
+    return _profile_preset_service(profile_services, launch_method).get_profile_list_file_editor_state(
+        profile_key,
+        filter_kind=filter_kind,
+        filter_value=filter_value,
+    )
 
 
 def apply_strategy_to_profile(profile_services, launch_method: str, profile_key: str, strategy_id: str) -> str | None:
     return _profile_preset_service(profile_services, launch_method).apply_strategy(profile_key, strategy_id)
 
 
-def set_profile_enabled(profile_services, launch_method: str, profile_key: str, enabled: bool) -> str | None:
-    return _profile_preset_service(profile_services, launch_method).set_profile_enabled(profile_key, enabled)
+def set_profile_enabled(
+    profile_services,
+    launch_method: str,
+    profile_key: str,
+    enabled: bool,
+    *,
+    filter_kind: str = "",
+    filter_value: str = "",
+) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).set_profile_enabled(
+        profile_key,
+        enabled,
+        filter_kind=filter_kind,
+        filter_value=filter_value,
+    )
 
 
 def update_winws2_profile_settings(

@@ -16,7 +16,9 @@
 --dpi-desync-fooling=badseq
 
 # === HTTPS Discord ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/discord.txt
 --hostlist-domains=ntc.party
@@ -33,7 +35,9 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/faceinsta.txt
 --dpi-desync=fake,multisplit
@@ -49,17 +53,20 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
---hostlist=lists/other.txt
---hostlist-exclude=lists/faceinsta.txt
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=1,midsld
 --dpi-desync-repeats=6
 --dpi-desync-fooling=badseq
 
-# === QUIC YouTube ===
 --new
+
+--name=youtube.com (QUIC)
 --filter-udp=443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake
@@ -67,17 +74,20 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === QUIC ===
+
 --new
+
 --filter-udp=443
 --dpi-desync=fake
 --dpi-desync-repeats=11
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50099
 --dpi-desync=fake
 --dpi-desync-autottl
 --dup=2
 --dup-autottl
 --dup-cutoff=n3
---new

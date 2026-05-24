@@ -6,14 +6,17 @@
 --wf-udp=443,50000-50090
 
 # === HTTPS YouTube ===
---filter-tcp=443
+--name=youtube.com (RTMPS Россия)
+--filter-tcp=80,443-65535
 --ipset=lists/russia-youtube-rtmps.txt
 --dpi-desync=syndata
 --dpi-desync-fake-syndata=bin/tls_clienthello_4.bin
 --dpi-desync-fooling=badseq
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/youtubeQ.txt
 --dpi-desync=fake,udplen
@@ -23,8 +26,11 @@
 --dpi-desync-repeats=2
 
 # === HTTPS YouTube ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=1
@@ -32,7 +38,9 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_7.bin
 
 # === HTTP (порт 80) ===
+
 --new
+
 --filter-tcp=80,443
 --hostlist=lists/mycdnlist.txt
 --dpi-desync=fakeddisorder
@@ -41,8 +49,11 @@
 --dpi-desync-fooling=badseq
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake
 --dpi-desync-fooling=badseq
@@ -50,7 +61,9 @@
 --dpi-desync-fake-tls-mod=rnd
 
 # === HTTP (порт 80) ===
+
 --new
+
 --filter-tcp=80
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -58,16 +71,22 @@
 --dpi-desync-fooling=badseq
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=fakeddisorder
 --dpi-desync-split-pos=2,midsld+1
 --dpi-desync-fakedsplit-pattern=bin/tls_clienthello_4.bin
 --dpi-desync-fooling=badseq
 
 # === QUIC Discord ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,udplen
@@ -78,13 +97,18 @@
 --dpi-desync-cutoff=n2
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50090
 --dpi-desync=fake
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
+
+--name=googlevideo.com (CDN сервера)
+--filter-tcp=80,443
 --ipset-ip=XXX.XXX.XXX.XXX/XX,XXX.XXX.XXX.XXX/XX
 --wssize=1:6
 --hostlist=lists/googlevideo.txt
@@ -93,11 +117,13 @@
 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
+
+--name=googlevideo.com (CDN сервера)
+--filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=2,midsld-2
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_7.bin
---new

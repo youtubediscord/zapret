@@ -48,11 +48,12 @@ def build_control_page_kwargs(
     }
 
 
-def build_preset_setup_page_kwargs(*, page_name: PageName, profile_feature, open_profile_setup) -> dict:
+def build_preset_setup_page_kwargs(*, page_name: PageName, profile_feature, open_profile_setup, ui_state_store) -> dict:
     method = ZAPRET2_MODE if page_name == PageName.ZAPRET2_PRESET_SETUP else ZAPRET1_MODE
     return {
         "profile_feature": profile_feature,
         "open_profile_setup": lambda profile_key, m=method: open_profile_setup(m, profile_key),
+        "ui_state_store": ui_state_store,
     }
 
 

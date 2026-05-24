@@ -70,7 +70,7 @@ def build_network_page_shell(
     loading_layout.addWidget(loading_bar, alignment=Qt.AlignmentFlag.AlignCenter)
     loading_card.add_layout(loading_layout)
 
-    dns_cards_container = QWidget()
+    dns_cards_container = QWidget(content_parent)
     dns_cards_layout = qvbox_layout_cls(dns_cards_container)
     dns_cards_layout.setContentsMargins(0, 0, 0, 0)
     dns_cards_layout.setSpacing(4)
@@ -88,7 +88,7 @@ def build_network_page_shell(
         indicator_off_qss=dns_provider_card_cls.indicator_off(),
     )
 
-    adapters_container = QWidget()
+    adapters_container = QWidget(content_parent)
     adapters_layout = qvbox_layout_cls(adapters_container)
     adapters_layout.setContentsMargins(0, 0, 0, 0)
     adapters_layout.setSpacing(4)

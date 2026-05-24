@@ -52,10 +52,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Оркестратор",
         "en": "Orchestrator",
     },
-    "nav.page.hostlist": {
-        "ru": "Листы",
-        "en": "Lists",
-    },
     "nav.page.orchestra_settings": {
         "ru": "Настройки оркестратора",
         "en": "Orchestrator Settings",
@@ -423,22 +419,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.orchestra.log": {
         "ru": "Лог обучения",
         "en": "Training Log",
-    },
-    "page.hostlist.title": {
-        "ru": "Листы",
-        "en": "Lists",
-    },
-    "page.hostlist.hostlist": {
-        "ru": "Hostlist",
-        "en": "Hostlist",
-    },
-    "page.hostlist.ipset": {
-        "ru": "IPset",
-        "en": "IPset",
-    },
-    "page.hostlist.exclusions": {
-        "ru": "Исключения",
-        "en": "Exclusions",
     },
     "page.dpi_settings.title": {
         "ru": "Настройки DPI",
@@ -1552,362 +1532,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Записывает логи winws в папку logs",
         "en": "Writes winws logs to the logs folder",
     },
-    "page.hostlist.subtitle": {
-        "ru": "Управление hostlist и ipset списками для обхода блокировок",
-        "en": "Manage hostlist and ipset lists for bypass",
-    },
-    "page.hostlist.tab.hostlist": {
-        "ru": "Hostlist",
-        "en": "Hostlist",
-    },
-    "page.hostlist.tab.ipset": {
-        "ru": "IPset",
-        "en": "IPset",
-    },
-    "page.hostlist.tab.domains": {
-        "ru": "Мои домены",
-        "en": "My domains",
-    },
-    "page.hostlist.tab.ips": {
-        "ru": "Мои IP",
-        "en": "My IPs",
-    },
-    "page.hostlist.tab.exclusions": {
-        "ru": "Исключения",
-        "en": "Exclusions",
-    },
-    "page.hostlist.section.manage": {
-        "ru": "Управление",
-        "en": "Management",
-    },
-    "page.hostlist.section.actions": {
-        "ru": "Действия",
-        "en": "Actions",
-    },
-    "page.hostlist.button.open": {
-        "ru": "Открыть",
-        "en": "Open",
-    },
-    "page.hostlist.button.rebuild": {
-        "ru": "Перестроить",
-        "en": "Rebuild",
-    },
-    "page.hostlist.button.add": {
-        "ru": "Добавить",
-        "en": "Add",
-    },
-    "page.hostlist.button.open_file": {
-        "ru": "Открыть файл",
-        "en": "Open file",
-    },
-    "page.hostlist.button.reset_file": {
-        "ru": "Сбросить файл",
-        "en": "Reset file",
-    },
-    "page.hostlist.button.clear_all": {
-        "ru": "Очистить всё",
-        "en": "Clear all",
-    },
-    "page.hostlist.confirm.reset": {
-        "ru": "Подтвердить сброс",
-        "en": "Confirm reset",
-    },
-    "page.hostlist.confirm.clear": {
-        "ru": "Подтвердить очистку",
-        "en": "Confirm clear",
-    },
-    "page.hostlist.dialog.clear.title": {
-        "ru": "Очистить всё",
-        "en": "Clear all",
-    },
-    "page.hostlist.hostlist.desc": {
-        "ru": "Используется для обхода блокировок по доменам.",
-        "en": "Used to bypass domain-based blocks.",
-    },
-    "page.hostlist.hostlist.action.open_folder.title": {
-        "ru": "Открыть папку хостлистов",
-        "en": "Open hostlists folder",
-    },
-    "page.hostlist.hostlist.action.rebuild.title": {
-        "ru": "Перестроить хостлисты",
-        "en": "Rebuild hostlists",
-    },
-    "page.hostlist.hostlist.action.rebuild.subtitle": {
-        "ru": "Обновляет списки из встроенной базы",
-        "en": "Updates lists from built-in base",
-    },
-    "page.hostlist.ipset.desc": {
-        "ru": "Используется для обхода блокировок по IP-адресам и подсетям.",
-        "en": "Used to bypass blocks by IP addresses and subnets.",
-    },
-    "page.hostlist.ipset.action.open_folder.title": {
-        "ru": "Открыть папку IP-сетов",
-        "en": "Open IP sets folder",
-    },
-    "page.hostlist.info.loading": {
-        "ru": "Загрузка информации...",
-        "en": "Loading information...",
-    },
-    "page.hostlist.info.folder_not_found": {
-        "ru": "Папка листов не найдена",
-        "en": "Lists folder not found",
-    },
-    "page.hostlist.info.hostlist.summary": {
-        "ru": "📁 Папка: {folder}\n📄 Файлов: {files_count}\n📝 Примерно строк: {lines_count}",
-        "en": "📁 Folder: {folder}\n📄 Files: {files_count}\n📝 Approx. lines: {lines_count}",
-    },
-    "page.hostlist.info.ipset.summary": {
-        "ru": "📁 Папка: {folder}\n📄 IP-файлов: {files_count}\n🌐 Примерно IP/подсетей: {lines_count}",
-        "en": "📁 Folder: {folder}\n📄 IP files: {files_count}\n🌐 Approx. IPs/subnets: {lines_count}",
-    },
-    "page.hostlist.info.error": {
-        "ru": "Ошибка загрузки информации: {error}",
-        "en": "Failed to load info: {error}",
-    },
-    "page.hostlist.infobar.done": {
-        "ru": "Готово",
-        "en": "Done",
-    },
-    "page.hostlist.infobar.hostlists_rebuilt": {
-        "ru": "Хостлисты обновлены",
-        "en": "Hostlists updated",
-    },
-    "page.hostlist.infobar.info": {
-        "ru": "Информация",
-        "en": "Information",
-    },
-    "page.hostlist.infobar.added": {
-        "ru": "Добавлено",
-        "en": "Added",
-    },
-    "page.hostlist.error.open_folder": {
-        "ru": "Не удалось открыть папку:\n{error}",
-        "en": "Failed to open folder:\n{error}",
-    },
-    "page.hostlist.error.rebuild": {
-        "ru": "Не удалось перестроить:\n{error}",
-        "en": "Failed to rebuild:\n{error}",
-    },
-    "page.hostlist.error.open_file": {
-        "ru": "Не удалось открыть:\n{error}",
-        "en": "Failed to open:\n{error}",
-    },
-    "page.hostlist.error.open_final_file": {
-        "ru": "Не удалось открыть итоговый файл: {error}",
-        "en": "Failed to open final file: {error}",
-    },
-    "page.hostlist.status.error": {
-        "ru": "❌ Ошибка: {error}",
-        "en": "❌ Error: {error}",
-    },
-    "page.hostlist.status.saved_suffix": {
-        "ru": " • ✅ Сохранено",
-        "en": " • ✅ Saved",
-    },
-    "page.hostlist.status.reset_suffix": {
-        "ru": " • ✅ Сброшено",
-        "en": " • ✅ Reset",
-    },
-    "page.hostlist.domains.desc": {
-        "ru": "Редактируется пользовательский список `lists/user/other.txt` (только ваши домены). Системная база хранится в `lists/base/other.txt`, а итоговый `lists/other.txt` собирается автоматически. URL автоматически преобразуются в домены. Изменения сохраняются автоматически. Поддерживается Ctrl+Z.",
-        "en": "Edit the custom list `lists/user/other.txt` (your domains only). The system base is stored in `lists/base/other.txt`, and the final `lists/other.txt` is rebuilt automatically. URLs are converted to domains automatically. Changes are saved automatically. Ctrl+Z is supported.",
-    },
-    "page.hostlist.domains.section.add": {
-        "ru": "Добавить домен",
-        "en": "Add domain",
-    },
-    "page.hostlist.domains.input.placeholder": {
-        "ru": "Введите домен или URL (например: example.com)",
-        "en": "Enter domain or URL (for example: example.com)",
-    },
-    "page.hostlist.domains.tooltip.open_file": {
-        "ru": "Сохраняет изменения и открывает `lists/user/other.txt` в проводнике",
-        "en": "Saves changes and opens `lists/user/other.txt` in Explorer",
-    },
-    "page.hostlist.domains.tooltip.reset_file": {
-        "ru": "Очищает `lists/user/other.txt` и пересобирает `lists/other.txt` из системной базы",
-        "en": "Clears `lists/user/other.txt` and rebuilds `lists/other.txt` from the system base",
-    },
-    "page.hostlist.domains.tooltip.clear_all": {
-        "ru": "Удаляет только пользовательские домены",
-        "en": "Removes custom domains only",
-    },
-    "page.hostlist.domains.section.editor": {
-        "ru": "lists/user/other.txt (редактор)",
-        "en": "lists/user/other.txt (editor)",
-    },
-    "page.hostlist.domains.editor.placeholder": {
-        "ru": "Домены по одному на строку:\nexample.com\nsubdomain.site.org\n\nКомментарии начинаются с #",
-        "en": "One domain per line:\nexample.com\nsubdomain.site.org\n\nComments start with #",
-    },
-    "page.hostlist.hint.autosave": {
-        "ru": "💡 Изменения сохраняются автоматически через 500мс",
-        "en": "💡 Changes are saved automatically after 500 ms",
-    },
-    "page.hostlist.status.domains_count": {
-        "ru": "📊 Доменов: {count}",
-        "en": "📊 Domains: {count}",
-    },
-    "page.hostlist.domains.error.invalid_domain": {
-        "ru": "Не удалось распознать домен:\n{value}\n\nВведите корректный домен (например: example.com)",
-        "en": "Could not recognize domain:\n{value}\n\nEnter a valid domain (for example: example.com)",
-    },
-    "page.hostlist.domains.info.already_added": {
-        "ru": "Домен уже добавлен:\n{domain}",
-        "en": "Domain already added:\n{domain}",
-    },
-    "page.hostlist.domains.error.reset_failed": {
-        "ru": "Не удалось сбросить my hostlist",
-        "en": "Failed to reset my hostlist",
-    },
-    "page.hostlist.domains.error.reset_exception": {
-        "ru": "Не удалось сбросить:\n{error}",
-        "en": "Failed to reset:\n{error}",
-    },
-    "page.hostlist.ips.desc": {
-        "ru": "Добавляйте свои IP/подсети в `lists/user/ipset-all.txt`.\n• Одиночный IP: 1.2.3.4\n• Подсеть: 10.0.0.0/8\nДиапазоны (a-b) не поддерживаются. Изменения сохраняются автоматически.\nСистемная база хранится в `lists/base/ipset-all.txt`, а итоговый `lists/ipset-all.txt` собирается автоматически.",
-        "en": "Add your own IPs/subnets to `lists/user/ipset-all.txt`.\n• Single IP: 1.2.3.4\n• Subnet: 10.0.0.0/8\nRanges (a-b) are not supported. Changes are saved automatically.\nThe system base is stored in `lists/base/ipset-all.txt`, and the final `lists/ipset-all.txt` is rebuilt automatically.",
-    },
-    "page.hostlist.ips.section.add": {
-        "ru": "Добавить IP/подсеть",
-        "en": "Add IP/subnet",
-    },
-    "page.hostlist.ips.input.placeholder": {
-        "ru": "Например: 1.2.3.4 или 10.0.0.0/8",
-        "en": "For example: 1.2.3.4 or 10.0.0.0/8",
-    },
-    "page.hostlist.ips.section.editor": {
-        "ru": "lists/user/ipset-all.txt (редактор)",
-        "en": "lists/user/ipset-all.txt (editor)",
-    },
-    "page.hostlist.ips.editor.placeholder": {
-        "ru": "IP/подсети по одному на строку:\n192.168.0.1\n10.0.0.0/8\n\nКомментарии начинаются с #",
-        "en": "IPs/subnets one per line:\n192.168.0.1\n10.0.0.0/8\n\nComments start with #",
-    },
-    "page.hostlist.ips.error.invalid_format": {
-        "ru": "❌ Неверный формат: {items}",
-        "en": "❌ Invalid format: {items}",
-    },
-    "page.hostlist.status.entries_count": {
-        "ru": "📊 Записей: {total} (база: {base}, пользовательские: {user})",
-        "en": "📊 Entries: {total} (base: {base}, custom: {user})",
-    },
-    "page.hostlist.ips.error.invalid_ip": {
-        "ru": "Не удалось распознать IP или подсеть.\nПримеры: 1.2.3.4 или 10.0.0.0/8",
-        "en": "Could not recognize IP or subnet.\nExamples: 1.2.3.4 or 10.0.0.0/8",
-    },
-    "page.hostlist.ips.info.already_exists": {
-        "ru": "Запись уже есть:\n{entry}",
-        "en": "Entry already exists:\n{entry}",
-    },
-    "page.hostlist.ips.info.all_entries_exist": {
-        "ru": "Все записи уже есть ({count})",
-        "en": "All entries already exist ({count})",
-    },
-    "page.hostlist.ips.info.added_with_skipped": {
-        "ru": "Добавлено IP-исключений. Пропущено уже существующих: {count}",
-        "en": "IP exclusions added. Skipped already existing: {count}",
-    },
-    "page.hostlist.ips.dialog.clear.body": {
-        "ru": "Удалить все записи?",
-        "en": "Delete all entries?",
-    },
-    "page.hostlist.exclusions.desc": {
-        "ru": "Здесь два типа исключений:\n• Домены: `lists/user/netrogat.txt` -> `lists/netrogat.txt` (--hostlist-exclude)\n• IP/подсети: `lists/user/ipset-ru.txt` -> `lists/ipset-ru.txt` (--ipset-exclude)",
-        "en": "Two exclusion types here:\n• Domains: `lists/user/netrogat.txt` -> `lists/netrogat.txt` (--hostlist-exclude)\n• IP/subnets: `lists/user/ipset-ru.txt` -> `lists/ipset-ru.txt` (--ipset-exclude)",
-    },
-    "page.hostlist.exclusions.section.add_domain": {
-        "ru": "Добавить домен",
-        "en": "Add domain",
-    },
-    "page.hostlist.exclusions.input.domain.placeholder": {
-        "ru": "Например: example.com, site.com или через пробел",
-        "en": "For example: example.com, site.com or space-separated",
-    },
-    "page.hostlist.exclusions.button.add_missing": {
-        "ru": "Добавить недостающие",
-        "en": "Add missing",
-    },
-    "page.hostlist.exclusions.button.open_final": {
-        "ru": "Открыть итоговый",
-        "en": "Open final",
-    },
-    "page.hostlist.exclusions.section.editor_domain": {
-        "ru": "lists/user/netrogat.txt (редактор)",
-        "en": "lists/user/netrogat.txt (editor)",
-    },
-    "page.hostlist.exclusions.editor.domain.placeholder": {
-        "ru": "Домены по одному на строку:\ngosuslugi.ru\nvk.com\n\nКомментарии начинаются с #",
-        "en": "One domain per line:\ngosuslugi.ru\nvk.com\n\nComments start with #",
-    },
-    "page.hostlist.status.domains_full_count": {
-        "ru": "📊 Доменов: {total} (база: {base}, пользовательские: {user})",
-        "en": "📊 Domains: {total} (base: {base}, custom: {user})",
-    },
-    "page.hostlist.exclusions.error.invalid_domain": {
-        "ru": "Не удалось распознать домен.",
-        "en": "Could not recognize domain.",
-    },
-    "page.hostlist.exclusions.error.invalid_domains": {
-        "ru": "Не удалось распознать домены.",
-        "en": "Could not recognize domains.",
-    },
-    "page.hostlist.exclusions.info.domain_exists": {
-        "ru": "Домен уже есть: {domain}",
-        "en": "Domain already exists: {domain}",
-    },
-    "page.hostlist.exclusions.info.all_domains_exist": {
-        "ru": "Все домены уже есть ({count})",
-        "en": "All domains already exist ({count})",
-    },
-    "page.hostlist.exclusions.info.added_with_skipped": {
-        "ru": "Добавлено доменов. Пропущено уже существующих: {count}",
-        "en": "Domains added. Skipped already existing: {count}",
-    },
-    "page.hostlist.exclusions.dialog.clear.body": {
-        "ru": "Удалить все домены?",
-        "en": "Delete all domains?",
-    },
-    "page.hostlist.exclusions.info.defaults_already_present": {
-        "ru": "Системная база уже содержит все домены по умолчанию.",
-        "en": "System base already contains all default domains.",
-    },
-    "page.hostlist.exclusions.info.defaults_restored": {
-        "ru": "Восстановлено доменов в системной базе: {count}",
-        "en": "Domains restored in system base: {count}",
-    },
-    "page.hostlist.exclusions.ipru.title": {
-        "ru": "IP-исключения (--ipset-exclude)",
-        "en": "IP exclusions (--ipset-exclude)",
-    },
-    "page.hostlist.exclusions.ipru.desc": {
-        "ru": "Редактируйте только `lists/user/ipset-ru.txt`. Системная база хранится в `lists/base/ipset-ru.txt`, а итоговый `lists/ipset-ru.txt` собирается автоматически.",
-        "en": "Edit only `lists/user/ipset-ru.txt`. The system base is stored in `lists/base/ipset-ru.txt`, and the final `lists/ipset-ru.txt` is rebuilt automatically.",
-    },
-    "page.hostlist.exclusions.ipru.section.add": {
-        "ru": "Добавить IP/подсеть в исключения",
-        "en": "Add IP/subnet to exclusions",
-    },
-    "page.hostlist.exclusions.ipru.section.actions": {
-        "ru": "Действия IP-исключений",
-        "en": "IP exclusion actions",
-    },
-    "page.hostlist.exclusions.ipru.section.editor": {
-        "ru": "lists/user/ipset-ru.txt (редактор)",
-        "en": "lists/user/ipset-ru.txt (editor)",
-    },
-    "page.hostlist.exclusions.ipru.editor.placeholder": {
-        "ru": "IP/подсети по одному на строку:\n31.13.64.0/18\n77.88.0.0/18\n\nКомментарии начинаются с #",
-        "en": "IPs/subnets one per line:\n31.13.64.0/18\n77.88.0.0/18\n\nComments start with #",
-    },
-    "page.hostlist.status.ipru_count": {
-        "ru": "📊 IP-исключений: {total} (база: {base}, пользовательские: {user})",
-        "en": "📊 IP exclusions: {total} (base: {base}, custom: {user})",
-    },
-    "page.hostlist.exclusions.ipru.dialog.clear.body": {
-        "ru": "Удалить все IP-исключения?",
-        "en": "Delete all IP exclusions?",
-    },
     "page.hosts.subtitle": {
         "ru": "Управление разблокировкой сервисов через hosts файл",
         "en": "Manage service unblocking via hosts file",
@@ -2115,126 +1739,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.logs.send.button.send": {
         "ru": "Подготовить обращение",
         "en": "Prepare report",
-    },
-    "page.netrogat.title": {
-        "ru": "Исключения",
-        "en": "Exclusions",
-    },
-    "page.netrogat.subtitle": {
-        "ru": "Управление пользовательским списком `lists/user/netrogat.txt`. Итоговый `lists/netrogat.txt` собирается автоматически.",
-        "en": "Manage the custom list `lists/user/netrogat.txt`. The final `lists/netrogat.txt` is rebuilt automatically.",
-    },
-    "page.netrogat.description": {
-        "ru": "Редактируйте только `lists/user/netrogat.txt`.\nСистемная база хранится в `lists/base/netrogat.txt`, а итоговый `lists/netrogat.txt` собирается автоматически.",
-        "en": "Edit only `lists/user/netrogat.txt`.\nThe system base is stored in `lists/base/netrogat.txt`, and the final `lists/netrogat.txt` is rebuilt automatically.",
-    },
-    "page.netrogat.section.add": {
-        "ru": "Добавить домен",
-        "en": "Add domain",
-    },
-    "page.netrogat.input.placeholder": {
-        "ru": "Например: example.com, site.com или через пробел",
-        "en": "For example: example.com, site.com or space-separated",
-    },
-    "page.netrogat.button.add": {
-        "ru": "Добавить",
-        "en": "Add",
-    },
-    "page.netrogat.section.actions": {
-        "ru": "Действия",
-        "en": "Actions",
-    },
-    "page.netrogat.button.add_missing": {
-        "ru": "Добавить недостающие",
-        "en": "Add missing",
-    },
-    "page.netrogat.button.open_file": {
-        "ru": "Открыть файл",
-        "en": "Open file",
-    },
-    "page.netrogat.button.open_final": {
-        "ru": "Открыть итоговый",
-        "en": "Open final",
-    },
-    "page.netrogat.button.clear_all": {
-        "ru": "Очистить всё",
-        "en": "Clear all",
-    },
-    "page.netrogat.section.editor": {
-        "ru": "lists/user/netrogat.txt (редактор)",
-        "en": "lists/user/netrogat.txt (editor)",
-    },
-    "page.netrogat.editor.placeholder": {
-        "ru": "Домены по одному на строку:\ngosuslugi.ru\nvk.com\n\nКомментарии начинаются с #",
-        "en": "Domains one per line:\ngosuslugi.ru\nvk.com\n\nComments start with #",
-    },
-    "page.netrogat.hint.autosave": {
-        "ru": "💡 Изменения сохраняются автоматически через 500мс",
-        "en": "💡 Changes are saved automatically after 500 ms",
-    },
-    "page.netrogat.status.summary": {
-        "ru": "📊 Доменов: {total} (база: {base}, пользовательские: {user})",
-        "en": "📊 Domains: {total} (base: {base}, custom: {user})",
-    },
-    "page.netrogat.status.saved_suffix": {
-        "ru": " • ✅ Сохранено",
-        "en": " • ✅ Saved",
-    },
-    "page.netrogat.error.parse_domain": {
-        "ru": "Не удалось распознать домен.",
-        "en": "Could not recognize domain.",
-    },
-    "page.netrogat.error.parse_domains": {
-        "ru": "Не удалось распознать домены.",
-        "en": "Could not recognize domains.",
-    },
-    "page.netrogat.infobar.info_title": {
-        "ru": "Информация",
-        "en": "Information",
-    },
-    "page.netrogat.info.already_exists_one": {
-        "ru": "Домен уже есть: {domain}",
-        "en": "Domain already exists: {domain}",
-    },
-    "page.netrogat.info.already_exists_many": {
-        "ru": "Все домены уже есть ({count})",
-        "en": "All domains already exist ({count})",
-    },
-    "page.netrogat.infobar.added_title": {
-        "ru": "Добавлено",
-        "en": "Added",
-    },
-    "page.netrogat.info.added_with_skipped": {
-        "ru": "Добавлено доменов. Пропущено уже существующих: {count}",
-        "en": "Domains added. Skipped already existing: {count}",
-    },
-    "page.netrogat.dialog.clear.title": {
-        "ru": "Очистить всё",
-        "en": "Clear all",
-    },
-    "page.netrogat.dialog.clear.body": {
-        "ru": "Удалить все домены?",
-        "en": "Delete all domains?",
-    },
-    "page.netrogat.error.open_file": {
-        "ru": "Не удалось открыть: {error}",
-        "en": "Failed to open: {error}",
-    },
-    "page.netrogat.error.open_final_file": {
-        "ru": "Не удалось открыть итоговый файл: {error}",
-        "en": "Failed to open final file: {error}",
-    },
-    "page.netrogat.infobar.done_title": {
-        "ru": "Готово",
-        "en": "Done",
-    },
-    "page.netrogat.info.defaults_already_present": {
-        "ru": "Системная база уже содержит все домены по умолчанию.",
-        "en": "System base already contains all default domains.",
-    },
-    "page.netrogat.info.defaults_restored": {
-        "ru": "Восстановлено доменов в системной базе: {count}",
-        "en": "Restored domains in system base: {count}",
     },
     "page.network.subtitle": {
         "ru": "Настройки DNS и доступа к сервисам",
@@ -3552,6 +3056,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Профили",
         "en": "Profiles",
     },
+    "page.winws1_pages.toolbar.search.placeholder": {
+        "ru": "Поиск profile по имени, портам и т.д.",
+        "en": "Search profiles by name, ports, etc.",
+    },
     "page.winws1_pages.request.button": {
         "ru": "Предложить профиль",
         "en": "Suggest profile",
@@ -3904,9 +3412,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Настройки программы",
         "en": "Program Settings",
     },
-    "page.winws2_control.section.advanced_settings": {
+    "page.winws2_control.section.additional_settings": {
         "ru": "Дополнительные настройки",
-        "en": "Advanced Settings",
+        "en": "Additional Settings",
     },
     "page.winws2_control.section.additional": {
         "ru": "Дополнительно",
@@ -4051,6 +3559,10 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.winws2_pages.toolbar.info": {
         "ru": "Что это такое?",
         "en": "What is this?",
+    },
+    "page.winws2_pages.toolbar.search.placeholder": {
+        "ru": "Поиск profile по имени, портам и т.д.",
+        "en": "Search profiles by name, ports, etc.",
     },
     "page.winws2_pages.info.title": {
         "ru": "Настройка пресета",
@@ -5051,10 +4563,6 @@ NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.ZAPRET2_MODE_CONTROL: "nav.page.zapret2_mode_control",
     PageName.ZAPRET1_MODE_CONTROL: "nav.page.zapret1_mode_control",
     PageName.ORCHESTRA: "nav.page.orchestra",
-    PageName.HOSTLIST: "nav.page.hostlist",
-    PageName.NETROGAT: "page.netrogat.title",
-    PageName.CUSTOM_DOMAINS: "page.custom_domains.title",
-    PageName.CUSTOM_IPSET: "page.custom_ipset.title",
     PageName.BLOBS: "page.blobs.title",
     PageName.ORCHESTRA_SETTINGS: "nav.page.orchestra_settings",
     PageName.DPI_SETTINGS: "nav.page.dpi_settings",
@@ -5110,14 +4618,7 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
     SearchEntry("orchestra.title", PageName.ORCHESTRA, "page.orchestra.title"),
     SearchEntry("orchestra.training", PageName.ORCHESTRA, "page.orchestra.training_status", section_key="page.orchestra.training_status"),
     SearchEntry("orchestra.log", PageName.ORCHESTRA, "page.orchestra.log", section_key="page.orchestra.log"),
-    SearchEntry("hostlist.title", PageName.HOSTLIST, "page.hostlist.title"),
-    SearchEntry("netrogat.title", PageName.NETROGAT, "page.netrogat.title"),
-    SearchEntry("custom_domains.title", PageName.CUSTOM_DOMAINS, "page.custom_domains.title"),
-    SearchEntry("custom_ipset.title", PageName.CUSTOM_IPSET, "page.custom_ipset.title"),
     SearchEntry("blobs.title", PageName.BLOBS, "page.blobs.title"),
-    SearchEntry("hostlist.hostlist", PageName.HOSTLIST, "page.hostlist.hostlist", section_key="page.hostlist.hostlist"),
-    SearchEntry("hostlist.ipset", PageName.HOSTLIST, "page.hostlist.ipset", section_key="page.hostlist.ipset"),
-    SearchEntry("hostlist.exclusions", PageName.HOSTLIST, "page.hostlist.exclusions", section_key="page.hostlist.exclusions"),
     SearchEntry("dpi.title", PageName.DPI_SETTINGS, "page.dpi_settings.title"),
     SearchEntry("dpi.launch_method", PageName.DPI_SETTINGS, "page.dpi_settings.launch_method", section_key="page.dpi_settings.launch_method"),
     SearchEntry("autostart.title", PageName.AUTOSTART, "page.autostart.title"),
@@ -5173,7 +4674,6 @@ SEARCH_ENTRIES: tuple[SearchEntry, ...] = (
 
 
 _PAGE_SEARCH_EXTRA_PREFIXES: dict[PageName, tuple[str, ...]] = {
-    PageName.HOSTLIST: ("page.ipset.",),
     PageName.ZAPRET2_PRESET_SETUP: ("page.winws2_pages.",),
     PageName.ZAPRET1_PRESET_SETUP: ("page.winws1_pages.",),
     PageName.BLOCKCHECK: (

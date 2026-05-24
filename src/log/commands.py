@@ -3,6 +3,8 @@ from __future__ import annotations
 import glob
 import os
 import subprocess
+import threading
+import time
 from dataclasses import dataclass
 
 from config.config import LOGS_FOLDER, MAX_DEBUG_LOG_FILES, MAX_LOG_FILES
@@ -29,6 +31,12 @@ class LogsStatsState:
     total_size_mb: float
     max_logs: int
     max_debug_logs: int
+
+
+@dataclass(slots=True)
+class LogsPageDataState:
+    logs_state: LogsListState
+    stats_state: LogsStatsState
 
 
 @dataclass(slots=True)
@@ -72,25 +80,59 @@ class LogsSupportFeedbackPlan:
 class LogsStatsTextPlan:
     text: str
 
+
+_warmed_page_data_lock = threading.Lock()
+_warmed_page_data_cache: LogsPageDataState | None = None
+
+
+def store_warmed_page_data(state: LogsPageDataState) -> None:
+    global _warmed_page_data_cache
+    with _warmed_page_data_lock:
+        _warmed_page_data_cache = state
+
+
+def clear_warmed_page_data_cache() -> None:
+    global _warmed_page_data_cache
+    with _warmed_page_data_lock:
+        _warmed_page_data_cache = None
+
+
+def consume_warmed_page_data() -> LogsPageDataState | None:
+    global _warmed_page_data_cache
+    with _warmed_page_data_lock:
+        state = _warmed_page_data_cache
+        _warmed_page_data_cache = None
+        return state
+
+
 def get_current_log_file() -> str:
     return getattr(global_logger, "log_file", LOG_FILE)
 
 def list_logs(*, run_cleanup: bool) -> LogsListState:
+    total_started_at = time.perf_counter()
     cleanup_deleted = 0
     cleanup_errors: list[str] = []
     cleanup_total = 0
 
     if run_cleanup:
+        cleanup_started_at = time.perf_counter()
         cleanup_deleted, cleanup_errors, cleanup_total = cleanup_old_logs(LOGS_FOLDER, MAX_LOG_FILES)
+        _log_timing("logs_feature.list_logs.cleanup", cleanup_started_at)
 
+    glob_started_at = time.perf_counter()
     log_files: list[str] = []
     log_files.extend(glob.glob(os.path.join(LOGS_FOLDER, "zapret_log_*.txt")))
     log_files.extend(glob.glob(os.path.join(LOGS_FOLDER, "zapret_[0-9]*.log")))
     log_files.extend(glob.glob(os.path.join(LOGS_FOLDER, "blockcheck_run_*.log")))
+    _log_timing("logs_feature.list_logs.glob", glob_started_at)
+
+    sort_started_at = time.perf_counter()
     log_files.sort(key=os.path.getmtime, reverse=True)
+    _log_timing("logs_feature.list_logs.sort", sort_started_at)
 
     current_log = get_current_log_file()
     entries: list[dict] = []
+    entries_started_at = time.perf_counter()
     for index, log_path in enumerate(log_files):
         size_kb = os.path.getsize(log_path) / 1024
         is_current = log_path == current_log
@@ -107,6 +149,8 @@ def list_logs(*, run_cleanup: bool) -> LogsListState:
                 "is_current": is_current,
             }
         )
+    _log_timing("logs_feature.list_logs.entries.build", entries_started_at)
+    _log_timing("logs_feature.list_logs.total", total_started_at)
 
     return LogsListState(
         entries=entries,
@@ -117,12 +161,18 @@ def list_logs(*, run_cleanup: bool) -> LogsListState:
     )
 
 def build_stats() -> LogsStatsState:
+    total_started_at = time.perf_counter()
+    glob_started_at = time.perf_counter()
     app_logs = glob.glob(os.path.join(LOGS_FOLDER, "zapret_log_*.txt"))
     app_logs.extend(glob.glob(os.path.join(LOGS_FOLDER, "zapret_[0-9]*.log")))
     app_logs.extend(glob.glob(os.path.join(LOGS_FOLDER, "blockcheck_run_*.log")))
     debug_logs = glob.glob(os.path.join(LOGS_FOLDER, "zapret_winws2_debug_*.log"))
     all_files = app_logs + debug_logs
+    _log_timing("logs_feature.build_stats.glob", glob_started_at)
+    size_started_at = time.perf_counter()
     total_size = sum(os.path.getsize(path) for path in all_files) / 1024 / 1024
+    _log_timing("logs_feature.build_stats.size", size_started_at)
+    _log_timing("logs_feature.build_stats.total", total_started_at)
     return LogsStatsState(
         app_logs=len(app_logs),
         debug_logs=len(debug_logs),
@@ -130,6 +180,23 @@ def build_stats() -> LogsStatsState:
         max_logs=MAX_LOG_FILES,
         max_debug_logs=MAX_DEBUG_LOG_FILES,
     )
+
+
+def warm_page_data_cache(*, run_cleanup: bool = False) -> LogsPageDataState:
+    state = LogsPageDataState(
+        logs_state=list_logs(run_cleanup=run_cleanup),
+        stats_state=build_stats(),
+    )
+    store_warmed_page_data(state)
+    return state
+
+
+def _log_timing(label: str, started_at: float) -> None:
+    try:
+        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+        log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
+    except Exception:
+        pass
 
 def resolve_winws_exe_name(launch_method: str) -> str:
     try:
@@ -214,6 +281,15 @@ def create_winws_output_worker(process):
     worker = WinwsOutputWorker()
     worker.set_process(process)
     return worker
+
+def create_logs_overview_worker(*, run_cleanup: bool):
+    from log.overview_worker import LogsOverviewWorker
+
+    return LogsOverviewWorker(
+        list_logs_fn=list_logs,
+        build_stats_fn=build_stats,
+        run_cleanup=run_cleanup,
+    )
 
 def build_thread_stop_plan(*, has_worker: bool, thread_running: bool, blocking: bool) -> LogsThreadStopPlan:
     return LogsThreadStopPlan(

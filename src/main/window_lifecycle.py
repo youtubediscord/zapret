@@ -16,7 +16,7 @@ from main.runtime_state import (
     log_startup_metric as emit_startup_metric,
     startup_elapsed_ms,
 )
-from ui.window_adapter import sync_titlebar_search_width
+from ui.window_adapter import refresh_titlebar_layout, sync_titlebar_search_width
 
 
 class WindowLifecycleMixin:
@@ -157,6 +157,10 @@ class WindowLifecycleMixin:
             geometry_runtime.apply_saved_maximized_state_if_needed()
             QTimer.singleShot(350, geometry_runtime.enable_persistence)
 
+        self._refresh_titlebar_layout_after_show()
+        QTimer.singleShot(0, self._refresh_titlebar_layout_after_show)
+        QTimer.singleShot(120, self._refresh_titlebar_layout_after_show)
+
         try:
             visual_state = self._get_visual_state()
             effects = None if visual_state is None else visual_state.holiday_effects
@@ -169,6 +173,12 @@ class WindowLifecycleMixin:
         notification_center = self._get_window_notification_center()
         if notification_center is not None:
             notification_center.schedule_startup_notification_queue(0)
+
+    def _refresh_titlebar_layout_after_show(self) -> None:
+        try:
+            refresh_titlebar_layout(self)
+        except Exception as e:
+            log(f"Не удалось обновить верхнюю панель после показа окна: {e}", "DEBUG")
 
     def _force_style_refresh(self) -> None:
         """Принудительно обновляет стили всех виджетов после показа окна."""

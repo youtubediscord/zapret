@@ -62,6 +62,7 @@ def build_preset_rows_plan(
                 visible_entries=visible_entries,
                 active_file_name=active_file_name,
                 folder_state=effective_folder_state,
+                scope_key=folder_scope,
                 query=normalized_query,
             )
         )

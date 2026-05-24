@@ -20,13 +20,19 @@ class SettingsWindowGeometryStore:
     """Низкоуровневое хранилище геометрии окна в settings.json."""
 
     def load(self) -> StoredWindowGeometry:
-        from config.window_geometry_store import get_window_maximized, get_window_position, get_window_size
+        from settings import store as settings_store
 
-
+        geometry = settings_store.get_window_geometry()
+        x = geometry.get("x")
+        y = geometry.get("y")
+        width = geometry.get("width")
+        height = geometry.get("height")
+        position = None if x is None or y is None else (int(x), int(y))
+        size = None if width is None or height is None else (int(width), int(height))
         return StoredWindowGeometry(
-            position=get_window_position(),
-            size=get_window_size(),
-            maximized=bool(get_window_maximized()),
+            position=position,
+            size=size,
+            maximized=bool(geometry.get("maximized")),
         )
 
     def save_geometry(self, x: int, y: int, width: int, height: int) -> None:

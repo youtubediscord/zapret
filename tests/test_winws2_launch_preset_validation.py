@@ -342,6 +342,47 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             self.assertNotIn("--hostlist=tankix.txt", artifact.launch_args)
             self.assertNotIn("--ipset=lists/ipset-tankix.txt", artifact.launch_args)
 
+    def test_winws2_compile_resolves_windivert_filter_paths_without_duplicate_folder(self) -> None:
+        from threading import RLock
+
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            filter_dir = root / "windivert.filter"
+            filter_dir.mkdir()
+            (filter_dir / "windivert_part.discord_media.txt").write_text(
+                "true\n",
+                encoding="utf-8",
+            )
+            preset_path = root / "selected.txt"
+            preset_path.write_text(
+                "\n".join(
+                    (
+                        "--wf-tcp-out=443",
+                        "--wf-raw-part=@windivert.filter/windivert_part.discord_media.txt",
+                        "--filter-tcp=443",
+                        "--lua-desync=fake:blob=tls_google",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            runner = object.__new__(Winws2StrategyRunner)
+            runner._state_lock = RLock()
+            runner._prepared_preset_cache = {}
+            runner.work_dir = str(root)
+            runner.lists_dir = str(root / "lists")
+            runner.bin_dir = str(root / "bin")
+
+            artifact = runner._compile_preset_artifact(str(preset_path))
+
+            expected = f"--wf-raw-part=@{filter_dir / 'windivert_part.discord_media.txt'}"
+            self.assertTrue(artifact.validation_ok, artifact.validation_report)
+            self.assertIn(expected, artifact.launch_args)
+            self.assertNotIn("windivert.filter/windivert.filter", "/".join(artifact.launch_args))
+
     def test_winws1_compile_resolves_bare_list_paths_for_launch(self) -> None:
         from threading import RLock
 
@@ -405,7 +446,7 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
 
     def test_profile_editor_rejects_non_engine_range_value(self) -> None:
         from profile.parser import parse_preset_text
-        from profile.winws2_editable_settings import Winws2EditableSettings, with_winws2_editable_settings
+        from profile.editable_settings import EditableProfileSettings, with_editable_profile_settings
         from settings.mode import ENGINE_WINWS2
 
         preset = parse_preset_text(
@@ -422,10 +463,10 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
         )
 
         with self.assertRaisesRegex(ValueError, "packet range"):
-            with_winws2_editable_settings(
+            with_editable_profile_settings(
                 preset,
                 0,
-                Winws2EditableSettings(
+                EditableProfileSettings(
                     filter_kind="hostlist",
                     filter_value="lists/youtube.txt",
                     in_range="x",

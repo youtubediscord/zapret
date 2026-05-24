@@ -80,6 +80,7 @@
 --blob=hex_0f0f0f0f:0x0F0F0F0F
 --blob=hex_00:0x00
 
+--name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --out-range=-d8
@@ -87,6 +88,7 @@
 
 --new
 
+--name=youtube.com (QUIC)
 --filter-udp=443
 --ipset=lists/ipset-youtube.txt
 --out-range=-n8
@@ -95,6 +97,7 @@
 
 --new
 
+--name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --out-range=-d8
@@ -102,6 +105,7 @@
 
 --new
 
+--name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
 --out-range=-d10
@@ -109,6 +113,7 @@
 
 --new
 
+--name=obsidian.md
 --filter-tcp=80,443
 --hostlist=lists/obsidian.txt
 --out-range=-n8
@@ -118,6 +123,7 @@
 
 --new
 
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --out-range=-d10
@@ -125,13 +131,15 @@
 
 --new
 
---filter-tcp=80,443
---hostlist=lists/other.txt
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --out-range=-d10
 --lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
 
 --new
 
+--name=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --out-range=-d10
@@ -139,6 +147,7 @@
 
 --new
 
+--name=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --out-range=-d10
@@ -146,6 +155,7 @@
 
 --new
 
+--name=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --out-range=-d10
@@ -153,13 +163,15 @@
 
 --new
 
---filter-tcp=80,443
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --out-range=-d10
 --lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
 
 --new
 
+--name=itch.io
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --out-range=-d10
@@ -167,6 +179,7 @@
 
 --new
 
+--name=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --out-range=-d10
@@ -174,6 +187,7 @@
 
 --new
 
+--name=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --out-range=-d10
@@ -181,6 +195,7 @@
 
 --new
 
+--name=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --out-range=-d10
@@ -188,6 +203,7 @@
 
 --new
 
+--name=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist-domains=discord.media
 --out-range=-d10
@@ -195,6 +211,7 @@
 
 --new
 
+--name=Голосовые звонки/чаты
 --filter-l7=stun,discord
 --payload=stun,discord_ip_discovery
 --out-range=-n8
@@ -202,14 +219,15 @@
 
 --new
 
+--name=Twitter/X
 --filter-tcp=80,443
 --ipset=lists/ipset-twitter.txt
 --out-range=-d8
 --lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
 
-
 --new
 
+--name=ntc.party
 --filter-tcp=80,443
 --hostlist-domains=ntc.party
 --out-range=-d9
@@ -217,13 +235,7 @@
 
 --new
 
---filter-tcp=443
---hostlist=lists/other.txt
---out-range=-d10
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --out-range=-d10
@@ -231,8 +243,9 @@
 
 --new
 
---filter-tcp=80,443
---hostlist-domains=resources.txrevive.com,main.txrevive.com
+--name=Tanki X
+--filter-tcp=80,443-65535
+--hostlist=lists/tankix.txt
 --out-range=-n8
 --lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
 --lua-desync=multidisorder:pos=host+1

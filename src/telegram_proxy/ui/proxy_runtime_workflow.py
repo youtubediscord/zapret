@@ -185,6 +185,12 @@ def apply_relay_result(
     if not manager.is_running:
         return
 
+    stats = manager.stats
+    traffic_seen = bool(
+        getattr(stats, "bytes_received", 0) > 0
+        or getattr(stats, "bytes_sent", 0) > 0
+    )
+
     plan = telegram_proxy_page_runtime.build_relay_result_plan(
         host=manager.host,
         port=manager.port,
@@ -192,6 +198,7 @@ def apply_relay_result(
         ms=diag.get("ms", 0),
         http_ok=bool(diag.get("http_ok", False)),
         zapret_running=bool(diag.get("zapret_running", False)),
+        traffic_seen=traffic_seen,
     )
     status_label.setText(plan.status_text)
     if plan.show_warning and info_bar_cls is not None:

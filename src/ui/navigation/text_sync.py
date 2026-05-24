@@ -71,15 +71,21 @@ def apply_ui_language_to_page(window, page: QWidget | None) -> None:
     if page is None:
         return
 
+    session = get_window_ui_session(window)
+    language = normalize_language("ru" if session is None else session.ui_language)
+    if getattr(page, "_last_applied_ui_language", None) == language:
+        return
+
     for method_name in ("set_ui_language", "retranslate_ui", "apply_ui_language"):
         method = getattr(page, method_name, None)
         if callable(method):
             try:
-                session = get_window_ui_session(window)
-                method("ru" if session is None else session.ui_language)
+                method(language)
+                setattr(page, "_last_applied_ui_language", language)
             except TypeError:
                 try:
                     method()
+                    setattr(page, "_last_applied_ui_language", language)
                 except Exception:
                     pass
             except Exception:

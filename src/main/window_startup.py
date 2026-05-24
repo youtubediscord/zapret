@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import traceback
 from config.window_metrics import HEIGHT, WIDTH
+from PyQt6.QtCore import QTimer
 
 from log.log import log
 
@@ -12,6 +13,9 @@ from main.runtime_state import (
 from main.window_close_state import WindowCloseState
 from main.window_startup_state import WindowStartupState
 from main.window_visual_state import WindowVisualState
+
+
+STARTUP_CONTINUE_AFTER_UI_READY_MS = 250
 
 
 class WindowStartupMixin:
@@ -59,8 +63,14 @@ class WindowStartupMixin:
             log(traceback.format_exc(), "DEBUG")
             return
 
+        self.mark_startup_interactive("ui_ready")
         log(f"⏱ Startup: build_ui {(_time.perf_counter() - build_started_at) * 1000:.0f}ms", "DEBUG")
         log(f"⏱ Startup: deferred init total {(_time.perf_counter() - total_started_at) * 1000:.0f}ms", "DEBUG")
+        emit_startup_metric("StartupContinueAfterUiReadyQueued", f"{STARTUP_CONTINUE_AFTER_UI_READY_MS}ms")
+        QTimer.singleShot(STARTUP_CONTINUE_AFTER_UI_READY_MS, self._continue_startup_after_ui_ready)
+
+    def _continue_startup_after_ui_ready(self) -> None:
+        emit_startup_metric("StartupContinueAfterUiReadyDispatch", "continue_startup_requested")
         self.continue_startup_requested.emit()
 
     def _finalize_ui_bootstrap(self) -> None:

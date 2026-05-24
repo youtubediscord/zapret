@@ -8,8 +8,8 @@ from log.ui.page import LogsPage
 
 
 class LogRefreshIconContractTests(unittest.TestCase):
-    def test_logs_tab_refresh_button_uses_fluent_icon(self) -> None:
-        source = inspect.getsource(logs_build.build_logs_tab_ui)
+    def test_logs_primary_tab_refresh_button_uses_fluent_icon(self) -> None:
+        source = inspect.getsource(logs_build.build_logs_primary_tab_ui)
 
         self.assertIn("FluentIcon.SYNC", source)
         self.assertNotIn("get_themed_qta_icon", source)

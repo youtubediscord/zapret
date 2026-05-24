@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from qfluentwidgets import (
     ComboBox,
     FluentIcon,
@@ -162,6 +163,7 @@ class OrchestraLockedPage(BasePage):
         self._runtime_initialized = False
         self._refresh_loading = False
         self._cleanup_in_progress = False
+        self._snapshot_load_runtime = OneShotWorkerRuntime()
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -424,23 +426,33 @@ class OrchestraLockedPage(BasePage):
         if self._cleanup_in_progress:
             return
         self._set_refresh_loading(True)
+        self._start_snapshot_worker()
 
-        def _do_reload():
-            if self._cleanup_in_progress:
-                return
-            try:
-                self._managed.reload_snapshot()
-                self._refresh_data()
-            finally:
-                if not self._cleanup_in_progress:
-                    self._set_refresh_loading(False)
+    def _start_snapshot_worker(self) -> None:
+        if self._cleanup_in_progress:
+            return
+        self._snapshot_load_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._managed.create_snapshot_load_worker(request_id, self),
+            on_loaded=self._on_snapshot_loaded,
+            on_failed=self._on_snapshot_failed,
+            on_finished=self._on_snapshot_worker_finished,
+        )
 
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: (not self._cleanup_in_progress) and _do_reload())
+    def _on_snapshot_loaded(self, request_id: int, _snapshot) -> None:
+        if not self._snapshot_load_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        self._refresh_data()
+        self._set_refresh_loading(False)
 
-    def _load_directly_from_settings(self):
-        """Загружает данные напрямую из settings.json (без активного runner)."""
-        self._managed.load_direct_snapshot()
+    def _on_snapshot_failed(self, request_id: int, error: str) -> None:
+        if not self._snapshot_load_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        log(f"Ошибка загрузки залоченных стратегий: {error}", "ERROR")
+        self._set_refresh_loading(False)
+
+    def _on_snapshot_worker_finished(self, worker) -> None:
+        if self._snapshot_load_runtime.worker is worker:
+            self._snapshot_load_runtime.worker = None
 
     def _refresh_locked_list(self):
         """Обновляет список залоченных стратегий"""
@@ -622,6 +634,12 @@ class OrchestraLockedPage(BasePage):
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
         self._refresh_loading = False
+        self._snapshot_load_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="Orchestra locked snapshot worker",
+        )
+        self._snapshot_load_runtime.cancel()
         try:
             self.notification_banner.auto_hide_timer.stop()
             self.notification_banner.hide()

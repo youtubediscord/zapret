@@ -25,6 +25,7 @@ def process_pending_presets_switch(runtime_owner) -> None:
         runtime_owner._presets_switch_method or get_strategy_launch_method() or ""
     ).strip().lower()
     if not is_preset_launch_method(launch_method):
+        runtime_owner._runtime_service().set_busy(False)
         return
 
     if runner_transition_in_progress(runtime_owner, launch_method=launch_method):
@@ -64,6 +65,7 @@ def process_pending_presets_switch(runtime_owner) -> None:
     if not runtime_owner.is_running():
         log("Preset mode switch пропущен: DPI уже не запущен", "DEBUG")
         runtime_owner._presets_switch_completed_generation = target_generation
+        runtime_owner._runtime_service().set_busy(False)
         return
 
     start_worker_thread(
@@ -90,6 +92,7 @@ def switch_presets_async(runtime_owner, launch_method: str | None = None) -> Non
 
     runtime_owner._presets_switch_method = method
     runtime_owner._presets_switch_requested_generation += 1
+    runtime_owner._runtime_service().set_busy(True, "Применяем пресет...")
     log(
         f"Preset mode switch запросили, актуальное поколение {runtime_owner._presets_switch_requested_generation} ({method})",
         "INFO",

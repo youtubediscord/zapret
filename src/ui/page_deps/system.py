@@ -31,13 +31,6 @@ def build_blobs_page_kwargs(*, page_name: PageName, blobs_feature, show_active_m
     }
 
 
-def build_lists_page_kwargs(*, page_name: PageName, lists_feature) -> dict:
-    _ = page_name
-    return {
-        "lists_feature": lists_feature,
-    }
-
-
 def build_network_page_kwargs(*, page_name: PageName, dns_feature) -> dict:
     _ = page_name
     return {
@@ -225,7 +218,6 @@ __all__ = [
     "build_blobs_page_kwargs",
     "build_dpi_settings_page_kwargs",
     "build_hosts_page_kwargs",
-    "build_lists_page_kwargs",
     "build_logs_page_kwargs",
     "build_network_page_kwargs",
     "build_orchestra_page_kwargs",

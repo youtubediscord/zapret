@@ -49,6 +49,52 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertEqual(calls, [(ZAPRET2_MODE, "preset_content_changed", "Default v5.txt")])
         self.assertEqual(ui_state.content_revision, 1)
 
+    def test_raw_editor_can_save_active_preset_without_publishing_until_commit(self) -> None:
+        from presets.raw_preset_editor_workflow import RawPresetEditorController
+        from settings.mode import ZAPRET2_MODE
+
+        save_calls: list[tuple[str, str, str, bool]] = []
+        publish_calls: list[tuple[str, str]] = []
+
+        class _PresetsFeature:
+            def save_preset_source_by_file_name(
+                self,
+                launch_method,
+                file_name,
+                source_text,
+                *,
+                publish_content_changed=True,
+            ):
+                save_calls.append((launch_method, file_name, source_text, publish_content_changed))
+                return type("Manifest", (), {"name": "Default v5", "file_name": file_name})()
+
+            def get_preset_source_path_by_file_name(self, _launch_method, file_name):
+                from pathlib import Path
+
+                return Path("C:/Zapret/Dev/presets/winws2") / file_name
+
+            def publish_preset_content_changed(self, launch_method, file_name):
+                publish_calls.append((launch_method, file_name))
+
+        feature = _PresetsFeature()
+        controller = RawPresetEditorController(
+            presets_feature=feature,
+            launch_method=ZAPRET2_MODE,
+        )
+
+        controller.save_text(
+            file_name="Default v5.txt",
+            source_text="--new\n--filter-tcp=80\n",
+            publish_content_changed=False,
+        )
+        controller.publish_content_changed("Default v5.txt")
+
+        self.assertEqual(
+            save_calls,
+            [(ZAPRET2_MODE, "Default v5.txt", "--new\n--filter-tcp=80\n", False)],
+        )
+        self.assertEqual(publish_calls, [(ZAPRET2_MODE, "Default v5.txt")])
+
 
 if __name__ == "__main__":
     unittest.main()

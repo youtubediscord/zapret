@@ -6,6 +6,7 @@
 --wf-udp=80,443,5056,27002,50000-50100
 
 # === YouTube HTTPS ===
+--name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=multisplit
@@ -14,7 +15,10 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_7.bin
 
 # === YouTube QUIC ===
+
 --new
+
+--name=youtube.com (QUIC)
 --filter-udp=443
 --ipset=lists/ipset-youtube.txt
 --dpi-desync=fake
@@ -22,7 +26,10 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Googlevideo ===
+
 --new
+
+--name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --dpi-desync=multidisorder
@@ -30,7 +37,10 @@
 --dpi-desync-split-seqovl=1
 
 # === Discord updates ===
+
 --new
+
+--name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
 --dpi-desync=fake,split2
@@ -40,7 +50,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord + other sites ===
+
 --new
+
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
@@ -50,17 +63,21 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
---filter-tcp=80,443
---hostlist=lists/other.txt
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,split2
 --dpi-desync-repeats=6
 --dpi-desync-fooling=md5sig
 --dpi-desync-autottl=2
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
-# === Discord Media ===
 --new
+
+--name=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,split2
@@ -70,7 +87,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
+
+--name=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,split2
@@ -80,7 +100,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
+
+--name=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,split2
@@ -90,8 +113,11 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
---filter-tcp=80,443
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,split2
 --dpi-desync-repeats=6
@@ -100,7 +126,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
+
+--name=itch.io
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,split2
@@ -110,7 +139,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
+
+--name=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,split2
@@ -120,7 +152,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
+
+--name=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,split2
@@ -130,7 +165,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
+
+--name=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,split2
@@ -140,8 +178,11 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Media ===
+
 --new
---filter-tcp=80,443
+
+--name=discord.media
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist-domains=discord.media
 --dpi-desync=fake,split2
 --dpi-desync-repeats=6
@@ -150,8 +191,11 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord Voice (UDP) ===
+
 --new
---filter-udp=50000-50100
+
+--name=Discord UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -159,7 +203,9 @@
 --dpi-desync-repeats=6
 
 # === Discord TCP 6695-6705 ===
+
 --new
+
 --filter-tcp=6695-6705
 --dpi-desync=fake,split2
 --dpi-desync-repeats=8
@@ -168,7 +214,9 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === Discord QUIC ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake
@@ -176,7 +224,10 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Twitter ===
+
 --new
+
+--name=Twitter/X
 --filter-tcp=80,443
 --ipset=lists/ipset-twitter.txt
 --dpi-desync=fake,split2
@@ -186,15 +237,10 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === General blocked sites ===
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=multidisorder
---dpi-desync-split-pos=1,host+2,sld+2,endhost-2
---dpi-desync-split-seqovl=1
 
-# === UDP 5056/27002 ===
 --new
+
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=multidisorder
@@ -202,7 +248,10 @@
 --dpi-desync-split-seqovl=1
 
 # === UDP 5056/27002 ===
+
 --new
+
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -211,15 +260,20 @@
 --dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
 
 # === QUIC Cloudflare ===
+
 --new
---filter-udp=443
+
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
 --dpi-desync-repeats=6
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Tankix ===
+
 --new
+
 --filter-tcp=80,443
 --hostlist-domains=resources.txrevive.com,main.txrevive.com
 --dpi-desync=fake,split2
@@ -227,4 +281,3 @@
 --dpi-desync-fooling=md5sig
 --dpi-desync-autottl=2
 --dpi-desync-fake-http=bin/http_iana_org.bin
---new

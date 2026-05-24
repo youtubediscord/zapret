@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 import qtawesome as qta
 
@@ -22,7 +23,6 @@ from blockcheck.ui.summary_build import build_dpi_summary_section
 from blockcheck.ui.helpers import (
     add_domain_chip,
     collect_extra_domains,
-    load_domain_chips,
     remove_domain_chip,
 )
 from blockcheck.ui.page_results_workflow import (
@@ -53,6 +53,7 @@ from qfluentwidgets import (
 )
 
 from ui.fluent_widgets import SettingsCard, InfoBarHelper, QuickActionsBar, set_tooltip
+from log.log import log
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,9 @@ class BlockcheckPage(BasePage):
         self._actions_bar = None
         self._prepare_support_btn = None
         self._support_status_label = None
+        initial_state_started_at = time.perf_counter()
+        self._initial_state = self._blockcheck.load_page_initial_state()
+        self._log_ui_timing("blockcheck_ui.initial_state.load", initial_state_started_at)
         self._build_ui()
         try:
             self.set_ui_language(self._ui_language)
@@ -135,7 +139,9 @@ class BlockcheckPage(BasePage):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
+        total_started_at = time.perf_counter()
         # ── Tabs (BlockCheck / Strategy scan / Diagnostics / DNS spoofing) ──
+        section_started_at = time.perf_counter()
         self._tabs_pivot = SegmentedWidget(self)
         self._tabs_pivot.addItem(
             self.TAB_BLOCKCHECK,
@@ -160,8 +166,10 @@ class BlockcheckPage(BasePage):
         self._tabs_pivot.setCurrentItem(self.TAB_BLOCKCHECK)
         self._tabs_pivot.setItemFontSize(13)
         self.add_widget(self._tabs_pivot)
+        self._log_ui_timing("blockcheck_ui.tabs.build", section_started_at)
 
         # ── Control Card ──
+        section_started_at = time.perf_counter()
         self._control_card = SettingsCard(
             tr_catalog("page.blockcheck.control", default="Управление")
         )
@@ -218,7 +226,9 @@ class BlockcheckPage(BasePage):
         )
         self._control_card.add_widget(self._status_label)
         self._add_tab_widget(self._control_card)
+        self._log_ui_timing("blockcheck_ui.control_card.build", section_started_at)
 
+        section_started_at = time.perf_counter()
         actions_widgets = build_actions_section(
             tr_fn=lambda key, default: tr_catalog(key, default=default),
             strong_body_label_cls=StrongBodyLabel,
@@ -236,8 +246,10 @@ class BlockcheckPage(BasePage):
 
         self._add_tab_widget(self._actions_title_label)
         self._add_tab_widget(self._actions_bar)
+        self._log_ui_timing("blockcheck_ui.actions.build", section_started_at)
 
         # ── Custom Domains Card ──
+        section_started_at = time.perf_counter()
         domains_widgets = build_blockcheck_domains_ui(
             tr_fn=lambda key, default: tr_catalog(key, default=default),
             settings_card_cls=SettingsCard,
@@ -256,11 +268,15 @@ class BlockcheckPage(BasePage):
         self._domains_flow_layout = domains_widgets.flow_layout
 
         self._add_tab_widget(self._domains_card)
+        self._log_ui_timing("blockcheck_ui.domains_card.build", section_started_at)
 
         # Load persisted user domains
-        self._load_domain_chips()
+        section_started_at = time.perf_counter()
+        self._apply_initial_domain_chips(self._initial_state.user_domains)
+        self._log_ui_timing("blockcheck_ui.domain_chips.apply", section_started_at)
 
         # ── Results Table Card ──
+        section_started_at = time.perf_counter()
         results_widgets = build_results_section(
             tr_fn=lambda key, default: tr_catalog(key, default=default),
             settings_card_cls=SettingsCard,
@@ -273,8 +289,10 @@ class BlockcheckPage(BasePage):
         self._tcp_section_label = results_widgets.tcp_section_label
         self._tcp_table = results_widgets.tcp_table
         self._add_tab_widget(self._results_card)
+        self._log_ui_timing("blockcheck_ui.results_section.build", section_started_at)
 
         # ── DPI Summary Card (hidden until tests complete) ──
+        section_started_at = time.perf_counter()
         dpi_widgets = build_dpi_summary_section(
             tr_fn=lambda key, default: tr_catalog(key, default=default),
             settings_card_cls=SettingsCard,
@@ -289,8 +307,10 @@ class BlockcheckPage(BasePage):
         self._dns_summary = dpi_widgets.dns_summary
         self._recommendation = dpi_widgets.recommendation
         self._add_tab_widget(self._dpi_card)
+        self._log_ui_timing("blockcheck_ui.dpi_summary.build", section_started_at)
 
         # ── Log Card ──
+        section_started_at = time.perf_counter()
         self._log_expanded = False
         log_widgets = build_log_card_section(
             tr_fn=lambda key, default: tr_catalog(key, default=default),
@@ -311,9 +331,13 @@ class BlockcheckPage(BasePage):
         self._prepare_support_btn = log_widgets.prepare_support_button
         self._log_edit = log_widgets.log_edit
         self._add_tab_widget(self._log_card)
+        self._log_ui_timing("blockcheck_ui.log_card.build", section_started_at)
 
         # Strategy scan tab (lazy-created)
+        section_started_at = time.perf_counter()
         self._switch_tab(0)
+        self._log_ui_timing("blockcheck_ui.initial_tab.switch", section_started_at)
+        self._log_ui_timing("blockcheck_ui.build.total", total_started_at)
 
     # ------------------------------------------------------------------
     # Theme
@@ -344,6 +368,7 @@ class BlockcheckPage(BasePage):
         """Create embedded strategy-scan tab on first open."""
         if self._strategy_tab_page is not None:
             return
+        started_at = time.perf_counter()
         try:
             from blockcheck.ui.strategy_scan_page import StrategyScanPage
             self._strategy_tab_page = StrategyScanPage(
@@ -360,11 +385,14 @@ class BlockcheckPage(BasePage):
                 pass
         except Exception as e:
             logger.warning("Failed to create embedded strategy tab: %s", e)
+        finally:
+            self._log_ui_timing("blockcheck_ui.strategy_tab.build", started_at)
 
     def _ensure_diagnostics_tab(self):
         """Create embedded connection diagnostics tab on first open."""
         if self._diagnostics_tab_page is not None:
             return
+        started_at = time.perf_counter()
         try:
             from diagnostics.ui.page import ConnectionTestPage
 
@@ -381,11 +409,14 @@ class BlockcheckPage(BasePage):
                 pass
         except Exception as e:
             logger.warning("Failed to create diagnostics tab: %s", e)
+        finally:
+            self._log_ui_timing("blockcheck_ui.diagnostics_tab.build", started_at)
 
     def _ensure_dns_spoofing_tab(self):
         """Create embedded DNS spoofing tab on first open."""
         if self._dns_spoofing_tab_page is not None:
             return
+        started_at = time.perf_counter()
         try:
             from dns.ui.dns_check_page import DNSCheckPage
 
@@ -402,6 +433,8 @@ class BlockcheckPage(BasePage):
                 pass
         except Exception as e:
             logger.warning("Failed to create DNS spoofing tab: %s", e)
+        finally:
+            self._log_ui_timing("blockcheck_ui.dns_spoofing_tab.build", started_at)
 
     @classmethod
     def _normalize_tab_key(cls, key: str | None) -> str:
@@ -429,6 +462,7 @@ class BlockcheckPage(BasePage):
 
     def _switch_tab(self, index: int) -> None:
         """Switch between BlockCheck, strategy scan and diagnostics tabs."""
+        started_at = time.perf_counter()
         if not self.TAB_ORDER:
             return
         index = max(0, min(int(index), len(self.TAB_ORDER) - 1))
@@ -463,6 +497,7 @@ class BlockcheckPage(BasePage):
 
         if tab_key == self.TAB_DIAGNOSTICS:
             self._apply_pending_diagnostics_start_focus()
+        self._log_ui_timing(f"blockcheck_ui.switch_tab.{tab_key}", started_at)
 
     def _apply_pending_diagnostics_start_focus(self) -> None:
         if not self._pending_diagnostics_start_focus:
@@ -789,12 +824,20 @@ class BlockcheckPage(BasePage):
     # Custom domains
     # ------------------------------------------------------------------
 
-    def _load_domain_chips(self):
-        """Load persisted user domains and create chips."""
-        load_domain_chips(
-            load_domains_fn=blockcheck_page_runtime.load_user_domains,
-            add_chip_fn=self._add_chip,
-        )
+    def _apply_initial_domain_chips(self, domains: tuple[str, ...]) -> None:
+        """Create chips from a backend-prepared domain list."""
+        started_at = time.perf_counter()
+        for domain in tuple(domains or ()):
+            self._add_chip(domain)
+        self._log_ui_timing("blockcheck_ui.domain_chips.apply.total", started_at)
+
+    @staticmethod
+    def _log_ui_timing(label: str, started_at: float) -> None:
+        try:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+            log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
+        except Exception:
+            pass
 
     def _on_add_domain(self):
         """Add a domain from the input field."""

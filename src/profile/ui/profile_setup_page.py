@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 from log.log import log
 from profile.match_filters import filter_values
-from profile.winws2_editable_settings import normalize_winws2_filter_value
+from profile.editable_settings import normalize_filter_value
 from profile.ui.profile_setup_controls import (
     range_expression_from_controls,
     set_combo_by_data,
@@ -44,7 +44,7 @@ from qfluentwidgets import (
     SegmentedWidget,
     PushButton,
 )
-from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_zapret2_launch_method
+from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_preset_launch_method, is_zapret2_launch_method
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip
 from app.text_catalog import tr as tr_catalog
@@ -372,6 +372,19 @@ def _match_tab_text(payload) -> str:
     return "\n".join(lines).strip()
 
 
+def _profile_editor_tab_title(payload) -> str:
+    item = getattr(payload, "item", None)
+    match_lines = tuple(str(line or "").strip().lower() for line in getattr(item, "match_lines", ()) or ())
+    if any(line.startswith(("--hostlist-exclude", "--ipset-exclude")) for line in match_lines):
+        return "Исключения"
+
+    display_name = str(getattr(item, "display_name", "") or "").casefold()
+    if "исключения" in display_name:
+        return "Исключения"
+
+    return "Редактор"
+
+
 class ProfileSetupPageBase(BasePage):
     profile_ui_mode_override: str | None = None
     launch_method = ZAPRET2_MODE
@@ -527,10 +540,7 @@ class ProfileSetupPageBase(BasePage):
         self._strategy_tabs.addItem("editor", "Редактор", lambda: self._switch_strategy_tab(1))
         self._strategy_tabs.addItem("match", "Когда применяется", lambda: self._switch_strategy_tab(2))
         self._strategy_tabs.setCurrentItem("strategies")
-        set_tooltip(
-            self._strategy_tabs,
-            "Готовые стратегии меняют строки --lua-desync. «Редактор» меняет файл hostlist/ipset. «Когда применяется» показывает условия profile и итоговый текст.",
-        )
+        self._sync_editor_tab_label(None)
         self.layout.addWidget(self._strategy_tabs)
 
         self._strategy_list = ProfileStrategyListWidget(self)
@@ -693,7 +703,13 @@ class ProfileSetupPageBase(BasePage):
             self._list_file_status_label.setText("Загрузка файла списка...")
         self._list_file_load_request_id += 1
         request_id = self._list_file_load_request_id
-        worker = self._controller.create_list_file_load_worker(request_id, self._profile_key, self)
+        worker = self._controller.create_list_file_load_worker(
+            request_id,
+            self._profile_key,
+            filter_kind=self._current_filter_kind(),
+            filter_value=self._current_filter_value(),
+            parent=self,
+        )
         self._list_file_load_worker = worker
         worker.loaded.connect(self._on_list_file_editor_state_loaded)
         worker.failed.connect(self._on_list_file_editor_state_failed)
@@ -972,6 +988,7 @@ class ProfileSetupPageBase(BasePage):
             if self._delete_user_profile_button is not None:
                 self._delete_user_profile_button.setVisible(bool(_user_profile_id_from_payload(self._profile_key, payload)))
             self._apply_editable_settings(payload)
+            self._sync_editor_tab_label(payload)
 
             self._strategy_list.set_rows(
                 entries=payload.strategy_entries,
@@ -986,6 +1003,15 @@ class ProfileSetupPageBase(BasePage):
             self._rebuild_breadcrumb()
         finally:
             self._loading = False
+
+    def _sync_editor_tab_label(self, payload) -> None:
+        editor_title = _profile_editor_tab_title(payload)
+        if self._strategy_tabs is not None:
+            self._strategy_tabs.setItemText("editor", editor_title)
+            set_tooltip(
+                self._strategy_tabs,
+                f"Готовые стратегии меняют строки --lua-desync. «{editor_title}» меняет файл hostlist/ipset. «Когда применяется» показывает условия profile и итоговый текст.",
+            )
 
     def _apply_list_file_editor_state(self, state) -> None:
         kind = str(getattr(state, "kind", "") or "").strip().lower()
@@ -1160,15 +1186,18 @@ class ProfileSetupPageBase(BasePage):
             self._notwork_button.setProperty("selected", state.rating == "notwork")
 
     def _apply_editable_settings(self, payload) -> None:
+        is_preset_mode = is_preset_launch_method(self.launch_method)
         is_winws2 = is_zapret2_launch_method(self.launch_method)
-        if self._settings_container is not None:
-            self._settings_container.setVisible(is_winws2)
-        if not is_winws2:
+        if not is_preset_mode:
+            if self._settings_container is not None:
+                self._settings_container.setVisible(False)
             return
 
         filter_enabled = bool(getattr(payload, "editable_filter_enabled", True))
         available_kinds = tuple(getattr(payload, "editable_filter_kinds", ()) or ())
         filter_switchable = filter_enabled and len({kind for kind in available_kinds if kind in {"hostlist", "ipset"}}) > 1
+        if self._settings_container is not None:
+            self._settings_container.setVisible(is_winws2 or filter_switchable)
         self._rebuild_filter_kind_combo(
             available_kinds,
             str(getattr(payload, "editable_filter_kind", "") or "hostlist"),
@@ -1177,6 +1206,16 @@ class ProfileSetupPageBase(BasePage):
         self._filter_value.setText(str(getattr(payload, "editable_filter_value", "") or ""))
         self._filter_combo.setVisible(filter_switchable)
         self._filter_value.setVisible(filter_switchable)
+        for widget in (
+            self._in_range_label,
+            self._in_range_mode,
+            self._in_range_value,
+            self._out_range_label,
+            self._out_range_mode,
+            self._out_range_value,
+        ):
+            if widget is not None:
+                widget.setVisible(is_winws2)
         set_range_controls(self._in_range_mode, self._in_range_value, getattr(payload, "in_range", "") or "x")
         set_range_controls(self._out_range_mode, self._out_range_value, getattr(payload, "out_range", "") or "a")
         self._update_all_range_tooltips()
@@ -1219,23 +1258,38 @@ class ProfileSetupPageBase(BasePage):
 
     def _on_filter_kind_changed(self) -> None:
         self._sync_filter_value_for_kind()
+        if self._profile_is_only_template() and self._editor_tab_built and self._strategy_stack.currentIndex() == 1:
+            self._request_list_file_editor_state()
         self._schedule_settings_autosave()
 
+    def _current_filter_kind(self) -> str:
+        return str(self._filter_combo.itemData(self._filter_combo.currentIndex()) or "hostlist")
+
+    def _current_filter_value(self) -> str:
+        return self._filter_value.text().strip()
+
+    def _profile_is_only_template(self) -> bool:
+        item = getattr(self._payload, "item", None)
+        return item is not None and not bool(getattr(item, "in_preset", False))
+
     def _sync_filter_value_for_kind(self) -> None:
-        if self._loading or not is_zapret2_launch_method(self.launch_method):
+        if self._loading or not is_preset_launch_method(self.launch_method):
             return
-        filter_kind = str(self._filter_combo.itemData(self._filter_combo.currentIndex()) or "hostlist")
-        normalized = normalize_winws2_filter_value(self._filter_value.text(), filter_kind)
+        filter_kind = self._current_filter_kind()
+        filter_role = str(getattr(self._payload, "editable_filter_role", "") or "primary")
+        normalized = normalize_filter_value(self._filter_value.text(), filter_kind, filter_role=filter_role)
         if normalized and normalized != self._filter_value.text().strip():
             self._filter_value.setText(normalized)
 
     def _schedule_settings_autosave(self) -> None:
-        if self._loading or not self._profile_key or not is_zapret2_launch_method(self.launch_method):
+        if self._loading or not self._profile_key or not is_preset_launch_method(self.launch_method):
+            return
+        if self._profile_is_only_template():
             return
         self._settings_save_timer.start()
 
     def _autosave_editable_settings(self) -> None:
-        if self._loading or not self._profile_key or not is_zapret2_launch_method(self.launch_method):
+        if self._loading or not self._profile_key or not is_preset_launch_method(self.launch_method):
             return
         filter_value = self._filter_value.text().strip()
         filter_enabled = bool(getattr(self._payload, "editable_filter_enabled", True))
@@ -1244,7 +1298,7 @@ class ProfileSetupPageBase(BasePage):
         try:
             new_key = self._controller.save_winws2_settings(
                 profile_key=self._profile_key,
-                filter_kind=str(self._filter_combo.itemData(self._filter_combo.currentIndex()) or "hostlist"),
+                filter_kind=self._current_filter_kind(),
                 filter_value=filter_value,
                 in_range=range_expression_from_controls(self._in_range_mode, self._in_range_value, default="x"),
                 out_range=range_expression_from_controls(self._out_range_mode, self._out_range_value, default="a"),
@@ -1289,6 +1343,8 @@ class ProfileSetupPageBase(BasePage):
             new_key = self._controller.set_enabled(
                 profile_key=self._profile_key,
                 enabled=enabled,
+                filter_kind=self._current_filter_kind(),
+                filter_value=self._current_filter_value(),
             )
             if new_key:
                 self._profile_key = new_key

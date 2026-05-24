@@ -14,6 +14,30 @@ class BlockcheckRunLogState:
     path: str | None
     created: bool
 
+
+@dataclass(frozen=True, slots=True)
+class BlockcheckPageInitialStatePlan:
+    user_domains: tuple[str, ...]
+
+
+def _normalize_user_domains(values: object) -> tuple[str, ...]:
+    if not isinstance(values, list):
+        return ()
+    return tuple(str(item).strip().lower() for item in values if str(item).strip())
+
+
+def load_page_initial_state() -> BlockcheckPageInitialStatePlan:
+    try:
+        from settings.store import read_settings
+
+        data = read_settings()
+        blockcheck = dict(data.get("blockcheck") or {})
+        domains = _normalize_user_domains(blockcheck.get("user_domains"))
+    except Exception:
+        domains = ()
+    return BlockcheckPageInitialStatePlan(user_domains=domains)
+
+
 def load_user_domains() -> list[str]:
     from blockcheck.targets import load_user_domains
 

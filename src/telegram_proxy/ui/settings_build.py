@@ -14,7 +14,6 @@ from ui.fluent_widgets import (
     insert_widget_into_setting_card_group,
     set_tooltip,
 )
-from telegram_proxy.upstream_catalog import UpstreamCatalog
 
 
 @dataclass(slots=True)
@@ -81,6 +80,7 @@ def build_telegram_proxy_settings_panel(
     on_open_in_telegram,
     on_copy_link,
     on_open_mtproxy,
+    upstream_catalog,
 ) -> TelegramProxySettingsPanelWidgets:
     status_card = SettingsCard()
 
@@ -187,7 +187,6 @@ def build_telegram_proxy_settings_panel(
     upstream_toggle.setChecked(False)
     upstream_card.addSettingCard(upstream_toggle)
 
-    upstream_catalog = UpstreamCatalog.load_from_runtime()
     upstream_preset_row = win11_combo_row_cls(
         icon_name="mdi.server-network",
         title="Сервер",

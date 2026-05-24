@@ -2,8 +2,10 @@ import time as _time
 from dataclasses import dataclass
 from typing import Callable
 
+from PyQt6.QtCore import QTimer
+
 from log.log import log
-from main.qt_dispatch import run_queued, run_queued_with_str
+from main.qt_dispatch import run_queued
 from settings.mode import normalize_launch_method
 
 
@@ -15,6 +17,9 @@ TASK_CORE_STARTUP = "core_startup"
 TASK_THEME_MANAGER = "theme_manager"
 TASK_TRAY = "tray"
 TASK_STARTUP_CORE_READY = "startup_core_ready"
+
+STARTUP_STEP_GAP_MS = 25
+STARTUP_DPI_AUTOSTART_DELAY_MS = 300
 
 REQUIRED_STARTUP_COMPONENTS = (
     TASK_LAUNCH_RUNTIME_API,
@@ -123,11 +128,14 @@ class StartupCoordinator:
             ),
         ]
 
-        for task_name, label, task, error_status in startup_steps:
-            log(f"🟡 Выполняем {task_name} сразу", "DEBUG")
-            self._run_step(task_name, label, task, error_status=error_status)
-
-        run_queued(self._run_phase_two_init)
+        self._log_startup_step(
+            "StartupRuntimeInitQueued",
+            f"{STARTUP_STEP_GAP_MS}ms gaps",
+        )
+        self._run_startup_steps_queued(
+            startup_steps,
+            after_complete=lambda: run_queued(self._run_phase_two_init),
+        )
 
     def _run_phase_two_init(self) -> None:
         """Продолжает старт после первого возврата в цикл интерфейса."""
@@ -177,9 +185,41 @@ class StartupCoordinator:
             )
         )
 
-        for task_name, label, task, error_status in phase_two_steps:
-            log(f"🟡 Выполняем {task_name} после первого показа окна", "DEBUG")
+        self._log_startup_step(
+            "StartupRuntimePhaseTwoQueued",
+            f"{STARTUP_STEP_GAP_MS}ms gaps",
+        )
+        self._run_startup_steps_queued(phase_two_steps)
+
+    def _run_startup_steps_queued(
+        self,
+        steps,
+        *,
+        index: int = 0,
+        after_complete=None,
+    ) -> None:
+        """Выполняет startup-шаги по одному, возвращая управление UI между ними."""
+        if index >= len(steps):
+            if callable(after_complete):
+                after_complete()
+            return
+
+        task_name, label, task, error_status = steps[index]
+
+        def _run_current_step() -> None:
+            log(f"🟡 Выполняем {task_name} после готовности UI", "DEBUG")
             self._run_step(task_name, label, task, error_status=error_status)
+            self._run_startup_steps_queued(
+                steps,
+                index=index + 1,
+                after_complete=after_complete,
+            )
+
+        delay_ms = 0 if index == 0 else STARTUP_STEP_GAP_MS
+        if delay_ms <= 0:
+            run_queued(_run_current_step)
+            return
+        QTimer.singleShot(delay_ms, _run_current_step)
 
     # ───────────────────────── инициализация подсистем ───────────────────────
 
@@ -258,14 +298,17 @@ class StartupCoordinator:
                 f"{launch_method} {(_time.perf_counter() - t_method)*1000:.0f}ms",
             )
 
-            run_queued_with_str(self._run_deferred_post_init_launch, str(launch_method or ""))
+            QTimer.singleShot(
+                STARTUP_DPI_AUTOSTART_DELAY_MS,
+                lambda method=str(launch_method or ""): self._run_deferred_post_init_launch(method),
+            )
             self._log_startup_step(
                 "StartupPostInitDeferredScheduled",
-                f"{launch_method}, queued_connection",
+                f"{launch_method}, {STARTUP_DPI_AUTOSTART_DELAY_MS}ms after post-init",
             )
             self._log_startup_step(
                 "StartupDpiAutostart",
-                f"{launch_method}, queued_connection",
+                f"{launch_method}, {STARTUP_DPI_AUTOSTART_DELAY_MS}ms after post-init",
             )
             post_init_metric_source = f"post_init_scheduled:{launch_method}"
 

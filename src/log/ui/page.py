@@ -22,10 +22,12 @@ from qfluentwidgets import (
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QTransform, QIcon
 import qtawesome as qta
 import re
+import time
 
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
-from log.ui.logs_build import build_logs_tab_ui
+from log.ui.logs_build import build_logs_primary_tab_ui, build_logs_secondary_panels_ui
 from log.ui.runtime_helpers import (
     append_error,
     clear_errors,
@@ -130,6 +132,8 @@ class LogsPage(BasePage):
         self._winws_thread = None
         self._winws_worker = None
         self._winws_lines_count = 0
+        self._logs_overview_runtime = OneShotWorkerRuntime()
+        self._logs_overview_pending_cleanup = False
 
         # Error panel height tuning (avoid large empty block when no errors).
         self._errors_text_min_height = 52
@@ -142,6 +146,9 @@ class LogsPage(BasePage):
         self._runtime_initialized = False
         self._send_tab_initialized = False
         self._runtime_started = False
+        self._logs_secondary_initialized = False
+        self._logs_secondary_build_scheduled = False
+        self._runtime_init_scheduled = False
 
         # qtawesome animations (e.g. qta.Spin) are not QAbstractAnimation; track state ourselves.
         self._refresh_spin_active = False
@@ -152,6 +159,13 @@ class LogsPage(BasePage):
             pass
 
     def _run_runtime_init_once(self) -> None:
+        if self._cleanup_in_progress or not self.isVisible():
+            return
+        started_at = time.perf_counter()
+        warmed = self._logs.consume_warmed_page_data()
+        if warmed is not None:
+            self._apply_logs_list_state(warmed.logs_state, run_cleanup=False)
+            self._apply_logs_stats_state(warmed.stats_state)
         self._runtime_initialized, self._runtime_started = self._logs.run_runtime_init(
             runtime_initialized=self._runtime_initialized,
             runtime_started=self._runtime_started,
@@ -159,20 +173,37 @@ class LogsPage(BasePage):
             refresh_logs_fn=self._refresh_logs_list,
             update_stats_fn=self._update_stats,
             start_tail_worker_fn=self._start_tail_worker,
-            start_winws_worker_fn=self._start_winws_output_worker,
+            start_winws_worker_fn=self._schedule_winws_output_worker_start,
             start_status_timer_fn=self._winws_status_timer.start,
         )
+        self._log_ui_timing("logs_ui.runtime_init.total", started_at)
+
+    def _schedule_runtime_init(self) -> None:
+        if self._runtime_init_scheduled:
+            return
+        self._runtime_init_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_runtime_init)
+
+    def _run_scheduled_runtime_init(self) -> None:
+        self._runtime_init_scheduled = False
+        if self._cleanup_in_progress or not self.isVisible():
+            return
+        self._run_runtime_init_once()
 
     def _stop_runtime(self) -> None:
         self._winws_status_timer.stop()
+        self._stop_logs_overview_worker(blocking=False)
         self._stop_tail_worker(blocking=False)
         self._stop_winws_output_worker(blocking=False)
         self._runtime_started = False
 
     def on_page_activated(self) -> None:
-        self._run_runtime_init_once()
+        self._schedule_runtime_init()
+        self._schedule_logs_secondary_panels()
 
     def on_page_hidden(self) -> None:
+        self._runtime_init_scheduled = False
+        self._logs_secondary_build_scheduled = False
         self._stop_runtime()
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
@@ -224,7 +255,7 @@ class LogsPage(BasePage):
 
         # errors_count_label is now a CaptionLabel (Fluent) — no manual style needed
 
-        if hasattr(self, "errors_text"):
+        if getattr(self, "errors_text", None) is not None:
             self.errors_text.setStyleSheet(
                 "QTextEdit {"
                 f" background-color: {err_bg};"
@@ -252,7 +283,7 @@ class LogsPage(BasePage):
         self._winws_status_running = tokens.accent_hex
         self._winws_status_error = err_fg
 
-        if hasattr(self, "winws_text"):
+        if getattr(self, "winws_text", None) is not None:
             self.winws_text.setStyleSheet(
                 "QTextEdit {"
                 f" background-color: {editor_bg};"
@@ -321,6 +352,8 @@ class LogsPage(BasePage):
         )
 
     def _refresh_winws_status_style_only(self) -> None:
+        if getattr(self, "winws_status_label", None) is None:
+            return
         try:
             current_text = self.winws_status_label.text() or ""
         except Exception:
@@ -334,6 +367,8 @@ class LogsPage(BasePage):
         self._set_winws_status(kind, text)
 
     def _set_winws_status(self, kind: str, text: str) -> None:
+        if getattr(self, "winws_status_label", None) is None:
+            return
         set_winws_status(
             self.winws_status_label,
             kind=kind,
@@ -372,6 +407,7 @@ class LogsPage(BasePage):
         logs_layout = QVBoxLayout(self._logs_page)
         logs_layout.setContentsMargins(0, 0, 0, 0)
         logs_layout.setSpacing(16)
+        self._logs_layout = logs_layout
 
         self._build_logs_tab(logs_layout)
 
@@ -489,17 +525,22 @@ class LogsPage(BasePage):
                     default="Открыть папку logs с файлами приложения.",
                 )
             )
-            self.errors_title_label.setText(tr_catalog("page.logs.errors.title", language=self._ui_language, default="Ошибки и предупреждения"))
-            self.clear_errors_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
-            self.clear_winws_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
-            self.errors_count_label.setText(
-                tr_catalog("page.logs.errors.count", language=self._ui_language, default="Ошибок: {count}").format(
-                    count=max(0, int(self._errors_count))
-                )
-            )
-            self._refresh_winws_title()
         except Exception:
             pass
+
+        if self._logs_secondary_initialized:
+            try:
+                self.errors_title_label.setText(tr_catalog("page.logs.errors.title", language=self._ui_language, default="Ошибки и предупреждения"))
+                self.clear_errors_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
+                self.clear_winws_btn.setText(tr_catalog("page.logs.button.clear", language=self._ui_language, default="Очистить"))
+                self.errors_count_label.setText(
+                    tr_catalog("page.logs.errors.count", language=self._ui_language, default="Ошибок: {count}").format(
+                        count=max(0, int(self._errors_count))
+                    )
+                )
+                self._refresh_winws_title()
+            except Exception:
+                pass
 
     def _retranslate_send_tab(self) -> None:
         try:
@@ -559,7 +600,7 @@ class LogsPage(BasePage):
 
     def _build_logs_tab(self, parent_layout):
         """Строит вкладку с логами"""
-        logs_widgets = build_logs_tab_ui(
+        logs_widgets = build_logs_primary_tab_ui(
             parent_layout=parent_layout,
             content_parent=self.content,
             ui_language=self._ui_language,
@@ -567,29 +608,21 @@ class LogsPage(BasePage):
             settings_card_cls=SettingsCard,
             qvbox_layout_cls=QVBoxLayout,
             qhbox_layout_cls=QHBoxLayout,
-            qlabel_cls=QLabel,
             caption_label_cls=CaptionLabel,
             strong_body_label_cls=StrongBodyLabel,
             combo_box_cls=ComboBox,
             tool_button_cls=ToolButton,
             push_button_cls=PushButton,
-            fluent_push_button_cls=FluentPushButton,
             text_edit_cls=ScrollBlockingTextEdit,
             quick_actions_bar_cls=QuickActionsBar,
             qfont_cls=QFont,
-            qta_module=qta,
             get_theme_tokens_fn=get_theme_tokens,
-            errors_text_min_height=self._errors_text_min_height,
-            errors_text_max_height=self._errors_text_max_height,
             on_log_selected=self._on_log_selected,
             on_refresh=self._refresh_logs_list,
             on_spin_tick=self._on_spin_tick,
             on_copy=self._copy_log,
             on_clear_view=self._clear_view,
             on_open_folder=self._open_folder,
-            on_clear_errors=self._clear_errors,
-            on_update_errors_height=self._update_errors_text_height,
-            on_clear_winws_output=self._clear_winws_output,
             refresh_timer_parent=self,
         )
         self.controls_card = logs_widgets.controls_card
@@ -604,6 +637,51 @@ class LogsPage(BasePage):
         self.log_card = logs_widgets.log_card
         self.log_text = logs_widgets.log_text
         self.stats_label = logs_widgets.stats_label
+
+        # Счётчик ошибок
+        self._errors_count = 0
+        try:
+            self.stats_label.setText(
+                tr_catalog("page.logs.stats.loading", language=self._ui_language, default="📊 Загрузка...")
+            )
+        except Exception:
+            pass
+
+    def _schedule_logs_secondary_panels(self) -> None:
+        if self._logs_secondary_initialized or self._logs_secondary_build_scheduled:
+            return
+        self._logs_secondary_build_scheduled = True
+        QTimer.singleShot(0, self._ensure_logs_secondary_panels)
+
+    def _ensure_logs_secondary_panels(self) -> bool:
+        if self._logs_secondary_initialized:
+            return True
+        self._logs_secondary_build_scheduled = False
+        if self._cleanup_in_progress or not self.isVisible():
+            return False
+        logs_layout = getattr(self, "_logs_layout", None)
+        if logs_layout is None:
+            return False
+
+        logs_widgets = build_logs_secondary_panels_ui(
+            parent_layout=logs_layout,
+            ui_language=self._ui_language,
+            tr_catalog_fn=tr_catalog,
+            settings_card_cls=SettingsCard,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qlabel_cls=QLabel,
+            caption_label_cls=CaptionLabel,
+            strong_body_label_cls=StrongBodyLabel,
+            fluent_push_button_cls=FluentPushButton,
+            text_edit_cls=ScrollBlockingTextEdit,
+            qfont_cls=QFont,
+            errors_text_min_height=self._errors_text_min_height,
+            errors_text_max_height=self._errors_text_max_height,
+            on_clear_errors=self._clear_errors,
+            on_update_errors_height=self._update_errors_text_height,
+            on_clear_winws_output=self._clear_winws_output,
+        )
         self.errors_card = logs_widgets.errors_card
         self._warning_icon_label = logs_widgets.warning_icon_label
         self.errors_title_label = logs_widgets.errors_title_label
@@ -617,19 +695,11 @@ class LogsPage(BasePage):
         self.clear_winws_btn = logs_widgets.clear_winws_btn
         self.winws_text = logs_widgets.winws_text
 
-        self.errors_text.document().contentsChanged.connect(self._update_errors_text_height)
+        self._logs_secondary_initialized = True
         self._update_errors_text_height()
-
-        # Счётчик ошибок
-        self._errors_count = 0
-        try:
-            self.stats_label.setText(
-                tr_catalog("page.logs.stats.loading", language=self._ui_language, default="📊 Загрузка...")
-            )
-        except Exception:
-            pass
-
         self._refresh_winws_title()
+        self._apply_page_theme(force=True)
+        return True
 
     def _build_send_tab(self, parent_layout):
         """Строит вкладку поддержки по логам."""
@@ -776,36 +846,97 @@ class LogsPage(BasePage):
         
     def _refresh_logs_list(self, *, run_cleanup: bool = True):
         """Обновляет список доступных лог-файлов"""
-        # Запускаем анимацию вращения
+        started_at = time.perf_counter()
         self._refresh_spin_active = True
         self._spin_angle = 0
         self._spin_timer.start()
-        
+        self._start_logs_overview_worker(
+            run_cleanup=run_cleanup,
+            source_label="logs_ui.refresh_logs_list.total",
+            started_at=started_at,
+        )
+
+    def _start_logs_overview_worker(self, *, run_cleanup: bool, source_label: str, started_at: float) -> None:
+        if self._logs_overview_runtime.is_running():
+            self._logs_overview_pending_cleanup = self._logs_overview_pending_cleanup or bool(run_cleanup)
+            self._log_ui_timing(source_label, started_at)
+            return
+
+        try:
+            cleanup_requested = bool(run_cleanup)
+            self._logs_overview_runtime.start_qobject_worker(
+                parent=self,
+                worker_factory=lambda _request_id: self._logs.create_logs_overview_worker(
+                    run_cleanup=cleanup_requested,
+                ),
+                on_loaded=lambda req, logs_state, stats_state: self._on_logs_overview_loaded(
+                    req,
+                    logs_state,
+                    stats_state,
+                    cleanup_requested,
+                ),
+                on_failed=self._on_logs_overview_failed,
+                on_finished=self._on_logs_overview_finished,
+            )
+        except Exception as exc:
+            log(f"Ошибка запуска worker обзора логов: {exc}", "ERROR")
+            QTimer.singleShot(500, self._stop_refresh_animation)
+        finally:
+            self._log_ui_timing(source_label, started_at)
+
+    def _on_logs_overview_loaded(self, request_id: int, logs_state, stats_state, run_cleanup: bool) -> None:
+        if not self._logs_overview_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        self._apply_logs_list_state(logs_state, run_cleanup=run_cleanup)
+        self._apply_logs_stats_state(stats_state)
+
+    def _on_logs_overview_failed(self, request_id: int, error: str) -> None:
+        if not self._logs_overview_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        log(f"Ошибка обновления обзора логов: {error}", "ERROR")
+        self.stats_label.setText(f"Ошибка статистики: {error}")
+
+    def _on_logs_overview_finished(self, request_id: int, thread) -> None:
+        _ = thread
+        QTimer.singleShot(500, self._stop_refresh_animation)
+        if (
+            self._logs_overview_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress)
+            and self._logs_overview_pending_cleanup
+        ):
+            self._logs_overview_pending_cleanup = False
+            self._refresh_logs_list(run_cleanup=True)
+
+    def _apply_logs_list_state(self, state, *, run_cleanup: bool) -> None:
         self.log_combo.blockSignals(True)
         self.log_combo.clear()
-        
         try:
-            state = self._logs.list_logs(run_cleanup=run_cleanup)
             if run_cleanup and state.cleanup_deleted > 0:
                 log(f"🗑️ Удалено старых логов: {state.cleanup_deleted} из {state.cleanup_total}", "INFO")
             if run_cleanup and state.cleanup_errors:
                 log(f"⚠️ Ошибки при удалении логов: {state.cleanup_errors[:3]}", "DEBUG")
 
             current_index = 0
-
             for entry in state.entries:
                 if entry["is_current"]:
                     current_index = entry["index"]
                 self.log_combo.addItem(entry["display"], userData=entry["path"])
-            
             self.log_combo.setCurrentIndex(current_index)
-            
-        except Exception as e:
-            log(f"Ошибка обновления списка логов: {e}", "ERROR")
         finally:
             self.log_combo.blockSignals(False)
-            # Останавливаем анимацию через небольшую задержку для визуального эффекта
-            QTimer.singleShot(500, self._stop_refresh_animation)
+
+    def _apply_logs_stats_state(self, stats) -> None:
+        plan = self._logs.build_stats_text_plan(stats, language=self._ui_language)
+        self.stats_label.setText(plan.text)
+
+    def _stop_logs_overview_worker(self, blocking: bool = False) -> None:
+        try:
+            self._logs_overview_runtime.stop(
+                blocking=blocking,
+                log_fn=log,
+                warning_prefix="Logs overview worker",
+            )
+        except Exception as exc:
+            log(f"Ошибка остановки worker обзора логов: {exc}", "DEBUG")
     
     def _stop_refresh_animation(self):
         """Останавливает анимацию кнопки обновления"""
@@ -875,8 +1006,21 @@ class LogsPage(BasePage):
             warning_prefix="Log tail worker",
         )
 
+    def _schedule_winws_output_worker_start(self) -> None:
+        QTimer.singleShot(0, self._start_winws_output_worker_after_secondary_ready)
+
+    def _start_winws_output_worker_after_secondary_ready(self) -> None:
+        if self._cleanup_in_progress or not self.isVisible():
+            return
+        if not self._ensure_logs_secondary_panels():
+            self._schedule_logs_secondary_panels()
+            return
+        self._start_winws_output_worker()
+
     def _start_winws_output_worker(self):
         """Запускает worker для чтения вывода winws"""
+        if not self._ensure_logs_secondary_panels():
+            return
         launch_method = self.get_launch_method()
         self._winws_thread, self._winws_worker = self._logs.start_winws_output_worker(
             stop_worker_fn=self._stop_winws_output_worker,
@@ -919,6 +1063,8 @@ class LogsPage(BasePage):
         """Добавляет вывод winws в текстовое поле"""
         if self._cleanup_in_progress:
             return
+        if not self._ensure_logs_secondary_panels():
+            return
         self._winws_lines_count += 1
 
         formatted = format_winws_output_line(
@@ -937,6 +1083,8 @@ class LogsPage(BasePage):
     def _on_winws_process_ended(self, exit_code: int):
         """Обработчик завершения процесса winws"""
         if self._cleanup_in_progress:
+            return
+        if not self._ensure_logs_secondary_panels():
             return
         if exit_code == 0:
             self._set_winws_status(
@@ -960,6 +1108,9 @@ class LogsPage(BasePage):
     def _update_winws_status(self):
         """Периодически проверяет статус процесса winws"""
         if self._cleanup_in_progress:
+            return
+        if not self._ensure_logs_secondary_panels():
+            self._schedule_logs_secondary_panels()
             return
         self._refresh_winws_title()
         source, runner = self._get_running_runner_source()
@@ -1000,6 +1151,8 @@ class LogsPage(BasePage):
 
     def _clear_winws_output(self):
         """Очищает поле вывода winws"""
+        if not self._ensure_logs_secondary_panels():
+            return
         self.winws_text.clear()
         self._winws_lines_count = 0
         self.info_label.setText(
@@ -1095,12 +1248,20 @@ class LogsPage(BasePage):
             
     def _update_stats(self):
         """Обновляет статистику"""
+        started_at = time.perf_counter()
+        self._start_logs_overview_worker(
+            run_cleanup=False,
+            source_label="logs_ui.update_stats.total",
+            started_at=started_at,
+        )
+
+    @staticmethod
+    def _log_ui_timing(label: str, started_at: float) -> None:
         try:
-            stats = self._logs.build_stats()
-            plan = self._logs.build_stats_text_plan(stats, language=self._ui_language)
-            self.stats_label.setText(plan.text)
-        except Exception as e:
-            self.stats_label.setText(f"Ошибка статистики: {e}")
+            elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+            log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
+        except Exception:
+            pass
 
     def _update_errors_text_height(self):
         """Подстраивает высоту панели ошибок под содержимое."""
@@ -1117,6 +1278,8 @@ class LogsPage(BasePage):
             
     def _add_error(self, text: str):
         """Добавляет ошибку в панель ошибок"""
+        if not self._ensure_logs_secondary_panels():
+            return
         self._errors_count = append_error(
             errors_text=self.errors_text,
             errors_count_label=self.errors_count_label,
@@ -1132,6 +1295,8 @@ class LogsPage(BasePage):
         
     def _clear_errors(self):
         """Очищает панель ошибок"""
+        if not self._ensure_logs_secondary_panels():
+            return
         self._errors_count = clear_errors(
             errors_text=self.errors_text,
             errors_count_label=self.errors_count_label,
@@ -1151,5 +1316,6 @@ class LogsPage(BasePage):
         self._cleanup_in_progress = True
         self._spin_timer.stop()
         self._winws_status_timer.stop()
+        self._stop_logs_overview_worker(blocking=True)
         self._stop_tail_worker(blocking=True)
         self._stop_winws_output_worker(blocking=True)

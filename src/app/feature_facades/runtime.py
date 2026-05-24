@@ -222,7 +222,7 @@ def build_runtime_feature(
     profile_feature,
     orchestra_feature,
 ) -> RuntimeFeature:
-    from winws_runtime.public import LaunchRuntimeService
+    from winws_runtime.state import LaunchRuntimeService
 
     return RuntimeFeature(
         qt_parent=qt_parent,

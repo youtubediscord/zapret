@@ -97,7 +97,7 @@ def run_premium_runtime_init_once(
     runtime_initialized: bool,
     build_page_init_plan_fn,
     set_runtime_initialized_fn,
-    init_checker_fn,
+    start_init_worker_fn,
     set_server_status_mode_fn,
     set_server_status_message_fn,
     set_server_status_success_fn,
@@ -110,7 +110,7 @@ def run_premium_runtime_init_once(
         return
 
     set_runtime_initialized_fn(True)
-    init_checker_fn()
+    start_init_worker_fn()
     set_server_status_mode_fn(plan.init_server_status_plan.mode)
     set_server_status_message_fn(plan.init_server_status_plan.message)
     set_server_status_success_fn(plan.init_server_status_plan.success)
@@ -172,7 +172,6 @@ def apply_premium_language(
     change_key_btn,
     extend_btn,
     test_btn,
-    update_device_info_fn,
     render_server_status_fn,
     render_days_label_fn,
     render_status_badge_fn,
@@ -229,7 +228,6 @@ def apply_premium_language(
         )
     )
 
-    update_device_info_fn()
     render_server_status_fn()
     render_days_label_fn()
     render_status_badge_fn()

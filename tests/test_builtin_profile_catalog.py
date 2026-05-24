@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+from types import SimpleNamespace
 import unittest
 
+from core.paths import AppPaths
 from profile.models import build_profile_logical_key
 from profile.parser import parse_preset_text
+from profile.service import ProfilePresetService
 
 
 PUBLIC_ROOT = Path(__file__).resolve().parents[1]
@@ -16,9 +19,284 @@ WIDE_DISCORD_PRIMARY_LINES = {
     "--hostlist=lists/discord.txt",
     "--ipset=lists/ipset-discord.txt",
 }
+ACCEPTED_WIDER_PROFILE_KEYS = {
+    "winws2|hostlist=discord.txt|tcp=80,443-65535",
+    "winws2|hostlist=facebook.txt|tcp=80,443-65535",
+    "winws2|hostlist=instagram.txt|tcp=80,443-65535",
+    "winws2|hostlist=itch.txt|tcp=80,443-65535",
+    "winws2|hostlist=rutor.txt|tcp=80,443-65535",
+    "winws2|hostlist=rutracker.txt|tcp=80,443-65535",
+    "winws2|hostlist=soundcloud.txt|tcp=80,443-65535",
+    "winws2|hostlist=twitter.txt|tcp=80,443-65535",
+    "winws2|hostlist=whatsapp.txt|tcp=80,443-65535",
+}
+RUNTIME_ONLY_PROFILE_KEYS = {
+    "winws1|(none)|tcp=100-25565",
+    "winws1|(none)|tcp=2000-8400",
+    "winws1|(none)|tcp=443",
+    "winws1|(none)|tcp=443,1024-65535",
+    "winws1|(none)|tcp=443-65535",
+    "winws1|(none)|tcp=4950-4955",
+    "winws1|(none)|tcp=6695-6705",
+    "winws1|(none)|tcp=80",
+    "winws1|(none)|udp=100-25565",
+    "winws1|(none)|udp=1024-65535",
+    "winws1|(none)|udp=19294-19344,50000-50100",
+    "winws1|(none)|udp=443",
+    "winws1|(none)|udp=443-65535",
+    "winws1|(none)|udp=443-9000",
+    "winws1|(none)|udp=50000-50090",
+    "winws1|(none)|udp=50000-50099",
+    "winws1|(none)|udp=50000-50100",
+    "winws1|(none)|udp=50000-59000",
+    "winws1|(none)|udp=50000-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net,epicgames.com;hostlist-domains=xmfirmwareupdater.com|tcp=443,444-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net,epicgames.com|tcp=443,444-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net,epicgames.com|udp=443,444-65535",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsglobalaccelerator.com,awsstatic.com,cloudfront.net|tcp=443",
+    "winws1|hostlist-domains=amazon.com,amazonaws.com,awsstatic.com,cloudfront.net,epicgames.com|tcp=80",
+    "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,rutracker.cc,z-library.sk;hostlist=faceinsta.txt|tcp=443",
+    "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,rutracker.cc,z-library.sk;hostlist=youtube.txt|tcp=443",
+    "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,z-library.sk;hostlist=faceinsta.txt|tcp=443",
+    "winws1|hostlist-domains=android.com,dw.com,hmvmania.com,moscowtimes.ru,onlinesim.io,proton.me,roskomsvoboda.org,rublacklist.net,z-library.sk;hostlist=youtube.txt|tcp=443",
+    "winws1|hostlist-domains=animego.online,animejoy.ru,doramy.club,getchu.com|tcp=443",
+    "winws1|hostlist-domains=cloudflareclient.com,cloudflarecp.com,cloudflareok.com,cloudflareportal.com|tcp=443",
+    "winws1|hostlist-domains=cloudflareclient.com,cloudflarecp.com,cloudflareok.com,cloudflareportal.com|tcp=80",
+    "winws1|hostlist-domains=leagueoflegends.com,playvalorant.com,pvp.net,rdatasrv.net,rgpub.io,riotcdn.com,riotcdn.net,riotclientservices.com,riotgames.com,riotgames.es;hostlist=discord.txt|udp=443",
+    "winws1|hostlist-domains=main.txrevive.com,resources.txrevive.com|tcp=80,443",
+    "winws1|hostlist-domains=ntc.party;hostlist=discord.txt|tcp=443",
+    "winws1|hostlist-domains=ntc.party;hostlist=russia-discord.txt|tcp=443",
+    "winws1|hostlist-domains=rutracker.cc,rutracker.org;ipset=ipset-all.txt|tcp=80",
+    "winws1|hostlist-domains=rutracker.cc;ipset=ipset-all.txt|tcp=80",
+    "winws1|hostlist-domains=rutracker.org|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=discord.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=facebook.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=googlevideo.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=instagram.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=itch.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=other.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=roblox.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=rutor.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=rutracker.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=soundcloud.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=twitter.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=whatsapp.txt|tcp=443",
+    "winws1|hostlist-domains=www.xvideos.com,xvideos-cdn.com;hostlist=youtube.txt|tcp=443",
+    "winws1|hostlist-domains=xnxx.com,xvideos.com;hostlist=youtube.txt|tcp=443",
+    "winws1|hostlist-domains=youtube.com|tcp=443",
+    "winws1|hostlist-exclude-domains=cdn.ampproject.org,cvetovod.by,gitflic.ru,habr.com,ixbt.com,lmarena.ai,podviliepitomnik.ru,rootsplants.co.uk,searchengines.guru,st.top100.ru,use.fontawesome.com,veresk.by,xn--p1ai|tcp=443",
+    "winws1|hostlist-exclude=list-exclude.txt;ipset-exclude=ipset-exclude.txt|udp=443",
+    "winws1|hostlist-exclude=list-exclude.txt|tcp=80,443",
+    "winws1|hostlist-exclude=list-exclude.txt|tcp=80,443,444-65535",
+    "winws1|hostlist-exclude=list-exclude.txt|udp=443",
+    "winws1|hostlist=discord-updates.txt,stable.dl2.discordapp.net,animego.online,animejoy.ru,rutracker.org,static.rutracker.cc,pixiv.net,cdn77.com|tcp=443",
+    "winws1|hostlist=discord.txt|udp=443",
+    "winws1|hostlist=facebook.txt|udp=443",
+    "winws1|hostlist=faceinsta.txt|tcp=443",
+    "winws1|hostlist=googlevideo.txt;ipset-ip=xxx.xxx.xxx.xxx/xx,xxx.xxx.xxx.xxx/xx|tcp=80,443",
+    "winws1|hostlist=instagram.txt|udp=443",
+    "winws1|hostlist=ipset-all.txt|tcp=443",
+    "winws1|hostlist=itch.txt|udp=443",
+    "winws1|hostlist=list-general.txt|udp=443",
+    "winws1|hostlist=list-google.txt|tcp=443",
+    "winws1|hostlist=mycdnlist.txt|tcp=443",
+    "winws1|hostlist=mycdnlist.txt|tcp=80",
+    "winws1|hostlist=mycdnlist.txt|tcp=80,443",
+    "winws1|hostlist=myhostlist.txt|tcp=443",
+    "winws1|hostlist=myhostlist.txt|tcp=80",
+    "winws1|hostlist=other.txt|udp=443",
+    "winws1|hostlist=roblox.txt|udp=443",
+    "winws1|hostlist=russia-youtubeq.txt|udp=443",
+    "winws1|hostlist=rutor.txt|udp=443",
+    "winws1|hostlist=rutracker.txt|udp=443",
+    "winws1|hostlist=soundcloud.txt|udp=443",
+    "winws1|hostlist=twitter.txt|udp=443",
+    "winws1|hostlist=whatsapp.txt|udp=443",
+    "winws1|hostlist=youtube.txt|udp=443",
+    "winws1|hostlist=youtube_v2.txt|tcp=443",
+    "winws1|hostlist=youtubegv.txt|tcp=443",
+    "winws1|hostlist=youtubeq.txt|udp=443",
+    "winws1|ipset-exclude=ipset-exclude.txt|tcp=80,443",
+    "winws1|ipset-exclude=ipset-exclude.txt|tcp=80,443,444-65535",
+    "winws1|ipset-exclude=ipset-exclude.txt|udp=443",
+    "winws1|ipset-exclude=ipset-exclude.txt|udp=444-65535",
+    "winws1|ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=80",
+    "winws1|ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=443",
+    "winws1|hostlist-auto=autohostlist.txt;ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=80",
+    "winws1|hostlist-auto=autohostlist.txt;ipset-exclude=ipset-dns.txt;ipset-exclude=ipset-exclude.txt;ipset-exclude=ipset-ru.txt|tcp=443",
+    "winws1|ipset-ip=188.114.96.0/22|udp=8886",
+}
 
 
 class BuiltinProfileCatalogTests(unittest.TestCase):
+    def test_builtin_profile_files_keep_new_separator_on_own_spaced_line(self) -> None:
+        offenders: list[str] = []
+        paths = [
+            ALL_PROFILES_PATH,
+            *sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws1").glob("*.txt")),
+            *sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")),
+        ]
+
+        for path in paths:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            for index, line in enumerate(lines):
+                if line.strip().lower() != "--new":
+                    continue
+                previous_line = lines[index - 1] if index > 0 else ""
+                previous_previous_line = lines[index - 2] if index > 1 else ""
+                next_line = lines[index + 1] if index + 1 < len(lines) else ""
+                next_next_line = lines[index + 2] if index + 2 < len(lines) else ""
+                if (
+                    previous_line.strip()
+                    or next_line.strip()
+                    or (index > 1 and not previous_previous_line.strip())
+                    or (index + 2 < len(lines) and not next_next_line.strip())
+                ):
+                    offenders.append(f"{path.name}:{index + 1}")
+
+        self.assertEqual(offenders, [])
+
+    def test_real_default_v5_profile_list_recognizes_discord_profiles_from_catalog(self) -> None:
+        preset_path = PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2" / "Default v5 (game filter).txt"
+        service = ProfilePresetService(
+            SimpleNamespace(
+                _presets_feature=_SelectedPresetStore(preset_path),
+                _app_paths=AppPaths(user_root=PRIVATE_ROOT / "resources", local_root=PRIVATE_ROOT / "resources"),
+            ),
+            "zapret2_mode",
+        )
+
+        payload = service.list_profiles()
+
+        discord_updates = _items_with_match_line(payload.items, "--hostlist=lists/discord-updates.txt")
+        discord_media = _items_with_match_line(payload.items, "--hostlist-domains=discord.media")
+        self.assertTrue(discord_updates, "Default v5 должен распознать Discord Updates как profile из preset-а")
+        self.assertTrue(discord_media, "Default v5 должен распознать discord.media как profile из preset-а")
+        self.assertTrue(all(item.in_preset for item in discord_updates))
+        self.assertTrue(all(item.in_preset for item in discord_media))
+
+    def test_builtin_presets_do_not_repeat_enabled_logical_profile_matches(self) -> None:
+        offenders: list[str] = []
+
+        for engine in ("winws1", "winws2"):
+            for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / engine).glob("*.txt")):
+                preset = parse_preset_text(
+                    path.read_text(encoding="utf-8", errors="replace"),
+                    engine=engine,
+                    source_name=path.name,
+                )
+                seen: dict[str, int] = {}
+                for profile in preset.profiles:
+                    if not profile.enabled:
+                        continue
+                    logical_key = build_profile_logical_key(profile.match_signature)
+                    if not logical_key:
+                        continue
+                    previous_index = seen.get(logical_key)
+                    if previous_index is not None:
+                        offenders.append(
+                            f"{engine}/{path.name}: profile {previous_index} и profile {profile.index}: {logical_key}"
+                        )
+                        continue
+                    seen[logical_key] = profile.index
+
+        self.assertEqual(offenders, [])
+
+    def test_all_profiles_variants_with_same_logical_match_use_same_name(self) -> None:
+        preset = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        names_by_key: dict[str, set[str]] = {}
+
+        for profile in preset.profiles:
+            logical_key = build_profile_logical_key(profile.match_signature)
+            clean_name = str(profile.name or "").strip()
+            if logical_key and clean_name:
+                names_by_key.setdefault(logical_key, set()).add(clean_name)
+
+        offenders = {
+            key: sorted(names)
+            for key, names in names_by_key.items()
+            if len(names) > 1
+        }
+        self.assertEqual(offenders, {})
+
+    def test_winws2_builtin_discord_profiles_use_catalog_names(self) -> None:
+        expected_names = _all_profile_names_by_key(
+            {
+                "updates.discord.com",
+                "discord.media",
+                "discord.com",
+                "Discord UDP",
+                "Голосовые звонки/чаты",
+            }
+        )
+        offenders: list[str] = []
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            for profile in preset.profiles:
+                logical_key = build_profile_logical_key(profile.match_signature)
+                expected_name = expected_names.get(logical_key)
+                if expected_name and str(profile.name or "").strip() != expected_name:
+                    offenders.append(
+                        f"winws2/{path.name} profile {profile.index}: "
+                        f"{profile.name!r} != {expected_name!r}"
+                    )
+
+        self.assertEqual(offenders, [])
+
+    def test_winws1_builtin_profiles_use_all_profiles_names_when_available(self) -> None:
+        names_by_key = _all_profile_unique_names_by_key()
+        offenders: list[str] = []
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws1").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws1",
+                source_name=path.name,
+            )
+            for profile in preset.profiles:
+                logical_key = build_profile_logical_key(profile.match_signature)
+                expected_name = names_by_key.get(logical_key)
+                if expected_name and str(profile.name or "").strip() != expected_name:
+                    offenders.append(
+                        f"winws1/{path.name} profile {profile.index}: "
+                        f"{profile.name!r} != {expected_name!r}"
+                    )
+
+        self.assertEqual(offenders, [])
+
+    def test_all_profiles_and_winws2_builtin_presets_do_not_use_udp_port_80(self) -> None:
+        offenders: list[str] = []
+
+        all_profiles = parse_preset_text(
+            ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+            engine="winws2",
+            source_name=ALL_PROFILES_PATH.name,
+        )
+        for profile in all_profiles.profiles:
+            if _profile_has_udp_port_80(profile):
+                offenders.append(f"all_profiles profile {profile.index}: {profile.name}")
+
+        for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / "winws2").glob("*.txt")):
+            preset = parse_preset_text(
+                path.read_text(encoding="utf-8", errors="replace"),
+                engine="winws2",
+                source_name=path.name,
+            )
+            for profile in preset.profiles:
+                if _profile_has_udp_port_80(profile):
+                    offenders.append(f"winws2/{path.name} profile {profile.index}: {profile.display_name}")
+
+        self.assertEqual(offenders, [])
+
     def test_all_profiles_keeps_wide_discord_tcp_filter_only_for_discord_entries(self) -> None:
         preset = parse_preset_text(
             ALL_PROFILES_PATH.read_text(encoding="utf-8"),
@@ -114,8 +392,9 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
                 profile.match.hostlist_exclude_lines
                 or profile.match.ipset_exclude_lines
             )
-            is_named_all_sites_template = str(profile.display_name or "").strip().lower().startswith("все сайты ")
-            if has_all_sites_excludes and not is_named_all_sites_template:
+            profile_name = str(profile.display_name or "").strip().lower()
+            is_allowed_exclude_template = profile_name.startswith("все сайты ") or profile_name == "исключения"
+            if has_all_sites_excludes and not is_allowed_exclude_template:
                 offenders.append(f"profile {profile.index}: {profile.display_name}")
 
         self.assertEqual(offenders, [])
@@ -150,6 +429,77 @@ class BuiltinProfileCatalogTests(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
+    def test_builtin_profiles_are_catalog_profiles_wider_profiles_or_runtime_only(self) -> None:
+        catalog = _all_profile_catalog()
+        offenders: list[str] = []
+
+        for engine in ("winws1", "winws2"):
+            for path in sorted((PUBLIC_ROOT / "src" / "presets" / "builtin" / engine).glob("*.txt")):
+                preset = parse_preset_text(
+                    path.read_text(encoding="utf-8", errors="replace"),
+                    engine=engine,
+                    source_name=path.name,
+                )
+                for profile in preset.profiles:
+                    profile_key = _profile_catalog_key(engine, profile)
+                    target_key = _profile_target_key(profile)
+                    filter_key = _profile_filter_key(profile)
+                    candidates = catalog.get(target_key, [])
+                    exact = next((candidate for candidate in candidates if _profile_filter_key(candidate) == filter_key), None)
+                    if exact is not None:
+                        _append_name_offender(offenders, engine, path.name, profile, exact)
+                        continue
+
+                    if not _profile_primary_target_parts(profile):
+                        if profile_key not in RUNTIME_ONLY_PROFILE_KEYS:
+                            offenders.append(
+                                f"{engine}/{path.name} profile {profile.index}: нет в all_profiles и нет в runtime-only "
+                                f"{_format_key(target_key, filter_key)}"
+                            )
+                        continue
+
+                    same_protocol = [
+                        candidate
+                        for candidate in candidates
+                        if _filter_protocols(_profile_filter_key(candidate)) == _filter_protocols(filter_key)
+                    ]
+                    narrower_than_catalog = _widest_profile(
+                        candidate
+                        for candidate in same_protocol
+                        if _filter_ports_are_subset(filter_key, _profile_filter_key(candidate))
+                    )
+                    if narrower_than_catalog is not None:
+                        offenders.append(
+                            f"{engine}/{path.name} profile {profile.index}: заменить на канон "
+                            f"{narrower_than_catalog.name!r} "
+                            f"{_format_key(_profile_target_key(narrower_than_catalog), _profile_filter_key(narrower_than_catalog))}; "
+                            f"сейчас {_format_key(target_key, filter_key)}"
+                        )
+                        continue
+
+                    wider_than_catalog = _widest_profile(
+                        candidate
+                        for candidate in same_protocol
+                        if _filter_ports_are_subset(_profile_filter_key(candidate), filter_key)
+                    )
+                    if wider_than_catalog is not None:
+                        if profile_key not in ACCEPTED_WIDER_PROFILE_KEYS:
+                            offenders.append(
+                                f"{engine}/{path.name} profile {profile.index}: широкая версия не подтверждена "
+                                f"{_format_key(target_key, filter_key)}"
+                            )
+                            continue
+                        _append_name_offender(offenders, engine, path.name, profile, wider_than_catalog)
+                        continue
+
+                    if profile_key not in RUNTIME_ONLY_PROFILE_KEYS:
+                        offenders.append(
+                            f"{engine}/{path.name} profile {profile.index}: нет в all_profiles и нет в runtime-only "
+                            f"{_format_key(target_key, filter_key)}"
+                        )
+
+        self.assertEqual(offenders, [])
+
 
 def _all_profile_keys() -> set[str]:
     preset = parse_preset_text(
@@ -162,6 +512,235 @@ def _all_profile_keys() -> set[str]:
         for profile in preset.profiles
         if build_profile_logical_key(profile.match_signature)
     }
+
+
+def _all_profile_catalog():
+    preset = parse_preset_text(
+        ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+        engine="winws2",
+        source_name=ALL_PROFILES_PATH.name,
+    )
+    result: dict[tuple[str, ...], list] = {}
+    for profile in preset.profiles:
+        result.setdefault(_profile_target_key(profile), []).append(profile)
+    return result
+
+
+def _all_profile_names_by_key(names: set[str]) -> dict[str, str]:
+    preset = parse_preset_text(
+        ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+        engine="winws2",
+        source_name=ALL_PROFILES_PATH.name,
+    )
+    result: dict[str, str] = {}
+    for profile in preset.profiles:
+        clean_name = str(profile.name or "").strip()
+        if clean_name not in names:
+            continue
+        logical_key = build_profile_logical_key(profile.match_signature)
+        if logical_key:
+            result[logical_key] = clean_name
+    return result
+
+
+def _all_profile_unique_names_by_key() -> dict[str, str]:
+    preset = parse_preset_text(
+        ALL_PROFILES_PATH.read_text(encoding="utf-8"),
+        engine="winws2",
+        source_name=ALL_PROFILES_PATH.name,
+    )
+    names_by_key: dict[str, set[str]] = {}
+    for profile in preset.profiles:
+        logical_key = build_profile_logical_key(profile.match_signature)
+        clean_name = str(profile.name or "").strip()
+        if logical_key and clean_name:
+            names_by_key.setdefault(logical_key, set()).add(clean_name)
+    return {
+        key: next(iter(names))
+        for key, names in names_by_key.items()
+        if len(names) == 1
+    }
+
+
+def _profile_catalog_key(engine: str, profile) -> str:
+    return f"{engine}|{_format_key(_profile_target_key(profile), _profile_filter_key(profile))}"
+
+
+def _profile_target_key(profile) -> tuple[str, ...]:
+    primary = _profile_primary_target_parts(profile)
+    if primary:
+        return primary
+
+    parts: list[str] = []
+    for line in profile.match.hostlist_exclude_lines:
+        option, value = _split_profile_option(line)
+        kind = option.removeprefix("--")
+        parts.append(f"{kind}={_normalize_profile_value(kind, value)}")
+    for line in profile.match.hostlist_auto_lines:
+        option, value = _split_profile_option(line)
+        kind = option.removeprefix("--")
+        parts.append(f"{kind}={_normalize_profile_value(kind, value)}")
+    for line in profile.match.ipset_exclude_lines:
+        option, value = _split_profile_option(line)
+        kind = option.removeprefix("--")
+        parts.append(f"{kind}={_normalize_profile_value(kind, value)}")
+    return tuple(sorted(parts))
+
+
+def _profile_primary_target_parts(profile) -> tuple[str, ...]:
+    parts: list[str] = []
+    for kind, lines in (
+        ("hostlist", profile.match.hostlist_lines),
+        ("ipset", profile.match.ipset_lines),
+        ("hostlist-domains", profile.match.hostlist_domains_lines),
+        ("ipset-ip", profile.match.inline_ipset_lines),
+    ):
+        for line in lines:
+            _option, value = _split_profile_option(line)
+            parts.append(f"{kind}={_normalize_profile_value(kind, value)}")
+    return tuple(sorted(parts))
+
+
+def _profile_filter_key(profile) -> tuple[str, ...]:
+    parts: list[str] = []
+    for line in profile.match.filter_lines:
+        option, value = _split_profile_option(line)
+        if option == "--filter-tcp":
+            parts.append(f"tcp={value}")
+        elif option == "--filter-udp":
+            parts.append(f"udp={value}")
+        elif option == "--filter-l7":
+            parts.append(f"l7={value.lower()}")
+    return tuple(sorted(parts))
+
+
+def _filter_protocols(filter_key: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(part.split("=", 1)[0] for part in filter_key)
+
+
+def _filter_ports_are_subset(left: tuple[str, ...], right: tuple[str, ...]) -> bool:
+    if _filter_protocols(left) != _filter_protocols(right):
+        return False
+    left_values = dict(part.split("=", 1) for part in left)
+    right_values = dict(part.split("=", 1) for part in right)
+    for protocol, left_value in left_values.items():
+        right_value = right_values.get(protocol, "")
+        if protocol == "l7":
+            if left_value != right_value:
+                return False
+            continue
+        left_ports = _parse_ports(left_value)
+        right_ports = _parse_ports(right_value)
+        if left_ports is None or right_ports is None:
+            return left_value == right_value
+        if not left_ports.issubset(right_ports):
+            return False
+    return True
+
+
+def _widest_profile(profiles) -> object | None:
+    candidates = list(profiles)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda profile: _filter_port_weight(_profile_filter_key(profile)))
+
+
+def _filter_port_weight(filter_key: tuple[str, ...]) -> int:
+    weight = 0
+    for part in filter_key:
+        protocol, _sep, value = part.partition("=")
+        if protocol == "l7":
+            weight += 1
+            continue
+        ports = _parse_ports(value)
+        if ports is not None:
+            weight += len(ports)
+    return weight
+
+
+def _parse_ports(value: str) -> set[int] | None:
+    ports: set[int] = set()
+    for raw_part in str(value or "").split(","):
+        part = raw_part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start, _sep, end = part.partition("-")
+            try:
+                ports.update(range(int(start), int(end) + 1))
+            except ValueError:
+                return None
+            continue
+        try:
+            ports.add(int(part))
+        except ValueError:
+            return None
+    return ports
+
+
+def _split_profile_option(line: str) -> tuple[str, str]:
+    stripped = str(line or "").strip()
+    if "=" not in stripped:
+        return stripped.lower(), ""
+    option, _sep, value = stripped.partition("=")
+    return option.strip().lower(), value.strip()
+
+
+def _normalize_profile_value(kind: str, value: str) -> str:
+    clean = str(value or "").strip().strip('"').strip("'")
+    if kind in {"hostlist", "hostlist-exclude", "hostlist-auto", "ipset", "ipset-exclude"}:
+        return PureWindowsPath(clean.lstrip("@").replace("\\", "/")).name.lower()
+    if kind in {"hostlist-domains", "hostlist-exclude-domains", "ipset-ip", "ipset-exclude-ip"}:
+        return ",".join(sorted(token.strip().lower() for token in clean.split(",") if token.strip()))
+    return clean.lower()
+
+
+def _format_key(target_key: tuple[str, ...], filter_key: tuple[str, ...]) -> str:
+    return f"{';'.join(target_key) or '(none)'}|{';'.join(filter_key) or '(none)'}"
+
+
+def _append_name_offender(offenders: list[str], engine: str, file_name: str, profile, catalog_profile) -> None:
+    expected_name = str(catalog_profile.name or "").strip()
+    if expected_name and str(profile.name or "").strip() != expected_name:
+        offenders.append(
+            f"{engine}/{file_name} profile {profile.index}: "
+            f"name {profile.name!r} != {expected_name!r}"
+        )
+
+
+def _profile_has_udp_port_80(profile) -> bool:
+    for line in getattr(profile.match, "filter_lines", ()) or ():
+        stripped = str(line or "").strip().lower()
+        if not stripped.startswith("--filter-udp="):
+            continue
+        value = stripped.split("=", 1)[1]
+        for part in value.split(","):
+            token = part.strip()
+            if token == "80" or token.startswith("80-"):
+                return True
+    return False
+
+
+class _SelectedPresetStore:
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def read_selected_preset_source(self, _launch_method: str):
+        return self._path.read_text(encoding="utf-8", errors="replace"), SimpleNamespace(
+            file_name=self._path.name,
+            name=self._path.stem,
+        )
+
+    def save_selected_preset_source(self, _launch_method: str, _text: str) -> None:
+        raise AssertionError("real builtin e2e test must not rewrite preset")
+
+
+def _items_with_match_line(items, expected_line: str):
+    return [
+        item
+        for item in items
+        if expected_line in getattr(item, "match_lines", ())
+    ]
 
 
 if __name__ == "__main__":

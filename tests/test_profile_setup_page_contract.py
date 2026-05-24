@@ -11,9 +11,10 @@ from profile.ui.profile_setup_page import (
     ProfileStrategyListDelegate,
     ProfileStrategyListWidget,
     _match_tab_text,
+    _profile_editor_tab_title,
 )
 from profile.ui.preset_setup_page import PresetSetupPageBase, preset_setup_title_for_payload
-from profile.ui.profile_item import ProfileItem
+from profile.ui.shell import build_profile_shell
 from profile.ui.profiles_list import ProfilesList
 from ui.presets_menu.delegate import PresetListDelegate
 
@@ -52,25 +53,330 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
     def test_preset_setup_page_has_add_user_profile_action(self) -> None:
         apply_payload = inspect.getsource(PresetSetupPageBase._apply_payload)
+        build_content = inspect.getsource(PresetSetupPageBase._build_content)
+        shell_builder = inspect.getsource(build_profile_shell)
         handler = inspect.getsource(PresetSetupPageBase._on_add_user_profile_clicked)
 
-        self.assertIn('PrimaryPushButton("Добавить"', apply_payload)
-        self.assertIn("icon=FluentIcon.ADD", apply_payload)
+        self.assertNotIn('PrimaryPushButton("Добавить"', apply_payload)
+        self.assertNotIn("addWidget(self._add_profile_btn)", apply_payload)
+        self.assertIn("on_add_user_profile=self._on_add_user_profile_clicked", build_content)
+        self.assertIn("PrimaryToolButton", shell_builder)
+        self.assertIn("create_primary_tool_button", shell_builder)
+        self.assertIn("FluentIcon.ADD", shell_builder)
+        self.assertIn("toolbar_actions_bar.set_buttons", shell_builder)
         self.assertIn("CreateUserProfileDialog", handler)
         self.assertIn("create_user_profile", handler)
         self.assertIn("refresh_from_preset_switch", handler)
 
     def test_profile_rows_have_context_menu_path(self) -> None:
-        item_source = inspect.getsource(ProfileItem)
         list_source = inspect.getsource(ProfilesList)
         page_apply = inspect.getsource(PresetSetupPageBase._apply_payload)
         page_handler = inspect.getsource(PresetSetupPageBase._on_profile_context_requested)
 
-        self.assertIn("context_requested", item_source)
-        self.assertIn("contextMenuEvent", item_source)
         self.assertIn("profile_context_requested", list_source)
         self.assertIn("profile_context_requested.connect", page_apply)
         self.assertIn("show_profile_context_menu", page_handler)
+
+    def test_profile_list_uses_model_view_delegate_not_item_widgets(self) -> None:
+        from profile.ui.profile_list_delegate import ProfileListDelegate
+        from profile.ui.profile_list_model import ProfileListModel
+        from profile.ui.profile_list_view import ProfileListView
+
+        list_source = inspect.getsource(ProfilesList)
+        model_source = inspect.getsource(ProfileListModel)
+        delegate_source = inspect.getsource(ProfileListDelegate)
+        view_source = inspect.getsource(ProfileListView)
+
+        self.assertIn("ProfileListModel", list_source)
+        self.assertIn("ProfileListDelegate", list_source)
+        self.assertIn("ProfileListView", list_source)
+        self.assertNotIn("ProfileItem", list_source)
+        self.assertIn("QAbstractListModel", model_source)
+        self.assertIn("QStyledItemDelegate", delegate_source)
+        self.assertIn("ListView", view_source)
+
+    def test_profile_list_does_not_own_page_background_color(self) -> None:
+        list_source = inspect.getsource(ProfilesList._build_ui)
+
+        self.assertNotIn("#272727", list_source)
+        self.assertIn("background: transparent", list_source)
+
+    def test_profile_list_respects_global_smooth_scroll_setting(self) -> None:
+        list_source = inspect.getsource(ProfilesList)
+
+        self.assertIn("apply_page_smooth_scroll_preference", list_source)
+        self.assertIn("def set_smooth_scroll_enabled", list_source)
+        self.assertIn("apply_smooth_scroll_mode(self._view, enabled)", list_source)
+
+    def test_profile_list_reserves_space_for_visible_fluent_scrollbar(self) -> None:
+        list_source = inspect.getsource(ProfilesList._build_ui)
+
+        self.assertIn("reserve_vertical_space=True", list_source)
+        self.assertIn("scroll range", list_source)
+
+    def test_profile_delegate_supports_fluent_list_interaction_state(self) -> None:
+        from profile.ui.profile_list_delegate import ProfileListDelegate
+
+        delegate = ProfileListDelegate.__new__(ProfileListDelegate)
+        delegate._hover_row = -1
+        delegate._pressed_row = -1
+        delegate._selected_rows = set()
+
+        ProfileListDelegate.setHoverRow(delegate, 2)
+        ProfileListDelegate.setPressedRow(delegate, 4)
+        ProfileListDelegate.setSelectedRows(delegate, [SimpleNamespace(row=lambda: 4), SimpleNamespace(row=lambda: 6)])
+
+        self.assertEqual(delegate._hover_row, 2)
+        self.assertEqual(delegate._pressed_row, -1)
+        self.assertEqual(delegate._selected_rows, {4, 6})
+
+    def test_profile_delegate_uses_one_soft_background_for_hover_press_and_selection(self) -> None:
+        from profile.ui.profile_list_delegate import _profile_row_background, _profile_row_is_interactive
+        from ui.widgets.profile_row_style import PROFILE_ROW_BG_DARK_HOVER
+
+        tokens = SimpleNamespace(is_light=False, surface_bg_hover="#383838")
+
+        self.assertTrue(_profile_row_is_interactive(1, hovered=False, selected=False, hover_row=1, pressed_row=-1, selected_rows=set()))
+        self.assertTrue(_profile_row_is_interactive(1, hovered=False, selected=False, hover_row=-1, pressed_row=1, selected_rows=set()))
+        self.assertTrue(_profile_row_is_interactive(1, hovered=False, selected=False, hover_row=-1, pressed_row=-1, selected_rows={1}))
+        self.assertEqual(_profile_row_background(tokens, hovered=True, selected=False), PROFILE_ROW_BG_DARK_HOVER)
+        self.assertEqual(_profile_row_background(tokens, hovered=False, selected=True), PROFILE_ROW_BG_DARK_HOVER)
+
+    def test_profile_delegate_keeps_active_rows_visually_neutral(self) -> None:
+        from profile.ui.profile_list_delegate import ProfileListDelegate
+
+        source = inspect.getsource(ProfileListDelegate._paint_profile_row)
+
+        self.assertIn("_paint_profile_row_background", source)
+        self.assertNotIn("paint_profile_hover_row", source)
+        self.assertIn('painter.drawText(row_layout.dot_rect', source)
+
+    def test_profile_delegate_uses_soft_badge_colors(self) -> None:
+        from profile.ui.profile_list_delegate import _badge_palette, _status_dot_color
+        from ui.widgets.profile_row_style import (
+            PROFILE_BADGE_HOSTLIST_BG,
+            PROFILE_BADGE_HOSTLIST_FG,
+            PROFILE_BADGE_IPSET_BG,
+            PROFILE_BADGE_IPSET_FG,
+            PROFILE_STATUS_DOT_ACTIVE,
+        )
+
+        self.assertEqual(_badge_palette("hostlist"), (PROFILE_BADGE_HOSTLIST_BG, PROFILE_BADGE_HOSTLIST_FG))
+        self.assertEqual(_badge_palette("ipset"), (PROFILE_BADGE_IPSET_BG, PROFILE_BADGE_IPSET_FG))
+        self.assertEqual(_status_dot_color(True), PROFILE_STATUS_DOT_ACTIVE)
+
+        source = inspect.getsource(_badge_palette)
+        self.assertNotIn("#00B900", source)
+
+    def test_profile_delegate_dark_rows_use_screenshot_background_colors(self) -> None:
+        from profile.ui.profile_list_delegate import _profile_row_background
+        from ui.widgets.profile_row_style import PROFILE_ROW_BG_DARK, PROFILE_ROW_BG_DARK_HOVER
+
+        dark_tokens = SimpleNamespace(is_light=False, surface_bg_hover="#383838")
+        light_tokens = SimpleNamespace(is_light=True, surface_bg_hover="#eeeeee")
+
+        self.assertEqual(_profile_row_background(dark_tokens, hovered=False, selected=False), PROFILE_ROW_BG_DARK)
+        self.assertEqual(_profile_row_background(dark_tokens, hovered=True, selected=False), PROFILE_ROW_BG_DARK_HOVER)
+        self.assertEqual(_profile_row_background(light_tokens, hovered=False, selected=False), "#eeeeee")
+
+    def test_profile_delegate_layout_keeps_row_parts_from_overlapping_on_narrow_width(self) -> None:
+        from PyQt6.QtCore import QRect
+
+        from profile.ui.profile_list_delegate import _profile_row_layout
+
+        layout = _profile_row_layout(
+            QRect(8, 2, 404, 40),
+            strategy_text_width=260,
+            feedback_text_width=260,
+            badge_width=62,
+        )
+
+        self.assertGreater(layout.name_rect.width(), 64)
+        self.assertFalse(layout.feedback_rect.isValid())
+        self.assertTrue(layout.badge_rect.isValid())
+        self.assertLess(layout.name_rect.right(), layout.badge_rect.left())
+        self.assertLess(layout.badge_rect.right(), layout.dot_rect.left())
+        self.assertLess(layout.dot_rect.right(), layout.strategy_rect.left())
+
+        ultra_narrow = _profile_row_layout(
+            QRect(8, 2, 240, 40),
+            strategy_text_width=260,
+            feedback_text_width=260,
+            badge_width=62,
+        )
+
+        self.assertGreaterEqual(ultra_narrow.name_rect.width(), 0)
+        self.assertLess(ultra_narrow.name_rect.right(), ultra_narrow.dot_rect.left())
+        self.assertFalse(ultra_narrow.feedback_rect.isValid())
+
+    def test_profile_delegate_places_badge_right_after_profile_text(self) -> None:
+        from PyQt6.QtCore import QRect
+
+        from profile.ui.profile_list_delegate import _profile_row_layout
+
+        layout = _profile_row_layout(
+            QRect(8, 2, 760, 40),
+            strategy_text_width=180,
+            feedback_text_width=0,
+            badge_width=62,
+            left_text_width=220,
+        )
+
+        self.assertTrue(layout.badge_rect.isValid())
+        self.assertEqual(layout.name_rect.width(), 220)
+        self.assertEqual(layout.badge_rect.left(), layout.name_rect.left() + layout.name_rect.width() + 8)
+        self.assertLess(layout.badge_rect.left(), layout.dot_rect.left() - 120)
+
+    def test_profile_model_keeps_folder_rows_and_hides_collapsed_profiles(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        first = SimpleNamespace(
+            key="profile:0",
+            persistent_key="p0",
+            profile_index=0,
+            display_name="Discord",
+            enabled=True,
+            in_preset=True,
+            strategy_id="fake",
+            strategy_name="Fake",
+            match_lines=("--filter-udp=443-65535", "--hostlist=lists/discord.txt"),
+            list_type="hostlist",
+            rating="work",
+            favorite=True,
+            group="voice",
+            group_name="Voice",
+            order=1,
+            order_is_manual=False,
+            group_collapsed=True,
+        )
+        second = SimpleNamespace(
+            key="profile:1",
+            persistent_key="p1",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="none",
+            strategy_name="Стратегия не выбрана",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=2,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+
+        model = ProfileListModel()
+        model.set_profiles((first, second))
+
+        self.assertEqual(model.rowCount(), 3)
+        rows = [
+            (
+                model.index(row, 0).data(ProfileListModel.KindRole),
+                model.index(row, 0).data(ProfileListModel.GroupRole),
+                model.index(row, 0).data(ProfileListModel.ProfileKeyRole),
+            )
+            for row in range(model.rowCount())
+        ]
+        self.assertEqual(sum(1 for kind, _group, _key in rows if kind == "folder"), 2)
+        self.assertIn(("profile", "video", "profile:1"), rows)
+        self.assertNotIn(("profile", "voice", "profile:0"), rows)
+
+        model.set_group_expanded("voice", True)
+
+        self.assertEqual(model.rowCount(), 4)
+        expanded_rows = [
+            (
+                model.index(row, 0).data(ProfileListModel.KindRole),
+                model.index(row, 0).data(ProfileListModel.GroupRole),
+                model.index(row, 0).data(ProfileListModel.ProfileKeyRole),
+            )
+            for row in range(model.rowCount())
+        ]
+        self.assertIn(("profile", "voice", "profile:0"), expanded_rows)
+
+    def test_profile_model_search_filters_by_name_ports_lists_and_strategy(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        discord = SimpleNamespace(
+            key="profile:0",
+            persistent_key="p0",
+            profile_index=0,
+            display_name="Discord Voice",
+            enabled=True,
+            in_preset=True,
+            strategy_id="fake",
+            strategy_name="Fake",
+            match_lines=("--filter-udp=443-65535", "--hostlist=lists/discord.txt"),
+            list_type="hostlist",
+            rating="work",
+            favorite=True,
+            group="voice",
+            group_name="Voice",
+            order=1,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        youtube = SimpleNamespace(
+            key="profile:1",
+            persistent_key="p1",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="none",
+            strategy_name="Стратегия не выбрана",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=2,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+
+        model = ProfileListModel()
+        model.set_profiles((discord, youtube))
+        model.set_search_query("youtube 443")
+
+        rows = [
+            (
+                model.index(row, 0).data(ProfileListModel.KindRole),
+                model.index(row, 0).data(ProfileListModel.ProfileKeyRole),
+            )
+            for row in range(model.rowCount())
+        ]
+
+        self.assertIn(("profile", "profile:1"), rows)
+        self.assertNotIn(("profile", "profile:0"), rows)
+
+        model.set_search_query("fake")
+        rows = [
+            (
+                model.index(row, 0).data(ProfileListModel.KindRole),
+                model.index(row, 0).data(ProfileListModel.ProfileKeyRole),
+            )
+            for row in range(model.rowCount())
+        ]
+
+        self.assertIn(("profile", "profile:0"), rows)
+        self.assertNotIn(("profile", "profile:1"), rows)
+
+    def test_profile_setup_shell_has_search_input_for_all_profiles(self) -> None:
+        build_content = inspect.getsource(PresetSetupPageBase._build_content)
+        apply_payload = inspect.getsource(PresetSetupPageBase._apply_payload)
+        shell_builder = inspect.getsource(build_profile_shell)
+
+        self.assertIn("profile_search_input", shell_builder)
+        self.assertIn("on_profile_search_text_changed", shell_builder)
+        self.assertIn("Поиск profile по имени, портам и т.д.", shell_builder)
+        self.assertIn("set_search_query", apply_payload)
+        self.assertIn("on_profile_search_text_changed=self._on_profile_search_text_changed", build_content)
 
     def test_profile_setup_page_has_update_user_profile_action(self) -> None:
         build = inspect.getsource(ProfileSetupPageBase._build_content)
@@ -132,11 +438,14 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         build = inspect.getsource(ProfileSetupPageBase._build_content)
         ensure_editor = inspect.getsource(ProfileSetupPageBase._ensure_editor_tab_built)
         apply_payload = inspect.getsource(ProfileSetupPageBase._apply_payload)
+        sync_label = inspect.getsource(ProfileSetupPageBase._sync_editor_tab_label)
         switch_tab = inspect.getsource(ProfileSetupPageBase._switch_strategy_tab)
         save_handler = inspect.getsource(ProfileSetupPageBase._on_list_file_save_clicked)
         validation = inspect.getsource(ProfileSetupPageBase._render_list_file_validation)
 
         self.assertIn('addItem("editor", "Редактор"', build)
+        self.assertIn("_sync_editor_tab_label(payload)", apply_payload)
+        self.assertIn('setItemText("editor", editor_title)', sync_label)
         self.assertNotIn("self._list_file_text = PlainTextEdit()", build)
         self.assertIn("_ensure_editor_tab_built", switch_tab)
         self.assertIn("_request_list_file_editor_state", switch_tab)
@@ -144,6 +453,23 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertNotIn("_apply_list_file_editor_state", apply_payload)
         self.assertIn("save_list_file_text", save_handler)
         self.assertIn("Неверные строки", validation)
+
+    def test_profile_setup_page_renames_editor_tab_for_exclusion_profiles(self) -> None:
+        regular_payload = SimpleNamespace(
+            item=SimpleNamespace(
+                display_name="YouTube",
+                match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            )
+        )
+        exclude_payload = SimpleNamespace(
+            item=SimpleNamespace(
+                display_name="Все сайты TCP",
+                match_lines=("--filter-tcp=80,443-65535", "--ipset-exclude=lists/ipset-ru.txt"),
+            )
+        )
+
+        self.assertEqual(_profile_editor_tab_title(regular_payload), "Редактор")
+        self.assertEqual(_profile_editor_tab_title(exclude_payload), "Исключения")
 
     def test_profile_setup_page_keeps_editor_tab_when_profile_has_no_filter_choice(self) -> None:
         apply_editor = inspect.getsource(ProfileSetupPageBase._apply_list_file_editor_state)

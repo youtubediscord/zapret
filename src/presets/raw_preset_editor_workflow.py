@@ -36,6 +36,7 @@ def save_raw_preset_text(
     launch_method: str | None,
     file_name: str,
     source_text: str,
+    publish_content_changed: bool = True,
 ) -> RawPresetSaveResult:
     """Сохраняет текст preset-файла через presets feature."""
     if not file_name:
@@ -44,6 +45,7 @@ def save_raw_preset_text(
         launch_method,
         file_name,
         source_text,
+        publish_content_changed=publish_content_changed,
     )
     path = presets_feature.get_preset_source_path_by_file_name(
         launch_method,
@@ -154,6 +156,14 @@ def activate_raw_preset(*, presets_feature, launch_method: str | None, file_name
     return True
 
 
+def publish_raw_preset_content_changed(*, presets_feature, launch_method: str | None, file_name: str) -> None:
+    if not file_name:
+        return
+    publish = getattr(presets_feature, "publish_preset_content_changed", None)
+    if callable(publish):
+        publish(launch_method, file_name)
+
+
 class RawPresetEditorController:
     """Действия raw preset editor без привязки к QWidget."""
 
@@ -194,12 +204,26 @@ class RawPresetEditorController:
 
         return RawPresetLoadWorker(request_id, self, path, parent)
 
-    def save_text(self, *, file_name: str, source_text: str) -> RawPresetSaveResult:
+    def save_text(
+        self,
+        *,
+        file_name: str,
+        source_text: str,
+        publish_content_changed: bool = True,
+    ) -> RawPresetSaveResult:
         return save_raw_preset_text(
             presets_feature=self._presets,
             launch_method=self._launch_method,
             file_name=file_name,
             source_text=source_text,
+            publish_content_changed=publish_content_changed,
+        )
+
+    def publish_content_changed(self, file_name: str) -> None:
+        publish_raw_preset_content_changed(
+            presets_feature=self._presets,
+            launch_method=self._launch_method,
+            file_name=file_name,
         )
 
     def open_source_file(self, path: Path | None) -> None:

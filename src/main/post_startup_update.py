@@ -12,6 +12,7 @@ class _UpdateCheckBridge(QObject):
     update_found = pyqtSignal(str, str)
     no_update = pyqtSignal(str)
     check_error = pyqtSignal(str)
+    skipped = pyqtSignal(str)
 
 
 def install_update_check(
@@ -78,18 +79,29 @@ def install_update_check(
             pass
         log(f"Не удалось проверить обновления при запуске: {error}", "⚠️ UPDATE")
 
+    def _on_update_check_skipped(reason: str) -> None:
+        if not is_startup_host_alive(startup_host):
+            return
+        try:
+            set_status(str(reason or "Проверка обновлений сейчас не требуется"))
+        except Exception:
+            pass
+
     update_bridge.update_found.connect(_on_update_found)
     update_bridge.no_update.connect(_on_no_update)
     update_bridge.check_error.connect(_on_update_check_error)
+    update_bridge.skipped.connect(_on_update_check_skipped)
 
     def _startup_update_worker() -> None:
         try:
             result = updater_feature.run_startup_update_check()
             if result.get("skipped"):
+                skip_reason = result.get("skip_reason") or "Проверка обновлений сейчас не требуется"
                 log(
-                    f"Автопроверка обновлений пропущена: {result.get('skip_reason') or 'нет необходимости'}",
+                    f"Автопроверка обновлений пропущена: {skip_reason}",
                     "🔁 UPDATE",
                 )
+                update_bridge.skipped.emit(skip_reason)
             elif result.get("error"):
                 update_bridge.check_error.emit(result["error"])
             elif result.get("has_update"):

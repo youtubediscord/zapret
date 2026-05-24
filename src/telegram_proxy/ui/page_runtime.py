@@ -202,12 +202,21 @@ def build_relay_result_plan(
     ms: float | int = 0,
     http_ok: bool = False,
     zapret_running: bool = False,
+    traffic_seen: bool = False,
 ) -> TelegramProxyRelayResultPlan:
     base = f"Работает на {host}:{port}"
 
     if status == "ok":
         return TelegramProxyRelayResultPlan(
             status_text=f"{base} — Relay OK ({float(ms):.0f}ms)",
+            show_warning=False,
+            warning_title="",
+            warning_content="",
+        )
+
+    if traffic_seen:
+        return TelegramProxyRelayResultPlan(
+            status_text=f"{base} — Relay: проверка не прошла, но трафик идёт",
             show_warning=False,
             warning_title="",
             warning_content="",

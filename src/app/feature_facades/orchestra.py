@@ -1,19 +1,41 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
-import orchestra.commands as orchestra_commands
 
-
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class OrchestraFeature:
-    whitelist_runtime_service: Any
+    _whitelist_runtime_service: Any | None = field(default=None, repr=False, compare=False)
     runner: Any = None
+
+    def __init__(self, whitelist_runtime_service: Any | None = None, runner: Any = None) -> None:
+        self._whitelist_runtime_service = whitelist_runtime_service
+        self.runner = runner
+
+    @staticmethod
+    def _commands():
+        import orchestra.commands as orchestra_commands
+
+        return orchestra_commands
+
+    @staticmethod
+    def _create_whitelist_runtime_service():
+        from core.runtime.orchestra_whitelist_runtime_service import OrchestraWhitelistRuntimeService
+
+        return OrchestraWhitelistRuntimeService()
+
+    @property
+    def whitelist_runtime_service(self):
+        service = self._whitelist_runtime_service
+        if service is None:
+            service = self._create_whitelist_runtime_service()
+            self._whitelist_runtime_service = service
+        return service
 
     @property
     def ASKEY_ALL(self):
-        return orchestra_commands.ASKEY_ALL
+        return self._commands().ASKEY_ALL
 
     def ensure_runner(self):
         if self.runner is None:
@@ -52,7 +74,7 @@ class OrchestraFeature:
         set_orchestra_setting(key, value, runner=self.runner)
 
     def get_whitelist_snapshot(self, runner, *, refresh: bool = False):
-        return orchestra_commands.get_whitelist_snapshot(
+        return self._commands().get_whitelist_snapshot(
             runner,
             whitelist_service=self.whitelist_runtime_service,
             refresh=refresh,
@@ -60,7 +82,7 @@ class OrchestraFeature:
 
     def add_whitelist_domain(self, runner, domain: str) -> bool:
         return bool(
-            orchestra_commands.add_whitelist_domain(
+            self._commands().add_whitelist_domain(
                 runner,
                 domain,
                 whitelist_service=self.whitelist_runtime_service,
@@ -69,7 +91,7 @@ class OrchestraFeature:
 
     def remove_whitelist_domain(self, runner, domain: str) -> bool:
         return bool(
-            orchestra_commands.remove_whitelist_domain(
+            self._commands().remove_whitelist_domain(
                 runner,
                 domain,
                 whitelist_service=self.whitelist_runtime_service,
@@ -78,7 +100,7 @@ class OrchestraFeature:
 
     def clear_whitelist_user_domains(self, runner, domains: list[str]) -> int:
         return int(
-            orchestra_commands.clear_whitelist_user_domains(
+            self._commands().clear_whitelist_user_domains(
                 runner,
                 domains,
                 whitelist_service=self.whitelist_runtime_service,
@@ -87,18 +109,14 @@ class OrchestraFeature:
         )
 
     def create_loaded_blocked_manager(self):
-        return orchestra_commands.create_loaded_blocked_manager()
+        return self._commands().create_loaded_blocked_manager()
 
     def create_loaded_locked_manager(self):
-        return orchestra_commands.create_loaded_locked_manager()
+        return self._commands().create_loaded_locked_manager()
 
     def is_default_blocked_pass_domain(self, hostname: str) -> bool:
-        return bool(orchestra_commands.is_default_blocked_pass_domain(hostname))
+        return bool(self._commands().is_default_blocked_pass_domain(hostname))
 
 
 def build_orchestra_feature() -> OrchestraFeature:
-    from core.runtime.orchestra_whitelist_runtime_service import OrchestraWhitelistRuntimeService
-
-    return OrchestraFeature(
-        whitelist_runtime_service=OrchestraWhitelistRuntimeService(),
-    )
+    return OrchestraFeature()

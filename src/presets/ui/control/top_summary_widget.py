@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from qfluentwidgets import CaptionLabel, FlowLayout, StrongBodyLabel, SubtitleLabel
@@ -14,7 +14,15 @@ from ui.theme_refresh import ThemeRefreshBinding
 class ControlTopSummaryItem(QWidget):
     clicked = pyqtSignal()
 
-    def __init__(self, *, icon_name: str, prominent: bool = False, clickable: bool = False, parent=None):
+    def __init__(
+        self,
+        *,
+        icon_name: str,
+        prominent: bool = False,
+        clickable: bool = False,
+        initial_icon_delay_ms: int = 0,
+        parent=None,
+    ):
         super().__init__(parent)
         self._icon_name = str(icon_name or "fa5s.circle")
         self._clickable = bool(clickable)
@@ -44,7 +52,11 @@ class ControlTopSummaryItem(QWidget):
 
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_refresh)
-        self._refresh_icon()
+        delay_ms = max(0, int(initial_icon_delay_ms or 0))
+        if delay_ms > 0:
+            QTimer.singleShot(delay_ms, self._refresh_icon)
+        else:
+            self._refresh_icon()
 
     def set_texts(self, *, caption: str, value: str, details: str = "") -> None:
         self._caption_label.setText(str(caption or ""))
@@ -74,7 +86,7 @@ class ControlTopSummaryWidget(QWidget):
     profilesClicked = pyqtSignal()
     premiumClicked = pyqtSignal()
 
-    def __init__(self, *, language: str, mode_value: str, parent=None):
+    def __init__(self, *, language: str, mode_value: str, initial_icon_delay_ms: int = 0, parent=None):
         super().__init__(parent)
         self._language = str(language or "ru")
         self._mode_value = str(mode_value or "")
@@ -87,20 +99,24 @@ class ControlTopSummaryWidget(QWidget):
             icon_name="fa5s.folder-open",
             prominent=True,
             clickable=True,
+            initial_icon_delay_ms=initial_icon_delay_ms,
             parent=self,
         )
         self.profiles_item = ControlTopSummaryItem(
             icon_name="fa5s.list-ul",
             clickable=True,
+            initial_icon_delay_ms=initial_icon_delay_ms,
             parent=self,
         )
         self.mode_item = ControlTopSummaryItem(
             icon_name="fa5s.shield-alt",
+            initial_icon_delay_ms=initial_icon_delay_ms,
             parent=self,
         )
         self.premium_item = ControlTopSummaryItem(
             icon_name="fa5s.star",
             clickable=True,
+            initial_icon_delay_ms=initial_icon_delay_ms,
             parent=self,
         )
 

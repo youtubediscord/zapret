@@ -19,15 +19,11 @@ def _runner_start_pid(runtime_owner) -> int | None:
         snapshot_getter = getattr(runner, "get_runner_state_snapshot", None)
         if callable(snapshot_getter):
             snapshot = snapshot_getter()
-            state_value = str(getattr(snapshot, "state", "") or "").strip().lower()
+            state = getattr(snapshot, "state", "")
+            state_value = str(getattr(state, "value", state) or "").strip().lower()
             pid = getattr(snapshot, "pid", None)
             if state_value == "running" and isinstance(pid, int):
                 return pid
-
-        process = getattr(runner, "running_process", None)
-        pid = getattr(process, "pid", None)
-        if isinstance(pid, int):
-            return pid
     except Exception:
         return None
     return None

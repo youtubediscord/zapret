@@ -13,8 +13,11 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === HTTPS YouTube ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=split
 --dpi-desync-split-pos=1
@@ -23,7 +26,9 @@
 --dpi-desync-autottl=2
 
 # === QUIC Discord ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake
@@ -31,7 +36,9 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-59000
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -40,8 +47,11 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split
 --dpi-desync-autottl=2
@@ -50,7 +60,9 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist-exclude-domains=lmarena.ai,ixbt.com,gitflic.ru,searchengines.guru,habr.com,cdn.ampproject.org,st.top100.ru,rootsplants.co.uk,podviliepitomnik.ru,cvetovod.by,veresk.by,use.fontawesome.com,xn--p1ai
 --dpi-desync=fake,split2
@@ -58,4 +70,3 @@
 --dpi-desync-split-tls=sniext
 --dpi-desync-fake-tls=bin/tls_clienthello_3.bin
 --dpi-desync-ttl=2
---new

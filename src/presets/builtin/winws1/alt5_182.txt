@@ -13,34 +13,45 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50100
 --dpi-desync=fake
 --dpi-desync-repeats=6
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
+
+--name=General list TCP
+--filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-autottl=2
 --dpi-desync-fooling=md5sig
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443,1024-65535
 --dpi-desync=syndata
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-autottl=2
 --dpi-desync-fooling=md5sig
 
-# === UDP порт 5056 ===
 --new
+
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -49,21 +60,3 @@
 --dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
 
 # === QUIC ===
---new
---filter-udp=443
---ipset=lists/ipset-all.txt
---dpi-desync=fake
---dpi-desync-repeats=6
---dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
-
-# === UDP порт 1024 ===
---new
---filter-udp=1024-65535
---ipset=lists/ipset-all.txt
---dpi-desync=fake
---dpi-desync-autottl=2
---dpi-desync-repeats=14
---dpi-desync-any-protocol=1
---dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
---dpi-desync-cutoff=n3
---new

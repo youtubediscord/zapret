@@ -13,16 +13,22 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
---filter-udp=443
+
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
 --dpi-desync-repeats=8
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
---filter-udp=50000-50100
+
+--name=Discord UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -30,25 +36,32 @@
 --dpi-desync-repeats=8
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
 --dpi-desync-autottl=3
 --dpi-desync-fooling=md5sig
 
 # === HTTPS ===
+
 --new
---filter-tcp=80
+
+--name=Cloudflare TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake,split2
 --dpi-desync-autottl=3
 --dpi-desync-fooling=md5sig
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --dpi-desync=fake
 --dpi-desync-ttl=4
 --dpi-desync-fake-tls-mod=rnd,rndsni,padencap
---new

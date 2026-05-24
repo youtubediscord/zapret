@@ -8,11 +8,24 @@ COMMON_FOLDER_KEY = "common"
 PINNED_FOLDER_KEY = "pinned"
 
 
-_PRESET_FOLDERS: tuple[tuple[str, str, bool], ...] = (
+_WINWS2_PRESET_FOLDERS: tuple[tuple[str, str, bool], ...] = (
     ("all-tcp-udp", "ALL TCP & UDP", False),
     (COMMON_FOLDER_KEY, "Общие", True),
     ("game-filter", "Game filter", False),
     ("circular", "Circular", False),
+)
+
+_WINWS1_PRESET_FOLDERS: tuple[tuple[str, str, bool], ...] = (
+    ("all-sites", "Все сайты", False),
+    ("alt", "ALT", False),
+    ("games", "Игры", False),
+    ("youtube", "YouTube", False),
+    ("discord", "Discord", False),
+    ("providers", "Провайдеры", False),
+    ("bolvan", "Bolvan", False),
+    ("fake-tls", "Fake TLS", False),
+    ("split-md5-ttl", "Split / MD5 / TTL", False),
+    (COMMON_FOLDER_KEY, "Общие", True),
 )
 
 _PROFILE_FOLDERS: tuple[tuple[str, str, bool], ...] = (
@@ -29,16 +42,18 @@ _PROFILE_FOLDERS: tuple[tuple[str, str, bool], ...] = (
 )
 
 
-def build_default_preset_folders() -> dict[str, Any]:
-    return _build_default_state(_PRESET_FOLDERS)
+def build_default_preset_folders(scope_key: object = "winws2") -> dict[str, Any]:
+    return _build_default_state(_preset_folder_specs_for_scope(scope_key))
 
 
 def build_default_profile_folders() -> dict[str, Any]:
     return _build_default_state(_PROFILE_FOLDERS)
 
 
-def classify_preset_folder(name: object) -> str:
+def classify_preset_folder(name: object, scope_key: object = "winws2") -> str:
     text = str(name or "").strip().lower()
+    if _is_winws1_scope(scope_key):
+        return _classify_winws1_preset_folder(text)
     if "all tcp" in text and "udp" in text:
         return "all-tcp-udp"
     if "game filter" in text:
@@ -89,6 +104,51 @@ def _build_default_state(folder_specs: tuple[tuple[str, str, bool], ...]) -> dic
     }
 
 
+def _preset_folder_specs_for_scope(scope_key: object) -> tuple[tuple[str, str, bool], ...]:
+    return _WINWS1_PRESET_FOLDERS if _is_winws1_scope(scope_key) else _WINWS2_PRESET_FOLDERS
+
+
+def _is_winws1_scope(scope_key: object) -> bool:
+    return str(scope_key or "").strip().lower() == "winws1"
+
+
+def _classify_winws1_preset_folder(text: str) -> str:
+    if not text:
+        return COMMON_FOLDER_KEY
+    if any(token in text for token in ("allsite", "allsites", "all-site", "all sites", "все сайты")):
+        return "all-sites"
+    if "alt" in text:
+        return "alt"
+    if any(token in text for token in ("game filter", "game", "valorant", "lol", "league of legends")):
+        return "games"
+    if any(token in text for token in ("ytdis", "bystro", "youtube")):
+        return "youtube"
+    if "discord" in text:
+        return "discord"
+    if any(token in text for token in ("mgts", "rosmts", "rosmega", "ufanet", "shigulovski")):
+        return "providers"
+    if "bolvan" in text:
+        return "bolvan"
+    if "faketls" in text:
+        return "fake-tls"
+    if any(
+        token in text
+        for token in (
+            "split",
+            "md5sig",
+            "ttl",
+            "padencap",
+            "wssize",
+            "badseq",
+            "sniext",
+            "datanoack",
+            "multisplit",
+        )
+    ):
+        return "split-md5-ttl"
+    return COMMON_FOLDER_KEY
+
+
 def _looks_like_all_sites_profile(text: str) -> bool:
     if any(token in text for token in ("allsite", "all-site", "all sites", "все сайты")):
         return True
@@ -103,8 +163,8 @@ def _mentions_site_or_list(text: str) -> bool:
     return bool(re.search(r"\b[a-z0-9-]+\.(?:ru|com|org|net|io|gg|tv)\b", text))
 
 
-def clone_default_preset_folders() -> dict[str, Any]:
-    return deepcopy(build_default_preset_folders())
+def clone_default_preset_folders(scope_key: object = "winws2") -> dict[str, Any]:
+    return deepcopy(build_default_preset_folders(scope_key))
 
 
 def clone_default_profile_folders() -> dict[str, Any]:

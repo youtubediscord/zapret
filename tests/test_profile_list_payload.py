@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -7,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from core.paths import AppPaths
-from profile.ui.profiles_list import _ordered_group_keys
+from profile.ui.profile_list_model import _ordered_group_keys
 from profile.strategy_state import ProfileStrategyState
 from profile.service import ProfilePresetService
 
@@ -41,6 +42,20 @@ class _FileBackedPresetStore:
 
     def save_selected_preset_source(self, _launch_method: str, text: str) -> None:
         self.preset_path.write_text(text, encoding="utf-8")
+
+
+class _BlockingFileBackedPresetStore(_FileBackedPresetStore):
+    def __init__(self, preset_path: Path, text: str) -> None:
+        super().__init__(preset_path, text)
+        self.first_read_started = threading.Event()
+        self.release_first_read = threading.Event()
+
+    def read_selected_preset_source(self, launch_method: str):
+        self.read_count += 1
+        if self.read_count == 1:
+            self.first_read_started.set()
+            self.release_first_read.wait(timeout=2)
+        return self.preset_path.read_text(encoding="utf-8"), self.get_selected_source_preset_manifest(launch_method)
 
 
 class ProfileListPayloadTests(unittest.TestCase):
@@ -180,6 +195,95 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertEqual(enabled_count, 1)
         self.assertEqual(display_state.active_count, 1)
         self.assertEqual(store.read_count, 1)
+
+    def test_list_profiles_serializes_concurrent_snapshot_builds(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            lists_dir.mkdir()
+            (lists_dir / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _BlockingFileBackedPresetStore(
+                root / "selected.txt",
+                "\n".join(
+                    (
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                results: list[object] = []
+                errors: list[BaseException] = []
+
+                def load_profiles() -> None:
+                    try:
+                        results.append(service.list_profiles())
+                    except BaseException as exc:
+                        errors.append(exc)
+
+                first = threading.Thread(target=load_profiles)
+                second = threading.Thread(target=load_profiles)
+                first.start()
+                self.assertTrue(store.first_read_started.wait(timeout=2))
+                second.start()
+                store.release_first_read.set()
+                first.join(timeout=2)
+                second.join(timeout=2)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertIs(results[0], results[1])
+        self.assertEqual(store.read_count, 1)
+
+    def test_list_profiles_returns_cached_payload_when_selected_preset_is_unchanged(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            lists_dir.mkdir()
+            (lists_dir / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _FileBackedPresetStore(
+                root / "selected.txt",
+                "\n".join(
+                    (
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with (
+                patch("settings.store.MAIN_DIRECTORY", str(root)),
+                patch("profile.service.load_strategy_catalogs", return_value={}) as catalogs_loader,
+            ):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                first_payload = service.list_profiles()
+                second_payload = service.list_profiles()
+
+        self.assertIs(second_payload, first_payload)
+        self.assertEqual(store.read_count, 1)
+        catalogs_loader.assert_called_once()
 
     def test_list_profiles_shows_current_ipset_variant_when_preset_uses_ipset(self) -> None:
         with TemporaryDirectory() as temp_dir:

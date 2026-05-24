@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
-from PyQt6.QtCore import QPoint, QTimer, pyqtSignal
-from PyQt6.QtWidgets import QVBoxLayout, QWidget
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtWidgets import QListView, QVBoxLayout, QWidget
 
-from folders.defaults import build_default_profile_folders
-from profile.icons import resolve_profile_icon
-from profile.ui.profile_display_items import build_profile_display_items, profile_display_sort_key
-from profile.ui.profile_item import ProfileItem
-from profile.ui.widgets.profile_group import ProfileGroup
+from profile.ui.profile_list_delegate import ProfileListDelegate
+from profile.ui.profile_list_model import ProfileListModel
+from profile.ui.profile_list_view import ProfileListView
 from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
-from profile.match_filters import is_voice_match, ports_label_from_match_lines, protocol_label_from_match_lines
+from ui.smooth_scroll import apply_page_smooth_scroll_preference, apply_smooth_scroll_mode
+from ui.widgets.fluent_scrollbar import install_fluent_scrollbars
 
 
 class ProfilesList(QWidget):
@@ -24,18 +23,8 @@ class ProfilesList(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._items_by_key: Dict[str, ProfileItem] = {}
-        self._profile_items: Dict[str, Any] = {}
-        self._groups: Dict[str, ProfileGroup] = {}
-        self._group_rows: Dict[str, tuple[Any, ...]] = {}
-        self._built_group_keys: set[str] = set()
-        self._pending_group_build_keys: list[str] = []
-        self._profile_to_group: Dict[str, str] = {}
         self._active_profile_types: set[str] = {"all"}
-        self._group_build_timer = QTimer(self)
-        self._group_build_timer.setSingleShot(True)
-        self._group_build_timer.timeout.connect(self._build_next_pending_group)
-        self.setAcceptDrops(True)
+        self._search_query = ""
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -47,233 +36,104 @@ class ProfilesList(QWidget):
         self._profile_type_selector.profile_types_changed.connect(self._apply_profile_type_filter)
         layout.addWidget(self._profile_type_selector)
 
-        self._content = QWidget(self)
-        self._content_layout = QVBoxLayout(self._content)
-        self._content_layout.setContentsMargins(0, 0, 0, 0)
-        self._content_layout.setSpacing(12)
-        self._content_layout.addStretch()
-        layout.addWidget(self._content)
+        self._model = ProfileListModel(self)
+        self._view = ProfileListView(self)
+        self._view.setModel(self._model)
+        self._view.setSelectionMode(QListView.SelectionMode.SingleSelection)
+        self._view.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
+        self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        self._view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._view.setDragDropMode(QListView.DragDropMode.DragDrop)
+        self._view.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self._view.setUniformItemSizes(False)
+        self._view.setMouseTracking(True)
+        self._view.setStyleSheet(
+            "QListView { background: transparent; border: none; outline: none; }"
+            "QListView::item { background: transparent; border: none; }"
+        )
+        self._delegate = ProfileListDelegate(self._view)
+        self._delegate.action_triggered.connect(self._on_delegate_action)
+        self._view.setItemDelegate(self._delegate)
+        self._view.clicked.connect(self._on_view_clicked)
+        self._view.profile_activated.connect(self.profile_selected)
+        self._view.profile_context_requested.connect(self.profile_context_requested)
+        self._view.folder_context_requested.connect(self.folder_context_requested)
+        self._view.profile_move_requested.connect(self.profile_move_requested)
+        self._view.profile_move_to_end_requested.connect(self.profile_move_to_end_requested)
+        # Страница обычно показывает все profile-ы, поэтому вертикальная прокрутка
+        # почти всегда есть. Запас справа включается только при реальном scroll range,
+        # чтобы карточки не заходили под fluent-scrollbar.
+        self._scrollbars = install_fluent_scrollbars(
+            self._view,
+            vertical=True,
+            horizontal=False,
+            reserve_vertical_space=True,
+        )
+        apply_page_smooth_scroll_preference(self._view)
+        layout.addWidget(self._view, 1)
+
+    def set_smooth_scroll_enabled(self, enabled: bool) -> None:
+        apply_smooth_scroll_mode(self._view, enabled)
 
     def build_profiles(self, items: tuple[Any, ...]) -> None:
-        self.clear()
-        display_items = build_profile_display_items(tuple(items or ()))
-        grouped: dict[str, list[Any]] = {}
-        group_titles: dict[str, str] = {}
-        for item in display_items:
-            group_key = item.group or "common"
-            grouped.setdefault(group_key, []).append(item)
-            group_titles.setdefault(group_key, item.group_name or group_key.title())
-
-        for group_key in _ordered_group_keys(grouped):
-            rows = grouped.get(group_key) or []
-            if not rows:
-                continue
-            rows.sort(key=profile_display_sort_key)
-            self._group_rows[group_key] = tuple(rows)
-            group = ProfileGroup(group_key, group_titles.get(group_key, group_key.title()), self, count=len(rows))
-            group.context_requested.connect(self.folder_context_requested)
-            group.toggled.connect(self._on_group_toggled)
-            group.set_expanded(not bool(getattr(rows[0], "group_collapsed", False)))
-            self._groups[group_key] = group
-
-            for item in rows:
-                self._profile_items[item.key] = item
-                self._profile_to_group[item.key] = group_key
-
-            self._content_layout.insertWidget(self._content_layout.count() - 1, group)
-            if group.is_expanded:
-                self._schedule_group_build(group_key)
+        self._model.set_profiles(tuple(items or ()))
+        self._model.set_active_profile_types(self._active_profile_types)
+        self._model.set_search_query(self._search_query)
 
     def clear(self) -> None:
-        while self._content_layout.count() > 1:
-            item = self._content_layout.takeAt(0)
-            widget = item.widget() if item is not None else None
-            if widget is not None:
-                widget.deleteLater()
-        self._items_by_key.clear()
-        self._profile_items.clear()
-        self._groups.clear()
-        self._group_rows.clear()
-        self._built_group_keys.clear()
-        self._pending_group_build_keys.clear()
-        self._profile_to_group.clear()
+        self._model.set_profiles(())
 
     def expand_all(self) -> None:
-        for group_key, group in self._groups.items():
-            group.set_expanded(True)
-            self._schedule_group_build(group_key)
+        self._model.set_all_groups_expanded(True)
+        for group_key in self._group_keys():
+            self.folder_toggled.emit(group_key, True)
 
     def collapse_all(self) -> None:
-        for group in self._groups.values():
-            group.set_expanded(False)
+        self._model.set_all_groups_expanded(False)
+        for group_key in self._group_keys():
+            self.folder_toggled.emit(group_key, False)
 
     def profile_item_for_key(self, profile_key: str):
-        return self._profile_items.get(str(profile_key or "").strip())
+        return self._model.profile_item_for_key(profile_key)
 
-    def _create_item(self, item: Any) -> ProfileItem:
-        ports = ports_label_from_match_lines(item.match_lines)
-        description_parts = [part for part in (protocol_label_from_match_lines(item.match_lines), f"порты: {ports}" if ports else "") if part]
-        description = " | ".join(description_parts)
-        tooltip = _match_summary(item)
-        if not item.in_preset:
-            tooltip = f"{tooltip}\nПрофиля ещё нет в пресете. Включите его или выберите готовую стратегию."
-        elif not item.enabled:
-            tooltip = f"{tooltip}\nПрофиль есть в пресете, но сейчас выключен. В файле это записано через --skip."
-        icon = resolve_profile_icon(item.display_name, item.match_lines)
+    def set_search_query(self, query: str) -> None:
+        self._search_query = str(query or "")
+        self._model.set_search_query(self._search_query)
 
-        widget = ProfileItem(
-            item.key,
-            item.display_name,
-            description,
-            icon.icon_name,
-            icon.color if item.in_preset else "#888888",
-            tooltip,
-            item.list_type if item.list_type in {"hostlist", "ipset"} else None,
-            self,
-        )
-        widget.set_drag_enabled(True)
-        widget.item_activated.connect(self._on_item_clicked)
-        widget.context_requested.connect(self._on_item_context_requested)
-        widget.item_dropped.connect(self._on_item_dropped)
-        widget.set_strategy(item.strategy_id, item.strategy_name)
-        widget.set_feedback_state(item.rating, item.favorite)
-        return widget
-
-    def _on_group_toggled(self, group_key: str, is_expanded: bool) -> None:
-        if is_expanded:
-            self._schedule_group_build(group_key)
-        self.folder_toggled.emit(group_key, is_expanded)
-
-    def _schedule_group_build(self, group_key: str) -> None:
-        key = str(group_key or "")
-        if not key or key in self._built_group_keys:
+    def _on_view_clicked(self, index) -> None:
+        if not index.isValid():
             return
-        if key not in self._pending_group_build_keys:
-            self._pending_group_build_keys.append(key)
-        if not self._group_build_timer.isActive():
-            self._group_build_timer.start(0)
-
-    def _build_next_pending_group(self) -> None:
-        while self._pending_group_build_keys:
-            group_key = self._pending_group_build_keys.pop(0)
-            group = self._groups.get(group_key)
-            if group is None or group_key in self._built_group_keys:
-                continue
-            if not group.is_expanded:
-                continue
-            self._build_group_contents(group_key)
-            break
-        if self._pending_group_build_keys:
-            self._group_build_timer.start(0)
-
-    def _build_group_contents(self, group_key: str) -> None:
-        group = self._groups.get(group_key)
-        if group is None or group_key in self._built_group_keys:
+        if str(index.data(ProfileListModel.KindRole) or "") != "profile":
             return
-        for item in self._group_rows.get(group_key, ()):
-            widget = self._create_item(item)
-            group.add_widget(widget)
-            self._items_by_key[item.key] = widget
-        self._built_group_keys.add(group_key)
-        self._apply_profile_type_filter(self._active_profile_types)
+        profile_key = str(index.data(ProfileListModel.ProfileKeyRole) or "")
+        if profile_key:
+            self.profile_selected.emit(profile_key)
 
-    def _on_item_clicked(self, profile_key: str) -> None:
-        self.profile_selected.emit(profile_key)
-
-    def _on_item_context_requested(self, profile_key: str, global_pos: QPoint) -> None:
-        self.profile_context_requested.emit(profile_key, global_pos)
-
-    def _on_item_dropped(self, source_key: str, destination_key: str) -> None:
-        source = self._profile_items.get(source_key)
-        destination = self._profile_items.get(destination_key)
-        if source is None or destination is None:
+    def _on_delegate_action(self, action: str, value: str) -> None:
+        if action != "toggle_folder":
             return
-        if source_key == destination_key:
+        group_key = str(value or "")
+        if not group_key:
             return
-        self.profile_move_requested.emit(source_key, destination_key)
+        next_expanded = not self._model.is_group_expanded(group_key)
+        self._model.set_group_expanded(group_key, next_expanded)
+        self.folder_toggled.emit(group_key, next_expanded)
 
     def _apply_profile_type_filter(self, active_profile_types: set[str]) -> None:
         self._active_profile_types = set(active_profile_types or {"all"})
-        if "all" in active_profile_types:
-            for widget in self._items_by_key.values():
-                widget.setVisible(True)
-            for group in self._groups.values():
-                group.setVisible(True)
-            return
+        self._model.set_active_profile_types(self._active_profile_types)
 
-        visible: set[str] = set()
-        for key, item in self._profile_items.items():
-            protocol = protocol_label_from_match_lines(item.match_lines).upper()
-            summary = _match_summary(item)
-            text = f"{item.display_name} {summary} {item.group}".lower()
-            if "tcp" in active_profile_types and "TCP" in protocol:
-                visible.add(key)
-            if "udp" in active_profile_types and ("UDP" in protocol or "L7" in protocol):
-                visible.add(key)
-            if "discord" in active_profile_types and "discord" in text:
-                visible.add(key)
-            if "voice" in active_profile_types and is_voice_match(item.match_lines):
-                visible.add(key)
-            if "games" in active_profile_types and "game" in text:
-                visible.add(key)
-
-        for key, widget in self._items_by_key.items():
-            widget.setVisible(key in visible)
-
-        for group_key, group in self._groups.items():
-            group.setVisible(any(
-                key in visible
-                for key, item in self._profile_items.items()
-                if self._profile_to_group.get(key) == group_key
-            ))
-
-    def dragEnterEvent(self, event):  # noqa: N802
-        if event.mimeData().hasFormat(ProfileItem.MIME_TYPE):
-            event.acceptProposedAction()
-            return
-        return super().dragEnterEvent(event)
-
-    def dragMoveEvent(self, event):  # noqa: N802
-        if event.mimeData().hasFormat(ProfileItem.MIME_TYPE):
-            event.acceptProposedAction()
-            return
-        return super().dragMoveEvent(event)
-
-    def dropEvent(self, event):  # noqa: N802
-        if not event.mimeData().hasFormat(ProfileItem.MIME_TYPE):
-            return super().dropEvent(event)
-        source_key = bytes(event.mimeData().data(ProfileItem.MIME_TYPE)).decode("utf-8", errors="replace").strip()
-        item = self._profile_items.get(source_key)
-        if source_key and item is not None:
-            self.profile_move_to_end_requested.emit(source_key)
-            event.acceptProposedAction()
-            return
-        event.ignore()
-
-def _match_summary(item: Any) -> str:
-    parts = [part for part in (protocol_label_from_match_lines(item.match_lines), ports_label_from_match_lines(item.match_lines), item.list_type) if part]
-    return " • ".join(parts) or "без явных условий"
+    def _group_keys(self) -> tuple[str, ...]:
+        keys: list[str] = []
+        for row in range(self._model.rowCount()):
+            index = self._model.index(row, 0)
+            if str(index.data(ProfileListModel.KindRole) or "") != "folder":
+                continue
+            key = str(index.data(ProfileListModel.GroupRole) or "")
+            if key:
+                keys.append(key)
+        return tuple(dict.fromkeys(keys))
 
 
-def _ordered_group_keys(grouped: dict[str, list[Any]]) -> list[str]:
-    default_state = build_default_profile_folders()
-    folders = default_state.get("folders", {})
-    order_by_key = {
-        str(key): _folder_order(folder.get("order"))
-        for key, folder in folders.items()
-        if isinstance(folder, dict)
-    }
-    return sorted(
-        grouped,
-        key=lambda key: (
-            order_by_key.get(str(key), 10_000),
-            str(key).lower(),
-        ),
-    )
-
-
-def _folder_order(value: object) -> int:
-    try:
-        return int(value)
-    except Exception:
-        return 10_000
+__all__ = ["ProfilesList"]

@@ -134,6 +134,63 @@ class GuiAutostartContractTests(unittest.TestCase):
 
         self.assertIs(kwargs["notify"], notify)
 
+    def test_autostart_page_deps_composition_includes_notify_callback(self) -> None:
+        from app.page_names import PageName
+        from main.window_page_deps_setup import build_window_page_deps_sources
+        from ui.page_composition import build_page_deps
+
+        notify = Mock()
+        sources = build_window_page_deps_sources(
+            features=SimpleNamespace(
+                autostart=object(),
+                blobs=object(),
+                blockcheck=object(),
+                diagnostics=object(),
+                dns=object(),
+                dpi_settings=object(),
+                external_actions=object(),
+                hosts=object(),
+                lists=object(),
+                logs=object(),
+                orchestra=object(),
+                premium=object(),
+                presets=object(),
+                profile=object(),
+                program_settings=object(),
+                runtime=object(),
+                telegram_proxy=object(),
+                updater=object(),
+            ),
+            state=SimpleNamespace(ui=object()),
+            page_actions=SimpleNamespace(
+                after_launch_method_changed=Mock(),
+                notify=notify,
+                on_animations_changed=Mock(),
+                on_background_preset_changed=Mock(),
+                on_background_refresh_needed=Mock(),
+                on_editor_smooth_scroll_changed=Mock(),
+                on_mica_changed=Mock(),
+                on_opacity_changed=Mock(),
+                on_profile_setup_changed=Mock(),
+                on_smooth_scroll_changed=Mock(),
+                on_ui_language_changed=Mock(),
+                open_connection_test=Mock(),
+                open_folder=Mock(),
+                open_preset_raw_editor=Mock(),
+                open_profile_setup=Mock(),
+                request_exit=Mock(),
+                set_garland_enabled=Mock(),
+                set_snowflakes_enabled=Mock(),
+                set_status=Mock(),
+                show_active_mode_control_page=Mock(),
+                show_page=Mock(),
+            ),
+        )
+
+        kwargs = build_page_deps(sources, PageName.AUTOSTART)
+
+        self.assertIs(kwargs["notify"], notify)
+
     def test_autostart_error_notification_payload_is_user_readable(self) -> None:
         from autostart.ui.notifications import build_autostart_error_notification
 

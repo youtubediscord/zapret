@@ -20,6 +20,7 @@
 --blob=tls7:@bin/tls_clienthello_7.bin
 --blob=fake_default_udp:0x00000000000000000000000000000000
 
+--name=Исключения
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
@@ -27,13 +28,3 @@
 --out-range=-d10
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=tls7
-
---new
-
---filter-udp=80,443-65535
---ipset-exclude=lists/ipset-ru.txt
---ipset-exclude=lists/ipset-dns.txt
---ipset-exclude=lists/ipset-exclude.txt
---out-range=-d10
---payload=all
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all

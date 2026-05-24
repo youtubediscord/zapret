@@ -16,14 +16,17 @@ class BlobsFeature:
 
 
 def build_blobs_feature() -> BlobsFeature:
-    from blobs import public as blobs_public
+    def _public():
+        from blobs import public as blobs_public
+
+        return blobs_public
 
     return BlobsFeature(
-        get_blobs_info=blobs_public.get_blobs_info,
-        get_bin_folder=blobs_public.get_bin_folder,
-        save_user_blob=blobs_public.save_user_blob,
-        delete_user_blob=blobs_public.delete_user_blob,
-        reload_blobs=blobs_public.reload_blobs,
-        open_bin_folder=blobs_public.open_bin_folder,
-        open_blobs_json=blobs_public.open_blobs_json,
+        get_blobs_info=lambda: _public().get_blobs_info(),
+        get_bin_folder=lambda: _public().get_bin_folder(),
+        save_user_blob=lambda *args, **kwargs: _public().save_user_blob(*args, **kwargs),
+        delete_user_blob=lambda *args, **kwargs: _public().delete_user_blob(*args, **kwargs),
+        reload_blobs=lambda: _public().reload_blobs(),
+        open_bin_folder=lambda: _public().open_bin_folder(),
+        open_blobs_json=lambda: _public().open_blobs_json(),
     )

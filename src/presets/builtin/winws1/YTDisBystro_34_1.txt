@@ -6,7 +6,8 @@
 --wf-udp=443,50000-50090
 
 # === HTTPS YouTube ===
---filter-tcp=443
+--name=youtube.com (RTMPS Россия)
+--filter-tcp=80,443-65535
 --ipset=lists/russia-youtube-rtmps.txt
 --dpi-desync=syndata
 --dpi-desync-fake-syndata=bin/syn_packet.bin
@@ -14,7 +15,9 @@
 --dup-cutoff=n3
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/russia-youtubeQ.txt
 --dpi-desync=fake,udplen
@@ -25,23 +28,31 @@
 --dpi-desync-repeats=2
 
 # === HTTPS YouTube ===
+
 --new
---filter-tcp=443
+
+--name=googlevideo.com (CDN сервера)
+--filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=sld+1
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=sld+1
 
 # === HTTP (порт 80) ===
+
 --new
+
 --filter-tcp=80
 --hostlist=lists/mycdnlist.txt
 --dpi-desync=fake,multisplit
@@ -54,8 +65,11 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
---filter-tcp=80
+
+--name=Russia blacklist TCP wide
+--filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=2
@@ -67,7 +81,9 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=80
 --hostlist=lists/myhostlist.txt
 --dpi-desync=fake,multisplit
@@ -80,9 +96,12 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
---hostlist=lists/other.txt
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
 --dpi-desync-fake-tls=bin/tls_clienthello_17.bin
@@ -94,9 +113,10 @@
 --dup-autottl
 --dup-cutoff=n3
 
-# === HTTPS Discord ===
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -110,23 +130,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=fake,multisplit
---dpi-desync-split-pos=2,midsld
---dpi-desync-fake-tls=bin/tls_clienthello_17.bin
---dpi-desync-fake-tls-mod=rnd,dupsid
---dpi-desync-fooling=md5sig
---dpi-desync-autottl
---dup=2
---dup-fooling=md5sig
---dup-autottl
---dup-cutoff=n3
 
-# === HTTPS Discord ===
 --new
---filter-tcp=443
+
+--name=SoundCloud
+--filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -140,8 +148,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=rutracker.org
+--filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -155,8 +166,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=rutor.info (.is)
+--filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -170,8 +184,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -185,8 +202,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=itch.io
+--filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -200,8 +220,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=Facebook
+--filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -215,8 +238,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=Instagram
+--filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -230,8 +256,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=Twitter/X
+--filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -245,8 +274,11 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=WhatsApp
+--filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=2,midsld
@@ -260,7 +292,10 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
+
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
@@ -275,7 +310,9 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/myhostlist.txt
 --dpi-desync=fake,multisplit
@@ -290,7 +327,9 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/mycdnlist.txt
 --dpi-desync=fake,multisplit
@@ -305,7 +344,9 @@
 --dup-cutoff=n3
 
 # === HTTPS Discord ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt,stable.dl2.discordapp.net,animego.online,animejoy.ru,rutracker.org,static.rutracker.cc,pixiv.net,cdn77.com
 --dpi-desync=multisplit
@@ -313,7 +354,9 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_12.bin
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist-domains=awsglobalaccelerator.com,cloudfront.net,amazon.com,amazonaws.com,awsstatic.com
 --dpi-desync=multisplit
@@ -321,8 +364,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_5.bin
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
+
+--name=Cloudflare IPv6 legacy TCP
+--filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --ipset-exclude-ip=2606:4700:4700::1111,2606:4700:4700::1001
 --dpi-desync=multisplit
@@ -332,8 +378,11 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
+
+--name=Cloudflare legacy TCP
+--filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --ipset-exclude-ip=1.1.1.1,1.0.0.1,212.109.195.93,83.220.169.155,141.105.71.21,18.244.96.0/19,18.244.128.0/19
 --dpi-desync=multisplit
@@ -343,7 +392,9 @@
 --dup-cutoff=n3
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50090
 --dpi-desync=fake
 --dpi-desync-autottl6
@@ -352,18 +403,13 @@
 --dup-cutoff=n3
 
 # === Discord Voice ===
---new
---filter-udp=50000-50090
---dpi-desync=fake
---dpi-desync-autottl
---dup=2
---dup-autottl
---dup-cutoff=n3
 
-# === HTTP (порт 80) ===
 --new
+
 --filter-tcp=80
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=2
 --dpi-desync-split-pos=host+1
@@ -371,12 +417,15 @@
 --dpi-desync-fooling=md5sig
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-split-pos=1
 --dpi-desync-fake-tls=bin/tls_clienthello_9.bin
 --dpi-desync-fooling=badseq
 --dpi-desync-autottl
---new

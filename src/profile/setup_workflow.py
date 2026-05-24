@@ -8,9 +8,21 @@ def load_profile_setup(*, profile_feature, launch_method: str, profile_key: str)
     return profile_feature.get_profile_setup(launch_method, profile_key)
 
 
-def load_profile_list_file_editor_state(*, profile_feature, launch_method: str, profile_key: str):
+def load_profile_list_file_editor_state(
+    *,
+    profile_feature,
+    launch_method: str,
+    profile_key: str,
+    filter_kind: str = "",
+    filter_value: str = "",
+):
     """Загружает файл списка для вкладки «Редактор»."""
-    return profile_feature.get_profile_list_file_editor_state(launch_method, profile_key)
+    return profile_feature.get_profile_list_file_editor_state(
+        launch_method,
+        profile_key,
+        filter_kind=filter_kind,
+        filter_value=filter_value,
+    )
 
 
 def save_winws2_profile_settings(
@@ -53,9 +65,23 @@ def save_profile_list_file_text(*, profile_feature, launch_method: str, profile_
     return profile_feature.save_profile_list_file_text(launch_method, profile_key, text)
 
 
-def set_profile_enabled(*, profile_feature, launch_method: str, profile_key: str, enabled: bool) -> str | None:
+def set_profile_enabled(
+    *,
+    profile_feature,
+    launch_method: str,
+    profile_key: str,
+    enabled: bool,
+    filter_kind: str = "",
+    filter_value: str = "",
+) -> str | None:
     """Включает или выключает profile."""
-    return profile_feature.set_profile_enabled(launch_method, profile_key, enabled)
+    return profile_feature.set_profile_enabled(
+        launch_method,
+        profile_key,
+        enabled,
+        filter_kind=filter_kind,
+        filter_value=filter_value,
+    )
 
 
 def apply_strategy_to_profile(*, profile_feature, launch_method: str, profile_key: str, strategy_id: str) -> str | None:

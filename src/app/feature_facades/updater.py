@@ -2,22 +2,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import updater.public as updater_commands
-
 
 @dataclass(frozen=True, slots=True)
 class UpdaterFeature:
+    @staticmethod
+    def _commands():
+        import updater.public as updater_commands
+
+        return updater_commands
+
     def is_auto_update_enabled(self) -> bool:
-        return bool(updater_commands.is_auto_update_enabled())
+        return bool(self._commands().is_auto_update_enabled())
 
     def set_auto_update_enabled(self, enabled: bool) -> None:
-        updater_commands.set_auto_update_enabled(bool(enabled))
+        self._commands().set_auto_update_enabled(bool(enabled))
 
     def run_startup_update_check(self) -> dict:
-        return updater_commands.run_startup_update_check()
+        return self._commands().run_startup_update_check()
 
     def open_update_channel(self, channel: str):
-        return updater_commands.open_update_channel(channel)
+        return self._commands().open_update_channel(channel)
 
 
 def build_updater_feature() -> UpdaterFeature:

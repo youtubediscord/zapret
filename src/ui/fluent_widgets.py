@@ -125,11 +125,40 @@ class SettingsCard(QWidget):
         return super().styleSheet()
 
 
+class _SettingCardGroupAutoHeightFilter(QObject):
+    """Пересчитывает высоту группы после изменения её строк."""
+
+    _EVENTS = {
+        QEvent.Type.ChildAdded,
+        QEvent.Type.ChildRemoved,
+        QEvent.Type.Show,
+    }
+
+    def __init__(self, group):
+        super().__init__(group)
+        self._group = group
+        self._pending = False
+
+    def eventFilter(self, watched, event):  # noqa: N802
+        if watched is self._group and event.type() in self._EVENTS:
+            self._schedule_refresh()
+        return False
+
+    def _schedule_refresh(self) -> None:
+        if self._pending:
+            return
+        self._pending = True
+        QTimer.singleShot(0, self._refresh)
+
+    def _refresh(self) -> None:
+        self._pending = False
+        refresh_setting_card_group_height(self._group)
+
+
 def refresh_setting_card_group_height(group):
     """Явно пересчитывает высоту Fluent `SettingCardGroup`.
 
-    Важно: функция не ставит eventFilter и не слушает `LayoutRequest`.
-    Вызывайте её только после реального изменения структуры группы:
+    Вызывайте её после реального изменения структуры группы:
     вставили виджет, добавили карточку, скрыли/показали дополнительную строку.
     """
 
@@ -140,33 +169,15 @@ def refresh_setting_card_group_height(group):
     if layout is None:
         return group
 
+    _refresh_setting_card_group_card_heights(group)
+
     try:
         layout.invalidate()
         layout.activate()
     except Exception:
         pass
 
-    height_candidates: list[int] = []
-    try:
-        width = max(1, int(group.width() or 0), int(layout.sizeHint().width() or 0))
-    except Exception:
-        width = 1
-
-    try:
-        if layout.hasHeightForWidth():
-            height_candidates.append(int(layout.totalHeightForWidth(width)))
-    except Exception:
-        pass
-    try:
-        height_candidates.append(int(layout.sizeHint().height()))
-    except Exception:
-        pass
-    try:
-        height_candidates.append(int(layout.minimumSize().height()))
-    except Exception:
-        pass
-
-    height = max((item for item in height_candidates if item > 0), default=0)
+    height = _setting_card_group_layout_height(group, layout)
     if height <= 0:
         return group
 
@@ -184,8 +195,147 @@ def refresh_setting_card_group_height(group):
     return group
 
 
+def _setting_card_group_layout_height(group, layout) -> int:
+    total = 0
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        if item is None:
+            continue
+
+        widget = item.widget()
+        if widget is not None:
+            total += _preferred_visible_widget_height(widget)
+            continue
+
+        child_layout = item.layout()
+        if child_layout is not None and child_layout is getattr(group, "cardLayout", None):
+            total += _setting_card_group_cards_height(group)
+            continue
+
+        try:
+            total += max(0, int(item.sizeHint().height()))
+        except Exception:
+            pass
+
+    return total
+
+
+def _preferred_visible_widget_height(widget) -> int:
+    height_candidates: list[int] = []
+    try:
+        height_candidates.append(int(widget.minimumSizeHint().height()))
+    except Exception:
+        pass
+    try:
+        height_candidates.append(int(widget.minimumHeight()))
+    except Exception:
+        pass
+    try:
+        if int(widget.minimumHeight()) == int(widget.maximumHeight()):
+            height_candidates.append(int(widget.height()))
+    except Exception:
+        pass
+    return max((item for item in height_candidates if item > 0), default=0)
+
+
+def _setting_card_group_cards_height(group) -> int:
+    card_layout = getattr(group, "cardLayout", None)
+    if card_layout is None:
+        return 0
+
+    widgets = getattr(card_layout, "_ExpandLayout__widgets", None)
+    if not widgets:
+        return 0
+
+    spacing = 0
+    try:
+        spacing = int(card_layout.spacing())
+    except Exception:
+        pass
+
+    total = 0
+    visible_count = 0
+    for widget in list(widgets):
+        if widget is None:
+            continue
+        try:
+            if widget.isHidden():
+                continue
+        except Exception:
+            pass
+
+        if visible_count:
+            total += spacing
+        total += _preferred_visible_widget_height(widget)
+        visible_count += 1
+
+    return total
+
+
+def _refresh_setting_card_group_card_heights(group) -> None:
+    card_layout = getattr(group, "cardLayout", None)
+    if card_layout is None:
+        return
+
+    widgets = getattr(card_layout, "_ExpandLayout__widgets", None)
+    if not widgets:
+        return
+
+    for widget in list(widgets):
+        if widget is None:
+            continue
+        try:
+            if widget.isHidden():
+                continue
+        except Exception:
+            pass
+
+        height_candidates: list[int] = []
+        try:
+            height_candidates.append(int(widget.minimumHeight()))
+        except Exception:
+            pass
+        try:
+            if int(widget.minimumHeight()) == int(widget.maximumHeight()):
+                height_candidates.append(int(widget.height()))
+        except Exception:
+            pass
+        try:
+            height_candidates.append(int(widget.sizeHint().height()))
+        except Exception:
+            pass
+        try:
+            height_candidates.append(int(widget.minimumSizeHint().height()))
+        except Exception:
+            pass
+
+        height = max((item for item in height_candidates if item > 0), default=0)
+        if height <= 0:
+            continue
+
+        try:
+            if int(widget.minimumHeight()) == height and int(widget.maximumHeight()) == height:
+                continue
+        except Exception:
+            pass
+
+        try:
+            widget.setFixedHeight(height)
+            widget.updateGeometry()
+        except Exception:
+            pass
+
+
 def enable_setting_card_group_auto_height(group):
     """Включает явный пересчёт высоты SettingCardGroup после изменения строк."""
+
+    if group is None:
+        return group
+
+    if getattr(group, "_setting_card_group_auto_height_filter", None) is None:
+        refresh_filter = _SettingCardGroupAutoHeightFilter(group)
+        group.installEventFilter(refresh_filter)
+        group._setting_card_group_auto_height_filter = refresh_filter  # type: ignore[attr-defined]
 
     return refresh_setting_card_group_height(group)
 
@@ -199,7 +349,7 @@ def insert_widget_into_setting_card_group(group, index: int, widget) -> None:
     if layout is None:
         return
     layout.insertWidget(int(index), widget)
-    refresh_setting_card_group_height(group)
+    enable_setting_card_group_auto_height(group)
 
 
 class QuickActionsBar(SimpleCardWidget):
@@ -389,7 +539,7 @@ def build_premium_badge(text: str, parent=None) -> QLabel:
     return badge
 
 
-def build_advanced_settings_section(
+def build_additional_settings_section(
     *,
     title: str,
     warning_text: str,

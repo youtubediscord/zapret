@@ -3,10 +3,10 @@
 import os
 
 from log.log import log
+from lists.core.layered_files import rebuild_all_layered_list_files
 from lists.core.paths import get_lists_dir
 
 LISTS_FOLDER = get_lists_dir()
-
 
 
 def ensure_required_files():
@@ -16,18 +16,18 @@ def ensure_required_files():
 
         from lists.hostlists_manager import ensure_hostlists_exist
         from lists.ipsets_manager import ensure_ipsets_exist
-        from lists.netrogat_manager import ensure_netrogat_exists
 
         hostlists_ok = ensure_hostlists_exist()
         ipsets_ok = ensure_ipsets_exist()
-        netrogat_ok = ensure_netrogat_exists()
+        rebuilt_count = rebuild_all_layered_list_files(LISTS_FOLDER)
+        log(f"Итоговые списки пересобраны: {rebuilt_count}", "DEBUG")
 
-        result = bool(hostlists_ok and ipsets_ok and netrogat_ok)
+        result = bool(hostlists_ok and ipsets_ok)
         if result:
             log("Обязательные файлы списков готовы", "DEBUG")
         else:
             log(
-                f"Не все обязательные файлы готовы: hostlists={hostlists_ok}, ipsets={ipsets_ok}, netrogat={netrogat_ok}",
+                f"Не все обязательные файлы готовы: hostlists={hostlists_ok}, ipsets={ipsets_ok}",
                 "WARNING",
             )
         return result

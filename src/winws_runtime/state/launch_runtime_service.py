@@ -16,6 +16,7 @@ class LaunchRuntimeSnapshot:
     running: bool = False
     last_error: str = ""
     launch_method: str = ""
+    pid: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,10 +56,13 @@ class LaunchRuntimeService:
         """Создаёт начальный UI-state с runtime-полями через runtime-контракт."""
 
         phase = "autostart_pending" if bool(dpi_autostart_enabled and launch_supported) else "stopped"
+        preparing_manual_launch = phase == "stopped" and bool(launch_supported)
         return AppUiState(
             launch_method=normalize_launch_method(launch_method, default=""),
             launch_phase=phase,
             launch_running=False,
+            launch_busy=preparing_manual_launch,
+            launch_busy_text="Подготовка запуска..." if preparing_manual_launch else "",
             autostart_enabled=bool(gui_autostart_enabled),
         )
 
@@ -69,10 +73,12 @@ class LaunchRuntimeService:
         Здесь фиксируется канонический контракт:
         - window-level состояние DPI хранится только в `MainWindowStateStore`;
         - писать в него должен `LaunchRuntimeService`, а не страницы и не window mixin;
-        - публичный snapshot сервиса содержит только поля, реально нужные внешним читателям:
-          `launch_method`, `phase`, `running`, `last_error`;
-        - технические поля мониторинга процесса (`expected_process`, `pid`) живут только
-          во внутреннем tracking state сервиса и не экспортируются в общий UI store;
+        - публичный snapshot сервиса содержит поля, реально нужные внешним читателям:
+          `launch_method`, `phase`, `running`, `last_error`, `pid`;
+        - `pid` экспортируется только через runtime snapshot. Он не хранится
+          в общем UI store и не становится пользовательской настройкой;
+        - технические поля мониторинга процесса (`expected_process`, `missing_probe_count`)
+          живут только во внутреннем tracking state сервиса;
         - UI читает уже готовое состояние из store/AppRuntimeState и не собирает
           параллельный источник истины локально.
         """
@@ -91,6 +97,7 @@ class LaunchRuntimeService:
             ),
             canonical_readers=(
                 "app.feature_facades.runtime_parts.RuntimeEvents.handle_runner_failure",
+                "app.feature_facades.runtime_parts.RuntimeObjects.current_process_pid",
                 "winws_runtime.runtime.lifecycle_feedback.verify_dpi_process_running",
                 "presets.ui.control.zapret1.page.Zapret1ModeControlPage._get_current_dpi_runtime_state",
                 "presets.ui.control.zapret2.page.Zapret2ModeControlPage._on_ui_state_changed",
@@ -115,8 +122,8 @@ class LaunchRuntimeService:
     def snapshot(self) -> LaunchRuntimeSnapshot:
         """Возвращает только публичную часть launch runtime state.
 
-        Важно: внутренний process-tracking (`expected_process`, `pid`) здесь намеренно
-        не экспортируется. Для внешнего кода это не часть общего UI/runtime контракта.
+        Важно: `pid` экспортируется только как runtime-снимок процесса.
+        Он не хранится в общем UI-state и не становится настройкой пользователя.
         """
         store = self._store()
         if store is None:
@@ -128,6 +135,7 @@ class LaunchRuntimeService:
                 phase=str(state.launch_phase or "stopped").strip().lower() or "stopped",
                 running=bool(state.launch_running),
                 last_error=str(state.launch_last_error or "").strip(),
+                pid=self._tracking_state.pid,
             )
         except Exception:
             return LaunchRuntimeSnapshot()

@@ -16,7 +16,7 @@ class _FakeDirectRunner:
         return self._process
 
     def get_current_strategy_info(self) -> dict:
-        return {"name": "Default v5", "pid": 14848}
+        return {"name": "Default v5"}
 
 
 class LogPageRuntimeTests(unittest.TestCase):

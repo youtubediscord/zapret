@@ -17,6 +17,13 @@ class TelegramProxySettingsState:
     upstream_mode: str
     upstream_preset_index: int
 
+
+@dataclass(slots=True)
+class TelegramProxyPageInitialStatePlan:
+    upstream_catalog: UpstreamCatalog
+    settings: TelegramProxySettingsState
+
+
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 1353
 DEFAULT_UPSTREAM_PORT = 1080
@@ -75,48 +82,43 @@ def build_manual_instruction_text(host: str, port: int) -> str:
 def build_proxy_url(host: str, port: int) -> str:
     return f"tg://socks?server={normalize_host(host)}&port={normalize_port(port)}"
 
-def load_state(upstream_catalog: UpstreamCatalog) -> TelegramProxySettingsState:
-    state = default_state()
 
-    try:
-        from settings.store import (
-            get_tg_proxy_host,
-            get_tg_proxy_port,
-            get_tg_proxy_upstream_enabled,
-            get_tg_proxy_upstream_host,
-            get_tg_proxy_upstream_mode,
-            get_tg_proxy_upstream_pass,
-            get_tg_proxy_upstream_port,
-            get_tg_proxy_upstream_user,
-        )
+def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> TelegramProxySettingsState:
+    raw = dict((data or {}).get("telegram_proxy") or {})
+    upstream_host = str(raw.get("upstream_host") or "").strip()
+    upstream_port = normalize_upstream_port(raw.get("upstream_port"))
+    upstream_user = str(raw.get("upstream_user") or "").strip()
+    upstream_password = str(raw.get("upstream_pass") or "")
+    upstream_mode = str(raw.get("upstream_mode") or "fallback").strip().lower() or "fallback"
 
-        host = normalize_host(get_tg_proxy_host())
-        port = normalize_port(get_tg_proxy_port())
-        upstream_host = str(get_tg_proxy_upstream_host() or "").strip()
-        upstream_port = normalize_upstream_port(get_tg_proxy_upstream_port())
-        upstream_user = str(get_tg_proxy_upstream_user() or "").strip()
-        upstream_password = str(get_tg_proxy_upstream_pass() or "")
-        upstream_mode = str(get_tg_proxy_upstream_mode() or "fallback").strip().lower() or "fallback"
-        upstream_preset_index = upstream_catalog.find_choice_index(
+    return TelegramProxySettingsState(
+        host=normalize_host(raw.get("host")),
+        port=normalize_port(raw.get("port")),
+        upstream_enabled=bool(raw.get("upstream_enabled", False)),
+        upstream_host=upstream_host,
+        upstream_port=upstream_port,
+        upstream_user=upstream_user,
+        upstream_password=upstream_password,
+        upstream_mode=upstream_mode,
+        upstream_preset_index=upstream_catalog.find_choice_index(
             host=upstream_host,
             port=upstream_port,
             username=upstream_user,
             password=upstream_password,
-        )
+        ),
+    )
 
-        return TelegramProxySettingsState(
-            host=host,
-            port=port,
-            upstream_enabled=bool(get_tg_proxy_upstream_enabled()),
-            upstream_host=upstream_host,
-            upstream_port=upstream_port,
-            upstream_user=upstream_user,
-            upstream_password=upstream_password,
-            upstream_mode=upstream_mode,
-            upstream_preset_index=upstream_preset_index,
-        )
+
+def load_page_initial_state() -> TelegramProxyPageInitialStatePlan:
+    upstream_catalog = UpstreamCatalog.load_from_runtime()
+    try:
+        from settings.store import read_settings
+
+        state = _settings_state_from_data(read_settings(), upstream_catalog)
     except Exception:
-        return state
+        state = default_state()
+    return TelegramProxyPageInitialStatePlan(upstream_catalog=upstream_catalog, settings=state)
+
 
 def set_port(port: int) -> int:
     normalized = normalize_port(port)

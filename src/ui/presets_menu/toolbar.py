@@ -22,6 +22,8 @@ class PresetsToolbarLayout:
         self._button_spacing = max(0, int(button_spacing))
         self._buttons: list[QWidget] = []
         self._rows: list[tuple[QWidget, QHBoxLayout]] = []
+        self._trailing_widget: QWidget | None = None
+        self._trailing_minimum_width = 260
 
         self._layout = QVBoxLayout(self.container)
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -57,6 +59,17 @@ class PresetsToolbarLayout:
 
     def set_buttons(self, buttons) -> None:
         self._buttons = [button for button in buttons if button is not None]
+        for button in self._buttons:
+            button.setParent(self.container)
+
+    def set_trailing_widget(self, widget: QWidget | None, *, minimum_width: int = 260) -> None:
+        self._trailing_widget = widget
+        self._trailing_minimum_width = max(0, int(minimum_width))
+        if widget is None:
+            return
+        widget.setParent(self.container)
+        widget.setMinimumWidth(self._trailing_minimum_width)
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def refresh_for_viewport(self, viewport_width: int, margins) -> None:
         available_width = max(
@@ -66,19 +79,53 @@ class PresetsToolbarLayout:
         self.refresh_layout(available_width)
 
     def refresh_layout(self, available_width: int) -> None:
-        assigned_rows = self._compute_rows(int(available_width))
+        assigned_rows = self._compute_layout_rows(int(available_width))
 
         for index, (row_widget, row_layout) in enumerate(self._rows):
             self._clear_row(row_layout)
-            row_buttons = assigned_rows[index] if index < len(assigned_rows) else []
+            row = assigned_rows[index] if index < len(assigned_rows) else ([], False)
+            row_buttons, has_trailing = row
 
-            if row_buttons:
+            if row_buttons or has_trailing:
                 for button in row_buttons:
                     row_layout.addWidget(button)
-                row_layout.addStretch(1)
+                if has_trailing and self._trailing_widget is not None:
+                    if row_buttons:
+                        row_layout.addStretch(1)
+                    row_layout.addWidget(self._trailing_widget, 1)
+                else:
+                    row_layout.addStretch(1)
                 row_widget.setVisible(True)
             else:
                 row_widget.setVisible(False)
+
+    def _compute_layout_rows(self, available_width: int) -> list[tuple[list[QWidget], bool]]:
+        button_rows = self._compute_rows(available_width)
+        trailing = self._trailing_widget
+        if trailing is None or trailing.isHidden():
+            return [(row, False) for row in button_rows]
+
+        if not button_rows:
+            return [([], True)]
+
+        if len(button_rows) == 1 and self._row_fits_trailing(button_rows[0], available_width):
+            return [(button_rows[0], True)]
+
+        return [(row, False) for row in button_rows] + [([], True)]
+
+    def _row_fits_trailing(self, row_buttons: list[QWidget], available_width: int) -> bool:
+        if available_width <= 0:
+            return True
+        buttons_width = self._buttons_width(row_buttons)
+        if buttons_width <= 0:
+            return self._trailing_minimum_width <= available_width
+        return buttons_width + self._button_spacing + self._trailing_minimum_width <= available_width
+
+    def _buttons_width(self, buttons: list[QWidget]) -> int:
+        if not buttons:
+            return 0
+        widths = [int(button.sizeHint().width()) for button in buttons]
+        return sum(widths) + self._button_spacing * max(0, len(widths) - 1)
 
     def _visible_buttons(self) -> list[QWidget]:
         return [button for button in self._buttons if not button.isHidden()]

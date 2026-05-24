@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+import threading
 import time
 
 from log.log import log
@@ -19,6 +20,7 @@ from .folders import (
 )
 from .list_interpreter import build_profile_list_sources
 from .list_file_editor import (
+    profile_list_file_exists,
     profile_list_file_reference,
     read_profile_list_file_text,
     validate_profile_list_file_text,
@@ -42,11 +44,12 @@ from .strategy_catalog import StrategyEntry, load_strategy_catalogs
 from .state import ProfileListFileEditorState, ProfileListItem, ProfileListPayload, ProfileSetupPayload
 from .template_library import load_profile_template_library
 from .user_profiles import create_user_profile, delete_user_profile, update_user_profile
-from .winws2_editable_settings import (
-    Winws2EditableSettings,
-    normalize_winws2_filter_value,
-    read_winws2_editable_settings,
-    with_winws2_editable_settings,
+from .editable_settings import (
+    EditableProfileSettings,
+    normalize_filter_value,
+    read_editable_profile_settings,
+    with_editable_profile,
+    with_editable_profile_settings,
 )
 
 
@@ -67,6 +70,8 @@ class ProfilePresetService:
         self._state_store = ProfileStrategyStateStore()
         self._selected_preset_snapshot: _SelectedPresetSnapshot | None = None
         self._profile_list_snapshot: ProfileListPayload | None = None
+        self._profile_list_snapshot_revision: tuple[object, ...] | None = None
+        self._profile_list_lock = threading.RLock()
 
     @property
     def engine(self) -> EngineName:
@@ -74,6 +79,14 @@ class ProfilePresetService:
 
     def load_selected_preset(self) -> tuple[Preset, object]:
         revision, manifest, source_text = self._selected_preset_revision()
+        return self._load_selected_preset_for_revision(revision, manifest, source_text)
+
+    def _load_selected_preset_for_revision(
+        self,
+        revision: tuple[object, ...],
+        manifest: object,
+        source_text: str | None,
+    ) -> tuple[Preset, object]:
         snapshot = self._selected_preset_snapshot
         if snapshot is not None and snapshot.revision == revision:
             return snapshot.preset, snapshot.manifest
@@ -100,22 +113,45 @@ class ProfilePresetService:
         self._invalidate_selected_preset_snapshot()
 
     def list_profiles(self) -> ProfileListPayload:
+        with self._profile_list_lock:
+            return self._list_profiles_locked()
+
+    def _list_profiles_locked(self) -> ProfileListPayload:
         total_started_at = time.perf_counter()
-        preset, manifest = self.load_selected_preset()
+        revision, manifest, source_text = self._selected_preset_revision()
+        snapshot = self._profile_list_snapshot
+        if snapshot is not None and self._profile_list_snapshot_revision == revision:
+            self._log_timing("profile_feature.list_profiles.cached", total_started_at)
+            return snapshot
+
+        preset, manifest = self._load_selected_preset_for_revision(revision, manifest, source_text)
         normalize_started_at = time.perf_counter()
         normalization = normalize_preset_profiles(preset)
         self._log_timing("profile_feature.profiles.normalize", normalize_started_at)
         if normalization.changed:
             preset = normalization.preset
             self.save_selected_preset(preset)
+
+        catalogs_started_at = time.perf_counter()
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)
+        self._log_timing("profile_feature.strategy_catalogs.load", catalogs_started_at)
+
+        templates_started_at = time.perf_counter()
         templates = self._load_profile_templates()
+        self._log_timing("profile_feature.templates.load", templates_started_at)
+
+        folder_state_started_at = time.perf_counter()
         folder_state = load_profile_folder_state()
+        self._log_timing("profile_feature.folder_state.load", folder_state_started_at)
 
         items: list[ProfileListItem] = []
 
+        sources_started_at = time.perf_counter()
+        sources = build_profile_list_sources(tuple(preset.profiles), templates)
+        self._log_timing("profile_feature.sources.build", sources_started_at)
+
         items_started_at = time.perf_counter()
-        for source in build_profile_list_sources(tuple(preset.profiles), templates):
+        for source in sources:
             item = self._item_for_profile(
                 source.profile,
                 catalogs=catalogs,
@@ -126,7 +162,7 @@ class ProfilePresetService:
                 user_template_key=getattr(source, "user_template_key", ""),
             )
             items.append(item)
-        self._log_timing("profile_feature.profile_item.build", items_started_at)
+        self._log_timing("profile_feature.profile_list_item.build", items_started_at)
 
         payload = ProfileListPayload(
             items=tuple(items),
@@ -136,6 +172,7 @@ class ProfilePresetService:
             normalized_created_profiles=normalization.created_profile_count,
         )
         self._profile_list_snapshot = payload
+        self._profile_list_snapshot_revision = revision
         self._log_timing("profile_feature.list_profiles.total", total_started_at)
         return payload
 
@@ -238,7 +275,7 @@ class ProfilePresetService:
             user_template_key=getattr(source, "user_template_key", ""),
         )
         strategy_entries = dict(_basic_strategy_entries(profile, catalogs))
-        winws2_editable = read_winws2_editable_settings(profile) if self._engine == ENGINE_WINWS2 else Winws2EditableSettings()
+        editable = read_editable_profile_settings(profile)
         strategy_states = self._state_store.get_strategy_states(
             profile.persistent_key,
             tuple(strategy_entries),
@@ -250,16 +287,24 @@ class ProfilePresetService:
             raw_profile_text=_profile_raw_text(profile),
             raw_strategy_text="\n".join(getattr(profile.strategy, "strategy_lines", ()) or ()),
             match_summary=_match_summary(profile, list_type=item.list_type),
-            editable_filter_kind=winws2_editable.filter_kind,
-            editable_filter_value=winws2_editable.filter_value,
-            editable_filter_enabled=winws2_editable.filter_editable,
-            editable_filter_kinds=_available_filter_kinds(winws2_editable, self._app_paths),
-            in_range=winws2_editable.in_range,
-            out_range=winws2_editable.out_range,
+            editable_filter_kind=editable.filter_kind,
+            editable_filter_value=editable.filter_value,
+            editable_filter_enabled=editable.filter_editable,
+            editable_filter_role=editable.filter_role,
+            editable_filter_kinds=_available_filter_kinds(editable, self._app_paths),
+            in_range=editable.in_range,
+            out_range=editable.out_range,
             current_strategy_state=strategy_states.get(item.strategy_id, ProfileStrategyState()),
         )
 
-    def set_profile_enabled(self, profile_key: str, enabled: bool) -> str | None:
+    def set_profile_enabled(
+        self,
+        profile_key: str,
+        enabled: bool,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> str | None:
         preset, _manifest = self.load_selected_preset()
         index = _profile_index_for_key(preset, profile_key)
         if index is not None:
@@ -268,13 +313,16 @@ class ProfilePresetService:
             return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
 
         if profile_key.startswith("template:") and enabled:
-            template = self._load_profile_templates().get(profile_key.split(":", 1)[1])
-            if template is None:
+            preset, resolved_key = self._append_template_profile_to_preset(
+                preset,
+                profile_key,
+                filter_kind=filter_kind,
+                filter_value=filter_value,
+            )
+            if not resolved_key:
                 return None
-            new_index = len(preset.profiles)
-            preset = append_profile_from_template(preset, template, enabled=True)
             self.save_selected_preset(preset)
-            return preset.profiles[new_index].key if 0 <= new_index < len(preset.profiles) else None
+            return resolved_key
         return None
 
     def apply_strategy(self, profile_key: str, strategy_id: str) -> str | None:
@@ -294,12 +342,9 @@ class ProfilePresetService:
         preset, _manifest = self.load_selected_preset()
         resolved_key = profile_key
         if profile_key.startswith("template:"):
-            template = self._load_profile_templates().get(profile_key.split(":", 1)[1])
-            if template is None:
+            preset, resolved_key = self._append_template_profile_to_preset(preset, profile_key)
+            if not resolved_key:
                 return None
-            new_index = len(preset.profiles)
-            preset = append_profile_from_template(preset, template, enabled=True)
-            resolved_key = preset.profiles[new_index].key if 0 <= new_index < len(preset.profiles) else ""
 
         index = _profile_index_for_key(preset, resolved_key)
         if index is None:
@@ -343,13 +388,16 @@ class ProfilePresetService:
             return None
         if clear:
             self._state_store.clear_strategy_state(persistent_key, strategy_id)
+            self._invalidate_profile_list_snapshot()
             return ProfileStrategyState()
-        return self._state_store.set_strategy_state(
+        state = self._state_store.set_strategy_state(
             persistent_key,
             strategy_id,
             rating=rating,
             favorite=favorite,
         )
+        self._invalidate_profile_list_snapshot()
+        return state
 
     def update_winws2_editable_settings(
         self,
@@ -360,19 +408,17 @@ class ProfilePresetService:
         in_range: str,
         out_range: str,
     ) -> str | None:
-        if self._engine != ENGINE_WINWS2:
-            return None
-
         preset, _manifest = self.load_selected_preset()
         index = _profile_index_for_key(preset, profile_key)
         if index is None:
             return None
-        preset = with_winws2_editable_settings(
+        preset = with_editable_profile_settings(
             preset,
             index,
-            Winws2EditableSettings(
+            EditableProfileSettings(
                 filter_kind=filter_kind,
                 filter_value=filter_value,
+                filter_role=read_editable_profile_settings(preset.profiles[index]).filter_role,
                 in_range=in_range,
                 out_range=out_range,
             ),
@@ -400,15 +446,24 @@ class ProfilePresetService:
         write_profile_list_file_text(self._lists_root(), reference, text)
         return self._list_editor_state_for_profile(profile)
 
-    def get_profile_list_file_editor_state(self, profile_key: str) -> ProfileListFileEditorState | None:
+    def get_profile_list_file_editor_state(
+        self,
+        profile_key: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> ProfileListFileEditorState | None:
         profile = self._resolve_profile(profile_key)
         if profile is None:
             return None
+        profile = self._profile_with_filter_override(
+            profile,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+        )
         return self._list_editor_state_for_profile(profile)
 
     def set_profile_filter_kind(self, profile_key: str, filter_kind: str) -> str | None:
-        if self._engine != ENGINE_WINWS2:
-            return None
         filter_kind = str(filter_kind or "").strip().lower()
         if filter_kind not in {"hostlist", "ipset"}:
             return None
@@ -418,7 +473,7 @@ class ProfilePresetService:
         if index is None:
             return None
         profile = preset.profiles[index]
-        current = read_winws2_editable_settings(profile)
+        current = read_editable_profile_settings(profile)
         if not current.filter_editable:
             return None
         if current.filter_kind == filter_kind:
@@ -426,12 +481,13 @@ class ProfilePresetService:
         if filter_kind not in _available_filter_kinds(current, self._app_paths):
             return None
 
-        preset = with_winws2_editable_settings(
+        preset = with_editable_profile_settings(
             preset,
             index,
-            Winws2EditableSettings(
+            EditableProfileSettings(
                 filter_kind=filter_kind,
                 filter_value=current.filter_value,
+                filter_role=current.filter_role,
                 in_range=current.in_range,
                 out_range=current.out_range,
             ),
@@ -469,6 +525,7 @@ class ProfilePresetService:
             destination.profile.persistent_key,
             [item.profile.persistent_key for item in sources],
         )
+        self._invalidate_profile_list_snapshot()
         return source.key
 
     def move_profile_to_end(self, profile_key: str) -> str | None:
@@ -480,16 +537,19 @@ class ProfilePresetService:
             source.profile.persistent_key,
             [item.profile.persistent_key for item in sources],
         )
+        self._invalidate_profile_list_snapshot()
         return source.key
 
     def create_user_profile(self, *, name: str, protocol: str, ports: str) -> str:
         profile_id = create_user_profile(self._app_paths, name=name, protocol=protocol, ports=ports)
         self._load_profile_templates.cache_clear()
+        self._invalidate_profile_list_snapshot()
         return profile_id
 
     def update_user_profile(self, profile_id: str, *, name: str, protocol: str, ports: str) -> int:
         old_name, row = update_user_profile(self._app_paths, profile_id, name=name, protocol=protocol, ports=ports)
         self._load_profile_templates.cache_clear()
+        self._invalidate_profile_list_snapshot()
         if not old_name:
             return 0
         return self._update_user_profile_in_all_presets(old_name, row)
@@ -497,6 +557,7 @@ class ProfilePresetService:
     def delete_user_profile(self, profile_id: str) -> int:
         old_name, _row = delete_user_profile(self._app_paths, profile_id)
         self._load_profile_templates.cache_clear()
+        self._invalidate_profile_list_snapshot()
         if not old_name:
             return 0
         return self._delete_user_profile_from_all_presets(old_name)
@@ -615,6 +676,67 @@ class ProfilePresetService:
             error_text=reference.error_text,
         )
 
+    def _append_template_profile_to_preset(
+        self,
+        preset: Preset,
+        profile_key: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> tuple[Preset, str]:
+        if not str(profile_key or "").startswith("template:"):
+            return preset, ""
+
+        template = self._load_profile_templates().get(str(profile_key).split(":", 1)[1])
+        if template is None:
+            return preset, ""
+
+        current = read_editable_profile_settings(template)
+        template = self._profile_with_filter_override(
+            template,
+            filter_kind=filter_kind or current.filter_kind,
+            filter_value=filter_value or current.filter_value,
+            out_range="-d8",
+        )
+        updated = append_profile_from_template(preset, template, enabled=True, position="top")
+        return updated, updated.profiles[0].key if updated.profiles else ""
+
+    def _profile_with_filter_override(
+        self,
+        profile: Profile,
+        *,
+        filter_kind: str,
+        filter_value: str,
+        out_range: str = "",
+    ) -> Profile:
+        if profile.engine != self._engine:
+            return profile
+
+        kind = str(filter_kind or "").strip().lower()
+        if kind not in {"hostlist", "ipset"}:
+            return profile
+
+        current = read_editable_profile_settings(profile)
+        if not current.filter_editable:
+            return profile
+        if kind not in _available_filter_kinds(current, self._app_paths):
+            return profile
+
+        value = normalize_filter_value(filter_value or current.filter_value, kind, filter_role=current.filter_role)
+        if not value:
+            return profile
+
+        return with_editable_profile(
+            profile,
+            EditableProfileSettings(
+                filter_kind=kind,
+                filter_value=value,
+                filter_role=current.filter_role,
+                in_range=current.in_range,
+                out_range=out_range or current.out_range,
+            ),
+        )
+
     def _item_for_profile(
         self,
         profile: Profile,
@@ -668,7 +790,11 @@ class ProfilePresetService:
 
     def _invalidate_selected_preset_snapshot(self) -> None:
         self._selected_preset_snapshot = None
+        self._invalidate_profile_list_snapshot()
+
+    def _invalidate_profile_list_snapshot(self) -> None:
         self._profile_list_snapshot = None
+        self._profile_list_snapshot_revision = None
 
     def _current_selected_preset_file_name(self) -> str:
         file_name_getter = getattr(self._presets, "get_selected_source_preset_file_name", None)
@@ -784,7 +910,13 @@ def _list_type(profile: Profile) -> str:
     has_hostlist = bool(profile.match.hostlist_lines or profile.match.hostlist_domains_lines)
     has_ipset = bool(profile.match.ipset_lines or profile.match.inline_ipset_lines)
     has_excludes = bool(profile.match.hostlist_exclude_lines or profile.match.ipset_exclude_lines)
-    if has_excludes or (has_hostlist and has_ipset):
+    if has_excludes:
+        settings = read_editable_profile_settings(profile)
+        if settings.filter_role == "exclude" and not (has_hostlist or has_ipset):
+            if settings.filter_kind in {"hostlist", "ipset"}:
+                return settings.filter_kind
+        return "custom"
+    if has_hostlist and has_ipset:
         return "custom"
     if has_hostlist:
         return "hostlist"
@@ -803,9 +935,7 @@ def _visible_list_type(profile: Profile, app_paths) -> str:
 
 
 def _profile_has_filter_choice(profile: Profile, app_paths) -> bool:
-    if profile.engine != ENGINE_WINWS2:
-        return False
-    settings = read_winws2_editable_settings(profile)
+    settings = read_editable_profile_settings(profile)
     if not settings.filter_editable:
         return False
     available = {
@@ -832,14 +962,14 @@ def _match_summary(profile: Profile, *, list_type: str | None = None) -> str:
     return " • ".join(parts) or "без явных условий"
 
 
-def _available_filter_kinds(settings: Winws2EditableSettings, app_paths) -> tuple[str, ...]:
+def _available_filter_kinds(settings: EditableProfileSettings, app_paths) -> tuple[str, ...]:
     current_kind = str(settings.filter_kind or "hostlist").strip().lower()
     if not settings.filter_editable or current_kind not in {"hostlist", "ipset"}:
         return (current_kind,)
 
     result: list[str] = []
     for candidate in ("hostlist", "ipset"):
-        candidate_value = normalize_winws2_filter_value(settings.filter_value, candidate)
+        candidate_value = normalize_filter_value(settings.filter_value, candidate, filter_role=settings.filter_role)
         if candidate == current_kind or _filter_files_available(app_paths, candidate_value):
             result.append(candidate)
     return tuple(result) or (current_kind,)
@@ -852,7 +982,7 @@ def _filter_files_available(app_paths, filter_value: str) -> bool:
     for value in _filter_reference_values(filter_value):
         if not _looks_like_list_file_reference(value):
             continue
-        if not (lists_root / Path(value.replace("\\", "/")).name).is_file():
+        if not profile_list_file_exists(lists_root, value):
             return False
     return True
 

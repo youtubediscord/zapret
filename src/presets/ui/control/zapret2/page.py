@@ -15,7 +15,7 @@ from presets.ui.control.zapret2.deferred_build import (
     build_winws2_pages_deferred_sections,
 )
 from presets.ui.control.zapret2.runtime_helpers import (
-    apply_advanced_settings_plan,
+    apply_additional_settings_state,
     apply_profile_language,
     apply_program_settings_snapshot,
     apply_status_plan,
@@ -36,6 +36,9 @@ from presets.ui.control.control_page_runtime_shared import apply_last_status_mes
 from app.text_catalog import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
 from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
+from presets.ui.control.additional_settings_runtime import (
+    create_additional_settings_worker as create_control_additional_settings_worker,
+)
 import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 
 from qfluentwidgets import (
@@ -44,6 +47,9 @@ from qfluentwidgets import (
     SegmentedWidget, MessageBoxBase,
     PrimaryPushButton, PushButton, SettingCardGroup, PushSettingCard,
 )
+
+
+STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS = 250
 
 
 class ProfileUiModeDialog(MessageBoxBase):
@@ -199,6 +205,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._startup_showevent_profile_logged = False
         self._deferred_sections_built = False
         self._deferred_sections_hydrated = False
+        self._startup_deferred_sections_waiting = False
+        self._startup_top_summary_waiting = False
         self._refresh_runtime = zapret2_page_runtime.create_refresh_runtime()
         self.profile_ui_mode_label = None
         self.profile_ui_mode_caption = None
@@ -209,14 +217,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.hide_to_tray_toggle = None
         self.defender_toggle = None
         self.max_block_toggle = None
-        self.advanced_settings_section_label = None
+        self.additional_settings_section_label = None
         self.discord_restart_toggle = None
         self.wssize_toggle = None
         self.debug_log_toggle = None
         self.blobs_action_card = None
         self.blobs_open_btn = None
-        self.advanced_card = None
-        self.advanced_notice = None
+        self.additional_settings_card = None
+        self.additional_settings_notice = None
         self.last_status_message_card = None
         self.last_status_message_dot = None
         self.last_status_message_title = None
@@ -239,10 +247,13 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         _log_startup_winws2_control_metric("__init__.total", (_time.perf_counter() - _t_init) * 1000)
 
     def _after_ui_built(self) -> None:
-        try:
-            self._apply_selected_preset_name_fast()
-        except Exception:
-            pass
+        if self._startup_can_refresh_top_summary():
+            try:
+                self._apply_selected_preset_name_fast()
+            except Exception:
+                pass
+        else:
+            self._wait_for_startup_interactive_before_top_summary()
         self._update_stop_winws_button_text()
         self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
 
@@ -258,12 +269,94 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         if (
             not self._deferred_sections_built
             or not self._deferred_sections_hydrated
-            or bool(self._refresh_runtime.advanced_settings_dirty)
+            or bool(self._refresh_runtime.additional_settings_dirty)
         ):
+            if not self._startup_can_run_deferred_sections():
+                self._wait_for_startup_interactive_before_deferred_sections()
+                if not self._startup_showevent_profile_logged:
+                    self._startup_showevent_profile_logged = True
+                    _log_startup_winws2_control_metric("activation.total", (_time.perf_counter() - _t_show) * 1000)
+                return
             self.deferred_show_requested.emit()
         if not self._startup_showevent_profile_logged:
             self._startup_showevent_profile_logged = True
             _log_startup_winws2_control_metric("activation.total", (_time.perf_counter() - _t_show) * 1000)
+
+    def _startup_can_run_deferred_sections(self) -> bool:
+        try:
+            state = getattr(self.window(), "startup_state", None)
+        except Exception:
+            return True
+        if state is None:
+            return True
+        return bool(getattr(state, "interactive_logged", False))
+
+    def _wait_for_startup_interactive_before_deferred_sections(self) -> None:
+        if bool(self._startup_deferred_sections_waiting):
+            return
+        self._startup_deferred_sections_waiting = True
+        try:
+            signal = getattr(self.window(), "startup_interactive_ready", None)
+            signal.connect(
+                self._on_startup_interactive_ready_for_deferred_sections,
+                Qt.ConnectionType.QueuedConnection,
+            )
+        except Exception:
+            QTimer.singleShot(
+                STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS,
+                self._request_deferred_sections_after_startup,
+            )
+
+    def _on_startup_interactive_ready_for_deferred_sections(self, *_args) -> None:
+        QTimer.singleShot(
+            STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS,
+            self._request_deferred_sections_after_startup,
+        )
+
+    def _request_deferred_sections_after_startup(self) -> None:
+        self._startup_deferred_sections_waiting = False
+        if self._cleanup_in_progress:
+            return
+        self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
+
+    def _startup_can_refresh_top_summary(self) -> bool:
+        return self._startup_can_run_deferred_sections()
+
+    def _wait_for_startup_interactive_before_top_summary(self) -> None:
+        if bool(self._startup_top_summary_waiting):
+            return
+        self._startup_top_summary_waiting = True
+        try:
+            signal = getattr(self.window(), "startup_interactive_ready", None)
+            signal.connect(
+                self._on_startup_interactive_ready_for_top_summary,
+                Qt.ConnectionType.QueuedConnection,
+            )
+        except Exception:
+            QTimer.singleShot(
+                STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS,
+                self._request_top_summary_after_startup,
+            )
+
+    def _on_startup_interactive_ready_for_top_summary(self, *_args) -> None:
+        QTimer.singleShot(
+            STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS,
+            self._request_top_summary_after_startup,
+        )
+
+    def _request_top_summary_after_startup(self) -> None:
+        self._startup_top_summary_waiting = False
+        if self._cleanup_in_progress:
+            return
+        self.run_when_page_ready(self._refresh_top_summary_after_startup)
+
+    def _refresh_top_summary_after_startup(self) -> None:
+        _t_summary = _time.perf_counter()
+        self._refresh_top_summary()
+        _log_startup_winws2_control_metric(
+            "startup.refresh_top_summary_after_interactive",
+            (_time.perf_counter() - _t_summary) * 1000,
+        )
 
     def _load_selected_preset_name(self) -> tuple[str, str]:
         try:
@@ -345,7 +438,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             except Exception:
                 pass
             self._deferred_sections_hydrated = True
-            self._schedule_advanced_settings_reload(force=True)
+            self._schedule_additional_settings_reload(force=True)
             _log_startup_winws2_control_metric(
                 "showEvent.hydrate_deferred_sections",
                 (_time.perf_counter() - _t_hydrate) * 1000,
@@ -353,9 +446,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             return
 
         _t_adv = _time.perf_counter()
-        self._schedule_advanced_settings_reload()
+        self._schedule_additional_settings_reload()
         _log_startup_winws2_control_metric(
-            "showEvent.load_advanced_settings",
+            "showEvent.load_additional_settings",
             (_time.perf_counter() - _t_adv) * 1000,
         )
 
@@ -367,6 +460,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.top_summary = ControlTopSummaryWidget(
             language=self._ui_language,
             mode_value="Zapret 2",
+            initial_icon_delay_ms=STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS,
             parent=self.content,
         )
         self.top_summary.presetClicked.connect(self._open_presets_callback)
@@ -459,16 +553,16 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.add_widget(self.program_settings_card)
         enable_setting_card_group_auto_height(self.program_settings_card)
 
-        self.advanced_settings_section_label = None
+        self.additional_settings_section_label = None
         self.discord_restart_toggle = deferred_widgets.discord_restart_toggle
         self.wssize_toggle = deferred_widgets.wssize_toggle
         self.debug_log_toggle = deferred_widgets.debug_log_toggle
         self.blobs_action_card = deferred_widgets.blobs_action_card
         self.blobs_open_btn = deferred_widgets.blobs_open_btn
-        self.advanced_card = deferred_widgets.advanced_card
-        self.advanced_notice = deferred_widgets.advanced_notice
+        self.additional_settings_card = deferred_widgets.additional_settings_card
+        self.additional_settings_notice = deferred_widgets.additional_settings_notice
         self.add_spacing(16)
-        self.add_widget(self.advanced_card)
+        self.add_widget(self.additional_settings_card)
 
         self.add_spacing(16)
         last_message_widgets = build_last_status_message_card_common(
@@ -494,23 +588,23 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.docs_btn = self.docs_card.button
         self.add_widget(self.extra_card)
 
-    def _apply_advanced_settings_plan(self, plan) -> None:
-        apply_advanced_settings_plan(
+    def _apply_additional_settings_state(self, plan) -> None:
+        apply_additional_settings_state(
             plan,
             discord_restart_toggle=self.discord_restart_toggle,
             wssize_toggle=self.wssize_toggle,
             debug_log_toggle=self.debug_log_toggle,
         )
 
-    def _schedule_advanced_settings_reload(self, *, force: bool = False) -> None:
+    def _schedule_additional_settings_reload(self, *, force: bool = False) -> None:
         runtime = self._refresh_runtime
-        if not force and not runtime.advanced_settings_dirty:
+        if not force and not runtime.additional_settings_dirty:
             return
         if not self.isVisible():
-            runtime.advanced_settings_dirty = True
+            runtime.additional_settings_dirty = True
             self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
             return
-        worker = runtime.advanced_settings_worker
+        worker = runtime.additional_settings_worker
         if worker is not None:
             try:
                 if worker.isRunning():
@@ -518,29 +612,30 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             except Exception:
                 pass
 
-        request_id = runtime.next_advanced_settings_request_id()
-        worker = zapret2_page_runtime.create_advanced_settings_worker(
+        request_id = runtime.next_additional_settings_request_id()
+        worker = create_control_additional_settings_worker(
             request_id,
             self._profile,
-            self,
+            launch_method=ZAPRET2_MODE,
+            parent=self,
         )
-        runtime.advanced_settings_worker = worker
-        worker.loaded.connect(self._on_advanced_settings_loaded)
+        runtime.additional_settings_worker = worker
+        worker.loaded.connect(self._on_additional_settings_loaded)
         worker.finished.connect(worker.deleteLater)
         worker.start()
 
-    def _on_advanced_settings_loaded(self, request_id: int, state: dict) -> None:
-        if not self._refresh_runtime.accept_advanced_settings_result(request_id):
+    def _on_additional_settings_loaded(self, request_id: int, state: dict) -> None:
+        if not self._refresh_runtime.accept_additional_settings_result(request_id):
             return
-        plan = zapret2_page_runtime.build_advanced_settings_apply_plan(state if isinstance(state, dict) else {})
-        self._apply_advanced_settings_plan(plan)
+        plan = zapret2_page_runtime.build_additional_settings_state(state if isinstance(state, dict) else {})
+        self._apply_additional_settings_state(plan)
 
     def _on_discord_restart_changed(self, enabled: bool) -> None:
-        self._refresh_runtime.mark_advanced_settings_written()
+        self._refresh_runtime.mark_additional_settings_written()
         zapret2_page_runtime.save_discord_restart_setting(enabled)
 
     def _on_wssize_toggled(self, enabled: bool) -> None:
-        self._refresh_runtime.mark_advanced_settings_written()
+        self._refresh_runtime.mark_additional_settings_written()
         zapret2_page_runtime.save_wssize_enabled(
             enabled,
             profile_feature=self._profile,
@@ -548,7 +643,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
 
     def _on_debug_log_toggled(self, enabled: bool) -> None:
-        self._refresh_runtime.mark_advanced_settings_written()
+        self._refresh_runtime.mark_additional_settings_written()
         zapret2_page_runtime.save_debug_log_enabled(
             enabled,
             profile_feature=self._profile,
@@ -659,17 +754,23 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             or "subscription_days_remaining" in changed
         )
         if summary_changed:
-            self._refresh_top_summary(state)
+            if self._startup_can_refresh_top_summary():
+                self._refresh_top_summary(state)
+            else:
+                self._wait_for_startup_interactive_before_top_summary()
         if "mode_revision" in changed:
             self._sync_profile_ui_mode_from_settings()
         if presets_changed:
-            try:
-                self._apply_selected_preset_name_fast()
-            except Exception:
-                pass
-            self._refresh_runtime.advanced_settings_dirty = True
+            if self._startup_can_refresh_top_summary():
+                try:
+                    self._apply_selected_preset_name_fast()
+                except Exception:
+                    pass
+            else:
+                self._wait_for_startup_interactive_before_top_summary()
+            self._refresh_runtime.additional_settings_dirty = True
             if self.isVisible() and self._deferred_sections_hydrated:
-                self._schedule_advanced_settings_reload(force=True)
+                self._schedule_additional_settings_reload(force=True)
             else:
                 self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
         if not changed or "last_status_message" in changed:
@@ -747,13 +848,13 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             folder_card=self.folder_card,
             docs_card=self.docs_card,
             profile_ui_mode_caption=self.profile_ui_mode_caption,
-            advanced_notice=self.advanced_notice,
+            additional_settings_notice=self.additional_settings_notice,
             program_settings_card=self.program_settings_card,
             auto_dpi_toggle=self.auto_dpi_toggle,
             hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
-            advanced_card=self.advanced_card,
+            additional_settings_card=self.additional_settings_card,
             blobs_action_card=self.blobs_action_card,
             discord_restart_toggle=self.discord_restart_toggle,
             wssize_toggle=self.wssize_toggle,

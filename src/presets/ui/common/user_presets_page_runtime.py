@@ -779,7 +779,7 @@ class UserPresetsPageRuntime:
                 {
                     "key": file_name,
                     "name": display_name or file_name,
-                    "folder_key": classify_preset_folder(display_name or file_name),
+                    "folder_key": classify_preset_folder(display_name or file_name, self._config.folder_scope),
                 }
             )
         return bool(move_preset_by_step(self._config.folder_scope, name, direction, live_items=live_items))

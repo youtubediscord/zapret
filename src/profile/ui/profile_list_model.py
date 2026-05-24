@@ -1,0 +1,338 @@
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from PyQt6.QtCore import QAbstractListModel, QMimeData, QModelIndex, Qt
+
+from folders.defaults import build_default_profile_folders
+from profile.icons import resolve_profile_icon
+from profile.match_filters import is_voice_match, ports_label_from_match_lines, protocol_label_from_match_lines
+from profile.ui.profile_display_items import ProfileDisplayItem, build_profile_display_items, profile_display_sort_key
+
+
+class ProfileListModel(QAbstractListModel):
+    KindRole = Qt.ItemDataRole.UserRole + 1
+    ProfileKeyRole = Qt.ItemDataRole.UserRole + 2
+    PersistentKeyRole = Qt.ItemDataRole.UserRole + 3
+    DisplayNameRole = Qt.ItemDataRole.UserRole + 4
+    DescriptionRole = Qt.ItemDataRole.UserRole + 5
+    StrategyIdRole = Qt.ItemDataRole.UserRole + 6
+    StrategyNameRole = Qt.ItemDataRole.UserRole + 7
+    MatchLinesRole = Qt.ItemDataRole.UserRole + 8
+    ListTypeRole = Qt.ItemDataRole.UserRole + 9
+    RatingRole = Qt.ItemDataRole.UserRole + 10
+    FavoriteRole = Qt.ItemDataRole.UserRole + 11
+    InPresetRole = Qt.ItemDataRole.UserRole + 12
+    EnabledRole = Qt.ItemDataRole.UserRole + 13
+    GroupRole = Qt.ItemDataRole.UserRole + 14
+    GroupNameRole = Qt.ItemDataRole.UserRole + 15
+    CollapsedRole = Qt.ItemDataRole.UserRole + 16
+    CountRole = Qt.ItemDataRole.UserRole + 17
+    IconNameRole = Qt.ItemDataRole.UserRole + 18
+    IconColorRole = Qt.ItemDataRole.UserRole + 19
+    TooltipRole = Qt.ItemDataRole.UserRole + 20
+
+    MIME_TYPE = "application/x-zapret-profile-key"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._all_items: tuple[ProfileDisplayItem, ...] = ()
+        self._rows: list[dict[str, Any]] = []
+        self._profile_items: dict[str, ProfileDisplayItem] = {}
+        self._group_expanded: dict[str, bool] = {}
+        self._active_profile_types: set[str] = {"all"}
+        self._search_query = ""
+
+    def set_profiles(self, items: tuple[Any, ...]) -> None:
+        display_items = build_profile_display_items(tuple(items or ()))
+        self.beginResetModel()
+        self._all_items = display_items
+        self._profile_items = {item.key: item for item in display_items}
+        self._group_expanded = _initial_group_expanded(display_items)
+        self._rows = self._build_rows()
+        self.endResetModel()
+
+    def set_active_profile_types(self, profile_types: set[str]) -> None:
+        active = {str(value) for value in (profile_types or {"all"}) if str(value or "").strip()}
+        if not active:
+            active = {"all"}
+        self.beginResetModel()
+        self._active_profile_types = active
+        self._rows = self._build_rows()
+        self.endResetModel()
+
+    def set_search_query(self, query: str) -> None:
+        normalized = " ".join(str(query or "").strip().lower().split())
+        if self._search_query == normalized:
+            return
+        self.beginResetModel()
+        self._search_query = normalized
+        self._rows = self._build_rows()
+        self.endResetModel()
+
+    def set_group_expanded(self, group_key: str, expanded: bool) -> None:
+        key = str(group_key or "")
+        if not key:
+            return
+        if self._group_expanded.get(key, True) == bool(expanded):
+            return
+        self.beginResetModel()
+        self._group_expanded[key] = bool(expanded)
+        self._rows = self._build_rows()
+        self.endResetModel()
+
+    def set_all_groups_expanded(self, expanded: bool) -> None:
+        self.beginResetModel()
+        for group_key in _grouped_items(self._all_items):
+            self._group_expanded[str(group_key)] = bool(expanded)
+        self._rows = self._build_rows()
+        self.endResetModel()
+
+    def is_group_expanded(self, group_key: str) -> bool:
+        return bool(self._group_expanded.get(str(group_key or ""), True))
+
+    def profile_item_for_key(self, profile_key: str):
+        return self._profile_items.get(str(profile_key or "").strip())
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        if parent.isValid():
+            return 0
+        return len(self._rows)
+
+    def flags(self, index: QModelIndex):
+        if not index.isValid():
+            return Qt.ItemFlag.ItemIsEnabled
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        if str(index.data(self.KindRole) or "") == "profile":
+            flags |= Qt.ItemFlag.ItemIsDragEnabled
+        return flags
+
+    def supportedDragActions(self):
+        return Qt.DropAction.MoveAction
+
+    def supportedDropActions(self):
+        return Qt.DropAction.MoveAction
+
+    def mimeTypes(self):
+        return [self.MIME_TYPE]
+
+    def mimeData(self, indexes):
+        mime = QMimeData()
+        if not indexes:
+            return mime
+        index = indexes[0]
+        if str(index.data(self.KindRole) or "") != "profile":
+            return mime
+        key = str(index.data(self.ProfileKeyRole) or "")
+        if key:
+            mime.setData(self.MIME_TYPE, json.dumps({"profile_key": key}).encode("utf-8"))
+        return mime
+
+    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)):
+        if not index.isValid() or index.row() < 0 or index.row() >= len(self._rows):
+            return None
+        row = self._rows[index.row()]
+        kind = str(row.get("kind") or "")
+
+        if role == int(Qt.ItemDataRole.DisplayRole):
+            return row.get("display_name") or row.get("group_name") or ""
+        if role == self.KindRole:
+            return kind
+        if role == self.ProfileKeyRole:
+            return row.get("key", "")
+        if role == self.PersistentKeyRole:
+            return row.get("persistent_key", "")
+        if role == self.DisplayNameRole:
+            return row.get("display_name", "")
+        if role == self.DescriptionRole:
+            return row.get("description", "")
+        if role == self.StrategyIdRole:
+            return row.get("strategy_id", "")
+        if role == self.StrategyNameRole:
+            return row.get("strategy_name", "")
+        if role == self.MatchLinesRole:
+            return tuple(row.get("match_lines", ()) or ())
+        if role == self.ListTypeRole:
+            return row.get("list_type", "")
+        if role == self.RatingRole:
+            return row.get("rating", "")
+        if role == self.FavoriteRole:
+            return bool(row.get("favorite", False))
+        if role == self.InPresetRole:
+            return bool(row.get("in_preset", False))
+        if role == self.EnabledRole:
+            return bool(row.get("enabled", False))
+        if role == self.GroupRole:
+            return row.get("group", "")
+        if role == self.GroupNameRole:
+            return row.get("group_name", "")
+        if role == self.CollapsedRole:
+            return bool(row.get("collapsed", False))
+        if role == self.CountRole:
+            return int(row.get("count", 0) or 0)
+        if role == self.IconNameRole:
+            return row.get("icon_name", "")
+        if role == self.IconColorRole:
+            return row.get("icon_color", "")
+        if role == self.TooltipRole:
+            return row.get("tooltip", "")
+        return None
+
+    def _build_rows(self) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        grouped = _grouped_items(self._all_items)
+        if not grouped:
+            return rows
+        for group_key in _ordered_group_keys(grouped):
+            group_items = tuple(item for item in grouped.get(group_key, ()) if self._matches_filter(item))
+            if not group_items:
+                continue
+            group_items = tuple(sorted(group_items, key=profile_display_sort_key))
+            group_name = str(group_items[0].group_name or group_key.title())
+            expanded = self._group_expanded.get(group_key, True)
+            rows.append({
+                "kind": "folder",
+                "group": group_key,
+                "group_name": group_name,
+                "collapsed": not expanded,
+                "count": len(group_items),
+            })
+            if not expanded:
+                continue
+            rows.extend(_row_for_profile(item) for item in group_items)
+        return rows
+
+    def _matches_filter(self, item: ProfileDisplayItem) -> bool:
+        return self._matches_type_filter(item) and self._matches_search_query(item)
+
+    def _matches_type_filter(self, item: ProfileDisplayItem) -> bool:
+        active = self._active_profile_types
+        if "all" in active:
+            return True
+        match_lines = tuple(item.match_lines or ())
+        protocol = protocol_label_from_match_lines(match_lines).upper()
+        summary = _match_summary(item)
+        text = f"{item.display_name} {summary} {item.group}".lower()
+        if "tcp" in active and "TCP" in protocol:
+            return True
+        if "udp" in active and ("UDP" in protocol or "L7" in protocol):
+            return True
+        if "discord" in active and "discord" in text:
+            return True
+        if "voice" in active and is_voice_match(match_lines):
+            return True
+        if "games" in active and "game" in text:
+            return True
+        return False
+
+    def _matches_search_query(self, item: ProfileDisplayItem) -> bool:
+        query = self._search_query
+        if not query:
+            return True
+        search_text = _profile_search_text(item)
+        return all(part in search_text for part in query.split())
+
+
+def _row_for_profile(item: ProfileDisplayItem) -> dict[str, Any]:
+    match_lines = tuple(item.match_lines or ())
+    ports = ports_label_from_match_lines(match_lines)
+    description_parts = [
+        part
+        for part in (
+            protocol_label_from_match_lines(match_lines),
+            f"порты: {ports}" if ports else "",
+        )
+        if part
+    ]
+    tooltip = _match_summary(item)
+    if not item.in_preset:
+        tooltip = f"{tooltip}\nПрофиля ещё нет в пресете. Включите его или выберите готовую стратегию."
+    elif not item.enabled:
+        tooltip = f"{tooltip}\nПрофиль есть в пресете, но сейчас выключен. В файле это записано через --skip."
+    icon = resolve_profile_icon(item.display_name, match_lines)
+    return {
+        "kind": "profile",
+        "key": item.key,
+        "persistent_key": item.persistent_key,
+        "display_name": item.display_name,
+        "description": " | ".join(description_parts),
+        "strategy_id": item.strategy_id,
+        "strategy_name": item.strategy_name,
+        "match_lines": match_lines,
+        "list_type": item.list_type,
+        "rating": item.rating,
+        "favorite": item.favorite,
+        "in_preset": item.in_preset,
+        "enabled": item.enabled,
+        "group": item.group,
+        "group_name": item.group_name,
+        "icon_name": icon.icon_name,
+        "icon_color": icon.color if item.in_preset else "#888888",
+        "tooltip": tooltip,
+    }
+
+
+def _grouped_items(items: tuple[ProfileDisplayItem, ...]) -> dict[str, list[ProfileDisplayItem]]:
+    grouped: dict[str, list[ProfileDisplayItem]] = {}
+    for item in tuple(items or ()):
+        group_key = str(item.group or "common")
+        grouped.setdefault(group_key, []).append(item)
+    return grouped
+
+
+def _initial_group_expanded(items: tuple[ProfileDisplayItem, ...]) -> dict[str, bool]:
+    result: dict[str, bool] = {}
+    for item in tuple(items or ()):
+        group_key = str(item.group or "common")
+        result.setdefault(group_key, not bool(item.group_collapsed))
+    return result
+
+
+def _ordered_group_keys(grouped: dict[str, list[ProfileDisplayItem]]) -> list[str]:
+    default_state = build_default_profile_folders()
+    folders = default_state.get("folders", {})
+    order_by_key = {
+        str(key): _folder_order(folder.get("order"))
+        for key, folder in folders.items()
+        if isinstance(folder, dict)
+    }
+    return sorted(grouped, key=lambda key: (order_by_key.get(str(key), 10_000), str(key).lower()))
+
+
+def _folder_order(value: object) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return 10_000
+
+
+def _match_summary(item: ProfileDisplayItem) -> str:
+    parts = [
+        part
+        for part in (
+            protocol_label_from_match_lines(tuple(item.match_lines or ())),
+            ports_label_from_match_lines(tuple(item.match_lines or ())),
+            item.list_type,
+        )
+        if part
+    ]
+    return " • ".join(parts) or "без явных условий"
+
+
+def _profile_search_text(item: ProfileDisplayItem) -> str:
+    match_lines = tuple(item.match_lines or ())
+    parts = [
+        item.display_name,
+        item.group,
+        item.group_name,
+        item.strategy_id,
+        item.strategy_name,
+        item.list_type,
+        _match_summary(item),
+        " ".join(match_lines),
+    ]
+    return " ".join(str(part or "") for part in parts).lower()
+
+
+__all__ = ["ProfileListModel"]

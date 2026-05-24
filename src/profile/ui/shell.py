@@ -6,17 +6,20 @@ from dataclasses import dataclass
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
-from ui.fluent_widgets import QuickActionsBar, set_tooltip
-from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton, PushButton
+from ui.fluent_widgets import set_tooltip
+from ui.presets_menu.toolbar import PresetsToolbarLayout
+from qfluentwidgets import BodyLabel, FluentIcon, PrimaryPushButton, PrimaryToolButton, PushButton, SearchLineEdit
 
 
 @dataclass(slots=True)
 class ProfileShellWidgets:
     toolbar_actions_bar: object
+    add_profile_btn: object
     request_btn: object
     expand_btn: object
     collapse_btn: object
     info_btn: object
+    profile_search_input: object
     content_host: object
     content_host_layout: object
     loading_label: object
@@ -34,9 +37,11 @@ def build_profile_shell(
     request_hint_key: str,
     loading_key: str,
     on_open_profile_request_form,
+    on_add_user_profile,
     on_expand_all,
     on_collapse_all,
     on_show_info_popup,
+    on_profile_search_text_changed,
 ) -> ProfileShellWidgets:
     toolbar_key_prefix = str(toolbar_title_key or "").rsplit(".", 1)[0]
 
@@ -46,7 +51,20 @@ def build_profile_shell(
         return f"page.winws2_pages.toolbar.{name}"
 
     add_section_title(text_key=toolbar_title_key)
-    toolbar_actions_bar = QuickActionsBar(content_parent)
+    toolbar_actions_bar = PresetsToolbarLayout(content_parent)
+
+    add_profile_btn = toolbar_actions_bar.create_primary_tool_button(
+        PrimaryToolButton,
+        FluentIcon.ADD,
+    )
+    add_profile_btn.clicked.connect(on_add_user_profile)
+    set_tooltip(
+        add_profile_btn,
+        tr_fn(
+            _toolbar_key("add.description"),
+            "Добавить новый пользовательский profile в общий список.",
+        )
+    )
 
     request_btn = PrimaryPushButton(
         tr_fn(request_button_key, "ОТКРЫТЬ ФОРМУ НА GITHUB"),
@@ -60,7 +78,6 @@ def build_profile_shell(
             f"Хотите добавить новый сайт или сервис в {engine_label}? Откройте готовую форму на GitHub и опишите, что нужно добавить в hostlist или ipset.",
         )
     )
-    toolbar_actions_bar.add_button(request_btn)
 
     expand_btn = PushButton(
         tr_fn(_toolbar_key("expand"), "Развернуть"),
@@ -74,7 +91,6 @@ def build_profile_shell(
             "Развернуть все группы профилей в списке.",
         )
     )
-    toolbar_actions_bar.add_button(expand_btn)
 
     collapse_btn = PushButton(
         tr_fn(_toolbar_key("collapse"), "Свернуть"),
@@ -88,7 +104,6 @@ def build_profile_shell(
             "Свернуть все группы профилей в списке.",
         )
     )
-    toolbar_actions_bar.add_button(collapse_btn)
 
     info_btn = PushButton(
         tr_fn(_toolbar_key("info"), "Что это такое?"),
@@ -102,8 +117,26 @@ def build_profile_shell(
             f"Показать краткое объяснение по работе режима профилей {engine_label}.",
         )
     )
-    toolbar_actions_bar.add_button(info_btn)
-    content_layout.addWidget(toolbar_actions_bar)
+
+    profile_search_input = SearchLineEdit(content_parent)
+    profile_search_input.setPlaceholderText(
+        tr_fn(_toolbar_key("search.placeholder"), "Поиск profile по имени, портам и т.д.")
+    )
+    profile_search_input.setClearButtonEnabled(True)
+    profile_search_input.setFixedHeight(34)
+    profile_search_input.setProperty("noDrag", True)
+    profile_search_input.textChanged.connect(on_profile_search_text_changed)
+
+    toolbar_actions_bar.set_buttons([
+        add_profile_btn,
+        request_btn,
+        expand_btn,
+        collapse_btn,
+        info_btn,
+    ])
+    toolbar_actions_bar.set_trailing_widget(profile_search_input, minimum_width=280)
+    toolbar_actions_bar.refresh_for_viewport(content_parent.width(), content_layout.contentsMargins())
+    content_layout.addWidget(toolbar_actions_bar.container)
 
     content_host = QWidget(content_parent)
     content_host_layout = QVBoxLayout(content_host)
@@ -121,10 +154,12 @@ def build_profile_shell(
 
     return ProfileShellWidgets(
         toolbar_actions_bar=toolbar_actions_bar,
+        add_profile_btn=add_profile_btn,
         request_btn=request_btn,
         expand_btn=expand_btn,
         collapse_btn=collapse_btn,
         info_btn=info_btn,
+        profile_search_input=profile_search_input,
         content_host=content_host,
         content_host_layout=content_host_layout,
         loading_label=loading_label,

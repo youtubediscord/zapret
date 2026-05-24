@@ -95,8 +95,15 @@ def bind_user_presets_ui_state_store(
     set_unsubscribe_fn(
         store.subscribe(
             on_ui_state_changed_fn,
-            fields={"preset_structure_revision"},
-            emit_initial=False,
+            fields={
+                "preset_structure_revision",
+                "launch_method",
+                "launch_running",
+                "launch_busy",
+                "launch_busy_text",
+                "last_status_message",
+            },
+            emit_initial=True,
         )
     )
 

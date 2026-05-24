@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT_SRC = Path(__file__).resolve().parents[1] / "src"
@@ -49,6 +49,38 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
             ):
                 self.assertIsNotNone(getattr(item, "_icon_label", None))
                 self.assertFalse(item._icon_label.pixmap().isNull())
+
+    def test_top_summary_can_defer_initial_icon_rendering(self) -> None:
+        with patch.dict("os.environ", {"QT_QPA_PLATFORM": "offscreen"}):
+            from PyQt6.QtGui import QPixmap
+            from PyQt6.QtWidgets import QApplication
+            from presets.ui.control import top_summary_widget
+            from presets.ui.control.top_summary_widget import ControlTopSummaryItem
+
+            self.__class__._app = QApplication.instance() or QApplication([])
+            scheduled: list[tuple[int, object]] = []
+            pixmap = QPixmap(1, 1)
+            pixmap.fill()
+
+            with (
+                patch.object(
+                    top_summary_widget.QTimer,
+                    "singleShot",
+                    side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
+                ),
+                patch.object(top_summary_widget, "get_cached_qta_pixmap", Mock(return_value=pixmap)) as icon_cache,
+            ):
+                item = ControlTopSummaryItem(icon_name="fa5s.star", initial_icon_delay_ms=250)
+
+                icon_cache.assert_not_called()
+                self.assertEqual(len(scheduled), 1)
+                self.assertEqual(scheduled[0][0], 250)
+                self.assertTrue(item._icon_label.pixmap().isNull())
+
+                scheduled[0][1]()
+
+                icon_cache.assert_called_once()
+            self.assertFalse(item._icon_label.pixmap().isNull())
 
 
 if __name__ == "__main__":

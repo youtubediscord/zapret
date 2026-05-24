@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 
 _DNS_PROFILE_IP_SUFFIX = re.compile(r"\s*\(\s*(?:\d{1,3}\.){3}\d{1,3}\s*\)\s*$")
+_MISSING = object()
 
 
 @dataclass(slots=True)
@@ -330,6 +331,8 @@ def infer_profile_from_hosts(
 def infer_direct_toggle_from_hosts(service_name: str, active_domains_map: dict[str, str]) -> bool:
     from hosts.proxy_domains import get_service_domain_names
 
+    if not active_domains_map:
+        return False
     try:
         for domain in (get_service_domain_names(service_name) or []):
             if domain in active_domains_map:
@@ -343,16 +346,29 @@ def build_selection_sync_plan(
     *,
     service_names: list[str],
     active_domains_map: dict[str, str],
+    available_profiles_by_service: dict[str, list[str]] | None = None,
+    service_has_proxy_by_service: dict[str, bool] | None = None,
+    direct_profile: object = _MISSING,
 ) -> HostsSelectionSyncPlan:
     from hosts.proxy_domains import get_service_available_dns_profiles, service_has_proxy_profiles
 
-    direct_profile = get_direct_profile_name()
+    if direct_profile is _MISSING:
+        direct_profile = get_direct_profile_name()
+    direct_profile = direct_profile if isinstance(direct_profile, str) else None
+    available_profiles_by_service = dict(available_profiles_by_service or {})
+    service_has_proxy_by_service = dict(service_has_proxy_by_service or {})
     entries: dict[str, HostsSelectionSyncEntry] = {}
     new_selection: dict[str, str] = {}
 
     for service_name in service_names:
-        direct_only = not service_has_proxy_profiles(service_name)
-        available = list(get_service_available_dns_profiles(service_name) or [])
+        if service_name in service_has_proxy_by_service:
+            direct_only = not bool(service_has_proxy_by_service.get(service_name))
+        else:
+            direct_only = not service_has_proxy_profiles(service_name)
+        if service_name in available_profiles_by_service:
+            available = list(available_profiles_by_service.get(service_name) or [])
+        else:
+            available = list(get_service_available_dns_profiles(service_name) or [])
         selected_profile: str | None = None
         toggle_enabled = False
         toggle_checked = False
@@ -409,16 +425,28 @@ def build_services_catalog_plan(
 ) -> HostsServicesCatalogPlan:
     from hosts.proxy_domains import (
         QUICK_SERVICES,
-        get_all_services,
-        get_dns_profiles,
-        get_service_available_dns_profiles,
-        service_has_proxy_profiles,
+        get_services_profile_index,
     )
 
-    all_dns_profiles = [p for p in (get_dns_profiles() or []) if isinstance(p, str) and p.strip()]
+    profile_index = get_services_profile_index()
+    all_dns_profiles = [
+        p
+        for p in (profile_index.get("dns_profiles") or [])
+        if isinstance(p, str) and p.strip()
+    ]
+    profile_names = profile_index.get("dns_profile_names") if isinstance(profile_index, dict) else {}
+    if not isinstance(profile_names, dict):
+        profile_names = {}
+    profile_labels = {
+        profile_name: _DNS_PROFILE_IP_SUFFIX.sub(
+            "",
+            (profile_names.get(profile_name) or profile_name or "").strip(),
+        ).strip()
+        for profile_name in all_dns_profiles
+    }
     ui_map = {name: (icon_name, icon_color) for icon_name, name, icon_color in QUICK_SERVICES}
 
-    all_services = list(get_all_services() or [])
+    all_services = list(profile_index.get("services") or [])
     ordered_services: list[str] = []
     for _icon, name, _color in QUICK_SERVICES:
         if name in all_services and name not in ordered_services:
@@ -427,11 +455,17 @@ def build_services_catalog_plan(
         if name not in ordered_services:
             ordered_services.append(name)
 
+    raw_available = profile_index.get("available_by_service") or {}
+    raw_has_proxy = profile_index.get("has_proxy_by_service") or {}
+    available_profiles_by_service = dict(raw_available) if isinstance(raw_available, dict) else {}
+    service_has_proxy_by_service = dict(raw_has_proxy) if isinstance(raw_has_proxy, dict) else {}
+    direct_profile = get_direct_profile_name()
+
     no_geohide: list[str] = []
     ai: list[str] = []
     other: list[str] = []
     for service_name in ordered_services:
-        if not service_has_proxy_profiles(service_name):
+        if not service_has_proxy_by_service.get(service_name, False):
             no_geohide.append(service_name)
         elif is_ai_service(service_name):
             ai.append(service_name)
@@ -441,6 +475,9 @@ def build_services_catalog_plan(
     sync_plan = build_selection_sync_plan(
         service_names=ordered_services,
         active_domains_map=active_domains_map,
+        available_profiles_by_service=available_profiles_by_service,
+        service_has_proxy_by_service=service_has_proxy_by_service,
+        direct_profile=direct_profile,
     )
     current_selection = dict(current_selection or {})
     new_selection: dict[str, str] = {}
@@ -450,7 +487,7 @@ def build_services_catalog_plan(
         for service_name in service_names:
             available = {
                 p
-                for p in (get_service_available_dns_profiles(service_name) or [])
+                for p in (available_profiles_by_service.get(service_name) or [])
                 if isinstance(p, str) and p.strip()
             }
             if common is None:
@@ -463,6 +500,9 @@ def build_services_catalog_plan(
             return []
         return [profile for profile in all_dns_profiles if profile in common]
 
+    def label_for_profile(profile_name: str) -> str:
+        return str(profile_labels.get(profile_name) or "").strip()
+
     groups: list[HostsServiceGroupPlan] = []
     for title, names, direct_only in (
         (direct_title, no_geohide, True),
@@ -473,9 +513,10 @@ def build_services_catalog_plan(
             continue
 
         common_profiles = [
-            (profile_name, format_dns_profile_label(profile_name))
+            (profile_name, label)
             for profile_name in get_common_dns_profiles(names)
-            if format_dns_profile_label(profile_name)
+            for label in (label_for_profile(profile_name),)
+            if label
         ]
 
         rows: list[HostsServiceRowPlan] = []
@@ -496,7 +537,7 @@ def build_services_catalog_plan(
                     new_selection[service_name] = selected_profile
 
             if entry is not None and entry.direct_only:
-                toggle_checked = bool(selected_profile and selected_profile == get_direct_profile_name())
+                toggle_checked = bool(selected_profile and selected_profile == direct_profile)
             elif entry is not None:
                 toggle_checked = bool(entry.toggle_checked)
 
@@ -508,8 +549,10 @@ def build_services_catalog_plan(
                     direct_only=bool(entry.direct_only) if entry is not None else direct_only,
                     available_profiles=available_profiles,
                     profile_items=[
-                        (profile_name, format_dns_profile_label(profile_name))
+                        (profile_name, label)
                         for profile_name in available_profiles
+                        for label in (label_for_profile(profile_name),)
+                        if label
                     ],
                     selected_profile=selected_profile,
                     toggle_enabled=toggle_enabled,

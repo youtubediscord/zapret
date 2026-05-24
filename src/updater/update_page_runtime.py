@@ -6,6 +6,7 @@ from PyQt6.QtCore import QThread, QTimer
 
 from config.build_info import CHANNEL
 from config.config import CHANNEL_DEV, CHANNEL_STABLE
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 from log.log import log
 
@@ -108,8 +109,8 @@ class UpdatePageRuntime:
         self._runtime_feature = runtime_feature
         self._updater_feature = updater_feature
 
-        self.server_worker = None
-        self.version_worker = None
+        self._server_worker_runtime = OneShotWorkerRuntime()
+        self._version_worker_runtime = OneShotWorkerRuntime()
         self._update_thread = None
         self._update_worker = None
         self._cleanup_in_progress = False
@@ -184,8 +185,8 @@ class UpdatePageRuntime:
                 "_auto_check_enabled",
             ),
             worker_runtime_fields=(
-                "server_worker",
-                "version_worker",
+                "_server_worker_runtime",
+                "_version_worker_runtime",
                 "_update_thread",
                 "_update_worker",
             ),
@@ -468,17 +469,21 @@ class UpdatePageRuntime:
 
     def _start_server_check_workflow(self, *, telegram_only: bool) -> None:
         self._teardown_server_worker()
-        server_worker = self._create_server_worker(telegram_only=telegram_only)
-        self.server_worker = server_worker
-        self._bind_server_worker_signals(server_worker)
-        server_worker.start()
+        _request_id, server_worker = self._server_worker_runtime.start_qthread_worker(
+            worker_factory=lambda _request_id: self._create_server_worker(telegram_only=telegram_only),
+            bind_worker=self._bind_server_worker_signals,
+            signal_includes_request_id=False,
+        )
+        _ = server_worker
 
     def _start_version_check_workflow(self) -> None:
         self._teardown_version_worker()
-        version_worker = self._create_version_worker()
-        self.version_worker = version_worker
-        self._bind_version_worker_signals(version_worker)
-        version_worker.start()
+        _request_id, version_worker = self._version_worker_runtime.start_qthread_worker(
+            worker_factory=lambda _request_id: self._create_version_worker(),
+            bind_worker=self._bind_version_worker_signals,
+            signal_includes_request_id=False,
+        )
+        _ = version_worker
 
     def _create_server_worker(self, *, telegram_only: bool):
         from updater.server_status_workers import ServerCheckWorker
@@ -540,48 +545,20 @@ class UpdatePageRuntime:
         self._teardown_update_runtime()
 
     def _teardown_server_worker(self) -> None:
-        worker = self.server_worker
-        try:
-            if worker is not None:
-                stop = getattr(worker, "stop", None)
-                if callable(stop):
-                    try:
-                        stop()
-                    except Exception as e:
-                        log(f"Ошибка остановки server_worker: {e}", "DEBUG")
-            if worker is not None and worker.isRunning():
-                log("Останавливаем server_worker...", "DEBUG")
-                worker.quit()
-                if not worker.wait(2000):
-                    log("⚠ server_worker не завершился, принудительно завершаем", "WARNING")
-                    worker.terminate()
-                    worker.wait(500)
-        except Exception as e:
-            log(f"Ошибка остановки server_worker: {e}", "DEBUG")
-        finally:
-            self.server_worker = None
+        self._server_worker_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="server_worker",
+        )
+        self._server_worker_runtime.cancel()
 
     def _teardown_version_worker(self) -> None:
-        worker = self.version_worker
-        try:
-            if worker is not None:
-                stop = getattr(worker, "stop", None)
-                if callable(stop):
-                    try:
-                        stop()
-                    except Exception as e:
-                        log(f"Ошибка остановки version_worker: {e}", "DEBUG")
-            if worker is not None and worker.isRunning():
-                log("Останавливаем version_worker...", "DEBUG")
-                worker.quit()
-                if not worker.wait(2000):
-                    log("⚠ version_worker не завершился, принудительно завершаем", "WARNING")
-                    worker.terminate()
-                    worker.wait(500)
-        except Exception as e:
-            log(f"Ошибка остановки version_worker: {e}", "DEBUG")
-        finally:
-            self.version_worker = None
+        self._version_worker_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="version_worker",
+        )
+        self._version_worker_runtime.cancel()
 
     def _teardown_update_runtime(self, *, wait_for_finish: bool = False) -> None:
         thread = self._update_thread

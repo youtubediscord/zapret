@@ -25,6 +25,7 @@
 --blob=quic_google:@bin/quic_initial_www_google_com.bin
 --blob=tls_gosuslugi:@bin/tls_clienthello_gosuslugi_ru.bin
 
+--name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
 --out-range=-d2
@@ -32,6 +33,7 @@
 
 --new
 
+--name=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist-domains=discord.media
 --out-range=-d2
@@ -39,6 +41,7 @@
 
 --new
 
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --out-range=-n2
@@ -46,6 +49,7 @@
 
 --new
 
+--name=Голосовые звонки/чаты
 --filter-l7=stun,discord
 --payload=stun,discord_ip_discovery
 --out-range=-n2
@@ -53,6 +57,7 @@
 
 --new
 
+--name=Amazon UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-amazon.txt
 --out-range=-n8
@@ -61,16 +66,7 @@
 
 --new
 
---filter-udp=80,443-65535
---ipset-exclude=lists/ipset-ru.txt
---ipset-exclude=lists/ipset-dns.txt
---ipset-exclude=lists/ipset-exclude.txt
---out-range=-n2
---payload=all
---lua-desync=fake:blob=quic_google:repeats=2:payload=all
-
---new
-
+--name=Исключения
 --filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt

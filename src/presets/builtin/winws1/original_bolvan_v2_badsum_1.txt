@@ -17,16 +17,18 @@
 --dup-cutoff=n3
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
---hostlist-domains=rutracker.cc
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-autottl=2
 --dpi-desync-fooling=badseq
 
-# === HTTPS YouTube ===
 --new
+
 --filter-tcp=443
 --hostlist-domains=rutracker.cc,hmvmania.com,roskomsvoboda.org,rublacklist.net,onlinesim.io,android.com,proton.me,moscowtimes.ru,dw.com,z-library.sk
 --hostlist=lists/youtube.txt
@@ -37,7 +39,9 @@
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 # === HTTPS Discord ===
+
 --new
+
 --filter-tcp=443
 --hostlist-domains=rutracker.cc,hmvmania.com,roskomsvoboda.org,rublacklist.net,onlinesim.io,android.com,proton.me,moscowtimes.ru,dw.com,z-library.sk
 --hostlist=lists/faceinsta.txt
@@ -48,8 +52,11 @@
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=sld+1
@@ -64,26 +71,11 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
---new
---filter-tcp=443,1024-65535
---ipset=lists/ipset-all.txt
---dpi-desync=fake,multidisorder
---dpi-desync-split-pos=1,midsld
---dpi-desync-repeats=6
---dpi-desync-fooling=badseq
 
-# === HTTPS ===
 --new
---filter-tcp=443,1024-65535
---hostlist=lists/other.txt
---dpi-desync=fake,multidisorder
---dpi-desync-split-pos=1,midsld
---dpi-desync-repeats=6
---dpi-desync-fooling=badseq
 
-# === HTTPS ===
---new
---filter-tcp=443,1024-65535
+--name=Russia blacklist TCP wide
+--filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=1,midsld
@@ -91,7 +83,9 @@
 --dpi-desync-fooling=badseq
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443,444-65535
 --hostlist-domains=xmfirmwareupdater.com
 --hostlist-domains=awsglobalaccelerator.com,cloudfront.net,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
@@ -100,8 +94,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_5.bin
 
 # === HTTPS ===
+
 --new
---filter-tcp=443,444-65535
+
+--name=Cloudflare legacy TCP
+--filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --ipset-exclude-ip=1.1.1.1,1.0.0.1,212.109.195.93,83.220.169.155,141.105.71.21,18.244.96.0/19,18.244.128.0/19
 --dpi-desync=multisplit
@@ -109,7 +106,9 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_5.bin
 
 # === QUIC ===
+
 --new
+
 --filter-udp=443,444-65535
 --hostlist-domains=awsglobalaccelerator.com,cloudfront.net,amazon.com,amazonaws.com,awsstatic.com,epicgames.com
 --dpi-desync=fake
@@ -120,10 +119,12 @@
 --dpi-desync-ttl=7
 
 # === QUIC ===
+
 --new
---filter-udp=443,444-65535
+
+--name=Cloudflare legacy UDP
+--filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
---ipset-exclude-ip=1.1.1.1,1.0.0.1,212.109.195.93,83.220.169.155,141.105.71.21,18.244.96.0/19,18.244.128.0/19
 --dpi-desync=fake
 --dpi-desync-any-protocol
 --dpi-desync-fake-unknown-udp=bin/quic_6.bin
@@ -132,13 +133,3 @@
 --dpi-desync-ttl=7
 
 # === UDP порт 1024 ===
---new
---filter-udp=1024-65535
---ipset=lists/ipset-all.txt
---dpi-desync=fake
---dpi-desync-autottl=2
---dpi-desync-repeats=12
---dpi-desync-any-protocol=1
---dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
---dpi-desync-cutoff=n2
---new

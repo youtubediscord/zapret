@@ -36,6 +36,10 @@ from presets.ui.common.user_presets_action_dispatch import (
     dispatch_user_preset_list_action,
 )
 from presets.ui.common.user_presets_build import build_user_presets_page_shell
+from presets.ui.common.preset_status_bar import (
+    PresetStatusBar,
+    build_runtime_preset_status_plan,
+)
 from presets.ui.common.user_presets_actions_workflow import (
     import_preset_action,
     restore_reset_all_button_label,
@@ -156,6 +160,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_search_input: Optional[LineEdit] = None
         self._toolbar_layout: Optional[PresetsToolbarLayout] = None
         self.open_folder_btn = None
+        self._preset_status_bar = None
 
         self._ui_state_store: Optional[MainWindowStateStore] = None
         self._ui_state_unsubscribe = None
@@ -244,6 +249,27 @@ class UserPresetsPageBase(BasePage):
             state=state,
             changed_fields=changed_fields,
         )
+        self._refresh_preset_status_bar(state)
+
+    def _refresh_preset_status_bar(self, state: AppUiState | None = None) -> None:
+        bar = self._preset_status_bar
+        if bar is None:
+            return
+        if state is None and self._ui_state_store is not None:
+            try:
+                state = self._ui_state_store.snapshot()
+            except Exception:
+                state = None
+        launch_running = bool(getattr(state, "launch_running", False)) if state is not None else False
+        plan = build_runtime_preset_status_plan(
+            base_status="selected" if launch_running else "selected_stopped",
+            launch_method=self._config.launch_method,
+            runtime_launch_method=getattr(state, "launch_method", "") if state is not None else "",
+            launch_busy=bool(getattr(state, "launch_busy", False)) if state is not None else False,
+            launch_busy_text=str(getattr(state, "launch_busy_text", "") or "") if state is not None else "",
+            last_status_message=str(getattr(state, "last_status_message", "") or "") if state is not None else "",
+        )
+        bar.set_plan(plan)
 
     def _is_builtin_preset_file(self, name: str) -> bool:
         return self._storage_api().is_builtin_preset_file_with_cache(
@@ -406,8 +432,6 @@ class UserPresetsPageBase(BasePage):
         self.add_widget(shell.configs_card)
         self.add_spacing(12)
         self.add_widget(self._toolbar_layout.container)
-        self.add_spacing(4)
-        self.add_widget(self._preset_search_input)
         try:
             from settings.appearance import load_smooth_scroll_enabled
             smooth_enabled = load_smooth_scroll_enabled().enabled
@@ -415,6 +439,9 @@ class UserPresetsPageBase(BasePage):
         except Exception:
             pass
         self.add_widget(self.presets_list)
+        self._preset_status_bar = PresetStatusBar(self)
+        self.add_widget(self._preset_status_bar)
+        self._refresh_preset_status_bar()
 
         # Make outer page scrolling feel less sluggish on long lists.
         self.verticalScrollBar().setSingleStep(48)
@@ -699,6 +726,7 @@ class UserPresetsPageBase(BasePage):
             name=name,
             global_pos=global_pos,
             is_builtin_preset_file_fn=self._is_builtin_preset_file,
+            is_selected_preset_file_fn=self._is_selected_source_preset_file,
             tr_fn=self._tr,
             make_menu_action=make_menu_action,
             fluent_icon=fluent_icon,
@@ -707,6 +735,11 @@ class UserPresetsPageBase(BasePage):
             show_preset_actions_menu_fn=show_preset_actions_menu,
             tr_prefix=self._config.tr_prefix,
         )
+
+    def _is_selected_source_preset_file(self, name: str) -> bool:
+        current = str(self._get_selected_source_preset_file_name_light() or "").strip().lower()
+        candidate = str(name or "").strip().lower()
+        return bool(current and candidate and current == candidate)
 
     def _show_rating_menu(self, name: str, global_pos: QPoint | None = None):
         show_rating_menu_action(

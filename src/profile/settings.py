@@ -20,7 +20,7 @@ _WINWS2_WSSIZE_LINE = "--lua-desync=wssize:wsize=1:scale=6"
 _WINWS1_WSSIZE_LINES = ("--wssize", "1:6", "--wssize-forced-cutoff=0")
 
 
-def get_advanced_settings_state(profile_services, launch_method: str = DEFAULT_LAUNCH_METHOD) -> dict[str, bool]:
+def get_additional_settings_state(profile_services, launch_method: str = DEFAULT_LAUNCH_METHOD) -> dict[str, bool]:
     discord_restart = True
     try:
         from discord.discord_restart import get_discord_restart_setting

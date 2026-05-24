@@ -56,6 +56,31 @@ def sync_titlebar_search_width(window) -> None:
     update_titlebar_search_width(window)
 
 
+def refresh_titlebar_layout(window) -> None:
+    """Обновляет верхнюю панель после первого показа окна."""
+    sync_titlebar_search_width(window)
+
+    title_bar = getattr(window, "titleBar", None)
+    if title_bar is None:
+        return
+
+    layout = getattr(title_bar, "hBoxLayout", None)
+    if layout is not None:
+        try:
+            layout.activate()
+        except Exception:
+            pass
+
+    try:
+        title_bar.updateGeometry()
+    except Exception:
+        pass
+    try:
+        title_bar.update()
+    except Exception:
+        pass
+
+
 def route_window_search_result(window, page_name: PageName, tab_key: str = "") -> bool:
     return route_search_result(window, page_name, tab_key)
 
@@ -92,6 +117,7 @@ __all__ = [
     "get_loaded_page",
     "hide_window",
     "persist_window_geometry",
+    "refresh_titlebar_layout",
     "release_input_interaction_states",
     "request_exit",
     "route_window_search_result",

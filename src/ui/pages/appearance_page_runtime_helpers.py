@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from PyQt6.QtGui import QColor
-
-import settings.appearance as appearance_settings
 from app.text_catalog import normalize_language, tr as tr_catalog
 
 
@@ -153,80 +150,3 @@ def apply_appearance_language(
                 default="Плавная прокрутка внутри больших текстовых полей и редакторов. Работает только при включённых анимациях интерфейса.",
             ),
         )
-
-
-def load_accent_color(*, has_color_picker: bool, color_picker_btn, begin_ui_sync, end_ui_sync) -> None:
-    if not has_color_picker or color_picker_btn is None:
-        return
-    plan = appearance_settings.load_accent_color()
-    hex_color = plan.hex_color
-    if hex_color:
-        color = QColor(hex_color)
-        if color.isValid():
-            begin_ui_sync()
-            try:
-                color_picker_btn.setColor(color)
-                from qfluentwidgets import setThemeColor
-
-                setThemeColor(color)
-            finally:
-                end_ui_sync()
-
-
-def load_extra_accent_settings(
-    *,
-    has_color_picker: bool,
-    follow_windows_accent_cb,
-    tinted_bg_cb,
-    tinted_intensity_slider,
-    tinted_intensity_value_label,
-    tinted_intensity_container,
-    color_picker_btn,
-    set_checked_silently,
-    set_slider_value_silently,
-    apply_windows_accent,
-) -> None:
-    if not has_color_picker:
-        return
-    plan = appearance_settings.load_tinted_settings()
-
-    if follow_windows_accent_cb is not None:
-        set_checked_silently(follow_windows_accent_cb, plan.follow_windows_accent)
-
-    if tinted_bg_cb is not None:
-        set_checked_silently(tinted_bg_cb, plan.tinted_background)
-
-    if tinted_intensity_slider is not None:
-        set_slider_value_silently(tinted_intensity_slider, plan.tinted_intensity)
-
-    if tinted_intensity_value_label is not None:
-        tinted_intensity_value_label.setText(str(plan.tinted_intensity))
-
-    if tinted_intensity_container is not None:
-        tinted_intensity_container.setVisible(plan.tinted_background)
-
-    if plan.follow_windows_accent:
-        apply_windows_accent()
-        if color_picker_btn is not None:
-            color_picker_btn.setEnabled(False)
-
-
-def load_performance_settings(
-    *,
-    animations_switch,
-    smooth_scroll_switch,
-    editor_smooth_scroll_switch,
-    set_checked_silently,
-    sync_performance_dependencies,
-) -> None:
-    anim_plan = appearance_settings.load_animations_enabled()
-    smooth_plan = appearance_settings.load_smooth_scroll_enabled()
-    editor_plan = appearance_settings.load_editor_smooth_scroll_enabled()
-
-    if animations_switch is not None:
-        set_checked_silently(animations_switch, anim_plan.enabled)
-    if smooth_scroll_switch is not None:
-        set_checked_silently(smooth_scroll_switch, smooth_plan.enabled)
-    if editor_smooth_scroll_switch is not None:
-        set_checked_silently(editor_smooth_scroll_switch, editor_plan.enabled)
-    sync_performance_dependencies(anim_plan.enabled)

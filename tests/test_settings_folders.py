@@ -19,6 +19,64 @@ class SettingsFoldersTests(unittest.TestCase):
         self.assertIn("winws1", settings["folders"]["presets"])
         self.assertIn("profiles", settings["folders"])
 
+    def test_zapret1_has_own_default_preset_folders(self) -> None:
+        settings = build_default_settings()
+
+        winws1_folders = settings["folders"]["presets"]["winws1"]["folders"]
+        winws2_folders = settings["folders"]["presets"]["winws2"]["folders"]
+
+        self.assertIn("all-sites", winws1_folders)
+        self.assertIn("alt", winws1_folders)
+        self.assertIn("providers", winws1_folders)
+        self.assertNotIn("all-tcp-udp", winws1_folders)
+        self.assertNotIn("circular", winws1_folders)
+        self.assertIn("all-tcp-udp", winws2_folders)
+        self.assertIn("circular", winws2_folders)
+        self.assertNotIn("alt", winws2_folders)
+
+    def test_zapret1_preset_folder_rules_prioritize_all_sites_over_alt(self) -> None:
+        from folders.defaults import classify_preset_folder
+
+        self.assertEqual(classify_preset_folder("alt_190b_allsites", "winws1"), "all-sites")
+        self.assertEqual(classify_preset_folder("alt4_190b", "winws1"), "alt")
+        self.assertEqual(classify_preset_folder("YTDisBystro_31_1", "winws1"), "youtube")
+        self.assertEqual(classify_preset_folder("discord_voice_dtls", "winws1"), "discord")
+        self.assertEqual(classify_preset_folder("Ufanet_2025_03_31", "winws1"), "providers")
+        self.assertEqual(classify_preset_folder("original_bolvan_v2", "winws1"), "bolvan")
+        self.assertEqual(classify_preset_folder("faketlsmod", "winws1"), "fake-tls")
+        self.assertEqual(classify_preset_folder("md5sigpadencap", "winws1"), "split-md5-ttl")
+        self.assertEqual(classify_preset_folder("Default v1 (game filter)", "winws1"), "games")
+
+    def test_normalize_settings_migrates_zapret1_away_from_zapret2_folders(self) -> None:
+        normalized = normalize_settings(
+            {
+                "folders": {
+                    "version": 1,
+                    "presets": {
+                        "winws1": {
+                            "folders": {
+                                "all-tcp-udp": {"name": "ALL TCP & UDP", "order": 0},
+                                "common": {"name": "Общие", "order": 1, "system": True},
+                                "game-filter": {"name": "Game filter", "order": 2},
+                                "circular": {"name": "Circular", "order": 3},
+                            },
+                            "items": {
+                                "Default v1.txt": {"folder_key": "game-filter", "order": 0},
+                                "custom.txt": {"folder_key": "circular", "order": 1},
+                            },
+                        }
+                    },
+                }
+            }
+        )
+
+        winws1 = normalized["folders"]["presets"]["winws1"]
+        self.assertNotIn("all-tcp-udp", winws1["folders"])
+        self.assertNotIn("game-filter", winws1["folders"])
+        self.assertNotIn("circular", winws1["folders"])
+        self.assertEqual(winws1["items"]["Default v1.txt"]["folder_key"], "games")
+        self.assertEqual(winws1["items"]["custom.txt"]["folder_key"], "common")
+
     def test_normalize_settings_keeps_valid_folder_state(self) -> None:
         normalized = normalize_settings(
             {

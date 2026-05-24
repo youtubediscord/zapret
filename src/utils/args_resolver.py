@@ -79,7 +79,13 @@ def _resolve_single_arg(
             filename = value[1:].strip('"')
 
             if not os.path.isabs(filename):
-                full_path = os.path.join(filter_dir, filename)
+                rel = filename.replace("\\", "/").strip()
+                if rel.startswith("./"):
+                    rel = rel[2:]
+                if rel.lower().startswith("windivert.filter/"):
+                    rel = rel[len("windivert.filter/"):]
+
+                full_path = os.path.join(filter_dir, rel)
                 return f'--wf-raw-part=@{full_path}'
             else:
                 return f'--wf-raw-part=@{filename}'

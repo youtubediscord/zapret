@@ -18,8 +18,11 @@
 --dpi-desync-fooling=md5sig
 
 # === HTTPS YouTube ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=1,midsld
@@ -28,7 +31,9 @@
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 # === HTTPS остальные ===
+
 --new
+
 --filter-tcp=443
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=1,midsld
@@ -36,7 +41,10 @@
 --dpi-desync-fooling=badseq,md5sig
 
 # === QUIC YouTube ===
+
 --new
+
+--name=youtube.com (QUIC)
 --filter-udp=443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake
@@ -44,21 +52,26 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === QUIC остальные ===
+
 --new
+
 --filter-udp=443
 --dpi-desync=fake
 --dpi-desync-repeats=11
 
 # === Discord (порты 50000-50099) ===
+
 --new
+
 --filter-udp=50000-50099
 --dpi-desync=fake
 
 # === Discord TCP (6695-6705) ===
+
 --new
+
 --filter-tcp=6695-6705
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=1,midsld
 --dpi-desync-repeats=6
 --dpi-desync-fooling=md5sig
---new

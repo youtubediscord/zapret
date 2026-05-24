@@ -17,9 +17,11 @@ from qfluentwidgets import (
 
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme import get_theme_tokens
 from app.text_catalog import tr as tr_catalog
+from log.log import log
 from orchestra.ratings_workflow import (
     OrchestraRatingsState,
     build_orchestra_ratings_render_plan,
@@ -46,6 +48,7 @@ class OrchestraRatingsPage(BasePage):
         self._history_card = None
         self._runtime_initialized = False
         self._ratings_state = OrchestraRatingsState(no_runner=True)
+        self._ratings_state_runtime = OneShotWorkerRuntime()
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -151,12 +154,33 @@ class OrchestraRatingsPage(BasePage):
         """Обновляет данные истории"""
         self._set_refresh_loading(True)
         self._has_loaded_once = True
-        try:
-            self._ratings_state = self._controller.load_state()
-            self._no_runner = self._ratings_state.no_runner
-            self._render_history()
-        finally:
-            self._set_refresh_loading(False)
+        self._start_ratings_state_worker()
+
+    def _start_ratings_state_worker(self) -> None:
+        self._ratings_state_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._controller.create_state_load_worker(request_id, self),
+            on_loaded=self._on_ratings_state_loaded,
+            on_failed=self._on_ratings_state_failed,
+            on_finished=self._on_ratings_state_worker_finished,
+        )
+
+    def _on_ratings_state_loaded(self, request_id: int, state) -> None:
+        if not self._ratings_state_runtime.is_current(request_id):
+            return
+        self._ratings_state = state
+        self._no_runner = self._ratings_state.no_runner
+        self._render_history()
+        self._set_refresh_loading(False)
+
+    def _on_ratings_state_failed(self, request_id: int, error: str) -> None:
+        if not self._ratings_state_runtime.is_current(request_id):
+            return
+        log(f"Ошибка загрузки рейтингов orchestra: {error}", "ERROR")
+        self._set_refresh_loading(False)
+
+    def _on_ratings_state_worker_finished(self, worker) -> None:
+        if self._ratings_state_runtime.worker is worker:
+            self._ratings_state_runtime.worker = None
 
     def _apply_filter(self):
         """Применяет фильтр"""
@@ -171,6 +195,14 @@ class OrchestraRatingsPage(BasePage):
         )
         self.stats_label.setText(plan.stats_text)
         self.history_text.setPlainText(plan.history_text)
+
+    def cleanup(self) -> None:
+        self._ratings_state_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="Orchestra ratings worker",
+        )
+        self._ratings_state_runtime.cancel()
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)

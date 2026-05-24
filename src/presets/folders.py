@@ -14,7 +14,7 @@ def load_preset_folder_state(scope_key: str) -> dict[str, Any]:
     folders = settings_store.get_folders_settings()
     presets = folders.get("presets", {}) if isinstance(folders, dict) else {}
     raw_state = presets.get(scope) if isinstance(presets, dict) else None
-    return normalize_folder_state(raw_state, build_default_preset_folders())
+    return normalize_folder_state(raw_state, build_default_preset_folders(scope))
 
 
 def save_preset_folder_state(scope_key: str, state: dict[str, Any]) -> dict[str, Any]:
@@ -23,14 +23,15 @@ def save_preset_folder_state(scope_key: str, state: dict[str, Any]) -> dict[str,
     presets = folders.get("presets", {}) if isinstance(folders, dict) else {}
     if not isinstance(presets, dict):
         presets = {}
-    presets[scope] = normalize_folder_state(state, build_default_preset_folders())
+    presets[scope] = normalize_folder_state(state, build_default_preset_folders(scope))
     folders["presets"] = presets
     return settings_store.set_folders_settings(folders)["presets"][scope]
 
 
 def create_preset_folder(scope_key: str, name: str) -> str:
     state = load_preset_folder_state(scope_key)
-    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders(scope))
     folder_key = store.create_folder_after(name, COMMON_FOLDER_KEY)
     save_preset_folder_state(scope_key, store.to_dict())
     return folder_key
@@ -38,7 +39,8 @@ def create_preset_folder(scope_key: str, name: str) -> str:
 
 def rename_preset_folder(scope_key: str, folder_key: str, name: str) -> bool:
     state = load_preset_folder_state(scope_key)
-    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders(scope))
     if not store.rename_folder(folder_key, name):
         return False
     save_preset_folder_state(scope_key, store.to_dict())
@@ -47,7 +49,8 @@ def rename_preset_folder(scope_key: str, folder_key: str, name: str) -> bool:
 
 def delete_preset_folder(scope_key: str, folder_key: str) -> bool:
     state = load_preset_folder_state(scope_key)
-    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders(scope))
     if not store.delete_folder(folder_key):
         return False
     save_preset_folder_state(scope_key, store.to_dict())
@@ -56,7 +59,8 @@ def delete_preset_folder(scope_key: str, folder_key: str) -> bool:
 
 def move_preset_folder_by_step(scope_key: str, folder_key: str, direction: int) -> bool:
     state = load_preset_folder_state(scope_key)
-    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders(scope))
     if not store.move_folder_by_step(folder_key, direction):
         return False
     save_preset_folder_state(scope_key, store.to_dict())
@@ -74,7 +78,8 @@ def set_preset_folder_collapsed(scope_key: str, folder_key: str, collapsed: bool
         }
         save_preset_folder_state(scope_key, state)
         return True
-    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders(scope))
     if not store.set_folder_collapsed(folder_key, collapsed):
         return False
     save_preset_folder_state(scope_key, store.to_dict())
@@ -82,12 +87,14 @@ def set_preset_folder_collapsed(scope_key: str, folder_key: str, collapsed: bool
 
 
 def reset_preset_folders(scope_key: str) -> dict[str, Any]:
-    return save_preset_folder_state(scope_key, build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    return save_preset_folder_state(scope, build_default_preset_folders(scope))
 
 
 def move_preset_to_folder(scope_key: str, file_name: str, folder_key: str) -> bool:
     state = load_preset_folder_state(scope_key)
-    store = FolderLibraryStore(state, default_state=build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    store = FolderLibraryStore(state, default_state=build_default_preset_folders(scope))
     if not store.set_item_folder(file_name, folder_key):
         return False
     next_state = store.to_dict()
@@ -192,7 +199,7 @@ def set_preset_rating(scope_key: str, file_name: str, rating: int, *, display_na
     key = str(file_name or "").strip()
     if not key:
         return False
-    meta = _ensure_item_meta(state, key, str(display_name or key))
+    meta = _ensure_item_meta(state, key, str(display_name or key), _normalize_scope(scope_key))
     try:
         normalized = int(rating)
     except Exception:
@@ -214,7 +221,7 @@ def set_preset_pin(scope_key: str, file_name: str, pinned: bool, *, display_name
     key = str(file_name or "").strip()
     if not key:
         return False
-    meta = _ensure_item_meta(state, key, str(display_name or key))
+    meta = _ensure_item_meta(state, key, str(display_name or key), _normalize_scope(scope_key))
     if pinned:
         meta["pinned"] = True
     else:
@@ -283,9 +290,11 @@ def build_preset_folder_rows(
     visible_entries: list[dict[str, Any]],
     active_file_name: str,
     folder_state: dict[str, Any] | None = None,
+    scope_key: str = ENGINE_WINWS2,
     query: str = "",
 ) -> list[dict[str, Any]]:
-    state = normalize_folder_state(folder_state, build_default_preset_folders())
+    scope = _normalize_scope(scope_key)
+    state = normalize_folder_state(folder_state, build_default_preset_folders(scope))
     live_items: list[dict[str, Any]] = []
     for entry in visible_entries:
         file_name = str(entry.get("file_name") or "").strip()
@@ -293,8 +302,8 @@ def build_preset_folder_rows(
             continue
         preset = all_presets.get(file_name) or {}
         display_name = str(preset.get("display_name") or entry.get("display_name") or file_name).strip()
-        meta = _ensure_item_meta(state, file_name, display_name)
-        folder_key = str(meta.get("folder_key") or classify_preset_folder(display_name or file_name))
+        meta = _ensure_item_meta(state, file_name, display_name, scope)
+        folder_key = str(meta.get("folder_key") or classify_preset_folder(display_name or file_name, scope))
         live_items.append(
             {
                 "key": file_name,
@@ -351,12 +360,17 @@ def build_preset_folder_rows(
     return rows
 
 
-def _ensure_item_meta(state: dict[str, Any], file_name: str, display_name: str) -> dict[str, Any]:
+def _ensure_item_meta(
+    state: dict[str, Any],
+    file_name: str,
+    display_name: str,
+    scope_key: str = ENGINE_WINWS2,
+) -> dict[str, Any]:
     items = state.setdefault("items", {})
     item = items.setdefault(
         file_name,
         {
-            "folder_key": classify_preset_folder(display_name or file_name),
+            "folder_key": classify_preset_folder(display_name or file_name, scope_key),
             "order": None,
             "rating": 0,
         },

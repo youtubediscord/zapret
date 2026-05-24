@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
-import telegram_proxy.settings as telegram_proxy_settings
 from qfluentwidgets import FluentIcon
 from ui.fluent_widgets import set_tooltip
 
@@ -63,75 +62,6 @@ def apply_upstream_preset_ui(
     if preset is not None and is_mtproxy:
         return upstream_catalog.mtproxy_link(index)
     return ""
-
-
-def refresh_upstream_preset_combo(
-    *,
-    upstream_preset_row,
-    upstream_catalog,
-    apply_upstream_preset_ui_callback,
-    select_index: int | None = None,
-) -> tuple[int, str]:
-    combo = upstream_preset_row.combo
-    combo.blockSignals(True)
-    combo.clear()
-    for label, preset in upstream_catalog.items():
-        combo.addItem(label, userData=preset)
-
-    if not upstream_catalog.choices:
-        target_index = -1
-    elif select_index is None:
-        target_index = combo.currentIndex()
-        if target_index < 0:
-            target_index = 0
-        target_index = min(target_index, len(upstream_catalog.choices) - 1)
-    else:
-        target_index = min(max(select_index, 0), len(upstream_catalog.choices) - 1)
-
-    combo.setCurrentIndex(target_index)
-    combo.blockSignals(False)
-
-    mtproxy_link = ""
-    if target_index >= 0:
-        mtproxy_link = apply_upstream_preset_ui_callback(target_index)
-    return target_index, mtproxy_link
-
-
-def load_settings_into_ui(
-    *,
-    upstream_catalog,
-    port_spin,
-    host_edit,
-    update_manual_instructions,
-    upstream_toggle,
-    upstream_host_edit,
-    upstream_port_spin,
-    upstream_user_edit,
-    upstream_pass_edit,
-    refresh_upstream_preset_combo_callback,
-    upstream_mode_toggle,
-) -> None:
-    state = telegram_proxy_settings.load_state(upstream_catalog)
-
-    port_spin.blockSignals(True)
-    port_spin.setValue(state.port)
-    port_spin.blockSignals(False)
-
-    host_edit.setText(state.host)
-    update_manual_instructions()
-
-    upstream_toggle.setChecked(state.upstream_enabled, block_signals=True)
-
-    upstream_host_edit.setText(state.upstream_host)
-    upstream_port_spin.blockSignals(True)
-    upstream_port_spin.setValue(state.upstream_port)
-    upstream_port_spin.blockSignals(False)
-    upstream_user_edit.setText(state.upstream_user)
-    upstream_pass_edit.setText(state.upstream_password)
-
-    refresh_upstream_preset_combo_callback(select_index=state.upstream_preset_index)
-
-    upstream_mode_toggle.setChecked(state.upstream_mode == "always", block_signals=True)
 
 
 def apply_ui_texts(

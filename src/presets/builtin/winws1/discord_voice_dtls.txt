@@ -6,14 +6,18 @@
 --wf-udp=443,50000-50099
 
 # === HTTP (порт 80) ===
---filter-tcp=80
+--name=Russia blacklist TCP wide
+--filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=method+2
 --dpi-desync-fooling=md5sig
 
 # === HTTPS YouTube ===
+
 --new
+
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multidisorder
@@ -22,8 +26,11 @@
 --dpi-desync-fooling=badseq,md5sig
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-fake-tls=bin/dtls_clienthello_w3_org.bin
@@ -31,8 +38,11 @@
 --dpi-desync-fooling=badseq,md5sig
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-fake-tls=bin/dtls_clienthello_w3_org.bin
@@ -40,16 +50,19 @@
 --dpi-desync-fooling=badseq,md5sig
 
 # === QUIC ===
+
 --new
+
 --filter-udp=443
 --dpi-desync=fake
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 --dpi-desync-repeats=6
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50099
 --dpi-desync=fake,tamper
 --dpi-desync-repeats=6
 --dpi-desync-fake-discord=0x00
---new

@@ -151,16 +151,6 @@ def build_user_presets_page_shell(
     )
     info_btn.clicked.connect(on_info_clicked)
 
-    toolbar_layout.set_buttons([
-        create_btn,
-        import_btn,
-        open_folder_btn,
-        reset_all_btn,
-        presets_info_btn,
-        info_btn,
-    ])
-    toolbar_layout.refresh_for_viewport(parent.viewport().width(), parent.layout.contentsMargins())
-
     preset_search_input = line_edit_cls()
     preset_search_input.setPlaceholderText(
         tr_fn(f"{tr_prefix}.search.placeholder", "Поиск пресетов по имени...")
@@ -169,6 +159,17 @@ def build_user_presets_page_shell(
     preset_search_input.setFixedHeight(34)
     preset_search_input.setProperty("noDrag", True)
     preset_search_input.textChanged.connect(on_preset_search_text_changed)
+
+    toolbar_layout.set_buttons([
+        create_btn,
+        import_btn,
+        open_folder_btn,
+        reset_all_btn,
+        presets_info_btn,
+        info_btn,
+    ])
+    toolbar_layout.set_trailing_widget(preset_search_input, minimum_width=280)
+    toolbar_layout.refresh_for_viewport(parent.viewport().width(), parent.layout.contentsMargins())
 
     presets_list = LinkedWheelListView(parent)
     presets_list.setObjectName("userPresetsList")
@@ -208,7 +209,12 @@ def build_user_presets_page_shell(
     presets_list.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
     presets_list.setFrameShape(QFrame.Shape.NoFrame)
     presets_list.verticalScrollBar().setSingleStep(28)
-    install_fluent_scrollbars(presets_list, vertical=True, horizontal=False)
+    install_fluent_scrollbars(
+        presets_list,
+        vertical=True,
+        horizontal=False,
+        reserve_vertical_space=True,
+    )
 
     return UserPresetsPageBuildWidgets(
         configs_card=configs_card,

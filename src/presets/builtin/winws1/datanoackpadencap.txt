@@ -6,17 +6,19 @@
 --wf-udp=443,50000-59000
 
 # === HTTPS ===
---filter-tcp=443
---hostlist=lists/other.txt
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=1
 --dpi-desync-fake-tls=bin/tls_clienthello_vk_com.bin
 --dpi-desync-ttl=5
 
-# === QUIC Discord ===
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -25,18 +27,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=fake,multisplit
---dpi-desync-split-seqovl=1
---dpi-desync-split-pos=1
---dpi-desync-fake-tls=bin/tls_clienthello_vk_com.bin
---dpi-desync-ttl=5
 
-# === QUIC Discord ===
 --new
---filter-tcp=443
+
+--name=SoundCloud
+--filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -45,8 +40,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=rutracker.org
+--filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -55,8 +53,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=rutor.info (.is)
+--filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -65,8 +66,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -75,8 +79,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=itch.io
+--filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -85,8 +92,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=Facebook
+--filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -95,8 +105,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=Instagram
+--filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -105,8 +118,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=Twitter/X
+--filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -115,8 +131,11 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
---filter-tcp=443
+
+--name=WhatsApp
+--filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -125,7 +144,9 @@
 --dpi-desync-ttl=5
 
 # === QUIC Discord ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake
@@ -135,7 +156,9 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-59000
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -144,7 +167,9 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === HTTPS YouTube ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/youtubeGV.txt
 --dpi-desync=split
@@ -155,8 +180,11 @@
 --dpi-desync-ttl=4
 
 # === HTTPS YouTube ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,split2
 --dpi-desync-split-seqovl=625
@@ -165,7 +193,9 @@
 --dpi-desync-ttl=2
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/youtubeQ.txt
 --dpi-desync=fake
@@ -173,16 +203,12 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
---hostlist=lists/discord.txt
---dpi-desync=fake
---dpi-desync-fooling=datanoack
---dpi-desync-fake-tls-mod=rnd,rndsni,padencap
---new
---filter-tcp=443
+
+--name=Cloudflare TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
 --dpi-desync-fooling=datanoack
 --dpi-desync-fake-tls-mod=rnd,rndsni,padencap
---new

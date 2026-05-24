@@ -36,6 +36,43 @@ class FluentScrollbarTests(unittest.TestCase):
 
         self.assertIs(first, second)
 
+    def test_reserved_vertical_space_keeps_rows_away_from_visible_scrollbar(self) -> None:
+        widget = QListWidget()
+        widget.resize(180, 120)
+        for row in range(40):
+            widget.addItem(f"Profile {row}")
+
+        bars = install_fluent_scrollbars(
+            widget,
+            vertical=True,
+            horizontal=False,
+            reserve_vertical_space=True,
+        )
+        widget.show()
+        self._app.processEvents()
+
+        self.assertIsNotNone(bars.vertical)
+        self.assertGreater(widget.verticalScrollBar().maximum(), 0)
+        row_rect = widget.visualItemRect(widget.item(0)).adjusted(8, 2, -8, -2)
+        self.assertGreaterEqual(bars.vertical.geometry().left() - row_rect.right(), 8)
+
+    def test_reserved_vertical_space_is_not_used_without_scroll_range(self) -> None:
+        widget = QListWidget()
+        widget.resize(180, 120)
+        widget.addItem("Only one profile")
+
+        install_fluent_scrollbars(
+            widget,
+            vertical=True,
+            horizontal=False,
+            reserve_vertical_space=True,
+        )
+        widget.show()
+        self._app.processEvents()
+
+        self.assertEqual(widget.verticalScrollBar().maximum(), 0)
+        self.assertEqual(widget.viewportMargins().right(), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

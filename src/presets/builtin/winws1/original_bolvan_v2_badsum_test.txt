@@ -5,13 +5,14 @@
 --wf-tcp=80,443
 
 # === Общее ===
+--name=youtube.com (интерфейс)
 --ipset=lists/ipset-youtube.txt
 --dpi-desync=multidisorder
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2
 
 # === HTTPS ===
---filter-tcp=443
+--filter-tcp=80,443
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=286
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_11.bin
@@ -19,14 +20,17 @@
 --dup-cutoff=n3
 
 # === HTTP (порт 80) ===
+
 --new
+
+--name=Cloudflare legacy TCP
 --ipset=lists/cloudflare-ipset.txt
 --dpi-desync=multidisorder
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2
 
 # === HTTPS ===
---filter-tcp=443
+--filter-tcp=80,443-65535
 --dpi-desync=multisplit
 --dpi-desync-split-seqovl=286
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_11.bin
@@ -34,11 +38,12 @@
 --dup-cutoff=n3
 
 # === HTTP (порт 80) ===
+
 --new
+
 --filter-tcp=80
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=2
 --dpi-desync-split-pos=host+1
 --dpi-desync-fake-http=0x0F0F0F0F
 --dpi-desync-fooling=md5sig
---new

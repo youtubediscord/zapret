@@ -58,12 +58,6 @@ author = Community
 description = Множественные fake пакеты для забивания буфера DPI
 --lua-desync=fake:blob=fake_default_http:repeats=5:ip_autottl=0,3-20:ip6_autottl=0,3-20
 
-[disorder_host]
-name = 🔀 Disorder Host
-author = Community
-description = Out-of-order доставка по позиции Host (без seqovl)
---lua-desync=multidisorder:pos=host+1
-
 [disorder_method]
 name = 🔀 Disorder Method
 author = Community
@@ -102,12 +96,6 @@ label = recommended
 description = Fake с badseq + disorder split
 --lua-desync=fake:blob=fake_default_http:tcp_seq=-10000:ip_autottl=0,3-20:ip6_autottl=0,3-20
 --lua-desync=multidisorder:pos=host+1
-
-[split_simple]
-name = ✂️ Split Simple
-author = Community
-description = Простая нарезка без seqovl
---lua-desync=multisplit:pos=host+1
 
 [split_multi]
 name = ✂️ Split Multi
@@ -260,13 +248,6 @@ description = Для МГТС: fake с badseq + multidisorder
 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ack=-66000:tcp_ts_up:ip_autottl=2,3-20:ip6_autottl=2,3-20
 --lua-desync=multidisorder:pos=host+1,method+2
 
-[mgts_http_syndata]
-name = 🏠 МГТС HTTP SynData
-author = Custom
-label = recommended
-description = Для МГТС: SynData обходит stateful DPI:ip_autottl=2,3-20:ip6_autottl=2,3-20
---lua-desync=multidisorder:pos=host+1
-
 [http_fake_flood_6]
 name = 🌊 HTTP Fake Flood x6
 author = Custom
@@ -354,13 +335,6 @@ description = Сначала фейки, потом FakedDisorder
 --lua-desync=fake:blob=fake_default_http:repeats=4:ip_ttl=1:ip6_ttl=1
 --lua-desync=fakeddisorder:pos=host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20
 
-[http_syndata_fakeddisorder]
-name = 🚀 SynData + FakedDisorder
-author = Custom
-label = recommended
-description = SynData + FakedDisorder комбинация
---lua-desync=fakeddisorder:pos=host+1:ip_autottl=0,3-20:ip6_autottl=0,3-20
-
 [http_combo_mgts]
 name = 💥 HTTP Combo МГТС
 author = Custom
@@ -419,13 +393,6 @@ name = 🚀 SynData Pure (МГТС)
 author = Custom
 label = recommended
 description = Только SynData - данные в SYN пакете обходят stateful DPI
-
-[http_syndata_multisplit]
-name = 🚀 SynData + MultiSplit
-author = Custom
-label = recommended
-description = SynData + нарезка на 4 части
---lua-desync=multisplit:pos=1,method+2,host+1,sld+1
 
 [http_syndata_disorder_multi]
 name = 🚀 SynData + Disorder Multi
@@ -1013,27 +980,11 @@ description = Автодобавлено для распознавания вс�
 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000
 --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
 
-[stock_general_alt10_game_filter_11]
-name = fake fake_default_tls x3 ts-600000 + fake tls_4pda x3 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT10 (game filter).txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,sni=www.google.com:repeats=3:tcp_ts=-600000
---lua-desync=fake:blob=tls_4pda:repeats=3:tcp_ts=-600000
-
 [stock_general_alt11_game_filter_12]
 name = fake tls_max x8 ts-600000 + multisplit 2 tls_max s664 x8 ts-600000
 author = builtin
 label = stock
 description = Автодобавлено для распознавания встроенного пресета general ALT11 (game filter).txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000
---lua-desync=multisplit:pos=2:seqovl=664:seqovl_pattern=tls_max:repeats=8:tcp_ts=-600000
-
-[stock_general_alt11_13]
-name = payload tls_client_hello + payload tls_client_hello,http_req + fake tls_max x8 ts-600000 + multisplit 2 tls_max s664 x8 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT11.txt (all_tcp) в basic-режиме.
 --lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000
 --lua-desync=multisplit:pos=2:seqovl=664:seqovl_pattern=tls_max:repeats=8:tcp_ts=-600000
 
@@ -1077,14 +1028,6 @@ description = Автодобавлено для распознавания вс�
 --lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000
 --lua-desync=fake:blob=fake_default_http:tcp_ts=-600000
 --lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000
-
-[stock_general_alt4_17_v2]
-name = payload tls_client_hello + payload tls_client_hello,http_req + fake tls_google x6 seq1000 + multisplit 2
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT4.txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=1000
---lua-desync=multisplit:pos=2
 
 [stock_general_alt5_game_filter_18]
 name = syndata + multidisorder 2
@@ -1169,14 +1112,6 @@ description = Автодобавлено для распознавания вс�
 --lua-desync=send:repeats=2
 --lua-desync=syndata:blob=tls7
 
-[stock_dead_by_daylight_v2_game_filter_02_v2]
-name = payload tls_client_hello + fake fake_default_tls x3 ts-600000 + fake tls_4pda x3 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета Dead by Daylight v2 (game filter).txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,sni=www.google.com:repeats=3:tcp_ts=-600000
---lua-desync=fake:blob=tls_4pda:repeats=3:tcp_ts=-600000
-
 [stock_default_v3_game_filter_03]
 name = send x2 + syndata tls_google + hostfakesplit_multi hosts x2 md5 ts-1000
 author = builtin
@@ -1240,31 +1175,6 @@ description = Автодобавлено для распознавания вс�
 --lua-desync=send
 --lua-desync=multidisorder:pos=1
 
-[stock_general_alt_10_v2]
-name = payload tls_client_hello + payload http_req + payload tls_client_hello,http_req + fake tls_google x6 ts-600000 + fake fake_default_http x6 t
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT.txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
-
-[stock_general_alt11_11]
-name = payload tls_client_hello + payload tls_client_hello,http_req + fake tls_max x8 ts-600000 + multisplit 2 tls_max s664 x8 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT11.txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000
---lua-desync=multisplit:pos=2:seqovl=664:seqovl_pattern=tls_max:repeats=8:tcp_ts=-600000
-
-[stock_general_alt8_12]
-name = payload tls_client_hello + payload http_req + fake tls_google x6 seq2 + fake fake_default_http x6 seq2
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT8.txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=2
---lua-desync=fake:blob=fake_default_http:repeats=6:tcp_seq=2
-
 [stock_general_fake_tls_auto_alt_game_filter_13]
 name = fake fake_default_tls x8 seq2 + fakedsplit 2 x8 seq2
 author = builtin
@@ -1296,14 +1206,6 @@ label = stock
 description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO v2 (game filter).txt (all_tcp) в basic-режиме.
 --lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_ack=-66000:repeats=11
 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:repeats=11
-
-[stock_general_simple_fake_alt2_17]
-name = payload tls_client_hello + payload http_req + fake tls_max x6 ts-600000 + fake fake_default_http x6 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT2.txt (all_tcp) в basic-режиме.
---lua-desync=fake:blob=tls_max:repeats=6:tcp_ts=-600000
---lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000
 
 [stock_http80_18]
 name = syndata + multidisorder_legacy 1,midsld + syndata + multidisorder_legacy 1,midsld

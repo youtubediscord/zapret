@@ -80,6 +80,7 @@
 --blob=hex_0f0f0f0f:0x0F0F0F0F
 --blob=hex_00:0x00
 
+--name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --out-range=-d8
@@ -87,6 +88,7 @@
 
 --new
 
+--name=youtube.com (QUIC)
 --filter-udp=443
 --ipset=lists/ipset-youtube.txt
 --out-range=-n8
@@ -95,6 +97,7 @@
 
 --new
 
+--name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --out-range=-d8
@@ -102,6 +105,7 @@
 
 --new
 
+--name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
 --out-range=-d10
@@ -109,6 +113,7 @@
 
 --new
 
+--name=obsidian.md
 --filter-tcp=80,443
 --hostlist=lists/obsidian.txt
 --out-range=-n8
@@ -118,6 +123,7 @@
 
 --new
 
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --out-range=-d10
@@ -125,159 +131,7 @@
 
 --new
 
---filter-tcp=80,443
---hostlist=lists/other.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/soundcloud.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/rutracker.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/rutor.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/roblox.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/itch.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/facebook.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/instagram.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443
---hostlist=lists/whatsapp.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-tcp=80,443,1080,2053,2083,2087,2096,8443
---hostlist-domains=discord.media
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---filter-l7=stun,discord
---payload=stun,discord_ip_discovery
---out-range=-n8
---lua-desync=fake:blob=fake_default_udp
-
---new
-
---filter-tcp=80,443
---ipset=lists/ipset-telegram.txt
---out-range=-n8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20
---lua-desync=pass
-
---new
-
---filter-tcp=80,443
---ipset=lists/ipset-twitter.txt
---out-range=-d8
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
-
---new
-
---filter-tcp=80,443
---hostlist-domains=ntc.party
---out-range=-d9
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
---filter-tcp=80,443
---hostlist=lists/roblox.txt
---out-range=-n8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20
---lua-desync=fake:blob=tls_google:tcp_ts=1:repeats=8:payload=tls_client_hello
---lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:payload=tls_client_hello
-
---new
-
---filter-udp=443,49152-65535
---ipset=lists/ipset-roblox.txt
---out-range=-n8
---payload=all
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
-
---new
-
---filter-tcp=443
---hostlist=lists/other.txt
---out-range=-d10
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
---filter-tcp=443
---hostlist=lists/russia-blacklist.txt
---out-range=-d10
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
---new
-
---ipset=lists/ipset-zapretkvn.txt
---ipset-ip=93.115.203.112
---ipset-ip=84.54.31.114
---out-range=-n8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
---ipset=lists/ipset-timeweb.txt
---ipset-ip=93.115.203.112
---ipset-ip=84.54.31.114
---out-range=-n8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=stun_pat
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
-
---new
-
+--name=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --out-range=-n8
@@ -287,6 +141,150 @@
 
 --new
 
+--name=SoundCloud
+--filter-tcp=80,443
+--hostlist=lists/soundcloud.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=rutracker.org
+--filter-tcp=80,443
+--hostlist=lists/rutracker.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=rutor.info (.is)
+--filter-tcp=80,443
+--hostlist=lists/rutor.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
+--hostlist=lists/roblox.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=itch.io
+--filter-tcp=80,443
+--hostlist=lists/itch.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Facebook
+--filter-tcp=80,443
+--hostlist=lists/facebook.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Instagram
+--filter-tcp=80,443
+--hostlist=lists/instagram.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=WhatsApp
+--filter-tcp=80,443
+--hostlist=lists/whatsapp.txt
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=discord.media
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
+--hostlist-domains=discord.media
+--out-range=-d10
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Голосовые звонки/чаты
+--filter-l7=stun,discord
+--payload=stun,discord_ip_discovery
+--out-range=-n8
+--lua-desync=fake:blob=fake_default_udp
+
+--new
+
+--name=Telegram
+--filter-tcp=80,443,5222
+--ipset=lists/ipset-telegram.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20
+--lua-desync=pass
+
+--new
+
+--name=Twitter/X
+--filter-tcp=80,443
+--ipset=lists/ipset-twitter.txt
+--out-range=-d8
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=ntc.party
+--filter-tcp=80,443
+--hostlist-domains=ntc.party
+--out-range=-d9
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+
+--new
+
+--name=Roblox UDP
+--filter-udp=443-65535
+--ipset=lists/ipset-roblox.txt
+--out-range=-n8
+--payload=all
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
+
+--new
+
+--name=Russia blacklist TCP 443
+--filter-tcp=443
+--hostlist=lists/russia-blacklist.txt
+--out-range=-d10
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+
+--new
+
+--name=ZapretKVN UDP
+--filter-udp=443-65535
+--ipset=lists/ipset-zapretkvn.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=Timeweb UDP
+--filter-udp=443-65535
+--ipset=lists/ipset-timeweb.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+--new
+
+--name=discord.com
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-n8
@@ -296,6 +294,7 @@
 
 --new
 
+--name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-n8
@@ -305,6 +304,7 @@
 
 --new
 
+--name=Cloudflare legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --out-range=-n8
@@ -314,6 +314,7 @@
 
 --new
 
+--name=Cloudflare IPv6 legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --out-range=-n8
@@ -323,6 +324,7 @@
 
 --new
 
+--name=Cloudflare alt TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare1.txt
 --out-range=-n8
@@ -332,6 +334,7 @@
 
 --new
 
+--name=Amazon TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-amazon.txt
 --out-range=-n8
@@ -341,15 +344,7 @@
 
 --new
 
---filter-tcp=80,443-65535
---ipset=lists/ipset-roblox.txt
---out-range=-n8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=tls_google:ip_autottl=-2,3-20
---lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
-
---new
-
+--name=League of Legends RU TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-ru.txt
 --out-range=-n8
@@ -359,6 +354,7 @@
 
 --new
 
+--name=League of Legends EUW TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-euw.txt
 --out-range=-n8
@@ -368,6 +364,7 @@
 
 --new
 
+--name=OVH TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-ovh.txt
 --out-range=-n8
@@ -377,6 +374,7 @@
 
 --new
 
+--name=WhatsApp
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-whatsapp.txt
 --out-range=-n8
@@ -386,6 +384,7 @@
 
 --new
 
+--name=WARP TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-warp.txt
 --out-range=-n8
@@ -395,6 +394,7 @@
 
 --new
 
+--name=ZapretKVN TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-zapretkvn.txt
 --out-range=-n8
@@ -404,6 +404,7 @@
 
 --new
 
+--name=Timeweb TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-timeweb.txt
 --out-range=-n8
@@ -413,15 +414,8 @@
 
 --new
 
---filter-udp=80,443-65535
---ipset=lists/ipset-all.txt
---out-range=-n8
---payload=all
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
-
---new
-
---filter-udp=80,443-65535
+--name=Cloudflare legacy UDP
+--filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
 --out-range=-n8
 --payload=all
@@ -429,7 +423,8 @@
 
 --new
 
---filter-udp=80,443-65535
+--name=Cloudflare alt UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare1.txt
 --out-range=-n8
 --payload=all
@@ -437,7 +432,8 @@
 
 --new
 
---filter-udp=80,443-65535
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-n8
 --payload=all
@@ -445,7 +441,8 @@
 
 --new
 
---filter-udp=80,443-65535
+--name=Amazon UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-amazon.txt
 --out-range=-n8
 --payload=all

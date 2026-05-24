@@ -19,7 +19,8 @@
 
 --new
 
---filter-tcp=80
+--name=General list TCP
+--filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-autottl=2
@@ -39,6 +40,7 @@
 
 --new
 
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake

@@ -19,7 +19,8 @@
 
 --new
 
---filter-tcp=80
+--name=General list TCP
+--filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-autottl=2
@@ -27,17 +28,8 @@
 
 --new
 
---filter-tcp=443
---hostlist=lists/list-general.txt
---dpi-desync=fakedsplit
---dpi-desync-split-pos=1
---dpi-desync-autottl
---dpi-desync-fooling=badseq
---dpi-desync-repeats=8
-
---new
-
---filter-tcp=443
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -47,8 +39,9 @@
 
 --new
 
---filter-tcp=443
---hostlist=lists/other.txt
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
 --dpi-desync-autottl
@@ -57,7 +50,8 @@
 
 --new
 
---filter-tcp=443
+--name=SoundCloud
+--filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -67,7 +61,8 @@
 
 --new
 
---filter-tcp=443
+--name=rutracker.org
+--filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -77,7 +72,8 @@
 
 --new
 
---filter-tcp=443
+--name=rutor.info (.is)
+--filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -87,7 +83,8 @@
 
 --new
 
---filter-tcp=443
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -97,7 +94,8 @@
 
 --new
 
---filter-tcp=443
+--name=itch.io
+--filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -107,7 +105,8 @@
 
 --new
 
---filter-tcp=443
+--name=Facebook
+--filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -117,7 +116,8 @@
 
 --new
 
---filter-tcp=443
+--name=Instagram
+--filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -127,7 +127,8 @@
 
 --new
 
---filter-tcp=443
+--name=Twitter/X
+--filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
@@ -137,18 +138,9 @@
 
 --new
 
---filter-tcp=443
+--name=WhatsApp
+--filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
---dpi-desync=fakedsplit
---dpi-desync-split-pos=1
---dpi-desync-autottl
---dpi-desync-fooling=badseq
---dpi-desync-repeats=8
-
---new
-
---filter-tcp=443
---hostlist=lists/other.txt
 --dpi-desync=fakedsplit
 --dpi-desync-split-pos=1
 --dpi-desync-autottl
@@ -180,6 +172,7 @@
 
 --new
 
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake

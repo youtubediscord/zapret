@@ -8,6 +8,8 @@ from typing import Callable
 class DnsFeature:
     apply_dns_on_startup_async: Callable
     load_page_data: Callable
+    warm_page_data_cache: Callable
+    consume_warmed_page_data: Callable
     refresh_dns_info: Callable
     apply_auto_dns: Callable
     apply_provider_dns: Callable
@@ -24,23 +26,32 @@ class DnsFeature:
 
 
 def build_dns_feature() -> DnsFeature:
-    from dns import commands as dns_commands
-    from dns import public as dns_public
+    def _commands():
+        from dns import commands as dns_commands
+
+        return dns_commands
+
+    def _public():
+        from dns import public as dns_public
+
+        return dns_public
 
     return DnsFeature(
-        apply_dns_on_startup_async=dns_public.apply_dns_on_startup_async,
-        load_page_data=dns_public.load_page_data,
-        refresh_dns_info=dns_public.refresh_dns_info,
-        apply_auto_dns=dns_public.apply_auto_dns,
-        apply_provider_dns=dns_public.apply_provider_dns,
-        apply_custom_dns=dns_public.apply_custom_dns,
-        normalize_adapter_alias=dns_public.normalize_adapter_alias,
-        get_force_dns_status=dns_public.get_force_dns_status,
-        is_isp_dns_warning_shown=dns_public.is_isp_dns_warning_shown,
-        mark_isp_dns_warning_shown=dns_public.mark_isp_dns_warning_shown,
-        create_dns_check_worker=dns_commands.create_dns_check_worker,
-        enable_force_dns=dns_public.enable_force_dns,
-        disable_force_dns=dns_public.disable_force_dns,
-        flush_dns_cache=dns_public.flush_dns_cache,
-        run_connectivity_test=dns_public.run_connectivity_test,
+        apply_dns_on_startup_async=lambda *args, **kwargs: _public().apply_dns_on_startup_async(*args, **kwargs),
+        load_page_data=lambda *args, **kwargs: _public().load_page_data(*args, **kwargs),
+        warm_page_data_cache=lambda *args, **kwargs: _public().warm_page_data_cache(*args, **kwargs),
+        consume_warmed_page_data=lambda *args, **kwargs: _public().consume_warmed_page_data(*args, **kwargs),
+        refresh_dns_info=lambda *args, **kwargs: _public().refresh_dns_info(*args, **kwargs),
+        apply_auto_dns=lambda *args, **kwargs: _public().apply_auto_dns(*args, **kwargs),
+        apply_provider_dns=lambda *args, **kwargs: _public().apply_provider_dns(*args, **kwargs),
+        apply_custom_dns=lambda *args, **kwargs: _public().apply_custom_dns(*args, **kwargs),
+        normalize_adapter_alias=lambda *args, **kwargs: _public().normalize_adapter_alias(*args, **kwargs),
+        get_force_dns_status=lambda *args, **kwargs: _public().get_force_dns_status(*args, **kwargs),
+        is_isp_dns_warning_shown=lambda *args, **kwargs: _public().is_isp_dns_warning_shown(*args, **kwargs),
+        mark_isp_dns_warning_shown=lambda *args, **kwargs: _public().mark_isp_dns_warning_shown(*args, **kwargs),
+        create_dns_check_worker=lambda *args, **kwargs: _commands().create_dns_check_worker(*args, **kwargs),
+        enable_force_dns=lambda *args, **kwargs: _public().enable_force_dns(*args, **kwargs),
+        disable_force_dns=lambda *args, **kwargs: _public().disable_force_dns(*args, **kwargs),
+        flush_dns_cache=lambda *args, **kwargs: _public().flush_dns_cache(*args, **kwargs),
+        run_connectivity_test=lambda *args, **kwargs: _public().run_connectivity_test(*args, **kwargs),
     )

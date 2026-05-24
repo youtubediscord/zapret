@@ -7,6 +7,13 @@ from core.paths import AppPaths
 from settings.mode import ENGINE_WINWS1, ENGINE_WINWS2
 from settings.store import get_user_profiles_settings, set_user_profiles_settings
 
+from lists.core.layered_files import (
+    delete_profile_user_list_file,
+    ensure_profile_user_list_file,
+    rename_profile_user_list_file,
+    safe_list_file_name,
+)
+
 from ..models import EngineName, Profile
 from ..parser import parse_preset_text
 from ..strategy_catalog import load_strategy_catalogs
@@ -34,9 +41,8 @@ def create_user_profile(paths: AppPaths, *, name: str, protocol: str, ports: str
     ipset = f"lists/ipset-{profile_id}.txt"
 
     lists_root = Path(paths.user_root) / "lists"
-    lists_root.mkdir(parents=True, exist_ok=True)
-    _ensure_file(lists_root / f"{profile_id}.txt")
-    _ensure_file(lists_root / f"ipset-{profile_id}.txt")
+    ensure_profile_user_list_file(lists_root, f"{profile_id}.txt")
+    ensure_profile_user_list_file(lists_root, f"ipset-{profile_id}.txt")
 
     settings = get_user_profiles_settings()
     profiles = dict(settings.get("profiles") or {})
@@ -260,34 +266,17 @@ def _name_key(value: object) -> str:
     return str(value or "").strip().casefold()
 
 
-def _ensure_file(path: Path) -> None:
-    if path.exists():
-        return
-    path.write_text("", encoding="utf-8")
-
-
 def _rename_user_list_file(paths: AppPaths, old_value: str, new_value: str) -> None:
-    old_name = Path(str(old_value or "").replace("\\", "/")).name
-    new_name = Path(str(new_value or "").replace("\\", "/")).name
+    old_name = safe_list_file_name(old_value)
+    new_name = safe_list_file_name(new_value)
     if not new_name:
         return
     lists_root = Path(paths.user_root) / "lists"
-    lists_root.mkdir(parents=True, exist_ok=True)
-    old_path = lists_root / old_name if old_name else None
-    new_path = lists_root / new_name
-    if old_path is not None and old_path.exists() and old_path != new_path:
-        if new_path.exists():
-            raise ValueError(f"Файл списка уже существует: {new_name}")
-        old_path.rename(new_path)
-        return
-    _ensure_file(new_path)
+    rename_profile_user_list_file(lists_root, old_name, new_name)
 
 
 def _delete_user_list_file(paths: AppPaths, value: str) -> None:
-    name = Path(str(value or "").replace("\\", "/")).name
+    name = safe_list_file_name(value)
     if not name:
         return
-    try:
-        (Path(paths.user_root) / "lists" / name).unlink()
-    except FileNotFoundError:
-        pass
+    delete_profile_user_list_file(Path(paths.user_root) / "lists", name)

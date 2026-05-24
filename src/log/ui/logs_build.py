@@ -15,7 +15,7 @@ from settings.mode import EXE_NAME_WINWS1
 
 
 @dataclass(slots=True)
-class LogsTabWidgets:
+class LogsPrimaryTabWidgets:
     controls_card: object
     log_combo: object
     refresh_btn: object
@@ -28,6 +28,10 @@ class LogsTabWidgets:
     log_card: object
     log_text: object
     stats_label: object
+
+
+@dataclass(slots=True)
+class LogsSecondaryPanelsWidgets:
     errors_card: object
     warning_icon_label: object
     errors_title_label: object
@@ -42,7 +46,7 @@ class LogsTabWidgets:
     winws_text: object
 
 
-def build_logs_tab_ui(
+def build_logs_primary_tab_ui(
     *,
     parent_layout,
     content_parent,
@@ -51,31 +55,23 @@ def build_logs_tab_ui(
     settings_card_cls,
     qvbox_layout_cls,
     qhbox_layout_cls,
-    qlabel_cls,
     caption_label_cls,
     strong_body_label_cls,
     combo_box_cls,
     tool_button_cls,
     push_button_cls,
-    fluent_push_button_cls,
     text_edit_cls,
     quick_actions_bar_cls,
     qfont_cls,
-    qta_module,
     get_theme_tokens_fn,
-    errors_text_min_height: int,
-    errors_text_max_height: int,
     on_log_selected,
     on_refresh,
     on_spin_tick,
     on_copy,
     on_clear_view,
     on_open_folder,
-    on_clear_errors,
-    on_update_errors_height,
-    on_clear_winws_output,
     refresh_timer_parent,
-) -> LogsTabWidgets:
+) -> LogsPrimaryTabWidgets:
     _ = get_theme_tokens_fn()
 
     controls_card = settings_card_cls(
@@ -169,6 +165,42 @@ def build_logs_tab_ui(
     log_card.add_layout(log_layout)
     parent_layout.addWidget(log_card)
 
+    return LogsPrimaryTabWidgets(
+        controls_card=controls_card,
+        log_combo=log_combo,
+        refresh_btn=refresh_btn,
+        info_label=info_label,
+        controls_actions_title=controls_actions_title,
+        controls_actions_bar=controls_actions_bar,
+        copy_btn=copy_btn,
+        clear_btn=clear_btn,
+        folder_btn=folder_btn,
+        log_card=log_card,
+        log_text=log_text,
+        stats_label=stats_label,
+    )
+
+
+def build_logs_secondary_panels_ui(
+    *,
+    parent_layout,
+    ui_language: str,
+    tr_catalog_fn,
+    settings_card_cls,
+    qvbox_layout_cls,
+    qhbox_layout_cls,
+    qlabel_cls,
+    caption_label_cls,
+    strong_body_label_cls,
+    fluent_push_button_cls,
+    text_edit_cls,
+    qfont_cls,
+    errors_text_min_height: int,
+    errors_text_max_height: int,
+    on_clear_errors,
+    on_update_errors_height,
+    on_clear_winws_output,
+) -> LogsSecondaryPanelsWidgets:
     errors_card = settings_card_cls()
     errors_layout = qvbox_layout_cls()
     errors_header = qhbox_layout_cls()
@@ -253,19 +285,7 @@ def build_logs_tab_ui(
     winws_card.add_layout(winws_layout)
     parent_layout.addWidget(winws_card)
 
-    return LogsTabWidgets(
-        controls_card=controls_card,
-        log_combo=log_combo,
-        refresh_btn=refresh_btn,
-        info_label=info_label,
-        controls_actions_title=controls_actions_title,
-        controls_actions_bar=controls_actions_bar,
-        copy_btn=copy_btn,
-        clear_btn=clear_btn,
-        folder_btn=folder_btn,
-        log_card=log_card,
-        log_text=log_text,
-        stats_label=stats_label,
+    return LogsSecondaryPanelsWidgets(
         errors_card=errors_card,
         warning_icon_label=warning_icon,
         errors_title_label=errors_title_label,

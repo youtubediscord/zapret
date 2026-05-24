@@ -6,15 +6,18 @@ from app.state_store import AppUiState
 def build_initial_ui_state() -> AppUiState:
     """Собирает честное стартовое состояние UI до создания окна и AppRuntime."""
     try:
-        from program_settings.public import is_auto_dpi_enabled
-        from settings.dpi.strategy_settings import get_strategy_launch_method
         from settings.mode import ALL_LAUNCH_METHODS, normalize_launch_method
-        from settings.store import get_gui_autostart_enabled
-        from winws_runtime.public import LaunchRuntimeService
+        from settings.store import read_settings
+        from winws_runtime.state import LaunchRuntimeService
 
-        dpi_autostart_enabled = bool(is_auto_dpi_enabled())
-        gui_autostart_enabled = bool(get_gui_autostart_enabled())
-        launch_method = normalize_launch_method(get_strategy_launch_method(), default="")
+        settings = read_settings()
+        program = settings.get("program") if isinstance(settings, dict) else {}
+        if not isinstance(program, dict):
+            program = {}
+
+        dpi_autostart_enabled = bool(program.get("dpi_autostart", True))
+        gui_autostart_enabled = bool(program.get("gui_autostart_enabled", False))
+        launch_method = normalize_launch_method(program.get("strategy_launch_method"), default="")
 
         return LaunchRuntimeService.build_initial_ui_state(
             launch_method=launch_method,

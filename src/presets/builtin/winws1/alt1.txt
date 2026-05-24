@@ -13,7 +13,8 @@
 
 --new
 
---filter-udp=50000-50100
+--name=Discord UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -22,7 +23,8 @@
 
 --new
 
---filter-tcp=80
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
 --dpi-desync-autottl=2
@@ -30,7 +32,8 @@
 
 --new
 
---filter-tcp=80
+--name=Cloudflare TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake,split2
 --dpi-desync-autottl=2
@@ -38,6 +41,7 @@
 
 --new
 
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -48,7 +52,9 @@
 --new
 
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=fake,split
 --dpi-desync-autottl=5
 --dpi-desync-repeats=6
@@ -66,7 +72,8 @@
 
 --new
 
---filter-udp=443
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
 --dpi-desync-repeats=6

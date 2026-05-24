@@ -21,7 +21,12 @@ def sync_range_value_enabled(combo, value_edit) -> None:
     value_edit.setEnabled(mode not in {"a", "x"})
     if mode in {"a", "x"}:
         value_edit.clear()
-    value_edit.setPlaceholderText("s1<d1" if mode == "custom" else "8")
+    if mode == "custom":
+        value_edit.setPlaceholderText("s1<d1")
+    elif mode in {"n", "d"}:
+        value_edit.setPlaceholderText("номер")
+    else:
+        value_edit.setPlaceholderText("")
 
 
 def set_range_controls(combo, value_edit, expression: str) -> None:

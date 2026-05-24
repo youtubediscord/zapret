@@ -2,13 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget, QFileDialog
+from PyQt6.QtCore import QEvent, QTimer
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QVBoxLayout, QWidget, QFileDialog
 
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import style_semantic_caption_label
 from ui.popup_menu import exec_popup_menu
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
+from presets.ui.common.preset_status_bar import (
+    PresetStatusBar,
+    build_runtime_preset_status_plan,
+)
 from qfluentwidgets import (
     Action,
     BodyLabel,
@@ -119,6 +123,11 @@ class PresetRawEditorPage(BasePage):
         self._raw_load_worker = None
         self._cleanup_in_progress = False
         self._ui_state_store = None
+        self._ui_state_unsubscribe = None
+        self._footer_status = "neutral"
+        self._footer_text = ""
+        self._content_publish_pending = False
+        self._app_event_filter_installed = False
 
         self._controller = RawPresetEditorController(
             presets_feature=presets_feature,
@@ -127,12 +136,27 @@ class PresetRawEditorPage(BasePage):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self._save_file)
+        self._commit_timer = QTimer(self)
+        self._commit_timer.setSingleShot(True)
+        self._commit_timer.timeout.connect(self._commit_pending_content_change)
 
         self._build_ui()
+        self.editor.installEventFilter(self)
+        try:
+            self.editor.viewport().installEventFilter(self)
+        except Exception:
+            pass
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+            self._app_event_filter_installed = True
         self.bind_ui_state_store(ui_state_store)
 
     def _default_title(self) -> str:
         return self._title
+
+    def on_page_hidden(self) -> None:
+        self._commit_pending_content_change()
 
     def _get_preset_path(self, name: str) -> Path:
         return self._controller.source_path(str(name or "").strip())
@@ -278,8 +302,9 @@ class PresetRawEditorPage(BasePage):
         self.editor.textChanged.connect(self._on_text_changed)
         self.add_widget(self.editor, 1)
 
-        self.footerLabel = CaptionLabel("", self)
-        self.add_widget(self.footerLabel)
+        self.footerStatusBar = PresetStatusBar(self)
+        self.footerLabel = self.footerStatusBar.text_label
+        self.add_widget(self.footerStatusBar)
 
     def set_preset_file_name(self, file_name: str) -> None:
         self._flush_pending_save()
@@ -387,11 +412,13 @@ class PresetRawEditorPage(BasePage):
             return
         if self._is_loading:
             return
+        self._content_publish_pending = True
         self._save_timer.stop()
+        self._commit_timer.stop()
         self._save_timer.start(900)
         self._set_footer("Изменения...")
 
-    def _save_file(self) -> None:
+    def _save_file(self, *, publish_content_changed: bool = False) -> None:
         if self._cleanup_in_progress:
             return
         if self._preset_path is None:
@@ -400,32 +427,174 @@ class PresetRawEditorPage(BasePage):
             result = self._controller.save_text(
                 file_name=self._preset_file_name,
                 source_text=self.editor.toPlainText(),
+                publish_content_changed=publish_content_changed,
             )
             updated = result.updated
             self._preset_name = updated.name
             self._preset_file_name = updated.file_name
             self._preset_path = result.path
+            if publish_content_changed:
+                self._content_publish_pending = False
             self._set_footer(result.footer_text)
         except Exception as e:
             self._set_footer(f"Ошибка сохранения: {e}")
             self._show_error(str(e))
 
+    def _commit_pending_content_change(self) -> None:
+        if self._cleanup_in_progress or not self._content_publish_pending:
+            return
+        if self._save_timer.isActive():
+            self._save_timer.stop()
+        self._save_file(publish_content_changed=True)
+
+    def _schedule_pending_content_commit(self) -> None:
+        if self._cleanup_in_progress or not self._content_publish_pending:
+            return
+        self._commit_timer.start(0)
+
+    def _is_editor_object(self, obj) -> bool:
+        editor = getattr(self, "editor", None)
+        if editor is None or obj is None:
+            return False
+        current = obj
+        while current is not None:
+            if current is editor:
+                return True
+            try:
+                current = current.parent()
+            except Exception:
+                return False
+        return False
+
+    def eventFilter(self, obj, event):
+        event_type = event.type()
+        if event_type in {QEvent.Type.FocusOut, QEvent.Type.Leave} and self._is_editor_object(obj):
+            self._schedule_pending_content_commit()
+        elif event_type == QEvent.Type.MouseButtonPress and not self._is_editor_object(obj):
+            self._schedule_pending_content_commit()
+        return super().eventFilter(obj, event)
+
     def bind_ui_state_store(self, store) -> None:
+        if self._ui_state_store is store:
+            return
+        unsubscribe = self._ui_state_unsubscribe
+        if callable(unsubscribe):
+            try:
+                unsubscribe()
+            except Exception:
+                pass
         self._ui_state_store = store
+        self._ui_state_unsubscribe = None
+        try:
+            self._ui_state_unsubscribe = store.subscribe(
+                self._on_ui_state_changed,
+                fields={
+                    "launch_method",
+                    "launch_running",
+                    "launch_busy",
+                    "launch_busy_text",
+                    "last_status_message",
+                    "active_preset_revision",
+                },
+                emit_initial=True,
+            )
+        except Exception:
+            self._render_footer_status(None)
 
     def _set_footer(self, text: str) -> None:
-        self.footerLabel.setText(text)
+        self._footer_status, self._footer_text = self._footer_status_from_text(text)
+        self._render_footer_status()
+
+    def _footer_status_from_text(self, text: str) -> tuple[str, str]:
+        value = str(text or "").strip()
+        if value.startswith("Загрузка"):
+            return "loading", ""
+        if value == "Загружено":
+            return "loaded", ""
+        if value.startswith("Применяем"):
+            return "applying", ""
+        if value.startswith("Пресет примен"):
+            return "applied", ""
+        if value.startswith("Пресет выбран"):
+            return "selected_stopped", ""
+        if value.startswith("Изменения"):
+            return "dirty", ""
+        if value.startswith("Сохранено"):
+            return "saved", "Изменения сохранены"
+        if value.startswith("Ошибка"):
+            return "error", value
+        return "neutral", value
+
+    def _on_ui_state_changed(self, state, _changed_fields: frozenset[str]) -> None:
+        if self._cleanup_in_progress:
+            return
+        self._render_footer_status(state)
+
+    def _render_footer_status(self, state=None) -> None:
+        store = self._ui_state_store
+        if state is None and store is not None:
+            try:
+                state = store.snapshot()
+            except Exception:
+                state = None
+
+        runtime_method = getattr(state, "launch_method", "") if state is not None else ""
+        launch_busy = bool(getattr(state, "launch_busy", False)) if state is not None else False
+        launch_busy_text = str(getattr(state, "launch_busy_text", "") or "") if state is not None else ""
+        last_status_message = str(getattr(state, "last_status_message", "") or "") if state is not None else ""
+
+        base_status = self._footer_status
+        base_text = self._footer_text
+        if self._is_current_selected_file() and state is not None:
+            plan = build_runtime_preset_status_plan(
+                base_status=base_status,
+                launch_method=self._launch_method,
+                runtime_launch_method=runtime_method,
+                launch_busy=launch_busy,
+                launch_busy_text=launch_busy_text,
+                last_status_message=last_status_message,
+                base_text=base_text,
+            )
+        else:
+            from presets.ui.common.preset_status_bar import build_preset_status_plan
+
+            plan = build_preset_status_plan(
+                base_status,
+                launch_method=self._launch_method,
+                text=base_text,
+            )
+        self.footerStatusBar.set_plan(plan)
+
+    def _is_current_selected_file(self) -> bool:
+        try:
+            current = self._current_selected_file_name().strip().lower()
+            own = str(self._preset_file_name or "").strip().lower()
+            return bool(current and own and current == own)
+        except Exception:
+            return False
 
     def _activate_preset(self) -> None:
         self._flush_pending_save()
         try:
             if self._activate_selected_preset():
                 self._refresh_header()
+                self._set_footer(self._activation_footer_text())
                 self._show_success(f"Пресет «{self._preset_name}» активирован")
             else:
                 self._show_error(f"Не удалось активировать пресет «{self._preset_name}»")
         except Exception as e:
             self._show_error(str(e))
+
+    def _activation_footer_text(self) -> str:
+        try:
+            store = self._ui_state_store
+            state = store.snapshot() if store is not None else None
+            runtime_method = str(getattr(state, "launch_method", "") or "").strip().lower()
+            if bool(getattr(state, "launch_running", False)) and runtime_method == self._launch_method:
+                return "Применяем пресет..."
+        except Exception:
+            pass
+        return "Пресет выбран"
 
     def _open_external(self) -> None:
         try:
@@ -447,6 +616,8 @@ class PresetRawEditorPage(BasePage):
             if not self._is_current_builtin():
                 rename_action = _make_menu_action("Переименовать", icon=_fluent_icon("RENAME"), parent=menu)
                 delete_action = _make_menu_action("Удалить", icon=_fluent_icon("DELETE"), parent=menu)
+                if self._is_current_selected_file() and hasattr(delete_action, "setEnabled"):
+                    delete_action.setEnabled(False)
                 rename_action.triggered.connect(self._rename_preset)
                 delete_action.triggered.connect(self._delete_preset)
             duplicate_action.triggered.connect(self._duplicate_preset)
@@ -604,9 +775,30 @@ class PresetRawEditorPage(BasePage):
             pass
 
     def cleanup(self) -> None:
+        try:
+            self._commit_pending_content_change()
+        except Exception:
+            pass
         self._cleanup_in_progress = True
+        unsubscribe = self._ui_state_unsubscribe
+        if callable(unsubscribe):
+            try:
+                unsubscribe()
+            except Exception:
+                pass
+        self._ui_state_unsubscribe = None
         try:
             self._save_timer.stop()
+        except Exception:
+            pass
+        try:
+            self._commit_timer.stop()
+        except Exception:
+            pass
+        try:
+            app = QApplication.instance()
+            if app is not None and self._app_event_filter_installed:
+                app.removeEventFilter(self)
         except Exception:
             pass
         self._ui_state_store = None

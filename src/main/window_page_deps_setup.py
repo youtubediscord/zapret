@@ -16,7 +16,6 @@ def build_window_page_deps_sources(*, features, state, page_actions) -> PageDeps
             "dpi_settings": features.dpi_settings,
             "external_actions": features.external_actions,
             "hosts": features.hosts,
-            "lists": features.lists,
             "logs": features.logs,
             "orchestra": features.orchestra,
             "premium": features.premium,
@@ -30,6 +29,7 @@ def build_window_page_deps_sources(*, features, state, page_actions) -> PageDeps
         ui_state_store=state.ui,
         actions={
             "after_launch_method_changed": page_actions.after_launch_method_changed,
+            "notify": page_actions.notify,
             "on_animations_changed": page_actions.on_animations_changed,
             "on_background_preset_changed": page_actions.on_background_preset_changed,
             "on_background_refresh_needed": page_actions.on_background_refresh_needed,

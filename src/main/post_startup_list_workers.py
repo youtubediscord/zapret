@@ -4,24 +4,23 @@ from log.log import log
 
 
 def run_startup_lists_check(*, startup_lists_check) -> None:
-    """Проверяет hostlists/ipsets после основного запуска, не блокируя окно."""
+    """Проверяет итоговые файлы списков после основного запуска, не блокируя окно."""
     try:
-        log("🔧 Начинаем проверку хостлистов (post-startup)", "DEBUG")
+        log("🔧 Начинаем проверку итоговых списков (post-startup)", "DEBUG")
 
         hostlists_ok, ipsets_ok = startup_lists_check()
         if hostlists_ok:
-            log("✅ Хостлисты проверены и готовы", "SUCCESS")
+            log("✅ Hostlist-файлы проверены и готовы", "SUCCESS")
         else:
-            log("⚠️ Проблемы с хостлистами, создаем минимальные", "WARNING")
+            log("⚠️ Проблемы с hostlist-файлами", "WARNING")
     except Exception as exc:
-        log(f"❌ Ошибка проверки хостлистов: {exc}", "ERROR")
+        log(f"❌ Ошибка проверки итоговых списков: {exc}", "ERROR")
         ipsets_ok = False
 
     try:
-        log("🔧 Начинаем проверку IPsets (post-startup)", "DEBUG")
         if ipsets_ok:
-            log("✅ IPsets проверены и готовы", "SUCCESS")
+            log("✅ IPset-файлы проверены и готовы", "SUCCESS")
         else:
-            log("⚠️ Проблемы с IPsets, создаем минимальные", "WARNING")
+            log("⚠️ Проблемы с IPset-файлами", "WARNING")
     except Exception as exc:
         log(f"❌ Ошибка проверки IPsets: {exc}", "ERROR")

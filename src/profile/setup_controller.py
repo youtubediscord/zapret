@@ -34,17 +34,34 @@ class ProfileSetupController:
 
         return ProfileSetupLoadWorker(request_id, self, profile_key, parent)
 
-    def load_list_file_editor_state(self, profile_key: str):
+    def load_list_file_editor_state(self, profile_key: str, *, filter_kind: str = "", filter_value: str = ""):
         return load_profile_list_file_editor_state(
             profile_feature=self._profile,
             launch_method=self._launch_method,
             profile_key=profile_key,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
         )
 
-    def create_list_file_load_worker(self, request_id: int, profile_key: str, parent=None):
+    def create_list_file_load_worker(
+        self,
+        request_id: int,
+        profile_key: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+        parent=None,
+    ):
         from profile.profile_setup_loader import ProfileListFileLoadWorker
 
-        return ProfileListFileLoadWorker(request_id, self, profile_key, parent)
+        return ProfileListFileLoadWorker(
+            request_id,
+            self,
+            profile_key,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+            parent=parent,
+        )
 
     def save_winws2_settings(
         self,
@@ -89,12 +106,21 @@ class ProfileSetupController:
             text=text,
         )
 
-    def set_enabled(self, *, profile_key: str, enabled: bool) -> str | None:
+    def set_enabled(
+        self,
+        *,
+        profile_key: str,
+        enabled: bool,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> str | None:
         return set_profile_enabled(
             profile_feature=self._profile,
             launch_method=self._launch_method,
             profile_key=profile_key,
             enabled=enabled,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
         )
 
     def update_user_profile(self, *, profile_id: str, name: str, protocol: str, ports: str) -> int:

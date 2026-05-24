@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import RLock
 
 from log.log import log
 
@@ -14,6 +15,8 @@ class NetworkPageData:
 
 
 _dns_manager_instance = None
+_warmed_page_data_cache: NetworkPageData | None = None
+_warmed_page_data_lock = RLock()
 
 
 def _new_dns_manager():
@@ -72,6 +75,31 @@ def load_page_data() -> NetworkPageData:
         ipv6_available=ipv6_available,
         force_dns_active=force_dns_active,
     )
+
+
+def store_warmed_page_data(state: NetworkPageData) -> NetworkPageData:
+    global _warmed_page_data_cache
+    with _warmed_page_data_lock:
+        _warmed_page_data_cache = state
+    return state
+
+
+def clear_warmed_page_data_cache() -> None:
+    global _warmed_page_data_cache
+    with _warmed_page_data_lock:
+        _warmed_page_data_cache = None
+
+
+def consume_warmed_page_data() -> NetworkPageData | None:
+    global _warmed_page_data_cache
+    with _warmed_page_data_lock:
+        state = _warmed_page_data_cache
+        _warmed_page_data_cache = None
+    return state
+
+
+def warm_page_data_cache() -> NetworkPageData:
+    return store_warmed_page_data(load_page_data())
 
 
 def refresh_dns_info(adapter_names: list[str]) -> dict[str, dict[str, list[str]]]:

@@ -5,7 +5,8 @@
 --wf-tcp=443
 
 # === HTTPS YouTube ===
---filter-tcp=443
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=1,midsld
@@ -14,6 +15,7 @@
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 --new
+
 --filter-tcp=443
 --hostlist=lists/faceinsta.txt
 --dpi-desync=fake,multidisorder

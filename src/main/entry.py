@@ -3,17 +3,57 @@ from __future__ import annotations
 import atexit
 import sys
 
+from PyQt6.QtCore import QTimer
+
 from log.log import log
 
 from config.build_info import APP_VERSION
 
-from startup.ipc_manager import IPCManager
-
-from main.application_post_startup import build_application_post_startup_deps
-from main.post_startup import install_post_startup_tasks
 from main.qt_runtime import application_bootstrap
 from main.runtime_state import is_qt_event_diagnostic_enabled
 from main.shell import shell_bootstrap
+
+
+def _create_ipc_manager():
+    from startup.ipc_manager import IPCManager
+
+    return IPCManager()
+
+
+def _build_application_post_startup_deps(**kwargs):
+    from main.application_post_startup import build_application_post_startup_deps
+
+    return build_application_post_startup_deps(**kwargs)
+
+
+def _install_post_startup_tasks(deps) -> None:
+    from main.post_startup import install_post_startup_tasks
+
+    install_post_startup_tasks(deps)
+
+
+def _install_post_startup_tasks_after_interactive(window, deps) -> None:
+    installed = False
+
+    def _install_once(*_args) -> None:
+        nonlocal installed
+        if installed:
+            return
+        installed = True
+        QTimer.singleShot(0, lambda: _install_post_startup_tasks(deps))
+
+    try:
+        if bool(window.startup_state.interactive_logged):
+            _install_once()
+            return
+    except Exception:
+        _install_once()
+        return
+
+    try:
+        window.startup_interactive_ready.connect(_install_once)
+    except Exception:
+        _install_once()
 
 
 def _configure_window_appearance(window, appearance_actions) -> None:
@@ -42,6 +82,28 @@ def _configure_window_appearance(window, appearance_actions) -> None:
             appearance_actions.set_window_opacity(opacity)
     except Exception:
         pass
+
+
+def _finish_event_loop_bootstrap(*, app, window, application_controller, start_in_tray: bool) -> None:
+    from main.windows_session_shutdown import connect_windows_session_shutdown
+
+    connect_windows_session_shutdown(app, window)
+    _configure_window_appearance(window, application_controller.window_state_actions)
+
+    ipc_manager = _create_ipc_manager()
+    ipc_manager.start_server(window)
+    atexit.register(ipc_manager.stop)
+
+    if start_in_tray:
+        log("Запуск приложения скрыто в трее", "TRAY")
+
+    _install_post_startup_tasks_after_interactive(
+        window,
+        _build_application_post_startup_deps(
+            window=window,
+            app_runtime=application_controller.app_runtime,
+        ),
+    )
 
 
 def main() -> None:
@@ -73,22 +135,13 @@ def main() -> None:
         start_in_tray=start_in_tray,
     )
     window = application_controller.create_window()
-    from main.windows_session_shutdown import connect_windows_session_shutdown
-
-    connect_windows_session_shutdown(app, window)
-    _configure_window_appearance(window, application_controller.window_state_actions)
-
-    ipc_manager = IPCManager()
-    ipc_manager.start_server(window)
-    atexit.register(ipc_manager.stop)
-
-    if start_in_tray:
-        log("Запуск приложения скрыто в трее", "TRAY")
-
-    install_post_startup_tasks(
-        build_application_post_startup_deps(
+    QTimer.singleShot(
+        0,
+        lambda: _finish_event_loop_bootstrap(
+            app=app,
             window=window,
-            app_runtime=application_controller.app_runtime,
-        )
+            application_controller=application_controller,
+            start_in_tray=bool(start_in_tray),
+        ),
     )
     sys.exit(app.exec())

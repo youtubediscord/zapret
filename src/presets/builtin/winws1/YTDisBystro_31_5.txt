@@ -6,7 +6,8 @@
 --wf-udp=443,50000-50090
 
 # === HTTPS YouTube ===
---filter-tcp=443
+--name=youtube.com (RTMPS Россия)
+--filter-tcp=80,443-65535
 --ipset=lists/russia-youtube-rtmps.txt
 --dpi-desync=syndata
 --dpi-desync-fake-syndata=bin/tls_clienthello_7.bin
@@ -14,7 +15,9 @@
 --dup-cutoff=n3
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/russia-youtubeQ.txt
 --dpi-desync=fake,udplen
@@ -24,8 +27,11 @@
 --dpi-desync-cutoff=n3
 
 # === HTTPS YouTube ===
+
 --new
---filter-tcp=443
+
+--name=googlevideo.com (CDN сервера)
+--filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=7,sld+1
@@ -36,8 +42,11 @@
 --dpi-desync-autottl
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=7,sld+1
@@ -48,7 +57,9 @@
 --dpi-desync-autottl
 
 # === HTTP (порт 80) ===
+
 --new
+
 --filter-tcp=80
 --hostlist=lists/mycdnlist.txt
 --dpi-desync=fake,multisplit
@@ -61,8 +72,11 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
---filter-tcp=80
+
+--name=Russia blacklist TCP wide
+--filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=2
@@ -74,7 +88,9 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=80
 --hostlist=lists/myhostlist.txt
 --dpi-desync=fake,multisplit
@@ -87,7 +103,9 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist-domains=animego.online,doramy.club,animejoy.ru,getchu.com
 --dpi-desync=multisplit
@@ -95,7 +113,10 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_15.bin
 
 # === HTTPS ===
+
 --new
+
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=multisplit
@@ -105,7 +126,9 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/myhostlist.txt
 --dpi-desync=multisplit
@@ -115,7 +138,9 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/mycdnlist.txt
 --dpi-desync=multisplit
@@ -125,8 +150,11 @@
 --dup-cutoff=n3
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
+
+--name=Cloudflare legacy TCP
+--filter-tcp=80,443-65535
 --ipset-exclude-ip=1.1.1.1,
 1.0.0.1,
 212.109.195.93,
@@ -147,7 +175,9 @@
 --dup-cutoff=n3
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50090
 --dpi-desync=fake
 --dpi-desync-autottl
@@ -156,23 +186,26 @@
 --dup-cutoff=n3
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
---hostlist=lists/other.txt
---hostlist-exclude=lists/netrogat.txt
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=2
 --dpi-desync-split-pos=host+1
 --dpi-desync-fake-http=0x0F0F0F0F
 --dpi-desync-fooling=md5sig
 
-# === HTTPS ===
 --new
+
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-split-pos=1
 --dpi-desync-fake-tls=bin/tls_clienthello_9.bin
 --dpi-desync-fooling=badseq
 --dpi-desync-autottl
---new

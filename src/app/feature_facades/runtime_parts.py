@@ -3,11 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from settings.mode import exe_name_for_launch_method
+from settings.mode import normalize_launch_method
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
-
-import winws_runtime.public as runtime_commands
 
 
 class RuntimeEventDispatcher(QObject):
@@ -85,7 +83,6 @@ class RuntimeObjects:
     process_monitor_manager: Any = None
     launch_runtime_api: Any = None
     launch_runtime: Any = None
-    process_details: dict | None = None
 
     def snapshot(self):
         if self.runtime_service is None:
@@ -117,36 +114,31 @@ class RuntimeObjects:
         return bool(self.launch_runtime.transition_pipeline_in_progress(launch_method))
 
     def observe_process_details(self, details: dict | None) -> None:
-        self.process_details = dict(details or {})
         try:
-            self.runtime_service.observe_process_details(self.process_details)
+            self.runtime_service.observe_process_details(dict(details or {}))
         except Exception:
             pass
 
     def current_process_pid(self, launch_method: str, *, refresh: bool = False) -> int | None:
-        details = self.process_details or {}
         if refresh:
             manager = self.ensure_process_monitor_manager()
-            if manager is not None and hasattr(manager, "refresh_now"):
-                try:
-                    details = manager.refresh_now()
-                except Exception:
-                    details = self.process_details or {}
-                else:
-                    self.process_details = dict(details or {})
+            if manager is None or not hasattr(manager, "refresh_now"):
+                return None
+            try:
+                manager.refresh_now()
+            except Exception:
+                return None
 
         try:
-            exe_name = exe_name_for_launch_method(launch_method)
+            snapshot = self.runtime_service.snapshot()
         except Exception:
-            return None
-
-        pids = dict(details or {}).get(str(exe_name or "").strip().lower(), [])
-        if isinstance(pids, list):
-            for item in pids:
-                if isinstance(item, int):
-                    return item
-        if isinstance(pids, int):
-            return pids
+            snapshot = None
+        snapshot_pid = getattr(snapshot, "pid", None)
+        snapshot_running = bool(getattr(snapshot, "running", False))
+        snapshot_method = str(getattr(snapshot, "launch_method", "") or "").strip().lower()
+        requested_method = normalize_launch_method(launch_method, default="")
+        if isinstance(snapshot_pid, int) and snapshot_running and snapshot_method == requested_method:
+            return snapshot_pid
         return None
 
     def ensure_process_monitor_manager(self):
@@ -269,21 +261,51 @@ class RuntimeEvents:
 class RuntimeCommandPort:
     owner: Any
 
+    @staticmethod
+    def _runtime_commands():
+        from winws_runtime.runtime import commands as runtime_commands
+
+        return runtime_commands
+
     def current_strategy_runner(self):
+        runtime_commands = self._runtime_commands()
         return runtime_commands.get_current_strategy_runner()
 
+    def _mark_startup_runtime_init_failed(self, exc: Exception) -> None:
+        runtime_service = self.owner.objects.runtime_service
+        try:
+            runtime_service.set_busy(False)
+        except Exception:
+            pass
+        try:
+            runtime_service.mark_start_failed(str(exc or "").strip() or "Ошибка подготовки запуска")
+        except Exception:
+            pass
+
     def init_launch_runtime_api(self) -> None:
-        self.owner.objects.launch_runtime_api = runtime_commands.init_launch_runtime_api(runtime_feature=self.owner)
+        runtime_commands = self._runtime_commands()
+        try:
+            self.owner.objects.launch_runtime_api = runtime_commands.init_launch_runtime_api(runtime_feature=self.owner)
+        except Exception as exc:
+            self._mark_startup_runtime_init_failed(exc)
+            raise
 
     def init_launch_runtime(self) -> None:
-        notify = self.owner.ui_port.require_notifications()
-        self.owner.objects.launch_runtime = runtime_commands.init_launch_runtime(
-            runtime_feature=self.owner,
-            runtime_api=self.owner.objects.launch_runtime_api,
-            notify=notify,
-        )
+        runtime_commands = self._runtime_commands()
+        try:
+            notify = self.owner.ui_port.require_notifications()
+            self.owner.objects.launch_runtime = runtime_commands.init_launch_runtime(
+                runtime_feature=self.owner,
+                runtime_api=self.owner.objects.launch_runtime_api,
+                notify=notify,
+            )
+            self.owner.objects.runtime_service.set_busy(False)
+        except Exception as exc:
+            self._mark_startup_runtime_init_failed(exc)
+            raise
 
     def init_process_monitor(self) -> None:
+        runtime_commands = self._runtime_commands()
         runtime_commands.init_process_monitor(
             process_monitor_manager=self.owner.objects.ensure_process_monitor_manager(),
             runtime_api=self.owner.objects.launch_runtime_api,
@@ -291,6 +313,7 @@ class RuntimeCommandPort:
         )
 
     def init_core_startup(self) -> None:
+        runtime_commands = self._runtime_commands()
         runtime_commands.init_core_startup()
 
     def start(
@@ -301,6 +324,7 @@ class RuntimeCommandPort:
         skip_conflict_prompt: bool = False,
         startup_autostart: bool = False,
     ) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.start_dpi_async(
                 runtime_feature=self.owner,
@@ -317,6 +341,7 @@ class RuntimeCommandPort:
         force_cleanup: bool = False,
         cleanup_services: bool = False,
     ) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.stop_dpi_async(
                 runtime_feature=self.owner,
@@ -326,6 +351,7 @@ class RuntimeCommandPort:
         )
 
     def restart(self, *, force_full_stop: bool = False) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.restart_dpi_async(
                 runtime_feature=self.owner,
@@ -334,13 +360,16 @@ class RuntimeCommandPort:
         )
 
     def switch_preset(self, method: str | None = None) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(runtime_commands.switch_presets_async(runtime_feature=self.owner, method=method))
 
     def stop_and_exit(self) -> bool:
+        runtime_commands = self._runtime_commands()
         self.owner.lifecycle.mark_stop_and_exit_requested()
         return bool(runtime_commands.stop_and_exit_async(runtime_feature=self.owner))
 
     def cleanup_threads(self) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(runtime_commands.cleanup_launch_threads(runtime_feature=self.owner))
 
     def shutdown_sync(
@@ -351,6 +380,7 @@ class RuntimeCommandPort:
         cleanup_services: bool = True,
         update_runtime_state: bool = True,
     ):
+        runtime_commands = self._runtime_commands()
         return runtime_commands.shutdown_runtime_sync(
             runtime_feature=self.owner,
             reason=reason,
@@ -360,6 +390,7 @@ class RuntimeCommandPort:
         )
 
     def start_autostart(self, launch_method: str | None = None) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.start_dpi_autostart(
                 self.owner.lifecycle.startup_state,
@@ -370,6 +401,7 @@ class RuntimeCommandPort:
         )
 
     def handle_launch_method_changed(self, method: str, *, set_status=None):
+        runtime_commands = self._runtime_commands()
         return runtime_commands.handle_launch_method_changed(
             method,
             runtime_feature=self.owner,
@@ -384,6 +416,7 @@ class RuntimeCommandPort:
         reason: str,
         preset_file_name: str = "",
     ) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.request_selected_source_preset_apply(
                 runtime_feature=self.owner,
@@ -400,6 +433,7 @@ class RuntimeCommandPort:
         reason: str,
         profile_key: str | None = None,
     ) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.request_preset_runtime_content_apply(
                 runtime_feature=self.owner,
@@ -410,6 +444,7 @@ class RuntimeCommandPort:
         )
 
     def create_preset_runtime_coordinator(self, **kwargs):
+        runtime_commands = self._runtime_commands()
         return runtime_commands.create_preset_runtime_coordinator(
             qt_parent=self.owner.lifecycle.qt_parent,
             runtime_feature=self.owner,
@@ -422,6 +457,7 @@ class RuntimeCommandPort:
         *,
         close_conflicts: bool,
     ) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.resume_start_after_conflict_resolution(
                 request_id,
@@ -431,6 +467,7 @@ class RuntimeCommandPort:
         )
 
     def cancel_start_after_conflict_prompt(self, request_id: int) -> bool:
+        runtime_commands = self._runtime_commands()
         return bool(
             runtime_commands.cancel_start_after_conflict_prompt(
                 request_id,
@@ -439,4 +476,5 @@ class RuntimeCommandPort:
         )
 
     def execute_windivert_autofix(self, action: str) -> tuple[bool, str]:
+        runtime_commands = self._runtime_commands()
         return runtime_commands.execute_windivert_autofix(action)

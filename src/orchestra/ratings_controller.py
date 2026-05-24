@@ -13,3 +13,8 @@ class OrchestraRatingsController:
 
     def load_state(self):
         return load_orchestra_ratings_state(self._orchestra.runner)
+
+    def create_state_load_worker(self, request_id: int, parent=None):
+        from orchestra.ratings_worker import OrchestraRatingsStateLoadWorker
+
+        return OrchestraRatingsStateLoadWorker(request_id, self, parent)

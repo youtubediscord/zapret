@@ -1,6 +1,7 @@
 # hosts/ui/page.py
 """Страница управления Hosts файлом - разблокировка сервисов"""
 
+import time
 from string import Template
 from PyQt6.QtCore import Qt, QEvent
 from PyQt6.QtWidgets import (
@@ -12,6 +13,7 @@ import hosts.page_plans as hosts_page_plans
 from hosts.page_controller import HostsPageController
 from hosts.ui.page_runtime import create_page_hosts_runtime, create_runtime_cache
 from ui.pages.base_page import BasePage
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from hosts.ui.sections_build import (
     build_hosts_adobe_section,
     build_hosts_browser_warning,
@@ -36,7 +38,6 @@ from hosts.catalog_workflow import (
     ensure_catalog_watcher,
     reconcile_catalog_after_hidden_refresh,
     refresh_catalog_if_needed,
-    rebuild_services_runtime_state,
 )
 from hosts.ui.access_workflow import (
     check_hosts_access,
@@ -151,6 +152,7 @@ class HostsPage(BasePage):
         self._host_window = None
         self._worker = None
         self._thread = None
+        self._services_catalog_runtime = OneShotWorkerRuntime()
         self._applying = False
         self._cleanup_in_progress = False
         self._runtime_cache = create_runtime_cache()
@@ -158,6 +160,7 @@ class HostsPage(BasePage):
         self._current_operation = None
         self._startup_initialized = False
         self._runtime_initialized = False
+        self._runtime_access_checked = False
         self._service_dns_selection = {}
 
         self._build_ui()
@@ -185,8 +188,14 @@ class HostsPage(BasePage):
         )
 
     def on_page_activated(self) -> None:
-        self._run_runtime_init_once()
+        total_started_at = time.perf_counter()
+        stage_started_at = time.perf_counter()
+        self._run_runtime_init_once(show_access_errors=True)
+        self._log_ui_timing("hosts_ui.runtime_init_once", stage_started_at)
+        stage_started_at = time.perf_counter()
         self._start_catalog_watcher()
+        self._log_ui_timing("hosts_ui.catalog_watcher.start", stage_started_at)
+        stage_started_at = time.perf_counter()
         activate_hosts_page(
             install_host_window_event_filter_fn=self._install_host_window_event_filter,
             build_activation_plan_fn=hosts_page_plans.build_activation_plan,
@@ -195,10 +204,34 @@ class HostsPage(BasePage):
             invalidate_cache_fn=self._invalidate_cache,
             update_ui_fn=self._update_ui,
         )
+        self._log_ui_timing("hosts_ui.activation_workflow", stage_started_at)
+        self._log_ui_timing("hosts_ui.activation.total", total_started_at)
 
-    def _run_runtime_init_once(self) -> None:
+    def warmup_initial_load(self) -> bool:
+        """Тихо готовит содержимое страницы до первого открытия пользователем."""
+        if self._cleanup_in_progress:
+            return False
+        started_at = time.perf_counter()
+        self._run_runtime_init_once(show_access_errors=False)
+        self._log_ui_timing("hosts_ui.warmup.total", started_at)
+        return True
+
+    def _run_runtime_init_once(self, *, show_access_errors: bool = True) -> None:
+        started_at = time.perf_counter()
+        if self._runtime_initialized:
+            if show_access_errors and not self._runtime_access_checked:
+                self._check_hosts_access()
+                self._runtime_access_checked = True
+            return
         if not self._runtime_initialized:
+            selection_started_at = time.perf_counter()
             self._service_dns_selection = self._controller.load_user_selection()
+            self._log_ui_timing("hosts_ui.user_selection.load", selection_started_at)
+        if show_access_errors:
+            check_access_fn = self._check_hosts_access
+            self._runtime_access_checked = True
+        else:
+            check_access_fn = lambda: None
         run_hosts_runtime_init_once(
             runtime_initialized=self._runtime_initialized,
             set_runtime_initialized_fn=lambda value: setattr(self, "_runtime_initialized", value),
@@ -206,12 +239,13 @@ class HostsPage(BasePage):
             build_page_init_plan_fn=hosts_page_plans.build_page_init_plan,
             has_hosts_runtime=self.hosts_runtime is not None,
             init_hosts_runtime_fn=self._init_hosts_runtime,
-            check_access_fn=self._check_hosts_access,
+            check_access_fn=check_access_fn,
             rebuild_services_fn=self._rebuild_services_selectors,
             mark_startup_initialized_fn=lambda: setattr(self, "_startup_initialized", True),
             invalidate_cache_fn=self._invalidate_cache,
             update_ui_fn=self._update_ui,
         )
+        self._log_ui_timing("hosts_ui.runtime_init.total", started_at)
 
     def on_page_hidden(self) -> None:
         self._close_service_combo_popups()
@@ -420,10 +454,52 @@ class HostsPage(BasePage):
     def _rebuild_services_selectors(self) -> None:
         if self._services_layout is None:
             return
-        self._catalog_sig = rebuild_services_runtime_state(
-            get_catalog_signature_fn=self._controller.get_catalog_signature,
-            clear_layout=lambda: (self._clear_layout(self._services_layout), self._reset_services_runtime_bindings()),
-            build_services_selectors=self._build_services_selectors,
+        started_at = time.perf_counter()
+        self._clear_layout(self._services_layout)
+        self._reset_services_runtime_bindings()
+        self._start_services_catalog_worker()
+        self._log_ui_timing("hosts_ui.services.rebuild", started_at)
+
+    def _start_services_catalog_worker(self) -> None:
+        self._stop_services_catalog_worker(blocking=False)
+        try:
+            self._services_catalog_runtime.start_qobject_worker(
+                parent=self,
+                worker_factory=lambda _request_id: self._controller.create_services_catalog_worker(
+                    hosts_runtime=self.hosts_runtime,
+                    current_selection=dict(self._service_dns_selection),
+                    direct_title=self._tr("page.hosts.group.direct", "Напрямую из hosts"),
+                    ai_title=self._tr("page.hosts.group.ai", "ИИ"),
+                    other_title=self._tr("page.hosts.group.other", "Остальные"),
+                ),
+                on_loaded=self._on_services_catalog_loaded,
+                on_failed=self._on_services_catalog_failed,
+                on_finished=self._on_services_catalog_finished,
+            )
+        except Exception as exc:
+            log(f"Hosts services catalog worker failed to start: {exc}", "ERROR")
+
+    def _on_services_catalog_loaded(self, request_id: int, catalog_plan, catalog_sig) -> None:
+        if not self._services_catalog_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        self._catalog_sig = catalog_sig
+        self._build_services_selectors(catalog_plan)
+        self._update_ui()
+
+    def _on_services_catalog_failed(self, request_id: int, error: str) -> None:
+        if not self._services_catalog_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        log(f"Hosts services catalog worker failed: {error}", "ERROR")
+
+    def _on_services_catalog_finished(self, request_id: int, thread) -> None:
+        _ = (request_id, thread)
+
+    def _stop_services_catalog_worker(self, *, blocking: bool) -> None:
+        self._services_catalog_runtime.stop(
+            blocking=blocking,
+            wait_timeout_ms=7000,
+            log_fn=log,
+            warning_prefix="Hosts services catalog worker",
         )
 
     def _show_error(self, message: str):
@@ -544,16 +620,9 @@ class HostsPage(BasePage):
             if plan.apply_now:
                 self._apply_current_selection()
 
-    def _build_services_selectors(self):
+    def _build_services_selectors(self, catalog_plan):
+        started_at = time.perf_counter()
         OFF_LABEL = self._tr("page.hosts.services.off", "Откл.")
-        active_domains_map = self._controller.read_active_domains_map(self.hosts_runtime)
-        catalog_plan = hosts_page_plans.build_services_catalog_plan(
-            current_selection=self._service_dns_selection,
-            active_domains_map=active_domains_map,
-            direct_title=self._tr("page.hosts.group.direct", "Напрямую из hosts"),
-            ai_title=self._tr("page.hosts.group.ai", "ИИ"),
-            other_title=self._tr("page.hosts.group.other", "Остальные"),
-        )
 
         self._services_add_section_title(
             tr_catalog("page.hosts.section.services", language=self._ui_language, default="Сервисы")
@@ -561,6 +630,7 @@ class HostsPage(BasePage):
 
         self._building_services_ui = True
         try:
+            groups_started_at = time.perf_counter()
             for group_plan in catalog_plan.groups:
                 group_widgets = build_hosts_services_group(
                     group_plan,
@@ -595,8 +665,10 @@ class HostsPage(BasePage):
                     self._update_profile_row_visual(row_plan.service_name)
 
                 self._services_add_widget(card)
+            self._log_ui_timing("hosts_ui.services.groups.build", groups_started_at)
         finally:
             self._building_services_ui = False
+            self._log_ui_timing("hosts_ui.services.build", started_at)
 
         self._service_dns_selection = dict(catalog_plan.new_selection)
         if catalog_plan.selection_changed:
@@ -796,6 +868,7 @@ class HostsPage(BasePage):
 
     def _update_ui(self):
         """Обновляет весь UI"""
+        started_at = time.perf_counter()
         runtime_state = self._get_hosts_runtime_state()
         status_display = hosts_page_plans.build_status_display_plan(
             runtime_state,
@@ -821,6 +894,15 @@ class HostsPage(BasePage):
         self.adobe_switch.blockSignals(True)
         self.adobe_switch.setChecked(is_adobe)
         self.adobe_switch.blockSignals(False)
+        self._log_ui_timing("hosts_ui.update_ui.total", started_at)
+
+    @staticmethod
+    def _log_ui_timing(label: str, started_at: float) -> None:
+        try:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+            log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
+        except Exception:
+            pass
 
     def refresh(self):
         """Обновляет страницу (сбрасывает кеш и перечитывает hosts)"""
@@ -843,5 +925,6 @@ class HostsPage(BasePage):
                 set_thread_fn=lambda value: setattr(self, "_thread", value),
                 log_fn=log,
             )
+            self._stop_services_catalog_worker(blocking=True)
         except Exception as e:
             log(f"Ошибка при очистке hosts_page: {e}", "DEBUG")

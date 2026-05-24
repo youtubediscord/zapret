@@ -52,8 +52,9 @@ def handle_loaded_adapters(
     set_adapters_fn,
     build_dynamic_ui_fn,
 ) -> None:
+    _ = current_dns_info
     set_adapters_fn(adapters)
-    if current_dns_info and not ui_built:
+    if not ui_built:
         build_dynamic_ui_fn()
 
 

@@ -61,14 +61,6 @@ description = Fake с tamper и AutoTTL=2
 --dpi-desync-autottl=2
 --dpi-desync-repeats=11
 
-[yt_fake_11]
-name = YouTube: Fake 11
-author = hz
-label = recommended
-description = fake 11 повторов
---dpi-desync=fake
---dpi-desync-repeats=11
-
 [yt_fake_ipfrag2_quic5]
 name = YouTube: Fake + IPFrag2
 author = hz
@@ -89,15 +81,6 @@ description = UDP длина +4 с QUIC 4
 --dpi-desync-fake-quic=quic_4.bin
 --dpi-desync-cutoff=n3
 --dpi-desync-repeats=2
-
-[yt_fake_tamper_autottl]
-name = YouTube: Fake + Tamper + AutoTTL
-author = hz
-label = stable
-description = fake+tamper (AutoTTL=2)
---dpi-desync=fake,tamper
---dpi-desync-autottl=2
---dpi-desync-repeats=11
 
 [ipset_fake_12_n2]
 name = Игры: Apex & Rockstar v2
@@ -208,14 +191,6 @@ author = community
 --dpi-desync-fake-quic=quic_initial_www_google_com.bin
 --dpi-desync-repeats=6
 
-[fake_ipfrag2_quic5]
-name = Fake+IPFrag2 QUIC5
-author = community
---dpi-desync=fake,ipfrag2
---dpi-desync-fake-quic=quic_5.bin
---dpi-desync-cutoff=n3
---dpi-desync-repeats=3
-
 [fake_ipfrag2_quic3]
 name = Fake+IPFrag2 QUIC3
 author = community
@@ -247,15 +222,6 @@ author = community
 --dpi-desync=fake,udplen
 --dpi-desync-udplen-increment=4
 --dpi-desync-fake-quic=quic_3.bin
---dpi-desync-cutoff=n3
---dpi-desync-repeats=2
-
-[fake_udplen_4_quic4]
-name = Fake+UDPLen+4 QUIC4
-author = community
---dpi-desync=fake,udplen
---dpi-desync-udplen-increment=4
---dpi-desync-fake-quic=quic_4.bin
 --dpi-desync-cutoff=n3
 --dpi-desync-repeats=2
 
@@ -330,15 +296,6 @@ description = Для Rockstar Launcher
 name = Не применять для Discord
 author = System
 description = Отключить обработку Discord
-
-[discord_fake_6_google]
-name = general (alt v2) 1.6.1
-author = Flowseal
-label = recommended
-description = Стандартная стратегия для Discord Voice
---dpi-desync=fake
---dpi-desync-repeats=6
---dpi-desync-fake-quic=quic_initial_www_google_com.bin
 
 [discord_fake_6_1]
 name = fake 6 quic 1

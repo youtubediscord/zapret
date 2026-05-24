@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -55,6 +56,19 @@ class _PresetLibrary:
 
 
 class UserProfilesTests(unittest.TestCase):
+    def test_template_profile_addition_has_one_service_path(self) -> None:
+        enabled_source = inspect.getsource(ProfilePresetService.set_profile_enabled)
+        strategy_source = inspect.getsource(ProfilePresetService.apply_strategy)
+        helper_source = inspect.getsource(ProfilePresetService._append_template_profile_to_preset)
+        service_source = inspect.getsource(ProfilePresetService)
+
+        self.assertIn("_append_template_profile_to_preset", enabled_source)
+        self.assertIn("_append_template_profile_to_preset", strategy_source)
+        self.assertNotIn("append_profile_from_template", enabled_source)
+        self.assertNotIn("append_profile_from_template", strategy_source)
+        self.assertIn("append_profile_from_template", helper_source)
+        self.assertEqual(service_source.count('out_range="-d8"'), 1)
+
     def test_create_user_profile_saves_settings_and_creates_list_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -68,6 +82,10 @@ class UserProfilesTests(unittest.TestCase):
             self.assertEqual(profiles[profile_id]["name"], "Мой сайт")
             self.assertEqual(profiles[profile_id]["protocol"], "tcp")
             self.assertEqual(profiles[profile_id]["ports"], "80,443")
+            self.assertEqual(profiles[profile_id]["hostlist"], "lists/moi-sait.txt")
+            self.assertEqual(profiles[profile_id]["ipset"], "lists/ipset-moi-sait.txt")
+            self.assertTrue((root / "lists" / "user" / "moi-sait.txt").is_file())
+            self.assertTrue((root / "lists" / "user" / "ipset-moi-sait.txt").is_file())
             self.assertTrue((root / "lists" / "moi-sait.txt").is_file())
             self.assertTrue((root / "lists" / "ipset-moi-sait.txt").is_file())
 
@@ -195,7 +213,166 @@ class UserProfilesTests(unittest.TestCase):
         self.assertEqual(len(preset.profiles), 1)
         self.assertIn("--filter-tcp=80,443", preset.profiles[0].match.filter_lines)
         self.assertIn("--hostlist=lists/my-site.txt", preset.profiles[0].match.hostlist_lines)
+        self.assertIn("--out-range=-d8", [segment.text for segment in preset.profiles[0].segments])
+        self.assertNotIn("--in-range=x", [segment.text for segment in preset.profiles[0].segments])
+        self.assertNotIn("--out-range=a", [segment.text for segment in preset.profiles[0].segments])
         self.assertIn("--lua-desync=pass", [segment.text for segment in preset.profiles[0].segments])
+
+    def test_enabling_user_profile_reloads_ranges_from_written_preset(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "profile" / "templates").mkdir(parents=True)
+            (root / "profile" / "templates" / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore("")
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                service = ProfilePresetService(feature, "zapret2_mode")
+                before = service.get_profile_setup(f"template:user:{profile_id}")
+                new_key = service.set_profile_enabled(f"template:user:{profile_id}", True)
+                after = service.get_profile_setup(new_key or "")
+
+        self.assertIsNotNone(before)
+        self.assertEqual(before.in_range, "x")
+        self.assertEqual(before.out_range, "a")
+        self.assertIsNotNone(after)
+        self.assertEqual(after.in_range, "x")
+        self.assertEqual(after.out_range, "-d8")
+
+    def test_not_added_user_profile_can_preview_selected_ipset_file(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "profile" / "templates").mkdir(parents=True)
+            (root / "profile" / "templates" / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore("")
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                (root / "lists" / "user" / "ipset-my-site.txt").write_text("1.1.1.1\n", encoding="utf-8")
+                service = ProfilePresetService(feature, "zapret2_mode")
+                state = service.get_profile_list_file_editor_state(
+                    f"template:user:{profile_id}",
+                    filter_kind="ipset",
+                    filter_value="lists/ipset-my-site.txt",
+                )
+
+        self.assertIsNotNone(state)
+        self.assertEqual(state.kind, "ipset")
+        self.assertEqual(state.display_path, "lists/user/ipset-my-site.txt")
+        self.assertEqual(state.text, "1.1.1.1\n")
+
+    def test_enabling_not_added_user_profile_uses_selected_ipset_variant(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "profile" / "templates").mkdir(parents=True)
+            (root / "profile" / "templates" / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore("")
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                service = ProfilePresetService(feature, "zapret2_mode")
+                new_key = service.set_profile_enabled(
+                    f"template:user:{profile_id}",
+                    True,
+                    filter_kind="ipset",
+                    filter_value="lists/ipset-my-site.txt",
+                )
+
+        self.assertEqual(new_key, "profile:0")
+        preset = parse_preset_text(store.text, engine="winws2")
+        self.assertEqual(len(preset.profiles), 1)
+        self.assertIn("--ipset=lists/ipset-my-site.txt", preset.profiles[0].match.ipset_lines)
+        self.assertFalse(preset.profiles[0].match.hostlist_lines)
+        self.assertIn("--out-range=-d8", [segment.text for segment in preset.profiles[0].segments])
+        self.assertNotIn("--in-range=x", [segment.text for segment in preset.profiles[0].segments])
+        self.assertNotIn("--out-range=a", [segment.text for segment in preset.profiles[0].segments])
+
+    def test_applying_strategy_to_not_added_user_profile_writes_only_default_out_range(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "profile" / "templates").mkdir(parents=True)
+            (root / "profile" / "templates" / "all_profiles.txt").write_text("", encoding="utf-8")
+            catalogs_dir = root / "profile" / "strategy_catalogs" / "winws2"
+            catalogs_dir.mkdir(parents=True)
+            (catalogs_dir / "tcp.txt").write_text(
+                "\n".join(
+                    (
+                        "[tls_fake]",
+                        "name = TLS Fake",
+                        "--lua-desync=fake",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            store = _PresetStore("")
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                service = ProfilePresetService(feature, "zapret2_mode")
+                new_key = service.apply_strategy(f"template:user:{profile_id}", "tls_fake")
+
+        self.assertEqual(new_key, "profile:0")
+        preset = parse_preset_text(store.text, engine="winws2")
+        self.assertEqual(len(preset.profiles), 1)
+        lines = [segment.text for segment in preset.profiles[0].segments]
+        self.assertIn("--out-range=-d8", lines)
+        self.assertNotIn("--in-range=x", lines)
+        self.assertNotIn("--out-range=a", lines)
+        self.assertLess(lines.index("--out-range=-d8"), lines.index("--lua-desync=fake"))
+        self.assertIn("--lua-desync=fake", lines)
+
+    def test_enabling_missing_profile_adds_it_to_top_of_preset(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "profile" / "templates").mkdir(parents=True)
+            (root / "profile" / "templates" / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=All TCP",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/all.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                service = ProfilePresetService(feature, "zapret2_mode")
+                new_key = service.set_profile_enabled(f"template:user:{profile_id}", True)
+
+        self.assertEqual(new_key, "profile:0")
+        preset = parse_preset_text(store.text, engine="winws2")
+        self.assertEqual(len(preset.profiles), 2)
+        self.assertEqual(preset.profiles[0].name, "My Site")
+        self.assertEqual(preset.profiles[1].name, "All TCP")
+        self.assertIn("--hostlist=lists/my-site.txt", preset.profiles[0].match.hostlist_lines)
+        self.assertIn("--hostlist=lists/all.txt", preset.profiles[1].match.hostlist_lines)
+        self.assertTrue(store.text.startswith("--name=My Site\n"))
+        self.assertIn("\n--new=All TCP\n", store.text)
 
     def test_update_user_profile_renames_files_and_updates_named_profiles_in_all_presets(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -236,14 +413,20 @@ class UserProfilesTests(unittest.TestCase):
 
             with patch("settings.store.MAIN_DIRECTORY", str(root)):
                 profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                (root / "lists" / "user" / "my-site.txt").write_text("site.example\n", encoding="utf-8")
+                (root / "lists" / "user" / "ipset-my-site.txt").write_text("1.1.1.1\n", encoding="utf-8")
                 service = ProfilePresetService(feature, "zapret2_mode")
                 changed = service.update_user_profile(profile_id, name="New Site", protocol="udp", ports="443")
                 settings = read_settings()
             self.assertEqual(changed, 2)
-            self.assertFalse((root / "lists" / "my-site.txt").exists())
-            self.assertFalse((root / "lists" / "ipset-my-site.txt").exists())
+            self.assertFalse((root / "lists" / "user" / "my-site.txt").exists())
+            self.assertFalse((root / "lists" / "user" / "ipset-my-site.txt").exists())
+            self.assertTrue((root / "lists" / "user" / "new-site.txt").is_file())
+            self.assertTrue((root / "lists" / "user" / "ipset-new-site.txt").is_file())
             self.assertTrue((root / "lists" / "new-site.txt").is_file())
             self.assertTrue((root / "lists" / "ipset-new-site.txt").is_file())
+            self.assertEqual((root / "lists" / "new-site.txt").read_text(encoding="utf-8"), "site.example\n")
+            self.assertEqual((root / "lists" / "ipset-new-site.txt").read_text(encoding="utf-8"), "1.1.1.1\n")
             self.assertEqual(settings["user_profiles"]["profiles"][profile_id]["name"], "New Site")
             self.assertEqual(settings["user_profiles"]["profiles"][profile_id]["protocol"], "udp")
             self.assertEqual(settings["user_profiles"]["profiles"][profile_id]["ports"], "443")
@@ -293,11 +476,15 @@ class UserProfilesTests(unittest.TestCase):
 
             with patch("settings.store.MAIN_DIRECTORY", str(root)):
                 profile_id = create_user_profile(feature._app_paths, name="My Site", protocol="tcp", ports="80,443")
+                (root / "lists" / "user" / "my-site.txt").write_text("site.example\n", encoding="utf-8")
+                (root / "lists" / "user" / "ipset-my-site.txt").write_text("1.1.1.1\n", encoding="utf-8")
                 service = ProfilePresetService(feature, "zapret2_mode")
                 changed = service.delete_user_profile(profile_id)
                 settings = read_settings()
                 self.assertEqual(changed, 2)
                 self.assertNotIn(profile_id, settings["user_profiles"]["profiles"])
+                self.assertFalse((root / "lists" / "user" / "my-site.txt").exists())
+                self.assertFalse((root / "lists" / "user" / "ipset-my-site.txt").exists())
                 self.assertFalse((root / "lists" / "my-site.txt").exists())
                 self.assertFalse((root / "lists" / "ipset-my-site.txt").exists())
                 self.assertNotIn("--name=My Site", store.files_by_method[ZAPRET2_MODE]["one.txt"])

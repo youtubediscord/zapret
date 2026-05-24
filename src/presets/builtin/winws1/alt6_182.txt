@@ -13,33 +13,30 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50100
 --dpi-desync=fake
 --dpi-desync-repeats=6
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
+
+--name=General list TCP
+--filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-autottl=2
 --dpi-desync-fooling=md5sig
 
 # === HTTPS ===
---new
---filter-tcp=443
---hostlist=lists/list-general.txt
---dpi-desync=multisplit
---dpi-desync-repeats=2
---dpi-desync-split-seqovl=681
---dpi-desync-split-pos=1
---dpi-desync-fooling=badseq,hopbyhop2
---dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
-# === QUIC ===
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -49,19 +46,20 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=multisplit
---dpi-desync-repeats=2
---dpi-desync-split-seqovl=681
---dpi-desync-split-pos=1
---dpi-desync-fooling=badseq,hopbyhop2
---dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
-# === QUIC ===
 --new
---filter-tcp=443
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
+--dpi-desync=fake,multisplit
+--dpi-desync-autottl=2
+--dpi-desync-fooling=md5sig
+
+--new
+
+--name=SoundCloud
+--filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -71,8 +69,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=rutracker.org
+--filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -82,8 +83,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=rutor.info (.is)
+--filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -93,8 +97,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -104,8 +111,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=itch.io
+--filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -115,8 +125,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=Facebook
+--filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -126,8 +139,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=Instagram
+--filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -137,8 +153,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=Twitter/X
+--filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -148,8 +167,11 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=WhatsApp
+--filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=multisplit
 --dpi-desync-repeats=2
@@ -159,34 +181,10 @@
 --dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=multisplit
---dpi-desync-repeats=2
---dpi-desync-split-seqovl=681
---dpi-desync-split-pos=1
---dpi-desync-fooling=badseq,hopbyhop2
---dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
 
-# === QUIC ===
 --new
---filter-udp=443
---ipset=lists/ipset-all.txt
---dpi-desync=fake
---dpi-desync-repeats=6
---dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
-# === HTTP (порт 80) ===
---new
---filter-tcp=80
---ipset=lists/ipset-all.txt
---dpi-desync=fake,multisplit
---dpi-desync-autottl=2
---dpi-desync-fooling=md5sig
-
-# === UDP порт 5056 ===
---new
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -195,23 +193,3 @@
 --dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
 
 # === HTTPS ===
---new
---filter-tcp=443,1024-65535
---ipset=lists/ipset-all.txt
---dpi-desync=multisplit
---dpi-desync-split-seqovl=681
---dpi-desync-split-pos=1
---dpi-desync-fooling=badseq,hopbyhop2
---dpi-desync-split-seqovl-pattern=bin/tls_clienthello_www_google_com.bin
-
-# === UDP порт 1024 ===
---new
---filter-udp=1024-65535
---ipset=lists/ipset-all.txt
---dpi-desync=fake
---dpi-desync-autottl=2
---dpi-desync-repeats=12
---dpi-desync-any-protocol=1
---dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
---dpi-desync-cutoff=n2
---new

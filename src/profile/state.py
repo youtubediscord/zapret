@@ -58,6 +58,7 @@ class ProfileSetupPayload:
     editable_filter_kind: str = ""
     editable_filter_value: str = ""
     editable_filter_enabled: bool = True
+    editable_filter_role: str = "primary"
     editable_filter_kinds: tuple[str, ...] = ()
     in_range: str = "x"
     out_range: str = "a"

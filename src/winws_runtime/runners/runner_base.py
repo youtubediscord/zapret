@@ -169,9 +169,8 @@ class StrategyRunnerBase(ABC):
 
     def _resolve_file_paths(self, args: List[str]) -> List[str]:
         """Resolves relative file paths"""
-        from config.config import WINDIVERT_FILTER
-
-        return resolve_args_paths(args, self.lists_dir, self.bin_dir, WINDIVERT_FILTER)
+        filter_dir = os.path.join(self.work_dir, "windivert.filter")
+        return resolve_args_paths(args, self.lists_dir, self.bin_dir, filter_dir)
 
     def _build_launch_args_from_preset_text(self, content: str) -> tuple[str, ...]:
         """Собирает аргументы запуска и приводит пути к файлам к рабочим путям."""
@@ -452,7 +451,6 @@ class StrategyRunnerBase(ABC):
 
         return {
             'name': self.current_launch_label,
-            'pid': self.running_process.pid if self.running_process else None,
             'args_count': len(self.current_strategy_args) if self.current_strategy_args else 0
         }
 

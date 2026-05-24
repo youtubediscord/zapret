@@ -15,7 +15,9 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-59000
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -24,7 +26,9 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/youtubeQ.txt
 --dpi-desync=fake
@@ -32,7 +36,9 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
 --dpi-desync=fake,multisplit
 --dpi-desync-ttl=1
@@ -40,4 +46,3 @@
 --dpi-desync-fake-tls-mod=rnd,rndsni,padencap
 --wssize
 1:6
---new

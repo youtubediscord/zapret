@@ -18,9 +18,19 @@ def serialize_preset(preset: Preset) -> str:
     lines.extend(preset.preamble_lines)
 
     for profile in preset.profiles:
+        skip_leading_blanks = False
         if profile.new_line:
+            while lines and not lines[-1].strip():
+                lines.pop()
+            if lines:
+                lines.append("")
             lines.append(profile.new_line)
+            lines.append("")
+            skip_leading_blanks = True
         for segment in profile.segments:
+            if skip_leading_blanks and not str(segment.text or "").strip():
+                continue
+            skip_leading_blanks = False
             lines.append(segment.text)
     lines.extend(getattr(preset, "footer_lines", []) or [])
 
@@ -162,16 +172,28 @@ def _preserve_missing_winws2_strategy_filters(engine: EngineName, profile: Profi
     return [*preserved, *strategy_lines]
 
 
-def append_profile_from_template(preset: Preset, template: Profile, *, enabled: bool = True) -> Preset:
+def append_profile_from_template(
+    preset: Preset,
+    template: Profile,
+    *,
+    enabled: bool = True,
+    position: str = "bottom",
+) -> Preset:
     updated = deepcopy(preset)
     if getattr(updated, "footer_lines", None):
         updated.footer_lines = []
-    if updated.profiles and updated.profiles[-1].segments and updated.profiles[-1].segments[-1].text.strip():
+    insert_at = 0 if str(position or "").strip().lower() == "top" else len(updated.profiles)
+    if (
+        updated.profiles
+        and insert_at == len(updated.profiles)
+        and updated.profiles[-1].segments
+        and updated.profiles[-1].segments[-1].text.strip()
+    ):
         updated.profiles[-1].segments.append(ProfileSegment(kind="blank", text=""))
     profile = deepcopy(template)
-    profile.index = len(updated.profiles)
+    profile.index = insert_at
     profile.engine = updated.engine
-    profile.new_line = "--new"
+    profile.new_line = "" if insert_at == 0 else "--new"
     profile.segments = [
         segment
         for segment in profile.segments
@@ -179,7 +201,8 @@ def append_profile_from_template(preset: Preset, template: Profile, *, enabled: 
     ]
     if not enabled:
         profile.segments.insert(_directive_insert_index(profile), ProfileSegment(kind="directive", text="--skip", name="--skip"))
-    updated.profiles.append(profile)
+    updated.profiles.insert(insert_at, profile)
+    _ensure_profile_boundaries(updated)
     return _reparse(updated)
 
 

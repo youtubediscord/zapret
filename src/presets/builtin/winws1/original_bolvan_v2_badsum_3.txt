@@ -16,16 +16,18 @@
 --dup-cutoff=n3
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
---hostlist-domains=rutracker.cc
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,fakedsplit
 --dpi-desync-autottl=2
 --dpi-desync-fooling=badseq
 
-# === HTTPS YouTube ===
 --new
+
 --filter-tcp=443
 --hostlist-domains=rutracker.cc,hmvmania.com,roskomsvoboda.org,rublacklist.net,onlinesim.io,android.com,proton.me,moscowtimes.ru,dw.com,z-library.sk
 --hostlist=lists/youtube.txt
@@ -36,7 +38,9 @@
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 # === HTTPS Discord ===
+
 --new
+
 --filter-tcp=443
 --hostlist-domains=rutracker.cc,hmvmania.com,roskomsvoboda.org,rublacklist.net,onlinesim.io,android.com,proton.me,moscowtimes.ru,dw.com,z-library.sk
 --hostlist=lists/faceinsta.txt
@@ -47,8 +51,11 @@
 --dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-pos=sld+1
@@ -61,4 +68,3 @@
 --dup-fooling=badseq
 --dup-autottl
 --dup-cutoff=n3
---new

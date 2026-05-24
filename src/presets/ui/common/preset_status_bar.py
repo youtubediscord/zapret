@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
+from qfluentwidgets import CaptionLabel
+
+from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, normalize_launch_method
+from ui.theme import get_theme_tokens
+from ui.widgets.win11_spinner import Win11Spinner
+
+
+@dataclass(frozen=True, slots=True)
+class PresetStatusPlan:
+    text: str
+    mode: str
+    indicator: str
+
+
+def _winws_name_for_method(launch_method: str | None) -> str:
+    method = normalize_launch_method(launch_method, default=ZAPRET2_MODE)
+    if method == ZAPRET1_MODE:
+        return "winws"
+    return "winws2"
+
+
+def build_preset_status_plan(
+    status: str,
+    *,
+    launch_method: str | None,
+    text: str = "",
+) -> PresetStatusPlan:
+    status_key = str(status or "").strip().lower()
+    custom_text = str(text or "").strip()
+
+    if status_key == "loading":
+        return PresetStatusPlan("Загрузка пресета...", "busy", "spinner")
+    if status_key == "loaded":
+        return PresetStatusPlan("Пресет загружен", "success", "check")
+    if status_key == "selected_stopped":
+        return PresetStatusPlan(
+            f"Пресет выбран, {_winws_name_for_method(launch_method)} не запущен",
+            "success",
+            "check",
+        )
+    if status_key == "selected":
+        return PresetStatusPlan("Пресет выбран", "success", "check")
+    if status_key == "applying":
+        return PresetStatusPlan("Применяем пресет...", "busy", "spinner")
+    if status_key == "applied":
+        return PresetStatusPlan("Пресет применён", "success", "check")
+    if status_key == "saving":
+        return PresetStatusPlan("Сохраняем изменения...", "busy", "spinner")
+    if status_key == "saved":
+        return PresetStatusPlan(custom_text or "Изменения сохранены", "success", "check")
+    if status_key == "dirty":
+        return PresetStatusPlan("Есть несохранённые изменения", "neutral", "none")
+    if status_key == "error":
+        return PresetStatusPlan(custom_text or "Ошибка", "error", "none")
+    return PresetStatusPlan(custom_text or "Готово", "neutral", "none")
+
+
+def build_runtime_preset_status_plan(
+    *,
+    base_status: str,
+    launch_method: str | None,
+    runtime_launch_method: str | None,
+    launch_busy: bool,
+    launch_busy_text: str,
+    last_status_message: str,
+    base_text: str = "",
+) -> PresetStatusPlan:
+    method = normalize_launch_method(launch_method, default=ZAPRET2_MODE)
+    runtime_method = normalize_launch_method(runtime_launch_method, default=method)
+
+    if runtime_method == method and bool(launch_busy):
+        busy_text = str(launch_busy_text or "").strip()
+        if busy_text:
+            return PresetStatusPlan(busy_text, "busy", "spinner")
+        return build_preset_status_plan("applying", launch_method=method)
+
+    message = str(last_status_message or "").strip()
+    if runtime_method == method:
+        if "Пресет успешно применён" in message or "Пресет применён" in message:
+            return build_preset_status_plan("applied", launch_method=method)
+        if "Ошибка переключения пресета" in message:
+            return build_preset_status_plan("error", launch_method=method, text=message)
+
+    return build_preset_status_plan(base_status, launch_method=method, text=base_text)
+
+
+class PresetStatusBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(24)
+
+        self.spinner = Win11Spinner(size=16, parent=self)
+        self.spinner.hide()
+
+        self.check_label = QLabel("✓", self)
+        self.check_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.check_label.setFixedSize(16, 16)
+
+        self.text_label = CaptionLabel("", self)
+        self.text_label.setWordWrap(False)
+        self.text_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 2, 0, 0)
+        layout.setSpacing(6)
+        layout.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.check_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.text_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addStretch(1)
+
+        self.set_plan(build_preset_status_plan("neutral", launch_method=ZAPRET2_MODE))
+
+    def set_plan(self, plan: PresetStatusPlan) -> None:
+        indicator = str(plan.indicator or "none").strip().lower()
+        if indicator == "spinner":
+            self.check_label.hide()
+            self.spinner.start()
+        else:
+            self.spinner.stop()
+            self.check_label.setVisible(indicator == "check")
+
+        self.text_label.setText(str(plan.text or ""))
+        self._apply_mode_style(str(plan.mode or "neutral").strip().lower())
+
+    def _apply_mode_style(self, mode: str) -> None:
+        try:
+            tokens = get_theme_tokens()
+            accent = tokens.accent_hex
+            is_light = bool(tokens.is_light)
+        except Exception:
+            accent = "#5caee8"
+            is_light = False
+
+        if mode == "error":
+            color = "#d83b01"
+        elif mode in {"success", "busy"}:
+            color = accent
+        else:
+            color = "#5f6368" if is_light else "#b8b8b8"
+
+        self.check_label.setStyleSheet(f"color: {color}; font-size: 14px; font-weight: 700;")
+        self.text_label.setStyleSheet(f"color: {color};")
+
+
+__all__ = [
+    "PresetStatusBar",
+    "PresetStatusPlan",
+    "build_preset_status_plan",
+    "build_runtime_preset_status_plan",
+]

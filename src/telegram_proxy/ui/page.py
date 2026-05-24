@@ -7,6 +7,8 @@ port configuration, and quick-setup deep link for Telegram.
 
 from __future__ import annotations
 
+import time
+
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout,
@@ -37,10 +39,8 @@ from telegram_proxy.ui.proxy_runtime_workflow import (
 from telegram_proxy.ui.runtime_helpers import (
     apply_ui_texts,
     apply_upstream_preset_ui,
-    load_settings_into_ui,
     refresh_pivot_texts,
     refresh_status_texts,
-    refresh_upstream_preset_combo,
 )
 from telegram_proxy.ui.upstream_workflow import (
     handle_upstream_preset_changed,
@@ -127,6 +127,9 @@ class TelegramProxyPage(BasePage):
         self._cleanup_in_progress = False
         self._runtime_initialized = False
         self._built_panel_indexes: set[int] = set()
+        initial_state_started_at = time.perf_counter()
+        self._initial_state = self._telegram_proxy.load_page_initial_state()
+        self._log_ui_timing("telegram_proxy_ui.initial_state.load", initial_state_started_at)
         self._btn_copy_logs = None
         self._btn_open_log_file = None
         self._btn_clear_logs = None
@@ -136,6 +139,7 @@ class TelegramProxyPage(BasePage):
         self._btn_copy_diag = None
         self._diag_edit = None
         self._setup_ui()
+        self._apply_initial_settings_state(self._initial_state.settings)
         self._after_ui_built()
         # Запуск Telegram Proxy живёт в общем старте приложения,
         # поэтому страница не поднимает его сама.
@@ -144,8 +148,8 @@ class TelegramProxyPage(BasePage):
         return self._telegram_proxy.get_proxy_manager()
 
     def _after_ui_built(self) -> None:
+        started_at = time.perf_counter()
         self._connect_signals()
-        self._load_settings()
         self._log_timer = QTimer(self)
         self._log_timer.timeout.connect(self._flush_log_buffer)
         self._stats_timer = QTimer(self)
@@ -153,6 +157,7 @@ class TelegramProxyPage(BasePage):
         if self.isVisible():
             self._stats_timer.start(2000)
         self._apply_ui_texts()
+        self._log_ui_timing("telegram_proxy_ui.after_ui_built.total", started_at)
 
     def _run_runtime_init_once(self) -> None:
         plan = telegram_proxy_page_runtime.build_page_init_plan(
@@ -167,6 +172,7 @@ class TelegramProxyPage(BasePage):
         self._run_runtime_init_once()
 
     def _setup_ui(self):
+        started_at = time.perf_counter()
         shell = build_telegram_proxy_shell(
             segmented_widget_cls=SegmentedWidget,
             parent=self,
@@ -183,19 +189,23 @@ class TelegramProxyPage(BasePage):
         self.add_widget(self._pivot)
         self.add_widget(self._stacked)
         self._stacked.setCurrentIndex(0)
+        self._log_ui_timing("telegram_proxy_ui.setup_ui.total", started_at)
 
     def _ensure_panel_built(self, index: int) -> None:
         if index in self._built_panel_indexes:
             return
+        started_at = time.perf_counter()
         if index == 1:
             self._build_logs_panel(self._logs_layout)
             self._built_panel_indexes.add(index)
             self._apply_ui_texts()
             self._flush_log_buffer()
+            self._log_ui_timing("telegram_proxy_ui.logs_panel.build", started_at)
         elif index == 2:
             self._build_diag_panel(self._diag_layout)
             self._built_panel_indexes.add(index)
             self._apply_ui_texts()
+            self._log_ui_timing("telegram_proxy_ui.diag_panel.build", started_at)
 
     def _switch_tab(self, index: int):
         self._ensure_panel_built(index)
@@ -254,6 +264,7 @@ class TelegramProxyPage(BasePage):
             on_open_in_telegram=self._on_open_in_telegram,
             on_copy_link=self._on_copy_link,
             on_open_mtproxy=self._on_open_mtproxy,
+            upstream_catalog=self._initial_state.upstream_catalog,
         )
         self._status_card = widgets.status_card
         self._status_dot = widgets.status_dot
@@ -296,8 +307,6 @@ class TelegramProxyPage(BasePage):
         self._instr1_label = widgets.instr1_label
         self._instr2_label = widgets.instr2_label
         self._manual_host_port_label = widgets.manual_host_port_label
-
-        self._refresh_upstream_preset_combo(select_index=0)
 
     def _build_logs_panel(self, layout: QVBoxLayout):
         widgets = build_telegram_proxy_logs_panel(
@@ -453,15 +462,6 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
 
-    def _refresh_upstream_preset_combo(self, *, select_index: int | None = None) -> int:
-        target_index, self._current_mtproxy_link = refresh_upstream_preset_combo(
-            upstream_preset_row=self._upstream_preset_row,
-            upstream_catalog=self._upstream_catalog,
-            apply_upstream_preset_ui_callback=self._apply_upstream_preset_ui,
-            select_index=select_index,
-        )
-        return target_index
-
     def _apply_upstream_preset_ui(self, index: int) -> None:
         self._current_mtproxy_link = apply_upstream_preset_ui(
             upstream_toggle=self._upstream_toggle,
@@ -496,20 +496,31 @@ class TelegramProxyPage(BasePage):
         # Sync initial state — proxy may already be running (e.g., started from tray)
         self._on_status_changed(mgr.is_running)
 
-    def _load_settings(self):
-        load_settings_into_ui(
-            upstream_catalog=self._upstream_catalog,
-            port_spin=self._port_spin,
-            host_edit=self._host_edit,
-            update_manual_instructions=self._update_manual_instructions,
-            upstream_toggle=self._upstream_toggle,
-            upstream_host_edit=self._upstream_host_edit,
-            upstream_port_spin=self._upstream_port_spin,
-            upstream_user_edit=self._upstream_user_edit,
-            upstream_pass_edit=self._upstream_pass_edit,
-            refresh_upstream_preset_combo_callback=self._refresh_upstream_preset_combo,
-            upstream_mode_toggle=self._upstream_mode_toggle,
-        )
+    def _apply_initial_settings_state(self, state: telegram_proxy_settings.TelegramProxySettingsState) -> None:
+        started_at = time.perf_counter()
+        self._port_spin.blockSignals(True)
+        self._port_spin.setValue(state.port)
+        self._port_spin.blockSignals(False)
+
+        self._host_edit.setText(state.host)
+        self._update_manual_instructions()
+
+        self._upstream_toggle.setChecked(state.upstream_enabled, block_signals=True)
+
+        self._upstream_host_edit.setText(state.upstream_host)
+        self._upstream_port_spin.blockSignals(True)
+        self._upstream_port_spin.setValue(state.upstream_port)
+        self._upstream_port_spin.blockSignals(False)
+        self._upstream_user_edit.setText(state.upstream_user)
+        self._upstream_pass_edit.setText(state.upstream_password)
+
+        if self._upstream_catalog.choices:
+            target_index = min(max(int(state.upstream_preset_index), 0), len(self._upstream_catalog.choices) - 1)
+            self._upstream_preset_row.setCurrentIndex(target_index, block_signals=True)
+            self._apply_upstream_preset_ui(target_index)
+
+        self._upstream_mode_toggle.setChecked(state.upstream_mode == "always", block_signals=True)
+        self._log_ui_timing("telegram_proxy_ui.settings.apply", started_at)
 
     def _try_auto_deeplink(self):
         """Open tg:// deep link automatically on first start."""
@@ -893,11 +904,21 @@ class TelegramProxyPage(BasePage):
             log(plan.log_line, "WARNING")
 
     def showEvent(self, event):
+        started_at = time.perf_counter()
         super().showEvent(event)
         self._sync_log_timer()
         if self._stats_timer is not None and self._proxy_manager().is_running and not self._stats_timer.isActive():
             self._stats_timer.start(2000)
             self._emit_stats_if_visible()
+        self._log_ui_timing("telegram_proxy_ui.show_event.total", started_at)
+
+    @staticmethod
+    def _log_ui_timing(label: str, started_at: float) -> None:
+        try:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+            log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
+        except Exception:
+            pass
 
     def hideEvent(self, event):
         if self._log_timer is not None:

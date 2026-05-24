@@ -28,14 +28,8 @@ class PageName(Enum):
     ZAPRET1_PRESET_SETUP = auto()
     ZAPRET1_PROFILE_SETUP = auto()
 
-    HOSTLIST = auto()                # Листы (Hostlist + IPset)
     BLOBS = auto()                   # Блобы
     DPI_SETTINGS = auto()            # Настройки DPI
-
-    # === Мои списки ===
-    NETROGAT = auto()                # Исключения (netrogat.txt)
-    CUSTOM_DOMAINS = auto()          # Мои hostlist (lists/user/other.txt)
-    CUSTOM_IPSET = auto()            # Мои ipset (lists/user/ipset-all.txt)
 
     # === Настройки системы ===
     AUTOSTART = auto()               # Автозапуск

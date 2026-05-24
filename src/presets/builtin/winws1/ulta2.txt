@@ -6,14 +6,17 @@
 --wf-udp=443,50000-50090
 
 # === HTTPS YouTube ===
---filter-tcp=443
+--name=youtube.com (RTMPS Россия)
+--filter-tcp=80,443-65535
 --ipset=lists/russia-youtube-rtmps.txt
 --dpi-desync=syndata
 --dpi-desync-fake-syndata=bin/tls_clienthello_4.bin
 --dpi-desync-autottl
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/youtubeQ.txt
 --dpi-desync=fake,udplen
@@ -23,23 +26,20 @@
 --dpi-desync-repeats=2
 
 # === HTTPS Discord ===
+
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=syndata
 --dpi-desync-fake-syndata=bin/tls_clienthello_3.bin
 --dpi-desync-autottl
 
 # === HTTPS Discord ===
---new
---filter-tcp=443
---hostlist=lists/discord.txt
---dpi-desync=multisplit
---dpi-desync-split-seqovl=1
---dpi-desync-split-pos=midsld+1
 
-# === QUIC Discord ===
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,udplen
@@ -50,14 +50,18 @@
 --dpi-desync-cutoff=n2
 
 # === Discord Voice ===
+
 --new
+
 --filter-udp=50000-50090
 --dpi-desync=fake
 --dpi-desync-any-protocol
 --dpi-desync-cutoff=n3
 
 # === HTTPS YouTube ===
+
 --new
+
 --filter-tcp=443
 --hostlist=lists/youtubeGV.txt
 --dpi-desync=multisplit
@@ -65,35 +69,23 @@
 --dpi-desync-split-pos=midsld-1
 
 # === HTTPS ===
+
 --new
---filter-tcp=443
---hostlist=lists/other.txt
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
 --dpi-desync-split-pos=midsld-1
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
---hostlist=lists/discord.txt
---dpi-desync=fake,multisplit
---dpi-desync-split-seqovl=1
---dpi-desync-split-pos=midsld-1
---dpi-desync-fooling=md5sig,badseq
---dpi-desync-fake-tls=bin/tls_clienthello_4.bin
---dpi-desync-ttl=2
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=fake,multisplit
---dpi-desync-split-seqovl=1
---dpi-desync-split-pos=midsld-1
---dpi-desync-fooling=md5sig,badseq
---dpi-desync-fake-tls=bin/tls_clienthello_4.bin
---dpi-desync-ttl=2
---new
---filter-tcp=443
+
+--name=SoundCloud
+--filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -101,8 +93,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=rutracker.org
+--filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -110,8 +105,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=rutor.info (.is)
+--filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -119,8 +117,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -128,8 +129,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=itch.io
+--filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -137,8 +141,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=Facebook
+--filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -146,8 +153,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=Instagram
+--filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -155,8 +165,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=Twitter/X
+--filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -164,8 +177,11 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
+
 --new
---filter-tcp=443
+
+--name=WhatsApp
+--filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-split-seqovl=1
@@ -173,4 +189,3 @@
 --dpi-desync-fooling=md5sig,badseq
 --dpi-desync-fake-tls=bin/tls_clienthello_4.bin
 --dpi-desync-ttl=2
---new

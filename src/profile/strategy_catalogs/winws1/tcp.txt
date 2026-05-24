@@ -976,16 +976,6 @@ description = Базовый multisplit и seqovl с фейками, нарез�
 --dpi-desync-fake-tls-mod=rnd
 --dpi-desync-autottl
 
-[multidisorder_repeats_md5sig]
-name = original bol-van v2
-author = bol-van
-description = multidisorder с fake tls mod
---dpi-desync=fake,multidisorder
---dpi-desync-split-pos=1,midsld
---dpi-desync-repeats=11
---dpi-desync-fooling=md5sig
---dpi-desync-fake-tls-mod=rnd,dupsid,sni=www.google.com
-
 [multidisorder_repeats_md5sig_2]
 name = multidisorder с повторами и md5ig
 author = hz

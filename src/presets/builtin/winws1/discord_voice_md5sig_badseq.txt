@@ -10,15 +10,21 @@
 --dpi-desync=fake
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
+
+--name=Russia blacklist TCP wide
+--filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
 --dpi-desync-ttl=0
 --dpi-desync-fooling=md5sig,badsum
 
 # === HTTPS YouTube ===
+
 --new
+
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multidisorder
@@ -29,9 +35,12 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
---hostlist=lists/ipset-all.txt
+
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=method+2,midsld,5
 --dpi-desync-ttl=0
@@ -39,9 +48,10 @@
 --dpi-desync-repeats=15
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
-# === QUIC ===
 --new
---filter-tcp=443
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=method+2,midsld,5
@@ -51,8 +61,11 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
---filter-tcp=443
+
+--name=youtube.com (интерфейс)
+--filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=method+2,midsld,5
@@ -62,19 +75,11 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
---new
---filter-tcp=443
---hostlist=lists/other.txt
---dpi-desync=fake,multidisorder
---dpi-desync-split-pos=method+2,midsld,5
---dpi-desync-ttl=0
---dpi-desync-fooling=md5sig,badsum,badseq
---dpi-desync-repeats=15
---dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
-# === QUIC ===
 --new
---filter-tcp=443
+
+--name=General list TCP
+--filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multidisorder
 --dpi-desync-split-pos=method+2,midsld,5
@@ -84,7 +89,9 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC ===
+
 --new
+
 --filter-udp=443
 --dpi-desync=fake
 --dpi-desync-repeats=15
@@ -93,9 +100,3 @@
 --dpi-desync-cutoff=d4
 --dpi-desync-fooling=md5sig,badsum
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
-
-# === Discord Voice ===
---new
---filter-udp=50000-50099
---dpi-desync=fake
---new

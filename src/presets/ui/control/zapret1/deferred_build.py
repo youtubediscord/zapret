@@ -8,7 +8,7 @@ from presets.ui.control.shared_builders import (
     build_push_setting_card_common,
 )
 from presets.ui.control.windows_features.build import build_windows_feature_toggles
-from ui.fluent_widgets import build_advanced_settings_section, enable_setting_card_group_auto_height
+from ui.fluent_widgets import build_additional_settings_section, enable_setting_card_group_auto_height
 from ui.theme import get_themed_qta_icon
 
 
@@ -20,8 +20,8 @@ class Zapret1DeferredBuildWidgets:
     hide_to_tray_toggle: object
     defender_toggle: object
     max_block_toggle: object
-    advanced_card: object
-    advanced_notice: object
+    additional_settings_card: object
+    additional_settings_notice: object
     discord_restart_toggle: object | None
     wssize_toggle: object | None
     debug_log_toggle: object | None
@@ -132,7 +132,7 @@ def build_winws1_pages_deferred_sections(
         parent=content_parent,
     )
 
-    advanced_card, advanced_notice = build_advanced_settings_section(
+    additional_settings_card, additional_settings_notice = build_additional_settings_section(
         title=tr_fn("page.winws1_control.card.advanced", "Дополнительные настройки"),
         warning_text=tr_fn("page.winws1_control.advanced.warning", "Изменяйте только если знаете что делаете"),
         parent=content_parent,
@@ -183,8 +183,8 @@ def build_winws1_pages_deferred_sections(
         hide_to_tray_toggle=hide_to_tray_toggle,
         defender_toggle=windows_feature_toggles.defender_toggle,
         max_block_toggle=windows_feature_toggles.max_block_toggle,
-        advanced_card=advanced_card,
-        advanced_notice=advanced_notice,
+        additional_settings_card=additional_settings_card,
+        additional_settings_notice=additional_settings_notice,
         discord_restart_toggle=discord_restart_toggle,
         wssize_toggle=wssize_toggle,
         debug_log_toggle=debug_log_toggle,

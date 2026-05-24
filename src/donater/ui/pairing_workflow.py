@@ -26,34 +26,53 @@ def update_device_info_labels(
         snapshot = premium_feature.read_device_info_snapshot(current_time=current_time)
         if not snapshot:
             return
-        plan = premium_page_plans.build_device_info_plan(
-            device_id=snapshot.get("device_id"),
-            device_token=snapshot.get("device_token"),
-            pair_code=snapshot.get("pair_code"),
-            last_check=snapshot.get("last_check"),
-            token_present_text=tr("page.premium.label.device_token.present", "device token: ✅"),
-            token_absent_text=tr("page.premium.label.device_token.absent", "device token: ❌"),
-            pair_template_text=tr("page.premium.label.pair_code.value", "pair: {pair_code}"),
+        apply_device_info_snapshot_labels(
+            snapshot=snapshot,
+            tr=tr,
+            device_id_label=device_id_label,
+            saved_key_label=saved_key_label,
+            last_check_label=last_check_label,
         )
-
-        device_id_label.setText(
-            tr(
-                plan.device_id_text_key,
-                plan.device_id_text_default,
-                **plan.device_id_kwargs,
-            )
-        )
-        saved_key_label.setText(plan.saved_key_text)
-        last_check_label.setText(
-            tr(
-                plan.last_check_text_key,
-                plan.last_check_text_default,
-                **plan.last_check_kwargs,
-            )
-        )
+        return snapshot
     except Exception as exc:
         if on_error is not None:
             on_error(exc)
+    return None
+
+
+def apply_device_info_snapshot_labels(
+    *,
+    snapshot,
+    tr: Callable[[str, str], str],
+    device_id_label,
+    saved_key_label,
+    last_check_label,
+) -> None:
+    plan = premium_page_plans.build_device_info_plan(
+        device_id=snapshot.get("device_id"),
+        device_token=snapshot.get("device_token"),
+        pair_code=snapshot.get("pair_code"),
+        last_check=snapshot.get("last_check"),
+        token_present_text=tr("page.premium.label.device_token.present", "device token: ✅"),
+        token_absent_text=tr("page.premium.label.device_token.absent", "device token: ❌"),
+        pair_template_text=tr("page.premium.label.pair_code.value", "pair: {pair_code}"),
+    )
+
+    device_id_label.setText(
+        tr(
+            plan.device_id_text_key,
+            plan.device_id_text_default,
+            **plan.device_id_kwargs,
+        )
+    )
+    saved_key_label.setText(plan.saved_key_text)
+    last_check_label.setText(
+        tr(
+            plan.last_check_text_key,
+            plan.last_check_text_default,
+            **plan.last_check_kwargs,
+        )
+    )
 
 
 def apply_pair_code_start_ui(

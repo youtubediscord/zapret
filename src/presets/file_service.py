@@ -189,15 +189,29 @@ class PresetFileService:
     def normalize_source_text(self, source_text: str) -> str:
         return normalize_preset_source_text_for_engine(source_text, self.engine)
 
-    def save_source_text_by_file_name(self, file_name: str, source_text: str) -> PresetManifest:
+    def publish_preset_content_changed_by_file_name(self, file_name: str) -> PresetManifest:
+        manifest = self.get_manifest_by_file_name(file_name)
+        if manifest is None:
+            raise ValueError(f"Preset not found: {file_name}")
+        self.notify_preset_content_changed(manifest.file_name)
+        if self.is_selected_file_name(manifest.file_name):
+            self.preset_mode_coordinator.refresh_selected_launch_preset(self.launch_method)
+        return manifest
+
+    def save_source_text_by_file_name(
+        self,
+        file_name: str,
+        source_text: str,
+        *,
+        publish_content_changed: bool = True,
+    ) -> PresetManifest:
         manifest = self.get_manifest_by_file_name(file_name)
         if manifest is None:
             raise ValueError(f"Preset not found: {file_name}")
         normalized = self.normalize_source_text(source_text)
         updated = self.preset_file_store.update_preset(self.engine, manifest.file_name, normalized, None)
-        self.notify_preset_content_changed(updated.file_name)
-        if self.is_selected_file_name(updated.file_name):
-            self.preset_mode_coordinator.refresh_selected_launch_preset(self.launch_method)
+        if publish_content_changed:
+            self.publish_preset_content_changed_by_file_name(updated.file_name)
         return updated
 
     def save_selected_source_text(self, source_text: str) -> PresetManifest:

@@ -9,5 +9,4 @@ BOLVAN_URL = "https://github.com/bol-van/zapret-win-bundle"  # URL автора
 SUPPORT_DISCUSSIONS_URL = "https://github.com/youtubediscord/zapret/discussions"  # Основная ссылка поддержки
 BLOCKCHECK_DISCUSSIONS_URL = "https://github.com/youtubediscord/zapret/discussions/categories/blockcheck"  # Категория обращений по BlockCheck
 
-NETROGAT_LIST_URL = "https://nozapret.ru/netrogat.txt" 
 OTHER_LIST_URL = "https://nozapret.ru/other.txt" 

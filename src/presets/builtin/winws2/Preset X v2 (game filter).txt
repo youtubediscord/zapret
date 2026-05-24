@@ -78,6 +78,7 @@
 --blob=hex_0f0f0f0f:0x0F0F0F0F
 --blob=hex_00:0x00
 
+--name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --out-range=-d8
@@ -85,6 +86,7 @@
 
 --new
 
+--name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --out-range=-d8
@@ -92,6 +94,7 @@
 
 --new
 
+--name=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist-domains=discord.media
 --out-range=-d10
@@ -99,6 +102,7 @@
 
 --new
 
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --out-range=-d10
@@ -106,6 +110,7 @@
 
 --new
 
+--name=Голосовые звонки/чаты
 --filter-l7=stun,discord
 --payload=stun,discord_ip_discovery
 --out-range=-n8
@@ -113,6 +118,7 @@
 
 --new
 
+--name=Amazon TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/amazon.txt
 --out-range=-n8
@@ -122,7 +128,8 @@
 
 --new
 
---filter-tcp=80,443
+--name=Roblox TCP
+--filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --out-range=-n8
 --lua-desync=send:repeats=2
@@ -131,7 +138,8 @@
 
 --new
 
---filter-udp=443,49152-65535
+--name=Roblox UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-roblox.txt
 --out-range=-n8
 --payload=all
@@ -139,7 +147,8 @@
 
 --new
 
---filter-tcp=443,853
+--name=WARP TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-warp.txt
 --out-range=-n8
 --lua-desync=send:repeats=2
@@ -148,13 +157,17 @@
 
 --new
 
---filter-tcp=443
---hostlist=lists/other.txt
---out-range=-d10
---lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+--name=Мои сайты
+--filter-tcp=80,443-65535
+--ipset=lists/ipset-all.txt
+--out-range=-n8
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=tls_google
+--lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
 
 --new
 
+--name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --out-range=-d10
@@ -162,6 +175,7 @@
 
 --new
 
+--name=18+ сайты
 --filter-tcp=80,443
 --ipset=lists/ipset-porn.txt
 --out-range=-n8
@@ -171,6 +185,7 @@
 
 --new
 
+--name=youtube.com (RTMPS Россия)
 --filter-tcp=80,443-65535
 --ipset=lists/russia-youtube-rtmps.txt
 --out-range=-n8
@@ -180,15 +195,7 @@
 
 --new
 
---filter-tcp=80,443-65535
---ipset=lists/ipset-all.txt
---out-range=-n8
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=tls_google
---lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
-
---new
-
+--name=discord.com
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-n8
@@ -198,15 +205,8 @@
 
 --new
 
---filter-udp=80,443-65535
---ipset=lists/ipset-all.txt
---out-range=-n8
---payload=all
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
-
---new
-
---filter-udp=80,443-65535
+--name=Cloudflare legacy UDP
+--filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
 --out-range=-n8
 --payload=all
@@ -214,7 +214,8 @@
 
 --new
 
---filter-udp=80,443-65535
+--name=Cloudflare IPv6 legacy UDP
+--filter-udp=443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --out-range=-n8
 --payload=all
@@ -222,7 +223,8 @@
 
 --new
 
---filter-udp=80,443-65535
+--name=Cloudflare alt UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare1.txt
 --out-range=-n8
 --payload=all
@@ -230,7 +232,8 @@
 
 --new
 
---filter-udp=80,443-65535
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-n8
 --payload=all

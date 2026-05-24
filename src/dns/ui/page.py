@@ -77,7 +77,8 @@ from dns.page_load_workflow import (
     start_background_loading,
 )
 from dns.ui.page_runtime_helpers import (
-    build_dynamic_network_ui,
+    build_adapter_cards_ui,
+    build_dns_choices_ui,
     clear_dns_selection_ui,
 )
 from dns.ui.page_selection_workflow import (
@@ -113,6 +114,7 @@ class NetworkPage(BasePage):
         self._dns_info = {}
         self._is_loading = True
         self._ui_built = False
+        self._dns_choices_built = False
         self._selected_provider = None
         self._force_dns_active = False
         self._ipv6_available = False
@@ -219,7 +221,7 @@ class NetworkPage(BasePage):
 
     def on_page_activated(self) -> None:
         self._run_runtime_init_once()
-        if self._is_loading and not self._ui_built:
+        if self._is_loading and not self._dns_choices_built:
             try:
                 self.loading_bar.start()
             except Exception:
@@ -377,6 +379,7 @@ class NetworkPage(BasePage):
         self.add_widget(self.dns_cards_container)
         self.add_spacing(6)
         self.add_widget(self.custom_card)
+        self._build_dns_choices_ui()
 
         self.add_spacing(12)
 
@@ -396,10 +399,62 @@ class NetworkPage(BasePage):
         # Подключаем сигналы
         self.adapters_loaded.connect(self._on_adapters_loaded)
         self.dns_info_loaded.connect(self._on_dns_info_loaded)
+
+    def _build_dns_choices_ui(self):
+        """Строит выбор DNS сразу, без ожидания текущих DNS Windows."""
+        result = build_dns_choices_ui(
+            cleanup_in_progress=self._cleanup_in_progress,
+            dns_choices_built=self._dns_choices_built,
+            tr_fn=self._tr,
+            settings_card_cls=SettingsCard,
+            qhbox_layout_cls=QHBoxLayout,
+            qframe_cls=QFrame,
+            strong_body_label_cls=StrongBodyLabel,
+            caption_label_cls=CaptionLabel,
+            qlabel_cls=QLabel,
+            qta_module=qta,
+            get_theme_tokens_fn=get_theme_tokens,
+            build_auto_dns_ui_fn=build_auto_dns_ui,
+            build_provider_cards_fn=build_provider_cards,
+            providers=DNS_PROVIDERS,
+            dns_cards_layout=self.dns_cards_layout,
+            on_auto_selected=self._select_auto_dns,
+            on_provider_selected=self._on_dns_selected,
+            ipv6_available=True,
+            dns_cards_container=self.dns_cards_container,
+            custom_card=self.custom_card,
+            dns_provider_card_cls=DNSProviderCard,
+            apply_inline_theme_styles_fn=self._apply_inline_theme_styles,
+        )
+        if result is None:
+            return
+
+        self._dns_choices_built = True
+        auto_widgets = result["auto_widgets"]
+        self.auto_card = auto_widgets.card
+        self.auto_indicator = auto_widgets.indicator
+        self._auto_icon_label = auto_widgets.icon_label
+        self.auto_label = auto_widgets.title_label
+        provider_cards = result["provider_cards"]
+        self.dns_cards.update(provider_cards.dns_cards)
+        self._dns_category_labels.extend(provider_cards.category_labels)
+        self._update_dns_selection_state()
+        try:
+            self.loading_bar.stop()
+        except Exception:
+            pass
+        self.loading_card.hide()
     
     def _start_loading(self):
         """Запускает асинхронную загрузку данных"""
         if self._cleanup_in_progress:
+            return
+        try:
+            cached_state = self._dns_feature().consume_warmed_page_data()
+        except Exception:
+            cached_state = None
+        if cached_state is not None:
+            self._on_page_state_loaded(cached_state)
             return
         worker = start_background_loading(
             load_page_data_fn=self._dns_feature().load_page_data,
@@ -450,57 +505,28 @@ class NetworkPage(BasePage):
     
     def _build_dynamic_ui(self):
         """Строит UI после загрузки данных"""
-        result = build_dynamic_network_ui(
+        if not self._dns_choices_built:
+            self._build_dns_choices_ui()
+
+        adapter_cards = build_adapter_cards_ui(
             cleanup_in_progress=self._cleanup_in_progress,
-            ui_built=self._ui_built,
-            tr_fn=self._tr,
-            settings_card_cls=SettingsCard,
-            qhbox_layout_cls=QHBoxLayout,
-            qframe_cls=QFrame,
-            strong_body_label_cls=StrongBodyLabel,
-            caption_label_cls=CaptionLabel,
-            qlabel_cls=QLabel,
-            dns_provider_card_cls=DNSProviderCard,
-            adapter_card_cls=AdapterCard,
-            qta_module=qta,
-            get_theme_tokens_fn=get_theme_tokens,
-            build_auto_dns_ui_fn=build_auto_dns_ui,
-            build_provider_cards_fn=build_provider_cards,
-            build_adapter_cards_fn=build_adapter_cards,
-            providers=DNS_PROVIDERS,
+            adapter_cards_built=self._ui_built,
             adapters=self._adapters,
             dns_info=self._dns_info,
-            dns_cards_layout=self.dns_cards_layout,
+            build_adapter_cards_fn=build_adapter_cards,
+            adapter_card_cls=AdapterCard,
             adapters_layout=self.adapters_layout,
-            on_auto_selected=self._select_auto_dns,
-            on_provider_selected=self._on_dns_selected,
-            on_adapter_state_changed=self._request_dns_selection_sync,
+            on_state_changed=self._request_dns_selection_sync,
             normalize_alias_fn=self._dns.normalize_adapter_alias,
-            ipv6_available=self._ipv6_available,
-            dns_cards_container=self.dns_cards_container,
-            custom_card=self.custom_card,
             adapters_container=self.adapters_container,
-            check_and_show_isp_dns_warning_fn=self._check_and_show_isp_dns_warning,
-            apply_inline_theme_styles_fn=self._apply_inline_theme_styles,
         )
-        if result is None:
+        if adapter_cards is None:
             return
         self._ui_built = True
         self._is_loading = False
-        try:
-            self.loading_bar.stop()
-        except Exception:
-            pass
-        self.loading_card.hide()
-        auto_widgets = result["auto_widgets"]
-        self.auto_card = auto_widgets.card
-        self.auto_indicator = auto_widgets.indicator
-        self._auto_icon_label = auto_widgets.icon_label
-        self.auto_label = auto_widgets.title_label
-        provider_cards = result["provider_cards"]
-        self.dns_cards.update(provider_cards.dns_cards)
-        self._dns_category_labels.extend(provider_cards.category_labels)
-        self.adapter_cards = result["adapter_cards"]
+        self.adapter_cards = adapter_cards
+        self._check_and_show_isp_dns_warning()
+        self._apply_inline_theme_styles()
         self._request_dns_selection_sync()
     
     def _clear_selection(self):

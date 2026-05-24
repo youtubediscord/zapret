@@ -12,8 +12,11 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
---filter-udp=50000-50100
+
+--name=Discord UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -21,16 +24,22 @@
 --dpi-desync-repeats=6
 
 # === HTTP (порт 80) ===
+
 --new
+
 --filter-tcp=80
 --dpi-desync=fake,split2
 --dpi-desync-autottl=2
 --dpi-desync-fooling=md5sig
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=split
 --dpi-desync-split-pos=1
 --dpi-desync-autottl
@@ -38,7 +47,9 @@
 --dpi-desync-repeats=8
 
 # === Discord TCP ===
+
 --new
+
 --filter-tcp=6695-6705
 --dpi-desync=fake,split2
 --dpi-desync-repeats=8
@@ -47,21 +58,30 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === TCP порт 2099 ===
+
 --new
---filter-tcp=2099,5222,5223,8393-8400
+
+--name=Cloudflare TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=syndata
 
 # === UDP порт 2099 ===
+
 --new
---filter-udp=2099,5222,5223,8393-8400
+
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
 --dpi-desync-repeats=6
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === UDP порт 5056 ===
+
 --new
+
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -70,37 +90,39 @@
 --dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
 
 # === UDP порт 5000 ===
+
 --new
---filter-udp=5000-5500
+
+--name=League of Legends RU UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-lol-ru.txt
 --dpi-desync=fake
 --dpi-desync-repeats=6
 
 # === UDP порт 5056 ===
---new
---filter-udp=5056,27002
---dpi-desync-any-protocol
---dpi-desync=fake
---dpi-desync-repeats=6
---dpi-desync-cutoff=n15
---dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
 
-# === TCP порт 2099 ===
 --new
---filter-tcp=2099
+
+--name=League of Legends RU TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-ru.txt
 --dpi-desync=syndata
 
 # === TCP порт 5222 ===
+
 --new
---filter-tcp=5222,5223
+
+--name=League of Legends EUW TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-euw.txt
 --dpi-desync=syndata
 
 # === UDP порт 5000 ===
+
 --new
---filter-udp=5000-5500
+
+--name=League of Legends EUW UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-lol-euw.txt
 --dpi-desync=fake
 --dpi-desync-repeats=6
---new

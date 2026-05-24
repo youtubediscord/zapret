@@ -56,15 +56,6 @@ blobs = quic1
 --payload=all
 --lua-desync=fake:blob=quic1:repeats=4
 
-[ipset_fake_6_d3]
-name = ipset_fake_6_d3
-author = community
-label = game
-description = UDP 443+ с ipset-all, 6 повторов, cutoff d3
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=6
-
 [general_bf_32]
 name = General-BF 3.2
 author = community
@@ -140,14 +131,6 @@ description = Простая стратегия с 11 повторами fake
 name = Fake x15 TTL0 MD5sig
 author = community
 description = 15 повторов, TTL 0, md5sig+badsum
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all
-
-[fake_15_ttl0_badsum]
-name = Fake x15 TTL0 Badsum
-author = community
-description = 15 повторов, TTL 0, только badsum
 blobs = quic_google
 --payload=all
 --lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all
@@ -290,15 +273,6 @@ description = Fake с tamper и AutoTTL=2 для DHT
 --lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20
 --lua-desync=dht_dn:dn=2
 
-[fake_6_n15_unknown]
-name = Fake x6 N15 Unknown
-author = community
-label = game
-description = 6 повторов unknown UDP, cutoff n15
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=6
-
 [fake_11_quic_bin]
 name = fake 11 повторов (Google QUIC)
 author = hz
@@ -307,14 +281,6 @@ blobs = quic_google
 --payload=all
 --lua-desync=fake:blob=quic_google:repeats=11
 
-[fake_2_n2_quic]
-name = fake 2 повторов (Google QUIC) cutoff=n2
-author = hz
-description = 2 повтора с Google QUIC и cutoff после 2 пакетов
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=2
-
 [fake_repeat_2_quic]
 name = fake 2 повторов (fake_quic.bin)
 author = hz
@@ -322,15 +288,6 @@ description = 2 повтора с fake_quic.bin
 blobs = fake_quic
 --payload=all
 --lua-desync=fake:blob=fake_quic:repeats=2
-
-[fake_6_google_quic]
-name = general (alt v2) 1.6.1
-author = Flowseal
-label = recommended
-description = Стандартная стратегия для Discord Voice, Rockstar Launcher
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=6
 
 [fake_6_1]
 name = fake 6 quic 1
@@ -407,16 +364,6 @@ description = Потом опишу подробнее
 blobs = quic2
 --payload=all
 --lua-desync=fake:blob=quic2:repeats=8
---lua-desync=udplen:increment=10:pattern=0xDEADBEEF
-
-[fake_udplen_6_pattern]
-name = fake udplen 6 pattern
-author = hz
-label = recommended
-description = Потом опишу подробнее
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=6
 --lua-desync=udplen:increment=10:pattern=0xDEADBEEF
 
 [fake_udplen_11]
@@ -518,57 +465,3 @@ description = Автодобавлено для распознавания вс�
 # --- end builtin stock basic coverage ---
 
 # --- imported advanced additions ---
-[fake_tls_max_udp]
-name = Fake TLS Max (UDP)
-author = community
-blobs = tls_max
---lua-desync=fake:blob=tls_max
-
-[fake_quic_google_10_all]
-name = Fake QUIC Google x10 payload=all
-author = community
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=10
-
-[fake_quic_google_12_all]
-name = Fake QUIC Google x12 payload=all
-author = community
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=12
-
-[fake_quic_google_10_autottl_payload]
-name = Fake QUIC Google x10 AutoTTL payload=all in args
-author = community
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all
-
-[fake_quic_google_12_autottl_payload]
-name = Fake QUIC Google x12 AutoTTL payload=all in args
-author = community
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=12:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all
-
-[fake_quic_google_2_udp]
-name = Fake QUIC Google x2 UDP no payload
-author = community
-blobs = quic_google
---lua-desync=fake:blob=quic_google:repeats=2
-
-[fake_quic_google_2_all_payload]
-name = Fake QUIC Google x2 payload=all
-author = community
-blobs = quic_google
---payload=all
---lua-desync=fake:blob=quic_google:repeats=2
-
-[fake_quic2_udplen_deadbeef]
-name = Fake quic2 x7 + UDPLen deadbeef
-author = community
-blobs = quic2
---payload=all
---lua-desync=fake:blob=quic2:repeats=7
---lua-desync=udplen:increment=5:pattern=0xDEADBEEF

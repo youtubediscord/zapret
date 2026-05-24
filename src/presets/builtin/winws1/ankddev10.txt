@@ -6,7 +6,8 @@
 --wf-udp=443,50000-50099
 
 # === HTTPS Discord ===
---filter-tcp=443
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=syndata,disorder2
 --dpi-desync-split-pos=3
@@ -15,7 +16,9 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === QUIC Discord ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
@@ -24,8 +27,11 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
---filter-udp=50000-50099
+
+--name=Discord UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake,tamper
 --dpi-desync-any-protocol
@@ -33,9 +39,13 @@
 --dpi-desync-repeats=11
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=syndata,multidisorder
 --dpi-desync-split-pos=4
 --dpi-desync-repeats=10
@@ -43,11 +53,12 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_vk_com_kyber.bin
 
 # === QUIC YouTube ===
+
 --new
+
 --filter-udp=443
 --hostlist=lists/youtubeQ.txt
 --dpi-desync=fake,split2
 --dpi-desync-repeats=10
 --dpi-desync-udplen-increment=25
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
---new

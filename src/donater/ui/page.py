@@ -16,6 +16,7 @@ from donater.ui.build import (
 )
 from donater.ui.status_card import StatusCard
 from donater.ui.pairing_workflow import (
+    apply_device_info_snapshot_labels,
     apply_pair_code_error_ui,
     apply_pair_code_result_ui,
     apply_pair_code_start_ui,
@@ -23,7 +24,6 @@ from donater.ui.pairing_workflow import (
 )
 from donater.pairing_workflow import (
     can_poll_pairing_status,
-    has_pending_pair_code,
     poll_pairing_status,
     start_pairing_status_autopoll,
     stop_pairing_status_autopoll,
@@ -108,6 +108,10 @@ class PremiumPage(BasePage):
         self._runtime_initialized = False
         self._subscription_state_store = None
         self._ui_state_unsubscribe = None
+        self._pairing_autopoll_snapshot = {
+            "has_device_token": False,
+            "has_pending_pair_code": False,
+        }
 
         self._build_ui()
         self.bind_subscription_state_store(deps.subscription_state_store)
@@ -285,7 +289,7 @@ class PremiumPage(BasePage):
             runtime_initialized=self._runtime_initialized,
             build_page_init_plan_fn=premium_page_plans.build_page_init_plan,
             set_runtime_initialized_fn=lambda value: setattr(self, "_runtime_initialized", value),
-            init_checker_fn=self._init_checker,
+            start_init_worker_fn=self._start_premium_init_worker,
             set_server_status_mode_fn=lambda value: setattr(self, "_server_status_mode", value),
             set_server_status_message_fn=lambda value: setattr(self, "_server_status_message", value),
             set_server_status_success_fn=lambda value: setattr(self, "_server_status_success", value),
@@ -334,6 +338,48 @@ class PremiumPage(BasePage):
             from log.log import log
 
             log(f"Ошибка инициализации PremiumPage checker: {e}", "ERROR")
+
+    def _read_initial_device_info_snapshot(self):
+        return self._premium.read_device_info_snapshot(current_time=int(time.time()))
+
+    def _set_pairing_autopoll_snapshot_from_device_info(self, snapshot) -> None:
+        self._pairing_autopoll_snapshot = {
+            "has_device_token": bool((snapshot or {}).get("device_token")),
+            "has_pending_pair_code": bool((snapshot or {}).get("pair_code")),
+        }
+
+    def _start_premium_init_worker(self) -> None:
+        if is_premium_task_running(self.current_thread):
+            return
+        warmed = self._premium.consume_warmed_page_data()
+        if warmed is not None and warmed.device_info:
+            self._on_premium_init_complete(warmed.device_info)
+            return
+        self._start_worker_thread(
+            self._read_initial_device_info_snapshot,
+            self._on_premium_init_complete,
+            self._on_premium_init_error,
+        )
+
+    def _on_premium_init_complete(self, snapshot) -> None:
+        if self._cleanup_in_progress or not snapshot:
+            return
+        self._set_pairing_autopoll_snapshot_from_device_info(snapshot)
+        apply_device_info_snapshot_labels(
+            snapshot=snapshot,
+            tr=self._tr,
+            device_id_label=self.device_id_label,
+            saved_key_label=self.saved_key_label,
+            last_check_label=self.last_check_label,
+        )
+        self._sync_pairing_status_autopoll()
+
+    def _on_premium_init_error(self, error) -> None:
+        if self._cleanup_in_progress:
+            return
+        from log.log import log
+
+        log(f"Ошибка фоновой инициализации PremiumPage checker: {error}", "ERROR")
 
     # ── UI construction ──────────────────────────────────────────────────────
 
@@ -421,7 +467,6 @@ class PremiumPage(BasePage):
             change_key_btn=self.change_key_btn,
             extend_btn=self.extend_btn,
             test_btn=self.test_btn,
-            update_device_info_fn=self._update_device_info,
             render_server_status_fn=self._render_server_status,
             render_days_label_fn=self._render_days_label,
             render_status_badge_fn=self._render_status_badge,
@@ -434,12 +479,6 @@ class PremiumPage(BasePage):
         if hasattr(self, "key_input_container"):
             self.key_input_container.setVisible(visible)
 
-    def _has_pending_pair_code(self) -> bool:
-        return has_pending_pair_code(
-            self._premium,
-            current_time=int(time.time()),
-        )
-
     def _can_poll_pairing_status(self) -> bool:
         return can_poll_pairing_status(
             premium_feature=self._premium,
@@ -448,6 +487,7 @@ class PremiumPage(BasePage):
             connection_test_in_progress=self._connection_test_in_progress,
             worker_running=is_premium_task_running(self.current_thread),
             current_time=int(time.time()),
+            pairing_snapshot=self._pairing_autopoll_snapshot,
         )
 
     def _start_pairing_status_autopoll(self) -> None:
@@ -459,6 +499,7 @@ class PremiumPage(BasePage):
             connection_test_in_progress=self._connection_test_in_progress,
             worker_running=is_premium_task_running(self.current_thread),
             current_time=int(time.time()),
+            pairing_snapshot=self._pairing_autopoll_snapshot,
         )
 
     def _stop_pairing_status_autopoll(self) -> None:
@@ -473,6 +514,7 @@ class PremiumPage(BasePage):
             connection_test_in_progress=self._connection_test_in_progress,
             worker_running=is_premium_task_running(self.current_thread),
             current_time=int(time.time()),
+            pairing_snapshot=self._pairing_autopoll_snapshot,
         )
 
     def _poll_pairing_status(self) -> None:
@@ -489,7 +531,7 @@ class PremiumPage(BasePage):
 
             log(f"Ошибка обновления информации об устройстве: {exc}", "DEBUG")
 
-        update_device_info_labels(
+        snapshot = update_device_info_labels(
             premium_feature=self._premium,
             tr=self._tr,
             device_id_label=self.device_id_label,
@@ -498,6 +540,8 @@ class PremiumPage(BasePage):
             on_error=_on_error,
             current_time=int(time.time()),
         )
+        if snapshot:
+            self._set_pairing_autopoll_snapshot_from_device_info(snapshot)
 
     def _open_extend_bot(self) -> None:
         result = self._premium.open_extend_bot()

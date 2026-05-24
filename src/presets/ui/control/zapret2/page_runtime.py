@@ -3,6 +3,11 @@ from __future__ import annotations
 from settings.mode import EXE_NAME_WINWS1, ZAPRET2_MODE
 from presets.ui.control import control_runtime
 from presets.ui.control.control_runtime import ControlStatusPlan, ControlStopButtonPlan
+from presets.ui.control.additional_settings_runtime import (
+    build_additional_settings_state,
+    create_refresh_runtime,
+    save_discord_restart_setting,
+)
 from profile.ui_mode import (
     PROFILE_UI_MODE_DEFAULT,
     load_current_profile_ui_mode,
@@ -10,13 +15,6 @@ from profile.ui_mode import (
     save_current_profile_ui_mode,
 )
 from app.text_catalog import tr as tr_catalog
-
-
-class ProfileAdvancedSettingsApplyPlan:
-    def __init__(self, *, discord_restart: bool, wssize_enabled: bool, debug_log_enabled: bool):
-        self.discord_restart = bool(discord_restart)
-        self.wssize_enabled = bool(wssize_enabled)
-        self.debug_log_enabled = bool(debug_log_enabled)
 
 
 class ProfileUiModeLabelPlan:
@@ -31,57 +29,6 @@ class ProfileUiModeChangePlan:
         self.refresh_strategy_after = bool(refresh_strategy_after)
         self.refresh_mode_label_after = bool(refresh_mode_label_after)
 
-
-class ModeControlRefreshRuntime:
-    def __init__(self) -> None:
-        self.advanced_settings_worker = None
-        self.advanced_settings_request_id = 0
-        self.advanced_settings_dirty = True
-
-    def has_pending_refresh(self) -> bool:
-        return bool(self.advanced_settings_dirty)
-
-    def mark_presets_dirty(self) -> None:
-        self.advanced_settings_dirty = True
-
-    def mark_advanced_settings_applied(self) -> None:
-        self.advanced_settings_dirty = False
-        self.advanced_settings_worker = None
-
-    def mark_advanced_settings_written(self) -> None:
-        self.advanced_settings_request_id += 1
-        self.advanced_settings_dirty = False
-        self.advanced_settings_worker = None
-
-    def next_advanced_settings_request_id(self) -> int:
-        self.advanced_settings_request_id += 1
-        return self.advanced_settings_request_id
-
-    def accept_advanced_settings_result(self, request_id: int) -> bool:
-        if int(request_id) != int(self.advanced_settings_request_id):
-            return False
-        self.mark_advanced_settings_applied()
-        return True
-
-def create_refresh_runtime() -> ModeControlRefreshRuntime:
-    return ModeControlRefreshRuntime()
-
-def load_advanced_settings_state(*, profile_feature) -> dict:
-    try:
-        return profile_feature.get_advanced_settings_state(ZAPRET2_MODE) or {}
-    except Exception:
-        return {}
-
-def create_advanced_settings_worker(request_id: int, profile_feature, parent=None):
-    return profile_feature.create_advanced_settings_load_worker(request_id, parent)
-
-def build_advanced_settings_apply_plan(state: dict | None) -> ProfileAdvancedSettingsApplyPlan:
-    state = state if isinstance(state, dict) else {}
-    return ProfileAdvancedSettingsApplyPlan(
-        discord_restart=bool(state.get("discord_restart", True)),
-        wssize_enabled=bool(state.get("wssize_enabled", False)),
-        debug_log_enabled=bool(state.get("debug_log_enabled", False)),
-    )
 
 def get_profile_ui_mode_setting() -> str:
     _ = load_current_profile_ui_mode
@@ -108,14 +55,6 @@ def apply_profile_ui_mode_change(*, wanted_mode: str, reload_host) -> None:
     _ = (wanted_mode, reload_host)
 
     save_current_profile_ui_mode(PROFILE_UI_MODE_DEFAULT)
-
-def save_discord_restart_setting(enabled: bool) -> None:
-    try:
-        from discord.discord_restart import set_discord_restart_setting
-
-        set_discord_restart_setting(bool(enabled))
-    except Exception:
-        pass
 
 def save_wssize_enabled(enabled: bool, *, profile_feature, runtime_feature) -> None:
     try:

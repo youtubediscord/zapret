@@ -79,16 +79,18 @@
 --wf-raw-part=@windivert.filter/windivert_part.stun.txt
 --wf-raw-part=@windivert.filter/windivert_part.wireguard.txt
 
---filter-udp=80,443-65535
---ipset-exclude=lists/ipset-exclude.txt
+--name=Исключения
+--filter-tcp=80,443-65535
 --ipset-exclude=lists/ipset-ru.txt
 --ipset-exclude=lists/ipset-dns.txt
---out-range=-n8
---payload=quic_initial
---lua-desync=fake:blob=quic_google:repeats=6
+--ipset-exclude=lists/ipset-exclude.txt
+--out-range=-d8
+--payload=tls_client_hello
+--lua-desync=fake:blob=tls_4pda:repeats=6:tcp_ts=-600000
 
 --new
 
+--name=Голосовые звонки/чаты
 --filter-l7=stun,discord
 --payload=stun,discord_ip_discovery
 --out-range=-n8
@@ -96,6 +98,7 @@
 
 --new
 
+--name=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --out-range=-d10
 --hostlist-domains=discord.media
@@ -103,6 +106,7 @@
 
 --new
 
+--name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --out-range=-d8
@@ -110,6 +114,7 @@
 
 --new
 
+--name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --out-range=-d8
@@ -117,6 +122,7 @@
 
 --new
 
+--name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --out-range=-d10
@@ -124,94 +130,7 @@
 
 --new
 
---filter-tcp=80,443
---hostlist=lists/other.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/soundcloud.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/rutracker.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/rutor.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443-65535
---hostlist=lists/roblox.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/itch.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/facebook.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/instagram.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/twitter.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443
---hostlist=lists/whatsapp.txt
---out-range=-d10
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
-
---new
-
---filter-tcp=80,443-65535
---ipset-exclude=lists/ipset-exclude.txt
---ipset-exclude=lists/ipset-ru.txt
---ipset-exclude=lists/ipset-dns.txt
---out-range=-d8
---payload=tls_client_hello
---lua-desync=fake:blob=tls_4pda:repeats=6:tcp_ts=-600000
-
---new
-
---filter-udp=443-65535
---ipset=lists/ipset-all.txt
---out-range=-n8
---payload=quic_initial
---lua-desync=fake:blob=quic_google:repeats=6
-
---new
-
+--name=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --out-range=-d10
@@ -220,6 +139,79 @@
 
 --new
 
+--name=SoundCloud
+--filter-tcp=80,443
+--hostlist=lists/soundcloud.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=rutracker.org
+--filter-tcp=80,443
+--hostlist=lists/rutracker.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=rutor.info (.is)
+--filter-tcp=80,443
+--hostlist=lists/rutor.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=Roblox TCP
+--filter-tcp=80,443-65535
+--hostlist=lists/roblox.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=itch.io
+--filter-tcp=80,443
+--hostlist=lists/itch.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=Facebook
+--filter-tcp=80,443
+--hostlist=lists/facebook.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=Instagram
+--filter-tcp=80,443
+--hostlist=lists/instagram.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=Twitter/X
+--filter-tcp=80,443
+--hostlist=lists/twitter.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=WhatsApp
+--filter-tcp=80,443
+--hostlist=lists/whatsapp.txt
+--out-range=-d10
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
+
+--new
+
+--name=discord.com
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-d10
@@ -228,6 +220,7 @@
 
 --new
 
+--name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-d10
@@ -236,6 +229,7 @@
 
 --new
 
+--name=Cloudflare legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --out-range=-d10
@@ -244,6 +238,7 @@
 
 --new
 
+--name=Cloudflare IPv6 legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --out-range=-d10
@@ -252,6 +247,7 @@
 
 --new
 
+--name=Cloudflare alt TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare1.txt
 --out-range=-d10
@@ -260,6 +256,7 @@
 
 --new
 
+--name=Amazon TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-amazon.txt
 --out-range=-d10
@@ -268,14 +265,7 @@
 
 --new
 
---filter-tcp=80,443-65535
---ipset=lists/ipset-roblox.txt
---out-range=-d10
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,sni=www.google.com:repeats=3:tcp_ts=-600000
---lua-desync=fake:blob=tls_4pda:repeats=3:tcp_ts=-600000
-
---new
-
+--name=League of Legends RU TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-ru.txt
 --out-range=-d10
@@ -284,6 +274,7 @@
 
 --new
 
+--name=League of Legends EUW TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-euw.txt
 --out-range=-d10
@@ -292,6 +283,7 @@
 
 --new
 
+--name=OVH TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-ovh.txt
 --out-range=-d10
@@ -300,6 +292,7 @@
 
 --new
 
+--name=WhatsApp
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-whatsapp.txt
 --out-range=-d10
@@ -308,6 +301,7 @@
 
 --new
 
+--name=WARP TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-warp.txt
 --out-range=-d10
@@ -316,6 +310,7 @@
 
 --new
 
+--name=ZapretKVN TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-zapretkvn.txt
 --out-range=-d10
@@ -324,6 +319,7 @@
 
 --new
 
+--name=Timeweb TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-timeweb.txt
 --out-range=-d10
@@ -332,14 +328,7 @@
 
 --new
 
---filter-udp=443-65535
---ipset=lists/ipset-all.txt
---out-range=-n2
---payload=all
---lua-desync=fake:blob=quic_google:repeats=12
-
---new
-
+--name=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-n2
@@ -348,6 +337,7 @@
 
 --new
 
+--name=Cloudflare UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-n2
@@ -356,6 +346,7 @@
 
 --new
 
+--name=Cloudflare legacy UDP
 --filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
 --out-range=-n2
@@ -364,6 +355,7 @@
 
 --new
 
+--name=Cloudflare IPv6 legacy UDP
 --filter-udp=443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --out-range=-n2
@@ -372,6 +364,7 @@
 
 --new
 
+--name=Cloudflare alt UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare1.txt
 --out-range=-n2
@@ -380,6 +373,7 @@
 
 --new
 
+--name=Amazon UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-amazon.txt
 --out-range=-n2
@@ -388,6 +382,7 @@
 
 --new
 
+--name=Roblox UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-roblox.txt
 --out-range=-n2
@@ -396,6 +391,7 @@
 
 --new
 
+--name=League of Legends RU UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-lol-ru.txt
 --out-range=-n2
@@ -404,6 +400,7 @@
 
 --new
 
+--name=League of Legends EUW UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-lol-euw.txt
 --out-range=-n2
@@ -412,6 +409,7 @@
 
 --new
 
+--name=OVH UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-ovh.txt
 --out-range=-n2
@@ -420,6 +418,7 @@
 
 --new
 
+--name=WhatsApp UDP wide
 --filter-udp=443-65535
 --ipset=lists/ipset-whatsapp.txt
 --out-range=-n2
@@ -428,6 +427,7 @@
 
 --new
 
+--name=WARP UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-warp.txt
 --out-range=-n2
@@ -436,6 +436,7 @@
 
 --new
 
+--name=ZapretKVN UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-zapretkvn.txt
 --out-range=-n2
@@ -444,6 +445,7 @@
 
 --new
 
+--name=Timeweb UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-timeweb.txt
 --out-range=-n2

@@ -86,6 +86,11 @@ class TelegramProxyFeature:
 
         return TelegramHostsEnsureWorker(ensure_hosts_fn=self.ensure_telegram_hosts, parent=parent)
 
+    def load_page_initial_state(self):
+        from telegram_proxy.settings import load_page_initial_state
+
+        return load_page_initial_state()
+
     def toggle_async(self) -> None:
         try:
             manager = self.get_proxy_manager()
@@ -113,20 +118,27 @@ class TelegramProxyFeature:
 
 
 def build_telegram_proxy_feature() -> TelegramProxyFeature:
-    from telegram_proxy import commands as telegram_proxy_commands
-    from telegram_proxy import public as telegram_proxy_public
+    def _commands():
+        from telegram_proxy import commands as telegram_proxy_commands
+
+        return telegram_proxy_commands
+
+    def _public():
+        from telegram_proxy import public as telegram_proxy_public
+
+        return telegram_proxy_public
 
     return TelegramProxyFeature(
-        start_proxy_if_enabled_async=telegram_proxy_public.start_proxy_if_enabled_async,
-        get_proxy_manager=telegram_proxy_commands.get_proxy_manager,
-        get_start_config=telegram_proxy_commands.get_start_config,
-        set_enabled=telegram_proxy_public.set_enabled,
-        build_diagnostics_start_plan=telegram_proxy_public.build_diagnostics_start_plan,
-        build_diagnostics_poll_plan=telegram_proxy_public.build_diagnostics_poll_plan,
-        build_diagnostics_finish_plan=telegram_proxy_public.build_diagnostics_finish_plan,
-        copy_text=telegram_proxy_public.copy_text,
-        open_log_file=telegram_proxy_public.open_log_file,
-        open_external_link=telegram_proxy_public.open_external_link,
-        ensure_telegram_hosts=telegram_proxy_public.ensure_telegram_hosts,
-        run_diagnostics=telegram_proxy_public.run_diagnostics,
+        start_proxy_if_enabled_async=lambda *args, **kwargs: _public().start_proxy_if_enabled_async(*args, **kwargs),
+        get_proxy_manager=lambda *args, **kwargs: _commands().get_proxy_manager(*args, **kwargs),
+        get_start_config=lambda *args, **kwargs: _commands().get_start_config(*args, **kwargs),
+        set_enabled=lambda *args, **kwargs: _public().set_enabled(*args, **kwargs),
+        build_diagnostics_start_plan=lambda *args, **kwargs: _public().build_diagnostics_start_plan(*args, **kwargs),
+        build_diagnostics_poll_plan=lambda *args, **kwargs: _public().build_diagnostics_poll_plan(*args, **kwargs),
+        build_diagnostics_finish_plan=lambda *args, **kwargs: _public().build_diagnostics_finish_plan(*args, **kwargs),
+        copy_text=lambda *args, **kwargs: _public().copy_text(*args, **kwargs),
+        open_log_file=lambda *args, **kwargs: _public().open_log_file(*args, **kwargs),
+        open_external_link=lambda *args, **kwargs: _public().open_external_link(*args, **kwargs),
+        ensure_telegram_hosts=lambda *args, **kwargs: _public().ensure_telegram_hosts(*args, **kwargs),
+        run_diagnostics=lambda *args, **kwargs: _public().run_diagnostics(*args, **kwargs),
     )

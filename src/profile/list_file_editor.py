@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import ipaddress
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 import re
+
+from lists.core.layered_files import (
+    profile_list_file_available,
+    read_profile_user_list_text,
+    safe_list_file_name,
+    write_profile_user_list_text,
+)
 
 from .models import Profile
 
@@ -24,6 +31,13 @@ _FILE_MATCH_NAMES = {
     "--ipset-exclude": "ipset",
 }
 
+_SERVICE_LIST_FILES = {
+    "ipset-ru.txt",
+    "ipset-dns.txt",
+    "ipset-exclude.txt",
+    "netrogat.txt",
+}
+
 
 def profile_list_file_reference(profile: Profile, lists_root: Path) -> ProfileListFileReference:
     for wanted_names in (("--hostlist", "--ipset"), ("--hostlist-exclude", "--ipset-exclude")):
@@ -41,17 +55,25 @@ def profile_list_file_reference(profile: Profile, lists_root: Path) -> ProfileLi
                     editable=False,
                     error_text="В profile указано несколько файлов списка. Разделите profile на отдельные строки.",
                 )
-            file_name = _safe_list_file_name(value)
+            file_name = safe_list_file_name(value)
             if not file_name:
                 return ProfileListFileReference(
                     kind=kind,
                     editable=False,
                     error_text="Не удалось определить имя файла списка.",
                 )
+            if file_name.lower() in _SERVICE_LIST_FILES:
+                return ProfileListFileReference(
+                    kind=kind,
+                    file_name=file_name,
+                    display_path=f"lists/{file_name}",
+                    editable=False,
+                    error_text="Это служебный список. Он используется profile-ом, но не редактируется из GUI.",
+                )
             return ProfileListFileReference(
                 kind=kind,
                 file_name=file_name,
-                display_path=f"lists/{file_name}",
+                display_path=f"lists/user/{file_name}",
                 editable=True,
             )
     return ProfileListFileReference(
@@ -63,10 +85,7 @@ def profile_list_file_reference(profile: Profile, lists_root: Path) -> ProfileLi
 def read_profile_list_file_text(lists_root: Path, reference: ProfileListFileReference) -> str:
     if not reference.editable or not reference.file_name:
         return ""
-    path = _list_file_path(lists_root, reference.file_name)
-    if not path.exists():
-        return ""
-    return path.read_text(encoding="utf-8", errors="replace")
+    return read_profile_user_list_text(lists_root, reference.file_name)
 
 
 def write_profile_list_file_text(lists_root: Path, reference: ProfileListFileReference, text: str) -> None:
@@ -76,12 +95,7 @@ def write_profile_list_file_text(lists_root: Path, reference: ProfileListFileRef
     if invalid_lines:
         line, value = invalid_lines[0]
         raise ValueError(f"Строка {line}: неверная запись `{value}`.")
-    path = _list_file_path(lists_root, reference.file_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
-    if normalized and not normalized.endswith("\n"):
-        normalized += "\n"
-    path.write_text(normalized, encoding="utf-8", newline="\n")
+    write_profile_user_list_text(lists_root, reference.file_name, text)
 
 
 def validate_profile_list_file_text(kind: str, text: str) -> tuple[tuple[int, str], ...]:
@@ -100,15 +114,11 @@ def validate_profile_list_file_text(kind: str, text: str) -> tuple[tuple[int, st
     return tuple(invalid)
 
 
-def _list_file_path(lists_root: Path, file_name: str) -> Path:
-    return Path(lists_root) / _safe_list_file_name(file_name)
-
-
-def _safe_list_file_name(value: str) -> str:
-    name = PureWindowsPath(str(value or "").replace("\\", "/")).name.strip()
-    if not name or name in {".", ".."}:
-        return ""
-    return name
+def profile_list_file_exists(lists_root: Path, value: str) -> bool:
+    file_name = safe_list_file_name(value)
+    if not file_name:
+        return False
+    return profile_list_file_available(lists_root, file_name)
 
 
 def _valid_ipset_line(line: str) -> bool:

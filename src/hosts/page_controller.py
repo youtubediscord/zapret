@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hosts.page_plans as hosts_page_plans
+
 
 class HostsPageController:
     """Единая точка доступа страницы Hosts к hosts feature."""
@@ -26,6 +28,29 @@ class HostsPageController:
 
     def read_active_domains_map(self, hosts_runtime) -> dict[str, str]:
         return self._hosts.read_active_domains_map(hosts_runtime)
+
+    def build_services_catalog_plan(
+        self,
+        *,
+        hosts_runtime,
+        current_selection: dict[str, str],
+        direct_title: str,
+        ai_title: str,
+        other_title: str,
+    ):
+        active_domains_map = self.read_active_domains_map(hosts_runtime)
+        return hosts_page_plans.build_services_catalog_plan(
+            current_selection=current_selection,
+            active_domains_map=active_domains_map,
+            direct_title=direct_title,
+            ai_title=ai_title,
+            other_title=other_title,
+        )
+
+    def create_services_catalog_worker(self, **kwargs):
+        from hosts.services_catalog_worker import HostsServicesCatalogWorker
+
+        return HostsServicesCatalogWorker(controller=self, **kwargs)
 
     def get_catalog_signature(self):
         return self._hosts.get_catalog_signature()

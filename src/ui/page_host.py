@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from PyQt6.QtWidgets import QWidget
 
 from log.log import log
@@ -31,6 +33,14 @@ class WindowPageHost:
         self._window = window
         self._page_factory = page_factory
         self.pages: dict[PageName, QWidget] = {}
+        self._shown_pages: set[PageName] = set()
+
+    @staticmethod
+    def _log_step_timing(page_name: PageName, stage: str, started_at: float, *, threshold_ms: int = 15) -> None:
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
+        if elapsed_ms < int(threshold_ms):
+            return
+        log_page_metric(page_name, stage, elapsed_ms)
 
     def create_eager_pages(self, page_names: tuple[PageName, ...]) -> None:
         import time as _time
@@ -90,16 +100,13 @@ class WindowPageHost:
             except Exception:
                 pass
 
-        view = getattr(stack, "view", None)
-        set_animation_enabled = getattr(view, "setAnimationEnabled", None)
-        previous_animation_enabled = getattr(view, "isAnimationEnabled", None)
+        previous_animation_enabled = getattr(stack, "isAnimationEnabled", None)
         animation_flag_known = isinstance(previous_animation_enabled, bool)
-
-        if callable(set_animation_enabled):
+        if animation_flag_known:
             try:
-                set_animation_enabled(False)
+                stack.isAnimationEnabled = False
             except Exception:
-                pass
+                animation_flag_known = False
 
         try:
             try:
@@ -110,9 +117,9 @@ class WindowPageHost:
         except Exception:
             return False
         finally:
-            if callable(set_animation_enabled) and animation_flag_known:
+            if animation_flag_known:
                 try:
-                    set_animation_enabled(bool(previous_animation_enabled))
+                    stack.isAnimationEnabled = bool(previous_animation_enabled)
                 except Exception:
                     pass
 
@@ -155,24 +162,34 @@ class WindowPageHost:
 
         page = self.pages.get(page_name)
         if page is not None:
+            step_started_at = time.perf_counter()
             apply_ui_language_to_page(self._window, page)
+            self._log_step_timing(page_name, "ensure.cached.language", step_started_at)
             session = get_window_ui_session(self._window)
             if session is not None and bool(session.page_stack_bootstrap_complete):
+                step_started_at = time.perf_counter()
                 self.ensure_page_in_stacked_widget(page)
+                self._log_step_timing(page_name, "ensure.cached.stack", step_started_at)
             return page
 
+        step_started_at = time.perf_counter()
         created_page = self._page_factory.create_page(page_name)
+        self._log_step_timing(page_name, "ensure.create", step_started_at)
         if created_page is None:
             return None
 
         page = created_page.page
         self.pages[page_name] = page
 
+        step_started_at = time.perf_counter()
         apply_ui_language_to_page(self._window, page)
+        self._log_step_timing(page_name, "ensure.created.language", step_started_at)
 
         session = get_window_ui_session(self._window)
         if session is not None and bool(session.page_stack_bootstrap_complete):
+            step_started_at = time.perf_counter()
             self.ensure_page_in_stacked_widget(page)
+            self._log_step_timing(page_name, "ensure.created.stack", step_started_at)
 
         record_startup_page_init_metric(self._window, page_name, created_page.elapsed_ms)
         log_page_metric(
@@ -184,6 +201,10 @@ class WindowPageHost:
         return page
 
     def show_page(self, page_name: PageName, *, allow_internal: bool = False) -> bool:
+        import time as _time
+
+        started_at = _time.perf_counter()
+        first_show = page_name not in self._shown_pages
         if not self._is_page_allowed(page_name):
             log(f"[PAGE_HOST] reject show_page for disallowed page {page_name.name}", "WARNING")
             return False
@@ -192,22 +213,41 @@ class WindowPageHost:
             log(f"[PAGE_HOST] reject direct-open for inner page {page_name.name}", "WARNING")
             return False
 
+        step_started_at = _time.perf_counter()
         page = self.ensure_page(page_name)
+        self._log_step_timing(page_name, "show.ensure_page", step_started_at)
         if page is None:
             return False
 
+        step_started_at = _time.perf_counter()
         self.ensure_page_in_stacked_widget(page)
+        self._log_step_timing(page_name, "show.stack", step_started_at)
         use_nav_route = self.has_nav_item(page_name)
-        switched = self.set_stacked_widget_current_page(page, animate=use_nav_route)
+        step_started_at = _time.perf_counter()
+        switched = self.set_stacked_widget_current_page(page, animate=False)
+        self._log_step_timing(page_name, "show.switch", step_started_at)
         if not switched:
             return False
 
+        step_started_at = _time.perf_counter()
         try:
             route_key = get_page_route_key(page_name)
             if route_key and use_nav_route:
                 self._window.navigationInterface.setCurrentItem(route_key)
         except Exception:
             pass
+        self._log_step_timing(page_name, "show.navigation", step_started_at)
+        self._shown_pages.add(page_name)
+        log_page_metric(
+            page_name,
+            "show.first" if first_show else "show.repeat",
+            (_time.perf_counter() - started_at) * 1000,
+            budget_ms=(
+                get_page_performance_profile(page_name).first_show_budget_ms
+                if first_show
+                else get_page_performance_profile(page_name).repeat_show_budget_ms
+            ),
+        )
         return True
 
 

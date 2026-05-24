@@ -96,14 +96,6 @@ def build_target_detail_text(tests: list) -> str:
     return " | ".join(parts)
 
 
-def load_domain_chips(*, load_domains_fn, add_chip_fn) -> None:
-    try:
-        for domain in load_domains_fn():
-            add_chip_fn(domain)
-    except Exception:
-        pass
-
-
 def add_domain_chip(*, domain: str, flow_widget, flow_layout, chip_cls, on_removed) -> None:
     chip = chip_cls(domain, parent=flow_widget)
     chip.removed.connect(on_removed)

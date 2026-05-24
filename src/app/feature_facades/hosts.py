@@ -20,18 +20,21 @@ class HostsFeature:
 
 
 def build_hosts_feature() -> HostsFeature:
-    from hosts import public as hosts_public
+    def _public():
+        from hosts import public as hosts_public
+
+        return hosts_public
 
     return HostsFeature(
-        load_user_selection=hosts_public.load_user_selection,
-        create_hosts_runtime=hosts_public.create_hosts_runtime,
-        get_hosts_state=hosts_public.get_hosts_state,
-        get_hosts_path_str=hosts_public.get_hosts_path_str,
-        read_active_domains_map=hosts_public.read_active_domains_map,
-        save_user_selection=hosts_public.save_user_selection,
-        get_catalog_signature=hosts_public.get_catalog_signature,
-        invalidate_catalog_cache=hosts_public.invalidate_catalog_cache,
-        restore_hosts_permissions=hosts_public.restore_hosts_permissions,
-        open_hosts_file=hosts_public.open_hosts_file,
-        execute_hosts_operation=hosts_public.execute_hosts_operation,
+        load_user_selection=lambda *args, **kwargs: _public().load_user_selection(*args, **kwargs),
+        create_hosts_runtime=lambda *args, **kwargs: _public().create_hosts_runtime(*args, **kwargs),
+        get_hosts_state=lambda *args, **kwargs: _public().get_hosts_state(*args, **kwargs),
+        get_hosts_path_str=lambda *args, **kwargs: _public().get_hosts_path_str(*args, **kwargs),
+        read_active_domains_map=lambda *args, **kwargs: _public().read_active_domains_map(*args, **kwargs),
+        save_user_selection=lambda *args, **kwargs: _public().save_user_selection(*args, **kwargs),
+        get_catalog_signature=lambda *args, **kwargs: _public().get_catalog_signature(*args, **kwargs),
+        invalidate_catalog_cache=lambda *args, **kwargs: _public().invalidate_catalog_cache(*args, **kwargs),
+        restore_hosts_permissions=lambda *args, **kwargs: _public().restore_hosts_permissions(*args, **kwargs),
+        open_hosts_file=lambda *args, **kwargs: _public().open_hosts_file(*args, **kwargs),
+        execute_hosts_operation=lambda *args, **kwargs: _public().execute_hosts_operation(*args, **kwargs),
     )

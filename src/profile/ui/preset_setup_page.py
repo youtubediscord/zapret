@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import time
 
-from PyQt6.QtWidgets import QSizePolicy
-
 from log.log import log
 from profile.folders import set_profile_folder_collapsed
 from profile.match_filters import filter_values
@@ -12,7 +10,7 @@ from profile.ui.profile_folder_menu import show_profile_folder_menu
 from profile.ui.profiles_list import ProfilesList
 from profile.ui.shell import build_profile_shell
 from profile.ui.user_profile_dialog import CreateUserProfileDialog
-from qfluentwidgets import BodyLabel, FluentIcon, InfoBar, MessageBox, PrimaryPushButton
+from qfluentwidgets import BodyLabel, InfoBar, MessageBox
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from ui.pages.base_page import BasePage
 from app.text_catalog import tr as tr_catalog
@@ -39,7 +37,7 @@ class PresetSetupPageBase(BasePage):
     request_hint_key = "page.winws2_pages.request.hint"
     loading_key = "page.winws2_pages.loading"
 
-    def __init__(self, parent=None, *, profile_feature, open_profile_setup):
+    def __init__(self, parent=None, *, profile_feature, open_profile_setup, ui_state_store=None):
         super().__init__(
             title=self.page_title,
             parent=parent,
@@ -57,13 +55,18 @@ class PresetSetupPageBase(BasePage):
         self._request_btn = None
         self._info_btn = None
         self._add_profile_btn = None
+        self._profile_search_input = None
+        self._profile_search_query = ""
         self._toolbar_actions_bar = None
         self._profile_load_request_id = 0
         self._profile_load_worker = None
         self._profile_payload_loaded_once = False
         self._profile_payload_dirty = True
         self._cleanup_in_progress = False
+        self._ui_state_store = None
+        self._ui_state_unsubscribe = None
         self._build_content()
+        self.bind_ui_state_store(ui_state_store)
 
     def on_page_activated(self) -> None:
         self._request_profiles_payload()
@@ -80,20 +83,65 @@ class PresetSetupPageBase(BasePage):
             request_hint_key=self.request_hint_key,
             loading_key=self.loading_key,
             on_open_profile_request_form=self._show_profile_info,
+            on_add_user_profile=self._on_add_user_profile_clicked,
             on_expand_all=self._expand_all,
             on_collapse_all=self._collapse_all,
             on_show_info_popup=self._show_profile_info,
+            on_profile_search_text_changed=self._on_profile_search_text_changed,
         )
         self._toolbar_actions_bar = shell.toolbar_actions_bar
+        self._add_profile_btn = shell.add_profile_btn
         self._request_btn = shell.request_btn
         self._expand_btn = shell.expand_btn
         self._collapse_btn = shell.collapse_btn
         self._info_btn = shell.info_btn
+        self._profile_search_input = shell.profile_search_input
         self._content_host_layout = shell.content_host_layout
         self._loading_label = shell.loading_label
 
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._refresh_toolbar_layout()
+
+    def _refresh_toolbar_layout(self) -> None:
+        toolbar = self._toolbar_actions_bar
+        if toolbar is None:
+            return
+        try:
+            toolbar.refresh_for_viewport(self.viewport().width(), self.layout.contentsMargins())
+        except Exception:
+            pass
+
     def refresh_from_preset_switch(self) -> None:
         self._request_profiles_payload(force=True)
+
+    def bind_ui_state_store(self, store) -> None:
+        if self._ui_state_store is store:
+            return
+        unsubscribe = self._ui_state_unsubscribe
+        if callable(unsubscribe):
+            try:
+                unsubscribe()
+            except Exception:
+                pass
+        self._ui_state_store = store
+        self._ui_state_unsubscribe = None
+        if store is None:
+            return
+        self._ui_state_unsubscribe = store.subscribe(
+            self._on_ui_state_changed,
+            fields={"active_preset_revision", "preset_content_revision"},
+            emit_initial=False,
+        )
+
+    def _on_ui_state_changed(self, _state, changed: frozenset[str]) -> None:
+        if self._cleanup_in_progress:
+            return
+        if not (changed & {"active_preset_revision", "preset_content_revision"}):
+            return
+        self._profile_payload_dirty = True
+        if self.isVisible():
+            self._request_profiles_payload(force=True)
 
     def _request_profiles_payload(self, *, force: bool = False) -> None:
         if self._cleanup_in_progress:
@@ -150,6 +198,7 @@ class PresetSetupPageBase(BasePage):
     def _apply_payload(self, payload) -> None:
         if self._content_host_layout is None:
             return
+        total_started_at = time.perf_counter()
         self._apply_selected_preset_title(payload)
         self._show_profile_normalization_info(payload)
         self._clear_dynamic_widgets()
@@ -158,7 +207,9 @@ class PresetSetupPageBase(BasePage):
                 "В выбранном пресете нет профилей, которые можно показать на этой странице. "
                 "Попробуйте другой пресет или добавьте нужный профиль."
             )
+            self._log_ui_timing("profile_ui.apply_payload.total", total_started_at)
             return
+        create_started_at = time.perf_counter()
         profiles_list = ProfilesList(self)
         profiles_list.profile_selected.connect(self._on_profile_clicked)
         profiles_list.profile_context_requested.connect(self._on_profile_context_requested)
@@ -166,17 +217,32 @@ class PresetSetupPageBase(BasePage):
         profiles_list.profile_move_to_end_requested.connect(self._on_profile_move_to_end_requested)
         profiles_list.folder_context_requested.connect(self._on_folder_context_requested)
         profiles_list.folder_toggled.connect(self._on_folder_toggled)
+        self._log_ui_timing("profile_ui.profile_list.create", create_started_at)
+
         started_at = time.perf_counter()
         profiles_list.build_profiles(tuple(payload.items))
-        elapsed_ms = (time.perf_counter() - started_at) * 1000.0
-        log(f"{self.__class__.__name__}: ProfileItem build {elapsed_ms:.1f}ms ({len(payload.items)} items)", "DEBUG")
+        profiles_list.set_search_query(self._profile_search_query)
+        self._log_ui_timing("profile_ui.profile_list.build", started_at, extra=f"{len(payload.items)} items")
+
+        attach_started_at = time.perf_counter()
         self._profiles_list = profiles_list
         self._content_host_layout.addWidget(profiles_list, 1)
-        self._add_profile_btn = PrimaryPushButton("Добавить", parent=self, icon=FluentIcon.ADD)
-        self._add_profile_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._add_profile_btn.clicked.connect(self._on_add_user_profile_clicked)
-        self._content_host_layout.addWidget(self._add_profile_btn)
         self._empty_state_label = None
+        self._log_ui_timing("profile_ui.profile_list.attach", attach_started_at)
+        self._log_ui_timing("profile_ui.apply_payload.total", total_started_at)
+
+    def _on_profile_search_text_changed(self, text: str) -> None:
+        self._profile_search_query = str(text or "")
+        if self._profiles_list is not None:
+            self._profiles_list.set_search_query(self._profile_search_query)
+
+    def _log_ui_timing(self, label: str, started_at: float, *, extra: str = "") -> None:
+        try:
+            elapsed_ms = (time.perf_counter() - started_at) * 1000.0
+            extra_text = f" | {extra}" if extra else ""
+            log(f"{self.__class__.__name__}: {label}: {elapsed_ms:.1f}ms{extra_text}", "DEBUG")
+        except Exception:
+            pass
 
     def _show_profile_normalization_info(self, payload) -> None:
         split_count = int(getattr(payload, "normalized_split_profiles", 0) or 0)
@@ -221,10 +287,6 @@ class PresetSetupPageBase(BasePage):
         label = BodyLabel(text)
         label.setWordWrap(True)
         self._content_host_layout.addWidget(label)
-        self._add_profile_btn = PrimaryPushButton("Добавить", parent=self, icon=FluentIcon.ADD)
-        self._add_profile_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._add_profile_btn.clicked.connect(self._on_add_user_profile_clicked)
-        self._content_host_layout.addWidget(self._add_profile_btn)
         self._empty_state_label = label
 
     def _on_profile_clicked(self, profile_key: str) -> None:
@@ -398,6 +460,23 @@ class PresetSetupPageBase(BasePage):
             )
             return True
         return False
+
+    def cleanup(self) -> None:
+        self._cleanup_in_progress = True
+        unsubscribe = self._ui_state_unsubscribe
+        if callable(unsubscribe):
+            try:
+                unsubscribe()
+            except Exception:
+                pass
+        self._ui_state_unsubscribe = None
+        self._ui_state_store = None
+        worker = self._profile_load_worker
+        if worker is not None:
+            try:
+                worker.quit()
+            except Exception:
+                pass
 
     def _expand_all(self) -> None:
         if self._profiles_list is not None:

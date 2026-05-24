@@ -409,6 +409,10 @@ def get_service_domain_ip_rows(service_name: str, profile_name: str) -> list[tup
 
 def get_service_available_dns_profiles(service_name: str) -> list[str]:
     cat = _load_catalog()
+    return _get_service_available_dns_profiles_from_catalog(cat, service_name)
+
+
+def _get_service_available_dns_profiles_from_catalog(cat: HostsCatalog, service_name: str) -> list[str]:
     entries = cat.service_entries.get(service_name, []) or []
     if not entries:
         return []
@@ -491,6 +495,24 @@ def _service_has_proxy_ips(cat: HostsCatalog, service_name: str) -> bool:
 
 def service_has_proxy_profiles(service_name: str) -> bool:
     return _service_has_proxy_ips(_load_catalog(), service_name)
+
+
+def get_services_profile_index() -> dict[str, object]:
+    cat = _load_catalog()
+    services = list(cat.service_order)
+    return {
+        "dns_profiles": list(cat.dns_profiles),
+        "dns_profile_names": dict(cat.dns_profile_names),
+        "services": services,
+        "available_by_service": {
+            service_name: _get_service_available_dns_profiles_from_catalog(cat, service_name)
+            for service_name in services
+        },
+        "has_proxy_by_service": {
+            service_name: _service_has_proxy_ips(cat, service_name)
+            for service_name in services
+        },
+    }
 
 
 def get_service_domain_ip_map(service_name: str, profile_name: str) -> dict[str, str]:

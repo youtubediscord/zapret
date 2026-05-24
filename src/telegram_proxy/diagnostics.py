@@ -668,7 +668,7 @@ def _build_summary(
         summary.append("  [!] Прокси не запущен — запустите его на этой странице")
 
     if not relay_ok and blocked > 0:
-        summary.append("  [x] WSS relay недоступен — прокси не будет работать")
+        summary.append("  [x] прямой WSS relay сейчас недоступен — проверьте Telegram на практике")
         if not winws2_running:
             summary.append(f"  [!] Запустите {ENGINE_WINWS2}/zapret или используйте VPN")
 

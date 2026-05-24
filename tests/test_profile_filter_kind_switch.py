@@ -21,14 +21,20 @@ class _PresetStore:
 
 
 class ProfileFilterKindSwitchTests(unittest.TestCase):
-    def _service(self, text: str, *, root: Path | None = None) -> tuple[ProfilePresetService, _PresetStore]:
+    def _service(
+        self,
+        text: str,
+        *,
+        root: Path | None = None,
+        launch_method: str = "zapret2_mode",
+    ) -> tuple[ProfilePresetService, _PresetStore]:
         store = _PresetStore(text)
         base = root or Path("src").resolve()
         feature = SimpleNamespace(
             _presets_feature=store,
             _app_paths=AppPaths(user_root=base, local_root=base),
         )
-        return ProfilePresetService(feature, "zapret2_mode"), store
+        return ProfilePresetService(feature, launch_method), store
 
     def test_switch_hostlist_profile_to_ipset_rewrites_same_profile_line(self) -> None:
         from tempfile import TemporaryDirectory
@@ -36,9 +42,9 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             lists_dir = root / "lists"
-            lists_dir.mkdir()
-            (lists_dir / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
-            (lists_dir / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
             service, store = self._service(
                 "\n".join(
                     (
@@ -69,9 +75,9 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             lists_dir = root / "lists"
-            lists_dir.mkdir()
-            (lists_dir / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
-            (lists_dir / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
             service, store = self._service(
                 "\n".join(
                     (
@@ -94,14 +100,195 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
             preset = parse_preset_text(store.text, engine="winws2")
             self.assertEqual(len(preset.profiles), 1)
 
+    def test_switch_my_sites_hostlist_to_ipset_uses_ipset_all(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "other.txt").write_text("example.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-all.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Мои сайты TCP",
+                        "--filter-tcp=80,443-65535",
+                        "--hostlist=lists/other.txt",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            new_key = service.set_profile_filter_kind("profile:0", "ipset")
+
+            self.assertEqual(new_key, "profile:0")
+            self.assertIn("--ipset=lists/ipset-all.txt", store.text)
+            self.assertNotIn("--hostlist=lists/other.txt", store.text)
+
+    def test_switch_my_sites_ipset_to_hostlist_uses_other(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "other.txt").write_text("example.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-all.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Мои сайты TCP",
+                        "--filter-tcp=80,443-65535",
+                        "--ipset=lists/ipset-all.txt",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            new_key = service.set_profile_filter_kind("profile:0", "hostlist")
+
+            self.assertEqual(new_key, "profile:0")
+            self.assertIn("--hostlist=lists/other.txt", store.text)
+            self.assertNotIn("--ipset=lists/ipset-all.txt", store.text)
+
+    def test_winws1_switch_hostlist_profile_to_ipset_rewrites_same_profile_line(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "youtube.txt").write_text("youtube.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-youtube.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "--dpi-desync=fake,split2",
+                        "--dpi-desync-repeats=6",
+                        "",
+                    )
+                ),
+                root=root,
+                launch_method="zapret1_mode",
+            )
+
+            new_key = service.set_profile_filter_kind("profile:0", "ipset")
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertIn("--ipset=lists/ipset-youtube.txt", store.text)
+        self.assertNotIn("--hostlist=lists/youtube.txt", store.text)
+        self.assertIn("--dpi-desync=fake,split2", store.text)
+        self.assertIn("--dpi-desync-repeats=6", store.text)
+        self.assertNotIn("--out-range", store.text)
+
+    def test_winws1_switch_my_sites_ipset_to_hostlist_uses_other(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "other.txt").write_text("example.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-all.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Мои сайты",
+                        "--filter-tcp=80,443-65535",
+                        "--ipset=lists/ipset-all.txt",
+                        "--dpi-desync=fake,split2",
+                        "",
+                    )
+                ),
+                root=root,
+                launch_method="zapret1_mode",
+            )
+
+            new_key = service.set_profile_filter_kind("profile:0", "hostlist")
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertIn("--hostlist=lists/other.txt", store.text)
+        self.assertNotIn("--ipset=lists/ipset-all.txt", store.text)
+
+    def test_switch_exclusion_ipsets_to_hostlist_uses_netrogat(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            for name in ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt", "netrogat.txt"):
+                (lists_dir / "base" / name).write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Исключения",
+                        "--filter-tcp=80,443-65535",
+                        "--ipset-exclude=lists/ipset-ru.txt",
+                        "--ipset-exclude=lists/ipset-dns.txt",
+                        "--ipset-exclude=lists/ipset-exclude.txt",
+                        "--out-range=-d8",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            new_key = service.set_profile_filter_kind("profile:0", "hostlist")
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertIn("--hostlist-exclude=lists/netrogat.txt", store.text)
+        self.assertNotIn("--ipset-exclude=lists/ipset-ru.txt", store.text)
+        self.assertNotIn("--ipset-exclude=lists/ipset-dns.txt", store.text)
+        self.assertNotIn("--ipset-exclude=lists/ipset-exclude.txt", store.text)
+        self.assertIn("--out-range=-d8", store.text)
+        self.assertIn("--lua-desync=pass", store.text)
+
+    def test_switch_exclusion_hostlist_to_ipset_uses_service_ipsets(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            lists_dir = root / "lists"
+            (lists_dir / "base").mkdir(parents=True)
+            for name in ("ipset-ru.txt", "ipset-dns.txt", "ipset-exclude.txt", "netrogat.txt"):
+                (lists_dir / "base" / name).write_text("1.1.1.1\n", encoding="utf-8")
+            service, store = self._service(
+                "\n".join(
+                    (
+                        "--name=Исключения",
+                        "--filter-tcp=80,443-65535",
+                        "--hostlist-exclude=lists/netrogat.txt",
+                        "--out-range=-d8",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+                root=root,
+            )
+
+            new_key = service.set_profile_filter_kind("profile:0", "ipset")
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertNotIn("--hostlist-exclude=lists/netrogat.txt", store.text)
+        self.assertIn("--ipset-exclude=lists/ipset-ru.txt", store.text)
+        self.assertIn("--ipset-exclude=lists/ipset-dns.txt", store.text)
+        self.assertIn("--ipset-exclude=lists/ipset-exclude.txt", store.text)
+
     def test_missing_generated_ipset_is_not_offered_or_written(self) -> None:
         from tempfile import TemporaryDirectory
 
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             lists_dir = root / "lists"
-            lists_dir.mkdir()
-            (lists_dir / "discord-updates.txt").write_text("discord.com\n", encoding="utf-8")
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "discord-updates.txt").write_text("discord.com\n", encoding="utf-8")
             service, store = self._service(
                 "\n".join(
                     (
@@ -137,9 +324,9 @@ class ProfileFilterKindSwitchTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             lists_dir = root / "lists"
-            lists_dir.mkdir()
-            (lists_dir / "discord.txt").write_text("discord.com\n", encoding="utf-8")
-            (lists_dir / "ipset-discord.txt").write_text("1.1.1.1\n", encoding="utf-8")
+            (lists_dir / "base").mkdir(parents=True)
+            (lists_dir / "base" / "discord.txt").write_text("discord.com\n", encoding="utf-8")
+            (lists_dir / "base" / "ipset-discord.txt").write_text("1.1.1.1\n", encoding="utf-8")
             service, store = self._service(
                 "\n".join(
                     (

@@ -3,9 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from profile import commands as profile_internal_commands
-from profile import settings as profile_settings
-
 
 @dataclass(frozen=True, slots=True)
 class ProfileFeature:
@@ -13,17 +10,29 @@ class ProfileFeature:
     _app_paths: Any
     _preset_service_cache: dict[str, Any] = field(default_factory=dict, init=False, repr=False, compare=False)
 
+    @staticmethod
+    def _commands():
+        from profile import commands as profile_internal_commands
+
+        return profile_internal_commands
+
+    @staticmethod
+    def _settings():
+        from profile import settings as profile_settings
+
+        return profile_settings
+
     def list_profiles(self, launch_method: str):
-        return profile_internal_commands.list_profiles(self, launch_method)
+        return self._commands().list_profiles(self, launch_method)
 
     def count_enabled_profiles(self, launch_method: str) -> int:
-        return int(profile_internal_commands.count_enabled_profiles(self, launch_method))
+        return int(self._commands().count_enabled_profiles(self, launch_method))
 
     def get_enabled_profile_count_snapshot(self, launch_method: str) -> int | None:
-        return profile_internal_commands.get_enabled_profile_count_snapshot(self, launch_method)
+        return self._commands().get_enabled_profile_count_snapshot(self, launch_method)
 
     def get_profile_strategy_display_state(self, launch_method: str, max_items: int = 2):
-        return profile_internal_commands.get_profile_strategy_display_state(self, launch_method, max_items=max_items)
+        return self._commands().get_profile_strategy_display_state(self, launch_method, max_items=max_items)
 
     def get_profile_selection_details(
         self,
@@ -32,7 +41,7 @@ class ProfileFeature:
         selected_profile_key: str = "",
         max_items: int = 2,
     ):
-        return profile_internal_commands.get_profile_selection_details(
+        return self._commands().get_profile_selection_details(
             self,
             launch_method,
             selected_profile_key=selected_profile_key,
@@ -40,16 +49,44 @@ class ProfileFeature:
         )
 
     def get_profile_setup(self, launch_method: str, profile_key: str):
-        return profile_internal_commands.get_profile_setup(self, launch_method, profile_key)
+        return self._commands().get_profile_setup(self, launch_method, profile_key)
 
-    def get_profile_list_file_editor_state(self, launch_method: str, profile_key: str):
-        return profile_internal_commands.get_profile_list_file_editor_state(self, launch_method, profile_key)
+    def get_profile_list_file_editor_state(
+        self,
+        launch_method: str,
+        profile_key: str,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ):
+        return self._commands().get_profile_list_file_editor_state(
+            self,
+            launch_method,
+            profile_key,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+        )
 
     def apply_strategy_to_profile(self, launch_method: str, profile_key: str, strategy_id: str) -> str | None:
-        return profile_internal_commands.apply_strategy_to_profile(self, launch_method, profile_key, strategy_id)
+        return self._commands().apply_strategy_to_profile(self, launch_method, profile_key, strategy_id)
 
-    def set_profile_enabled(self, launch_method: str, profile_key: str, enabled: bool) -> str | None:
-        return profile_internal_commands.set_profile_enabled(self, launch_method, profile_key, enabled)
+    def set_profile_enabled(
+        self,
+        launch_method: str,
+        profile_key: str,
+        enabled: bool,
+        *,
+        filter_kind: str = "",
+        filter_value: str = "",
+    ) -> str | None:
+        return self._commands().set_profile_enabled(
+            self,
+            launch_method,
+            profile_key,
+            enabled,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+        )
 
     def update_winws2_profile_settings(
         self,
@@ -61,7 +98,7 @@ class ProfileFeature:
         in_range: str,
         out_range: str,
     ) -> str | None:
-        return profile_internal_commands.update_winws2_profile_settings(
+        return self._commands().update_winws2_profile_settings(
             self,
             launch_method,
             profile_key,
@@ -77,7 +114,7 @@ class ProfileFeature:
         profile_key: str,
         raw_text: str,
     ) -> str | None:
-        return profile_internal_commands.update_profile_raw_text(
+        return self._commands().update_profile_raw_text(
             self,
             launch_method,
             profile_key,
@@ -90,7 +127,7 @@ class ProfileFeature:
         kind: str,
         text: str,
     ) -> tuple[tuple[int, str], ...]:
-        return profile_internal_commands.validate_profile_list_file_text(
+        return self._commands().validate_profile_list_file_text(
             self,
             launch_method,
             kind,
@@ -103,7 +140,7 @@ class ProfileFeature:
         profile_key: str,
         text: str,
     ):
-        return profile_internal_commands.save_profile_list_file_text(
+        return self._commands().save_profile_list_file_text(
             self,
             launch_method,
             profile_key,
@@ -111,7 +148,7 @@ class ProfileFeature:
         )
 
     def set_profile_filter_kind(self, launch_method: str, profile_key: str, filter_kind: str) -> str | None:
-        return profile_internal_commands.set_profile_filter_kind(self, launch_method, profile_key, filter_kind)
+        return self._commands().set_profile_filter_kind(self, launch_method, profile_key, filter_kind)
 
     def set_current_strategy_state(
         self,
@@ -122,7 +159,7 @@ class ProfileFeature:
         favorite: bool | None = None,
         clear: bool = False,
     ):
-        return profile_internal_commands.set_current_strategy_state(
+        return self._commands().set_current_strategy_state(
             self,
             launch_method,
             profile_key,
@@ -141,7 +178,7 @@ class ProfileFeature:
         favorite: bool | None = None,
         clear: bool = False,
     ):
-        return profile_internal_commands.set_strategy_state(
+        return self._commands().set_strategy_state(
             self,
             launch_method,
             profile_key,
@@ -152,10 +189,10 @@ class ProfileFeature:
         )
 
     def delete_profile(self, launch_method: str, profile_key: str) -> bool:
-        return bool(profile_internal_commands.delete_profile(self, launch_method, profile_key))
+        return bool(self._commands().delete_profile(self, launch_method, profile_key))
 
     def duplicate_profile(self, launch_method: str, profile_key: str) -> str | None:
-        return profile_internal_commands.duplicate_profile(self, launch_method, profile_key)
+        return self._commands().duplicate_profile(self, launch_method, profile_key)
 
     def move_profile_before(
         self,
@@ -163,7 +200,7 @@ class ProfileFeature:
         source_profile_key: str,
         destination_profile_key: str,
     ) -> str | None:
-        return profile_internal_commands.move_profile_before(
+        return self._commands().move_profile_before(
             self,
             launch_method,
             source_profile_key,
@@ -171,10 +208,10 @@ class ProfileFeature:
         )
 
     def move_profile_to_end(self, launch_method: str, profile_key: str) -> str | None:
-        return profile_internal_commands.move_profile_to_end(self, launch_method, profile_key)
+        return self._commands().move_profile_to_end(self, launch_method, profile_key)
 
     def create_user_profile(self, *, name: str, protocol: str, ports: str) -> str:
-        return profile_internal_commands.create_user_profile(
+        return self._commands().create_user_profile(
             self,
             name=name,
             protocol=protocol,
@@ -182,7 +219,7 @@ class ProfileFeature:
         )
 
     def update_user_profile(self, profile_id: str, *, name: str, protocol: str, ports: str) -> int:
-        return int(profile_internal_commands.update_user_profile(
+        return int(self._commands().update_user_profile(
             self,
             profile_id,
             name=name,
@@ -191,27 +228,27 @@ class ProfileFeature:
         ))
 
     def delete_user_profile(self, profile_id: str) -> int:
-        return int(profile_internal_commands.delete_user_profile(self, profile_id))
+        return int(self._commands().delete_user_profile(self, profile_id))
 
-    def get_advanced_settings_state(self, launch_method: str):
-        return profile_settings.get_advanced_settings_state(self, launch_method=launch_method)
+    def get_additional_settings_state(self, launch_method: str):
+        return self._settings().get_additional_settings_state(self, launch_method=launch_method)
 
     def get_wssize_enabled(self, launch_method: str) -> bool:
-        return bool(profile_settings.get_wssize_enabled(self, launch_method=launch_method))
+        return bool(self._settings().get_wssize_enabled(self, launch_method=launch_method))
 
     def set_wssize_enabled(self, enabled: bool, *, launch_method: str) -> bool:
-        return bool(profile_settings.set_wssize_enabled(self, bool(enabled), launch_method=launch_method))
+        return bool(self._settings().set_wssize_enabled(self, bool(enabled), launch_method=launch_method))
 
     def get_debug_log_enabled(self, launch_method: str) -> bool:
-        return bool(profile_settings.get_debug_log_enabled(self, launch_method=launch_method))
+        return bool(self._settings().get_debug_log_enabled(self, launch_method=launch_method))
 
     def set_debug_log_enabled(self, enabled: bool, *, launch_method: str) -> bool:
-        return bool(profile_settings.set_debug_log_enabled(self, bool(enabled), launch_method=launch_method))
+        return bool(self._settings().set_debug_log_enabled(self, bool(enabled), launch_method=launch_method))
 
-    def create_advanced_settings_load_worker(self, request_id: int, parent=None):
-        from profile.advanced_settings_loader import AdvancedSettingsLoadWorker
+    def create_additional_settings_load_worker(self, request_id: int, parent=None, *, launch_method: str):
+        from profile.additional_settings_loader import AdditionalSettingsLoadWorker
 
-        return AdvancedSettingsLoadWorker(request_id, self, parent)
+        return AdditionalSettingsLoadWorker(request_id, self, launch_method=launch_method, parent=parent)
 
     def create_profile_list_load_worker(self, request_id: int, launch_method: str, parent=None):
         from profile.profile_list_loader import ProfileListLoadWorker

@@ -61,12 +61,14 @@ def activate_preset_action(*, name: str, resolve_display_name_fn, actions_api, r
     return False
 
 
-def open_edit_preset_menu_action(*, page, name: str, global_pos, is_builtin_preset_file_fn, tr_fn, make_menu_action, fluent_icon, round_menu_cls, on_preset_list_action_fn, show_preset_actions_menu_fn, tr_prefix: str) -> None:
+def open_edit_preset_menu_action(*, page, name: str, global_pos, is_builtin_preset_file_fn, is_selected_preset_file_fn, tr_fn, make_menu_action, fluent_icon, round_menu_cls, on_preset_list_action_fn, show_preset_actions_menu_fn, tr_prefix: str) -> None:
     is_builtin = is_builtin_preset_file_fn(name)
+    disabled_actions = {"delete"} if (not is_builtin and is_selected_preset_file_fn(name)) else set()
     chosen = show_preset_actions_menu_fn(
         page,
         global_pos=global_pos,
         is_builtin=is_builtin,
+        disabled_actions=disabled_actions,
         labels={
             "open": tr_fn(_tr_key(tr_prefix, "menu.open"), "Открыть"),
             "rating": tr_fn(_tr_key(tr_prefix, "menu.rating"), "Рейтинг"),

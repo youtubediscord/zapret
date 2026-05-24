@@ -13,8 +13,11 @@
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
 
 # === Discord Voice ===
+
 --new
---filter-udp=50000-50100
+
+--name=Discord UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
 --dpi-desync-any-protocol
@@ -22,23 +25,32 @@
 --dpi-desync-repeats=6
 
 # === HTTP (порт 80) ===
+
 --new
---filter-tcp=80
+
+--name=discord.com
+--filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
 --dpi-desync-autottl=2
 --dpi-desync-fooling=md5sig
 
 # === UDP порт 5056 ===
+
 --new
---filter-tcp=80
+
+--name=Cloudflare TCP
+--filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake,split2
 --dpi-desync-autottl=2
 --dpi-desync-fooling=md5sig
 
 # === UDP порт 5056 ===
+
 --new
+
+--name=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -47,7 +59,9 @@
 --dpi-desync-fake-unknown-udp=bin/quic_initial_www_google_com.bin
 
 # === Discord TCP ===
+
 --new
+
 --filter-tcp=6695-6705
 --dpi-desync=fake,split2
 --dpi-desync-repeats=8
@@ -56,9 +70,13 @@
 --dpi-desync-fake-tls=bin/tls_clienthello_www_google_com.bin
 
 # === HTTPS ===
+
 --new
+
 --filter-tcp=443
---hostlist-exclude=lists/netrogat.txt
+--ipset-exclude=lists/ipset-ru.txt
+--ipset-exclude=lists/ipset-dns.txt
+--ipset-exclude=lists/ipset-exclude.txt
 --dpi-desync=split
 --dpi-desync-split-pos=1
 --dpi-desync-autottl
@@ -66,10 +84,12 @@
 --dpi-desync-repeats=8
 
 # === QUIC ===
+
 --new
---filter-udp=443
+
+--name=Cloudflare UDP
+--filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
 --dpi-desync-repeats=6
 --dpi-desync-fake-quic=bin/quic_initial_www_google_com.bin
---new

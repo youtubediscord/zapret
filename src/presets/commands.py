@@ -200,11 +200,20 @@ def save_preset_source_by_file_name(
     source_text: str,
     *,
     preset_services,
+    publish_content_changed: bool = True,
 ):
     return _create_preset_file_service(launch_method, preset_services=preset_services).save_source_text_by_file_name(
         file_name,
         source_text,
+        publish_content_changed=publish_content_changed,
     )
+
+
+def publish_preset_content_changed(launch_method: str, file_name: str, *, preset_services):
+    return _create_preset_file_service(
+        launch_method,
+        preset_services=preset_services,
+    ).publish_preset_content_changed_by_file_name(file_name)
 
 
 def read_preset_source_by_file_name(launch_method: str, file_name: str, *, preset_services) -> str:

@@ -21,12 +21,12 @@ def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, hide_to_tray_t
     )
 
 
-def apply_advanced_settings_plan(plan, *, discord_restart_toggle, wssize_toggle, debug_log_toggle) -> None:
+def apply_additional_settings_state(state, *, discord_restart_toggle, wssize_toggle, debug_log_toggle) -> None:
     try:
         toggle = discord_restart_toggle
         set_checked = getattr(toggle, "setChecked", None)
         if callable(set_checked):
-            set_checked(bool(plan.discord_restart), block_signals=True)
+            set_checked(bool(state.discord_restart), block_signals=True)
     except Exception:
         pass
 
@@ -34,7 +34,7 @@ def apply_advanced_settings_plan(plan, *, discord_restart_toggle, wssize_toggle,
         toggle = wssize_toggle
         set_checked = getattr(toggle, "setChecked", None)
         if callable(set_checked):
-            set_checked(bool(plan.wssize_enabled), block_signals=True)
+            set_checked(bool(state.wssize_enabled), block_signals=True)
     except Exception:
         pass
 
@@ -42,7 +42,7 @@ def apply_advanced_settings_plan(plan, *, discord_restart_toggle, wssize_toggle,
         toggle = debug_log_toggle
         set_checked = getattr(toggle, "setChecked", None)
         if callable(set_checked):
-            set_checked(bool(plan.debug_log_enabled), block_signals=True)
+            set_checked(bool(state.debug_log_enabled), block_signals=True)
     except Exception:
         pass
 
@@ -78,13 +78,13 @@ def apply_profile_language(
     folder_card,
     docs_card,
     profile_ui_mode_caption,
-    advanced_notice,
+    additional_settings_notice,
     program_settings_card,
     auto_dpi_toggle,
     hide_to_tray_toggle,
     defender_toggle,
     max_block_toggle,
-    advanced_card,
+    additional_settings_card,
     blobs_action_card,
     discord_restart_toggle,
     wssize_toggle,
@@ -101,8 +101,8 @@ def apply_profile_language(
 
     if profile_ui_mode_caption is not None:
         profile_ui_mode_caption.setText(tr_catalog("page.winws2_control.profile_ui_mode.caption", language=language, default="Режим отображения профилей"))
-    if advanced_notice is not None:
-        advanced_notice.setText(
+    if additional_settings_notice is not None:
+        additional_settings_notice.setText(
             tr_catalog("page.winws2_control.advanced.warning", language=language, default="Изменяйте только если знаете что делаете")
         )
 
@@ -126,7 +126,7 @@ def apply_profile_language(
         tr_catalog("page.control.setting.max_block.title", language=language, default="Блокировать установку MAX"),
         tr_catalog("page.control.setting.max_block.desc", language=language, default="Блокирует запуск/установку MAX и домены в hosts"),
     )
-    advanced_card.titleLabel.setText(
+    additional_settings_card.titleLabel.setText(
         tr_catalog("page.winws2_control.card.advanced", language=language, default="Дополнительные настройки")
     )
     if blobs_action_card is not None:

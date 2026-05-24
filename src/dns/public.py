@@ -18,6 +18,8 @@ from dns.commands import (
     normalize_adapter_alias,
     refresh_dns_info,
     run_connectivity_test,
+    consume_warmed_page_data,
+    warm_page_data_cache,
 )
 from dns.dns_providers import DNS_PROVIDERS
 from dns.state import DnsCommandResult, DnsState
@@ -44,4 +46,6 @@ __all__ = [
     "normalize_adapter_alias",
     "refresh_dns_info",
     "run_connectivity_test",
+    "consume_warmed_page_data",
+    "warm_page_data_cache",
 ]

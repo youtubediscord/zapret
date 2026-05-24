@@ -57,11 +57,7 @@ PAGE_PERFORMANCE_PROFILE_OVERRIDES: dict[PageName, PagePerformanceProfile] = {
     ),
     **_profiles_for(
         (
-            PageName.HOSTLIST,
             PageName.BLOBS,
-            PageName.NETROGAT,
-            PageName.CUSTOM_DOMAINS,
-            PageName.CUSTOM_IPSET,
             PageName.NETWORK,
             PageName.PREMIUM,
         ),

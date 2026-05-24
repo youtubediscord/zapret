@@ -458,14 +458,6 @@ blobs = tls_max
 --lua-desync=fake:blob=tls_max:tcp_ts=1:repeats=6
 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_max:payload=tls_client_hello
 
-[other_seqovl_v2]
-name = multidisorder 700 + tls_google
-author = hz
-label = recommended
-description = Multidisorder с seqovl=700 и паттерном Google TLS ClientHello
-blobs = tls_google
---lua-desync=multidisorder:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack
-
 [seqovl_211_google]
 name = seqovl 211 + tls_google
 author = hz
@@ -1201,13 +1193,6 @@ blobs = tls14
 --lua-desync=fake:blob=tls14:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:tls_mod=rnd,dupsid,sni=fonts.google.com
 --lua-desync=multidisorder:pos=7,sld+1:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
 
-[multidisorder_fake_tls_2]
-name = multidisorder 7 calendar (без tls_mod)
-author = hz
-description = multidisorder 7 blob=0x0F0F0F0F и badseq - без tls_mod
---lua-desync=fake:blob=0x0F0F0F0F:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
---lua-desync=multidisorder:pos=7,sld+1:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
-
 [multidisorder_fake_tls_2_tlsmod]
 name = multidisorder 7 calendar (с tls_mod)
 author = hz
@@ -1259,13 +1244,6 @@ blobs = tls2n
 --lua-desync=fake:blob=tls2n:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:tls_mod=rnd
 --lua-desync=multisplit:pos=2:seqovl=2:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
 
-[multidisorder_repeats_md5sig]
-name = original bol-van v2
-author = bol-van
-description = multidisorder с fake tls mod
---lua-desync=fake:blob=fake_default_tls:repeats=11:tcp_md5:tls_mod=rnd,dupsid,sni=www.google.com
---lua-desync=multidisorder:pos=1,midsld:tcp_md5
-
 [multidisorder_repeats_md5sig_2]
 name = multidisorder с повторами и md5ig
 author = hz
@@ -1279,21 +1257,6 @@ name = general (alt v3) 1.6.1
 author = Flowseal
 description = split pos 1 autottl badseq repeats 8
 --lua-desync=multisplit:pos=1:repeats=8:tcp_ack=-66000:tcp_ts_up:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
-
-[general_alt4_161]
-name = general (alt v4) 1.6.1
-author = Flowseal
-description = fake split2 repeats 6 md5sig tls google
-blobs = tls_google
---lua-desync=fake:blob=tls_google:repeats=6:tcp_md5
---lua-desync=multisplit:repeats=6:tcp_md5
-
-[general_alt6_181]
-name = general (alt v6) 1.8.1
-author = Flowseal
-description = split2 repeats 2 seqovl 681 pos 1 badseq hopbyhop2
-blobs = tls_google
---lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:repeats=2:tcp_ack=-66000:tcp_ts_up:ip6_hopbyhop2
 
 [ankddev10]
 name = aankddev (v10)
@@ -1364,12 +1327,6 @@ author = hz
 description = Базовый split и seqovl
 blobs = tls_google
 --lua-desync=multisplit:pos=sniext:seqovl=1:ip_ttl=1:ip6_ttl=1
-
-[split_pos_badseq_10]
-name = split badseq 10 и cutoff
-author = hz
-description = split и badseq разрез и 10 повторов
---lua-desync=multisplit:pos=1:repeats=10:tcp_ack=-66000:tcp_ts_up:ip_ttl=3:ip6_ttl=3
 
 [split_pos_3]
 name = split pos 3 и повторы
@@ -1478,12 +1435,6 @@ author = Custom
 label = recommended
 description = Только фейки без нарезки - не ломает сайты
 --lua-desync=tls_fake_simple:fakes=6:ttl=3
-
-[tls_pass]
-name = ⚡ TLS Pass (без обработки)
-author = Custom
-description = Пропустить без обработки - для диагностики
---lua-desync=pass
 
 [tls_fake_simple_ttl2]
 name = 🎭 TLS Fake Simple TTL=2
@@ -1713,14 +1664,6 @@ author = community
 name = HostFakeSplit Ozon x4 TCP_TS + MD5
 author = community
 --lua-desync=hostfakesplit:host=ozon.ru:repeats=4:tcp_ts=-600000:tcp_md5
-
-[tls_multisplit_sni_652_syndata]
-name = TLS MultiSplit SNI seqovl=652 tls_google + syndata
-author = community
-blobs = tls_google
---lua-desync=send:repeats=2
---lua-desync=syndata:blob=tls_google
---lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google
 
 [fake_tls_auto_11]
 name = Fake TLS AUTO x11 (0x0+default_tls+multidisorder_legacy)
@@ -1978,22 +1921,6 @@ description = Автодобавлено для распознавания вс�
 --lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000:ip_id=zero
 --lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000:ip_id=zero
 
-[stock_general_alt_game_filter_28]
-name = payload tls_client_hello + fake tls_google x6 ts-600000 + fakedsplit x6 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT (game filter).txt (list_general_tcp)
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
-
-[stock_general_alt11_29]
-name = payload tls_client_hello,http_req + fake tls_google x8 ts-600000 + multisplit 2 tls_google s681 x8 ts-600000
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT11.txt (googlevideo_tcp)
---lua-desync=fake:blob=tls_google:repeats=8:tcp_ts=-600000
---lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8:tcp_ts=-600000
-
 [stock_general_alt3_game_filter_30]
 name = payload tls_client_hello + payload http_req + fake tls_google ts-600000 + hostfakesplit ya.ru ts-600000 + fake fake_default_http ts-600000 +
 author = builtin
@@ -2013,32 +1940,6 @@ description = Автодобавлено для распознавания вс�
 --lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000
 --lua-desync=fake:blob=fake_default_http:tcp_ts=-600000
 --lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000
-
-[stock_general_alt3_32]
-name = payload tls_client_hello + payload http_req + fake tls_google ts-600000 + hostfakesplit www.google.com ts-600000 + fake fake_default_http ts
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT3.txt (youtube_tcp)
---lua-desync=fake:blob=tls_google:tls_mod=rnd,dupsid,sni=www.google.com:tcp_ts=-600000
---lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000
---lua-desync=fake:blob=fake_default_http:tcp_ts=-600000
---lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000
-
-[stock_general_alt4_game_filter_33]
-name = payload tls_client_hello,http_req + fake tls_google x6 seq1000 + multisplit 2
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT4 (game filter).txt (discord_tcp)
---lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=1000
---lua-desync=multisplit:pos=2
-
-[stock_general_alt4_game_filter_34]
-name = payload tls_client_hello + payload tls_client_hello,http_req + fake tls_google x6 seq1000 + multisplit 2
-author = builtin
-label = stock
-description = Автодобавлено для распознавания встроенного пресета general ALT4 (game filter).txt (list_general_tcp)
---lua-desync=fake:blob=tls_google:repeats=6:tcp_seq=1000
---lua-desync=multisplit:pos=2
 
 [stock_general_alt8_game_filter_35]
 name = payload http_req + fake tls_google x6 seq2 + fake fake_default_http x6 seq2
@@ -2255,15 +2156,6 @@ description = Автодобавлено для распознавания вс�
 # --- end builtin stock basic coverage ---
 
 # --- imported advanced additions ---
-[multisplit_stun_740]
-name = Multisplit seqovl=740 stun_pat
-author = community
---lua-desync=multisplit:pos=1:seqovl=740:seqovl_pattern=stun_pat
-
-[hostfakesplit_google_4_ts_simple]
-name = HostFakeSplit www.google.com x4 TCP_TS
-author = community
---lua-desync=hostfakesplit:host=www.google.com:repeats=4:tcp_ts=-600000
 
 [multidisorder_pos1]
 name = MultiDisorder pos=1
@@ -2276,44 +2168,10 @@ author = community
 --lua-desync=multidisorder_legacy:pos=1,midsld
 --lua-desync=multidisorder_legacy:pos=1,midsld
 
-[fake_http_autottl_md5_multidisorder_host]
-name = Fake HTTP AutoTTL MD5 + MultiDisorder host+1
-author = community
-blobs = fake_default_http
---lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5
---lua-desync=multidisorder:pos=host+1
-
-[fake_tls_tls4pda_3_ts]
-name = Fake TLS google rnd+tls_4pda x3 TCP_TS
-author = community
-blobs = fake_default_tls,tls_4pda
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,sni=www.google.com:repeats=3:tcp_ts=-600000
---lua-desync=fake:blob=tls_4pda:repeats=3:tcp_ts=-600000
-
-[fake_tls_max_8_ts_multisplit_664]
-name = Fake TLS Max x8 TCP_TS + Multisplit seqovl=664
-author = community
-blobs = tls_max
---lua-desync=fake:blob=tls_max:repeats=8:tcp_ts=-600000
---lua-desync=multisplit:pos=2:seqovl=664:seqovl_pattern=tls_max:repeats=8:tcp_ts=-600000
-
-[fake_tls_ya_ru_hostfakesplit]
-name = Fake TLS ya.ru + HostFakeSplit ya.ru
-author = community
-blobs = tls_google
---lua-desync=fake:blob=tls_google:tls_mod=rnd,dupsid,sni=ya.ru:tcp_ts=-600000
---lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000
-
 [multidisorder_pos2]
 name = MultiDisorder pos=2
 author = community
 --lua-desync=multidisorder:pos=2
-
-[fake_tls_max_6_ts]
-name = Fake TLS Max x6 TCP_TS
-author = community
-blobs = tls_max
---lua-desync=fake:blob=tls_max:repeats=6:tcp_ts=-600000
 
 [fake_tls_1_tcpmd5_autottl_multidisorder_legacy]
 name = Fake TLS1 tcp_md5 AutoTTL + MultiDisorder_legacy
@@ -2387,11 +2245,6 @@ blobs = tls_max,fake_default_http
 --payload=http_req
 --lua-desync=fake:blob=fake_default_http:repeats=6:tcp_ts=-600000
 
-[multidisorder_legacy_1]
-name = MultiDisorder legacy pos=1,midsld
-author = community
---lua-desync=multidisorder_legacy:pos=1,midsld
-
 [fake_11_tls_google_tcp_md5_hostfakesplit_multi]
 name = Fake TLS google x11 tcp_md5 + HostFakeSplit multi
 author = community
@@ -2399,36 +2252,10 @@ blobs = tls_google
 --lua-desync=fake:blob=tls_google:repeats=11:tcp_md5
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
-[multisplit_pos4_midsld2_seqovl1_tls7]
-name = Multisplit pos=4,midsld+2 seqovl=1 tls7
-author = community
-blobs = tls7
---lua-desync=multisplit:pos=4,midsld+2:seqovl=1:seqovl_pattern=tls7
-
 [multidisorder_legacy_pos6_midsld2]
 name = MultiDisorder legacy pos=6,midsld+2
 author = community
 --lua-desync=multidisorder_legacy:pos=6,midsld+2
-
-[multisplit_complex_googlevideo]
-name = Multisplit complex googlevideo
-author = community
---lua-desync=multisplit:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
-
-[fake_tls_google_ts_ip_id_zero_fakedsplit]
-name = Fake TLS google x6 TS ip_id=zero + FakedSplit
-author = community
-blobs = tls_google
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000:ip_id=zero
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000:ip_id=zero
-
-[fake_tls_google_ts_fakedsplit_tls_payload]
-name = Fake TLS google x6 TS + FakedSplit with tls_client_hello payload
-author = community
-blobs = tls_google
---payload=tls_client_hello
---lua-desync=fake:blob=tls_google:repeats=6:tcp_ts=-600000
---lua-desync=fakedsplit:pattern=0x00:repeats=6:tcp_ts=-600000
 
 [fake_tls_google_ts_http_ts_fakedsplit_all_payload]
 name = Fake TLS google TS + HTTP TS + FakedSplit all payloads
@@ -2478,11 +2305,6 @@ blobs = tls_google
 --payload=tls_client_hello,http_req
 --lua-desync=multisplit:pos=2
 
-[hostfakesplit_ozon_4_ts_md5_all]
-name = HostFakeSplit Ozon x4 TCP_TS+MD5 alt
-author = community
---lua-desync=hostfakesplit:host=ozon.ru:repeats=4:tcp_ts=-600000:tcp_md5
-
 [fake_tls_google_mod_www_http_hostfakesplit_payload_full]
 name = Fake TLS google mod www + HTTP HostFakeSplit www with payload
 author = community
@@ -2516,41 +2338,6 @@ blobs = fake_default_tls
 --lua-desync=fake:blob=fake_default_tls:repeats=6:tcp_ack=-66000:tcp_ts_up:ip6_hopbyhop2
 --lua-desync=multidisorder_legacy:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
 --lua-desync=tls_fake_flood:fakes=11:md5sig
-
-[fake_default_tls_tsup_ip6hbh2_legacy]
-name = Fake default_tls tsup ip6hbh2 + legacy autottl
-author = community
-blobs = fake_default_tls
---lua-desync=fake:blob=fake_default_tls:repeats=6:tcp_ack=-66000:tcp_ts_up:ip6_hopbyhop2
---lua-desync=multidisorder_legacy:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
-
-[fake_auto_8_seq2_fakedsplit]
-name = Fake AUTO default_tls x8 TCP_SEQ=2 + FakedSplit pos=2
-author = community
-blobs = fake_default_tls
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_seq=2
---lua-desync=fakedsplit:pos=2:repeats=8:tcp_seq=2
-
-[fake_auto_8_seq1000_multisplit_681]
-name = Fake AUTO default_tls x8 TCP_SEQ=1000 + Multisplit seqovl=681
-author = community
-blobs = fake_default_tls,tls_google
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_seq=1000
---lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8
-
-[fake_auto_8_ts_multisplit_681]
-name = Fake AUTO default_tls x8 TCP_TS + Multisplit seqovl=681
-author = community
-blobs = fake_default_tls,tls_google
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_ts=-600000
---lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8:tcp_ts=-600000
-
-[fake_auto_11_tcpack_multidisorder]
-name = Fake AUTO default_tls x11 TCP_ACK + MultiDisorder midsld
-author = community
-blobs = fake_default_tls
---lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:tcp_ack=-66000:repeats=11
---lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:repeats=11
 
 [fake_tls_google_ts_http_ts_discord]
 name = Fake TLS google x6 TS + HTTP x6 TS (discord/fb/instagram etc)

@@ -17,7 +17,6 @@ from ui.page_deps.system import (
     build_blockcheck_page_kwargs,
     build_dpi_settings_page_kwargs,
     build_hosts_page_kwargs,
-    build_lists_page_kwargs,
     build_logs_page_kwargs,
     build_network_page_kwargs,
     build_orchestra_page_kwargs,
@@ -47,11 +46,13 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
         build_preset_setup_page_kwargs,
         features=("profile",),
         actions=("open_profile_setup",),
+        include_ui_state_store=True,
     ),
     PageName.ZAPRET1_PRESET_SETUP: PageDepsSpec(
         build_preset_setup_page_kwargs,
         features=("profile",),
         actions=("open_profile_setup",),
+        include_ui_state_store=True,
     ),
     PageName.ZAPRET2_PROFILE_SETUP: PageDepsSpec(
         build_profile_setup_page_kwargs,
@@ -97,10 +98,6 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
         features=("blobs",),
         actions=("show_active_mode_control_page",),
     ),
-    PageName.HOSTLIST: PageDepsSpec(build_lists_page_kwargs, features=("lists",)),
-    PageName.NETROGAT: PageDepsSpec(build_lists_page_kwargs, features=("lists",)),
-    PageName.CUSTOM_DOMAINS: PageDepsSpec(build_lists_page_kwargs, features=("lists",)),
-    PageName.CUSTOM_IPSET: PageDepsSpec(build_lists_page_kwargs, features=("lists",)),
     PageName.NETWORK: PageDepsSpec(build_network_page_kwargs, features=("dns",)),
     PageName.HOSTS: PageDepsSpec(build_hosts_page_kwargs, features=("hosts",)),
     PageName.PREMIUM: PageDepsSpec(

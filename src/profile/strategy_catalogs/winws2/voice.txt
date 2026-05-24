@@ -55,31 +55,11 @@ description = Раздельная обработка IPv4 и IPv6 с DUP и Aut
 --lua-desync=send:repeats=2:ip6_autottl=0,3-20
 --lua-desync=fake:blob=fake_default_udp:ip6_autottl=0,3-20
 
-[fake_l7]
-name = Fake L7
-author = Community
-label = stable
-description = Базовая стратегия fake для Discord и STUN
---lua-desync=fake:blob=fake_default_udp
-
-[dronatar_4_2]
-name = Dronatar 4.2 / 4.3
-author = Dronatar
-label = recommended
-description = fake с нулевыми пакетами, 6 повторов
---lua-desync=fake:blob=0x00:repeats=6
-
 [fake_repeats_6]
 name = Fake Repeats 6
 author = Community
 label = stable
 description = Простая стратегия с 6 повторениями фейкового пакета
---lua-desync=fake:blob=fake_default_udp:repeats=6
-
-[fake_cutoff_n4_repeats_6]
-name = Fake, Cutoff n4, Repeats 6
-author = Community
-description = Fake с 6 повторениями и обрезкой n4
 --lua-desync=fake:blob=fake_default_udp:repeats=6
 
 [fake_cutoff_d5_repeats_11]
@@ -95,32 +75,12 @@ description = Использование поддельного QUIC-пакет�
 blobs = quic1
 --lua-desync=fake:blob=quic1
 
-[ipset_fake_cutoff_d3_repeats_6]
-name = general (alt v2) 1.6.1
-author = Community
-label = recommended
-description = Стратегия с 6 повторениями и обрезкой d3
---lua-desync=fake:blob=fake_default_udp:repeats=6
-
 [ipset_fake_cutoff_d3_repeats_8]
 name = IPSet Fake, Cutoff d3, Repeats 8
 author = Community
 label = recommended
 description = Стратегия с 8 повторениями и обрезкой d3
 --lua-desync=fake:blob=fake_default_udp:repeats=8
-
-[ipset_fake_cutoff_d4_repeats_8]
-name = IPSet Fake, Cutoff d4, Repeats 8
-author = Community
-label = recommended
-description = Стратегия с 8 повторениями и обрезкой d4
---lua-desync=fake:blob=fake_default_udp:repeats=8
-
-[fake_cutoff_n3]
-name = Fake, Cutoff n3
-author = Community
-description = Минималистичная стратегия с обрезкой n3
---lua-desync=fake:blob=fake_default_udp
 
 [fake_quic_test_cutoff_d2]
 name = Fake, QUIC Test, Cutoff d2
@@ -151,13 +111,6 @@ description = Агрессивная стратегия с 10 повторени
 blobs = quic_google
 --lua-desync=fake:blob=quic_google:repeats=10
 
-[fake_google_quic_cutoff_n4]
-name = Fake, Google QUIC, Cutoff n4
-author = Community
-description = QUIC от Google с обрезкой n4
-blobs = quic_google
---lua-desync=fake:blob=quic_google
-
 [fake_stun_discord_16bytes]
 name = Fake STUN+Discord 16 bytes
 author = Community
@@ -171,19 +124,6 @@ author = Community
 label = recommended
 description = Fake с AutoTTL для STUN и Discord IP Discovery
 --lua-desync=fake:blob=0x00:repeats=4:ip_autottl=0,3-20:ip6_autottl=0,3-20
-
-[fake_stun_discord_cutoff_n2]
-name = Fake STUN+Discord Cutoff n2
-author = Community
-description = Fake для STUN и Discord с обрезкой n2
---lua-desync=fake:blob=0x00:repeats=6
-
-[dronator_43]
-name = Dronator 4.3
-author = Dronator
-label = stable
-description = fake stun 0x0
---lua-desync=fake:blob=0x00
 
 [fake_2_n2]
 name = fake_2_n2
@@ -222,14 +162,6 @@ description = 4 повтора с quic_1.bin
 blobs = quic1,quic_initial
 --lua-desync=fake:blob=quic1:repeats=4
 
-[ipset_fake_6_d3]
-name = ipset_fake_6_d3
-author = community
-label = game
-description = UDP 443+ с ipset-all, 6 повторов, cutoff d3
-blobs = quic_google
---lua-desync=fake:blob=quic_google:repeats=6:payload=unknown
-
 [general_bf_32]
 name = General-BF 3.2
 author = community
@@ -243,14 +175,6 @@ name = Apex legends & Rockstar v2
 author = community
 label = game
 description = UDP 443+ с ipset-all, 12 повторов, cutoff n2
-blobs = quic_google
---lua-desync=fake:blob=quic_google:repeats=12:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=unknown
-
-[ipset_fake_12_n3]
-name = IPSET Fake x12 N3 (Apex legends & Battlefield 6)
-author = community
-label = game
-description = UDP 443+ с ipset-all, 12 повторов, cutoff n3
 blobs = quic_google
 --lua-desync=fake:blob=quic_google:repeats=12:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=unknown
 
@@ -308,20 +232,6 @@ author = community
 description = 15 повторов, TTL 0, md5sig+badsum
 blobs = quic_google,quic_initial
 --lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum
-
-[fake_15_ttl0_badsum]
-name = Fake x15 TTL0 Badsum
-author = community
-description = 15 повторов, TTL 0, только badsum
-blobs = quic_google,quic_initial
---lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum
-
-[fake_6_google]
-name = Fake x6 Google
-author = community
-description = 6 повторов с Google QUIC
-blobs = quic_google,quic_initial
---lua-desync=fake:blob=quic_google:repeats=6
 
 [fake_ipfrag2_quic5]
 name = Fake+IPFrag2 QUIC5
@@ -432,23 +342,6 @@ blobs = quic_google
 --lua-desync=fake:blob=quic_google:repeats=11
 --lua-desync=dht_dn:dn=2
 
-[fake_tamper_11_autottl]
-name = Fake+Tamper x11 AutoTTL (DHT)
-author = community
-label = recommended
-description = Fake с tamper и AutoTTL=2 для DHT
---payload=dht
---lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20
---lua-desync=dht_dn:dn=2
-
-[fake_6_n15_unknown]
-name = Fake x6 N15 Unknown
-author = community
-label = game
-description = 6 повторов unknown UDP, cutoff n15
-blobs = quic_google
---lua-desync=fake:blob=quic_google:repeats=6:payload=unknown
-
 [fake_11_quic_bin]
 name = fake 11 повторов (Google QUIC)
 author = hz
@@ -476,14 +369,6 @@ author = hz
 description = 4 повтора с fake QUIC пакетом Google
 blobs = quic_google,quic_initial
 --lua-desync=fake:blob=quic_google:repeats=4
-
-[fake_6_google_quic]
-name = general (alt v2) 1.6.1
-author = Flowseal
-label = recommended
-description = Стандартная стратегия для Discord Voice, Rockstar Launcher
-blobs = quic_google,quic_initial
---lua-desync=fake:blob=quic_google:repeats=6
 
 [fake_6_1]
 name = fake 6 quic 1
@@ -554,15 +439,6 @@ blobs = quic2,quic_initial
 --lua-desync=fake:blob=quic2:repeats=8
 --lua-desync=udplen:increment=10:pattern=0xDEADBEEF
 
-[fake_udplen_6_pattern]
-name = fake udplen 6 pattern
-author = hz
-label = recommended
-description = Потом опишу подробнее
-blobs = quic_google,quic_initial
---lua-desync=fake:blob=quic_google:repeats=6
---lua-desync=udplen:increment=10:pattern=0xDEADBEEF
-
 [fake_udplen_11]
 name = fake udplen 11
 author = hz
@@ -573,14 +449,3 @@ blobs = quic_google,quic_initial
 --lua-desync=udplen:increment=15
 
 # --- imported advanced additions ---
-[fake_tls_max_dv]
-name = Fake TLS Max (discord voice)
-author = community
-blobs = tls_max
---lua-desync=fake:blob=tls_max
-
-[fake_quic_google_2_dv]
-name = Fake QUIC Google x2 (discord voice)
-author = community
-blobs = quic_google
---lua-desync=fake:blob=quic_google:repeats=2

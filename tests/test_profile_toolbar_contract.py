@@ -24,6 +24,11 @@ class ProfileToolbarContractTests(unittest.TestCase):
         self.assertIn("get_configs_btn = PrimaryPushButton(", presets_source)
         self.assertIn("icon=FluentIcon.GITHUB", presets_source)
 
+    def test_user_presets_list_reserves_space_for_visible_fluent_scrollbar(self) -> None:
+        presets_source = inspect.getsource(user_presets_build.build_user_presets_page_shell)
+
+        self.assertIn("reserve_vertical_space=True", presets_source)
+
 
 if __name__ == "__main__":
     unittest.main()
