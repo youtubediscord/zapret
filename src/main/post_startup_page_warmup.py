@@ -16,8 +16,12 @@ from ui.navigation.schema import get_mode_entry_page
 class PageWarmupSpec:
     page_name: PageName
     metric_name: str
-    delay_ms: int = 450
+    delay_ms: int = 8_000
     budget_ms: int = 300
+
+
+PAGE_GUI_WARMUP_FIRST_DELAY_MS = 8_000
+PAGE_GUI_WARMUP_NEXT_DELAY_MS = 1_500
 
 
 PAGE_WARMUP_PRIORITY: tuple[PageName, ...] = (
@@ -73,7 +77,7 @@ def page_warmup_plan_for_method(method: str | None) -> tuple[PageWarmupSpec, ...
     return tuple(
         PageWarmupSpec(
             page_name=page_name,
-            delay_ms=450 if index == 0 else 180,
+            delay_ms=PAGE_GUI_WARMUP_FIRST_DELAY_MS if index == 0 else PAGE_GUI_WARMUP_NEXT_DELAY_MS,
             metric_name=_metric_name_for_page(page_name),
             budget_ms=300,
         )
@@ -94,8 +98,8 @@ def install_page_warmup(
     def _metric_detail(index: int, delay_ms: int) -> str:
         page_name = resolved_plan[index].page_name.name if index < len(resolved_plan) else "unknown"
         if index == 0:
-            return f"{page_name}, {delay_ms}ms after interactive"
-        return f"{page_name}, {delay_ms}ms after previous warmup"
+            return f"{page_name}, {delay_ms}ms after post-init"
+        return f"{page_name}, {delay_ms}ms after previous GUI warmup"
 
     def _run_page_warmup_spec(index: int) -> None:
         if not is_startup_host_alive(startup_host):
@@ -142,14 +146,16 @@ def install_page_warmup(
         _schedule_page_warmup_spec(0)
 
     bind_startup_gate(
-        startup_host.startup_interactive_ready,
+        startup_host.startup_post_init_ready,
         _schedule_page_warmup,
-        is_ready=lambda: bool(startup_host.startup_state.interactive_logged),
+        is_ready=lambda: bool(getattr(startup_host.startup_state, "post_init_ready", False)),
     )
 
 
 __all__ = [
     "PAGE_WARMUP_PRIORITY",
+    "PAGE_GUI_WARMUP_FIRST_DELAY_MS",
+    "PAGE_GUI_WARMUP_NEXT_DELAY_MS",
     "PageWarmupSpec",
     "install_page_warmup",
     "page_warmup_plan_for_method",

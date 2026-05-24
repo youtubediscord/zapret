@@ -341,6 +341,22 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("StartupRuntimeInitQueued" in error for error in result.errors))
 
+    def test_startup_log_contract_rejects_gui_page_warmup_during_startup(self) -> None:
+        from main.startup_log_contract import validate_startup_log_contract
+
+        result = validate_startup_log_contract(
+            "\n".join(
+                (
+                    "[12:00:00] [⏱ STARTUP] ⏱ Startup StartupTTFF: 1000ms | first showEvent",
+                    "[12:00:01] [⏱ STARTUP] ⏱ Startup StartupInteractive: 1300ms | ui_ready",
+                    "[12:00:10] [⏱ STARTUP] ⏱ PageLifecycle: NETWORK warmup 237ms",
+                )
+            )
+        )
+
+        self.assertFalse(result.ok)
+        self.assertTrue(any("GUI-прогрев страницы" in error for error in result.errors))
+
     def test_dns_feature_exposes_startup_dns_entrypoint(self) -> None:
         from app.feature_facades.dns import build_dns_feature
 
@@ -863,7 +879,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ],
         )
         self.assertEqual(len(scheduled), 1)
-        self.assertGreaterEqual(scheduled[0][0], 200)
+        self.assertGreaterEqual(scheduled[0][0], 1000)
         metric.assert_called_once_with("StartupContinueAfterUiReadyQueued", f"{scheduled[0][0]}ms")
 
         with patch.object(window_startup, "emit_startup_metric") as metric:
@@ -1119,19 +1135,69 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         routed_show_page.assert_called_once_with(window, PageName.SERVERS, allow_internal=True)
 
-    def test_page_warmup_ensures_page_without_showing_it(self) -> None:
+    def test_page_warmup_uses_loaded_page_without_creating_gui(self) -> None:
         from app.page_names import PageName
         from ui.page_warmup import warm_page
 
         page = SimpleNamespace(warmup_initial_load=Mock(return_value=True))
-        page_host = SimpleNamespace(ensure_page=Mock(return_value=page), show_page=Mock())
+        page_host = SimpleNamespace(get_loaded_page=Mock(return_value=page), ensure_page=Mock(), show_page=Mock())
         window = SimpleNamespace(ui_session=SimpleNamespace(page_host=page_host))
 
         self.assertTrue(warm_page(window, PageName.HOSTS))
 
-        page_host.ensure_page.assert_called_once_with(PageName.HOSTS)
+        page_host.get_loaded_page.assert_called_once_with(PageName.HOSTS)
+        page_host.ensure_page.assert_not_called()
         page_host.show_page.assert_not_called()
         page.warmup_initial_load.assert_called_once_with()
+
+    def test_page_warmup_skips_unloaded_page_without_creating_gui(self) -> None:
+        from app.page_names import PageName
+        from ui.page_warmup import warm_page
+
+        page_host = SimpleNamespace(get_loaded_page=Mock(return_value=None), ensure_page=Mock(), show_page=Mock())
+        window = SimpleNamespace(ui_session=SimpleNamespace(page_host=page_host))
+
+        self.assertFalse(warm_page(window, PageName.NETWORK))
+
+        page_host.get_loaded_page.assert_called_once_with(PageName.NETWORK)
+        page_host.ensure_page.assert_not_called()
+        page_host.show_page.assert_not_called()
+
+    def test_control_start_waits_until_runtime_is_available(self) -> None:
+        from presets.ui.control import control_page_shared
+        from presets.ui.control.control_page_shared import ControlPageActionMixin
+
+        class Page(ControlPageActionMixin):
+            def __init__(self) -> None:
+                self.loading_calls: list[tuple[bool, str]] = []
+                self.status_calls: list[str] = []
+                self._runtime_feature = SimpleNamespace(
+                    is_available=Mock(side_effect=[False, False, True]),
+                    start=Mock(return_value=True),
+                )
+                self._set_status_callback = self.status_calls.append
+
+            def set_loading(self, loading: bool, text: str = "") -> None:
+                self.loading_calls.append((loading, text))
+
+        page = Page()
+        scheduled: list[object] = []
+
+        with patch.object(
+            control_page_shared.QTimer,
+            "singleShot",
+            side_effect=lambda _delay_ms, callback: scheduled.append(callback),
+        ):
+            page._start_dpi()
+            self.assertEqual(len(scheduled), 1)
+            scheduled.pop(0)()
+            self.assertEqual(len(scheduled), 1)
+            scheduled.pop(0)()
+
+        page._runtime_feature.start.assert_called_once_with()
+        self.assertIn((True, "Подготовка запуска..."), page.loading_calls)
+        self.assertEqual(page.loading_calls[-1], (False, ""))
+        self.assertIn("Подготовка запуска...", page.status_calls)
 
     def test_post_startup_tasks_install_page_warmup(self) -> None:
         from main import post_startup
@@ -1357,11 +1423,11 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [300])
+        self.assertEqual(delays, [1200])
         self.assertEqual(thread_names, ["DnsPageDataWarmup"])
         dns_feature.warm_page_data_cache.assert_called_once_with()
         self.assertFalse(hasattr(startup_host, "warm_page"))
-        metric.assert_any_call("StartupNetworkDataWarmupQueued", "300ms after interactive")
+        metric.assert_any_call("StartupNetworkDataWarmupQueued", "1200ms after interactive")
         metric.assert_any_call("StartupPostInitNetworkDataWarmupStarted", "backend_cache")
 
     def test_profile_warmup_orders_current_method_first(self) -> None:
@@ -1425,13 +1491,13 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [500])
+        self.assertEqual(delays, [1800])
         self.assertEqual(thread_names, ["ProfileWarmup-zapret1_mode", "ProfileWarmup-zapret2_mode"])
         self.assertEqual(
             [recorded_call.args[0] for recorded_call in profile_feature.list_profiles.call_args_list],
             ["zapret1_mode", "zapret2_mode"],
         )
-        metric.assert_any_call("StartupProfileWarmupQueued", "500ms after interactive")
+        metric.assert_any_call("StartupProfileWarmupQueued", "1800ms after interactive")
         metric.assert_any_call("StartupProfileWarmupStarted", "zapret1_mode, zapret2_mode")
 
     def test_page_warmup_plan_covers_visible_pages_and_excludes_only_entry_page(self) -> None:
@@ -1465,8 +1531,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertLess(page_names.index(PageName.APPEARANCE), page_names.index(PageName.AUTOSTART))
         self.assertLess(page_names.index(PageName.NETWORK), page_names.index(PageName.AUTOSTART))
         self.assertEqual(page_names[:2], [PageName.ZAPRET2_USER_PRESETS, PageName.ZAPRET2_PRESET_SETUP])
-        self.assertEqual(specs[0].delay_ms, 450)
-        self.assertTrue(all(spec.delay_ms == 180 for spec in specs[1:]))
+        self.assertEqual(specs[0].delay_ms, 8000)
+        self.assertTrue(all(spec.delay_ms == 1500 for spec in specs[1:]))
 
     def test_page_warmup_uses_spec_delay_and_metric(self) -> None:
         from app.page_names import PageName
@@ -1485,8 +1551,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         signal = Signal()
         startup_host = SimpleNamespace(
-            startup_interactive_ready=signal,
-            startup_state=SimpleNamespace(interactive_logged=False),
+            startup_post_init_ready=signal,
+            startup_state=SimpleNamespace(post_init_ready=False),
             is_alive=Mock(return_value=True),
             warm_page=Mock(return_value=True),
         )
@@ -1511,11 +1577,11 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 log_startup_metric=metric,
                 plan=plan,
             )
-            signal.emit("interactive")
+            signal.emit("post_init")
 
         self.assertEqual(delays, [1234])
         startup_host.warm_page.assert_called_once_with(PageName.HOSTS)
-        metric.assert_called_once_with("StartupPageHostsWarmupQueued", "HOSTS, 1234ms after interactive")
+        metric.assert_called_once_with("StartupPageHostsWarmupQueued", "HOSTS, 1234ms after post-init")
 
     def test_page_warmup_continues_queue_after_failure(self) -> None:
         from app.page_names import PageName
@@ -1534,8 +1600,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         signal = Signal()
         startup_host = SimpleNamespace(
-            startup_interactive_ready=signal,
-            startup_state=SimpleNamespace(interactive_logged=False),
+            startup_post_init_ready=signal,
+            startup_state=SimpleNamespace(post_init_ready=False),
             is_alive=Mock(return_value=True),
             warm_page=Mock(side_effect=[RuntimeError("boom"), True]),
         )
@@ -1552,7 +1618,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             side_effect=lambda delay_ms, callback: delays.append(delay_ms) or callback(),
         ):
             install_page_warmup(startup_host, log_startup_metric=metric, plan=plan)
-            signal.emit("interactive")
+            signal.emit("post_init")
 
         self.assertEqual(delays, [10, 20])
         self.assertEqual(
@@ -1562,8 +1628,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertEqual(
             [recorded_call.args for recorded_call in metric.call_args_list],
             [
-                ("HostsWarmupQueued", "HOSTS, 10ms after interactive"),
-                ("LogsWarmupQueued", "LOGS, 20ms after previous warmup"),
+                ("HostsWarmupQueued", "HOSTS, 10ms after post-init"),
+                ("LogsWarmupQueued", "LOGS, 20ms after previous GUI warmup"),
             ],
         )
 
@@ -1584,8 +1650,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         signal = Signal()
         startup_host = SimpleNamespace(
-            startup_interactive_ready=signal,
-            startup_state=SimpleNamespace(interactive_logged=False),
+            startup_post_init_ready=signal,
+            startup_state=SimpleNamespace(post_init_ready=False),
             is_alive=Mock(return_value=True),
             warm_page=Mock(return_value=True),
         )
@@ -1608,7 +1674,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             patch.object(post_startup_page_warmup, "log") as log_mock,
         ):
             install_page_warmup(startup_host, log_startup_metric=Mock(), plan=plan)
-            signal.emit("interactive")
+            signal.emit("post_init")
 
         self.assertTrue(
             any(

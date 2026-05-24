@@ -53,7 +53,7 @@ class BackendPageDataWarmupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [350])
+        self.assertEqual(delays, [1500])
         self.assertEqual(
             thread_names,
             [
@@ -66,7 +66,7 @@ class BackendPageDataWarmupTests(unittest.TestCase):
         logs_feature.warm_page_data_cache.assert_called_once_with()
         warm_appearance.assert_called_once_with()
         self.assertFalse(hasattr(startup_host, "warm_page"))
-        metric.assert_any_call("StartupBackendPageDataWarmupQueued", "350ms after interactive")
+        metric.assert_any_call("StartupBackendPageDataWarmupQueued", "1500ms after interactive")
         metric.assert_any_call("StartupBackendPageDataWarmupStarted", "premium, appearance, logs")
 
     def test_premium_page_uses_warmed_device_snapshot_before_worker(self) -> None:

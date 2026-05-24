@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 _STARTUP_METRIC_RE = re.compile(r"\bStartup (?P<marker>Startup[A-Za-z0-9]+):\s+(?P<ms>\d+)ms\b")
+_PAGE_LIFECYCLE_WARMUP_RE = re.compile(r"\bPageLifecycle:\s+(?P<page>[A-Z0-9_]+)\s+warmup\s+(?P<ms>\d+)ms\b")
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +90,16 @@ def validate_startup_log_contract(text: str) -> StartupLogContractResult:
         return StartupLogContractResult(
             ok=False,
             errors=("В логе не найдены startup-метрики формата 'Startup <marker>: <ms>'.",),
+        )
+
+    for line_number, line in enumerate(str(text or "").splitlines(), start=1):
+        match = _PAGE_LIFECYCLE_WARMUP_RE.search(line)
+        if match is None:
+            continue
+        errors.append(
+            "GUI-прогрев страницы создаёт или догревает Qt-страницу в startup-логе: "
+            f"{match.group('page')} warmup {match.group('ms')}ms, строка {line_number}. "
+            "Фоновый startup-прогрев должен греть данные через кэш, а не Qt-виджеты."
         )
 
     ttff = _first_metric(metrics, "StartupTTFF")

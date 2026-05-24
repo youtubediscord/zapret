@@ -1,14 +1,79 @@
 from __future__ import annotations
 
+from PyQt6.QtCore import QTimer
+
 from app.state_store import MainWindowStateStore
 from presets.ui.control.control_page_runtime_shared import set_toggle_checked
+
+
+RUNTIME_START_RETRY_MS = 250
+RUNTIME_START_MAX_RETRIES = 24
 
 
 class ControlPageActionMixin:
     """Общие действия для страниц управления."""
 
     def _start_dpi(self) -> None:
+        if not self._runtime_start_available():
+            self._queue_runtime_start_retry()
+            return
         self._runtime_feature.start()
+
+    def _runtime_start_available(self) -> bool:
+        try:
+            available = self._runtime_feature.is_available
+        except AttributeError:
+            return False
+        if callable(available):
+            try:
+                return bool(available())
+            except Exception:
+                return False
+        return False
+
+    def _queue_runtime_start_retry(self) -> None:
+        if bool(getattr(self, "_runtime_start_retry_pending", False)):
+            return
+        self._runtime_start_retry_pending = True
+        self._runtime_start_retry_count = 0
+        self._show_runtime_preparing_state()
+        QTimer.singleShot(RUNTIME_START_RETRY_MS, self._retry_start_dpi_after_runtime_ready)
+
+    def _show_runtime_preparing_state(self) -> None:
+        message = "Подготовка запуска..."
+        set_loading = getattr(self, "set_loading", None)
+        if callable(set_loading):
+            set_loading(True, message)
+        set_status = getattr(self, "_set_status", None)
+        if callable(set_status):
+            set_status(message)
+
+    def _retry_start_dpi_after_runtime_ready(self) -> None:
+        if bool(getattr(self, "_cleanup_in_progress", False)):
+            self._runtime_start_retry_pending = False
+            return
+
+        if self._runtime_start_available():
+            self._runtime_start_retry_pending = False
+            set_loading = getattr(self, "set_loading", None)
+            if callable(set_loading):
+                set_loading(False, "")
+            self._runtime_feature.start()
+            return
+
+        retries = int(getattr(self, "_runtime_start_retry_count", 0)) + 1
+        self._runtime_start_retry_count = retries
+        if retries >= RUNTIME_START_MAX_RETRIES:
+            self._runtime_start_retry_pending = False
+            set_loading = getattr(self, "set_loading", None)
+            if callable(set_loading):
+                set_loading(False, "")
+            set_status = getattr(self, "_set_status", None)
+            if callable(set_status):
+                set_status("Запуск ещё не готов. Попробуйте ещё раз через пару секунд.")
+            return
+
+        QTimer.singleShot(RUNTIME_START_RETRY_MS, self._retry_start_dpi_after_runtime_ready)
 
     def _stop_dpi(self) -> None:
         self._runtime_feature.stop()

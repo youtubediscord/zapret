@@ -24,7 +24,7 @@ def install_profile_warmup(
     *,
     profile_feature,
     log_startup_metric,
-    delay_ms: int = 500,
+    delay_ms: int = 1_800,
 ) -> None:
     def _run_profile_warmup_method(method: str) -> None:
         if not is_startup_host_alive(startup_host):

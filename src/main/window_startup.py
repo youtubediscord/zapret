@@ -15,7 +15,7 @@ from main.window_startup_state import WindowStartupState
 from main.window_visual_state import WindowVisualState
 
 
-STARTUP_CONTINUE_AFTER_UI_READY_MS = 250
+STARTUP_CONTINUE_AFTER_UI_READY_MS = 1_000
 
 
 class WindowStartupMixin:

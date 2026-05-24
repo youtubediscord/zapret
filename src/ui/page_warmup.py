@@ -9,7 +9,7 @@ from ui.window_ui_session import get_window_ui_session
 
 
 def warm_page(window, page_name: PageName) -> bool:
-    """Создаёт страницу в фоне и запускает её тихую подготовку, если она есть."""
+    """Тихо догревает уже созданную страницу, не создавая новые Qt-виджеты."""
     session = get_window_ui_session(window)
     if session is None:
         return False
@@ -19,7 +19,7 @@ def warm_page(window, page_name: PageName) -> bool:
         return False
 
     started_at = time.perf_counter()
-    page = page_host.ensure_page(page_name)
+    page = page_host.get_loaded_page(page_name)
     if page is None:
         return False
 

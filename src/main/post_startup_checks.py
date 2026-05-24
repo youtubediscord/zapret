@@ -18,7 +18,7 @@ def install_startup_checks(
     notify_many,
     set_status,
     log_startup_metric,
-    delay_ms: int = 800,
+    delay_ms: int = 2_200,
 ) -> None:
     startup_bridge = _StartupChecksBridge()
 

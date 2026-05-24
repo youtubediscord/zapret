@@ -41,7 +41,7 @@ from qfluentwidgets import (
 )
 
 
-STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS = 250
+STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS = 8_000
 
 
 class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMixin, BasePage):
