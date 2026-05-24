@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import inspect
+import os
 import unittest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 
@@ -33,6 +36,12 @@ class _StoppedRuntimeOwner:
 
 
 class PresetStatusBarPlanTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        cls._app = QApplication.instance() or QApplication([])
+
     def test_spinner_import_is_static_for_packaged_build(self) -> None:
         import presets.ui.common.preset_status_bar as preset_status_bar
 
@@ -112,6 +121,36 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         self.assertEqual(plan.text, "Пресет применён")
         self.assertEqual(plan.mode, "success")
         self.assertEqual(plan.indicator, "check")
+
+    def test_presets_list_height_reserves_space_for_bottom_status_bar(self) -> None:
+        from PyQt6.QtWidgets import QListView, QVBoxLayout, QWidget
+
+        from presets.ui.common.preset_status_bar import PresetStatusBar
+        from presets.ui.common.user_presets_page_runtime import update_presets_view_height
+
+        viewport = QWidget()
+        viewport.resize(640, 600)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(36, 28, 36, 28)
+        layout.setSpacing(16)
+
+        presets_list = QListView(content)
+        status_bar = PresetStatusBar(content)
+        layout.addWidget(presets_list)
+        layout.addWidget(status_bar)
+        presets_list.setGeometry(0, 180, 400, 100)
+
+        update_presets_view_height(
+            presets_model=object(),
+            presets_list=presets_list,
+            viewport=viewport,
+            layout=layout,
+        )
+
+        expected_height = 600 - 180 - 28 - 16 - status_bar.minimumHeight()
+        self.assertEqual(presets_list.minimumHeight(), expected_height)
+        self.assertEqual(presets_list.maximumHeight(), expected_height)
 
 
 if __name__ == "__main__":

@@ -165,12 +165,52 @@ def update_presets_view_height(
 
     top = max(0, presets_list.geometry().top())
     bottom_margin = layout.contentsMargins().bottom()
-    desired_height = max(220, viewport_height - top - bottom_margin)
+    reserved_bottom_height = _layout_height_after_widget(layout, presets_list)
+    desired_height = max(220, viewport_height - top - bottom_margin - reserved_bottom_height)
 
     if presets_list.minimumHeight() != desired_height:
         presets_list.setMinimumHeight(desired_height)
     if presets_list.maximumHeight() != desired_height:
         presets_list.setMaximumHeight(desired_height)
+
+
+def _layout_height_after_widget(layout, widget) -> int:
+    if layout is None or widget is None:
+        return 0
+
+    try:
+        widget_index = layout.indexOf(widget)
+        if widget_index < 0:
+            return 0
+        spacing = max(0, int(layout.spacing()))
+        reserved = 0
+        visible_items = 0
+        for index in range(widget_index + 1, layout.count()):
+            item = layout.itemAt(index)
+            if item is None:
+                continue
+
+            item_height = 0
+            child_widget = item.widget()
+            if child_widget is not None:
+                minimum = int(child_widget.minimumHeight())
+                maximum = int(child_widget.maximumHeight())
+                if minimum > 0 and minimum == maximum:
+                    item_height = minimum
+                else:
+                    item_height = max(0, int(child_widget.sizeHint().height()))
+            else:
+                item_height = max(0, int(item.sizeHint().height()))
+
+            if item_height <= 0:
+                continue
+            visible_items += 1
+            reserved += item_height
+        if visible_items > 0:
+            reserved += spacing * visible_items
+        return reserved
+    except Exception:
+        return 0
 
 
 def rebuild_presets_rows(
