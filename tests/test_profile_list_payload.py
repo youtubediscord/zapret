@@ -644,6 +644,81 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertEqual(store.text, source_text)
         moved_discord = next(item for item in moved_payload.items if "discord" in " ".join(item.match_lines).lower())
         self.assertTrue(moved_discord.order_is_manual)
+        self.assertEqual(moved_discord.group, "youtube")
+
+    def test_profile_folder_reset_rebuilds_cached_list_with_default_groups(self) -> None:
+        from profile.folders import load_profile_folder_state, reset_profile_folders, save_profile_folder_state
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            source_text = "\n".join(
+                (
+                    "--filter-tcp=80,443",
+                    "--hostlist=lists/youtube.txt",
+                    "",
+                    "--new",
+                    "--filter-tcp=443",
+                    "--hostlist=lists/discord.txt",
+                    "",
+                )
+            )
+            store = _PresetStore(source_text)
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+            service = ProfilePresetService(feature, "zapret2_mode")
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                payload = service.list_profiles()
+                state = load_profile_folder_state()
+                for item in payload.items:
+                    state["items"][item.persistent_key] = {"folder_key": "common", "order": 0, "rating": 0}
+                save_profile_folder_state(state)
+                service._invalidate_profile_list_snapshot()
+                common_payload = service.list_profiles()
+
+                reset_profile_folders()
+                reset_payload = service.list_profiles()
+
+        self.assertEqual({item.group for item in common_payload.items}, {"common"})
+        reset_groups = {item.group for item in reset_payload.items}
+        self.assertIn("youtube", reset_groups)
+        self.assertIn("discord", reset_groups)
+
+    def test_profile_can_move_to_folder_without_rewriting_preset_text(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            source_text = "\n".join(
+                (
+                    "--filter-tcp=80,443",
+                    "--hostlist=lists/youtube.txt",
+                    "",
+                )
+            )
+            store = _PresetStore(source_text)
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+            service = ProfilePresetService(feature, "zapret2_mode")
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                payload = service.list_profiles()
+                youtube = next(item for item in payload.items if "youtube" in " ".join(item.match_lines).lower())
+                moved = service.move_profile_to_folder(youtube.key, "common")
+                moved_payload = service.list_profiles()
+
+        self.assertEqual(moved, youtube.key)
+        self.assertEqual(store.text, source_text)
+        moved_youtube = next(item for item in moved_payload.items if "youtube" in " ".join(item.match_lines).lower())
+        self.assertEqual(moved_youtube.group, "common")
 
     def test_profile_setup_reads_strategy_feedback_in_one_batch(self) -> None:
         class _StateStore:

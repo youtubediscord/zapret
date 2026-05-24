@@ -214,6 +214,7 @@ class PresetSetupPageBase(BasePage):
         profiles_list.profile_selected.connect(self._on_profile_clicked)
         profiles_list.profile_context_requested.connect(self._on_profile_context_requested)
         profiles_list.profile_move_requested.connect(self._on_profile_move_requested)
+        profiles_list.profile_move_to_folder_requested.connect(self._on_profile_move_to_folder_requested)
         profiles_list.profile_move_to_end_requested.connect(self._on_profile_move_to_end_requested)
         profiles_list.folder_context_requested.connect(self._on_folder_context_requested)
         profiles_list.folder_toggled.connect(self._on_folder_toggled)
@@ -432,6 +433,13 @@ class PresetSetupPageBase(BasePage):
             self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось переместить профиль в конец: {exc}", "ERROR")
+
+    def _on_profile_move_to_folder_requested(self, profile_key: str, folder_key: str) -> None:
+        try:
+            self._profile.move_profile_to_folder(self.launch_method, profile_key, folder_key)
+            self.refresh_from_preset_switch()
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось переместить профиль в папку: {exc}", "ERROR")
 
     def _on_folder_context_requested(self, folder_key: str, global_pos) -> None:
         show_profile_folder_menu(

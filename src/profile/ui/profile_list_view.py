@@ -10,16 +10,43 @@ from qfluentwidgets import ListView
 from .profile_list_model import ProfileListModel
 
 
+PROFILE_DROP_MARKER_PROPERTY = "profileDropMarker"
+
+
+def profile_drop_marker_for_target(row: int, destination_kind: str) -> dict[str, object]:
+    kind = str(destination_kind or "").strip()
+    try:
+        row_index = int(row)
+    except Exception:
+        row_index = -1
+    if row_index < 0:
+        return {"row": -1, "mode": ""}
+    if kind == "folder":
+        return {"row": row_index, "mode": "folder"}
+    if kind == "profile":
+        return {"row": row_index, "mode": "before"}
+    return {"row": -1, "mode": ""}
+
+
 class ProfileListView(ListView):
     profile_activated = pyqtSignal(str)
     profile_context_requested = pyqtSignal(str, QPoint)
     folder_context_requested = pyqtSignal(str, QPoint)
     profile_move_requested = pyqtSignal(str, str)
+    profile_move_to_folder_requested = pyqtSignal(str, str)
     profile_move_to_end_requested = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._drag_start_pos: QPoint | None = None
+        self.set_drop_marker(-1, "")
+
+    def set_drop_marker(self, row: int, destination_kind: str) -> None:
+        marker = profile_drop_marker_for_target(row, destination_kind)
+        if self.property(PROFILE_DROP_MARKER_PROPERTY) == marker:
+            return
+        self.setProperty(PROFILE_DROP_MARKER_PROPERTY, marker)
+        self.viewport().update()
 
     def wheelEvent(self, event):  # noqa: N802
         scrollbar = self.verticalScrollBar()
@@ -70,7 +97,10 @@ class ProfileListView(ListView):
         drag = QDrag(self)
         drag.setMimeData(mime)
         self._drag_start_pos = None
-        drag.exec(Qt.DropAction.MoveAction)
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            self.set_drop_marker(-1, "")
         event.accept()
 
     def mouseReleaseEvent(self, event):  # noqa: N802
@@ -112,28 +142,48 @@ class ProfileListView(ListView):
 
     def dragMoveEvent(self, event):  # noqa: N802
         if event.mimeData().hasFormat(ProfileListModel.MIME_TYPE):
+            drop_index = self.indexAt(event.position().toPoint())
+            destination_kind = str(drop_index.data(ProfileListModel.KindRole) or "") if drop_index.isValid() else ""
+            self.set_drop_marker(drop_index.row() if drop_index.isValid() else -1, destination_kind)
             event.acceptProposedAction()
             return
         super().dragMoveEvent(event)
 
+    def dragLeaveEvent(self, event):  # noqa: N802
+        self.set_drop_marker(-1, "")
+        super().dragLeaveEvent(event)
+
     def dropEvent(self, event):  # noqa: N802
         if not event.mimeData().hasFormat(ProfileListModel.MIME_TYPE):
+            self.set_drop_marker(-1, "")
             super().dropEvent(event)
             return
         source_key = _profile_key_from_mime(event.mimeData())
         if not source_key:
+            self.set_drop_marker(-1, "")
             event.ignore()
             return
 
         drop_index = self.indexAt(event.position().toPoint())
-        if drop_index.isValid() and str(drop_index.data(ProfileListModel.KindRole) or "") == "profile":
-            destination_key = str(drop_index.data(ProfileListModel.ProfileKeyRole) or "")
-            if destination_key and destination_key != source_key:
-                self.profile_move_requested.emit(source_key, destination_key)
-                event.acceptProposedAction()
-                return
+        if drop_index.isValid():
+            destination_kind = str(drop_index.data(ProfileListModel.KindRole) or "")
+            if destination_kind == "folder":
+                folder_key = str(drop_index.data(ProfileListModel.GroupRole) or "")
+                if folder_key:
+                    self.profile_move_to_folder_requested.emit(source_key, folder_key)
+                    self.set_drop_marker(-1, "")
+                    event.acceptProposedAction()
+                    return
+            if destination_kind == "profile":
+                destination_key = str(drop_index.data(ProfileListModel.ProfileKeyRole) or "")
+                if destination_key and destination_key != source_key:
+                    self.profile_move_requested.emit(source_key, destination_key)
+                    self.set_drop_marker(-1, "")
+                    event.acceptProposedAction()
+                    return
 
         self.profile_move_to_end_requested.emit(source_key)
+        self.set_drop_marker(-1, "")
         event.acceptProposedAction()
 
 
@@ -145,4 +195,4 @@ def _profile_key_from_mime(mime) -> str:
     return str(payload.get("profile_key") or "").strip()
 
 
-__all__ = ["ProfileListView"]
+__all__ = ["PROFILE_DROP_MARKER_PROPERTY", "ProfileListView", "profile_drop_marker_for_target"]

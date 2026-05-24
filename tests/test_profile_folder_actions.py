@@ -10,6 +10,7 @@ from profile.folders import (
     create_profile_folder,
     delete_profile_folder,
     load_profile_folder_state,
+    move_profile_before_in_folder_state,
     move_profile_folder_by_step,
     rename_profile_folder,
     reset_profile_folders,
@@ -71,6 +72,27 @@ class ProfileFolderActionTests(unittest.TestCase):
                 state = load_profile_folder_state()
 
         self.assertFalse(state["folders"]["youtube"]["collapsed"])
+
+    def test_profile_reorder_saves_folder_state_once(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                state = load_profile_folder_state()
+                for index, key in enumerate(("a", "b", "c", "d")):
+                    state["items"][key] = {"folder_key": COMMON_FOLDER_KEY, "order": index, "rating": 0}
+                save_profile_folder_state(state)
+
+                save_calls = 0
+                original_save = save_profile_folder_state
+
+                def _counting_save(next_state):
+                    nonlocal save_calls
+                    save_calls += 1
+                    return original_save(next_state)
+
+                with patch("profile.folders.save_profile_folder_state", side_effect=_counting_save):
+                    move_profile_before_in_folder_state("d", "a", ["a", "b", "c", "d"])
+
+        self.assertEqual(save_calls, 1)
 
 
 if __name__ == "__main__":

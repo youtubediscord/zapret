@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QEvent, QModelIndex, QRect, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QMouseEvent, QPainter
+from PyQt6.QtGui import QFontMetrics, QMouseEvent, QPainter, QPen
 from PyQt6.QtWidgets import QListView, QStyledItemDelegate, QStyle, QStyleOptionViewItem
 
 from profile.ui.profile_icon import profile_icon_pixmap
@@ -22,6 +22,7 @@ from ui.widgets.profile_row_style import (
 )
 
 from .profile_list_model import ProfileListModel
+from .profile_list_view import PROFILE_DROP_MARKER_PROPERTY
 
 
 class ProfileListDelegate(QStyledItemDelegate):
@@ -77,11 +78,13 @@ class ProfileListDelegate(QStyledItemDelegate):
         kind = str(index.data(ProfileListModel.KindRole) or "")
         if kind == "folder":
             self._paint_folder_row(painter, option, index)
+            self._paint_drop_marker(painter, option, index)
             return
         if kind == "empty":
             self._paint_empty_row(painter, option, str(index.data(ProfileListModel.DisplayNameRole) or ""))
             return
         self._paint_profile_row(painter, option, index)
+        self._paint_drop_marker(painter, option, index)
 
     def editorEvent(self, event, model, option: QStyleOptionViewItem, index: QModelIndex):
         _ = model
@@ -120,6 +123,39 @@ class ProfileListDelegate(QStyledItemDelegate):
             expanded=not bool(index.data(ProfileListModel.CollapsedRole)),
             count=int(index.data(ProfileListModel.CountRole) or 0),
         )
+
+    def _paint_drop_marker(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex) -> None:
+        marker = self._view.property(PROFILE_DROP_MARKER_PROPERTY)
+        if not isinstance(marker, dict):
+            return
+        try:
+            marker_row = int(marker.get("row", -1))
+        except Exception:
+            marker_row = -1
+        if marker_row != index.row():
+            return
+
+        tokens = get_theme_tokens()
+        accent = to_qcolor(tokens.accent_hex, "#5caee8")
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        if marker.get("mode") == "folder":
+            fill = to_qcolor(tokens.accent_soft_bg_hover, tokens.accent_hex)
+            fill.setAlpha(70)
+            rect = option.rect.adjusted(4, 2, -8, -2)
+            painter.setBrush(fill)
+            painter.setPen(QPen(accent, 2))
+            painter.drawRoundedRect(rect, 6, 6)
+        elif marker.get("mode") == "before":
+            line_rect = profile_hover_row_rect(option.rect).adjusted(12, 0, -12, 0)
+            pen = QPen(accent, 3)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(pen)
+            y = line_rect.top() + 2
+            painter.drawLine(line_rect.left(), y, line_rect.right(), y)
+
+        painter.restore()
 
     def _paint_empty_row(self, painter: QPainter, option: QStyleOptionViewItem, text: str) -> None:
         painter.save()

@@ -111,27 +111,93 @@ def set_profile_folder_order(profile_key: str, order: int | None) -> None:
     save_profile_folder_state(state)
 
 
-def move_profile_before_in_folder_state(source_profile_key: str, destination_profile_key: str, ordered_profile_keys: list[str]) -> None:
+def set_profile_folder(profile_key: str, folder_key: str) -> bool:
+    key = str(profile_key or "").strip()
+    target_folder = str(folder_key or "").strip() or COMMON_FOLDER_KEY
+    if not key:
+        return False
+    state = load_profile_folder_state()
+    folders = state.get("folders", {})
+    if not isinstance(folders, dict) or target_folder not in folders:
+        return False
+    items = state.setdefault("items", {})
+    meta = items.setdefault(key, {"folder_key": target_folder, "order": None, "rating": 0})
+    meta["folder_key"] = target_folder
+    save_profile_folder_state(state)
+    return True
+
+
+def move_profile_before_in_folder_state(
+    source_profile_key: str,
+    destination_profile_key: str,
+    ordered_profile_keys: list[str],
+    *,
+    destination_folder_key: str = "",
+) -> None:
     source = str(source_profile_key or "").strip()
     destination = str(destination_profile_key or "").strip()
     keys = [str(key or "").strip() for key in ordered_profile_keys if str(key or "").strip()]
     if not source or not destination or source == destination or source not in keys or destination not in keys:
         return
+    state = load_profile_folder_state()
+    items = state.setdefault("items", {})
+    destination_meta = items.setdefault(destination, {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0})
+    folder_key = str(destination_folder_key or destination_meta.get("folder_key") or COMMON_FOLDER_KEY)
+    source_meta = items.setdefault(source, {"folder_key": folder_key, "order": None, "rating": 0})
+    source_meta["folder_key"] = folder_key
     keys = [key for key in keys if key != source]
     keys.insert(keys.index(destination), source)
     for index, key in enumerate(keys):
-        set_profile_folder_order(key, index)
+        meta = items.setdefault(key, {"folder_key": folder_key, "order": None, "rating": 0})
+        if str(meta.get("folder_key") or COMMON_FOLDER_KEY) == folder_key:
+            meta["order"] = index
+    save_profile_folder_state(state)
 
 
-def move_profile_to_end_in_folder_state(profile_key: str, ordered_profile_keys: list[str]) -> None:
+def move_profile_to_end_in_folder_state(profile_key: str, ordered_profile_keys: list[str], *, source_folder_key: str = "") -> None:
     source = str(profile_key or "").strip()
     keys = [str(key or "").strip() for key in ordered_profile_keys if str(key or "").strip()]
     if not source or source not in keys:
         return
+    state = load_profile_folder_state()
+    items = state.setdefault("items", {})
+    source_meta = items.setdefault(source, {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0})
+    folder_key = str(source_folder_key or source_meta.get("folder_key") or COMMON_FOLDER_KEY)
+    source_meta["folder_key"] = folder_key
     keys = [key for key in keys if key != source]
     keys.append(source)
     for index, key in enumerate(keys):
-        set_profile_folder_order(key, index)
+        meta = items.setdefault(key, {"folder_key": folder_key, "order": None, "rating": 0})
+        if str(meta.get("folder_key") or COMMON_FOLDER_KEY) == folder_key:
+            meta["order"] = index
+    save_profile_folder_state(state)
+
+
+def move_profile_to_folder_in_folder_state(profile_key: str, folder_key: str, ordered_profile_keys: list[str]) -> None:
+    source = str(profile_key or "").strip()
+    target_folder = str(folder_key or "").strip() or COMMON_FOLDER_KEY
+    keys = [str(key or "").strip() for key in ordered_profile_keys if str(key or "").strip()]
+    if not source or source not in keys:
+        return
+    state = load_profile_folder_state()
+    folders = state.get("folders", {})
+    if not isinstance(folders, dict) or target_folder not in folders:
+        return
+    items = state.setdefault("items", {})
+    source_meta = items.setdefault(source, {"folder_key": target_folder, "order": None, "rating": 0})
+    source_meta["folder_key"] = target_folder
+    target_keys = [
+        key
+        for key in keys
+        if key != source
+        and str(items.setdefault(key, {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0}).get("folder_key") or COMMON_FOLDER_KEY) == target_folder
+    ]
+    target_keys.append(source)
+    for index, key in enumerate(target_keys):
+        meta = items.setdefault(key, {"folder_key": target_folder, "order": None, "rating": 0})
+        meta["folder_key"] = target_folder
+        meta["order"] = index
+    save_profile_folder_state(state)
 
 
 def _profile_classification_text(profile) -> str:
@@ -154,11 +220,13 @@ __all__ = [
     "move_profile_folder_by_step",
     "move_profile_before_in_folder_state",
     "move_profile_to_end_in_folder_state",
+    "move_profile_to_folder_in_folder_state",
     "profile_folder_collapsed",
     "profile_folder_for_profile",
     "rename_profile_folder",
     "reset_profile_folders",
     "save_profile_folder_state",
     "set_profile_folder_collapsed",
+    "set_profile_folder",
     "set_profile_folder_order",
 ]

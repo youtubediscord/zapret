@@ -15,6 +15,7 @@ from .folders import (
     load_profile_folder_state,
     move_profile_before_in_folder_state,
     move_profile_to_end_in_folder_state,
+    move_profile_to_folder_in_folder_state,
     profile_folder_collapsed,
     profile_folder_for_profile,
 )
@@ -118,13 +119,17 @@ class ProfilePresetService:
 
     def _list_profiles_locked(self) -> ProfileListPayload:
         total_started_at = time.perf_counter()
-        revision, manifest, source_text = self._selected_preset_revision()
+        preset_revision, manifest, source_text = self._selected_preset_revision()
+        folder_state_started_at = time.perf_counter()
+        folder_state = load_profile_folder_state()
+        self._log_timing("profile_feature.folder_state.load", folder_state_started_at)
+        list_revision = (*preset_revision, ("profile_folders", _profile_folder_state_revision(folder_state)))
         snapshot = self._profile_list_snapshot
-        if snapshot is not None and self._profile_list_snapshot_revision == revision:
+        if snapshot is not None and self._profile_list_snapshot_revision == list_revision:
             self._log_timing("profile_feature.list_profiles.cached", total_started_at)
             return snapshot
 
-        preset, manifest = self._load_selected_preset_for_revision(revision, manifest, source_text)
+        preset, manifest = self._load_selected_preset_for_revision(preset_revision, manifest, source_text)
         normalize_started_at = time.perf_counter()
         normalization = normalize_preset_profiles(preset)
         self._log_timing("profile_feature.profiles.normalize", normalize_started_at)
@@ -139,10 +144,6 @@ class ProfilePresetService:
         templates_started_at = time.perf_counter()
         templates = self._load_profile_templates()
         self._log_timing("profile_feature.templates.load", templates_started_at)
-
-        folder_state_started_at = time.perf_counter()
-        folder_state = load_profile_folder_state()
-        self._log_timing("profile_feature.folder_state.load", folder_state_started_at)
 
         items: list[ProfileListItem] = []
 
@@ -172,7 +173,7 @@ class ProfilePresetService:
             normalized_created_profiles=normalization.created_profile_count,
         )
         self._profile_list_snapshot = payload
-        self._profile_list_snapshot_revision = revision
+        self._profile_list_snapshot_revision = list_revision
         self._log_timing("profile_feature.list_profiles.total", total_started_at)
         return payload
 
@@ -520,10 +521,13 @@ class ProfilePresetService:
         destination = _find_profile_list_source(sources, destination_profile_key)
         if source is None or destination is None:
             return None
+        folder_state = load_profile_folder_state()
+        destination_folder_key, _folder_name, _order = profile_folder_for_profile(destination.profile, folder_state)
         move_profile_before_in_folder_state(
             source.profile.persistent_key,
             destination.profile.persistent_key,
             [item.profile.persistent_key for item in sources],
+            destination_folder_key=destination_folder_key,
         )
         self._invalidate_profile_list_snapshot()
         return source.key
@@ -533,8 +537,25 @@ class ProfilePresetService:
         source = _find_profile_list_source(sources, profile_key)
         if source is None:
             return None
+        folder_state = load_profile_folder_state()
+        source_folder_key, _folder_name, _order = profile_folder_for_profile(source.profile, folder_state)
         move_profile_to_end_in_folder_state(
             source.profile.persistent_key,
+            [item.profile.persistent_key for item in sources],
+            source_folder_key=source_folder_key,
+        )
+        self._invalidate_profile_list_snapshot()
+        return source.key
+
+    def move_profile_to_folder(self, profile_key: str, folder_key: str) -> str | None:
+        sources = self._profile_sources_for_folder_order()
+        source = _find_profile_list_source(sources, profile_key)
+        target_folder = str(folder_key or "").strip()
+        if source is None or not target_folder:
+            return None
+        move_profile_to_folder_in_folder_state(
+            source.profile.persistent_key,
+            target_folder,
             [item.profile.persistent_key for item in sources],
         )
         self._invalidate_profile_list_snapshot()
@@ -861,6 +882,33 @@ def _find_profile_list_source(sources, profile_key: str):
         if source.key == key or source.profile.persistent_key == key:
             return source
     return None
+
+
+def _profile_folder_state_revision(folder_state: dict[str, Any]) -> tuple[object, ...]:
+    folders = folder_state.get("folders", {}) if isinstance(folder_state, dict) else {}
+    items = folder_state.get("items", {}) if isinstance(folder_state, dict) else {}
+    folder_rows: list[tuple[object, ...]] = []
+    if isinstance(folders, dict):
+        for key, folder in sorted(folders.items()):
+            if not isinstance(folder, dict):
+                continue
+            folder_rows.append((
+                str(key),
+                str(folder.get("name") or ""),
+                folder.get("order"),
+                bool(folder.get("collapsed", False)),
+            ))
+    item_rows: list[tuple[object, ...]] = []
+    if isinstance(items, dict):
+        for key, meta in sorted(items.items()):
+            if not isinstance(meta, dict):
+                continue
+            item_rows.append((
+                str(key),
+                str(meta.get("folder_key") or ""),
+                meta.get("order"),
+            ))
+    return tuple(folder_rows), tuple(item_rows)
 
 
 def _basic_strategy_entries(profile: Profile, catalogs: dict[str, dict[str, StrategyEntry]]) -> dict[str, StrategyEntry]:

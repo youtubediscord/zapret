@@ -201,6 +201,10 @@ def move_profile_to_end(profile_services, launch_method: str, profile_key: str) 
     return _profile_preset_service(profile_services, launch_method).move_profile_to_end(profile_key)
 
 
+def move_profile_to_folder(profile_services, launch_method: str, profile_key: str, folder_key: str) -> str | None:
+    return _profile_preset_service(profile_services, launch_method).move_profile_to_folder(profile_key, folder_key)
+
+
 def create_user_profile(profile_services, *, name: str, protocol: str, ports: str) -> str:
     return _profile_preset_service(profile_services, "").create_user_profile(
         name=name,

@@ -210,6 +210,9 @@ class ProfileFeature:
     def move_profile_to_end(self, launch_method: str, profile_key: str) -> str | None:
         return self._commands().move_profile_to_end(self, launch_method, profile_key)
 
+    def move_profile_to_folder(self, launch_method: str, profile_key: str, folder_key: str) -> str | None:
+        return self._commands().move_profile_to_folder(self, launch_method, profile_key, folder_key)
+
     def create_user_profile(self, *, name: str, protocol: str, ports: str) -> str:
         return self._commands().create_user_profile(
             self,
