@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from ui.navigation.schema import (
     SIDEBAR_GROUP_ORDER,
-    get_sidebar_pages_for_method,
+    get_sidebar_layout_pages_for_method,
     normalize_launch_method_for_ui,
 )
 from app.page_names import PageName
@@ -42,7 +42,7 @@ def build_sidebar_group_plans(method: str | None) -> tuple[SidebarGroupPlan, ...
                 group_name=group_name,
                 header_key=SIDEBAR_GROUP_HEADER_KEYS.get(group_name),
                 page_names=tuple(
-                    get_sidebar_pages_for_method(
+                    get_sidebar_layout_pages_for_method(
                         normalized_method,
                         sidebar_group=group_name,
                     )

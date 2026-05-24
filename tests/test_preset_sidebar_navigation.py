@@ -172,9 +172,39 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             PageName.ZAPRET2_MODE_CONTROL,
         )
 
-    def test_mode_switch_hides_old_mode_items_before_adding_new_visible_items(self) -> None:
+    def test_sidebar_plan_keeps_other_mode_items_created_but_hidden(self) -> None:
+        from app.page_names import PageName
+        from settings.mode import ZAPRET2_MODE
+        from ui.navigation.layout_plan import build_sidebar_group_plans
+        from ui.navigation.schema import get_nav_visibility
+
+        root_plan = next(
+            group_plan
+            for group_plan in build_sidebar_group_plans(ZAPRET2_MODE)
+            if group_plan.group_name == "root"
+        )
+        visibility = get_nav_visibility(ZAPRET2_MODE)
+
+        self.assertEqual(
+            root_plan.page_names[:3],
+            (
+                PageName.ZAPRET2_MODE_CONTROL,
+                PageName.ZAPRET2_USER_PRESETS,
+                PageName.ZAPRET2_PRESET_SETUP,
+            ),
+        )
+        for page_name in (
+            PageName.ZAPRET1_MODE_CONTROL,
+            PageName.ZAPRET1_USER_PRESETS,
+            PageName.ZAPRET1_PRESET_SETUP,
+        ):
+            self.assertIn(page_name, root_plan.page_names)
+            self.assertFalse(visibility[page_name])
+
+    def test_mode_switch_reuses_hidden_other_mode_items(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
+        from ui.navigation.schema import get_nav_visibility
         import ui.navigation.sidebar_builder as sidebar_builder
 
         class FakeNavItem:
@@ -206,8 +236,12 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             PageName.ZAPRET1_USER_PRESETS,
             PageName.ZAPRET1_PRESET_SETUP,
         )
+        initial_visibility = get_nav_visibility(ZAPRET2_MODE)
         session = SimpleNamespace(
-            nav_items={page_name: FakeNavItem(True) for page_name in old_pages},
+            nav_items={
+                page_name: FakeNavItem(visible)
+                for page_name, visible in initial_visibility.items()
+            },
             nav_icons={},
             nav_labels={},
             nav_headers=[],
@@ -226,24 +260,17 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             navigationInterface=FakeNavigationInterface(session),
             get_launch_method=lambda: ZAPRET2_MODE,
         )
-        snapshots: list[tuple[set[PageName], set[PageName]]] = []
 
         original_pump = sidebar_builder.pump_startup_ui
         try:
-            sidebar_builder.pump_startup_ui = lambda current_window: snapshots.append(
-                (
-                    {page for page in old_pages if session.nav_items.get(page) and session.nav_items[page].visible},
-                    {page for page in new_pages if session.nav_items.get(page) and session.nav_items[page].visible},
-                )
-            )
+            sidebar_builder.pump_startup_ui = lambda current_window: self.fail("mode switch should reuse existing nav items")
 
             sidebar_builder.sync_nav_visibility(window, ZAPRET1_MODE)
         finally:
             sidebar_builder.pump_startup_ui = original_pump
 
-        self.assertTrue(snapshots)
-        for old_visible, new_visible in snapshots:
-            self.assertFalse(old_visible and new_visible)
+        self.assertFalse(any(session.nav_items[page_name].visible for page_name in old_pages))
+        self.assertTrue(all(session.nav_items[page_name].visible for page_name in new_pages))
 
     def test_sidebar_search_is_delayed_until_interactive_ready(self) -> None:
         import ui.navigation.sidebar_builder as sidebar_builder

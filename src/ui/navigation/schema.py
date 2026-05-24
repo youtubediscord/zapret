@@ -450,6 +450,23 @@ def get_sidebar_pages_for_method(method: str | None, *, sidebar_group: str | Non
     return tuple(pages)
 
 
+def get_sidebar_layout_pages_for_method(method: str | None, *, sidebar_group: str | None = None) -> tuple[PageName, ...]:
+    visible_pages: list[PageName] = []
+    hidden_mode_pages: list[PageName] = []
+    for spec in iter_page_specs():
+        if not spec.is_top_level or spec.is_hidden:
+            continue
+        if sidebar_group is not None and spec.sidebar_group != sidebar_group:
+            continue
+
+        if _is_sidebar_visible_in_method(spec, method):
+            visible_pages.append(spec.page_name)
+        else:
+            hidden_mode_pages.append(spec.page_name)
+
+    return tuple(visible_pages + hidden_mode_pages)
+
+
 def get_hidden_pages_for_method(method: str | None) -> tuple[PageName, ...]:
     pages: list[PageName] = []
     for spec in iter_page_specs():
@@ -520,6 +537,7 @@ __all__ = [
     "is_page_mode_open_allowed",
     "is_page_search_visible",
     "iter_page_names_for_cleanup",
+    "get_sidebar_layout_pages_for_method",
     "get_sidebar_pages_for_method",
     "get_sidebar_search_pages_for_method",
     "iter_page_specs",
