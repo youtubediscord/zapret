@@ -37,7 +37,7 @@ class PresetSetupPageBase(BasePage):
     request_hint_key = "page.winws2_pages.request.hint"
     loading_key = "page.winws2_pages.loading"
 
-    def __init__(self, parent=None, *, profile_feature, open_profile_setup, ui_state_store=None):
+    def __init__(self, parent=None, *, profile_feature, open_profile_setup, open_profile_order, ui_state_store=None):
         super().__init__(
             title=self.page_title,
             parent=parent,
@@ -45,6 +45,7 @@ class PresetSetupPageBase(BasePage):
         )
         self._profile = profile_feature
         self._open_profile_setup = open_profile_setup
+        self._open_profile_order_page = open_profile_order
 
         self._profiles_list: ProfilesList | None = None
         self._empty_state_label = None
@@ -85,6 +86,7 @@ class PresetSetupPageBase(BasePage):
             on_add_user_profile=self._on_add_user_profile_clicked,
             on_expand_all=self._expand_all,
             on_collapse_all=self._collapse_all,
+            on_open_profile_order=self._open_profile_order,
             on_show_info_popup=self._show_profile_info,
             on_profile_search_text_changed=self._on_profile_search_text_changed,
         )
@@ -337,7 +339,7 @@ class PresetSetupPageBase(BasePage):
             if str(profile_key or "").startswith("profile:") and str(target_key or "") == str(profile_key or ""):
                 self._refresh_profile_item_locally(profile_key, target_key)
             else:
-                self.refresh_from_preset_switch()
+                self._sync_profile_list_locally()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось изменить состояние profile: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
@@ -345,7 +347,7 @@ class PresetSetupPageBase(BasePage):
     def _duplicate_profile_from_menu(self, profile_key: str) -> None:
         try:
             self._profile.duplicate_profile(self.launch_method, profile_key)
-            self.refresh_from_preset_switch()
+            self._sync_profile_list_locally()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось дублировать profile: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
@@ -362,10 +364,32 @@ class PresetSetupPageBase(BasePage):
             return
         try:
             if self._profile.delete_profile(self.launch_method, profile_key):
-                self.refresh_from_preset_switch()
+                self._sync_profile_list_locally()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось удалить profile из preset: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
+
+    def _sync_profile_list_locally(self) -> None:
+        profiles_list = self._profiles_list
+        if profiles_list is None:
+            self.refresh_from_preset_switch()
+            return
+        try:
+            payload = self._profile.list_profiles(self.launch_method)
+        except Exception as exc:
+            log(f"{self.__class__.__name__}: не удалось обновить текущий список profile: {exc}", "ERROR")
+            self.refresh_from_preset_switch()
+            return
+        if not getattr(payload, "items", ()):
+            self.refresh_from_preset_switch()
+            return
+        self._profile_payload_loaded_once = True
+        self._profile_payload_dirty = False
+        self._profile_load_request_id += 1
+        self._apply_selected_preset_title(payload)
+        self._show_profile_normalization_info(payload)
+        profiles_list.build_profiles(tuple(payload.items))
+        profiles_list.set_search_query(self._profile_search_query)
 
     def _refresh_profile_item_locally(self, old_profile_key: str, profile_key: str) -> None:
         setup = self._profile.get_profile_setup(self.launch_method, profile_key)
@@ -591,6 +615,9 @@ class PresetSetupPageBase(BasePage):
     def _collapse_all(self) -> None:
         if self._profiles_list is not None:
             self._profiles_list.collapse_all()
+
+    def _open_profile_order(self) -> None:
+        self._open_profile_order_page()
 
     def _show_profile_info(self) -> None:
         MessageBox(
