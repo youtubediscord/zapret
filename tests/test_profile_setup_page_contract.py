@@ -508,17 +508,17 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertNotIn("refresh_from_preset_switch()", before_handler)
         self.assertNotIn("refresh_from_preset_switch()", after_handler)
 
-    def test_profile_context_actions_update_single_row_before_full_refresh_fallback(self) -> None:
+    def test_profile_context_actions_refresh_when_profile_keys_can_shift(self) -> None:
         enable_handler = inspect.getsource(PresetSetupPageBase._set_profile_enabled_from_menu)
         duplicate_handler = inspect.getsource(PresetSetupPageBase._duplicate_profile_from_menu)
         delete_handler = inspect.getsource(PresetSetupPageBase._delete_profile_from_menu)
 
         self.assertIn("_refresh_profile_item_locally", enable_handler)
-        self.assertIn("_add_profile_item_locally", duplicate_handler)
-        self.assertIn("_remove_profile_item_locally", delete_handler)
-        self.assertNotIn("self.refresh_from_preset_switch()", enable_handler)
-        self.assertNotIn("self.refresh_from_preset_switch()", duplicate_handler)
-        self.assertNotIn("self.refresh_from_preset_switch()", delete_handler)
+        self.assertIn("refresh_from_preset_switch()", enable_handler)
+        self.assertIn("refresh_from_preset_switch()", duplicate_handler)
+        self.assertIn("refresh_from_preset_switch()", delete_handler)
+        self.assertNotIn("_add_profile_item_locally", duplicate_handler)
+        self.assertNotIn("_remove_profile_item_locally", delete_handler)
 
     def test_profile_setup_shell_has_search_input_for_all_profiles(self) -> None:
         build_content = inspect.getsource(PresetSetupPageBase._build_content)

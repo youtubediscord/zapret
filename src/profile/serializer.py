@@ -28,7 +28,7 @@ def serialize_preset(preset: Preset) -> str:
             lines.append("")
             skip_leading_blanks = True
         for segment in profile.segments:
-            if skip_leading_blanks and not str(segment.text or "").strip():
+            if segment.kind == "blank":
                 continue
             skip_leading_blanks = False
             lines.append(segment.text)
@@ -205,6 +205,7 @@ def append_profile_from_template(
     ]
     if not enabled:
         profile.segments.insert(_directive_insert_index(profile), ProfileSegment(kind="directive", text="--skip", name="--skip"))
+    _ensure_safe_default_strategy(profile)
     updated.profiles.insert(insert_at, profile)
     _ensure_profile_boundaries(updated)
     return _reparse(updated)
@@ -363,6 +364,20 @@ def _profile_has_name_directive(profile: Profile) -> bool:
     return any(
         segment.kind == "directive" and str(segment.name or "").strip().lower() == "--name"
         for segment in profile.segments
+    )
+
+
+def _ensure_safe_default_strategy(profile: Profile) -> None:
+    if profile.engine != ENGINE_WINWS2:
+        return
+    if any(segment.kind == "strategy" for segment in profile.segments):
+        return
+    insert_at = len(profile.segments)
+    while insert_at > 0 and profile.segments[insert_at - 1].kind == "blank":
+        insert_at -= 1
+    profile.segments.insert(
+        insert_at,
+        ProfileSegment(kind="strategy", text="--lua-desync=pass", name="--lua-desync", value="pass"),
     )
 
 

@@ -333,15 +333,19 @@ class PresetSetupPageBase(BasePage):
     def _set_profile_enabled_from_menu(self, profile_key: str, enabled: bool) -> None:
         try:
             new_key = self._profile.set_profile_enabled(self.launch_method, profile_key, bool(enabled))
-            self._refresh_profile_item_locally(profile_key, new_key or profile_key)
+            target_key = new_key or profile_key
+            if str(profile_key or "").startswith("profile:") and str(target_key or "") == str(profile_key or ""):
+                self._refresh_profile_item_locally(profile_key, target_key)
+            else:
+                self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось изменить состояние profile: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
 
     def _duplicate_profile_from_menu(self, profile_key: str) -> None:
         try:
-            new_key = self._profile.duplicate_profile(self.launch_method, profile_key)
-            self._add_profile_item_locally(new_key)
+            self._profile.duplicate_profile(self.launch_method, profile_key)
+            self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось дублировать profile: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
@@ -358,7 +362,7 @@ class PresetSetupPageBase(BasePage):
             return
         try:
             if self._profile.delete_profile(self.launch_method, profile_key):
-                self._remove_profile_item_locally(profile_key)
+                self.refresh_from_preset_switch()
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось удалить profile из preset: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())

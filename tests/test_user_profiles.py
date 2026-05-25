@@ -440,7 +440,52 @@ class UserProfilesTests(unittest.TestCase):
         self.assertEqual(new_key, "profile:0")
         self.assertIn("--hostlist=lists/speedtest.txt\n--out-range=-d8", store.text)
         self.assertNotIn("--hostlist=lists/speedtest.txt\n\n--out-range=-d8", store.text)
+        self.assertNotIn("--lua-desync=pass", store.text)
         self.assertIn("\n--new\n\n--name=youtube.com (интерфейс)", store.text)
+
+    def test_enabling_stock_template_adds_safe_pass_without_internal_blanks(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            templates_dir.joinpath("all_profiles.txt").write_text(
+                "\n".join(
+                    (
+                        "--name=Speedtest",
+                        "--filter-tcp=443,8080",
+                        "--hostlist=lists/speedtest.txt",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=youtube.com (интерфейс)",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "",
+                        "--payload=tls_client_hello",
+                        "--out-range=-d8",
+                        "--lua-desync=multisplit:pos=2,midsld-2:seqovl=1:seqovl_pattern=tls7",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                new_key = service.set_profile_enabled("template:all_profiles:0", True)
+
+        self.assertEqual(new_key, "profile:0")
+        self.assertIn("--hostlist=lists/speedtest.txt\n--out-range=-d8\n--lua-desync=pass", store.text)
+        self.assertNotIn("--hostlist=lists/speedtest.txt\n\n--out-range=-d8", store.text)
+        self.assertNotIn("--hostlist=lists/youtube.txt\n\n--payload=tls_client_hello", store.text)
 
     def test_enabling_missing_profile_adds_it_to_top_of_preset(self) -> None:
         with TemporaryDirectory() as temp_dir:
