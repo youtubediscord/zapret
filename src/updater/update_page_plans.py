@@ -122,7 +122,7 @@ class ChangelogTerminalPlan:
 
 
 def _tr(language: str, key: str, default: str) -> str:
-    from app.text_catalog import tr as tr_catalog
+    from app.ui_texts import tr as tr_catalog
 
     return tr_catalog(key, language=language, default=default)
 
@@ -149,7 +149,7 @@ def build_update_status_card_plan(
     app_version: str,
     language: str,
 ) -> UpdateStatusCardPlan:
-    from app.text_catalog import tr as tr_catalog
+    from app.ui_texts import tr as tr_catalog
 
     def tr(key: str, default: str) -> str:
         return tr_catalog(key, language=language, default=default)
@@ -248,7 +248,7 @@ def build_server_row_plan(
     channel: str,
     language: str,
 ) -> ServerRowPlan:
-    from app.text_catalog import tr as tr_catalog
+    from app.ui_texts import tr as tr_catalog
     from updater.channel_utils import is_dev_update_channel
 
     def tr(key: str, default: str) -> str:

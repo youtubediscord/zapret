@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QLabel, QHBoxLayout, QSizePolicy, QVBoxLayout, QWidg
 
 from qfluentwidgets import CaptionLabel, FlowLayout, StrongBodyLabel, SubtitleLabel
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from presets.ui.control.top_summary_plan import build_premium_summary, build_profiles_value
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding

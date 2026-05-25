@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import SettingsCard
 from ui.theme import get_theme_tokens
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from updater.update_page_runtime import UpdatePageRuntime
 from updater.server_status_table_state import ServerStatusTableState
 from updater.ui.main_build import (

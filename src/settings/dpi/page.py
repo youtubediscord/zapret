@@ -17,7 +17,7 @@ from settings.mode import (
 from ui.fluent_widgets import (
     SettingsCard,
 )
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from ui.widgets.win11_controls import (
     Win11ComboRow,

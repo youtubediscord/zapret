@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 def build_profiles_value(enabled_count: int | None, *, language: str) -> str:

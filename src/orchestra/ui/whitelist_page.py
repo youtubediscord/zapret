@@ -25,7 +25,7 @@ from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 

@@ -14,7 +14,7 @@ from profile.ui_mode import (
     normalize_profile_ui_mode,
     save_current_profile_ui_mode,
 )
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 class ProfileUiModeLabelPlan:
@@ -81,7 +81,7 @@ def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
         from settings.mode import exe_name_for_launch_method
         from ui.workflows.common import get_current_launch_method
 
-        from app.text_catalog import tr as tr_catalog
+        from app.ui_texts import tr as tr_catalog
 
         method = get_current_launch_method(default="")
         exe_name = exe_name_for_launch_method(method)
@@ -92,7 +92,7 @@ def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
         )
         return ControlStopButtonPlan(text=template.format(exe_name=exe_name))
     except Exception:
-        from app.text_catalog import tr as tr_catalog
+        from app.ui_texts import tr as tr_catalog
 
         return ControlStopButtonPlan(
             text=tr_catalog(
@@ -103,7 +103,7 @@ def build_stop_button_plan(*, language: str) -> ControlStopButtonPlan:
         )
 
 def build_status_plan(*, state: str | bool, last_error: str, language: str) -> ControlStatusPlan:
-    from app.text_catalog import tr as tr_catalog
+    from app.ui_texts import tr as tr_catalog
 
     phase = str(state or "").strip().lower()
     if phase not in {"autostart_pending", "starting", "running", "stopping", "failed", "stopped"}:

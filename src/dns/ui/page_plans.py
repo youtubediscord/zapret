@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 @dataclass(slots=True)

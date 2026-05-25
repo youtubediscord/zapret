@@ -30,7 +30,7 @@ from ui.fluent_widgets import (
 )
 from app.state_store import AppUiState, MainWindowStateStore
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_rkn_background_options
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.widgets.win11_controls import Win11ToggleRow
 from log.log import log
 from qfluentwidgets import (

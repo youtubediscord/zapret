@@ -47,7 +47,7 @@ from qfluentwidgets import (
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_preset_launch_method, is_zapret2_launch_method
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, to_qcolor
 from ui.widgets.fluent_item_tooltip import FluentItemToolTipController
 from ui.widgets.fluent_scrollbar import install_fluent_scrollbars

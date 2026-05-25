@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QCompleter
 from qfluentwidgets import FluentIcon, NavigationItemPosition, SearchLineEdit
 
 from app.page_names import PageName
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.ui_root import WindowUiRoot
 
 # ---------------------------------------------------------------------------

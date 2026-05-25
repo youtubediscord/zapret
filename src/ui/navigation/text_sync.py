@@ -3,7 +3,7 @@ from __future__ import annotations
 from PyQt6.QtWidgets import QWidget
 
 from app.page_names import PageName
-from app.text_catalog import (
+from app.ui_texts import (
     get_nav_page_label,
     normalize_language,
     tr as tr_catalog,

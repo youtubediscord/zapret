@@ -30,7 +30,7 @@ from blockcheck.strategy_scan_targeting import (
 
 
 def tr_catalog(key: str, *, language: str | None = None, default: str = "", **kwargs) -> str:
-    from app.text_catalog import tr
+    from app.ui_texts import tr
 
     return tr(key, language=language, default=default, **kwargs)
 

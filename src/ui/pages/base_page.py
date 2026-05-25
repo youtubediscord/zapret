@@ -15,7 +15,7 @@ from qfluentwidgets import (
     TitleLabel,
 )
 
-from app.text_catalog import tr as tr_catalog, normalize_language
+from app.ui_texts import tr as tr_catalog, normalize_language
 from ui.page_performance import log_page_metric
 from ui.theme_refresh import ThemeRefreshBinding
 from ui.smooth_scroll import (

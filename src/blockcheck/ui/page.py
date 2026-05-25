@@ -35,7 +35,7 @@ from blockcheck.page_run_workflow import (
     start_blockcheck_page_run,
 )
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 from qfluentwidgets import (
     ComboBox,

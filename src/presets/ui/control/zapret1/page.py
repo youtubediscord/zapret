@@ -31,7 +31,7 @@ from presets.ui.control.control_page_shared import (
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
 )
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
 
 from qfluentwidgets import (

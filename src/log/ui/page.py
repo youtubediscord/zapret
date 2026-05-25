@@ -43,7 +43,7 @@ from log.ui.support_workflow import (
     update_orchestra_indicator,
 )
 from settings.mode import ORCHESTRA_MODE
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from log.log import log
 

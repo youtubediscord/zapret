@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, SubtitleLabel
 
 

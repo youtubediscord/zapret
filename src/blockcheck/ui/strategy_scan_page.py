@@ -39,7 +39,7 @@ from blockcheck.ui.strategy_scan_page_runtime_helpers import (
     set_support_status,
 )
 from ui.popup_menu import exec_popup_menu
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from qfluentwidgets import (
     ComboBox,
     CaptionLabel,

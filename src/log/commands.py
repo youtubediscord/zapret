@@ -372,7 +372,7 @@ def build_support_error_feedback(error: str) -> LogsSupportFeedbackPlan:
     )
 
 def build_stats_text_plan(stats: LogsStatsState, *, language: str) -> LogsStatsTextPlan:
-    from app.text_catalog import tr as tr_catalog
+    from app.ui_texts import tr as tr_catalog
 
     return LogsStatsTextPlan(
         text=tr_catalog(
@@ -411,7 +411,7 @@ def build_winws_output_plan(
         )
 
     if source != "direct" or not runner:
-        from app.text_catalog import tr as tr_catalog
+        from app.ui_texts import tr as tr_catalog
 
         return LogsWinwsOutputPlan(
             action="idle",
@@ -426,7 +426,7 @@ def build_winws_output_plan(
 
     process = runner.get_process()
     if not process:
-        from app.text_catalog import tr as tr_catalog
+        from app.ui_texts import tr as tr_catalog
 
         return LogsWinwsOutputPlan(
             action="idle",

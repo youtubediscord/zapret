@@ -59,7 +59,7 @@ from hosts.ui.page_lifecycle_helpers import (
     install_host_window_event_filter,
     run_hosts_runtime_init_once,
 )
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 from log.log import log
 

@@ -20,7 +20,7 @@ from ui.fluent_widgets import set_tooltip
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from ui.theme import get_theme_tokens
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from log.log import log
 from orchestra.ratings_workflow import (
     OrchestraRatingsState,

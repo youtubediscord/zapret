@@ -616,7 +616,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
 
         self.assertEqual(installed, [window])
 
-    def test_sidebar_search_prefers_current_page_handler_for_profile_queries(self) -> None:
+    def test_sidebar_search_keeps_typing_global_even_when_page_has_local_handler(self) -> None:
         import ui.navigation.search as sidebar_search
 
         class CurrentPage:
@@ -635,21 +635,46 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         window = SimpleNamespace(ui_session=session)
 
         with (
-            patch.object(sidebar_search, "route_sidebar_search_by_text") as route_by_text,
+            patch.object(sidebar_search, "route_sidebar_search_by_text", return_value=False) as route_by_text,
             patch.object(sidebar_search, "update_sidebar_search_suggestions") as update_suggestions,
             patch("ui.navigation.sidebar_builder.apply_nav_visibility_filter") as apply_nav_visibility_filter,
         ):
             sidebar_search.on_sidebar_search_changed(window, "Discord")
 
         self.assertEqual(session.nav_search_query, "Discord")
-        self.assertEqual(current_page.queries, ["Discord"])
-        route_by_text.assert_not_called()
-        apply_nav_visibility_filter.assert_not_called()
+        self.assertEqual(current_page.queries, [])
+        route_by_text.assert_called_once_with(window, "Discord", prefer_first=False)
+        apply_nav_visibility_filter.assert_called_once_with(window)
         update_suggestions.assert_called_once_with(window)
+
+    def test_sidebar_search_applies_result_query_after_route(self) -> None:
+        import ui.navigation.search as sidebar_search
+        from app.page_names import PageName
+
+        queries = []
+        session = SimpleNamespace(
+            page_host=SimpleNamespace(
+                current_page=lambda: SimpleNamespace(
+                    apply_sidebar_search_query=lambda query: queries.append(query) or True
+                )
+            ),
+            sidebar_search_nav_widget=SimpleNamespace(clear=Mock()),
+        )
+        window = SimpleNamespace(ui_session=session)
+
+        with patch.object(sidebar_search, "route_search_result", return_value=True):
+            routed = sidebar_search._route_search_result_and_clear(
+                window,
+                PageName.ZAPRET2_PRESET_SETUP,
+                query_text="Discord Voice",
+            )
+
+        self.assertTrue(routed)
+        self.assertEqual(queries, ["Discord Voice"])
 
     def test_sidebar_search_finds_page_body_text(self) -> None:
         from app.page_names import PageName
-        from app.text_catalog import find_search_entries
+        from app.search_index import find_search_entries
         from settings.mode import ZAPRET2_MODE
         from ui.navigation.schema import get_sidebar_search_pages_for_method
 
@@ -662,6 +687,45 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         )
 
         self.assertTrue(any(match.entry.page_name == PageName.PREMIUM for match in matches))
+
+    def test_sidebar_search_builds_profile_and_preset_runtime_entries(self) -> None:
+        from app.page_names import PageName
+        from settings.mode import ZAPRET2_MODE
+        import ui.navigation.search as sidebar_search
+
+        profiles = (
+            SimpleNamespace(
+                key="profile:0",
+                display_name="Discord Voice",
+                strategy_name="Fake",
+                group_name="Voice",
+                list_type="hostlist",
+                match_lines=("--hostlist=lists/private-discord-file.txt",),
+            ),
+        )
+        manifests = (
+            SimpleNamespace(file_name="gaming.txt", name="Gaming Preset"),
+        )
+        session = SimpleNamespace(
+            sidebar_search_profile_loader=Mock(return_value=profiles),
+            sidebar_search_preset_loader=Mock(return_value=manifests),
+        )
+        window = SimpleNamespace(
+            ui_session=session,
+            get_launch_method=lambda: ZAPRET2_MODE,
+        )
+
+        entries = sidebar_search._build_runtime_search_entries(window)
+
+        self.assertTrue(
+            any(entry.kind == "profile" and entry.page_name == PageName.ZAPRET2_PRESET_SETUP for entry in entries)
+        )
+        self.assertTrue(
+            any(entry.kind == "preset" and entry.page_name == PageName.ZAPRET2_USER_PRESETS for entry in entries)
+        )
+        self.assertFalse(any("private-discord-file" in " ".join(entry.keywords) for entry in entries))
+        session.sidebar_search_profile_loader.assert_called_once_with(ZAPRET2_MODE)
+        session.sidebar_search_preset_loader.assert_called_once_with(ZAPRET2_MODE)
 
     def test_preset_setup_page_exposes_sidebar_search_handler(self) -> None:
         from profile.ui.preset_setup_page import PresetSetupPageBase

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from ui.fluent_widgets import InfoBarHelper, set_tooltip
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 logger = logging.getLogger(__name__)

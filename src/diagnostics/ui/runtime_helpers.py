@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QThread, QTimer
 
 import diagnostics.page_plans as connection_page_plans
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.fluent_widgets import set_tooltip
 
 

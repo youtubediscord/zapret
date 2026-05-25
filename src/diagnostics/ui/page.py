@@ -32,7 +32,7 @@ from diagnostics.ui.runtime_helpers import (
     start_connection_test,
     stop_connection_test,
 )
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 class ConnectionTestPage(BasePage):
     """Страница теста соединений, заменяющая старое диалоговое окно."""

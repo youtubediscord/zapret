@@ -14,7 +14,7 @@ import dns.dns_check_plans as dns_check_page_plans
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 from qfluentwidgets import (
     IndeterminateProgressBar,

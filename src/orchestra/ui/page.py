@@ -48,7 +48,7 @@ from orchestra.ui.page_log_history_workflow import (
     view_log_history_entry,
 )
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,

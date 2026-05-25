@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -42,6 +43,8 @@ class WindowUiSession:
     runtime_ui_bridge: Any | None = None
     page_stack_bootstrap_complete: bool = False
     ui_bootstrap_bindings_connected: bool = False
+    sidebar_search_profile_loader: Callable[[str], tuple[object, ...]] | None = None
+    sidebar_search_preset_loader: Callable[[str], tuple[object, ...]] | None = None
 
 
 def get_window_ui_session(window) -> WindowUiSession | None:

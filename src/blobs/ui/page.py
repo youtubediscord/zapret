@@ -24,7 +24,7 @@ from ui.fluent_widgets import (
     RefreshButton,
 )
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from log.log import log
 from qfluentwidgets import LineEdit, MessageBox, InfoBar, PrimaryPushButton, PushButton, SettingCardGroup
 

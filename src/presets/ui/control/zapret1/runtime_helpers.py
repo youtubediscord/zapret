@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from settings.mode import EXE_NAME_WINWS1, ZAPRET1_MODE
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 import presets.ui.control.control_runtime as control_runtime
 from presets.ui.control.control_page_runtime_shared import (
     apply_program_settings_toggles,

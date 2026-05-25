@@ -8,7 +8,7 @@ from config.config import CHANNEL_DEV, CHANNEL_STABLE
 
 from log.log import log
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from updater.channel_utils import normalize_update_channel
 from updater.github_release import normalize_version
 from updater.server_config import CONNECT_TIMEOUT, READ_TIMEOUT, should_verify_ssl

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 from presets.ui.control.control_page_runtime_shared import (
     apply_program_settings_toggles,

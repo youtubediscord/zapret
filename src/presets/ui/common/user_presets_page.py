@@ -523,6 +523,20 @@ class UserPresetsPageBase(BasePage):
             refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
         )
 
+    def apply_sidebar_search_query(self, text: str) -> bool:
+        query = str(text or "")
+        search_input = self._preset_search_input
+        if search_input is not None:
+            try:
+                if str(search_input.text() or "") != query:
+                    search_input.setText(query)
+                    self._apply_preset_search()
+                    return True
+            except Exception:
+                pass
+        self._apply_preset_search()
+        return True
+
     def _update_presets_view_height(self):
         update_presets_view_height(
             presets_model=self._presets_model,

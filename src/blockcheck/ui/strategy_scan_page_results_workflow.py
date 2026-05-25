@@ -7,7 +7,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QTableWidgetItem
 
 from ui.fluent_widgets import InfoBarHelper
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 import blockcheck.strategy_scan_run_workflow as strategy_scan_run_workflow
 from qfluentwidgets import FluentIcon
 from ui.widgets.fluent_item_tooltip import set_fluent_item_tooltip

@@ -17,7 +17,7 @@ from ui.pages.about_page_kvn_build import build_about_page_kvn_content
 from ui.pages.about_page_support_build import build_about_page_support_content
 from ui.pages.about_page_tabs_build import build_about_page_tabs
 from app.state_store import AppUiState, MainWindowStateStore
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from log.log import log
 

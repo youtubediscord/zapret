@@ -33,7 +33,7 @@ from presets.ui.control.control_page_shared import (
     cleanup_control_page_subscriptions,
 )
 from presets.ui.control.control_page_runtime_shared import apply_last_status_message
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
 from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
 from presets.ui.control.additional_settings_runtime import (

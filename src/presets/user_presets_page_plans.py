@@ -24,7 +24,7 @@ def build_preset_rows_plan(
 ) -> UserPresetListPlan:
     from presets.icon_color import normalize_preset_icon_color
     from presets.folders import build_preset_folder_rows, load_preset_folder_state
-    from app.text_catalog import tr as tr_catalog
+    from app.ui_texts import tr as tr_catalog
 
     normalized_query = str(query or "").strip().lower()
     builtin_by_file = {

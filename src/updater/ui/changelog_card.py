@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from config.build_info import APP_VERSION
 
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from ui.theme_refresh import ThemeRefreshBinding
 import updater.update_page_plans as update_page_plans

@@ -12,10 +12,14 @@ from ui.navigation.schema import (
 )
 from ui.page_actions import switch_page_tab
 from app.page_names import PageName
-from app.text_catalog import (
+from app.search_index import (
+    SearchEntry,
+    build_preset_search_entries,
+    build_profile_search_entries,
     find_search_entries,
     format_search_result,
 )
+from settings.mode import is_preset_launch_method
 from ui.window_ui_session import get_window_ui_session
 
 
@@ -23,6 +27,7 @@ from ui.window_ui_session import get_window_ui_session
 class SidebarSearchTarget:
     page_name: PageName
     tab_key: str = ""
+    query_text: str = ""
 
 
 def _get_page_host(window):
@@ -160,9 +165,6 @@ def on_sidebar_search_changed(window, text: str) -> None:
     if session is None:
         return
     session.nav_search_query = (text or "").strip()
-    if _apply_current_page_search_query(window, session.nav_search_query):
-        update_sidebar_search_suggestions(window)
-        return
     if route_sidebar_search_by_text(window, session.nav_search_query, prefer_first=False):
         return
     apply_nav_visibility_filter(window)
@@ -234,6 +236,7 @@ def update_sidebar_search_suggestions(window) -> None:
         language=session.ui_language,
         visible_pages=visible_pages,
         max_results=10,
+        extra_entries=_build_runtime_search_entries(window),
     )
     if not matches:
         try:
@@ -244,12 +247,14 @@ def update_sidebar_search_suggestions(window) -> None:
 
     page_role = int(Qt.ItemDataRole.UserRole)
     tab_role = page_role + 1
+    query_role = page_role + 2
 
     for match in matches:
         title, location = format_search_result(match.entry, language=session.ui_language)
         item = QStandardItem(f"{title} - {location}")
         item.setData(match.entry.page_name.name, page_role)
         item.setData(match.entry.tab_key or "", tab_role)
+        item.setData(match.entry.query_text or "", query_role)
         model.appendRow(item)
 
     if session.sidebar_search_nav_widget is not None and session.sidebar_search_nav_widget.isVisible():
@@ -279,14 +284,20 @@ def _apply_current_page_search_query(window, text: str) -> bool:
         return False
 
 
-def _route_search_result_and_clear(window, page_name: PageName, tab_key: str = "") -> bool:
+def _route_search_result_and_clear(window, page_name: PageName, tab_key: str = "", query_text: str = "") -> bool:
     if not route_search_result(window, page_name, tab_key):
         return False
+    if query_text:
+        _apply_current_page_search_query(window, query_text)
     _clear_sidebar_search(window)
     return True
 
 
-def _build_sidebar_search_target(raw_page_name, tab_key: str | None = "") -> SidebarSearchTarget | None:
+def _build_sidebar_search_target(
+    raw_page_name,
+    tab_key: str | None = "",
+    query_text: str | None = "",
+) -> SidebarSearchTarget | None:
     if not isinstance(raw_page_name, str) or not raw_page_name:
         return None
     try:
@@ -296,6 +307,7 @@ def _build_sidebar_search_target(raw_page_name, tab_key: str | None = "") -> Sid
     return SidebarSearchTarget(
         page_name=page_name,
         tab_key=str(tab_key or ""),
+        query_text=str(query_text or ""),
     )
 
 
@@ -305,9 +317,11 @@ def _search_target_from_index(index: QModelIndex) -> SidebarSearchTarget | None:
 
     page_role = int(Qt.ItemDataRole.UserRole)
     tab_role = page_role + 1
+    query_role = page_role + 2
     return _build_sidebar_search_target(
         index.data(page_role),
         index.data(tab_role),
+        index.data(query_role),
     )
 
 
@@ -317,9 +331,11 @@ def _search_target_from_item(item: QStandardItem | None) -> SidebarSearchTarget 
 
     page_role = int(Qt.ItemDataRole.UserRole)
     tab_role = page_role + 1
+    query_role = page_role + 2
     return _build_sidebar_search_target(
         item.data(page_role),
         item.data(tab_role),
+        item.data(query_role),
     )
 
 
@@ -359,6 +375,7 @@ def _resolve_search_target_from_query(window, text: str, *, prefer_first: bool) 
         language=session.ui_language,
         visible_pages=visible_pages,
         max_results=10,
+        extra_entries=_build_runtime_search_entries(window),
     )
     selected_match = None
     for match in matches:
@@ -378,6 +395,7 @@ def _resolve_search_target_from_query(window, text: str, *, prefer_first: bool) 
     return SidebarSearchTarget(
         page_name=selected_match.entry.page_name,
         tab_key=str(selected_match.entry.tab_key or ""),
+        query_text=str(selected_match.entry.query_text or ""),
     )
 
 
@@ -389,7 +407,7 @@ def on_sidebar_search_result_activated(window, index: QModelIndex) -> None:
             route_sidebar_search_by_text(window, display_text, prefer_first=False)
         return
 
-    _route_search_result_and_clear(window, target.page_name, target.tab_key)
+    _route_search_result_and_clear(window, target.page_name, target.tab_key, target.query_text)
 
 
 def on_sidebar_search_result_text_activated(window, text: str) -> None:
@@ -417,15 +435,47 @@ def route_sidebar_search_by_text(window, text: str, prefer_first: bool = False) 
         if target is None:
             return False
 
-        _route_search_result_and_clear(window, target.page_name, target.tab_key)
+        _route_search_result_and_clear(window, target.page_name, target.tab_key, target.query_text)
         return True
 
     target = _search_target_from_item(target_item)
     if target is None:
         return False
 
-    _route_search_result_and_clear(window, target.page_name, target.tab_key)
+    _route_search_result_and_clear(window, target.page_name, target.tab_key, target.query_text)
     return True
+
+
+def _build_runtime_search_entries(window) -> tuple[SearchEntry, ...]:
+    session = get_window_ui_session(window)
+    if session is None:
+        return ()
+    try:
+        launch_method = str(window.get_launch_method() or "")
+    except Exception:
+        launch_method = ""
+    if not is_preset_launch_method(launch_method):
+        return ()
+
+    entries: list[SearchEntry] = []
+    profile_loader = getattr(session, "sidebar_search_profile_loader", None)
+    if callable(profile_loader):
+        profiles = _load_sidebar_search_objects(profile_loader, launch_method)
+        entries.extend(build_profile_search_entries(launch_method, profiles))
+
+    preset_loader = getattr(session, "sidebar_search_preset_loader", None)
+    if callable(preset_loader):
+        manifests = _load_sidebar_search_objects(preset_loader, launch_method)
+        entries.extend(build_preset_search_entries(launch_method, manifests))
+
+    return tuple(entries)
+
+
+def _load_sidebar_search_objects(loader, launch_method: str) -> tuple[object, ...]:
+    try:
+        return tuple(loader(launch_method) or ())
+    except Exception:
+        return ()
 
 
 def route_search_result(window, page_name: PageName, tab_key: str = "") -> bool:

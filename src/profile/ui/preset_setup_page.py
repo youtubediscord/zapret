@@ -13,7 +13,7 @@ from profile.ui.user_profile_dialog import CreateUserProfileDialog
 from qfluentwidgets import BodyLabel, InfoBar, MessageBox
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from ui.pages.base_page import BasePage
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 def preset_setup_title_for_payload(payload, default_title: str = "Настройка пресета") -> str:

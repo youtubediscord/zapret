@@ -17,7 +17,7 @@ from ui.navigation.schema import (
 )
 from app.page_names import PageName
 from ui.startup_ui_metrics import pump_startup_ui
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 from ui.window_ui_session import get_window_ui_session
 
 

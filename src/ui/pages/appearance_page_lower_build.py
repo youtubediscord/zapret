@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout
 
 from ui.fluent_widgets import SettingsCard, build_premium_badge
-from app.text_catalog import tr as tr_catalog
+from app.ui_texts import tr as tr_catalog
 
 
 @dataclass(slots=True)

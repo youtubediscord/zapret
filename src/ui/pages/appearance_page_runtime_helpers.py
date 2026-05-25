@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.text_catalog import normalize_language, tr as tr_catalog
+from app.ui_texts import normalize_language, tr as tr_catalog
 
 
 def apply_appearance_language(
