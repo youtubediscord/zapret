@@ -93,6 +93,8 @@ _ANTIVIRUS_PROCESS_MARKERS = {
     "360sd.exe": "360 Total Security",
 }
 
+_WINDIVERT_DRIVER_SERVICE_NAMES = ("WinDivert", "windivert", "WinDivert14", "WinDivert64", "Monkey")
+
 
 
 def _find_process_pid_by_name_winapi(process_name: str) -> Optional[int]:
@@ -1059,13 +1061,13 @@ def _probe_service_disabled_cause() -> Tuple[str, str, Optional[str]]:
             None,
         )
 
-    # Check 4: WinDivert service explicitly disabled
-    driver_disabled = _check_windivert_driver_disabled()
-    if driver_disabled:
+    # Check 4: WinDivert/Monkey service explicitly disabled
+    disabled_driver = _find_disabled_windivert_driver_service()
+    if disabled_driver:
         return (
-            "Служба WinDivert отключена в системе",
-            "Переключите тип запуска: sc config WinDivert start= demand",
-            "enable_driver",
+            f"Служба драйвера WinDivert ({disabled_driver}) отключена в системе",
+            "Выполните аварийную очистку драйвера и повторите запуск",
+            "cleanup_driver",
         )
 
     # Check 5: Driver installed but not yet ready after cleanup/restart.
@@ -1174,12 +1176,12 @@ def _check_secure_boot() -> bool:
         return False  # key doesn't exist = Secure Boot not available
 
 
-def _check_windivert_driver_disabled() -> bool:
-    """Return True if WinDivert service start type is DISABLED."""
+def _find_disabled_windivert_driver_service() -> Optional[str]:
+    """Return disabled WinDivert-compatible service name, if present."""
     try:
         import winreg
 
-        for service_name in ("WinDivert", "windivert", "WinDivert14", "WinDivert64"):
+        for service_name in _WINDIVERT_DRIVER_SERVICE_NAMES:
             try:
                 with winreg.OpenKey(
                     winreg.HKEY_LOCAL_MACHINE,
@@ -1189,12 +1191,17 @@ def _check_windivert_driver_disabled() -> bool:
                 ) as key:
                     start_value, _ = winreg.QueryValueEx(key, "Start")
                     if int(start_value) == 4:
-                        return True
+                        return service_name
             except FileNotFoundError:
                 continue
-        return False
+        return None
     except Exception:
-        return False
+        return None
+
+
+def _check_windivert_driver_disabled() -> bool:
+    """Return True if any WinDivert-compatible service start type is DISABLED."""
+    return _find_disabled_windivert_driver_service() is not None
 
 
 def _detect_active_antivirus() -> Optional[str]:
@@ -1220,6 +1227,8 @@ def execute_windivert_auto_fix(action: str) -> Tuple[bool, str]:
         return _fix_enable_adapters()
     elif action == "enable_bfe":
         return _fix_enable_bfe()
+    elif action == "cleanup_driver":
+        return _fix_cleanup_driver()
     elif action == "enable_driver":
         return _fix_enable_driver()
     return False, f"Неизвестное действие: {action}"
@@ -1262,12 +1271,30 @@ def _fix_enable_bfe() -> Tuple[bool, str]:
 def _fix_enable_driver() -> Tuple[bool, str]:
     """Set WinDivert service start type to demand."""
     try:
-        result = subprocess.run(
-            ["sc", "config", "WinDivert", "start=", "demand"],
-            capture_output=True, text=True, timeout=5, creationflags=0x08000000,
-        )
-        if result.returncode == 0:
-            return True, "Служба WinDivert переключена на ручной запуск. Попробуйте запустить снова"
-        return False, f"Не удалось изменить настройки: {result.stderr[:200]}"
+        changed = False
+        last_error = ""
+        for service_name in _WINDIVERT_DRIVER_SERVICE_NAMES:
+            result = subprocess.run(
+                ["sc", "config", service_name, "start=", "demand"],
+                capture_output=True, text=True, timeout=5, creationflags=0x08000000,
+            )
+            if result.returncode == 0:
+                changed = True
+            elif result.stderr:
+                last_error = result.stderr[:200]
+        if changed:
+            return True, "Служба драйвера WinDivert переключена на ручной запуск. Попробуйте запустить снова"
+        return False, f"Не удалось изменить настройки: {last_error}"
     except Exception as e:
         return False, f"Ошибка: {e}"
+
+
+def _fix_cleanup_driver() -> Tuple[bool, str]:
+    """Run hard WinDivert/Monkey cleanup through the runtime WinAPI path."""
+    try:
+        ok = aggressive_windivert_cleanup_runtime()
+        if ok:
+            return True, "Драйвер WinDivert очищен через WinAPI. Попробуйте запустить снова"
+        return False, "Не удалось полностью очистить драйвер WinDivert. Закройте ZapretGUI и запустите от администратора"
+    except Exception as e:
+        return False, f"Ошибка очистки драйвера WinDivert: {e}"

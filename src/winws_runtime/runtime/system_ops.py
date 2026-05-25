@@ -323,7 +323,8 @@ def wait_for_windivert_cleanup_settle_runtime(
 
     Условия готовности:
     - нет процессов winws/winws2;
-    - ни одна известная WinDivert-служба не находится в RUNNING/STOP_PENDING;
+    - в обычном cleanup ни одна известная WinDivert-служба не находится в RUNNING/STOP_PENDING;
+    - в аварийном cleanup служебные записи WinDivert/Monkey реально исчезли из SCM;
     - состояние подтверждено несколько раз подряд.
     """
     deadline = time.monotonic() + max(0.0, float(max_wait_seconds))
@@ -333,11 +334,18 @@ def wait_for_windivert_cleanup_settle_runtime(
     while time.monotonic() < deadline:
         process_pids = get_all_winws_process_pids()
         service_states = get_known_windivert_service_states_runtime()
-        busy_services = {
-            name: state
-            for name, state in service_states.items()
-            if state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
-        }
+        if retry_cleanup:
+            busy_services = {
+                name: state
+                for name, state in service_states.items()
+                if state is not None
+            }
+        else:
+            busy_services = {
+                name: state
+                for name, state in service_states.items()
+                if state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
+            }
         if not process_pids and not busy_services:
             stable_checks += 1
             if stable_checks >= 2:
@@ -355,11 +363,18 @@ def wait_for_windivert_cleanup_settle_runtime(
 
     process_pids = get_all_winws_process_pids()
     service_states = get_known_windivert_service_states_runtime()
-    busy_services = {
-        name: state
-        for name, state in service_states.items()
-        if state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
-    }
+    if retry_cleanup:
+        busy_services = {
+            name: state
+            for name, state in service_states.items()
+            if state is not None
+        }
+    else:
+        busy_services = {
+            name: state
+            for name, state in service_states.items()
+            if state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
+        }
     log(
         "WinDivert cleanup settle timeout: "
         f"pids={process_pids or []}, "

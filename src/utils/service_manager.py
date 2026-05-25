@@ -226,15 +226,20 @@ def stop_and_delete_service(service_name: str, retry_count: int = 3) -> bool:
         # Сначала останавливаем и дожидаемся реального STOPPED.
         stop_service(service_name)
 
-        # Пытаемся удалить несколько раз, давая SCM время завершить переходные состояния.
+        # Пытаемся удалить несколько раз и проверяем, что служба реально исчезла.
+        # DeleteService сначала только помечает запись на удаление; пока запись
+        # видна SCM, WinDivert может продолжать получать 1058 при новом старте.
         for attempt in range(retry_count):
-            if delete_service(service_name):
+            delete_requested = delete_service(service_name)
+            if delete_requested and not service_exists(service_name):
                 return True
-            
+
             if attempt < retry_count - 1:
                 log(f"Попытка {attempt + 1}/{retry_count} удаления {service_name}", "DEBUG")
                 time.sleep(0.35)
-        
+
+        if service_exists(service_name):
+            log(f"Служба {service_name} всё ещё видна после удаления через Win API", "DEBUG")
         return False
         
     except Exception as e:
@@ -253,7 +258,7 @@ def cleanup_windivert_services() -> bool:
     
     cleaned = False
     for service_name in service_names:
-        if stop_and_delete_service(service_name, retry_count=1):
+        if stop_and_delete_service(service_name, retry_count=3):
             cleaned = True
     
     return cleaned
