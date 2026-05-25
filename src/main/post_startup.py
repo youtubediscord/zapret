@@ -34,6 +34,12 @@ def install_qt_event_diagnostic_probe(*args, **kwargs):
     return install(*args, **kwargs)
 
 
+def install_startup_audit(*args, **kwargs):
+    from main.startup_audit import install_startup_audit as install
+
+    return install(*args, **kwargs)
+
+
 def install_dns_startup(*args, **kwargs):
     from main.post_startup_dns import install_dns_startup as install
 
@@ -162,6 +168,7 @@ def install_post_startup_tasks(deps: PostStartupDeps) -> None:
     )
     install_cpu_diagnostic()
     install_qt_event_diagnostic_probe()
+    install_startup_audit()
     install_global_exception_handler()
 
 

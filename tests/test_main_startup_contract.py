@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import types
@@ -308,6 +309,83 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertNotIn("from main.post_startup_page_warmup import", top_level)
         self.assertNotIn("from main.post_startup_user_presets_warmup import", top_level)
         self.assertNotIn("from main.post_startup_update import", top_level)
+
+    def test_startup_audit_is_enabled_by_default_for_temporary_diagnostics(self) -> None:
+        from main import startup_audit
+
+        with patch.dict("os.environ", {}, clear=True), patch.object(sys, "argv", ["Zapret.exe"]):
+            self.assertTrue(startup_audit.is_startup_audit_enabled())
+
+        with patch.dict("os.environ", {"ZAPRET_STARTUP_AUDIT": "0"}, clear=True):
+            self.assertFalse(startup_audit.is_startup_audit_enabled())
+
+    def test_startup_metric_includes_memory_when_audit_is_enabled(self) -> None:
+        from main import runtime_state
+
+        with (
+            patch("log.log.log") as log_fn,
+            patch("main.startup_audit.is_startup_audit_enabled", return_value=True),
+            patch("main.startup_audit.process_memory_details", return_value="rss=123.4MB"),
+        ):
+            runtime_state.log_startup_metric("DemoMetric", "details")
+
+        logged_text = str(log_fn.call_args.args[0])
+        self.assertIn("DemoMetric", logged_text)
+        self.assertIn("details", logged_text)
+        self.assertIn("rss=123.4MB", logged_text)
+
+    def test_startup_threading_reports_audit_boundaries(self) -> None:
+        from main import post_startup_threading
+
+        calls: list[str] = []
+
+        with (
+            patch.object(post_startup_threading.startup_audit, "is_startup_audit_enabled", return_value=True),
+            patch.object(post_startup_threading.startup_audit, "audit_task_begin", side_effect=lambda name, kind: calls.append(f"begin:{kind}:{name}") or 11),
+            patch.object(post_startup_threading.startup_audit, "audit_task_end", side_effect=lambda task_id, name, kind: calls.append(f"end:{kind}:{name}:{task_id}")),
+        ):
+            post_startup_threading._run_audited_target("DemoWorker", lambda: calls.append("target"))
+
+        self.assertEqual(calls, ["begin:thread:DemoWorker", "target", "end:thread:DemoWorker:11"])
+
+    def test_startup_audit_summary_installed_by_post_startup_tasks(self) -> None:
+        from main import post_startup
+
+        deps = SimpleNamespace(
+            startup_host=object(),
+            profile_feature=object(),
+            dns_feature=object(),
+            notify=Mock(),
+            notify_many=Mock(),
+            set_status=Mock(),
+            log_startup_metric=Mock(),
+            start_proxy_if_enabled_async=Mock(),
+            startup_lists_check=Mock(),
+            apply_dns_on_startup_async=Mock(),
+            install_tray_post_startup=Mock(),
+            updater_feature=object(),
+            premium_feature=None,
+            logs_feature=None,
+            presets_feature=None,
+        )
+
+        with (
+            patch.object(post_startup, "install_startup_checks"),
+            patch.object(post_startup, "install_deferred_maintenance"),
+            patch.object(post_startup, "install_telegram_proxy_startup"),
+            patch.object(post_startup, "install_lists_check"),
+            patch.object(post_startup, "install_dns_startup"),
+            patch.object(post_startup, "install_dns_page_data_warmup"),
+            patch.object(post_startup, "install_profile_warmup"),
+            patch.object(post_startup, "install_update_check"),
+            patch.object(post_startup, "install_cpu_diagnostic"),
+            patch.object(post_startup, "install_qt_event_diagnostic_probe"),
+            patch.object(post_startup, "install_global_exception_handler"),
+            patch.object(post_startup, "install_startup_audit") as install_audit,
+        ):
+            post_startup.install_post_startup_tasks(deps)
+
+        install_audit.assert_called_once()
 
     def test_startup_log_contract_accepts_ui_before_runtime_order(self) -> None:
         from main.startup_log_contract import validate_startup_log_contract

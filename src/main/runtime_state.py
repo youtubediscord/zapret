@@ -52,5 +52,13 @@ def log_startup_metric(marker: str, details: str = "") -> None:
     from log.log import log
 
 
-    suffix = f" | {details}" if details else ""
+    memory_details = ""
+    try:
+        from main import startup_audit
+
+        memory_details = startup_audit.process_memory_details()
+    except Exception:
+        memory_details = ""
+    detail_parts = [part for part in (str(details or ""), memory_details) if part]
+    suffix = f" | {'; '.join(detail_parts)}" if detail_parts else ""
     log(f"⏱ Startup {marker}: {startup_elapsed_ms()}ms{suffix}", "⏱ STARTUP")
