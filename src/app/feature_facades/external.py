@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 
-@dataclass(frozen=True, slots=True, init=False)
+@dataclass(frozen=True, slots=True, weakref_slot=True, init=False)
 class ExternalActionsFeature:
     _open_url: Callable | None = field(default=None, repr=False, compare=False)
 

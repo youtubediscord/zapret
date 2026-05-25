@@ -4,6 +4,7 @@ import sys
 import tempfile
 import types
 import unittest
+import weakref
 from ctypes import addressof
 from ctypes import wintypes
 from pathlib import Path
@@ -647,6 +648,13 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             content="Text",
         )
         updater_commands.is_auto_update_enabled.assert_called_once_with()
+
+    def test_external_actions_feature_supports_qt_signal_weakrefs(self) -> None:
+        from app.feature_facades.external import ExternalActionsFeature
+
+        feature = ExternalActionsFeature()
+
+        self.assertIs(weakref.ref(feature)(), feature)
 
     def test_feature_builders_do_not_import_page_command_modules_before_ui(self) -> None:
         import builtins
