@@ -245,9 +245,8 @@
 
 --name=Голосовые звонки/чаты
 --filter-l7=stun,discord
---payload=stun,discord_ip_discovery
---payload=tls_client_hello
 --out-range=-n8
+--payload=stun,discord_ip_discovery
 --lua-desync=fake:blob=fake_default_udp
 
 --new
@@ -255,8 +254,8 @@
 --name=Twitter/X
 --filter-tcp=80,443
 --ipset=lists/ipset-twitter.txt
---payload=tls_client_hello
 --out-range=-d8
+--payload=tls_client_hello
 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
 
 --new
@@ -264,9 +263,11 @@
 --name=ntc.party
 --filter-tcp=80,443
 --hostlist=lists/ntcparty.txt
---payload=tls_client_hello
 --out-range=-d9
---lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1
+--payload=tls_client_hello
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=tls_google
+--lua-desync=multisplit:pos=1:seqovl=740:seqovl_pattern=stun_pat
 
 --new
 
