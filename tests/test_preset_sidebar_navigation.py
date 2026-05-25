@@ -417,6 +417,67 @@ class PresetSidebarNavigationTests(unittest.TestCase):
 
         self.assertEqual(nav.panel.collapse_calls, 1)
 
+    def test_initial_sidebar_build_disables_indicator_animation(self) -> None:
+        from settings.mode import ZAPRET2_MODE
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        class FakeSignal:
+            def connect(self, callback) -> None:
+                _ = callback
+
+        class FakePanel:
+            def __init__(self) -> None:
+                self.indicator_animation_values = []
+
+            def setIndicatorAnimationEnabled(self, enabled: bool) -> None:
+                self.indicator_animation_values.append(bool(enabled))
+
+        class FakeNavigationInterface:
+            def __init__(self) -> None:
+                self.headers = []
+                self.panel = FakePanel()
+                self.displayModeChanged = FakeSignal()
+
+            def addItemHeader(self, text, position):
+                header = SimpleNamespace(text=text, position=position)
+                self.headers.append(header)
+                return header
+
+            def setMinimumExpandWidth(self, width) -> None:
+                self.minimum_expand_width = width
+
+        session = SimpleNamespace(
+            nav_scroll_position=None,
+            ui_language="ru",
+            sidebar_search_widget_cls=None,
+            nav_items={},
+            nav_headers=[],
+            nav_header_by_group={},
+            nav_mode_visibility={},
+            nav_search_query="",
+            sidebar_search_nav_widget=None,
+            sidebar_search_model=None,
+            sidebar_search_completer=None,
+            sidebar_search_titlebar_attached=False,
+            pages={},
+        )
+        nav = FakeNavigationInterface()
+        window = SimpleNamespace(
+            ui_session=session,
+            navigationInterface=nav,
+            get_launch_method=lambda: ZAPRET2_MODE,
+        )
+
+        with (
+            patch.object(sidebar_builder, "_schedule_sidebar_search_after_interactive", side_effect=lambda *_args: None),
+            patch.object(sidebar_builder, "_schedule_hidden_mode_nav_items_after_interactive", side_effect=lambda *_args: None),
+            patch.object(sidebar_builder, "add_nav_item", side_effect=lambda *_args, **_kwargs: None),
+            patch("settings.store.get_ui_state_settings", return_value={"sidebar_expanded": True}),
+        ):
+            sidebar_builder.init_navigation(window)
+
+        self.assertEqual(nav.panel.indicator_animation_values, [False])
+
     def test_sidebar_display_mode_change_is_saved(self) -> None:
         from settings.mode import ZAPRET2_MODE
         import ui.navigation.sidebar_builder as sidebar_builder

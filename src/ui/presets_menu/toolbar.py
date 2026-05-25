@@ -24,6 +24,7 @@ class PresetsToolbarLayout:
         self._rows: list[tuple[QWidget, QHBoxLayout]] = []
         self._trailing_widget: QWidget | None = None
         self._trailing_minimum_width = 260
+        self._last_layout_state: tuple[object, ...] | None = None
 
         self._layout = QVBoxLayout(self.container)
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -59,12 +60,14 @@ class PresetsToolbarLayout:
 
     def set_buttons(self, buttons) -> None:
         self._buttons = [button for button in buttons if button is not None]
+        self._last_layout_state = None
         for button in self._buttons:
             button.setParent(self.container)
 
     def set_trailing_widget(self, widget: QWidget | None, *, minimum_width: int = 260) -> None:
         self._trailing_widget = widget
         self._trailing_minimum_width = max(0, int(minimum_width))
+        self._last_layout_state = None
         if widget is None:
             return
         widget.setParent(self.container)
@@ -79,7 +82,13 @@ class PresetsToolbarLayout:
         self.refresh_layout(available_width)
 
     def refresh_layout(self, available_width: int) -> None:
-        assigned_rows = self._compute_layout_rows(int(available_width))
+        available_width = int(available_width)
+        layout_state = self._layout_state(available_width)
+        if self._last_layout_state == layout_state:
+            return
+
+        assigned_rows = self._compute_layout_rows(available_width)
+        self._last_layout_state = layout_state
 
         for index, (row_widget, row_layout) in enumerate(self._rows):
             self._clear_row(row_layout)
@@ -98,6 +107,19 @@ class PresetsToolbarLayout:
                 row_widget.setVisible(True)
             else:
                 row_widget.setVisible(False)
+
+    def _layout_state(self, available_width: int) -> tuple[object, ...]:
+        visible_buttons = tuple(id(button) for button in self._visible_buttons())
+        trailing = self._trailing_widget
+        trailing_visible = trailing is not None and not trailing.isHidden()
+        button_widths = tuple(int(button.sizeHint().width()) for button in self._visible_buttons())
+        return (
+            int(available_width),
+            visible_buttons,
+            button_widths,
+            bool(trailing_visible),
+            int(self._trailing_minimum_width),
+        )
 
     def _compute_layout_rows(self, available_width: int) -> list[tuple[list[QWidget], bool]]:
         button_rows = self._compute_rows(available_width)

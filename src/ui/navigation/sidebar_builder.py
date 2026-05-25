@@ -109,6 +109,18 @@ def _bind_sidebar_expanded_state(window) -> None:
     connect(_on_display_mode_changed)
 
 
+def _disable_nav_indicator_animation(window) -> None:
+    nav = getattr(window, "navigationInterface", None)
+    panel = getattr(nav, "panel", None)
+    setter = getattr(panel, "setIndicatorAnimationEnabled", None)
+    if not callable(setter):
+        return
+    try:
+        setter(False)
+    except Exception:
+        pass
+
+
 def _scroll_layout_index(window, widget) -> int:
     nav = getattr(window, "navigationInterface", None)
     panel = getattr(nav, "panel", None)
@@ -418,6 +430,7 @@ def init_navigation(window) -> None:
         )
 
     nav = window.navigationInterface
+    _disable_nav_indicator_animation(window)
 
     _schedule_sidebar_search_after_interactive(window)
     _schedule_hidden_mode_nav_items_after_interactive(window)

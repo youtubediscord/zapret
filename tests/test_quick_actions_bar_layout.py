@@ -90,6 +90,32 @@ class QuickActionsBarLayoutTests(unittest.TestCase):
         self.assertIn(second, first_row_widgets)
         self.assertIn(search, second_row_widgets)
 
+    def test_presets_toolbar_skips_relayout_when_state_is_unchanged(self) -> None:
+        parent = QWidget()
+        toolbar = PresetsToolbarLayout(parent, row_count=3, button_spacing=8)
+        first = PushButton("Импорт")
+        second = PushButton("Папка")
+        search = LineEdit()
+
+        toolbar.set_buttons([first, second])
+        toolbar.set_trailing_widget(search, minimum_width=180)
+        toolbar.refresh_layout(420)
+
+        first_row_layout = toolbar._rows[0][1]
+        original_clear_row = toolbar._clear_row
+        clear_calls: list[int] = []
+
+        def _count_clear(row_layout):
+            clear_calls.append(row_layout.count())
+            original_clear_row(row_layout)
+
+        toolbar._clear_row = _count_clear
+        toolbar.refresh_layout(420)
+
+        self.assertEqual(clear_calls, [])
+        self.assertIs(first_row_layout.itemAt(0).widget(), first)
+        self.assertIs(first_row_layout.itemAt(1).widget(), second)
+
     def test_setting_card_group_height_updates_after_late_card_addition(self) -> None:
         group = SettingCardGroup("Управление")
         actions = QuickActionsBar()
