@@ -332,16 +332,16 @@ class PresetSetupPageBase(BasePage):
 
     def _set_profile_enabled_from_menu(self, profile_key: str, enabled: bool) -> None:
         try:
-            self._profile.set_profile_enabled(self.launch_method, profile_key, bool(enabled))
-            self.refresh_from_preset_switch()
+            new_key = self._profile.set_profile_enabled(self.launch_method, profile_key, bool(enabled))
+            self._refresh_profile_item_locally(profile_key, new_key or profile_key)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось изменить состояние profile: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
 
     def _duplicate_profile_from_menu(self, profile_key: str) -> None:
         try:
-            self._profile.duplicate_profile(self.launch_method, profile_key)
-            self.refresh_from_preset_switch()
+            new_key = self._profile.duplicate_profile(self.launch_method, profile_key)
+            self._add_profile_item_locally(new_key)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось дублировать profile: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
@@ -357,11 +357,35 @@ class PresetSetupPageBase(BasePage):
         if not dialog.exec():
             return
         try:
-            self._profile.delete_profile(self.launch_method, profile_key)
-            self.refresh_from_preset_switch()
+            if self._profile.delete_profile(self.launch_method, profile_key):
+                self._remove_profile_item_locally(profile_key)
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось удалить profile из preset: {exc}", "ERROR")
             InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
+
+    def _refresh_profile_item_locally(self, old_profile_key: str, profile_key: str) -> None:
+        setup = self._profile.get_profile_setup(self.launch_method, profile_key)
+        if setup is not None and self._profiles_list is not None:
+            if self._profiles_list.replace_profile_item(old_profile_key, setup.item):
+                return
+            if str(old_profile_key or "") != str(profile_key or "") and self._profiles_list.add_profile_item(setup.item):
+                return
+        self.refresh_from_preset_switch()
+
+    def _add_profile_item_locally(self, profile_key: str | None) -> None:
+        key = str(profile_key or "").strip()
+        if not key:
+            self.refresh_from_preset_switch()
+            return
+        setup = self._profile.get_profile_setup(self.launch_method, key)
+        if setup is not None and self._profiles_list is not None and self._profiles_list.add_profile_item(setup.item):
+            return
+        self.refresh_from_preset_switch()
+
+    def _remove_profile_item_locally(self, profile_key: str) -> None:
+        if self._profiles_list is not None and self._profiles_list.remove_profile_item(profile_key):
+            return
+        self.refresh_from_preset_switch()
 
     def _edit_user_profile_from_menu(self, profile_key: str) -> None:
         if self._profiles_list is None:

@@ -108,6 +108,67 @@ class ProfileListModel(QAbstractListModel):
     def profile_item_for_key(self, profile_key: str):
         return self._profile_items.get(str(profile_key or "").strip())
 
+    def replace_profile(self, profile_key: str, item: Any) -> bool:
+        source_key = str(profile_key or "").strip()
+        display_items = build_profile_display_items((item,))
+        if not source_key or not display_items:
+            return False
+        replacement = display_items[0]
+        current = self._profile_items.get(source_key)
+        if current is None:
+            return False
+
+        next_items = tuple(replacement if existing.key == source_key else existing for existing in self._all_items)
+        can_update_row = (
+            str(current.group or "") == str(replacement.group or "")
+            and self._matches_filter(current)
+            and self._matches_filter(replacement)
+        )
+        self._all_items = next_items
+        self._profile_items = {entry.key: entry for entry in self._all_items}
+
+        if can_update_row:
+            row_index = self._row_index_for_profile_key(source_key)
+            if row_index >= 0:
+                self._rows[row_index] = _row_for_profile(replacement)
+                model_index = self.index(row_index, 0)
+                self.dataChanged.emit(model_index, model_index, _profile_data_roles())
+                return True
+
+        self.beginResetModel()
+        self._group_expanded.setdefault(str(replacement.group or "common"), True)
+        self._rows = self._build_rows()
+        self.endResetModel()
+        return True
+
+    def add_profile(self, item: Any) -> bool:
+        display_items = build_profile_display_items((item,))
+        if not display_items:
+            return False
+        profile = display_items[0]
+        if not profile.key:
+            return False
+        if profile.key in self._profile_items:
+            return self.replace_profile(profile.key, item)
+        self.beginResetModel()
+        self._all_items = tuple((*self._all_items, profile))
+        self._profile_items = {entry.key: entry for entry in self._all_items}
+        self._group_expanded.setdefault(str(profile.group or "common"), True)
+        self._rows = self._build_rows()
+        self.endResetModel()
+        return True
+
+    def remove_profile(self, profile_key: str) -> bool:
+        key = str(profile_key or "").strip()
+        if not key or key not in self._profile_items:
+            return False
+        self.beginResetModel()
+        self._all_items = tuple(item for item in self._all_items if item.key != key)
+        self._profile_items = {entry.key: entry for entry in self._all_items}
+        self._rows = self._build_rows()
+        self.endResetModel()
+        return True
+
     def move_profile(
         self,
         source_profile_key: str,
@@ -322,6 +383,13 @@ class ProfileListModel(QAbstractListModel):
         search_text = _profile_search_text(item)
         return all(part in search_text for part in query.split())
 
+    def _row_index_for_profile_key(self, profile_key: str) -> int:
+        key = str(profile_key or "").strip()
+        for index, row in enumerate(self._rows):
+            if str(row.get("kind") or "") == "profile" and str(row.get("key") or "") == key:
+                return index
+        return -1
+
 
 def _row_for_profile(item: ProfileDisplayItem) -> dict[str, Any]:
     match_lines = tuple(item.match_lines or ())
@@ -360,6 +428,29 @@ def _row_for_profile(item: ProfileDisplayItem) -> dict[str, Any]:
         "icon_color": icon.color if item.in_preset else "#888888",
         "tooltip": tooltip,
     }
+
+
+def _profile_data_roles() -> list[int]:
+    return [
+        int(Qt.ItemDataRole.DisplayRole),
+        ProfileListModel.ProfileKeyRole,
+        ProfileListModel.PersistentKeyRole,
+        ProfileListModel.DisplayNameRole,
+        ProfileListModel.DescriptionRole,
+        ProfileListModel.StrategyIdRole,
+        ProfileListModel.StrategyNameRole,
+        ProfileListModel.MatchLinesRole,
+        ProfileListModel.ListTypeRole,
+        ProfileListModel.RatingRole,
+        ProfileListModel.FavoriteRole,
+        ProfileListModel.InPresetRole,
+        ProfileListModel.EnabledRole,
+        ProfileListModel.GroupRole,
+        ProfileListModel.GroupNameRole,
+        ProfileListModel.IconNameRole,
+        ProfileListModel.IconColorRole,
+        ProfileListModel.TooltipRole,
+    ]
 
 
 def _normalized_profile_types(profile_types: set[str] | None) -> set[str]:

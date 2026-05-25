@@ -103,6 +103,15 @@ class ProfilesList(QWidget):
     def profile_item_for_key(self, profile_key: str):
         return self._model.profile_item_for_key(profile_key)
 
+    def replace_profile_item(self, profile_key: str, item) -> bool:
+        return self._model.replace_profile(profile_key, item)
+
+    def add_profile_item(self, item) -> bool:
+        return self._model.add_profile(item)
+
+    def remove_profile_item(self, profile_key: str) -> bool:
+        return self._model.remove_profile(profile_key)
+
     def move_profile_locally(
         self,
         source_profile_key: str,

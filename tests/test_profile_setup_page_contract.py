@@ -451,6 +451,54 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn(("profile", "youtube", "profile:0"), rows)
         self.assertLess(rows.index(("profile", "youtube", "profile:1")), rows.index(("profile", "youtube", "profile:0")))
 
+    def test_profile_model_replaces_single_profile_row_without_reset(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        youtube = SimpleNamespace(
+            key="profile:0",
+            persistent_key="p0",
+            profile_index=0,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="tls_fake",
+            strategy_name="TLS Fake",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=0,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        disabled = SimpleNamespace(
+            **{
+                **youtube.__dict__,
+                "enabled": False,
+                "strategy_id": "none",
+                "strategy_name": "Выключен",
+            }
+        )
+
+        model = ProfileListModel()
+        model.set_profiles((youtube,))
+        model.beginResetModel = Mock(side_effect=AssertionError("single-row update must not reset the whole model"))
+        model.endResetModel = Mock(side_effect=AssertionError("single-row update must not reset the whole model"))
+
+        self.assertTrue(model.replace_profile("profile:0", disabled))
+
+        profile_rows = [
+            row
+            for row in range(model.rowCount())
+            if model.index(row, 0).data(ProfileListModel.KindRole) == "profile"
+        ]
+        self.assertEqual(len(profile_rows), 1)
+        row = profile_rows[0]
+        self.assertFalse(model.index(row, 0).data(ProfileListModel.EnabledRole))
+        self.assertEqual(model.index(row, 0).data(ProfileListModel.StrategyNameRole), "Выключен")
+
     def test_profile_drag_handlers_update_current_list_without_full_refresh(self) -> None:
         before_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_requested)
         after_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_after_requested)
@@ -459,6 +507,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("_apply_profile_move_locally", after_handler)
         self.assertNotIn("refresh_from_preset_switch()", before_handler)
         self.assertNotIn("refresh_from_preset_switch()", after_handler)
+
+    def test_profile_context_actions_update_single_row_before_full_refresh_fallback(self) -> None:
+        enable_handler = inspect.getsource(PresetSetupPageBase._set_profile_enabled_from_menu)
+        duplicate_handler = inspect.getsource(PresetSetupPageBase._duplicate_profile_from_menu)
+        delete_handler = inspect.getsource(PresetSetupPageBase._delete_profile_from_menu)
+
+        self.assertIn("_refresh_profile_item_locally", enable_handler)
+        self.assertIn("_add_profile_item_locally", duplicate_handler)
+        self.assertIn("_remove_profile_item_locally", delete_handler)
+        self.assertNotIn("self.refresh_from_preset_switch()", enable_handler)
+        self.assertNotIn("self.refresh_from_preset_switch()", duplicate_handler)
+        self.assertNotIn("self.refresh_from_preset_switch()", delete_handler)
 
     def test_profile_setup_shell_has_search_input_for_all_profiles(self) -> None:
         build_content = inspect.getsource(PresetSetupPageBase._build_content)
