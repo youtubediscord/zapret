@@ -367,6 +367,8 @@ class ProfilePresetService:
         setup = self.get_profile_setup(profile_key)
         if setup is None:
             return None
+        if setup.item.in_preset and not setup.item.enabled:
+            return None
         if setup.item.list_type == "custom":
             return None
         entry = setup.strategy_entries.get(strategy_id)

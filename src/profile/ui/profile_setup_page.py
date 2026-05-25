@@ -1040,6 +1040,7 @@ class ProfileSetupPageBase(BasePage):
                 states=payload.strategy_states,
                 current_strategy_id=item.strategy_id or "none",
             )
+            self._strategy_list.setEnabled(not (item.in_preset and not item.enabled))
             self._list_file_dirty = True
             if self._editor_tab_built and self._strategy_stack.currentIndex() == 1:
                 self._request_list_file_editor_state()
@@ -1450,6 +1451,9 @@ class ProfileSetupPageBase(BasePage):
             return
         strategy_id = str(strategy_id or "").strip()
         if not strategy_id or strategy_id in {"none", "custom"}:
+            return
+        item = getattr(getattr(self, "_payload", None), "item", None)
+        if bool(getattr(item, "in_preset", False)) and not bool(getattr(item, "enabled", False)):
             return
         try:
             new_key = self._controller.apply_strategy(

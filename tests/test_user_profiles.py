@@ -340,6 +340,52 @@ class UserProfilesTests(unittest.TestCase):
         self.assertLess(lines.index("--out-range=-d8"), lines.index("--lua-desync=fake"))
         self.assertIn("--lua-desync=fake", lines)
 
+    def test_applying_strategy_to_skipped_profile_does_not_enable_or_rewrite_it(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "profile" / "templates").mkdir(parents=True)
+            (root / "profile" / "templates" / "all_profiles.txt").write_text("", encoding="utf-8")
+            catalogs_dir = root / "profile" / "strategy_catalogs" / "winws2"
+            catalogs_dir.mkdir(parents=True)
+            (catalogs_dir / "tcp.txt").write_text(
+                "\n".join(
+                    (
+                        "[tls_fake]",
+                        "name = TLS Fake",
+                        "--lua-desync=fake",
+                        "",
+                    )
+                ),
+                encoding="utf-8",
+            )
+            source_text = "\n".join(
+                (
+                    "--skip",
+                    "--name=My Site",
+                    "--filter-tcp=80,443",
+                    "--hostlist=lists/my-site.txt",
+                    "--lua-desync=pass",
+                    "",
+                )
+            )
+            store = _PresetStore(source_text)
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                setup = service.get_profile_setup("profile:0")
+                new_key = service.apply_strategy("profile:0", "tls_fake")
+
+        self.assertIsNotNone(setup)
+        self.assertTrue(setup.item.in_preset)
+        self.assertFalse(setup.item.enabled)
+        self.assertEqual(setup.item.strategy_id, "none")
+        self.assertEqual(new_key, None)
+        self.assertEqual(store.text, source_text)
+
     def test_applying_strategy_to_template_profile_removes_blank_before_strategy(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -690,7 +690,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._loading = False
         page._profile_key = "profile-1"
-        page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="tls_fake"))
+        page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="tls_fake", in_preset=True, enabled=True))
         page._controller = Mock()
         page._controller.apply_strategy.return_value = None
         page.reload_current_profile = Mock()
@@ -703,6 +703,21 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             profile_key="profile-1",
             strategy_id="tls_fake",
         )
+
+    def test_clicking_strategy_for_skipped_profile_does_not_apply_strategy(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(in_preset=True, enabled=False))
+        page._controller = Mock()
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_strategy_list_activated(page, "tls_fake")
+
+        page._controller.apply_strategy.assert_not_called()
+        page.reload_current_profile.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
 
 
 if __name__ == "__main__":
