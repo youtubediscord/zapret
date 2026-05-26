@@ -1275,6 +1275,47 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         control_page.top_summary.set_preset.assert_called_with("Preset")
         control_page.top_summary.set_profile_count.assert_called_with(2)
 
+    def test_zapret2_control_retries_top_summary_profile_count_after_warmup(self) -> None:
+        from app.state_store import AppUiState
+        from presets.ui.control.zapret2 import page as zapret2_page
+        from presets.ui.control.zapret2.page import Zapret2ModeControlPage
+
+        scheduled: list[tuple[int, object]] = []
+        profile_count = Mock(side_effect=[None, 4])
+
+        control_page = Zapret2ModeControlPage.__new__(Zapret2ModeControlPage)
+        control_page._cleanup_in_progress = False
+        control_page._ui_language = "ru"
+        control_page._ui_state_store = None
+        control_page._top_summary_profile_retry_count = 0
+        control_page._top_summary_profile_retry_pending = False
+        control_page.top_summary = SimpleNamespace(
+            set_preset=Mock(),
+            set_profile_count=Mock(),
+            set_premium=Mock(),
+        )
+        control_page._presets = SimpleNamespace(
+            get_selected_source_preset_display=Mock(return_value=("Preset", "Preset"))
+        )
+        control_page._profile = SimpleNamespace(get_enabled_profile_count_snapshot=profile_count)
+
+        with patch.object(
+            zapret2_page.QTimer,
+            "singleShot",
+            side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
+        ):
+            Zapret2ModeControlPage._refresh_top_summary(control_page, AppUiState())
+
+        control_page.top_summary.set_profile_count.assert_called_with(None)
+        self.assertEqual(len(scheduled), 1)
+        self.assertGreaterEqual(scheduled[0][0], zapret2_page.TOP_SUMMARY_PROFILE_RETRY_MS)
+
+        scheduled[0][1]()
+
+        control_page.top_summary.set_profile_count.assert_called_with(4)
+        self.assertEqual(control_page._top_summary_profile_retry_count, 0)
+        self.assertFalse(control_page._top_summary_profile_retry_pending)
+
     def test_window_page_actions_route_pages_through_adapter(self) -> None:
         from app.page_names import PageName
         from main import window_page_actions

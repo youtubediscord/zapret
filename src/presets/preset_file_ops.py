@@ -120,9 +120,9 @@ def reset_to_builtin_by_file_name(backend, file_name: str):
         updated = backend.get_manifest_by_file_name(manifest.file_name)
         if updated is None:
             raise ValueError("Built-in preset not found after reset")
-        backend.notify_preset_content_changed(updated.file_name)
         if backend.is_selected_file_name(manifest.file_name):
             backend._refresh_selected_source_preset()
+        backend.notify_preset_content_changed(updated.file_name)
         return updated
     raise ValueError(
         "Сброс невозможен: для этого пользовательского preset-а нет встроенного preset-а с таким же именем файла."
@@ -134,8 +134,8 @@ def reset_all_to_builtin(backend) -> tuple[int, int, list[str]]:
     backend.notify_presets_changed()
     selected_file_name = backend.get_selected_file_name()
     if selected_file_name and backend.get_manifest_by_file_name(selected_file_name) is not None:
-        backend.notify_preset_content_changed(selected_file_name)
         backend._refresh_selected_source_preset()
+        backend.notify_preset_content_changed(selected_file_name)
     return result
 
 

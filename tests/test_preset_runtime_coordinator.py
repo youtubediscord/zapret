@@ -169,6 +169,128 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             launch_runtime.switch_presets_async.assert_called_once_with(ZAPRET2_MODE)
             launch_runtime.stop_dpi_async.assert_not_called()
 
+    def test_preset_content_publish_refreshes_launch_snapshot_before_signal(self) -> None:
+        from presets.file_service import PresetFileService
+        from presets.models import PresetManifest
+        from settings.mode import ENGINE_WINWS2, ZAPRET2_MODE
+
+        manifest = PresetManifest(
+            file_name="Default v5.txt",
+            name="Default v5",
+            updated_at="",
+        )
+        launch_snapshot_refreshed = False
+        events: list[tuple[str, bool]] = []
+
+        class _PresetModeCoordinator:
+            def get_selected_source_manifest(self, _launch_method):
+                return manifest
+
+            def refresh_selected_launch_preset(self, _launch_method):
+                nonlocal launch_snapshot_refreshed
+                launch_snapshot_refreshed = True
+                events.append(("refresh", launch_snapshot_refreshed))
+                return object()
+
+        class _PresetFileStore:
+            def get_manifest(self, _engine, _file_name):
+                return manifest
+
+            def resolve_file_name(self, _engine, file_name):
+                return file_name
+
+        class _PresetUiStore:
+            def notify_preset_content_changed(self, _file_name):
+                events.append(("notify", launch_snapshot_refreshed))
+
+        store = _PresetUiStore()
+        service = PresetFileService(
+            engine=ENGINE_WINWS2,
+            launch_method=ZAPRET2_MODE,
+            app_paths=object(),
+            preset_mode_coordinator=_PresetModeCoordinator(),
+            preset_file_store=_PresetFileStore(),
+            preset_selection_service=object(),
+            preset_store_winws2=store,
+            preset_store_winws1=store,
+        )
+
+        service.publish_preset_content_changed_by_file_name("Default v5.txt")
+
+        self.assertEqual(events, [("refresh", True), ("notify", True)])
+
+    def test_reset_selected_preset_refreshes_launch_snapshot_before_signal(self) -> None:
+        from pathlib import Path
+        import tempfile
+
+        from presets.models import PresetManifest
+        from presets.preset_file_ops import reset_to_builtin_by_file_name
+        from settings.mode import ENGINE_WINWS2
+
+        manifest = PresetManifest(
+            file_name="Default v5.txt",
+            name="Default v5",
+            updated_at="",
+            kind="user",
+        )
+        updated = PresetManifest(
+            file_name="Default v5.txt",
+            name="Default v5",
+            updated_at="",
+            kind="builtin",
+        )
+        launch_snapshot_refreshed = False
+        deleted = False
+        events: list[tuple[str, bool]] = []
+
+        class _EnginePaths:
+            def __init__(self, builtin_dir: Path) -> None:
+                self.builtin_presets_dir = builtin_dir
+
+            def ensure_directories(self):
+                return self
+
+        class _AppPaths:
+            def __init__(self, builtin_dir: Path) -> None:
+                self._builtin_dir = builtin_dir
+
+            def engine_paths(self, _engine):
+                return _EnginePaths(self._builtin_dir)
+
+        class _PresetFileStore:
+            def delete_preset(self, _engine, _file_name):
+                nonlocal deleted
+                deleted = True
+
+        class _Backend:
+            engine = ENGINE_WINWS2
+            preset_file_store = _PresetFileStore()
+
+            def __init__(self, builtin_dir: Path) -> None:
+                self.app_paths = _AppPaths(builtin_dir)
+
+            def get_manifest_by_file_name(self, _file_name):
+                return updated if deleted else manifest
+
+            def is_selected_file_name(self, _file_name):
+                return True
+
+            def _refresh_selected_source_preset(self):
+                nonlocal launch_snapshot_refreshed
+                launch_snapshot_refreshed = True
+                events.append(("refresh", launch_snapshot_refreshed))
+
+            def notify_preset_content_changed(self, _file_name):
+                events.append(("notify", launch_snapshot_refreshed))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            builtin_dir = Path(tmp_dir)
+            (builtin_dir / manifest.file_name).write_text("--new\n", encoding="utf-8")
+
+            reset_to_builtin_by_file_name(_Backend(builtin_dir), manifest.file_name)
+
+        self.assertEqual(events, [("refresh", True), ("notify", True)])
+
 
 if __name__ == "__main__":
     unittest.main()

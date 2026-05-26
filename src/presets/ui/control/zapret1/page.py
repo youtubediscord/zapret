@@ -42,6 +42,8 @@ from qfluentwidgets import (
 
 
 STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS = 8_000
+TOP_SUMMARY_PROFILE_RETRY_MS = 750
+TOP_SUMMARY_PROFILE_RETRY_LIMIT = 10
 
 
 class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMixin, BasePage):
@@ -97,6 +99,8 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._deferred_sections_hydrated = False
         self._startup_deferred_sections_waiting = False
         self._startup_top_summary_waiting = False
+        self._top_summary_profile_retry_count = 0
+        self._top_summary_profile_retry_pending = False
         self._refresh_runtime = winws1_page_runtime.create_refresh_runtime()
         self.top_summary = None
         self.program_settings_card = None
@@ -472,13 +476,37 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         except Exception:
             return None
 
+    def _schedule_top_summary_profile_retry(self) -> None:
+        if self._cleanup_in_progress:
+            return
+        if bool(getattr(self, "_top_summary_profile_retry_pending", False)):
+            return
+        retry_count = int(getattr(self, "_top_summary_profile_retry_count", 0) or 0)
+        if retry_count >= TOP_SUMMARY_PROFILE_RETRY_LIMIT:
+            return
+        self._top_summary_profile_retry_count = retry_count + 1
+        self._top_summary_profile_retry_pending = True
+        QTimer.singleShot(TOP_SUMMARY_PROFILE_RETRY_MS, self._retry_top_summary_profile_count)
+
+    def _retry_top_summary_profile_count(self) -> None:
+        self._top_summary_profile_retry_pending = False
+        if self._cleanup_in_progress:
+            return
+        self._refresh_top_summary()
+
     def _refresh_top_summary(self, state: AppUiState | None = None) -> None:
         summary = self.top_summary
         if summary is None:
             return
         preset_text, _tooltip = self._load_preset_name()
         summary.set_preset(preset_text)
-        summary.set_profile_count(self._load_enabled_profile_count())
+        profile_count = self._load_enabled_profile_count()
+        summary.set_profile_count(profile_count)
+        if profile_count is None:
+            self._schedule_top_summary_profile_retry()
+        else:
+            self._top_summary_profile_retry_count = 0
+            self._top_summary_profile_retry_pending = False
         snapshot = state
         if snapshot is None and self._ui_state_store is not None:
             try:

@@ -193,9 +193,9 @@ class PresetFileService:
         manifest = self.get_manifest_by_file_name(file_name)
         if manifest is None:
             raise ValueError(f"Preset not found: {file_name}")
-        self.notify_preset_content_changed(manifest.file_name)
         if self.is_selected_file_name(manifest.file_name):
             self.preset_mode_coordinator.refresh_selected_launch_preset(self.launch_method)
+        self.notify_preset_content_changed(manifest.file_name)
         return manifest
 
     def save_source_text_by_file_name(
