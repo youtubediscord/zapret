@@ -100,6 +100,7 @@ class PresetRuntimeCoordinator(QObject):
             launch_method=method,
             reason="preset_switched",
             preset_file_name=selected_file_name,
+            delay_ms=0,
         )
         try:
             store = self._ui_state_store

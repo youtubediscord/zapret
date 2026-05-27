@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from PyQt6.QtWidgets import QApplication
 
@@ -83,6 +84,65 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertEqual(ui_state.active_revision, 0)
         self._app.processEvents()
         self.assertEqual(ui_state.active_revision, 1)
+
+    def test_preset_switch_apply_runs_next_event_loop_turn_without_visible_debounce(self) -> None:
+        from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
+        from settings.mode import ZAPRET2_MODE
+
+        class _Signal:
+            def __init__(self) -> None:
+                self.callback = None
+
+            def connect(self, callback) -> None:
+                self.callback = callback
+
+        class _FakeTimer:
+            instances = []
+
+            def __init__(self, *_args, **_kwargs) -> None:
+                self.timeout = _Signal()
+                self.delay_ms = None
+                _FakeTimer.instances.append(self)
+
+            def setSingleShot(self, _single_shot: bool) -> None:
+                pass
+
+            def start(self, delay_ms: int) -> None:
+                self.delay_ms = int(delay_ms)
+
+            def fire(self) -> None:
+                self.timeout.callback()
+
+        switch_calls: list[tuple[str, str, str]] = []
+        coordinator = PresetRuntimeCoordinator(
+            presets_feature=SimpleNamespace(),
+            ui_state_store=None,
+            get_launch_method=lambda: ZAPRET2_MODE,
+            get_active_preset_path=lambda: "",
+            refresh_after_switch=lambda: None,
+            request_selected_source_preset_apply=lambda method, reason, file_name: switch_calls.append(
+                (method, reason, file_name)
+            )
+            or True,
+            request_preset_content_apply=lambda *_args: True,
+        )
+        coordinator.setup_active_preset_file_watcher = lambda: None
+
+        with patch("core.runtime.preset_runtime_coordinator.QTimer", _FakeTimer):
+            coordinator.handle_preset_switched(ZAPRET2_MODE, "Default v5.txt")
+
+            apply_timers = [
+                timer
+                for timer in _FakeTimer.instances
+                if getattr(timer.timeout.callback, "__name__", "") == "_apply_pending_selected_source_preset"
+            ]
+            self.assertEqual(len(apply_timers), 1)
+            self.assertEqual(apply_timers[0].delay_ms, 0)
+            self.assertEqual(switch_calls, [])
+
+            apply_timers[0].fire()
+
+        self.assertEqual(switch_calls, [(ZAPRET2_MODE, "preset_switched", "Default v5.txt")])
 
     def test_raw_editor_can_save_active_preset_without_publishing_until_commit(self) -> None:
         from presets.raw_preset_editor_workflow import RawPresetEditorController
