@@ -22,6 +22,8 @@ from profile.profile_setup_loader import (
     ProfileSettingsSaveWorker,
     ProfileStrategyFeedbackSaveWorker,
     ProfileStrategyApplyWorker,
+    ProfileUserProfileDeleteWorker,
+    ProfileUserProfileUpdateWorker,
 )
 from profile.state import ProfileListItem, ProfileSetupPayload
 from profile.strategy_state import ProfileStrategyState
@@ -725,8 +727,154 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("_delete_user_profile_button", build)
         self.assertIn("_user_profile_id_from_payload", apply_payload)
         self.assertIn("CreateUserProfileDialog", handler)
-        self.assertIn("update_user_profile", handler)
-        self.assertIn("delete_user_profile", delete_handler)
+        self.assertIn("_request_user_profile_update", handler)
+        self.assertIn("_request_user_profile_delete", delete_handler)
+        self.assertNotIn("_controller.update_user_profile", handler)
+        self.assertNotIn("_controller.delete_user_profile", delete_handler)
+
+    def test_user_profile_update_starts_worker_without_updating_in_gui_thread(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.updated = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
+            def isRunning(self) -> bool:
+                return False
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._user_profile_update_request_id = 0
+        page._user_profile_update_worker = None
+        page._update_user_profile_button = Mock()
+        page._delete_user_profile_button = Mock()
+        page._controller = Mock()
+        worker = _Worker()
+        page._controller.create_user_profile_update_worker.return_value = worker
+        page._controller.update_user_profile.side_effect = AssertionError("update must run in worker")
+
+        ProfileSetupPageBase._request_user_profile_update(
+            page,
+            "user-1",
+            name="YouTube",
+            protocol="TCP",
+            ports="443",
+        )
+
+        page._controller.update_user_profile.assert_not_called()
+        page._controller.create_user_profile_update_worker.assert_called_once_with(
+            1,
+            profile_id="user-1",
+            name="YouTube",
+            protocol="TCP",
+            ports="443",
+            parent=page,
+        )
+        page._update_user_profile_button.setEnabled.assert_called_once_with(False)
+        page._delete_user_profile_button.setEnabled.assert_called_once_with(False)
+        worker.start.assert_called_once()
+
+    def test_user_profile_delete_starts_worker_without_deleting_in_gui_thread(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.deleted = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
+            def isRunning(self) -> bool:
+                return False
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._user_profile_delete_request_id = 0
+        page._user_profile_delete_worker = None
+        page._update_user_profile_button = Mock()
+        page._delete_user_profile_button = Mock()
+        page._controller = Mock()
+        worker = _Worker()
+        page._controller.create_user_profile_delete_worker.return_value = worker
+        page._controller.delete_user_profile.side_effect = AssertionError("delete must run in worker")
+
+        ProfileSetupPageBase._request_user_profile_delete(page, "user-1")
+
+        page._controller.delete_user_profile.assert_not_called()
+        page._controller.create_user_profile_delete_worker.assert_called_once_with(
+            1,
+            profile_id="user-1",
+            parent=page,
+        )
+        page._update_user_profile_button.setEnabled.assert_called_once_with(False)
+        page._delete_user_profile_button.setEnabled.assert_called_once_with(False)
+        worker.start.assert_called_once()
+
+    def test_stale_user_profile_update_result_is_ignored(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._user_profile_update_request_id = 1
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(user_profile_id="user-2"))
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_user_profile_update_finished(page, 1, "user-1", 3)
+
+        page.reload_current_profile.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
+
+    def test_user_profile_update_worker_emits_changed_count(self) -> None:
+        controller = Mock()
+        controller.update_user_profile.return_value = 3
+        worker = ProfileUserProfileUpdateWorker(
+            7,
+            controller,
+            profile_id="user-1",
+            name="YouTube",
+            protocol="TCP",
+            ports="443",
+        )
+        updated = []
+
+        worker.updated.connect(
+            lambda request_id, profile_id, changed: updated.append((request_id, profile_id, changed))
+        )
+
+        worker.run()
+
+        controller.update_user_profile.assert_called_once_with(
+            profile_id="user-1",
+            name="YouTube",
+            protocol="TCP",
+            ports="443",
+        )
+        self.assertEqual(updated, [(7, "user-1", 3)])
+
+    def test_user_profile_delete_worker_emits_changed_count(self) -> None:
+        controller = Mock()
+        controller.delete_user_profile.return_value = 2
+        worker = ProfileUserProfileDeleteWorker(8, controller, profile_id="user-1")
+        deleted = []
+
+        worker.deleted.connect(
+            lambda request_id, profile_id, changed: deleted.append((request_id, profile_id, changed))
+        )
+
+        worker.run()
+
+        controller.delete_user_profile.assert_called_once_with(profile_id="user-1")
+        self.assertEqual(deleted, [(8, "user-1", 2)])
 
     def test_strategy_list_click_handlers_match_qlistwidget_signals(self) -> None:
         clicked = inspect.signature(ProfileStrategyListWidget._on_item_clicked)

@@ -124,6 +124,33 @@ class ProfileSetupController:
             parent=parent,
         )
 
+    def create_user_profile_update_worker(
+        self,
+        request_id: int,
+        *,
+        profile_id: str,
+        name: str,
+        protocol: str,
+        ports: str,
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfileUserProfileUpdateWorker
+
+        return ProfileUserProfileUpdateWorker(
+            request_id,
+            self,
+            profile_id=profile_id,
+            name=name,
+            protocol=protocol,
+            ports=ports,
+            parent=parent,
+        )
+
+    def create_user_profile_delete_worker(self, request_id: int, *, profile_id: str, parent=None):
+        from profile.profile_setup_loader import ProfileUserProfileDeleteWorker
+
+        return ProfileUserProfileDeleteWorker(request_id, self, profile_id=profile_id, parent=parent)
+
     def create_strategy_apply_worker(self, request_id: int, *, profile_key: str, strategy_id: str, parent=None):
         from profile.profile_setup_loader import ProfileStrategyApplyWorker
 

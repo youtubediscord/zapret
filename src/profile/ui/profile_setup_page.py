@@ -476,6 +476,10 @@ class ProfileSetupPageBase(BasePage):
         self._raw_profile_save_worker = None
         self._enabled_save_request_id = 0
         self._enabled_save_worker = None
+        self._user_profile_update_request_id = 0
+        self._user_profile_update_worker = None
+        self._user_profile_delete_request_id = 0
+        self._user_profile_delete_worker = None
         self._strategy_apply_request_id = 0
         self._strategy_apply_worker = None
         self._strategy_apply_worker_strategy_id = ""
@@ -972,27 +976,12 @@ class ProfileSetupPageBase(BasePage):
         if not dialog.exec():
             return
         name, protocol, ports = dialog.values()
-        try:
-            changed = self._controller.update_user_profile(
-                profile_id=profile_id,
-                name=name,
-                protocol=protocol,
-                ports=ports,
-            )
-            InfoBar.success(
-                title="Profile изменён",
-                content=f"Обновлено profile-ов в preset-ах: {changed}.",
-                parent=self.window(),
-            )
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось изменить пользовательский profile: {exc}", "ERROR")
-            InfoBar.error(
-                title="Ошибка",
-                content=str(exc),
-                parent=self.window(),
-            )
+        self._request_user_profile_update(
+            profile_id,
+            name=name,
+            protocol=protocol,
+            ports=ports,
+        )
 
     def _on_delete_user_profile_clicked(self) -> None:
         profile_id = _user_profile_id_from_payload(self._profile_key, self._payload)
@@ -1008,22 +997,129 @@ class ProfileSetupPageBase(BasePage):
         dialog.cancelButton.setText("Отмена")
         if not dialog.exec():
             return
-        try:
-            changed = self._controller.delete_user_profile(profile_id=profile_id)
-            InfoBar.success(
-                title="Profile удалён",
-                content=f"Удалено profile-ов из preset-ов: {changed}.",
-                parent=self.window(),
-            )
-            self._on_profile_changed_callback(self._profile_key, "user_profile_deleted")
-            self._open_profiles()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось удалить пользовательский profile: {exc}", "ERROR")
-            InfoBar.error(
-                title="Ошибка",
-                content=str(exc),
-                parent=self.window(),
-            )
+        self._request_user_profile_delete(profile_id)
+
+    def _set_user_profile_buttons_enabled(self, enabled: bool) -> None:
+        if self._update_user_profile_button is not None:
+            self._update_user_profile_button.setEnabled(enabled)
+        if self._delete_user_profile_button is not None:
+            self._delete_user_profile_button.setEnabled(enabled)
+
+    def _current_user_profile_id(self) -> str:
+        return _user_profile_id_from_payload(self._profile_key, self._payload)
+
+    def _request_user_profile_update(self, profile_id: str, *, name: str, protocol: str, ports: str) -> None:
+        profile_id = str(profile_id or "").strip()
+        if not profile_id:
+            return
+        worker = self.__dict__.get("_user_profile_update_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._user_profile_update_request_id = int(getattr(self, "_user_profile_update_request_id", 0) or 0) + 1
+        request_id = self._user_profile_update_request_id
+        self._set_user_profile_buttons_enabled(False)
+        worker = self._controller.create_user_profile_update_worker(
+            request_id,
+            profile_id=profile_id,
+            name=name,
+            protocol=protocol,
+            ports=ports,
+            parent=self,
+        )
+        self._user_profile_update_worker = worker
+        worker.updated.connect(self._on_user_profile_update_finished)
+        worker.failed.connect(self._on_user_profile_update_failed)
+        worker.finished.connect(lambda w=worker: self._on_user_profile_update_worker_finished(w))
+        worker.start()
+
+    def _on_user_profile_update_finished(self, request_id: int, profile_id: str, changed: int) -> None:
+        if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
+            return
+        if str(profile_id or "").strip() != self._current_user_profile_id():
+            return
+        InfoBar.success(
+            title="Profile изменён",
+            content=f"Обновлено profile-ов в preset-ах: {int(changed or 0)}.",
+            parent=self.window(),
+        )
+        self.reload_current_profile()
+        self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
+
+    def _on_user_profile_update_failed(self, request_id: int, error: str) -> None:
+        if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
+            return
+        self._set_user_profile_buttons_enabled(True)
+        log(f"{self.__class__.__name__}: не удалось изменить пользовательский profile: {error}", "ERROR")
+        InfoBar.error(
+            title="Ошибка",
+            content=str(error),
+            parent=self.window(),
+        )
+
+    def _on_user_profile_update_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_user_profile_update_worker") is worker:
+            self._user_profile_update_worker = None
+            self._set_user_profile_buttons_enabled(True)
+        worker.deleteLater()
+
+    def _request_user_profile_delete(self, profile_id: str) -> None:
+        profile_id = str(profile_id or "").strip()
+        if not profile_id:
+            return
+        worker = self.__dict__.get("_user_profile_delete_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._user_profile_delete_request_id = int(getattr(self, "_user_profile_delete_request_id", 0) or 0) + 1
+        request_id = self._user_profile_delete_request_id
+        self._set_user_profile_buttons_enabled(False)
+        worker = self._controller.create_user_profile_delete_worker(
+            request_id,
+            profile_id=profile_id,
+            parent=self,
+        )
+        self._user_profile_delete_worker = worker
+        worker.deleted.connect(self._on_user_profile_delete_finished)
+        worker.failed.connect(self._on_user_profile_delete_failed)
+        worker.finished.connect(lambda w=worker: self._on_user_profile_delete_worker_finished(w))
+        worker.start()
+
+    def _on_user_profile_delete_finished(self, request_id: int, profile_id: str, changed: int) -> None:
+        if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
+            return
+        if str(profile_id or "").strip() != self._current_user_profile_id():
+            return
+        InfoBar.success(
+            title="Profile удалён",
+            content=f"Удалено profile-ов из preset-ов: {int(changed or 0)}.",
+            parent=self.window(),
+        )
+        self._on_profile_changed_callback(self._profile_key, "user_profile_deleted")
+        self._open_profiles()
+
+    def _on_user_profile_delete_failed(self, request_id: int, error: str) -> None:
+        if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
+            return
+        self._set_user_profile_buttons_enabled(True)
+        log(f"{self.__class__.__name__}: не удалось удалить пользовательский profile: {error}", "ERROR")
+        InfoBar.error(
+            title="Ошибка",
+            content=str(error),
+            parent=self.window(),
+        )
+
+    def _on_user_profile_delete_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_user_profile_delete_worker") is worker:
+            self._user_profile_delete_worker = None
+            self._set_user_profile_buttons_enabled(True)
+        worker.deleteLater()
 
     def show_profile(self, profile_key: str) -> None:
         self._profile_key = str(profile_key or "").strip()

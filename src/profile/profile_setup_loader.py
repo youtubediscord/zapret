@@ -211,6 +211,64 @@ class ProfileEnabledSaveWorker(QThread):
         self.saved.emit(self._request_id, str(profile_key or ""), self._enabled)
 
 
+class ProfileUserProfileUpdateWorker(QThread):
+    updated = pyqtSignal(int, str, int)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        controller,
+        *,
+        profile_id: str,
+        name: str,
+        protocol: str,
+        ports: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._controller = controller
+        self._profile_id = str(profile_id or "").strip()
+        self._name = str(name or "").strip()
+        self._protocol = str(protocol or "").strip()
+        self._ports = str(ports or "").strip()
+
+    def run(self) -> None:
+        try:
+            changed = self._controller.update_user_profile(
+                profile_id=self._profile_id,
+                name=self._name,
+                protocol=self._protocol,
+                ports=self._ports,
+            )
+        except Exception as exc:
+            log(f"ProfileUserProfileUpdateWorker: не удалось изменить пользовательский profile: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.updated.emit(self._request_id, self._profile_id, int(changed or 0))
+
+
+class ProfileUserProfileDeleteWorker(QThread):
+    deleted = pyqtSignal(int, str, int)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, request_id: int, controller, *, profile_id: str, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._controller = controller
+        self._profile_id = str(profile_id or "").strip()
+
+    def run(self) -> None:
+        try:
+            changed = self._controller.delete_user_profile(profile_id=self._profile_id)
+        except Exception as exc:
+            log(f"ProfileUserProfileDeleteWorker: не удалось удалить пользовательский profile: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.deleted.emit(self._request_id, self._profile_id, int(changed or 0))
+
+
 class ProfileStrategyApplyWorker(QThread):
     applied = pyqtSignal(int, str, str, str)
     failed = pyqtSignal(int, str)
