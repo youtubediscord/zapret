@@ -466,6 +466,9 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_load_worker = None
         self._list_file_save_request_id = 0
         self._list_file_save_worker = None
+        self._settings_save_request_id = 0
+        self._settings_save_worker = None
+        self._pending_settings_save = None
         self._strategy_apply_request_id = 0
         self._strategy_apply_worker = None
         self._strategy_apply_worker_strategy_id = ""
@@ -1462,20 +1465,68 @@ class ProfileSetupPageBase(BasePage):
         filter_enabled = bool(getattr(self._payload, "editable_filter_enabled", True))
         if filter_enabled and not filter_value:
             return
-        try:
-            new_key = self._controller.save_winws2_settings(
-                profile_key=self._profile_key,
-                filter_kind=self._current_filter_kind(),
-                filter_value=filter_value,
-                in_range=range_expression_from_controls(self._in_range_mode, self._in_range_value, default="x"),
-                out_range=range_expression_from_controls(self._out_range_mode, self._out_range_value, default="a"),
-            )
-            if new_key:
-                self._profile_key = new_key
-            self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "settings")
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {exc}", "ERROR")
+        request = {
+            "profile_key": self._profile_key,
+            "filter_kind": self._current_filter_kind(),
+            "filter_value": filter_value,
+            "in_range": range_expression_from_controls(self._in_range_mode, self._in_range_value, default="x"),
+            "out_range": range_expression_from_controls(self._out_range_mode, self._out_range_value, default="a"),
+        }
+        self._request_settings_save(request)
+
+    def _request_settings_save(self, request: dict) -> None:
+        worker = self._settings_save_worker
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._pending_settings_save = dict(request)
+                    return
+            except Exception:
+                return
+        self._start_settings_save_worker(request)
+
+    def _start_settings_save_worker(self, request: dict) -> None:
+        self._settings_save_request_id += 1
+        request_id = self._settings_save_request_id
+        worker = self._controller.create_settings_save_worker(
+            request_id,
+            profile_key=str(request.get("profile_key") or ""),
+            filter_kind=str(request.get("filter_kind") or ""),
+            filter_value=str(request.get("filter_value") or ""),
+            in_range=str(request.get("in_range") or ""),
+            out_range=str(request.get("out_range") or ""),
+            parent=self,
+        )
+        self._settings_save_worker = worker
+        worker.saved.connect(self._on_settings_save_finished)
+        worker.failed.connect(self._on_settings_save_failed)
+        worker.finished.connect(lambda w=worker: self._on_settings_save_worker_finished(w))
+        worker.start()
+
+    def _on_settings_save_finished(self, request_id: int, profile_key: str) -> None:
+        if request_id != self._settings_save_request_id:
+            return
+        if self._pending_settings_save:
+            return
+        new_key = str(profile_key or "").strip()
+        if new_key:
+            self._profile_key = new_key
+        self.reload_current_profile()
+        self._on_profile_changed_callback(self._profile_key, "settings")
+
+    def _on_settings_save_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._settings_save_request_id:
+            return
+        log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {error}", "ERROR")
+
+    def _on_settings_save_worker_finished(self, worker) -> None:
+        if self._settings_save_worker is worker:
+            self._settings_save_worker = None
+        worker.deleteLater()
+        pending = self._pending_settings_save
+        self._pending_settings_save = None
+        if pending:
+            self._start_settings_save_worker(pending)
 
     def _on_raw_profile_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._raw_profile_text is None:

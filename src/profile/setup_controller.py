@@ -68,6 +68,30 @@ class ProfileSetupController:
 
         return ProfileListFileSaveWorker(request_id, self, profile_key, text, parent)
 
+    def create_settings_save_worker(
+        self,
+        request_id: int,
+        *,
+        profile_key: str,
+        filter_kind: str,
+        filter_value: str,
+        in_range: str,
+        out_range: str,
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfileSettingsSaveWorker
+
+        return ProfileSettingsSaveWorker(
+            request_id,
+            self,
+            profile_key=profile_key,
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+            in_range=in_range,
+            out_range=out_range,
+            parent=parent,
+        )
+
     def create_strategy_apply_worker(self, request_id: int, *, profile_key: str, strategy_id: str, parent=None):
         from profile.profile_setup_loader import ProfileStrategyApplyWorker
 

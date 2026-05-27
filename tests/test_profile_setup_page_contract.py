@@ -14,7 +14,7 @@ from profile.ui.profile_setup_page import (
     _match_tab_text,
     _profile_editor_tab_title,
 )
-from profile.profile_setup_loader import ProfileListFileSaveWorker, ProfileStrategyApplyWorker
+from profile.profile_setup_loader import ProfileListFileSaveWorker, ProfileSettingsSaveWorker, ProfileStrategyApplyWorker
 from profile.state import ProfileListItem, ProfileSetupPayload
 from profile.strategy_state import ProfileStrategyState
 from profile.ui.preset_setup_page import PresetSetupPageBase, preset_setup_title_for_payload
@@ -898,6 +898,114 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("visual.label", set_rows)
         self.assertIn("get_cached_qta_pixmap", paint)
         self.assertNotIn("set" + "ToolTip", set_rows)
+
+    def test_settings_autosave_starts_worker_without_saving_in_gui_thread(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.saved = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
+            def isRunning(self) -> bool:
+                return False
+
+        class _Combo:
+            def currentIndex(self) -> int:
+                return 0
+
+            def itemData(self, _index: int) -> str:
+                return "x"
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page.launch_method = "zapret2_mode"
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(editable_filter_enabled=True)
+        page._filter_value = SimpleNamespace(text=lambda: "lists/youtube.txt")
+        page._current_filter_kind = lambda: "hostlist"
+        page._in_range_mode = _Combo()
+        page._out_range_mode = _Combo()
+        page._in_range_value = SimpleNamespace(text=lambda: "")
+        page._out_range_value = SimpleNamespace(text=lambda: "")
+        page._settings_save_request_id = 0
+        page._settings_save_worker = None
+        page._pending_settings_save = None
+        page._controller = Mock()
+        worker = _Worker()
+        page._controller.create_settings_save_worker.return_value = worker
+        page._controller.save_winws2_settings.side_effect = AssertionError("settings save must run in worker")
+
+        ProfileSetupPageBase._autosave_editable_settings(page)
+
+        page._controller.save_winws2_settings.assert_not_called()
+        page._controller.create_settings_save_worker.assert_called_once_with(
+            1,
+            profile_key="profile-1",
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
+            in_range="x",
+            out_range="x",
+            parent=page,
+        )
+        worker.start.assert_called_once()
+
+    def test_settings_save_worker_emits_new_profile_key(self) -> None:
+        controller = Mock()
+        controller.save_winws2_settings.return_value = "profile-2"
+        worker = ProfileSettingsSaveWorker(
+            4,
+            controller,
+            profile_key="profile-1",
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
+            in_range="x",
+            out_range="a",
+        )
+        saved = []
+
+        worker.saved.connect(lambda request_id, profile_key: saved.append((request_id, profile_key)))
+
+        worker.run()
+
+        controller.save_winws2_settings.assert_called_once_with(
+            profile_key="profile-1",
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
+            in_range="x",
+            out_range="a",
+        )
+        self.assertEqual(saved, [(4, "profile-2")])
+
+    def test_settings_autosave_while_worker_runs_keeps_last_pending_request(self) -> None:
+        class _Worker:
+            def isRunning(self) -> bool:
+                return True
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._settings_save_worker = _Worker()
+        page._pending_settings_save = None
+        page._start_settings_save_worker = Mock()
+
+        request = {
+            "profile_key": "profile-1",
+            "filter_kind": "hostlist",
+            "filter_value": "lists/new.txt",
+            "in_range": "x",
+            "out_range": "a",
+        }
+
+        ProfileSetupPageBase._request_settings_save(page, request)
+
+        self.assertEqual(page._pending_settings_save, request)
+        page._start_settings_save_worker.assert_not_called()
 
     def test_strategy_list_uses_fluent_item_tooltip(self) -> None:
         delegate_init = inspect.getsource(ProfileStrategyListDelegate.__init__)

@@ -84,6 +84,47 @@ class ProfileListFileSaveWorker(QThread):
         self.saved.emit(self._request_id, state)
 
 
+class ProfileSettingsSaveWorker(QThread):
+    saved = pyqtSignal(int, str)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        controller,
+        *,
+        profile_key: str,
+        filter_kind: str,
+        filter_value: str,
+        in_range: str,
+        out_range: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._controller = controller
+        self._profile_key = str(profile_key or "").strip()
+        self._filter_kind = str(filter_kind or "").strip()
+        self._filter_value = str(filter_value or "").strip()
+        self._in_range = str(in_range or "").strip()
+        self._out_range = str(out_range or "").strip()
+
+    def run(self) -> None:
+        try:
+            profile_key = self._controller.save_winws2_settings(
+                profile_key=self._profile_key,
+                filter_kind=self._filter_kind,
+                filter_value=self._filter_value,
+                in_range=self._in_range,
+                out_range=self._out_range,
+            )
+        except Exception as exc:
+            log(f"ProfileSettingsSaveWorker: не удалось сохранить настройки profile: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.saved.emit(self._request_id, str(profile_key or ""))
+
+
 class ProfileStrategyApplyWorker(QThread):
     applied = pyqtSignal(int, str, str)
     failed = pyqtSignal(int, str)
