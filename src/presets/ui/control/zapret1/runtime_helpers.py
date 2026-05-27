@@ -164,16 +164,16 @@ def show_simple_infobar_result(*, ok: bool, message: str, window, info_bar_cls) 
 
 
 def save_wssize_enabled(enabled: bool, *, profile_feature, runtime_feature) -> None:
+    _ = runtime_feature
     profile_feature.set_wssize_enabled(
         bool(enabled),
         launch_method=ZAPRET1_MODE,
     )
-    runtime_feature.apply_preset_content(launch_method=ZAPRET1_MODE, reason="wssize_toggled")
 
 
 def save_debug_log_enabled(enabled: bool, *, profile_feature, runtime_feature) -> None:
+    _ = runtime_feature
     profile_feature.set_debug_log_enabled(
         bool(enabled),
         launch_method=ZAPRET1_MODE,
     )
-    runtime_feature.apply_preset_content(launch_method=ZAPRET1_MODE, reason="debug_log_toggled")

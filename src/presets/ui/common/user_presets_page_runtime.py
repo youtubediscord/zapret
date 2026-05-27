@@ -122,16 +122,6 @@ class UserPresetsStorageApi(Protocol):
     ) -> bool: ...
 
 
-def apply_preset_content_reload(*, runtime_feature, launch_method: str, reason: str, log_fn) -> None:
-    try:
-        runtime_feature.apply_preset_content(
-            launch_method=launch_method,
-            reason=reason,
-        )
-    except Exception as exc:
-        log_fn(f"Ошибка перезапуска DPI: {exc}", "ERROR")
-
-
 def schedule_preset_search(*, preset_search_timer, refresh_presets_view_from_cache_fn) -> None:
     try:
         preset_search_timer.start(180)

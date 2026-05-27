@@ -169,6 +169,84 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             launch_runtime.switch_presets_async.assert_called_once_with(ZAPRET2_MODE)
             launch_runtime.stop_dpi_async.assert_not_called()
 
+    def test_zapret2_additional_settings_only_save_preset_source(self) -> None:
+        from presets.ui.control.zapret2.page_runtime import save_debug_log_enabled, save_wssize_enabled
+        from settings.mode import ZAPRET2_MODE
+
+        class _ProfileFeature:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, bool, str]] = []
+
+            def set_debug_log_enabled(self, enabled: bool, *, launch_method: str) -> bool:
+                self.calls.append(("debug", bool(enabled), launch_method))
+                return True
+
+            def set_wssize_enabled(self, enabled: bool, *, launch_method: str) -> bool:
+                self.calls.append(("wssize", bool(enabled), launch_method))
+                return True
+
+        class _RuntimeFeature:
+            def __init__(self) -> None:
+                self.apply_calls: list[tuple[str, str]] = []
+
+            def apply_preset_content(self, *, launch_method: str, reason: str, **_kwargs) -> bool:
+                self.apply_calls.append((launch_method, reason))
+                return True
+
+        profile_feature = _ProfileFeature()
+        runtime_feature = _RuntimeFeature()
+
+        save_debug_log_enabled(True, profile_feature=profile_feature, runtime_feature=runtime_feature)
+        save_wssize_enabled(False, profile_feature=profile_feature, runtime_feature=runtime_feature)
+
+        self.assertEqual(
+            profile_feature.calls,
+            [
+                ("debug", True, ZAPRET2_MODE),
+                ("wssize", False, ZAPRET2_MODE),
+            ],
+        )
+        self.assertEqual(runtime_feature.apply_calls, [])
+
+    def test_zapret1_additional_settings_only_save_preset_source(self) -> None:
+        from presets.ui.control.zapret1.runtime_helpers import save_debug_log_enabled, save_wssize_enabled
+        from settings.mode import ZAPRET1_MODE
+
+        class _ProfileFeature:
+            def __init__(self) -> None:
+                self.calls: list[tuple[str, bool, str]] = []
+
+            def set_debug_log_enabled(self, enabled: bool, *, launch_method: str) -> bool:
+                self.calls.append(("debug", bool(enabled), launch_method))
+                return True
+
+            def set_wssize_enabled(self, enabled: bool, *, launch_method: str) -> bool:
+                self.calls.append(("wssize", bool(enabled), launch_method))
+                return True
+
+        class _RuntimeFeature:
+            def __init__(self) -> None:
+                self.apply_calls: list[tuple[str, str]] = []
+
+            def apply_preset_content(self, *, launch_method: str, reason: str, **_kwargs) -> bool:
+                self.apply_calls.append((launch_method, reason))
+                return True
+
+        profile_feature = _ProfileFeature()
+        runtime_feature = _RuntimeFeature()
+
+        save_debug_log_enabled(True, profile_feature=profile_feature, runtime_feature=runtime_feature)
+        save_wssize_enabled(False, profile_feature=profile_feature, runtime_feature=runtime_feature)
+
+        self.assertEqual(
+            profile_feature.calls,
+            [
+                ("debug", True, ZAPRET1_MODE),
+                ("wssize", False, ZAPRET1_MODE),
+            ],
+        )
+        self.assertEqual(runtime_feature.apply_calls, [])
+
     def test_preset_content_publish_refreshes_launch_snapshot_before_signal(self) -> None:
         from presets.file_service import PresetFileService
         from presets.models import PresetManifest

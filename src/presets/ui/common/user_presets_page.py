@@ -26,7 +26,6 @@ from presets.user_presets_runtime_service import (
 from presets.ui.common.user_presets_page_runtime import (
     UserPresetsPageRuntime,
     UserPresetsPageRuntimeConfig,
-    apply_preset_content_reload,
     apply_preset_search,
     rebuild_presets_rows,
     schedule_preset_search,
@@ -885,14 +884,6 @@ class UserPresetsPageBase(BasePage):
             parent_window=self.window(),
             log_fn=log,
             tr_prefix=self._config.tr_prefix,
-        )
-
-    def _on_dpi_reload_needed(self):
-        apply_preset_content_reload(
-            runtime_feature=self._runtime_feature,
-            launch_method=self._config.launch_method,
-            reason="preset_content_changed",
-            log_fn=log,
         )
 
     def _open_presets_info(self):
