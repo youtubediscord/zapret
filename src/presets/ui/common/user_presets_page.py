@@ -174,6 +174,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_storage_action_request_id = 0
         self._preset_folder_action_worker = None
         self._preset_folder_action_request_id = 0
+        self._preset_folder_action_pending: list[dict[str, object]] = []
         self._build_ui()
         self._after_ui_built()
         self.bind_ui_state_store(ui_state_store)
@@ -906,6 +907,15 @@ class UserPresetsPageBase(BasePage):
         if worker is not None:
             try:
                 if worker.isRunning():
+                    self._preset_folder_action_pending.append(
+                        {
+                            "action": str(action or ""),
+                            "folder_key": str(folder_key or ""),
+                            "name": str(name or ""),
+                            "direction": int(direction or 0),
+                            "collapsed": bool(collapsed),
+                        }
+                    )
                     return
             except Exception:
                 return
@@ -940,6 +950,15 @@ class UserPresetsPageBase(BasePage):
         if self.__dict__.get("_preset_folder_action_worker") is worker:
             self._preset_folder_action_worker = None
         worker.deleteLater()
+        if self._preset_folder_action_pending:
+            pending = self._preset_folder_action_pending.pop(0)
+            self._request_preset_folder_action(
+                str(pending.get("action") or ""),
+                folder_key=str(pending.get("folder_key") or ""),
+                name=str(pending.get("name") or ""),
+                direction=int(pending.get("direction") or 0),
+                collapsed=bool(pending.get("collapsed")),
+            )
 
     def _on_toggle_pin_preset(self, name: str):
         self._request_preset_storage_action(

@@ -75,6 +75,7 @@ class PresetSetupPageBase(BasePage):
         self._profile_move_worker = None
         self._profile_folder_action_request_id = 0
         self._profile_folder_action_worker = None
+        self._profile_folder_action_pending: list[dict[str, object]] = []
         self._user_profile_create_request_id = 0
         self._user_profile_create_worker = None
         self._user_profile_update_request_id = 0
@@ -903,6 +904,16 @@ class PresetSetupPageBase(BasePage):
         if worker is not None:
             try:
                 if worker.isRunning():
+                    self._profile_folder_action_pending.append(
+                        {
+                            "action": str(action or ""),
+                            "folder_key": str(folder_key or ""),
+                            "name": str(name or ""),
+                            "direction": int(direction or 0),
+                            "collapsed": bool(collapsed),
+                            "refresh": bool(refresh),
+                        }
+                    )
                     return
             except Exception:
                 return
@@ -940,6 +951,16 @@ class PresetSetupPageBase(BasePage):
         if self.__dict__.get("_profile_folder_action_worker") is worker:
             self._profile_folder_action_worker = None
         worker.deleteLater()
+        if self._profile_folder_action_pending and not self._cleanup_in_progress:
+            pending = self._profile_folder_action_pending.pop(0)
+            self._request_profile_folder_action(
+                str(pending.get("action") or ""),
+                folder_key=str(pending.get("folder_key") or ""),
+                name=str(pending.get("name") or ""),
+                direction=int(pending.get("direction") or 0),
+                collapsed=bool(pending.get("collapsed")),
+                refresh=bool(pending.get("refresh", True)),
+            )
 
     def apply_profile_setup_change(self, profile_key: str, change_kind: str) -> None:
         if str(change_kind or "").strip() in {"strategy", "feedback"} and str(profile_key or "").strip():

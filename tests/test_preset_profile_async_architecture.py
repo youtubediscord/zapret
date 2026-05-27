@@ -270,6 +270,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertTrue(hasattr(user_presets_action_workers, "UserPresetFolderActionWorker"))
         worker_source = inspect.getsource(user_presets_action_workers.UserPresetFolderActionWorker.run)
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_folder_action)
+        finished_source = inspect.getsource(UserPresetsPageBase._on_preset_folder_action_worker_finished)
 
         for source in (toggle_source, menu_source):
             self.assertIn("_request_preset_folder_action", source)
@@ -295,6 +296,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("move_preset_folder_by_step", worker_source)
         self.assertIn("set_preset_folder_collapsed", worker_source)
         self.assertIn("reset_preset_folders", worker_source)
+        self.assertIn("_preset_folder_action_pending.append", request_source)
+        self.assertIn("_preset_folder_action_pending.pop(0)", finished_source)
         self.assertIn("create_preset_folder_action_worker", request_source)
 
     def test_profile_folder_actions_run_through_worker(self) -> None:
@@ -305,6 +308,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertTrue(hasattr(profile_setup_loader, "ProfileFolderActionWorker"))
         worker_source = inspect.getsource(profile_setup_loader.ProfileFolderActionWorker.run)
         request_source = inspect.getsource(PresetSetupPageBase._request_profile_folder_action)
+        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_folder_action_worker_finished)
 
         for source in (toggle_source, menu_source):
             self.assertIn("_request_profile_folder_action", source)
@@ -330,6 +334,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("move_profile_folder_by_step", worker_source)
         self.assertIn("set_profile_folder_collapsed", worker_source)
         self.assertIn("reset_profile_folders", worker_source)
+        self.assertIn("_profile_folder_action_pending.append", request_source)
+        self.assertIn("_profile_folder_action_pending.pop(0)", finished_source)
         self.assertIn("_create_profile_folder_action_worker", request_source)
         self.assertIn("ProfileFolderActionWorker", inspect.getsource(PresetSetupPageBase._create_profile_folder_action_worker))
 
