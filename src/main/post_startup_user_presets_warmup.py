@@ -24,7 +24,8 @@ def install_user_presets_warmup(
     *,
     presets_feature,
     log_startup_metric,
-    delay_ms: int = 1_600,
+    delay_ms: int = 3_500,
+    secondary_delay_ms: int = 15_000,
 ) -> None:
     def _run_user_presets_warmup_method(method: str) -> None:
         if not is_startup_host_alive(startup_host):
@@ -51,12 +52,23 @@ def install_user_presets_warmup(
             return
         delay = max(0, int(delay_ms))
         methods = user_presets_warmup_methods(get_strategy_launch_method())
-        log_startup_metric("StartupUserPresetsWarmupQueued", f"{delay}ms after interactive")
+        current_methods = methods[:1]
+        secondary_methods = methods[1:]
+        secondary_delay = max(delay, int(secondary_delay_ms))
+        detail = f"{delay}ms current after interactive"
+        if secondary_methods:
+            detail = f"{detail}; {secondary_delay}ms secondary after interactive"
+        log_startup_metric("StartupUserPresetsWarmupQueued", detail)
         log(f"Фоновый прогрев списка preset-ов отложен на {delay}ms", "DEBUG")
         schedule_after(
             delay,
-            lambda: is_startup_host_alive(startup_host) and _start_user_presets_warmup(methods),
+            lambda: is_startup_host_alive(startup_host) and _start_user_presets_warmup(current_methods),
         )
+        if secondary_methods:
+            schedule_after(
+                secondary_delay,
+                lambda: is_startup_host_alive(startup_host) and _start_user_presets_warmup(secondary_methods),
+            )
 
     bind_startup_gate(
         startup_host.startup_interactive_ready,

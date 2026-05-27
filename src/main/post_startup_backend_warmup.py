@@ -15,6 +15,7 @@ def install_backend_page_data_warmup(
     logs_feature,
     log_startup_metric,
     delay_ms: int = 1_500,
+    premium_delay_ms: int = 14_000,
 ) -> None:
     def _run_named_warmup(name: str, callback) -> None:
         started_at = time.perf_counter()
@@ -28,11 +29,10 @@ def install_backend_page_data_warmup(
 
     def _start_backend_page_data_warmup() -> None:
         warmups = (
-            ("Premium", premium_feature.warm_page_data_cache),
             ("Appearance", appearance_settings.warm_page_initial_state_cache),
             ("Logs", logs_feature.warm_page_data_cache),
         )
-        log_startup_metric("StartupBackendPageDataWarmupStarted", "premium, appearance, logs")
+        log_startup_metric("StartupBackendPageDataWarmupStarted", "appearance, logs")
         for name, callback in warmups:
             start_daemon_thread(
                 f"BackendPageDataWarmup-{name}",
@@ -41,15 +41,31 @@ def install_backend_page_data_warmup(
                 ),
             )
 
+    def _start_premium_page_data_warmup() -> None:
+        log_startup_metric("StartupBackendPageDataWarmupStarted", "premium")
+        start_daemon_thread(
+            "BackendPageDataWarmup-Premium",
+            lambda: is_startup_host_alive(startup_host)
+            and _run_named_warmup("Premium", premium_feature.warm_page_data_cache),
+        )
+
     def _schedule_backend_page_data_warmup() -> None:
         if not is_startup_host_alive(startup_host):
             return
         delay = max(0, int(delay_ms))
-        log_startup_metric("StartupBackendPageDataWarmupQueued", f"{delay}ms after interactive")
+        premium_delay = max(delay, int(premium_delay_ms))
+        log_startup_metric(
+            "StartupBackendPageDataWarmupQueued",
+            f"{delay}ms after interactive; premium {premium_delay}ms after interactive",
+        )
         log(f"Фоновый прогрев данных страниц отложен на {delay}ms", "DEBUG")
         schedule_after(
             delay,
             lambda: is_startup_host_alive(startup_host) and _start_backend_page_data_warmup(),
+        )
+        schedule_after(
+            premium_delay,
+            lambda: is_startup_host_alive(startup_host) and _start_premium_page_data_warmup(),
         )
 
     bind_startup_gate(

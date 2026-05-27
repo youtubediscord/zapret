@@ -1704,11 +1704,11 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [1200])
+        self.assertEqual(delays, [10000])
         self.assertEqual(thread_names, ["DnsPageDataWarmup"])
         dns_feature.warm_page_data_cache.assert_called_once_with()
         self.assertFalse(hasattr(startup_host, "warm_page"))
-        metric.assert_any_call("StartupNetworkDataWarmupQueued", "1200ms after interactive")
+        metric.assert_any_call("StartupNetworkDataWarmupQueued", "10000ms after interactive")
         metric.assert_any_call("StartupPostInitNetworkDataWarmupStarted", "backend_cache")
 
     def test_profile_warmup_orders_current_method_first(self) -> None:
@@ -1723,7 +1723,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ("zapret2_mode", "zapret1_mode"),
         )
 
-    def test_profile_warmup_runs_methods_in_parallel_after_interactive_ready(self) -> None:
+    def test_profile_warmup_staggers_current_and_secondary_methods_after_interactive_ready(self) -> None:
         from main import post_startup_profile_warmup
         from main.post_startup_profile_warmup import install_profile_warmup
 
@@ -1772,16 +1772,20 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [1800])
+        self.assertEqual(delays, [9000, 18000])
         self.assertEqual(thread_names, ["ProfileWarmup-zapret1_mode", "ProfileWarmup-zapret2_mode"])
         self.assertEqual(
             [recorded_call.args[0] for recorded_call in profile_feature.list_profiles.call_args_list],
             ["zapret1_mode", "zapret2_mode"],
         )
-        metric.assert_any_call("StartupProfileWarmupQueued", "1800ms after interactive")
-        metric.assert_any_call("StartupProfileWarmupStarted", "zapret1_mode, zapret2_mode")
+        metric.assert_any_call(
+            "StartupProfileWarmupQueued",
+            "9000ms current after interactive; 18000ms secondary after interactive",
+        )
+        metric.assert_any_call("StartupProfileWarmupStarted", "zapret1_mode")
+        metric.assert_any_call("StartupProfileWarmupStarted", "zapret2_mode")
 
-    def test_user_presets_warmup_runs_methods_in_parallel_after_interactive_ready(self) -> None:
+    def test_user_presets_warmup_staggers_current_and_secondary_methods_after_interactive_ready(self) -> None:
         from main import post_startup_user_presets_warmup
         from main.post_startup_user_presets_warmup import install_user_presets_warmup
 
@@ -1830,14 +1834,18 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("interactive")
 
-        self.assertEqual(delays, [1600])
+        self.assertEqual(delays, [3500, 15000])
         self.assertEqual(thread_names, ["UserPresetsWarmup-zapret1_mode", "UserPresetsWarmup-zapret2_mode"])
         self.assertEqual(
             [recorded_call.args[0] for recorded_call in presets_feature.warm_preset_list_metadata_cache.call_args_list],
             ["zapret1_mode", "zapret2_mode"],
         )
-        metric.assert_any_call("StartupUserPresetsWarmupQueued", "1600ms after interactive")
-        metric.assert_any_call("StartupUserPresetsWarmupStarted", "zapret1_mode, zapret2_mode")
+        metric.assert_any_call(
+            "StartupUserPresetsWarmupQueued",
+            "3500ms current after interactive; 15000ms secondary after interactive",
+        )
+        metric.assert_any_call("StartupUserPresetsWarmupStarted", "zapret1_mode")
+        metric.assert_any_call("StartupUserPresetsWarmupStarted", "zapret2_mode")
 
     def test_win11_radio_option_recommended_badge_does_not_require_global_flag(self) -> None:
         import ui.widgets.win11_controls as win11_controls

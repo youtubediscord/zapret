@@ -12,7 +12,7 @@ def install_dns_page_data_warmup(
     *,
     dns_feature,
     log_startup_metric,
-    delay_ms: int = 1_200,
+    delay_ms: int = 10_000,
 ) -> None:
     def _run_dns_page_data_warmup() -> None:
         if not is_startup_host_alive(startup_host):
