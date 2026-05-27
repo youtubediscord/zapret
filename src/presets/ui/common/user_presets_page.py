@@ -28,6 +28,7 @@ from presets.user_presets_action_workers import (
     UserPresetBulkActionWorker,
     UserPresetEditActionWorker,
     UserPresetItemActionWorker,
+    UserPresetStorageActionWorker,
 )
 from presets.ui.common.user_presets_page_runtime import (
     UserPresetsPageRuntime,
@@ -53,14 +54,11 @@ from presets.ui.common.user_presets_actions_workflow import (
     show_reset_all_result,
 )
 from presets.ui.common.user_presets_item_actions_workflow import (
-    handle_item_dropped_action,
-    move_preset_by_step_action,
     open_edit_preset_menu_action,
     open_new_configs_post_action,
     open_presets_info_action,
     rename_preset_action,
     show_rating_menu_action,
-    toggle_pin_preset_action,
 )
 from presets.ui.common.user_presets_page_lifecycle import (
     activate_user_presets_page,
@@ -172,6 +170,8 @@ class UserPresetsPageBase(BasePage):
         self._preset_bulk_action_kind = ""
         self._preset_edit_action_worker = None
         self._preset_edit_action_request_id = 0
+        self._preset_storage_action_worker = None
+        self._preset_storage_action_request_id = 0
         self._build_ui()
         self._after_ui_built()
         self.bind_ui_state_store(ui_state_store)
@@ -884,25 +884,21 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _on_toggle_pin_preset(self, name: str):
-        toggle_pin_preset_action(
+        self._request_preset_storage_action(
+            "pin",
             name=name,
-            resolve_display_name_fn=self._resolve_display_name,
-            storage_api=self._storage_api(),
-            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
-            log_fn=log,
+            display_name=self._resolve_display_name(name),
         )
 
     def _on_rate_preset(self, name: str):
         self._show_rating_menu(name)
 
     def _move_preset_by_step(self, name: str, direction: int):
-        move_preset_by_step_action(
+        self._request_preset_storage_action(
+            "move_step",
             name=name,
             direction=direction,
-            storage_api=self._storage_api(),
-            runtime_service=self._runtime_service,
-            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
-            log_fn=log,
+            cached_metadata=self._runtime_service.cached_presets_metadata(),
         )
 
     def _on_item_dropped(
@@ -913,17 +909,128 @@ class UserPresetsPageBase(BasePage):
         destination_id: str,
         destination_folder_key: str = "",
     ):
-        handle_item_dropped_action(
+        self._request_preset_storage_action(
+            "drop",
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
             destination_id=destination_id,
             destination_folder_key=destination_folder_key,
-            apply_preset_move_locally_fn=self._apply_preset_move_locally,
-            storage_api=self._storage_api(),
-            refresh_presets_view_from_cache_fn=self._refresh_presets_view_from_cache,
-            log_fn=log,
         )
+
+    def create_preset_storage_action_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        name: str = "",
+        display_name: str = "",
+        direction: int = 0,
+        cached_metadata=None,
+        source_kind: str = "",
+        source_id: str = "",
+        destination_kind: str = "",
+        destination_id: str = "",
+        destination_folder_key: str = "",
+    ):
+        return UserPresetStorageActionWorker(
+            request_id,
+            self._storage_api(),
+            action=action,
+            name=name,
+            display_name=display_name,
+            direction=direction,
+            cached_metadata=cached_metadata,
+            source_kind=source_kind,
+            source_id=source_id,
+            destination_kind=destination_kind,
+            destination_id=destination_id,
+            destination_folder_key=destination_folder_key,
+            parent=self,
+        )
+
+    def _request_preset_storage_action(
+        self,
+        action: str,
+        *,
+        name: str = "",
+        display_name: str = "",
+        direction: int = 0,
+        cached_metadata=None,
+        source_kind: str = "",
+        source_id: str = "",
+        destination_kind: str = "",
+        destination_id: str = "",
+        destination_folder_key: str = "",
+    ) -> None:
+        worker = self.__dict__.get("_preset_storage_action_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._preset_storage_action_request_id = int(getattr(self, "_preset_storage_action_request_id", 0) or 0) + 1
+        request_id = self._preset_storage_action_request_id
+        worker = self.create_preset_storage_action_worker(
+            request_id,
+            action=str(action or ""),
+            name=str(name or ""),
+            display_name=str(display_name or ""),
+            direction=int(direction or 0),
+            cached_metadata=cached_metadata,
+            source_kind=str(source_kind or ""),
+            source_id=str(source_id or ""),
+            destination_kind=str(destination_kind or ""),
+            destination_id=str(destination_id or ""),
+            destination_folder_key=str(destination_folder_key or ""),
+        )
+        self._preset_storage_action_worker = worker
+        worker.completed.connect(self._on_preset_storage_action_finished)
+        worker.failed.connect(self._on_preset_storage_action_failed)
+        worker.finished.connect(lambda w=worker: self._on_preset_storage_action_worker_finished(w))
+        worker.start()
+
+    def _on_preset_storage_action_finished(self, request_id: int, action: str, result, context) -> None:
+        if request_id != int(getattr(self, "_preset_storage_action_request_id", 0) or 0):
+            return
+        context = dict(context or {})
+        if action == "pin":
+            display_name = str(context.get("display_name") or context.get("name") or "")
+            log(f"Пресет '{display_name}' {'закреплён' if bool(result) else 'откреплён'}", "INFO")
+            self._refresh_presets_view_from_cache()
+        elif action == "move_step":
+            if bool(result):
+                self._refresh_presets_view_from_cache()
+        elif action == "drop" and bool(result):
+            source_id = str(context.get("source_id") or "")
+            destination_kind = str(context.get("destination_kind") or "")
+            destination_id = str(context.get("destination_id") or "")
+            destination_folder_key = str(context.get("destination_folder_key") or "")
+            log(f"Элемент '{source_id}' перенесён перетаскиванием", "INFO")
+            applied_locally = self._apply_preset_move_locally(
+                source_id,
+                destination_kind,
+                destination_id,
+                destination_folder_key,
+            )
+            if not applied_locally:
+                self._refresh_presets_view_from_cache()
+
+    def _on_preset_storage_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if request_id != int(getattr(self, "_preset_storage_action_request_id", 0) or 0):
+            return
+        if action == "pin":
+            log(f"Ошибка закрепления пресета: {error}", "ERROR")
+        elif action == "move_step":
+            log(f"Ошибка перестановки пресета: {error}", "ERROR")
+        else:
+            log(f"Ошибка перетаскивания элемента: {error}", "ERROR")
+
+    def _on_preset_storage_action_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_preset_storage_action_worker") is worker:
+            self._preset_storage_action_worker = None
+        worker.deleteLater()
 
     def _on_activate_preset(self, name: str) -> bool:
         preset_file_name = str(name or "").strip()

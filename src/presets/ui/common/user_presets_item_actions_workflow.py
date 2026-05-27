@@ -7,67 +7,6 @@ def _tr_key(tr_prefix: str, suffix: str) -> str:
     return f"{tr_prefix}.{suffix}"
 
 
-def toggle_pin_preset_action(*, name: str, resolve_display_name_fn, storage_api, refresh_presets_view_from_cache_fn, log_fn) -> None:
-    try:
-        display_name = resolve_display_name_fn(name)
-        pinned = storage_api.toggle_preset_pin(name, display_name=display_name)
-        log_fn(f"Пресет '{display_name}' {'закреплён' if pinned else 'откреплён'}", "INFO")
-        refresh_presets_view_from_cache_fn()
-    except Exception as exc:
-        log_fn(f"Ошибка закрепления пресета: {exc}", "ERROR")
-
-
-def move_preset_by_step_action(*, name: str, direction: int, storage_api, runtime_service, refresh_presets_view_from_cache_fn, log_fn) -> None:
-    try:
-        moved = storage_api.move_preset_by_step(
-            name,
-            direction,
-            cached_metadata=runtime_service.cached_presets_metadata(),
-        )
-        if moved:
-            refresh_presets_view_from_cache_fn()
-    except Exception as exc:
-        log_fn(f"Ошибка перестановки пресета: {exc}", "ERROR")
-
-
-def handle_item_dropped_action(
-    *,
-    source_kind: str,
-    source_id: str,
-    destination_kind: str,
-    destination_id: str,
-    destination_folder_key: str = "",
-    apply_preset_move_locally_fn=None,
-    storage_api,
-    refresh_presets_view_from_cache_fn,
-    log_fn,
-) -> None:
-    try:
-        moved = storage_api.move_preset_on_drop(
-            source_kind=source_kind,
-            source_id=source_id,
-            destination_kind=destination_kind,
-            destination_id=destination_id,
-            destination_folder_key=destination_folder_key,
-        )
-        if moved:
-            log_fn(f"Элемент '{source_id}' перенесён перетаскиванием", "INFO")
-            applied_locally = False
-            if callable(apply_preset_move_locally_fn):
-                applied_locally = bool(
-                    apply_preset_move_locally_fn(
-                        source_id,
-                        destination_kind,
-                        destination_id,
-                        destination_folder_key,
-                    )
-                )
-            if not applied_locally:
-                refresh_presets_view_from_cache_fn()
-    except Exception as exc:
-        log_fn(f"Ошибка перетаскивания элемента: {exc}", "ERROR")
-
-
 def open_edit_preset_menu_action(*, page, name: str, global_pos, is_builtin_preset_file_fn, is_selected_preset_file_fn, tr_fn, make_menu_action, fluent_icon, round_menu_cls, on_preset_list_action_fn, show_preset_actions_menu_fn, tr_prefix: str) -> None:
     is_builtin = is_builtin_preset_file_fn(name)
     disabled_actions = {"delete"} if (not is_builtin and is_selected_preset_file_fn(name)) else set()

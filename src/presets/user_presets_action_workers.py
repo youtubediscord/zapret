@@ -176,9 +176,86 @@ class UserPresetEditActionWorker(QThread):
         self.completed.emit(self._request_id, self._action, result, context)
 
 
+class UserPresetStorageActionWorker(QThread):
+    completed = pyqtSignal(int, str, object, object)
+    failed = pyqtSignal(int, str, str, object)
+
+    def __init__(
+        self,
+        request_id: int,
+        storage_api,
+        *,
+        action: str,
+        name: str = "",
+        display_name: str = "",
+        direction: int = 0,
+        cached_metadata=None,
+        source_kind: str = "",
+        source_id: str = "",
+        destination_kind: str = "",
+        destination_id: str = "",
+        destination_folder_key: str = "",
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self.storage_api = storage_api
+        self._action = str(action or "").strip()
+        self._name = str(name or "").strip()
+        self._display_name = str(display_name or self._name).strip()
+        self._direction = int(direction or 0)
+        self._cached_metadata = cached_metadata
+        self._source_kind = str(source_kind or "").strip()
+        self._source_id = str(source_id or "").strip()
+        self._destination_kind = str(destination_kind or "").strip()
+        self._destination_id = str(destination_id or "").strip()
+        self._destination_folder_key = str(destination_folder_key or "").strip()
+
+    def run(self) -> None:
+        context = {
+            "name": self._name,
+            "display_name": self._display_name,
+            "direction": self._direction,
+            "source_kind": self._source_kind,
+            "source_id": self._source_id,
+            "destination_kind": self._destination_kind,
+            "destination_id": self._destination_id,
+            "destination_folder_key": self._destination_folder_key,
+        }
+        storage_api = self.storage_api
+        try:
+            if self._action == "pin":
+                result = storage_api.toggle_preset_pin(
+                    self._name,
+                    display_name=self._display_name,
+                )
+            elif self._action == "move_step":
+                result = storage_api.move_preset_by_step(
+                    self._name,
+                    self._direction,
+                    cached_metadata=self._cached_metadata,
+                )
+            elif self._action == "drop":
+                result = storage_api.move_preset_on_drop(
+                    source_kind=self._source_kind,
+                    source_id=self._source_id,
+                    destination_kind=self._destination_kind,
+                    destination_id=self._destination_id,
+                    destination_folder_key=self._destination_folder_key,
+                )
+            else:
+                raise ValueError(f"Неизвестное действие списка preset: {self._action}")
+        except Exception as exc:
+            log(f"UserPresetStorageActionWorker: действие {self._action} не выполнено: {exc}", "ERROR")
+            self.failed.emit(self._request_id, self._action, str(exc), context)
+            return
+        self.completed.emit(self._request_id, self._action, result, context)
+
+
 __all__ = [
     "UserPresetActivateWorker",
     "UserPresetBulkActionWorker",
     "UserPresetEditActionWorker",
     "UserPresetItemActionWorker",
+    "UserPresetStorageActionWorker",
 ]

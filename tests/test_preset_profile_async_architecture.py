@@ -231,6 +231,29 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("actions_api.create_preset", worker_source)
         self.assertIn("actions_api.rename_preset", worker_source)
 
+    def test_user_presets_storage_actions_run_through_worker(self) -> None:
+        pin_source = inspect.getsource(UserPresetsPageBase._on_toggle_pin_preset)
+        move_source = inspect.getsource(UserPresetsPageBase._move_preset_by_step)
+        drop_source = inspect.getsource(UserPresetsPageBase._on_item_dropped)
+
+        self.assertTrue(hasattr(user_presets_action_workers, "UserPresetStorageActionWorker"))
+        worker_source = inspect.getsource(user_presets_action_workers.UserPresetStorageActionWorker.run)
+        request_source = inspect.getsource(UserPresetsPageBase._request_preset_storage_action)
+
+        for source in (pin_source, move_source, drop_source):
+            self.assertIn("_request_preset_storage_action", source)
+            self.assertNotIn("toggle_pin_preset_action", source)
+            self.assertNotIn("move_preset_by_step_action", source)
+            self.assertNotIn("handle_item_dropped_action", source)
+            self.assertNotIn(".toggle_preset_pin(", source)
+            self.assertNotIn(".move_preset_by_step(", source)
+            self.assertNotIn(".move_preset_on_drop(", source)
+
+        self.assertIn("create_preset_storage_action_worker", request_source)
+        self.assertIn("storage_api.toggle_preset_pin", worker_source)
+        self.assertIn("storage_api.move_preset_by_step", worker_source)
+        self.assertIn("storage_api.move_preset_on_drop", worker_source)
+
     def test_profile_commands_reuse_service_cache(self) -> None:
         source = inspect.getsource(profile_commands._profile_preset_service)
 
