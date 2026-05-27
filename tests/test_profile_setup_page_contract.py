@@ -19,6 +19,7 @@ from profile.profile_setup_loader import (
     ProfileListFileSaveWorker,
     ProfileRawTextSaveWorker,
     ProfileSettingsSaveWorker,
+    ProfileStrategyFeedbackSaveWorker,
     ProfileStrategyApplyWorker,
 )
 from profile.state import ProfileListItem, ProfileSetupPayload
@@ -1324,6 +1325,23 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(applied, [(9, "profile-1", "tls_fake")])
 
     def test_strategy_feedback_updates_payload_without_reloading_profile(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.saved = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
+            def isRunning(self) -> bool:
+                return False
+
         item = ProfileListItem(
             key="profile-1",
             persistent_key="persist-1",
@@ -1353,7 +1371,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             match_summary="",
         )
         page._controller = Mock()
-        page._controller.set_strategy_feedback.return_value = ProfileStrategyState(rating="work", favorite=False)
+        worker = _Worker()
+        page._controller.create_strategy_feedback_save_worker.return_value = worker
+        page._controller.set_strategy_feedback.side_effect = AssertionError("feedback save must run in worker")
+        page._strategy_feedback_save_request_id = 0
+        page._strategy_feedback_save_worker = None
         page._strategy_list = Mock()
         page._apply_feedback_buttons = Mock()
         page.reload_current_profile = Mock()
@@ -1361,11 +1383,52 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         ProfileSetupPageBase._set_current_strategy_feedback(page, rating="work")
 
+        page._controller.set_strategy_feedback.assert_not_called()
+        page._controller.create_strategy_feedback_save_worker.assert_called_once_with(
+            1,
+            profile_key="profile-1",
+            rating="work",
+            favorite=None,
+            parent=page,
+        )
+        worker.start.assert_called_once()
+        page._on_profile_changed_callback.assert_not_called()
+
+        ProfileSetupPageBase._on_strategy_feedback_save_finished(
+            page,
+            1,
+            ProfileStrategyState(rating="work", favorite=False),
+        )
+
         page.reload_current_profile.assert_not_called()
         self.assertEqual(page._payload.current_strategy_state.rating, "work")
         self.assertEqual(page._payload.item.rating, "work")
         page._apply_feedback_buttons.assert_called_once_with(page._payload)
         page._on_profile_changed_callback.assert_called_once_with("profile-1", "feedback")
+
+    def test_strategy_feedback_worker_emits_state(self) -> None:
+        controller = Mock()
+        state = ProfileStrategyState(rating="work", favorite=True)
+        controller.set_strategy_feedback.return_value = state
+        worker = ProfileStrategyFeedbackSaveWorker(
+            10,
+            controller,
+            profile_key="profile-1",
+            rating="work",
+            favorite=True,
+        )
+        saved = []
+
+        worker.saved.connect(lambda request_id, emitted_state: saved.append((request_id, emitted_state)))
+
+        worker.run()
+
+        controller.set_strategy_feedback.assert_called_once_with(
+            profile_key="profile-1",
+            rating="work",
+            favorite=True,
+        )
+        self.assertEqual(saved, [(10, state)])
 
     def test_clicking_strategy_for_skipped_profile_does_not_apply_strategy(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)

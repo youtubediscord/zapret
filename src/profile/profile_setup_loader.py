@@ -212,3 +212,38 @@ class ProfileStrategyApplyWorker(QThread):
             self.failed.emit(self._request_id, "Стратегия не применена")
             return
         self.applied.emit(self._request_id, str(profile_key), self._strategy_id)
+
+
+class ProfileStrategyFeedbackSaveWorker(QThread):
+    saved = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        controller,
+        *,
+        profile_key: str,
+        rating: str | None = None,
+        favorite: bool | None = None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._controller = controller
+        self._profile_key = str(profile_key or "").strip()
+        self._rating = rating
+        self._favorite = favorite
+
+    def run(self) -> None:
+        try:
+            state = self._controller.set_strategy_feedback(
+                profile_key=self._profile_key,
+                rating=self._rating,
+                favorite=self._favorite,
+            )
+        except Exception as exc:
+            log(f"ProfileStrategyFeedbackSaveWorker: не удалось сохранить оценку стратегии: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.saved.emit(self._request_id, state)

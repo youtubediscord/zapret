@@ -124,6 +124,26 @@ class ProfileSetupController:
 
         return ProfileStrategyApplyWorker(request_id, self, profile_key, strategy_id, parent)
 
+    def create_strategy_feedback_save_worker(
+        self,
+        request_id: int,
+        *,
+        profile_key: str,
+        rating: str | None = None,
+        favorite: bool | None = None,
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfileStrategyFeedbackSaveWorker
+
+        return ProfileStrategyFeedbackSaveWorker(
+            request_id,
+            self,
+            profile_key=profile_key,
+            rating=rating,
+            favorite=favorite,
+            parent=parent,
+        )
+
     def save_winws2_settings(
         self,
         *,

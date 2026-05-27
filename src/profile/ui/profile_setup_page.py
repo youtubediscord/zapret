@@ -477,6 +477,9 @@ class ProfileSetupPageBase(BasePage):
         self._strategy_apply_worker = None
         self._strategy_apply_worker_strategy_id = ""
         self._pending_strategy_apply = None
+        self._strategy_feedback_save_request_id = 0
+        self._strategy_feedback_save_worker = None
+        self._pending_strategy_feedback_save = None
         self._payload = None
         self._strategy_stack = None
         self._strategy_tabs = None
@@ -1749,31 +1752,67 @@ class ProfileSetupPageBase(BasePage):
     def _set_current_strategy_feedback(self, *, rating: str) -> None:
         if self._loading or not self._profile_key:
             return
-        try:
-            state = self._controller.set_strategy_feedback(
-                profile_key=self._profile_key,
-                rating=rating,
-            )
-            if not self._apply_strategy_feedback_locally(state):
-                self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "feedback")
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось обновить оценку стратегии: {exc}", "ERROR")
+        self._request_strategy_feedback_save({"rating": rating, "favorite": None})
 
     def _toggle_current_strategy_favorite(self) -> None:
         if self._loading or not self._profile_key or self._payload is None:
             return
-        try:
-            current = bool(self._payload.current_strategy_state.favorite)
-            state = self._controller.set_strategy_feedback(
-                profile_key=self._profile_key,
-                favorite=not current,
-            )
-            if not self._apply_strategy_feedback_locally(state):
-                self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "feedback")
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось обновить избранную стратегию: {exc}", "ERROR")
+        current = bool(self._payload.current_strategy_state.favorite)
+        self._request_strategy_feedback_save({"rating": None, "favorite": not current})
+
+    def _request_strategy_feedback_save(self, request: dict) -> None:
+        worker = getattr(self, "_strategy_feedback_save_worker", None)
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._pending_strategy_feedback_save = dict(request)
+                    return
+            except Exception:
+                pass
+        self._start_strategy_feedback_save_worker(request)
+
+    def _start_strategy_feedback_save_worker(self, request: dict) -> None:
+        if not self._profile_key:
+            return
+        self._strategy_feedback_save_request_id = int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0) + 1
+        request_id = self._strategy_feedback_save_request_id
+        worker = self._controller.create_strategy_feedback_save_worker(
+            request_id,
+            profile_key=self._profile_key,
+            rating=request.get("rating"),
+            favorite=request.get("favorite"),
+            parent=self,
+        )
+        self._strategy_feedback_save_worker = worker
+        worker.saved.connect(self._on_strategy_feedback_save_finished)
+        worker.failed.connect(self._on_strategy_feedback_save_failed)
+        worker.finished.connect(lambda w=worker: self._on_strategy_feedback_save_worker_finished(w))
+        worker.start()
+
+    def _on_strategy_feedback_save_finished(self, request_id: int, state) -> None:
+        if request_id != int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_pending_strategy_feedback_save"):
+            return
+        if not self._apply_strategy_feedback_locally(state):
+            self.reload_current_profile()
+        self._on_profile_changed_callback(self._profile_key, "feedback")
+
+    def _on_strategy_feedback_save_failed(self, request_id: int, error: str) -> None:
+        if request_id != int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось обновить оценку стратегии: {error}", "ERROR")
+        if not self.__dict__.get("_pending_strategy_feedback_save"):
+            self.reload_current_profile()
+
+    def _on_strategy_feedback_save_worker_finished(self, worker) -> None:
+        if getattr(self, "_strategy_feedback_save_worker", None) is worker:
+            self._strategy_feedback_save_worker = None
+        worker.deleteLater()
+        pending = self.__dict__.get("_pending_strategy_feedback_save")
+        self._pending_strategy_feedback_save = None
+        if pending:
+            self._start_strategy_feedback_save_worker(pending)
 
     def _apply_strategy_feedback_locally(self, state) -> bool:
         if self._payload is None or state is None:
