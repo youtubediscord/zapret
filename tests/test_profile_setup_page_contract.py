@@ -109,6 +109,14 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("active_profile_types", model_source)
         self.assertIn("search_query", model_source)
 
+    def test_preset_switch_updates_existing_profile_list_without_recreating_page_widgets(self) -> None:
+        request_source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
+        apply_source = inspect.getsource(PresetSetupPageBase._apply_payload)
+
+        self.assertNotIn("if force or self._profiles_list is None", request_source)
+        self.assertIn("profiles_list.update_profiles", apply_source)
+        self.assertIn("return", apply_source.split("profiles_list.update_profiles", 1)[1])
+
     def test_profile_list_does_not_own_page_background_color(self) -> None:
         list_source = inspect.getsource(ProfilesList._build_ui)
 
@@ -499,6 +507,109 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertFalse(model.index(row, 0).data(ProfileListModel.EnabledRole))
         self.assertEqual(model.index(row, 0).data(ProfileListModel.StrategyNameRole), "Выключен")
 
+    def test_profile_model_removes_single_profile_row_without_reset(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        first = SimpleNamespace(
+            key="profile:0",
+            persistent_key="p0",
+            profile_index=0,
+            display_name="Discord",
+            enabled=True,
+            in_preset=True,
+            strategy_id="fake",
+            strategy_name="Fake",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/discord.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=0,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        second = SimpleNamespace(
+            **{
+                **first.__dict__,
+                "key": "profile:1",
+                "persistent_key": "p1",
+                "profile_index": 1,
+                "display_name": "YouTube",
+                "order": 1,
+            }
+        )
+
+        model = ProfileListModel()
+        model.set_profiles((first, second))
+        model.beginResetModel = Mock(side_effect=AssertionError("single-row remove must not reset the whole model"))
+        model.endResetModel = Mock(side_effect=AssertionError("single-row remove must not reset the whole model"))
+
+        self.assertTrue(model.remove_profile("profile:0"))
+
+        rows = [
+            (
+                model.index(row, 0).data(ProfileListModel.KindRole),
+                model.index(row, 0).data(ProfileListModel.ProfileKeyRole),
+            )
+            for row in range(model.rowCount())
+        ]
+        self.assertNotIn(("profile", "profile:0"), rows)
+        self.assertIn(("profile", "profile:1"), rows)
+
+    def test_profile_model_updates_shifted_profile_keys_without_reset(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        first = SimpleNamespace(
+            key="profile:1",
+            persistent_key="p1",
+            profile_index=1,
+            display_name="Discord",
+            enabled=True,
+            in_preset=True,
+            strategy_id="fake",
+            strategy_name="Fake",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/discord.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=0,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        second = SimpleNamespace(
+            **{
+                **first.__dict__,
+                "key": "profile:2",
+                "persistent_key": "p2",
+                "profile_index": 2,
+                "display_name": "YouTube",
+                "order": 1,
+            }
+        )
+        shifted_first = SimpleNamespace(**{**first.__dict__, "key": "profile:0", "profile_index": 0})
+        shifted_second = SimpleNamespace(**{**second.__dict__, "key": "profile:1", "profile_index": 1})
+
+        model = ProfileListModel()
+        model.set_profiles((first, second))
+        model.beginResetModel = Mock(side_effect=AssertionError("key refresh must not reset the whole model"))
+        model.endResetModel = Mock(side_effect=AssertionError("key refresh must not reset the whole model"))
+
+        self.assertTrue(model.update_profiles((shifted_first, shifted_second)))
+
+        rows = [
+            (
+                model.index(row, 0).data(ProfileListModel.KindRole),
+                model.index(row, 0).data(ProfileListModel.ProfileKeyRole),
+            )
+            for row in range(model.rowCount())
+        ]
+        self.assertIn(("profile", "profile:0"), rows)
+        self.assertIn(("profile", "profile:1"), rows)
+        self.assertNotIn(("profile", "profile:2"), rows)
+
     def test_profile_drag_handlers_update_current_list_without_full_refresh(self) -> None:
         before_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_requested)
         after_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_after_requested)
@@ -508,15 +619,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertNotIn("refresh_from_preset_switch()", before_handler)
         self.assertNotIn("refresh_from_preset_switch()", after_handler)
 
-    def test_profile_context_actions_sync_current_list_when_profile_keys_can_shift(self) -> None:
+    def test_profile_context_actions_sync_current_list_without_rebuilding_model(self) -> None:
         enable_handler = inspect.getsource(PresetSetupPageBase._set_profile_enabled_from_menu)
         duplicate_handler = inspect.getsource(PresetSetupPageBase._duplicate_profile_from_menu)
         delete_handler = inspect.getsource(PresetSetupPageBase._delete_profile_from_menu)
+        sync_handler = inspect.getsource(PresetSetupPageBase._sync_profile_list_locally)
 
         self.assertIn("_refresh_profile_item_locally", enable_handler)
         self.assertIn("_sync_profile_list_locally", enable_handler)
         self.assertIn("_sync_profile_list_locally", duplicate_handler)
         self.assertIn("_sync_profile_list_locally", delete_handler)
+        self.assertIn("update_profiles", sync_handler)
+        self.assertNotIn("build_profiles", sync_handler)
         self.assertNotIn("_add_profile_item_locally", duplicate_handler)
         self.assertNotIn("_remove_profile_item_locally", delete_handler)
 

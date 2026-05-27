@@ -66,6 +66,71 @@ class ProfileListModel(QAbstractListModel):
         self._rows = self._build_rows()
         self.endResetModel()
 
+    def update_profiles(
+        self,
+        items: tuple[Any, ...],
+        *,
+        active_profile_types: set[str] | None = None,
+        search_query: str | None = None,
+    ) -> bool:
+        display_items = build_profile_display_items(tuple(items or ()))
+        active = _normalized_profile_types(
+            self._active_profile_types if active_profile_types is None else active_profile_types
+        )
+        normalized_search = self._search_query if search_query is None else _normalized_search_query(search_query)
+        next_group_expanded = dict(self._group_expanded)
+        for item in display_items:
+            next_group_expanded.setdefault(str(item.group or "common"), True)
+        next_rows = self._build_rows_from(display_items, next_group_expanded)
+        next_profile_items = {item.key: item for item in display_items}
+
+        filters_unchanged = self._active_profile_types == active and self._search_query == normalized_search
+        can_keep_visible_rows = filters_unchanged and [_stable_row_identity(row) for row in self._rows] == [
+            _stable_row_identity(row) for row in next_rows
+        ]
+        if can_keep_visible_rows:
+            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+            self._all_items = display_items
+            self._profile_items = next_profile_items
+            self._group_expanded = next_group_expanded
+            self._rows = next_rows
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
+        insert_index = _single_inserted_row_index(self._rows, next_rows, identity_fn=_stable_row_identity)
+        if filters_unchanged and insert_index >= 0:
+            changed_rows = _changed_existing_row_indexes(self._rows, next_rows, identity_fn=_stable_row_identity)
+            self.beginInsertRows(QModelIndex(), insert_index, insert_index)
+            self._all_items = display_items
+            self._profile_items = next_profile_items
+            self._group_expanded = next_group_expanded
+            self._rows = next_rows
+            self.endInsertRows()
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
+        remove_index = _single_removed_row_index(self._rows, next_rows, identity_fn=_stable_row_identity)
+        if filters_unchanged and remove_index >= 0:
+            changed_rows = _changed_existing_row_indexes(self._rows, next_rows, identity_fn=_stable_row_identity)
+            self.beginRemoveRows(QModelIndex(), remove_index, remove_index)
+            self._all_items = display_items
+            self._profile_items = next_profile_items
+            self._group_expanded = next_group_expanded
+            self._rows = next_rows
+            self.endRemoveRows()
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
+        self.beginResetModel()
+        self._all_items = display_items
+        self._profile_items = next_profile_items
+        self._group_expanded = next_group_expanded
+        self._active_profile_types = active
+        self._search_query = normalized_search
+        self._rows = next_rows
+        self.endResetModel()
+        return True
+
     def set_active_profile_types(self, profile_types: set[str]) -> None:
         active = _normalized_profile_types(profile_types)
         if self._active_profile_types == active:
@@ -150,11 +215,28 @@ class ProfileListModel(QAbstractListModel):
             return False
         if profile.key in self._profile_items:
             return self.replace_profile(profile.key, item)
+        next_items = tuple((*self._all_items, profile))
+        next_profile_items = {entry.key: entry for entry in next_items}
+        next_group_expanded = dict(self._group_expanded)
+        next_group_expanded.setdefault(str(profile.group or "common"), True)
+        next_rows = self._build_rows_from(next_items, next_group_expanded)
+        insert_index = _single_inserted_row_index(self._rows, next_rows)
+        if insert_index >= 0:
+            changed_rows = _changed_existing_row_indexes(self._rows, next_rows)
+            self.beginInsertRows(QModelIndex(), insert_index, insert_index)
+            self._all_items = next_items
+            self._profile_items = next_profile_items
+            self._group_expanded = next_group_expanded
+            self._rows = next_rows
+            self.endInsertRows()
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
         self.beginResetModel()
-        self._all_items = tuple((*self._all_items, profile))
-        self._profile_items = {entry.key: entry for entry in self._all_items}
-        self._group_expanded.setdefault(str(profile.group or "common"), True)
-        self._rows = self._build_rows()
+        self._all_items = next_items
+        self._profile_items = next_profile_items
+        self._group_expanded = next_group_expanded
+        self._rows = next_rows
         self.endResetModel()
         return True
 
@@ -162,10 +244,24 @@ class ProfileListModel(QAbstractListModel):
         key = str(profile_key or "").strip()
         if not key or key not in self._profile_items:
             return False
+        next_items = tuple(item for item in self._all_items if item.key != key)
+        next_profile_items = {entry.key: entry for entry in next_items}
+        next_rows = self._build_rows_from(next_items, self._group_expanded)
+        remove_index = _single_removed_row_index(self._rows, next_rows)
+        if remove_index >= 0:
+            changed_rows = _changed_existing_row_indexes(self._rows, next_rows)
+            self.beginRemoveRows(QModelIndex(), remove_index, remove_index)
+            self._all_items = next_items
+            self._profile_items = next_profile_items
+            self._rows = next_rows
+            self.endRemoveRows()
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
         self.beginResetModel()
-        self._all_items = tuple(item for item in self._all_items if item.key != key)
-        self._profile_items = {entry.key: entry for entry in self._all_items}
-        self._rows = self._build_rows()
+        self._all_items = next_items
+        self._profile_items = next_profile_items
+        self._rows = next_rows
         self.endResetModel()
         return True
 
@@ -330,8 +426,15 @@ class ProfileListModel(QAbstractListModel):
         return None
 
     def _build_rows(self) -> list[dict[str, Any]]:
+        return self._build_rows_from(self._all_items, self._group_expanded)
+
+    def _build_rows_from(
+        self,
+        items: tuple[ProfileDisplayItem, ...],
+        group_expanded: dict[str, bool],
+    ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        grouped = _grouped_items(self._all_items)
+        grouped = _grouped_items(items)
         if not grouped:
             return rows
         for group_key in _ordered_group_keys(grouped):
@@ -340,7 +443,7 @@ class ProfileListModel(QAbstractListModel):
                 continue
             group_items = tuple(sorted(group_items, key=profile_display_sort_key))
             group_name = str(group_items[0].group_name or group_key.title())
-            expanded = self._group_expanded.get(group_key, True)
+            expanded = group_expanded.get(group_key, True)
             rows.append({
                 "kind": "folder",
                 "group": group_key,
@@ -352,6 +455,13 @@ class ProfileListModel(QAbstractListModel):
                 continue
             rows.extend(_row_for_profile(item) for item in group_items)
         return rows
+
+    def _emit_data_changed_for_rows(self, rows: tuple[int, ...]) -> None:
+        for row_index in rows:
+            if row_index < 0 or row_index >= len(self._rows):
+                continue
+            model_index = self.index(row_index, 0)
+            self.dataChanged.emit(model_index, model_index, _profile_data_roles())
 
     def _matches_filter(self, item: ProfileDisplayItem) -> bool:
         return self._matches_type_filter(item) and self._matches_search_query(item)
@@ -430,6 +540,70 @@ def _row_for_profile(item: ProfileDisplayItem) -> dict[str, Any]:
     }
 
 
+def _single_inserted_row_index(
+    old_rows: list[dict[str, Any]],
+    next_rows: list[dict[str, Any]],
+    *,
+    identity_fn=None,
+) -> int:
+    identity_fn = identity_fn or _row_identity
+    if len(next_rows) != len(old_rows) + 1:
+        return -1
+    old_ids = [identity_fn(row) for row in old_rows]
+    next_ids = [identity_fn(row) for row in next_rows]
+    for index in range(len(next_ids)):
+        if next_ids[:index] + next_ids[index + 1 :] == old_ids:
+            return index
+    return -1
+
+
+def _single_removed_row_index(
+    old_rows: list[dict[str, Any]],
+    next_rows: list[dict[str, Any]],
+    *,
+    identity_fn=None,
+) -> int:
+    identity_fn = identity_fn or _row_identity
+    if len(old_rows) != len(next_rows) + 1:
+        return -1
+    old_ids = [identity_fn(row) for row in old_rows]
+    next_ids = [identity_fn(row) for row in next_rows]
+    for index in range(len(old_ids)):
+        if old_ids[:index] + old_ids[index + 1 :] == next_ids:
+            return index
+    return -1
+
+
+def _changed_existing_row_indexes(
+    old_rows: list[dict[str, Any]],
+    next_rows: list[dict[str, Any]],
+    *,
+    identity_fn=None,
+) -> tuple[int, ...]:
+    identity_fn = identity_fn or _row_identity
+    old_by_id = {identity_fn(row): row for row in old_rows}
+    changed: list[int] = []
+    for index, row in enumerate(next_rows):
+        old_row = old_by_id.get(identity_fn(row))
+        if old_row is not None and old_row != row:
+            changed.append(index)
+    return tuple(changed)
+
+
+def _row_identity(row: dict[str, Any]) -> tuple[str, str]:
+    kind = str(row.get("kind") or "")
+    if kind == "profile":
+        return kind, str(row.get("key") or "")
+    return kind, str(row.get("group") or "")
+
+
+def _stable_row_identity(row: dict[str, Any]) -> tuple[str, str]:
+    kind = str(row.get("kind") or "")
+    if kind == "profile":
+        return kind, str(row.get("persistent_key") or row.get("key") or "")
+    return kind, str(row.get("group") or "")
+
+
 def _profile_data_roles() -> list[int]:
     return [
         int(Qt.ItemDataRole.DisplayRole),
@@ -447,6 +621,8 @@ def _profile_data_roles() -> list[int]:
         ProfileListModel.EnabledRole,
         ProfileListModel.GroupRole,
         ProfileListModel.GroupNameRole,
+        ProfileListModel.CollapsedRole,
+        ProfileListModel.CountRole,
         ProfileListModel.IconNameRole,
         ProfileListModel.IconColorRole,
         ProfileListModel.TooltipRole,

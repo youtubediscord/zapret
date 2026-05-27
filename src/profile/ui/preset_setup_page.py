@@ -162,7 +162,7 @@ class PresetSetupPageBase(BasePage):
             return
         self._profile_load_request_id += 1
         request_id = self._profile_load_request_id
-        if force or self._profiles_list is None:
+        if self._profiles_list is None:
             self._clear_dynamic_widgets()
         worker = self._profile.create_profile_list_load_worker(request_id, self.launch_method, self)
         self._profile_load_worker = worker
@@ -206,7 +206,6 @@ class PresetSetupPageBase(BasePage):
         total_started_at = time.perf_counter()
         self._apply_selected_preset_title(payload)
         self._show_profile_normalization_info(payload)
-        self._clear_dynamic_widgets()
         if not payload.items:
             self._show_empty_state(
                 "В выбранном пресете нет профилей, которые можно показать на этой странице. "
@@ -214,6 +213,16 @@ class PresetSetupPageBase(BasePage):
             )
             self._log_ui_timing("profile_ui.apply_payload.total", total_started_at)
             return
+        profiles_list = self._profiles_list
+        if profiles_list is not None:
+            started_at = time.perf_counter()
+            profiles_list.update_profiles(tuple(payload.items))
+            profiles_list.set_search_query(self._profile_search_query)
+            self._log_ui_timing("profile_ui.profile_list.update", started_at, extra=f"{len(payload.items)} items")
+            self._log_ui_timing("profile_ui.apply_payload.total", total_started_at)
+            return
+
+        self._clear_dynamic_widgets()
         create_started_at = time.perf_counter()
         profiles_list = ProfilesList(self)
         profiles_list.profile_selected.connect(self._on_profile_clicked)
@@ -388,7 +397,7 @@ class PresetSetupPageBase(BasePage):
         self._profile_load_request_id += 1
         self._apply_selected_preset_title(payload)
         self._show_profile_normalization_info(payload)
-        profiles_list.build_profiles(tuple(payload.items))
+        profiles_list.update_profiles(tuple(payload.items))
         profiles_list.set_search_query(self._profile_search_query)
 
     def _refresh_profile_item_locally(self, old_profile_key: str, profile_key: str) -> None:

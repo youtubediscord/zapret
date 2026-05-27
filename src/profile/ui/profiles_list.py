@@ -87,6 +87,13 @@ class ProfilesList(QWidget):
             search_query=self._search_query,
         )
 
+    def update_profiles(self, items: tuple[Any, ...]) -> bool:
+        return self._model.update_profiles(
+            tuple(items or ()),
+            active_profile_types=self._active_profile_types,
+            search_query=self._search_query,
+        )
+
     def clear(self) -> None:
         self._model.set_profiles(())
 
