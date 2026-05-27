@@ -464,6 +464,10 @@ class ProfileSetupPageBase(BasePage):
         self._setup_load_worker = None
         self._list_file_load_request_id = 0
         self._list_file_load_worker = None
+        self._strategy_apply_request_id = 0
+        self._strategy_apply_worker = None
+        self._strategy_apply_worker_strategy_id = ""
+        self._pending_strategy_apply = None
         self._payload = None
         self._strategy_stack = None
         self._strategy_tabs = None
@@ -1490,18 +1494,70 @@ class ProfileSetupPageBase(BasePage):
         item = getattr(getattr(self, "_payload", None), "item", None)
         if bool(getattr(item, "in_preset", False)) and not bool(getattr(item, "enabled", False)):
             return
-        try:
-            new_key = self._controller.apply_strategy(
-                profile_key=self._profile_key,
-                strategy_id=strategy_id,
-            )
-            if new_key:
-                self._profile_key = new_key
-            if not self._apply_strategy_locally(strategy_id):
-                self.reload_current_profile()
-            self._on_profile_changed_callback(self._profile_key, "strategy")
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось применить стратегию: {exc}", "ERROR")
+        self._apply_strategy_locally(strategy_id)
+        self._request_strategy_apply(strategy_id)
+
+    def _request_strategy_apply(self, strategy_id: str) -> None:
+        strategy_id = str(strategy_id or "").strip()
+        worker = getattr(self, "_strategy_apply_worker", None)
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    if strategy_id != str(getattr(self, "_strategy_apply_worker_strategy_id", "") or "").strip():
+                        self._pending_strategy_apply = strategy_id
+                    return
+            except Exception:
+                pass
+        self._start_strategy_apply_worker(strategy_id)
+
+    def _start_strategy_apply_worker(self, strategy_id: str) -> None:
+        strategy_id = str(strategy_id or "").strip()
+        if not strategy_id or not self._profile_key:
+            return
+        self._strategy_apply_request_id = int(getattr(self, "_strategy_apply_request_id", 0) or 0) + 1
+        request_id = self._strategy_apply_request_id
+        worker = self._controller.create_strategy_apply_worker(
+            request_id,
+            profile_key=self._profile_key,
+            strategy_id=strategy_id,
+            parent=self,
+        )
+        self._strategy_apply_worker = worker
+        self._strategy_apply_worker_strategy_id = strategy_id
+        worker.applied.connect(self._on_strategy_apply_finished)
+        worker.failed.connect(self._on_strategy_apply_failed)
+        worker.finished.connect(lambda w=worker: self._on_strategy_apply_worker_finished(w))
+        worker.start()
+
+    def _on_strategy_apply_finished(self, request_id: int, profile_key: str, strategy_id: str) -> None:
+        if request_id != int(getattr(self, "_strategy_apply_request_id", 0) or 0):
+            return
+        pending = str(getattr(self, "_pending_strategy_apply", "") or "").strip()
+        if pending and pending != str(strategy_id or "").strip():
+            return
+        previous_key = self._profile_key
+        new_key = str(profile_key or "").strip()
+        if new_key:
+            self._profile_key = new_key
+        if not self._apply_strategy_locally(strategy_id) or self._profile_key != previous_key:
+            self.reload_current_profile()
+        self._on_profile_changed_callback(self._profile_key, "strategy")
+
+    def _on_strategy_apply_failed(self, request_id: int, error: str) -> None:
+        if request_id != int(getattr(self, "_strategy_apply_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось применить стратегию: {error}", "ERROR")
+        self.reload_current_profile()
+
+    def _on_strategy_apply_worker_finished(self, worker) -> None:
+        if getattr(self, "_strategy_apply_worker", None) is worker:
+            self._strategy_apply_worker = None
+            self._strategy_apply_worker_strategy_id = ""
+        worker.deleteLater()
+        pending = str(getattr(self, "_pending_strategy_apply", "") or "").strip()
+        self._pending_strategy_apply = None
+        if pending:
+            self._start_strategy_apply_worker(pending)
 
     def _apply_strategy_locally(self, strategy_id: str) -> bool:
         payload = self._payload

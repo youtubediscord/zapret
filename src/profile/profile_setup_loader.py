@@ -58,3 +58,30 @@ class ProfileListFileLoadWorker(QThread):
             self.failed.emit(self._request_id, str(exc))
             return
         self.loaded.emit(self._request_id, state)
+
+
+class ProfileStrategyApplyWorker(QThread):
+    applied = pyqtSignal(int, str, str)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, request_id: int, controller, profile_key: str, strategy_id: str, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._controller = controller
+        self._profile_key = str(profile_key or "").strip()
+        self._strategy_id = str(strategy_id or "").strip()
+
+    def run(self) -> None:
+        try:
+            profile_key = self._controller.apply_strategy(
+                profile_key=self._profile_key,
+                strategy_id=self._strategy_id,
+            )
+        except Exception as exc:
+            log(f"ProfileStrategyApplyWorker: не удалось применить готовую стратегию: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        if not profile_key:
+            self.failed.emit(self._request_id, "Стратегия не применена")
+            return
+        self.applied.emit(self._request_id, str(profile_key), self._strategy_id)

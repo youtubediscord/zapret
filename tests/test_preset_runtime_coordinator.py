@@ -229,6 +229,50 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             launch_runtime.switch_presets_async.assert_called_once_with(ZAPRET2_MODE, delay_ms=900)
             launch_runtime.stop_dpi_async.assert_not_called()
 
+    def test_preset_content_apply_does_not_validate_preset_on_ui_request_path(self) -> None:
+        from pathlib import Path
+        import tempfile
+        from unittest.mock import Mock
+
+        from winws_runtime.flow.apply_policy import request_preset_runtime_content_apply
+        from settings.mode import ZAPRET2_MODE
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            preset_path = Path(tmp_dir) / "selected.txt"
+            preset_path.write_text(
+                "--wf-tcp-out=80,443\n--filter-tcp=80\n--hostlist=list.txt\n--lua-desync=fake\n",
+                encoding="utf-8",
+            )
+
+            launch_runtime = SimpleNamespace(
+                is_running=Mock(return_value=True),
+                switch_presets_async=Mock(),
+                stop_dpi_async=Mock(),
+            )
+            presets_feature = SimpleNamespace(
+                get_launch_snapshot=Mock(return_value=SimpleNamespace(preset_path=str(preset_path)))
+            )
+            runtime_feature = SimpleNamespace(
+                objects=SimpleNamespace(launch_runtime=launch_runtime),
+                dependencies=SimpleNamespace(presets_feature=presets_feature),
+            )
+
+            with patch.object(
+                Path,
+                "read_text",
+                side_effect=AssertionError("preset reading must run in the preset switch worker"),
+            ):
+                self.assertTrue(
+                    request_preset_runtime_content_apply(
+                        runtime_feature=runtime_feature,
+                        launch_method=ZAPRET2_MODE,
+                        reason="preset_content_changed",
+                    )
+                )
+
+            launch_runtime.switch_presets_async.assert_called_once_with(ZAPRET2_MODE, delay_ms=900)
+            launch_runtime.stop_dpi_async.assert_not_called()
+
     def test_zapret2_additional_settings_only_save_preset_source(self) -> None:
         from presets.ui.control.zapret2.page_runtime import save_debug_log_enabled, save_wssize_enabled
         from settings.mode import ZAPRET2_MODE

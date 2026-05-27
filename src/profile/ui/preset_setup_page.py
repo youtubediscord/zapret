@@ -601,7 +601,9 @@ class PresetSetupPageBase(BasePage):
             log(f"{self.__class__.__name__}: не удалось запомнить состояние папки profile-ов: {exc}", "ERROR")
 
     def apply_profile_setup_change(self, profile_key: str, change_kind: str) -> None:
-        _ = (profile_key, change_kind)
+        if str(change_kind or "").strip() in {"strategy", "feedback"} and str(profile_key or "").strip():
+            self._refresh_profile_item_locally(profile_key, profile_key)
+            return
         self.refresh_from_preset_switch()
 
     def handle_page_command(self, command: str, payload: dict) -> bool:

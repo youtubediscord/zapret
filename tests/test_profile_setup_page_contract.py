@@ -14,6 +14,7 @@ from profile.ui.profile_setup_page import (
     _match_tab_text,
     _profile_editor_tab_title,
 )
+from profile.profile_setup_loader import ProfileStrategyApplyWorker
 from profile.ui.preset_setup_page import PresetSetupPageBase, preset_setup_title_for_payload
 from profile.ui.shell import build_profile_shell
 from profile.ui.profiles_list import ProfilesList
@@ -640,6 +641,16 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("viewport().update", source)
         self.assertNotIn("_list.update(self._list.visualItemRect", source)
 
+    def test_strategy_change_refreshes_only_changed_profile_row(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._refresh_profile_item_locally = Mock()
+        page.refresh_from_preset_switch = Mock()
+
+        PresetSetupPageBase.apply_profile_setup_change(page, "profile-1", "strategy")
+
+        page._refresh_profile_item_locally.assert_called_once_with("profile-1", "profile-1")
+        page.refresh_from_preset_switch.assert_not_called()
+
     def test_profile_setup_shell_has_search_input_for_all_profiles(self) -> None:
         build_content = inspect.getsource(PresetSetupPageBase._build_content)
         apply_payload = inspect.getsource(PresetSetupPageBase._apply_payload)
@@ -885,13 +896,31 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("CompactDisplayComboBox", build)
         self.assertIn("setMinimumWidth(82)", build)
 
-    def test_clicking_active_strategy_applies_without_opening_detail_page(self) -> None:
+    def test_clicking_active_strategy_starts_background_apply_without_opening_detail_page(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.applied = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._loading = False
         page._profile_key = "profile-1"
         page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="tls_fake", in_preset=True, enabled=True))
+        page._strategy_apply_worker = None
+        page._strategy_apply_request_id = 0
+        page._pending_strategy_apply = None
         page._controller = Mock()
-        page._controller.apply_strategy.return_value = "profile-1"
+        worker = _Worker()
+        page._controller.create_strategy_apply_worker.return_value = worker
         page.reload_current_profile = Mock()
         page._on_profile_changed_callback = Mock()
         page._apply_strategy_detail = Mock(side_effect=AssertionError("detail page must not open"))
@@ -899,29 +928,93 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         ProfileSetupPageBase._on_strategy_list_activated(page, "tls_fake")
 
-        page._controller.apply_strategy.assert_called_once_with(
+        page._controller.apply_strategy.assert_not_called()
+        page._controller.create_strategy_apply_worker.assert_called_once_with(
+            1,
             profile_key="profile-1",
             strategy_id="tls_fake",
+            parent=page,
         )
         page.reload_current_profile.assert_not_called()
         page._apply_strategy_locally.assert_called_once_with("tls_fake")
-        page._on_profile_changed_callback.assert_called_once_with("profile-1", "strategy")
+        page._on_profile_changed_callback.assert_not_called()
+        worker.start.assert_called_once()
 
     def test_clicking_template_strategy_still_reloads_after_profile_is_added(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._loading = False
         page._profile_key = "template:profile-1"
         page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="none", in_preset=False, enabled=True))
+        page._strategy_apply_worker = None
+        page._strategy_apply_request_id = 0
+        page._pending_strategy_apply = None
         page._controller = Mock()
-        page._controller.apply_strategy.return_value = "profile-1"
         page.reload_current_profile = Mock()
         page._on_profile_changed_callback = Mock()
         page._apply_strategy_locally = Mock(return_value=False)
 
         ProfileSetupPageBase._on_strategy_list_activated(page, "tls_fake")
 
+        ProfileSetupPageBase._on_strategy_apply_finished(page, 1, "profile-1", "tls_fake")
+
         page.reload_current_profile.assert_called_once()
         page._on_profile_changed_callback.assert_called_once_with("profile-1", "strategy")
+
+    def test_clicking_strategy_while_apply_is_running_keeps_last_choice_pending(self) -> None:
+        class _Worker:
+            def isRunning(self) -> bool:
+                return True
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="first", in_preset=True, enabled=True))
+        page._strategy_apply_worker = _Worker()
+        page._strategy_apply_request_id = 1
+        page._strategy_apply_worker_strategy_id = "first"
+        page._pending_strategy_apply = None
+        page._controller = Mock()
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+        page._apply_strategy_locally = Mock(return_value=True)
+
+        ProfileSetupPageBase._on_strategy_list_activated(page, "second")
+
+        page._apply_strategy_locally.assert_called_once_with("second")
+        self.assertEqual(page._pending_strategy_apply, "second")
+        page._controller.create_strategy_apply_worker.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
+
+    def test_stale_strategy_apply_finish_waits_for_pending_last_choice(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._strategy_apply_request_id = 1
+        page._pending_strategy_apply = "second"
+        page._apply_strategy_locally = Mock(return_value=True)
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_strategy_apply_finished(page, 1, "profile-1", "first")
+
+        page._apply_strategy_locally.assert_not_called()
+        page.reload_current_profile.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
+
+    def test_strategy_apply_worker_emits_new_profile_key(self) -> None:
+        controller = Mock()
+        controller.apply_strategy.return_value = "profile-1"
+        worker = ProfileStrategyApplyWorker(9, controller, "template:profile-1", "tls_fake")
+        applied = []
+
+        worker.applied.connect(lambda request_id, profile_key, strategy_id: applied.append((request_id, profile_key, strategy_id)))
+
+        worker.run()
+
+        controller.apply_strategy.assert_called_once_with(
+            profile_key="template:profile-1",
+            strategy_id="tls_fake",
+        )
+        self.assertEqual(applied, [(9, "profile-1", "tls_fake")])
 
     def test_clicking_strategy_for_skipped_profile_does_not_apply_strategy(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
