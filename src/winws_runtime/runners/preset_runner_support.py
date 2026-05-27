@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import hashlib
 import os
 import re
 import subprocess
@@ -65,7 +66,7 @@ def launch_args_from_preset_text(content: str) -> list[str]:
 @dataclass(frozen=True)
 class PreparedPresetArtifact:
     preset_path: str
-    cache_key: tuple[str, int, int] | None
+    cache_key: tuple[object, ...] | None
     normalized_text: str
     launch_args: tuple[str, ...]
     validation_ok: bool
@@ -147,7 +148,7 @@ class PresetRunnerStateMachine:
         return self._snapshot
 
 
-def preset_cache_key(path: str) -> tuple[str, int, int] | None:
+def preset_cache_key(path: str) -> tuple[object, ...] | None:
     p = str(path or "").strip()
     if not p:
         return None
@@ -155,7 +156,18 @@ def preset_cache_key(path: str) -> tuple[str, int, int] | None:
         stat = os.stat(p)
     except Exception:
         return None
-    return (os.path.normcase(p), int(stat.st_mtime_ns), int(stat.st_size))
+
+    digest = ""
+    try:
+        h = hashlib.blake2b(digest_size=16)
+        with open(p, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+        digest = h.hexdigest()
+    except Exception:
+        digest = ""
+
+    return (os.path.normcase(p), int(stat.st_mtime_ns), int(stat.st_size), digest)
 
 
 def remember_cache_entry(cache: dict, key, value, max_entries: int = 128) -> None:

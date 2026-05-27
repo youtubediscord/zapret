@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 from pathlib import Path
 from types import SimpleNamespace
 import threading
@@ -10,6 +11,53 @@ from unittest.mock import Mock, patch
 
 
 class Winws2PresetSwitchTests(unittest.TestCase):
+    def test_preset_cache_key_changes_when_same_size_file_content_changes(self) -> None:
+        from winws_runtime.runners.preset_runner_support import preset_cache_key
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            preset_path = Path(tmp_dir) / "selected.txt"
+            fixed_ns = 1_779_890_000_000_000_000
+
+            preset_path.write_text("--wf-tcp-out=443\n", encoding="utf-8")
+            os.utime(preset_path, ns=(fixed_ns, fixed_ns))
+            first_key = preset_cache_key(str(preset_path))
+
+            preset_path.write_text("--wf-udp-out=443\n", encoding="utf-8")
+            os.utime(preset_path, ns=(fixed_ns, fixed_ns))
+            second_key = preset_cache_key(str(preset_path))
+
+            self.assertNotEqual(first_key, second_key)
+
+    def test_winws2_compile_rebuilds_at_config_when_same_size_content_changes(self) -> None:
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            preset_path = root / "selected.txt"
+            fixed_ns = 1_779_890_000_000_000_000
+
+            runner = object.__new__(Winws2StrategyRunner)
+            runner.work_dir = str(root)
+            runner.lists_dir = str(root / "lists")
+            runner.bin_dir = str(root / "bin")
+            runner._state_lock = threading.RLock()
+            runner._prepared_preset_cache = {}
+
+            preset_path.write_text("--wf-tcp-out=443\n", encoding="utf-8")
+            os.utime(preset_path, ns=(fixed_ns, fixed_ns))
+            first_artifact = runner._compile_preset_artifact(str(preset_path))
+            first_config = Path(first_artifact.launch_args[0][1:]).read_text(encoding="utf-8")
+
+            preset_path.write_text("--wf-udp-out=443\n", encoding="utf-8")
+            os.utime(preset_path, ns=(fixed_ns, fixed_ns))
+            second_artifact = runner._compile_preset_artifact(str(preset_path))
+            second_config = Path(second_artifact.launch_args[0][1:]).read_text(encoding="utf-8")
+
+            self.assertIn("--wf-tcp-out=443", first_config)
+            self.assertIn("--wf-udp-out=443", second_config)
+            self.assertNotEqual(first_artifact.cache_key, second_artifact.cache_key)
+            self.assertNotEqual(first_config, second_config)
+
     def test_same_filter_exit_message_is_retryable_conflict(self) -> None:
         from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
 

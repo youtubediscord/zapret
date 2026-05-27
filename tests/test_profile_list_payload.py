@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -284,6 +285,48 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertIs(second_payload, first_payload)
         self.assertEqual(store.read_count, 1)
         catalogs_loader.assert_called_once()
+
+    def test_selected_preset_snapshot_changes_when_same_size_file_content_changes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            preset_path = root / "selected.txt"
+            fixed_ns = 1_779_890_000_000_000_000
+            store = _FileBackedPresetStore(
+                preset_path,
+                "\n".join(
+                    (
+                        "--filter-tcp=443",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                ),
+            )
+            os.utime(preset_path, ns=(fixed_ns, fixed_ns))
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                first_preset, _manifest = service.load_selected_preset()
+
+                preset_path.write_text(
+                    "\n".join(
+                        (
+                            "--filter-tcp=443",
+                            "--lua-desync=fake",
+                            "",
+                        )
+                    ),
+                    encoding="utf-8",
+                )
+                os.utime(preset_path, ns=(fixed_ns, fixed_ns))
+
+                second_preset, _manifest = service.load_selected_preset()
+
+        self.assertIn("--lua-desync=pass", first_preset.profiles[0].strategy.strategy_lines)
+        self.assertIn("--lua-desync=fake", second_preset.profiles[0].strategy.strategy_lines)
 
     def test_list_profiles_shows_current_ipset_variant_when_preset_uses_ipset(self) -> None:
         with TemporaryDirectory() as temp_dir:

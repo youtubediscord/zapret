@@ -8,6 +8,7 @@ import threading
 import time
 
 from log.log import log
+from presets.cache_signatures import path_cache_signature
 from settings.mode import DEFAULT_LAUNCH_METHOD, ENGINE_WINWS2, PRESET_LAUNCH_METHODS, engine_for_launch_method, normalize_launch_method
 
 from .match_filters import ports_label_from_match_lines, protocol_label_from_match_lines, strategy_catalog_from_match_lines
@@ -984,13 +985,11 @@ class ProfilePresetService:
         if callable(manifest_getter) and callable(path_getter):
             manifest = manifest_getter(self._launch_method)
             path = Path(path_getter(self._launch_method))
-            stat = path.stat()
             revision = (
                 self._launch_method,
                 str(getattr(manifest, "file_name", "") or ""),
                 str(path),
-                int(stat.st_mtime_ns),
-                int(stat.st_size),
+                *path_cache_signature(path),
             )
             return revision, manifest, None
 
