@@ -23,6 +23,7 @@ from ui.window_ui_session import get_window_ui_session
 
 SIDEBAR_SEARCH_AFTER_INTERACTIVE_MS = 2_500
 SIDEBAR_HIDDEN_MODE_ITEMS_AFTER_INTERACTIVE_MS = 6_000
+SIDEBAR_SECONDARY_GROUPS_AFTER_INTERACTIVE_MS = 250
 SIDEBAR_EXPANDED_UI_STATE_KEY = "sidebar_expanded"
 
 
@@ -352,6 +353,110 @@ def _install_hidden_mode_nav_items(window) -> None:
         pass
 
 
+def _add_sidebar_group(window, group_plan, initial_visibility) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+
+    nav = window.navigationInterface
+    pos_scroll = session.nav_scroll_position
+    if group_plan.header_key and group_plan.group_name not in session.nav_header_by_group:
+        header = nav.addItemHeader(
+            tr_catalog(group_plan.header_key, language=session.ui_language),
+            pos_scroll,
+        )
+        session.nav_header_by_group[group_plan.group_name] = header
+        session.nav_headers.append((header, group_plan.page_names, group_plan.header_key))
+
+    for page_name in group_plan.page_names:
+        if not bool(initial_visibility.get(page_name, True)):
+            continue
+        add_nav_item(
+            window,
+            page_name,
+            pos_scroll,
+            initial_visible=bool(initial_visibility.get(page_name, True)),
+        )
+
+
+def _refresh_existing_nav_mode_visibility(window, method: str | None) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    visibility_by_page = get_nav_visibility(method)
+    session.nav_mode_visibility = {
+        page_name: bool(visibility_by_page.get(page_name, True))
+        for page_name in session.nav_items
+    }
+
+
+def _install_secondary_sidebar_groups(window) -> None:
+    import time as _time
+
+    started_at = _time.perf_counter()
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+
+    try:
+        method = window.get_launch_method()
+    except Exception:
+        method = ""
+    initial_visibility = get_nav_visibility(method)
+    for group_plan in build_sidebar_group_plans(method):
+        if group_plan.group_name == "root":
+            continue
+        _add_sidebar_group(window, group_plan, initial_visibility)
+
+    _refresh_existing_nav_mode_visibility(window, method)
+    apply_nav_visibility_filter(window)
+    try:
+        window.log_startup_metric(
+            "StartupSecondarySidebarReady",
+            f"{(_time.perf_counter() - started_at) * 1000:.0f}ms",
+        )
+    except Exception:
+        pass
+
+
+def _schedule_secondary_sidebar_groups_after_interactive(window) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+
+    scheduled = False
+
+    def _schedule(*_args) -> None:
+        nonlocal scheduled
+        if scheduled:
+            return
+        scheduled = True
+        try:
+            window.log_startup_metric(
+                "StartupSecondarySidebarQueued",
+                f"{SIDEBAR_SECONDARY_GROUPS_AFTER_INTERACTIVE_MS}ms after interactive",
+            )
+        except Exception:
+            pass
+        QTimer.singleShot(
+            SIDEBAR_SECONDARY_GROUPS_AFTER_INTERACTIVE_MS,
+            lambda: _install_secondary_sidebar_groups(window),
+        )
+
+    try:
+        if bool(getattr(window.startup_state, "interactive_logged", False)):
+            _schedule()
+            return
+    except Exception:
+        _schedule()
+        return
+
+    try:
+        window.startup_interactive_ready.connect(_schedule)
+    except Exception:
+        _schedule()
+
+
 def _schedule_hidden_mode_nav_items_after_interactive(window) -> None:
     session = get_window_ui_session(window)
     if session is None:
@@ -409,32 +514,14 @@ def init_navigation(window) -> None:
     session.sidebar_search_titlebar_attached = False
     initial_visibility = get_nav_visibility(current_method)
 
-    def _add(page_name, position=pos_scroll):
-        add_nav_item(
-            window,
-            page_name,
-            position,
-            initial_visible=bool(initial_visibility.get(page_name, True)),
-        )
-
-    nav = window.navigationInterface
-
     _schedule_sidebar_search_after_interactive(window)
+    _schedule_secondary_sidebar_groups_after_interactive(window)
     _schedule_hidden_mode_nav_items_after_interactive(window)
 
     for group_plan in build_sidebar_group_plans(current_method):
-        if group_plan.header_key:
-            header = nav.addItemHeader(
-                tr_catalog(group_plan.header_key, language=session.ui_language),
-                pos_scroll,
-            )
-            session.nav_header_by_group[group_plan.group_name] = header
-            session.nav_headers.append((header, group_plan.page_names, group_plan.header_key))
-
-        for page_name in group_plan.page_names:
-            if not bool(initial_visibility.get(page_name, True)):
-                continue
-            _add(page_name)
+        if group_plan.group_name != "root":
+            continue
+        _add_sidebar_group(window, group_plan, initial_visibility)
 
     for hidden in get_hidden_pages_for_method(current_method):
         page = _get_loaded_pages(window).get(hidden)
@@ -447,7 +534,8 @@ def init_navigation(window) -> None:
     window.navigationInterface.setMinimumExpandWidth(700)
     _restore_sidebar_expanded_state(window)
     _bind_sidebar_expanded_state(window)
-    sync_nav_visibility(window)
+    _refresh_existing_nav_mode_visibility(window, current_method)
+    apply_nav_visibility_filter(window)
 
 
 def sync_nav_visibility(window, method: str | None = None) -> None:

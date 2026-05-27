@@ -273,6 +273,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             sidebar_search_completer=None,
             sidebar_search_titlebar_attached=False,
             pages={},
+            nav_labels={},
         )
         window = SimpleNamespace(
             ui_session=session,
@@ -306,6 +307,92 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertNotIn(PageName.ZAPRET1_MODE_CONTROL, added_pages)
         self.assertNotIn(PageName.ZAPRET1_USER_PRESETS, added_pages)
         self.assertNotIn(PageName.ZAPRET1_PRESET_SETUP, added_pages)
+        self.assertNotIn(PageName.NETWORK, added_pages)
+
+    def test_initial_sidebar_build_defers_secondary_groups_until_after_interactive(self) -> None:
+        from app.page_names import PageName
+        from settings.mode import ZAPRET2_MODE
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        class FakeSignal:
+            def __init__(self) -> None:
+                self.connected = []
+
+            def connect(self, callback) -> None:
+                self.connected.append(callback)
+
+            def emit(self) -> None:
+                for callback in list(self.connected):
+                    callback("ui_ready")
+
+        class FakeNavigationInterface:
+            def __init__(self) -> None:
+                self.headers = []
+                self.displayModeChanged = FakeSignal()
+
+            def addItemHeader(self, text, position):
+                header = SimpleNamespace(text=text, position=position, setVisible=Mock())
+                self.headers.append(header)
+                return header
+
+            def setMinimumExpandWidth(self, width) -> None:
+                self.minimum_expand_width = width
+
+        added_pages: list[PageName] = []
+        signal = FakeSignal()
+        session = SimpleNamespace(
+            nav_scroll_position=None,
+            ui_language="ru",
+            sidebar_search_widget_cls=None,
+            nav_items={},
+            nav_headers=[],
+            nav_header_by_group={},
+            nav_mode_visibility={},
+            nav_search_query="",
+            sidebar_search_nav_widget=None,
+            sidebar_search_model=None,
+            sidebar_search_completer=None,
+            sidebar_search_titlebar_attached=False,
+            pages={},
+            nav_labels={},
+        )
+        window = SimpleNamespace(
+            ui_session=session,
+            navigationInterface=FakeNavigationInterface(),
+            startup_state=SimpleNamespace(interactive_logged=False),
+            startup_interactive_ready=signal,
+            get_launch_method=lambda: ZAPRET2_MODE,
+            log_startup_metric=Mock(),
+        )
+        scheduled: list[tuple[int, object]] = []
+
+        def _fake_add_nav_item(current_window, page_name, *_args, **_kwargs):
+            added_pages.append(page_name)
+            session.nav_items[page_name] = SimpleNamespace(setVisible=Mock())
+
+        with (
+            patch.object(sidebar_builder, "_schedule_sidebar_search_after_interactive", side_effect=lambda current_window: None),
+            patch.object(sidebar_builder, "_schedule_hidden_mode_nav_items_after_interactive", side_effect=lambda current_window: None),
+            patch.object(sidebar_builder.QTimer, "singleShot", side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback))),
+            patch.object(sidebar_builder, "add_nav_item", side_effect=_fake_add_nav_item),
+            patch("settings.store.get_ui_state_settings", return_value={"sidebar_expanded": True}),
+        ):
+            sidebar_builder.init_navigation(window)
+
+            self.assertIn(PageName.ZAPRET2_MODE_CONTROL, added_pages)
+            self.assertIn(PageName.ZAPRET2_USER_PRESETS, added_pages)
+            self.assertIn(PageName.ZAPRET2_PRESET_SETUP, added_pages)
+            self.assertNotIn(PageName.NETWORK, added_pages)
+            self.assertEqual(scheduled, [])
+
+            signal.emit()
+
+            self.assertEqual(len(scheduled), 1)
+            self.assertGreaterEqual(scheduled[0][0], 200)
+            scheduled[0][1]()
+
+        self.assertIn(PageName.NETWORK, added_pages)
+        self.assertIn(PageName.LOGS, added_pages)
 
     def test_initial_sidebar_build_restores_saved_expanded_state(self) -> None:
         from settings.mode import ZAPRET2_MODE
