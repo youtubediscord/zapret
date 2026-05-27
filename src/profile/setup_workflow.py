@@ -96,11 +96,11 @@ def set_current_strategy_feedback(
     profile_key: str,
     rating: str | None = None,
     favorite: bool | None = None,
-) -> None:
+) -> object:
     """Сохраняет оценку или избранность текущей стратегии."""
     kwargs = {}
     if rating is not None:
         kwargs["rating"] = rating
     if favorite is not None:
         kwargs["favorite"] = favorite
-    profile_feature.set_current_strategy_state(launch_method, profile_key, **kwargs)
+    return profile_feature.set_current_strategy_state(launch_method, profile_key, **kwargs)

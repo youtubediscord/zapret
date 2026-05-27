@@ -15,6 +15,8 @@ from profile.ui.profile_setup_page import (
     _profile_editor_tab_title,
 )
 from profile.profile_setup_loader import ProfileStrategyApplyWorker
+from profile.state import ProfileListItem, ProfileSetupPayload
+from profile.strategy_state import ProfileStrategyState
 from profile.ui.preset_setup_page import PresetSetupPageBase, preset_setup_title_for_payload
 from profile.ui.shell import build_profile_shell
 from profile.ui.profiles_list import ProfilesList
@@ -1015,6 +1017,50 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             strategy_id="tls_fake",
         )
         self.assertEqual(applied, [(9, "profile-1", "tls_fake")])
+
+    def test_strategy_feedback_updates_payload_without_reloading_profile(self) -> None:
+        item = ProfileListItem(
+            key="profile-1",
+            persistent_key="persist-1",
+            profile_index=0,
+            display_name="Profile 1",
+            enabled=True,
+            in_preset=True,
+            strategy_id="tls_fake",
+            strategy_name="TLS fake",
+            match_lines=(),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="",
+            group_name="",
+            order=0,
+        )
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = ProfileSetupPayload(
+            item=item,
+            strategy_entries={},
+            strategy_states={},
+            raw_profile_text="",
+            raw_strategy_text="",
+            match_summary="",
+        )
+        page._controller = Mock()
+        page._controller.set_strategy_feedback.return_value = ProfileStrategyState(rating="work", favorite=False)
+        page._strategy_list = Mock()
+        page._apply_feedback_buttons = Mock()
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._set_current_strategy_feedback(page, rating="work")
+
+        page.reload_current_profile.assert_not_called()
+        self.assertEqual(page._payload.current_strategy_state.rating, "work")
+        self.assertEqual(page._payload.item.rating, "work")
+        page._apply_feedback_buttons.assert_called_once_with(page._payload)
+        page._on_profile_changed_callback.assert_called_once_with("profile-1", "feedback")
 
     def test_clicking_strategy_for_skipped_profile_does_not_apply_strategy(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)

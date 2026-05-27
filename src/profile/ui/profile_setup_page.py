@@ -1596,11 +1596,12 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or not self._profile_key:
             return
         try:
-            self._controller.set_strategy_feedback(
+            state = self._controller.set_strategy_feedback(
                 profile_key=self._profile_key,
                 rating=rating,
             )
-            self.reload_current_profile()
+            if not self._apply_strategy_feedback_locally(state):
+                self.reload_current_profile()
             self._on_profile_changed_callback(self._profile_key, "feedback")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось обновить оценку стратегии: {exc}", "ERROR")
@@ -1610,14 +1611,47 @@ class ProfileSetupPageBase(BasePage):
             return
         try:
             current = bool(self._payload.current_strategy_state.favorite)
-            self._controller.set_strategy_feedback(
+            state = self._controller.set_strategy_feedback(
                 profile_key=self._profile_key,
                 favorite=not current,
             )
-            self.reload_current_profile()
+            if not self._apply_strategy_feedback_locally(state):
+                self.reload_current_profile()
             self._on_profile_changed_callback(self._profile_key, "feedback")
         except Exception as exc:
             log(f"{self.__class__.__name__}: не удалось обновить избранную стратегию: {exc}", "ERROR")
+
+    def _apply_strategy_feedback_locally(self, state) -> bool:
+        if self._payload is None or state is None:
+            return False
+        item = getattr(self._payload, "item", None)
+        if item is None:
+            return False
+        strategy_id = str(getattr(item, "strategy_id", "") or "").strip()
+        if not strategy_id or strategy_id in {"none", "custom"}:
+            return False
+        next_state = state if isinstance(state, ProfileStrategyState) else ProfileStrategyState()
+        strategy_states = dict(getattr(self._payload, "strategy_states", {}) or {})
+        strategy_states[strategy_id] = next_state
+        updated_item = replace(
+            item,
+            rating=str(getattr(next_state, "rating", "") or ""),
+            favorite=bool(getattr(next_state, "favorite", False)),
+        )
+        self._payload = replace(
+            self._payload,
+            item=updated_item,
+            strategy_states=strategy_states,
+            current_strategy_state=next_state,
+        )
+        if self._strategy_list is not None:
+            self._strategy_list.set_rows(
+                entries=getattr(self._payload, "strategy_entries", {}) or {},
+                states=strategy_states,
+                current_strategy_id=strategy_id,
+            )
+        self._apply_feedback_buttons(self._payload)
+        return True
 
 
 class Zapret2ProfileSetupPage(ProfileSetupPageBase):

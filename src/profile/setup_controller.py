@@ -153,8 +153,8 @@ class ProfileSetupController:
         profile_key: str,
         rating: str | None = None,
         favorite: bool | None = None,
-    ) -> None:
-        set_current_strategy_feedback(
+    ):
+        return set_current_strategy_feedback(
             profile_feature=self._profile,
             launch_method=self._launch_method,
             profile_key=profile_key,
