@@ -10,6 +10,10 @@ class PresetSelectionState:
     Source preset остаётся единственным источником истины для direct-запуска.
     Не возвращать runtime launch.txt, временные копии или fallback-пути как
     каноническое состояние выбранного preset-а.
+
+    Исключение ниже по цепочке запуска: winws2 runner может создать временный
+    @config-файл как адаптер для самого winws2.exe. Такой файл не является
+    выбранным preset-ом и не должен попадать в UI, settings или manifest.
     """
 
     method: str

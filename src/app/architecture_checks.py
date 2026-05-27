@@ -1139,7 +1139,7 @@ def check_no_runtime_launch_preset_files(files: list[Path]) -> list[Problem]:
     return _scan_lines(
         files,
         re.compile(r"\b(?:runtime[/\\]launch_presets|launch_presets|\.launch\.txt|_launch_preset_artifact)\b"),
-        "запуск preset не должен создавать отдельные runtime/*.launch.txt файлы; используйте source preset и подготовку текста в памяти",
+        "source preset должен оставаться единственным состоянием выбранного preset; не создавайте runtime/*.launch.txt копии. Узкий winws2 @config-адаптер допустим только как временный файл запуска, если его путь не попадает в UI/настройки",
     )
 
 
