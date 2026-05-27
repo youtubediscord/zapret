@@ -882,8 +882,10 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("launch_method=ZAPRET2_MODE", zapret2_page_source)
 
     def test_control_additional_settings_saves_through_worker(self) -> None:
+        zapret1_discord_source = inspect.getsource(Zapret1ModeControlPage._on_discord_restart_changed)
         zapret1_wssize_source = inspect.getsource(Zapret1ModeControlPage._on_wssize_toggled)
         zapret1_debug_source = inspect.getsource(Zapret1ModeControlPage._on_debug_log_toggled)
+        zapret2_discord_source = inspect.getsource(Zapret2ModeControlPage._on_discord_restart_changed)
         zapret2_wssize_source = inspect.getsource(Zapret2ModeControlPage._on_wssize_toggled)
         zapret2_debug_source = inspect.getsource(Zapret2ModeControlPage._on_debug_log_toggled)
 
@@ -902,7 +904,12 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             self.assertNotIn("set_wssize_enabled(", source)
             self.assertNotIn("set_debug_log_enabled(", source)
 
+        for source in (zapret1_discord_source, zapret2_discord_source):
+            self.assertIn('_request_additional_settings_save("discord_restart"', source)
+            self.assertNotIn("save_discord_restart_setting(", source)
+            self.assertNotIn("set_discord_restart_setting(", source)
         self.assertIn("create_additional_settings_save_worker", inspect.getsource(control_additional_settings_runtime))
+        self.assertIn("set_discord_restart_setting", worker_source)
         self.assertIn("set_wssize_enabled", worker_source)
         self.assertIn("set_debug_log_enabled", worker_source)
         self.assertIn("launch_method=self._launch_method", worker_source)
