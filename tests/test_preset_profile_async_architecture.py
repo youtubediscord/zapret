@@ -379,6 +379,40 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertEqual(page.calls, ["ru", "en"])
 
+    def test_page_language_skips_initial_reapply_when_page_already_matches_window(self) -> None:
+        class _Page:
+            def __init__(self) -> None:
+                self._ui_language = "ru"
+                self.calls: list[str] = []
+
+            def set_ui_language(self, language: str) -> None:
+                self.calls.append(language)
+
+        window = type("_Window", (), {})()
+        window.ui_session = type("_Session", (), {"ui_language": "ru"})()
+        page = _Page()
+
+        navigation_text_sync.apply_ui_language_to_page(window, page)
+
+        self.assertEqual(page.calls, [])
+        self.assertEqual(page._last_applied_ui_language, "ru")
+
+    def test_page_language_still_applies_when_page_language_is_unknown(self) -> None:
+        class _Page:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def set_ui_language(self, language: str) -> None:
+                self.calls.append(language)
+
+        window = type("_Window", (), {})()
+        window.ui_session = type("_Session", (), {"ui_language": "ru"})()
+        page = _Page()
+
+        navigation_text_sync.apply_ui_language_to_page(window, page)
+
+        self.assertEqual(page.calls, ["ru"])
+
     def test_appearance_initial_state_plan_reads_settings_once(self) -> None:
         data = {
             "appearance": {

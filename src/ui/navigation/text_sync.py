@@ -75,6 +75,10 @@ def apply_ui_language_to_page(window, page: QWidget | None) -> None:
     language = normalize_language("ru" if session is None else session.ui_language)
     if getattr(page, "_last_applied_ui_language", None) == language:
         return
+    page_language = getattr(page, "_ui_language", None)
+    if page_language is not None and normalize_language(page_language) == language:
+        setattr(page, "_last_applied_ui_language", language)
+        return
 
     for method_name in ("set_ui_language", "retranslate_ui", "apply_ui_language"):
         method = getattr(page, method_name, None)
