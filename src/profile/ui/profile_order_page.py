@@ -26,6 +26,11 @@ class ProfileOrderPageBase(BasePage):
         self._open_root = open_root
         self._payload = None
         self._order_list: ProfileOrderList | None = None
+        self._order_load_request_id = 0
+        self._order_load_worker = None
+        self._order_load_dirty = False
+        self._order_move_request_id = 0
+        self._order_move_worker = None
         self._breadcrumb = None
         self._build_content()
 
@@ -56,51 +61,148 @@ class ProfileOrderPageBase(BasePage):
         self.layout.addWidget(self._order_list, 1)
         self._rebuild_breadcrumb()
 
-    def _reload_order_profiles(self) -> None:
-        try:
-            payload = self._profile.list_preset_order_profiles(self.launch_method)
-            self._payload = payload
-            if self._order_list is not None:
-                self._order_list.set_profiles(tuple(getattr(payload, "items", ()) or ()))
-            self._rebuild_breadcrumb()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось прочитать порядок profile-ов: {exc}", "ERROR")
-            InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
+    def _reload_order_profiles(self, *, force: bool = False) -> None:
+        worker = self.__dict__.get("_order_load_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    if force:
+                        self._order_load_request_id = int(getattr(self, "_order_load_request_id", 0) or 0) + 1
+                        self._order_load_dirty = True
+                    return
+            except Exception:
+                return
+        self._order_load_dirty = False
+        self._order_load_request_id = int(getattr(self, "_order_load_request_id", 0) or 0) + 1
+        request_id = self._order_load_request_id
+        worker = self._create_profile_order_load_worker(request_id, self.launch_method, self)
+        self._order_load_worker = worker
+        worker.loaded.connect(self._on_order_profiles_loaded)
+        worker.failed.connect(self._on_order_profiles_failed)
+        worker.finished.connect(lambda w=worker: self._on_order_profiles_worker_finished(w))
+        worker.start()
+
+    def _create_profile_order_load_worker(self, request_id: int, launch_method: str, parent=None):
+        return self._profile.create_profile_order_load_worker(request_id, launch_method, parent)
+
+    def _on_order_profiles_loaded(self, request_id: int, payload) -> None:
+        if request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
+            return
+        self._payload = payload
+        if self._order_list is not None:
+            self._order_list.set_profiles(tuple(getattr(payload, "items", ()) or ()))
+        self._rebuild_breadcrumb()
+
+    def _on_order_profiles_failed(self, request_id: int, error: str) -> None:
+        if request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось прочитать порядок profile-ов: {error}", "ERROR")
+        InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
+
+    def _on_order_profiles_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_order_load_worker") is worker:
+            self._order_load_worker = None
+        should_reload = bool(getattr(self, "_order_load_dirty", False))
+        delete_later = getattr(worker, "deleteLater", None)
+        if callable(delete_later):
+            delete_later()
+        if should_reload:
+            self._reload_order_profiles(force=True)
 
     def _on_profile_move_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
-        try:
-            moved = self._profile.move_preset_profile_before(
-                self.launch_method,
-                source_profile_key,
-                destination_profile_key,
-            )
-            if moved:
-                self._reload_order_profiles()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось переместить profile выше: {exc}", "ERROR")
-            InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
+        self._request_profile_order_move(
+            "before",
+            source_profile_key,
+            destination_profile_key=destination_profile_key,
+        )
 
     def _on_profile_move_after_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
-        try:
-            moved = self._profile.move_preset_profile_after(
-                self.launch_method,
-                source_profile_key,
-                destination_profile_key,
-            )
-            if moved:
-                self._reload_order_profiles()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось переместить profile ниже: {exc}", "ERROR")
-            InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
+        self._request_profile_order_move(
+            "after",
+            source_profile_key,
+            destination_profile_key=destination_profile_key,
+        )
 
     def _on_profile_move_to_end_requested(self, profile_key: str) -> None:
-        try:
-            moved = self._profile.move_preset_profile_to_end(self.launch_method, profile_key)
-            if moved:
-                self._reload_order_profiles()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось переместить profile в конец: {exc}", "ERROR")
-            InfoBar.error(title="Ошибка", content=str(exc), parent=self.window())
+        self._request_profile_order_move("end", profile_key)
+
+    def _request_profile_order_move(
+        self,
+        action: str,
+        source_profile_key: str,
+        *,
+        destination_profile_key: str = "",
+    ) -> None:
+        source_profile_key = str(source_profile_key or "").strip()
+        if not source_profile_key:
+            return
+        worker = self.__dict__.get("_order_move_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._order_move_request_id = int(getattr(self, "_order_move_request_id", 0) or 0) + 1
+        request_id = self._order_move_request_id
+        worker = self._create_profile_order_move_worker(
+            request_id,
+            self.launch_method,
+            action=str(action or ""),
+            source_profile_key=source_profile_key,
+            destination_profile_key=str(destination_profile_key or ""),
+            parent=self,
+        )
+        self._order_move_worker = worker
+        worker.moved.connect(self._on_profile_order_moved)
+        worker.failed.connect(self._on_profile_order_move_failed)
+        worker.finished.connect(lambda w=worker: self._on_profile_order_move_worker_finished(w))
+        worker.start()
+
+    def _create_profile_order_move_worker(
+        self,
+        request_id: int,
+        launch_method: str,
+        *,
+        action: str,
+        source_profile_key: str,
+        destination_profile_key: str = "",
+        parent=None,
+    ):
+        return self._profile.create_preset_profile_order_move_worker(
+            request_id,
+            launch_method,
+            action=action,
+            source_profile_key=source_profile_key,
+            destination_profile_key=destination_profile_key,
+            parent=parent,
+        )
+
+    def _on_profile_order_moved(
+        self,
+        request_id: int,
+        action: str,
+        source_profile_key: str,
+        destination_profile_key: str,
+        result,
+    ) -> None:
+        if request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
+            return
+        if result:
+            self._reload_order_profiles(force=True)
+
+    def _on_profile_order_move_failed(self, request_id: int, error: str) -> None:
+        if request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось переместить profile в порядке preset: {error}", "ERROR")
+        InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
+
+    def _on_profile_order_move_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_order_move_worker") is worker:
+            self._order_move_worker = None
+        delete_later = getattr(worker, "deleteLater", None)
+        if callable(delete_later):
+            delete_later()
 
     def _rebuild_breadcrumb(self) -> None:
         if self._breadcrumb is None:

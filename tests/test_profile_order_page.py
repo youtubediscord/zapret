@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import unittest
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 from profile.state import ProfileListItem
 
@@ -53,7 +54,7 @@ class ProfileOrderPageTests(unittest.TestCase):
         self.assertEqual(index.data(ProfileListModel.IconNameRole), "simple:youtube:YT")
         self.assertEqual(index.data(ProfileListModel.IconColorRole), "#FF0000")
 
-    def test_order_page_explains_priority_and_uses_order_service_methods(self) -> None:
+    def test_order_page_explains_priority_and_uses_order_workers(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
 
         build_source = inspect.getsource(ProfileOrderPageBase._build_content)
@@ -63,13 +64,131 @@ class ProfileOrderPageTests(unittest.TestCase):
         end_source = inspect.getsource(ProfileOrderPageBase._on_profile_move_to_end_requested)
 
         self.assertIn("Profile выше в списке имеет больший приоритет", build_source)
-        self.assertIn("list_preset_order_profiles", load_source)
-        self.assertIn("move_preset_profile_before", before_source)
-        self.assertIn("move_preset_profile_after", after_source)
-        self.assertIn("move_preset_profile_to_end", end_source)
-        self.assertIn("_reload_order_profiles()", before_source)
-        self.assertIn("_reload_order_profiles()", after_source)
-        self.assertIn("_reload_order_profiles()", end_source)
+        self.assertIn("create_profile_order_load_worker", load_source)
+        self.assertIn("_request_profile_order_move", before_source)
+        self.assertIn("_request_profile_order_move", after_source)
+        self.assertIn("_request_profile_order_move", end_source)
+        self.assertNotIn("list_preset_order_profiles", load_source)
+        self.assertNotIn("move_preset_profile_before", before_source)
+        self.assertNotIn("move_preset_profile_after", after_source)
+        self.assertNotIn("move_preset_profile_to_end", end_source)
+
+    def test_order_page_starts_workers_without_direct_profile_calls(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.loaded = _Signal()
+                self.moved = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
+            def isRunning(self) -> bool:
+                return False
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page.launch_method = "zapret2_mode"
+        page._profile = Mock()
+        page._profile.list_preset_order_profiles.side_effect = AssertionError("order list must load in worker")
+        page._profile.move_preset_profile_before.side_effect = AssertionError("move must run in worker")
+        page._profile.move_preset_profile_after.side_effect = AssertionError("move must run in worker")
+        page._profile.move_preset_profile_to_end.side_effect = AssertionError("move must run in worker")
+        page._order_load_worker = None
+        page._order_load_request_id = 0
+        page._order_move_worker = None
+        page._order_move_request_id = 0
+        load_worker = _Worker()
+        move_worker = _Worker()
+        page._create_profile_order_load_worker = Mock(return_value=load_worker)
+        page._create_profile_order_move_worker = Mock(return_value=move_worker)
+
+        ProfileOrderPageBase._reload_order_profiles(page)
+        ProfileOrderPageBase._on_profile_move_requested(page, "profile-1", "profile-2")
+
+        page._profile.list_preset_order_profiles.assert_not_called()
+        page._profile.move_preset_profile_before.assert_not_called()
+        page._profile.move_preset_profile_after.assert_not_called()
+        page._profile.move_preset_profile_to_end.assert_not_called()
+        page._create_profile_order_load_worker.assert_called_once_with(1, "zapret2_mode", page)
+        page._create_profile_order_move_worker.assert_called_once_with(
+            1,
+            "zapret2_mode",
+            action="before",
+            source_profile_key="profile-1",
+            destination_profile_key="profile-2",
+            parent=page,
+        )
+        load_worker.start.assert_called_once()
+        move_worker.start.assert_called_once()
+
+    def test_order_page_invalidates_running_load_before_refresh_after_move(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+
+        class _RunningWorker:
+            def isRunning(self) -> bool:
+                return True
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._order_load_worker = _RunningWorker()
+        page._order_load_request_id = 7
+        page._order_load_dirty = False
+        page._create_profile_order_load_worker = Mock()
+        page._payload = "current"
+
+        ProfileOrderPageBase._reload_order_profiles(page, force=True)
+        ProfileOrderPageBase._on_order_profiles_loaded(page, 7, "stale")
+
+        self.assertEqual(page._order_load_request_id, 8)
+        self.assertTrue(page._order_load_dirty)
+        page._create_profile_order_load_worker.assert_not_called()
+        self.assertEqual(page._payload, "current")
+
+    def test_order_workers_call_profile_feature(self) -> None:
+        from profile.profile_order_loader import ProfileOrderListLoadWorker, ProfilePresetOrderMoveWorker
+
+        profile = Mock()
+        profile.list_preset_order_profiles.return_value = SimpleNamespace(items=())
+        load_worker = ProfileOrderListLoadWorker(2, profile, "zapret2_mode")
+        loaded = []
+        load_worker.loaded.connect(lambda request_id, payload: loaded.append((request_id, payload)))
+
+        load_worker.run()
+
+        profile.list_preset_order_profiles.assert_called_once_with("zapret2_mode")
+        self.assertEqual(loaded, [(2, profile.list_preset_order_profiles.return_value)])
+
+        profile.move_preset_profile_before.return_value = "profile-1"
+        move_worker = ProfilePresetOrderMoveWorker(
+            3,
+            profile,
+            "zapret2_mode",
+            action="before",
+            source_profile_key="profile-1",
+            destination_profile_key="profile-2",
+        )
+        moved = []
+        move_worker.moved.connect(
+            lambda request_id, action, source_key, destination_key, result: moved.append((
+                request_id,
+                action,
+                source_key,
+                destination_key,
+                result,
+            ))
+        )
+
+        move_worker.run()
+
+        profile.move_preset_profile_before.assert_called_once_with("zapret2_mode", "profile-1", "profile-2")
+        self.assertEqual(moved, [(3, "before", "profile-1", "profile-2", "profile-1")])
 
     def test_order_page_has_breadcrumbs_back_to_profiles_and_control(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase

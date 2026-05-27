@@ -311,3 +311,30 @@ class ProfileFeature:
         from profile.profile_list_loader import ProfileListLoadWorker
 
         return ProfileListLoadWorker(request_id, self, launch_method, parent)
+
+    def create_profile_order_load_worker(self, request_id: int, launch_method: str, parent=None):
+        from profile.profile_order_loader import ProfileOrderListLoadWorker
+
+        return ProfileOrderListLoadWorker(request_id, self, launch_method, parent)
+
+    def create_preset_profile_order_move_worker(
+        self,
+        request_id: int,
+        launch_method: str,
+        *,
+        action: str,
+        source_profile_key: str,
+        destination_profile_key: str = "",
+        parent=None,
+    ):
+        from profile.profile_order_loader import ProfilePresetOrderMoveWorker
+
+        return ProfilePresetOrderMoveWorker(
+            request_id,
+            self,
+            launch_method,
+            action=action,
+            source_profile_key=source_profile_key,
+            destination_profile_key=destination_profile_key,
+            parent=parent,
+        )
