@@ -18,6 +18,7 @@ from profile.profile_setup_loader import (
     ProfileEnabledSaveWorker,
     ProfileListFileValidationWorker,
     ProfileListFileSaveWorker,
+    ProfilePresetProfileMoveWorker,
     ProfilePresetProfileActionWorker,
     ProfileRawTextSaveWorker,
     ProfileSettingsSaveWorker,
@@ -749,11 +750,99 @@ class ProfileSetupPageContractTests(unittest.TestCase):
     def test_profile_drag_handlers_update_current_list_without_full_refresh(self) -> None:
         before_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_requested)
         after_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_after_requested)
+        request_handler = inspect.getsource(PresetSetupPageBase._request_profile_move)
+        finish_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_finished)
 
+        self.assertIn("_request_profile_move", before_handler)
+        self.assertIn("_request_profile_move", after_handler)
         self.assertIn("_apply_profile_move_locally", before_handler)
         self.assertIn("_apply_profile_move_locally", after_handler)
+        self.assertIn("_create_profile_move_worker", request_handler)
+        self.assertNotIn("_apply_profile_move_locally", finish_handler)
+        self.assertNotIn("_profile.move_profile_before", before_handler)
+        self.assertNotIn("_profile.move_profile_after", after_handler)
         self.assertNotIn("refresh_from_preset_switch()", before_handler)
         self.assertNotIn("refresh_from_preset_switch()", after_handler)
+
+    def test_profile_move_starts_worker_without_direct_profile_call(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.moved = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+
+            def isRunning(self) -> bool:
+                return False
+
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page.launch_method = "zapret2_mode"
+        page._profile = Mock()
+        page._profile.move_profile_before.side_effect = AssertionError("move must run in worker")
+        page._profile_move_request_id = 0
+        page._profile_move_worker = None
+        page._create_profile_move_worker = Mock(return_value=_Worker())
+
+        PresetSetupPageBase._request_profile_move(
+            page,
+            "before",
+            "profile-1",
+            destination_profile_key="profile-2",
+            destination_group_key="youtube",
+        )
+
+        page._profile.move_profile_before.assert_not_called()
+        page._create_profile_move_worker.assert_called_once_with(
+            1,
+            "zapret2_mode",
+            action="before",
+            source_profile_key="profile-1",
+            destination_profile_key="profile-2",
+            destination_group_key="youtube",
+        )
+        page._create_profile_move_worker.return_value.start.assert_called_once()
+
+    def test_profile_move_worker_emits_move_result(self) -> None:
+        profile = Mock()
+        profile.move_profile_before.return_value = "profile-1"
+        worker = ProfilePresetProfileMoveWorker(
+            9,
+            profile,
+            "zapret2_mode",
+            action="before",
+            source_profile_key="profile-1",
+            destination_profile_key="profile-2",
+            destination_group_key="youtube",
+        )
+        moved = []
+
+        worker.moved.connect(
+            lambda request_id, action, source_key, destination_key, group_key, result: moved.append((
+                request_id,
+                action,
+                source_key,
+                destination_key,
+                group_key,
+                result,
+            ))
+        )
+
+        worker.run()
+
+        profile.move_profile_before.assert_called_once_with(
+            "zapret2_mode",
+            "profile-1",
+            "profile-2",
+            destination_folder_key="youtube",
+        )
+        self.assertEqual(moved, [(9, "before", "profile-1", "profile-2", "youtube", "profile-1")])
 
     def test_profile_context_actions_sync_current_list_without_rebuilding_model(self) -> None:
         enable_handler = inspect.getsource(PresetSetupPageBase._set_profile_enabled_from_menu)

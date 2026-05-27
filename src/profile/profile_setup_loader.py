@@ -255,6 +255,71 @@ class ProfilePresetProfileActionWorker(QThread):
         self.finished_action.emit(self._request_id, self._action, self._profile_key, result)
 
 
+class ProfilePresetProfileMoveWorker(QThread):
+    moved = pyqtSignal(int, str, str, str, str, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        profile,
+        launch_method: str,
+        *,
+        action: str,
+        source_profile_key: str,
+        destination_profile_key: str = "",
+        destination_group_key: str = "",
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._profile = profile
+        self._launch_method = str(launch_method or "").strip()
+        self._action = str(action or "").strip()
+        self._source_profile_key = str(source_profile_key or "").strip()
+        self._destination_profile_key = str(destination_profile_key or "").strip()
+        self._destination_group_key = str(destination_group_key or "").strip()
+
+    def run(self) -> None:
+        try:
+            if self._action == "before":
+                result = self._profile.move_profile_before(
+                    self._launch_method,
+                    self._source_profile_key,
+                    self._destination_profile_key,
+                    destination_folder_key=self._destination_group_key,
+                )
+            elif self._action == "after":
+                result = self._profile.move_profile_after(
+                    self._launch_method,
+                    self._source_profile_key,
+                    self._destination_profile_key,
+                    destination_folder_key=self._destination_group_key,
+                )
+            elif self._action == "end":
+                result = self._profile.move_profile_to_end(self._launch_method, self._source_profile_key)
+            elif self._action == "folder":
+                result = self._profile.move_profile_to_folder(
+                    self._launch_method,
+                    self._source_profile_key,
+                    self._destination_group_key,
+                )
+            else:
+                raise ValueError(f"Неизвестное перемещение profile: {self._action}")
+        except Exception as exc:
+            log(f"ProfilePresetProfileMoveWorker: не удалось переместить profile: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.moved.emit(
+            self._request_id,
+            self._action,
+            self._source_profile_key,
+            self._destination_profile_key,
+            self._destination_group_key,
+            result,
+        )
+
+
 class ProfileUserProfileCreateWorker(QThread):
     created = pyqtSignal(int, str)
     failed = pyqtSignal(int, str)
