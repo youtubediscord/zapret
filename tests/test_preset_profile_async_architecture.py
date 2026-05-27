@@ -21,6 +21,7 @@ from presets.user_presets_action_workers import UserPresetActivateWorker, UserPr
 import presets.user_presets_action_workers as user_presets_action_workers
 import presets.ui.control.additional_settings_runtime as control_additional_settings_runtime
 import presets.ui.control.control_page_shared as control_page_shared
+import presets.ui.common.preset_rating_menu as preset_rating_menu
 import presets.ui.control.zapret1.runtime_helpers as zapret1_runtime_helpers
 from presets.ui.control.zapret1.page import Zapret1ModeControlPage
 import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
@@ -233,6 +234,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_user_presets_storage_actions_run_through_worker(self) -> None:
         pin_source = inspect.getsource(UserPresetsPageBase._on_toggle_pin_preset)
+        rating_source = inspect.getsource(UserPresetsPageBase._show_rating_menu)
+        rating_menu_source = inspect.getsource(preset_rating_menu.show_preset_rating_menu)
         move_source = inspect.getsource(UserPresetsPageBase._move_preset_by_step)
         drop_source = inspect.getsource(UserPresetsPageBase._on_item_dropped)
 
@@ -240,17 +243,20 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         worker_source = inspect.getsource(user_presets_action_workers.UserPresetStorageActionWorker.run)
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_storage_action)
 
-        for source in (pin_source, move_source, drop_source):
+        for source in (pin_source, rating_source, move_source, drop_source):
             self.assertIn("_request_preset_storage_action", source)
             self.assertNotIn("toggle_pin_preset_action", source)
             self.assertNotIn("move_preset_by_step_action", source)
             self.assertNotIn("handle_item_dropped_action", source)
+            self.assertNotIn("set_preset_rating(", source)
             self.assertNotIn(".toggle_preset_pin(", source)
             self.assertNotIn(".move_preset_by_step(", source)
             self.assertNotIn(".move_preset_on_drop(", source)
 
+        self.assertNotIn("set_preset_rating(", rating_menu_source)
         self.assertIn("create_preset_storage_action_worker", request_source)
         self.assertIn("storage_api.toggle_preset_pin", worker_source)
+        self.assertIn("storage_api.set_preset_rating", worker_source)
         self.assertIn("storage_api.move_preset_by_step", worker_source)
         self.assertIn("storage_api.move_preset_on_drop", worker_source)
 

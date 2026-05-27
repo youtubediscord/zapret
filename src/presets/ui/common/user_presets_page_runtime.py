@@ -110,6 +110,7 @@ class UserPresetsStorageApi(Protocol):
     def is_builtin_preset_file(self, name: str) -> bool: ...
     def is_builtin_preset_file_with_cache(self, name: str, cached_metadata: dict[str, dict[str, object]] | None) -> bool: ...
     def toggle_preset_pin(self, name: str, *, display_name: str = "") -> bool: ...
+    def set_preset_rating(self, name: str, rating: int, *, display_name: str = "") -> bool: ...
     def move_preset_by_step(self, name: str, direction: int, *, cached_metadata: dict[str, dict[str, object]] | None = None) -> bool: ...
     def move_preset_on_drop(
         self,
@@ -776,6 +777,11 @@ class UserPresetsPageRuntime:
         from presets.folders import toggle_preset_pin
 
         return bool(toggle_preset_pin(self._config.folder_scope, name, display_name=display_name))
+
+    def set_preset_rating(self, name: str, rating: int, *, display_name: str = "") -> bool:
+        from presets.folders import set_preset_rating
+
+        return bool(set_preset_rating(self._config.folder_scope, name, rating, display_name=display_name))
 
     def move_preset_by_step(self, name: str, direction: int, *, cached_metadata: dict[str, dict[str, object]] | None = None) -> bool:
         from folders.defaults import classify_preset_folder

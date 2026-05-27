@@ -58,7 +58,6 @@ from presets.ui.common.user_presets_item_actions_workflow import (
     open_new_configs_post_action,
     open_presets_info_action,
     rename_preset_action,
-    show_rating_menu_action,
 )
 from presets.ui.common.user_presets_page_lifecycle import (
     activate_user_presets_page,
@@ -925,6 +924,7 @@ class UserPresetsPageBase(BasePage):
         action: str,
         name: str = "",
         display_name: str = "",
+        rating: int = 0,
         direction: int = 0,
         cached_metadata=None,
         source_kind: str = "",
@@ -939,6 +939,7 @@ class UserPresetsPageBase(BasePage):
             action=action,
             name=name,
             display_name=display_name,
+            rating=rating,
             direction=direction,
             cached_metadata=cached_metadata,
             source_kind=source_kind,
@@ -955,6 +956,7 @@ class UserPresetsPageBase(BasePage):
         *,
         name: str = "",
         display_name: str = "",
+        rating: int = 0,
         direction: int = 0,
         cached_metadata=None,
         source_kind: str = "",
@@ -977,6 +979,7 @@ class UserPresetsPageBase(BasePage):
             action=str(action or ""),
             name=str(name or ""),
             display_name=str(display_name or ""),
+            rating=int(rating or 0),
             direction=int(direction or 0),
             cached_metadata=cached_metadata,
             source_kind=str(source_kind or ""),
@@ -999,6 +1002,9 @@ class UserPresetsPageBase(BasePage):
             display_name = str(context.get("display_name") or context.get("name") or "")
             log(f"Пресет '{display_name}' {'закреплён' if bool(result) else 'откреплён'}", "INFO")
             self._refresh_presets_view_from_cache()
+        elif action == "rating":
+            if bool(result):
+                self._refresh_presets_view_from_cache()
         elif action == "move_step":
             if bool(result):
                 self._refresh_presets_view_from_cache()
@@ -1133,16 +1139,21 @@ class UserPresetsPageBase(BasePage):
         return bool(current and candidate and current == candidate)
 
     def _show_rating_menu(self, name: str, global_pos: QPoint | None = None):
-        show_rating_menu_action(
-            page=self,
-            name=name,
-            global_pos=global_pos,
-            resolve_display_name_fn=self._resolve_display_name,
+        display_name = self._resolve_display_name(name)
+        rating = show_preset_rating_menu(
+            self,
+            preset_file_name=name,
             folder_scope=self._folder_scope_key(),
-            refresh_callback=lambda: self._refresh_presets_view_from_cache(),
-            tr_fn=self._tr,
-            show_preset_rating_menu_fn=show_preset_rating_menu,
-            tr_prefix=self._config.tr_prefix,
+            clear_label=self._tr(f"{self._config.tr_prefix}.menu.rating_clear", "Сбросить рейтинг"),
+            global_pos=global_pos,
+        )
+        if rating is None:
+            return
+        self._request_preset_storage_action(
+            "rating",
+            name=name,
+            display_name=display_name,
+            rating=int(rating),
         )
 
     def _on_rename_preset(self, name: str):

@@ -34,19 +34,6 @@ def open_edit_preset_menu_action(*, page, name: str, global_pos, is_builtin_pres
         on_preset_list_action_fn(chosen, name)
 
 
-def show_rating_menu_action(*, page, name: str, global_pos, resolve_display_name_fn, folder_scope: str, refresh_callback, tr_fn, show_preset_rating_menu_fn, tr_prefix: str) -> None:
-    display_name = resolve_display_name_fn(name)
-    show_preset_rating_menu_fn(
-        page,
-        preset_file_name=name,
-        display_name=display_name,
-        folder_scope=folder_scope,
-        refresh_callback=refresh_callback,
-        clear_label=tr_fn(_tr_key(tr_prefix, "menu.rating_clear"), "Сбросить рейтинг"),
-        global_pos=global_pos,
-    )
-
-
 def rename_preset_action(*, name: str, is_builtin_preset_file_fn, show_inline_action_rename_fn, info_bar_cls, tr_fn, parent_window) -> None:
     if is_builtin_preset_file_fn(name):
         info_bar_cls.warning(

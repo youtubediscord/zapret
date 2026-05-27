@@ -188,6 +188,7 @@ class UserPresetStorageActionWorker(QThread):
         action: str,
         name: str = "",
         display_name: str = "",
+        rating: int = 0,
         direction: int = 0,
         cached_metadata=None,
         source_kind: str = "",
@@ -203,6 +204,7 @@ class UserPresetStorageActionWorker(QThread):
         self._action = str(action or "").strip()
         self._name = str(name or "").strip()
         self._display_name = str(display_name or self._name).strip()
+        self._rating = int(rating or 0)
         self._direction = int(direction or 0)
         self._cached_metadata = cached_metadata
         self._source_kind = str(source_kind or "").strip()
@@ -215,6 +217,7 @@ class UserPresetStorageActionWorker(QThread):
         context = {
             "name": self._name,
             "display_name": self._display_name,
+            "rating": self._rating,
             "direction": self._direction,
             "source_kind": self._source_kind,
             "source_id": self._source_id,
@@ -227,6 +230,12 @@ class UserPresetStorageActionWorker(QThread):
             if self._action == "pin":
                 result = storage_api.toggle_preset_pin(
                     self._name,
+                    display_name=self._display_name,
+                )
+            elif self._action == "rating":
+                result = storage_api.set_preset_rating(
+                    self._name,
+                    self._rating,
                     display_name=self._display_name,
                 )
             elif self._action == "move_step":
