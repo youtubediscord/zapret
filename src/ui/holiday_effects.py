@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 import random
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRectF, QTimer, Qt, pyqtProperty
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, QRect, QRectF, QTimer, Qt, pyqtProperty
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen, QRadialGradient, QRegion
 from PyQt6.QtWidgets import QWidget
 
 from ui.animation_policy import register_managed_animation, start_managed_animation
@@ -63,7 +63,7 @@ class GarlandOverlay(QWidget):
         self._last_width = 0
 
         self._timer = QTimer(self)
-        self._timer.setInterval(60)
+        self._timer.setInterval(90)
         self._timer.timeout.connect(self._animate)
 
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -417,8 +417,39 @@ class SnowflakesOverlay(QWidget):
     def _animate(self) -> None:
         self.sync_geometry()
         max_height = max(1, self._cached_height, int(self.height()))
-        self._flakes = [flake for flake in self._flakes if flake.step(max_height)]
-        self.update()
+
+        dirty_region = QRegion()
+        visible_flakes: list[_Snowflake] = []
+        for flake in self._flakes:
+            old_x = flake.x
+            old_y = flake.y
+            if flake.step(max_height):
+                visible_flakes.append(flake)
+            dirty_region = dirty_region.united(QRegion(self._snowflake_motion_rect(flake, old_x, old_y)))
+
+        self._flakes = visible_flakes
+        if dirty_region.isEmpty():
+            return
+        self.update(dirty_region)
+
+    def _snowflake_paint_rect(self, flake: _Snowflake) -> QRect:
+        glow_size = flake.size * 1.45
+        return QRectF(
+            flake.x - glow_size,
+            flake.y - glow_size,
+            glow_size * 2.0,
+            glow_size * 2.0,
+        ).toAlignedRect().adjusted(-2, -2, 2, 2)
+
+    def _snowflake_motion_rect(self, flake: _Snowflake, old_x: float, old_y: float) -> QRect:
+        current_x = flake.x
+        current_y = flake.y
+        flake.x = old_x
+        flake.y = old_y
+        old_rect = self._snowflake_paint_rect(flake)
+        flake.x = current_x
+        flake.y = current_y
+        return old_rect.united(self._snowflake_paint_rect(flake))
 
     def paintEvent(self, event) -> None:
         if self._opacity <= 0.0 or not self._flakes:
@@ -427,8 +458,12 @@ class SnowflakesOverlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(Qt.PenStyle.NoPen)
+        dirty_region = event.region()
 
         for flake in self._flakes:
+            if not dirty_region.intersects(self._snowflake_paint_rect(flake)):
+                continue
+
             alpha = int(180 * flake.opacity * self._opacity)
 
             glow_size = flake.size * 1.45
