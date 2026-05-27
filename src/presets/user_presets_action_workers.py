@@ -261,10 +261,85 @@ class UserPresetStorageActionWorker(QThread):
         self.completed.emit(self._request_id, self._action, result, context)
 
 
+class UserPresetFolderActionWorker(QThread):
+    completed = pyqtSignal(int, str, object, object)
+    failed = pyqtSignal(int, str, str, object)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        scope_key: str,
+        action: str,
+        folder_key: str = "",
+        name: str = "",
+        direction: int = 0,
+        collapsed: bool = False,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._scope_key = str(scope_key or "").strip()
+        self._action = str(action or "").strip()
+        self._folder_key = str(folder_key or "").strip()
+        self._name = str(name or "").strip()
+        self._direction = int(direction or 0)
+        self._collapsed = bool(collapsed)
+
+    def run(self) -> None:
+        from presets.folders import (
+            create_preset_folder,
+            delete_preset_folder,
+            load_preset_folder_state,
+            move_preset_folder_by_step,
+            rename_preset_folder,
+            reset_preset_folders,
+            set_preset_folder_collapsed,
+        )
+
+        context = {
+            "scope_key": self._scope_key,
+            "folder_key": self._folder_key,
+            "name": self._name,
+            "direction": self._direction,
+            "collapsed": self._collapsed,
+        }
+        try:
+            if self._action == "create":
+                result = create_preset_folder(self._scope_key, self._name)
+            elif self._action == "rename":
+                result = rename_preset_folder(self._scope_key, self._folder_key, self._name)
+            elif self._action == "delete":
+                result = delete_preset_folder(self._scope_key, self._folder_key)
+            elif self._action in {"move", "move_step"}:
+                result = move_preset_folder_by_step(self._scope_key, self._folder_key, self._direction)
+            elif self._action == "set_collapsed":
+                result = set_preset_folder_collapsed(self._scope_key, self._folder_key, self._collapsed)
+            elif self._action == "toggle_collapsed":
+                state = load_preset_folder_state(self._scope_key)
+                folder = state.get("folders", {}).get(self._folder_key) if isinstance(state, dict) else None
+                if not isinstance(folder, dict) and self._folder_key != "pinned":
+                    result = False
+                else:
+                    collapsed = not bool(folder.get("collapsed", False)) if isinstance(folder, dict) else True
+                    context["collapsed"] = collapsed
+                    result = set_preset_folder_collapsed(self._scope_key, self._folder_key, collapsed)
+            elif self._action == "reset":
+                result = reset_preset_folders(self._scope_key)
+            else:
+                raise ValueError(f"Неизвестное действие папки preset: {self._action}")
+        except Exception as exc:
+            log(f"UserPresetFolderActionWorker: действие {self._action} не выполнено: {exc}", "ERROR")
+            self.failed.emit(self._request_id, self._action, str(exc), context)
+            return
+        self.completed.emit(self._request_id, self._action, result, context)
+
+
 __all__ = [
     "UserPresetActivateWorker",
     "UserPresetBulkActionWorker",
     "UserPresetEditActionWorker",
+    "UserPresetFolderActionWorker",
     "UserPresetItemActionWorker",
     "UserPresetStorageActionWorker",
 ]

@@ -5,11 +5,11 @@ import time
 from PyQt6.QtCore import QTimer
 
 from log.log import log
-from profile.folders import set_profile_folder_collapsed
 from profile.match_filters import filter_values
 from profile.ui.profile_context_menu import ProfileContextMenuActions, show_profile_context_menu
 from profile.ui.profile_folder_menu import show_profile_folder_menu
 from profile.profile_setup_loader import (
+    ProfileFolderActionWorker,
     ProfilePresetProfileActionWorker,
     ProfilePresetProfileMoveWorker,
     ProfileUserProfileCreateWorker,
@@ -73,6 +73,8 @@ class PresetSetupPageBase(BasePage):
         self._profile_context_action_worker = None
         self._profile_move_request_id = 0
         self._profile_move_worker = None
+        self._profile_folder_action_request_id = 0
+        self._profile_folder_action_worker = None
         self._user_profile_create_request_id = 0
         self._user_profile_create_worker = None
         self._user_profile_update_request_id = 0
@@ -855,14 +857,89 @@ class PresetSetupPageBase(BasePage):
             folder_key=folder_key,
             global_pos=global_pos,
             refresh_fn=self.refresh_from_preset_switch,
+            request_folder_action_fn=self._request_profile_folder_action,
             log_fn=log,
         )
 
     def _on_folder_toggled(self, folder_key: str, is_expanded: bool) -> None:
-        try:
-            set_profile_folder_collapsed(folder_key, not bool(is_expanded))
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось запомнить состояние папки profile-ов: {exc}", "ERROR")
+        self._request_profile_folder_action(
+            "set_collapsed",
+            folder_key=folder_key,
+            collapsed=not bool(is_expanded),
+            refresh=False,
+        )
+
+    def _create_profile_folder_action_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        folder_key: str = "",
+        name: str = "",
+        direction: int = 0,
+        collapsed: bool = False,
+    ):
+        return ProfileFolderActionWorker(
+            request_id,
+            action=action,
+            folder_key=folder_key,
+            name=name,
+            direction=direction,
+            collapsed=collapsed,
+            parent=self,
+        )
+
+    def _request_profile_folder_action(
+        self,
+        action: str,
+        *,
+        folder_key: str = "",
+        name: str = "",
+        direction: int = 0,
+        collapsed: bool = False,
+        refresh: bool = True,
+    ) -> None:
+        worker = self.__dict__.get("_profile_folder_action_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._profile_folder_action_request_id = int(getattr(self, "_profile_folder_action_request_id", 0) or 0) + 1
+        request_id = self._profile_folder_action_request_id
+        worker = self._create_profile_folder_action_worker(
+            request_id,
+            action=str(action or ""),
+            folder_key=str(folder_key or ""),
+            name=str(name or ""),
+            direction=int(direction or 0),
+            collapsed=bool(collapsed),
+        )
+        worker._refresh_profile_page_after_action = bool(refresh)
+        self._profile_folder_action_worker = worker
+        worker.completed.connect(self._on_profile_folder_action_finished)
+        worker.failed.connect(self._on_profile_folder_action_failed)
+        worker.finished.connect(lambda w=worker: self._on_profile_folder_action_worker_finished(w))
+        worker.start()
+
+    def _on_profile_folder_action_finished(self, request_id: int, _action: str, result, _context) -> None:
+        if request_id != int(getattr(self, "_profile_folder_action_request_id", 0) or 0):
+            return
+        worker = self.__dict__.get("_profile_folder_action_worker")
+        should_refresh = bool(getattr(worker, "_refresh_profile_page_after_action", True))
+        if bool(result) and should_refresh:
+            self.refresh_from_preset_switch()
+
+    def _on_profile_folder_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if request_id != int(getattr(self, "_profile_folder_action_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось выполнить действие папки profile ({action}): {error}", "ERROR")
+
+    def _on_profile_folder_action_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_profile_folder_action_worker") is worker:
+            self._profile_folder_action_worker = None
+        worker.deleteLater()
 
     def apply_profile_setup_change(self, profile_key: str, change_kind: str) -> None:
         if str(change_kind or "").strip() in {"strategy", "feedback"} and str(profile_key or "").strip():

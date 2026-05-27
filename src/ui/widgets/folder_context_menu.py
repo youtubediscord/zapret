@@ -12,12 +12,7 @@ from ui.presets_menu.common import fluent_icon, make_menu_action
 @dataclass(frozen=True)
 class FolderMenuActions:
     load_state: Callable[[], dict]
-    create_folder: Callable[[str], object]
-    rename_folder: Callable[[str, str], object]
-    delete_folder: Callable[[str], object]
-    move_folder_by_step: Callable[[str, int], object]
-    set_folder_collapsed: Callable[[str, bool], object]
-    reset_folders: Callable[[], object]
+    run_action: Callable[[str, dict], object]
 
 
 @dataclass(frozen=True)
@@ -96,7 +91,9 @@ def show_folder_context_menu(
         collapse_action.triggered.connect(
             lambda: _run_folder_action(
                 parent,
-                lambda: actions.set_folder_collapsed(key, not is_collapsed),
+                actions,
+                "set_collapsed",
+                {"folder_key": key, "collapsed": not is_collapsed},
                 refresh_fn,
                 log_fn,
                 f"не удалось свернуть или развернуть папку {labels.action_error_suffix}",
@@ -141,7 +138,9 @@ def show_folder_context_menu(
         move_up_action.triggered.connect(
             lambda: _run_folder_action(
                 parent,
-                lambda: actions.move_folder_by_step(key, -1),
+                actions,
+                "move_step",
+                {"folder_key": key, "direction": -1},
                 refresh_fn,
                 log_fn,
                 f"не удалось переместить папку {labels.action_error_suffix}",
@@ -150,7 +149,9 @@ def show_folder_context_menu(
         move_down_action.triggered.connect(
             lambda: _run_folder_action(
                 parent,
-                lambda: actions.move_folder_by_step(key, 1),
+                actions,
+                "move_step",
+                {"folder_key": key, "direction": 1},
                 refresh_fn,
                 log_fn,
                 f"не удалось переместить папку {labels.action_error_suffix}",
@@ -177,7 +178,7 @@ def _create_folder(parent, actions: FolderMenuActions, labels: FolderMenuLabels,
     if not dialog.exec():
         return
     name = dialog.nameEdit.text().strip()
-    _run_folder_action(parent, lambda: bool(actions.create_folder(name)), refresh_fn, log_fn, f"не удалось создать папку {labels.action_error_suffix}")
+    _run_folder_action(parent, actions, "create", {"name": name}, refresh_fn, log_fn, f"не удалось создать папку {labels.action_error_suffix}")
 
 
 def _rename_folder(parent, actions: FolderMenuActions, labels: FolderMenuLabels, folder_key: str, current_name: str, refresh_fn: Callable[[], object], log_fn) -> None:
@@ -191,7 +192,7 @@ def _rename_folder(parent, actions: FolderMenuActions, labels: FolderMenuLabels,
     if not dialog.exec():
         return
     name = dialog.nameEdit.text().strip()
-    _run_folder_action(parent, lambda: bool(actions.rename_folder(folder_key, name)), refresh_fn, log_fn, f"не удалось переименовать папку {labels.action_error_suffix}")
+    _run_folder_action(parent, actions, "rename", {"folder_key": folder_key, "name": name}, refresh_fn, log_fn, f"не удалось переименовать папку {labels.action_error_suffix}")
 
 
 def _delete_folder(parent, actions: FolderMenuActions, labels: FolderMenuLabels, folder_key: str, refresh_fn: Callable[[], object], log_fn) -> None:
@@ -204,7 +205,7 @@ def _delete_folder(parent, actions: FolderMenuActions, labels: FolderMenuLabels,
     box.cancelButton.setText("Отмена")
     if not box.exec():
         return
-    _run_folder_action(parent, lambda: bool(actions.delete_folder(folder_key)), refresh_fn, log_fn, f"не удалось удалить папку {labels.action_error_suffix}")
+    _run_folder_action(parent, actions, "delete", {"folder_key": folder_key}, refresh_fn, log_fn, f"не удалось удалить папку {labels.action_error_suffix}")
 
 
 def _reset_folders(parent, actions: FolderMenuActions, labels: FolderMenuLabels, refresh_fn: Callable[[], object], log_fn) -> None:
@@ -217,12 +218,13 @@ def _reset_folders(parent, actions: FolderMenuActions, labels: FolderMenuLabels,
     box.cancelButton.setText("Отмена")
     if not box.exec():
         return
-    _run_folder_action(parent, lambda: bool(actions.reset_folders()), refresh_fn, log_fn, f"не удалось сбросить папки {labels.action_error_suffix}")
+    _run_folder_action(parent, actions, "reset", {}, refresh_fn, log_fn, f"не удалось сбросить папки {labels.action_error_suffix}")
 
 
-def _run_folder_action(parent, action: Callable[[], object], refresh_fn: Callable[[], object], log_fn, error_text: str) -> None:
+def _run_folder_action(parent, actions: FolderMenuActions, action: str, payload: dict, refresh_fn: Callable[[], object], log_fn, error_text: str) -> None:
     try:
-        if action():
+        result = actions.run_action(str(action or ""), dict(payload or {}))
+        if result:
             refresh_fn()
     except Exception as exc:
         if log_fn is not None:

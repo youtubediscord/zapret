@@ -413,6 +413,67 @@ class ProfileUserProfileDeleteWorker(QThread):
         self.deleted.emit(self._request_id, self._profile_id, int(changed or 0))
 
 
+class ProfileFolderActionWorker(QThread):
+    completed = pyqtSignal(int, str, object, object)
+    failed = pyqtSignal(int, str, str, object)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        folder_key: str = "",
+        name: str = "",
+        direction: int = 0,
+        collapsed: bool = False,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._action = str(action or "").strip()
+        self._folder_key = str(folder_key or "").strip()
+        self._name = str(name or "").strip()
+        self._direction = int(direction or 0)
+        self._collapsed = bool(collapsed)
+
+    def run(self) -> None:
+        from profile.folders import (
+            create_profile_folder,
+            delete_profile_folder,
+            move_profile_folder_by_step,
+            rename_profile_folder,
+            reset_profile_folders,
+            set_profile_folder_collapsed,
+        )
+
+        context = {
+            "folder_key": self._folder_key,
+            "name": self._name,
+            "direction": self._direction,
+            "collapsed": self._collapsed,
+        }
+        try:
+            if self._action == "create":
+                result = create_profile_folder(self._name)
+            elif self._action == "rename":
+                result = rename_profile_folder(self._folder_key, self._name)
+            elif self._action == "delete":
+                result = delete_profile_folder(self._folder_key)
+            elif self._action == "move_step":
+                result = move_profile_folder_by_step(self._folder_key, self._direction)
+            elif self._action == "set_collapsed":
+                result = set_profile_folder_collapsed(self._folder_key, self._collapsed)
+            elif self._action == "reset":
+                result = reset_profile_folders()
+            else:
+                raise ValueError(f"Неизвестное действие папки profile: {self._action}")
+        except Exception as exc:
+            log(f"ProfileFolderActionWorker: не удалось выполнить действие папки profile: {exc}", "ERROR")
+            self.failed.emit(self._request_id, self._action, str(exc), context)
+            return
+        self.completed.emit(self._request_id, self._action, result, context)
+
+
 class ProfileStrategyApplyWorker(QThread):
     applied = pyqtSignal(int, str, str, str)
     failed = pyqtSignal(int, str)

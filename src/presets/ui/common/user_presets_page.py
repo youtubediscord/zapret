@@ -27,6 +27,7 @@ from presets.user_presets_action_workers import (
     UserPresetActivateWorker,
     UserPresetBulkActionWorker,
     UserPresetEditActionWorker,
+    UserPresetFolderActionWorker,
     UserPresetItemActionWorker,
     UserPresetStorageActionWorker,
 )
@@ -171,6 +172,8 @@ class UserPresetsPageBase(BasePage):
         self._preset_edit_action_request_id = 0
         self._preset_storage_action_worker = None
         self._preset_storage_action_request_id = 0
+        self._preset_folder_action_worker = None
+        self._preset_folder_action_request_id = 0
         self._build_ui()
         self._after_ui_built()
         self.bind_ui_state_store(ui_state_store)
@@ -844,21 +847,7 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _on_toggle_folder(self, folder_key: str) -> None:
-        try:
-            from presets.folders import load_preset_folder_state, set_preset_folder_collapsed
-
-            state = load_preset_folder_state(self._folder_scope_key())
-            folder = state.get("folders", {}).get(str(folder_key or "").strip())
-            if not isinstance(folder, dict) and str(folder_key or "").strip() != "pinned":
-                return
-            set_preset_folder_collapsed(
-                self._folder_scope_key(),
-                folder_key,
-                not bool(folder.get("collapsed", False)) if isinstance(folder, dict) else True,
-            )
-            self._refresh_presets_view_from_cache()
-        except Exception as exc:
-            log(f"{self.__class__.__name__}: не удалось свернуть папку preset-ов: {exc}", "ERROR")
+        self._request_preset_folder_action("toggle_collapsed", folder_key=folder_key)
 
     def _open_preset_subpage(self, name: str):
         self._open_preset_raw_editor_callback(name)
@@ -879,8 +868,78 @@ class UserPresetsPageBase(BasePage):
             folder_key=folder_key,
             global_pos=global_pos,
             refresh_fn=self._refresh_presets_view_from_cache,
+            request_folder_action_fn=self._request_preset_folder_action,
             log_fn=log,
         )
+
+    def create_preset_folder_action_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        folder_key: str = "",
+        name: str = "",
+        direction: int = 0,
+        collapsed: bool = False,
+    ):
+        return UserPresetFolderActionWorker(
+            request_id,
+            scope_key=self._folder_scope_key(),
+            action=action,
+            folder_key=folder_key,
+            name=name,
+            direction=direction,
+            collapsed=collapsed,
+            parent=self,
+        )
+
+    def _request_preset_folder_action(
+        self,
+        action: str,
+        *,
+        folder_key: str = "",
+        name: str = "",
+        direction: int = 0,
+        collapsed: bool = False,
+    ) -> None:
+        worker = self.__dict__.get("_preset_folder_action_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._preset_folder_action_request_id = int(getattr(self, "_preset_folder_action_request_id", 0) or 0) + 1
+        request_id = self._preset_folder_action_request_id
+        worker = self.create_preset_folder_action_worker(
+            request_id,
+            action=str(action or ""),
+            folder_key=str(folder_key or ""),
+            name=str(name or ""),
+            direction=int(direction or 0),
+            collapsed=bool(collapsed),
+        )
+        self._preset_folder_action_worker = worker
+        worker.completed.connect(self._on_preset_folder_action_finished)
+        worker.failed.connect(self._on_preset_folder_action_failed)
+        worker.finished.connect(lambda w=worker: self._on_preset_folder_action_worker_finished(w))
+        worker.start()
+
+    def _on_preset_folder_action_finished(self, request_id: int, _action: str, result, _context) -> None:
+        if request_id != int(getattr(self, "_preset_folder_action_request_id", 0) or 0):
+            return
+        if bool(result):
+            self._refresh_presets_view_from_cache()
+
+    def _on_preset_folder_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if request_id != int(getattr(self, "_preset_folder_action_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось выполнить действие папки preset ({action}): {error}", "ERROR")
+
+    def _on_preset_folder_action_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_preset_folder_action_worker") is worker:
+            self._preset_folder_action_worker = None
+        worker.deleteLater()
 
     def _on_toggle_pin_preset(self, name: str):
         self._request_preset_storage_action(

@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 from profile import commands as profile_commands
 import profile.additional_settings_loader as profile_additional_settings_loader
+import profile.profile_setup_loader as profile_setup_loader
 from profile.profile_list_loader import ProfileListLoadWorker
 from profile.service import ProfilePresetService
 from profile.ui.profile_setup_page import ProfileSetupPageBase
@@ -21,6 +22,7 @@ from presets.user_presets_action_workers import UserPresetActivateWorker, UserPr
 import presets.user_presets_action_workers as user_presets_action_workers
 import presets.ui.control.additional_settings_runtime as control_additional_settings_runtime
 import presets.ui.control.control_page_shared as control_page_shared
+import presets.ui.common.preset_folder_menu as preset_folder_menu
 import presets.ui.common.preset_rating_menu as preset_rating_menu
 import presets.ui.control.zapret1.runtime_helpers as zapret1_runtime_helpers
 from presets.ui.control.zapret1.page import Zapret1ModeControlPage
@@ -259,6 +261,77 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("storage_api.set_preset_rating", worker_source)
         self.assertIn("storage_api.move_preset_by_step", worker_source)
         self.assertIn("storage_api.move_preset_on_drop", worker_source)
+
+    def test_user_presets_folder_actions_run_through_worker(self) -> None:
+        toggle_source = inspect.getsource(UserPresetsPageBase._on_toggle_folder)
+        menu_source = inspect.getsource(UserPresetsPageBase._show_folder_menu)
+        folder_menu_source = inspect.getsource(preset_folder_menu.show_preset_folder_menu)
+
+        self.assertTrue(hasattr(user_presets_action_workers, "UserPresetFolderActionWorker"))
+        worker_source = inspect.getsource(user_presets_action_workers.UserPresetFolderActionWorker.run)
+        request_source = inspect.getsource(UserPresetsPageBase._request_preset_folder_action)
+
+        for source in (toggle_source, menu_source):
+            self.assertIn("_request_preset_folder_action", source)
+            self.assertNotIn("set_preset_folder_collapsed(", source)
+            self.assertNotIn("create_preset_folder(", source)
+            self.assertNotIn("rename_preset_folder(", source)
+            self.assertNotIn("delete_preset_folder(", source)
+            self.assertNotIn("reset_preset_folders(", source)
+
+        for forbidden in (
+            "create_preset_folder(",
+            "rename_preset_folder(",
+            "delete_preset_folder(",
+            "move_preset_folder_by_step(",
+            "set_preset_folder_collapsed(",
+            "reset_preset_folders(",
+        ):
+            self.assertNotIn(forbidden, folder_menu_source)
+
+        self.assertIn("create_preset_folder", worker_source)
+        self.assertIn("rename_preset_folder", worker_source)
+        self.assertIn("delete_preset_folder", worker_source)
+        self.assertIn("move_preset_folder_by_step", worker_source)
+        self.assertIn("set_preset_folder_collapsed", worker_source)
+        self.assertIn("reset_preset_folders", worker_source)
+        self.assertIn("create_preset_folder_action_worker", request_source)
+
+    def test_profile_folder_actions_run_through_worker(self) -> None:
+        toggle_source = inspect.getsource(PresetSetupPageBase._on_folder_toggled)
+        menu_source = inspect.getsource(PresetSetupPageBase._on_folder_context_requested)
+        folder_menu_source = inspect.getsource(__import__("profile.ui.profile_folder_menu", fromlist=["show_profile_folder_menu"]).show_profile_folder_menu)
+
+        self.assertTrue(hasattr(profile_setup_loader, "ProfileFolderActionWorker"))
+        worker_source = inspect.getsource(profile_setup_loader.ProfileFolderActionWorker.run)
+        request_source = inspect.getsource(PresetSetupPageBase._request_profile_folder_action)
+
+        for source in (toggle_source, menu_source):
+            self.assertIn("_request_profile_folder_action", source)
+            self.assertNotIn("set_profile_folder_collapsed(", source)
+            self.assertNotIn("create_profile_folder(", source)
+            self.assertNotIn("rename_profile_folder(", source)
+            self.assertNotIn("delete_profile_folder(", source)
+            self.assertNotIn("reset_profile_folders(", source)
+
+        for forbidden in (
+            "create_profile_folder(",
+            "rename_profile_folder(",
+            "delete_profile_folder(",
+            "move_profile_folder_by_step(",
+            "set_profile_folder_collapsed(",
+            "reset_profile_folders(",
+        ):
+            self.assertNotIn(forbidden, folder_menu_source)
+
+        self.assertIn("create_profile_folder", worker_source)
+        self.assertIn("rename_profile_folder", worker_source)
+        self.assertIn("delete_profile_folder", worker_source)
+        self.assertIn("move_profile_folder_by_step", worker_source)
+        self.assertIn("set_profile_folder_collapsed", worker_source)
+        self.assertIn("reset_profile_folders", worker_source)
+        self.assertIn("_create_profile_folder_action_worker", request_source)
+        self.assertIn("ProfileFolderActionWorker", inspect.getsource(PresetSetupPageBase._create_profile_folder_action_worker))
 
     def test_profile_commands_reuse_service_cache(self) -> None:
         source = inspect.getsource(profile_commands._profile_preset_service)

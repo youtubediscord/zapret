@@ -2,15 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from profile.folders import (
-    create_profile_folder,
-    delete_profile_folder,
-    load_profile_folder_state,
-    move_profile_folder_by_step,
-    rename_profile_folder,
-    reset_profile_folders,
-    set_profile_folder_collapsed,
-)
+from profile.folders import load_profile_folder_state
 from ui.widgets.folder_context_menu import FolderMenuActions, FolderMenuLabels, show_folder_context_menu
 
 
@@ -20,20 +12,20 @@ def show_profile_folder_menu(
     folder_key: str,
     global_pos,
     refresh_fn: Callable[[], object],
+    request_folder_action_fn: Callable[..., object],
     log_fn: Callable[[str, str], object] | None = None,
 ) -> None:
+    def request_action(action: str, payload: dict) -> bool:
+        request_folder_action_fn(action, **dict(payload or {}))
+        return False
+
     show_folder_context_menu(
         parent=parent,
         folder_key=folder_key,
         global_pos=global_pos,
         actions=FolderMenuActions(
             load_state=load_profile_folder_state,
-            create_folder=create_profile_folder,
-            rename_folder=rename_profile_folder,
-            delete_folder=delete_profile_folder,
-            move_folder_by_step=move_profile_folder_by_step,
-            set_folder_collapsed=set_profile_folder_collapsed,
-            reset_folders=reset_profile_folders,
+            run_action=request_action,
         ),
         labels=FolderMenuLabels(
             reset_title="Сбросить папки profile-ов",
