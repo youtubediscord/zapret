@@ -369,9 +369,14 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             artifact = runner._compile_preset_artifact(str(preset_path))
 
             self.assertTrue(artifact.validation_ok, artifact.validation_report)
-            self.assertEqual(artifact.launch_args, (f"@{preset_path}",))
+            self.assertEqual(len(artifact.launch_args), 1)
+            self.assertTrue(artifact.launch_args[0].startswith("@"))
+            at_config_path = Path(artifact.launch_args[0][1:])
+            self.assertTrue(at_config_path.exists())
+            self.assertEqual(at_config_path.parent, root / "tmp" / "winws2_at_config")
+            self.assertIn("--hostlist=lists/tankix.txt", at_config_path.read_text(encoding="utf-8"))
 
-    def test_winws2_compile_launches_source_preset_with_at_config_file(self) -> None:
+    def test_winws2_compile_launches_safe_at_config_file(self) -> None:
         from threading import RLock
 
         from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
@@ -385,7 +390,10 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             preset_path.write_text(
                 "\n".join(
                     (
+                        "# Preset: selected with spaces",
                         "--wf-tcp-out=443",
+                        "--new",
+                        "--name=youtube.com (QUIC)",
                         "--filter-tcp=443",
                         "--hostlist=lists/tankix.txt",
                         "--lua-desync=fake:blob=tls_google",
@@ -405,7 +413,18 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             artifact = runner._compile_preset_artifact(str(preset_path))
 
             self.assertTrue(artifact.validation_ok, artifact.validation_report)
-            self.assertEqual(artifact.launch_args, (f"@{preset_path}",))
+            self.assertEqual(len(artifact.launch_args), 1)
+            self.assertTrue(artifact.launch_args[0].startswith("@"))
+            at_config_path = Path(artifact.launch_args[0][1:])
+            self.assertTrue(at_config_path.exists())
+            at_config_text = at_config_path.read_text(encoding="utf-8")
+            self.assertNotIn("# Preset:", at_config_text)
+            self.assertIn("'--name=youtube.com (QUIC)'", at_config_text)
+            self.assertIn("--hostlist=lists/tankix.txt", at_config_text)
+
+            at_config_path.unlink()
+            rebuilt = runner._compile_preset_artifact(str(preset_path))
+            self.assertTrue(Path(rebuilt.launch_args[0][1:]).exists())
 
     def test_winws2_compile_resolves_windivert_filter_paths_without_duplicate_folder(self) -> None:
         from threading import RLock
@@ -444,8 +463,22 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             artifact = runner._compile_preset_artifact(str(preset_path))
 
             self.assertTrue(artifact.validation_ok, artifact.validation_report)
-            self.assertEqual(artifact.launch_args, (f"@{preset_path}",))
+            self.assertEqual(len(artifact.launch_args), 1)
+            self.assertTrue(artifact.launch_args[0].startswith("@"))
             self.assertNotIn("windivert.filter/windivert.filter", "/".join(artifact.launch_args))
+
+    def test_runner_reads_stdout_when_winws_exits_immediately(self) -> None:
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        class FakeProcess:
+            def communicate(self, timeout=None):
+                return b"winws stdout diagnostic\n", b""
+
+        runner = object.__new__(Winws2StrategyRunner)
+
+        output = runner._read_process_startup_output(FakeProcess())
+
+        self.assertEqual(output, "winws stdout diagnostic")
 
     def test_winws1_compile_resolves_bare_list_paths_for_launch(self) -> None:
         from threading import RLock

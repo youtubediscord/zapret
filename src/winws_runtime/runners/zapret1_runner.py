@@ -253,13 +253,9 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
             exit_code = self.running_process.returncode
             failure_log_level = "ERROR" if notify_failure else "WARNING"
-            stderr_output = ""
-            try:
-                stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
-                if stderr_output:
-                    log(f"Error: {stderr_output[:500]}", failure_log_level)
-            except Exception:
-                stderr_output = ""
+            stderr_output = self._read_process_startup_output(self.running_process)
+            if stderr_output:
+                log(f"Error: {stderr_output[:500]}", failure_log_level)
 
             self._last_spawn_exit_code = int(exit_code)
             self._last_spawn_stderr = str(stderr_output or "")

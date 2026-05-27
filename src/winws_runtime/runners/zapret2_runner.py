@@ -6,8 +6,10 @@ Preset changes are applied by the runtime preset coordinator. The runner only
 starts, stops, and switches to the concrete preset file it is given.
 """
 
+import hashlib
 import os
 import re
+import shlex
 import subprocess
 import time
 import threading
@@ -22,6 +24,7 @@ from .preset_runner_support import (
     PresetRunnerState,
     PresetRunnerStateMachine,
     is_process_alive_with_expected_name,
+    launch_args_from_preset_text,
     preset_cache_key,
     remember_cache_entry,
     wait_for_process_exit,
@@ -335,6 +338,46 @@ class Winws2StrategyRunner(StrategyRunnerBase):
         )
         return prepared.text
 
+    def _build_winws2_at_config_text(self, prepared_text: str) -> str:
+        args = launch_args_from_preset_text(prepared_text)
+        if not args:
+            return ""
+        return "\n".join(shlex.quote(arg) for arg in args) + "\n"
+
+    def _winws2_at_config_dir(self) -> str:
+        return os.path.join(str(self.work_dir or ""), "tmp", "winws2_at_config")
+
+    def _write_winws2_at_config(self, preset_path: str, prepared_text: str) -> str:
+        config_text = self._build_winws2_at_config_text(prepared_text)
+        digest_source = f"{os.path.abspath(str(preset_path or ''))}\0{config_text}".encode("utf-8", "surrogatepass")
+        digest = hashlib.sha1(digest_source).hexdigest()[:20]
+        config_dir = self._winws2_at_config_dir()
+        os.makedirs(config_dir, exist_ok=True)
+        config_path = os.path.join(config_dir, f"winws2_at_{digest}.txt")
+
+        try:
+            with open(config_path, "r", encoding="utf-8", errors="replace") as f:
+                if f.read() == config_text:
+                    return config_path
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+
+        with open(config_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(config_text)
+        return config_path
+
+    @staticmethod
+    def _launch_args_files_exist(launch_args: tuple[str, ...]) -> bool:
+        if not launch_args:
+            return False
+        for arg in launch_args:
+            value = str(arg or "")
+            if value.startswith("@") and len(value) > 1 and not os.path.exists(value[1:]):
+                return False
+        return True
+
     def _compile_preset_artifact(self, preset_path: str) -> PreparedPresetArtifact:
         p = str(preset_path or "").strip()
         if not p:
@@ -347,7 +390,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             if cache_key is not None:
                 with self._state_lock:
                     cached = self._prepared_preset_cache.get(cache_key)
-                if cached is not None:
+                if cached is not None and self._launch_args_files_exist(cached.launch_args):
                     return cached
 
             try:
@@ -361,6 +404,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 missing = self._collect_missing_preset_references_from_text(normalized_text)
                 validation_ok = not missing
                 validation_report = "" if validation_ok else self._build_validation_report(missing)
+                at_config_path = self._write_winws2_at_config(p, normalized_text)
             except Exception as e:
                 return PreparedPresetArtifact(
                     preset_path=p,
@@ -374,7 +418,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 preset_path=p,
                 cache_key=cache_key,
                 normalized_text=normalized_text,
-                launch_args=(f"@{p}",),
+                launch_args=(f"@{at_config_path}",),
                 validation_ok=validation_ok,
                 validation_report=validation_report,
             )
@@ -558,13 +602,9 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             else:
                 log(f"Strategy '{strategy_name}' exited immediately (code: {exit_code})", failure_log_level)
 
-            stderr_output = ""
-            try:
-                stderr_output = self.running_process.stderr.read().decode('utf-8', errors='ignore')
-                if stderr_output:
-                    log(f"Error: {stderr_output[:500]}", failure_log_level)
-            except Exception:
-                stderr_output = ""
+            stderr_output = self._read_process_startup_output(self.running_process)
+            if stderr_output:
+                log(f"Error: {stderr_output[:500]}", failure_log_level)
 
             self._last_spawn_exit_code = int(exit_code)
             self._last_spawn_stderr = str(stderr_output or "")
