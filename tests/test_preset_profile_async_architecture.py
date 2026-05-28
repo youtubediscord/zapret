@@ -1502,6 +1502,12 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._switch_tab(0)", init_source)
         self.assertIn("self._switch_tab(0)", show_source)
 
+    def test_orchestra_settings_language_uses_warmed_cache_not_settings_read(self) -> None:
+        source = inspect.getsource(OrchestraSettingsPage._resolve_ui_language)
+
+        self.assertIn("peek_warmed_ui_language", source)
+        self.assertNotIn("load_ui_language", source)
+
     def test_orchestra_heavy_tabs_load_state_through_workers(self) -> None:
         locked_reload_source = inspect.getsource(OrchestraLockedPage._reload_from_settings)
         blocked_reload_source = inspect.getsource(OrchestraBlockedPage._reload_from_settings)
