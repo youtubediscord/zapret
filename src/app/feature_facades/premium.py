@@ -83,6 +83,11 @@ class PremiumFeature:
     def open_extend_bot(self):
         return self._commands().open_extend_bot()
 
+    def create_open_extend_bot_worker(self, request_id: int, *, parent=None):
+        from donater.open_bot_worker import PremiumOpenBotWorker
+
+        return PremiumOpenBotWorker(request_id, premium_feature=self, parent=parent)
+
     def create_premium_worker_thread(self, task):
         return self._commands().create_premium_worker_thread(task)
 

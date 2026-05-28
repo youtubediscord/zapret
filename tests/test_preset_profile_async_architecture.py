@@ -1009,6 +1009,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("worker", calls)
         self.assertNotIn("init_checker", inspect.getsource(premium_page_lifecycle.run_premium_runtime_init_once))
 
+    def test_premium_open_bot_runs_through_worker(self) -> None:
+        spec = importlib.util.find_spec("donater.open_bot_worker")
+        self.assertIsNotNone(spec)
+        open_bot_worker = importlib.import_module("donater.open_bot_worker")
+
+        page_source = inspect.getsource(PremiumPage)
+        handler_source = inspect.getsource(PremiumPage._open_extend_bot)
+        feature_source = inspect.getsource(__import__("app.feature_facades.premium", fromlist=["PremiumFeature"]).PremiumFeature)
+
+        self.assertTrue(hasattr(open_bot_worker, "PremiumOpenBotWorker"))
+        worker_source = inspect.getsource(open_bot_worker.PremiumOpenBotWorker.run)
+
+        self.assertIn("_request_open_extend_bot", handler_source)
+        self.assertNotIn(".open_extend_bot(", handler_source)
+        self.assertIn("create_open_extend_bot_worker", page_source)
+        self.assertIn("_open_bot_runtime", page_source)
+        self.assertIn("create_open_extend_bot_worker", feature_source)
+        self.assertIn("open_extend_bot", worker_source)
+
     def test_page_language_is_not_reapplied_on_every_repeat_navigation(self) -> None:
         class _Page:
             def __init__(self) -> None:

@@ -33,6 +33,7 @@ from donater.premium_page_tasks import (
     is_premium_task_running,
     start_premium_worker_task,
 )
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from donater.ui.page_lifecycle import (
     activate_premium_page,
     apply_premium_language,
@@ -112,6 +113,8 @@ class PremiumPage(BasePage):
             "has_device_token": False,
             "has_pending_pair_code": False,
         }
+        self._open_bot_runtime = OneShotWorkerRuntime()
+        self._open_bot_pending = False
 
         self._build_ui()
         self.bind_subscription_state_store(deps.subscription_state_store)
@@ -325,6 +328,10 @@ class PremiumPage(BasePage):
             stop_pairing_status_autopoll_fn=self._stop_pairing_status_autopoll,
             current_thread=self.current_thread,
             set_current_thread_fn=lambda value: setattr(self, "current_thread", value),
+        )
+        self._open_bot_runtime.stop(
+            blocking=True,
+            warning_prefix="Premium open bot worker",
         )
 
     # ── initialization ───────────────────────────────────────────────────────
@@ -544,16 +551,48 @@ class PremiumPage(BasePage):
             self._set_pairing_autopoll_snapshot_from_device_info(snapshot)
 
     def _open_extend_bot(self) -> None:
-        result = self._premium.open_extend_bot()
+        self._request_open_extend_bot()
+
+    def create_open_extend_bot_worker(self, request_id: int):
+        return self._premium.create_open_extend_bot_worker(request_id, parent=self)
+
+    def _request_open_extend_bot(self) -> None:
+        if self._open_bot_runtime.is_running():
+            self._open_bot_pending = True
+            return
+        self._open_bot_pending = False
+        self._open_bot_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_open_extend_bot_worker(request_id),
+            on_loaded=self._on_open_extend_bot_finished,
+            on_failed=self._on_open_extend_bot_failed,
+            on_finished=self._on_open_extend_bot_worker_finished,
+        )
+
+    def _on_open_extend_bot_finished(self, request_id: int, result) -> None:
+        if not self._open_bot_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
         if result.ok:
             return
+        self._show_open_extend_bot_error(str(getattr(result, "message", "") or ""))
+
+    def _on_open_extend_bot_failed(self, request_id: int, error: str) -> None:
+        if not self._open_bot_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        self._show_open_extend_bot_error(str(error))
+
+    def _on_open_extend_bot_worker_finished(self, _worker) -> None:
+        if self._open_bot_pending and not self._cleanup_in_progress:
+            self._open_bot_pending = False
+            self._request_open_extend_bot()
+
+    def _show_open_extend_bot_error(self, error: str) -> None:
         if InfoBar:
             InfoBar.warning(
                 title=self._tr("common.error.title", "Ошибка"),
                 content=self._tr(
                     "page.premium.error.open_telegram",
                     "Не удалось открыть Telegram: {error}",
-                    error=result.message,
+                    error=error,
                 ),
                 parent=self.window(),
             )
