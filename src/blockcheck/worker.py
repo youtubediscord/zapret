@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class BlockcheckWorker(QObject):
     """Worker that emits Qt signals from a background daemon thread."""
 
+    run_log_started = pyqtSignal(object)
     test_result = pyqtSignal(object)
     target_complete = pyqtSignal(object)
     phase_changed = pyqtSignal(str)
@@ -28,6 +29,7 @@ class BlockcheckWorker(QObject):
         self._runner = None
         self._cancelled = False
         self._bg_thread: threading.Thread | None = None
+        self._run_log_file = None
 
     def start(self):
         self._cancelled = False
@@ -38,7 +40,15 @@ class BlockcheckWorker(QObject):
 
     def _run_in_thread(self):
         try:
+            from blockcheck.page_runtime import start_run_log
             from blockcheck.runner import BlockcheckRunner
+
+            log_state = start_run_log(self._mode, list(self._extra_domains or []))
+            self._run_log_file = log_state.path
+            self.run_log_started.emit(log_state.path)
+            if not log_state.created:
+                logger.warning("Failed to create blockcheck run log")
+
             self._runner = BlockcheckRunner(
                 mode=self._mode,
                 callback=self,
@@ -46,9 +56,13 @@ class BlockcheckWorker(QObject):
                 skip_preflight_failed=self._skip_preflight_failed,
             )
             report = self._runner.run()
+            if report is not None and not getattr(report, "cancelled", False):
+                elapsed = getattr(report, "elapsed_seconds", 0.0)
+                self._append_run_log(f"\nCompleted in {elapsed:.1f}s")
             self.finished.emit(report)
         except Exception as e:
             logger.exception("BlockcheckWorker crashed")
+            self._append_run_log(f"ERROR: {e}")
             self.log_message.emit(f"ERROR: {e}")
             self.finished.emit(None)
 
@@ -74,10 +88,20 @@ class BlockcheckWorker(QObject):
         _ = (current, total, message)
 
     def on_phase_change(self, phase):
+        self._append_run_log(f"[PHASE] {phase}")
         self.phase_changed.emit(phase)
 
     def on_log(self, message):
+        self._append_run_log(message)
         self.log_message.emit(message)
 
     def is_cancelled(self):
         return self._cancelled
+
+    def _append_run_log(self, message: str) -> None:
+        try:
+            from blockcheck.page_runtime import append_run_log
+
+            append_run_log(self._run_log_file, message)
+        except Exception:
+            pass

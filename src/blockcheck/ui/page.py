@@ -549,17 +549,6 @@ class BlockcheckPage(BasePage):
     # Start / Stop
     # ------------------------------------------------------------------
 
-    def _start_run_log(self, mode: str, extra_domains: list[str]) -> None:
-        """Create a dedicated history log for current blockcheck run."""
-        state = blockcheck_page_runtime.start_run_log(mode, extra_domains)
-        self._run_log_file = state.path
-        if not state.created:
-            logger.warning("Failed to create blockcheck run log")
-
-    def _append_run_log(self, message: str) -> None:
-        """Append line(s) to current blockcheck run log."""
-        blockcheck_page_runtime.append_run_log(self._run_log_file, message)
-
     def _on_start(self):
         if self._worker and self._worker.is_running:
             return
@@ -595,11 +584,16 @@ class BlockcheckPage(BasePage):
             on_test_result=self._on_test_result,
             on_target_complete=self._on_target_complete,
             on_log=self._on_log,
+            on_run_log_started=self._on_run_log_started,
             on_finished=self._on_finished,
-            logger_warning=logger.warning,
         )
         self._worker = run_state.worker
         self._run_log_file = run_state.run_log_file
+
+    def _on_run_log_started(self, run_log_file) -> None:
+        if self._cleanup_in_progress:
+            return
+        self._run_log_file = run_log_file
 
     def _on_stop(self):
         request_blockcheck_stop(
@@ -619,7 +613,6 @@ class BlockcheckPage(BasePage):
                 default="Остановка занимает больше времени, ждём завершения фоновой проверки...",
             )
             self._status_label.setText(warning_text)
-            self._append_run_log(f"WARNING: {warning_text}")
             self._set_support_status(
                 tr_catalog(
                     "page.blockcheck.support_wait_stop",
@@ -635,7 +628,6 @@ class BlockcheckPage(BasePage):
         if self._cleanup_in_progress:
             return
         self._status_label.setText(phase)
-        self._append_run_log(f"[PHASE] {phase}")
 
     def _on_test_result(self, result):
         """Update table with individual test result."""
@@ -658,7 +650,6 @@ class BlockcheckPage(BasePage):
         if self._cleanup_in_progress:
             return
         self._log_edit.append(message)
-        self._append_run_log(message)
 
         text = str(message or "").strip()
         if text.startswith("WARNING:"):
@@ -690,7 +681,6 @@ class BlockcheckPage(BasePage):
         was_cancelled = bool(report is not None and getattr(report, "cancelled", False))
 
         if report is None:
-            self._append_run_log("ERROR: Blockcheck execution failed")
             self._status_label.setText(
                 tr_catalog("page.blockcheck.error", default="Ошибка выполнения")
             )
@@ -714,7 +704,6 @@ class BlockcheckPage(BasePage):
                 )
             )
         else:
-            self._append_run_log(f"\nCompleted in {elapsed:.1f}s")
             self._status_label.setText(
                 tr_catalog("page.blockcheck.done", default="Готово") + f" ({elapsed:.1f}s)"
             )

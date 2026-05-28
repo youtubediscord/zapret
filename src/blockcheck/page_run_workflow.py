@@ -5,8 +5,6 @@ from collections.abc import Callable
 
 from PyQt6.QtCore import QTimer
 
-import blockcheck.page_runtime as blockcheck_page_runtime
-
 
 @dataclass(frozen=True)
 class BlockcheckRunStartResult:
@@ -39,8 +37,8 @@ def start_blockcheck_page_run(
     on_test_result,
     on_target_complete,
     on_log,
+    on_run_log_started,
     on_finished,
-    logger_warning: Callable[[str], None],
 ) -> BlockcheckRunStartResult:
     """Готовит экран и запускает фоновую проверку BlockCheck."""
     table.setRowCount(0)
@@ -65,10 +63,6 @@ def start_blockcheck_page_run(
         tr_fn("page.blockcheck.running", default="Запуск тестов...")
     )
 
-    log_state = blockcheck_page_runtime.start_run_log(mode, extra_domains)
-    if not log_state.created:
-        logger_warning("Failed to create blockcheck run log")
-
     worker = blockcheck_feature.create_blockcheck_worker(
         mode=mode,
         extra_domains=extra_domains or None,
@@ -79,12 +73,13 @@ def start_blockcheck_page_run(
     worker.test_result.connect(on_test_result)
     worker.target_complete.connect(on_target_complete)
     worker.log_message.connect(on_log)
+    worker.run_log_started.connect(on_run_log_started)
     worker.finished.connect(on_finished)
     worker.start()
 
     return BlockcheckRunStartResult(
         worker=worker,
-        run_log_file=log_state.path,
+        run_log_file=None,
     )
 
 

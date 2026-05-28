@@ -42,6 +42,8 @@ import log.commands as log_commands
 from log.ui.page import LogsPage
 from blobs.ui.page import BlobsPage
 import blockcheck.page_runtime as blockcheck_page_runtime
+import blockcheck.page_run_workflow as blockcheck_page_run_workflow
+import blockcheck.worker as blockcheck_worker
 from blockcheck.ui.page import BlockcheckPage
 from blockcheck.ui.strategy_scan_page import StrategyScanPage
 import blockcheck.ui.helpers as blockcheck_ui_helpers
@@ -995,6 +997,18 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertEqual(read_settings.call_count, 1)
         self.assertEqual(plan.user_domains, ("example.com", "discord.com"))
+
+    def test_blockcheck_run_log_writes_are_owned_by_worker(self) -> None:
+        start_source = inspect.getsource(blockcheck_page_run_workflow.start_blockcheck_page_run)
+        page_source = inspect.getsource(BlockcheckPage)
+        worker_source = inspect.getsource(blockcheck_worker.BlockcheckWorker)
+
+        self.assertNotIn("blockcheck_page_runtime.start_run_log", start_source)
+        self.assertNotIn("blockcheck_page_runtime.append_run_log", page_source)
+        self.assertNotIn("_append_run_log", page_source)
+        self.assertIn("run_log_started", worker_source)
+        self.assertIn("start_run_log", worker_source)
+        self.assertIn("append_run_log", worker_source)
 
     def test_strategy_scan_apply_runs_through_worker(self) -> None:
         spec = importlib.util.find_spec("blockcheck.strategy_apply_worker")
