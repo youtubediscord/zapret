@@ -30,10 +30,10 @@ class PresetListModel(QAbstractListModel):
         self._preset_row_by_file_name: dict[str, int] = {}
         self._active_preset_file_names: set[str] = set()
 
-    def set_rows(self, rows: list[dict[str, object]]) -> None:
+    def set_rows(self, rows: list[dict[str, object]]) -> bool:
         next_rows = list(rows)
         if self._rows == next_rows:
-            return
+            return False
 
         if _same_stable_rows(self._rows, next_rows):
             changed_rows = [
@@ -47,12 +47,13 @@ class PresetListModel(QAbstractListModel):
             for row_index in changed_rows:
                 model_index = self.index(row_index, 0)
                 self.dataChanged.emit(model_index, model_index, roles)
-            return
+            return True
 
         self.beginResetModel()
         self._rows = next_rows
         self._rebuild_row_index()
         self.endResetModel()
+        return True
 
     def _rebuild_row_index(self) -> None:
         self._preset_row_by_file_name = {}

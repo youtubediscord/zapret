@@ -412,6 +412,21 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(model.rowCount(), 2)
         self.assertEqual(model.find_preset_row("first.txt"), 1)
 
+    def test_preset_model_reports_whether_set_rows_changed_model(self) -> None:
+        rows = [
+            {
+                "kind": "preset",
+                "file_name": "first.txt",
+                "name": "First",
+                "folder_key": "common",
+            },
+        ]
+        model = PresetListModel()
+
+        self.assertTrue(model.set_rows(rows))
+        self.assertFalse(model.set_rows([dict(row) for row in rows]))
+        self.assertTrue(model.set_rows([{**rows[0], "name": "First updated"}]))
+
     def test_preset_model_updates_stable_rows_without_full_reset(self) -> None:
         model = PresetListModel()
         model.set_rows([
@@ -456,6 +471,49 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(model.index(1, 0).data(PresetListModel.NameRole), "First updated")
         self.assertEqual(model.index(1, 0).data(PresetListModel.DescriptionRole), "new")
         self.assertEqual(model.index(1, 0).data(PresetListModel.RatingRole), 5)
+
+    def test_preset_rows_rebuild_skips_layout_when_rows_do_not_change(self) -> None:
+        from presets.ui.common.user_presets_page_runtime import rebuild_presets_rows
+
+        runtime_service = Mock()
+        runtime_service.capture_presets_view_state.return_value = {}
+        runtime_service.current_search_query.return_value = ""
+        presets_model = Mock()
+        presets_model.set_rows.return_value = False
+        listing_api = Mock()
+        listing_api.build_preset_rows_plan.return_value = SimpleNamespace(
+            rows=[
+                {
+                    "kind": "preset",
+                    "file_name": "first.txt",
+                    "name": "First",
+                    "folder_key": "common",
+                }
+            ],
+            total_presets=1,
+        )
+        update_height = Mock(side_effect=AssertionError("unchanged rows must not recalculate list height"))
+        schedule_resync = Mock(side_effect=AssertionError("unchanged rows must not resync layout"))
+        presets_delegate = Mock()
+
+        rebuild_presets_rows(
+            runtime_service=runtime_service,
+            listing_api=listing_api,
+            presets_delegate=presets_delegate,
+            presets_model=presets_model,
+            presets_list=object(),
+            get_selected_source_preset_file_name_light_fn=Mock(return_value="first.txt"),
+            ui_language="ru",
+            schedule_layout_resync_fn=schedule_resync,
+            update_presets_view_height_fn=update_height,
+            log_fn=Mock(),
+            all_presets={"first.txt": {"display_name": "First"}},
+            folder_state={},
+        )
+
+        presets_delegate.reset_interaction_state.assert_not_called()
+        runtime_service.ensure_preset_list_current_index.assert_not_called()
+        runtime_service.restore_presets_view_state.assert_not_called()
 
     def test_user_presets_delete_updates_visible_row_without_reload(self) -> None:
         result = SimpleNamespace(
