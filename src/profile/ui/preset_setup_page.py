@@ -178,11 +178,10 @@ class PresetSetupPageBase(BasePage):
         if not force and self._profile_payload_loaded_once and not self._profile_payload_dirty:
             return
         self._profile_payload_dirty = True
-        if not force:
-            cached_payload = self._profile.get_cached_profile_list(self.launch_method)
-            if cached_payload is not None:
-                self._apply_cached_profile_payload(cached_payload)
-                return
+        cached_payload = self._profile.get_cached_profile_list(self.launch_method)
+        if cached_payload is not None:
+            self._apply_cached_profile_payload(cached_payload)
+            return
         worker = self._profile_load_worker
         if worker is not None:
             try:
