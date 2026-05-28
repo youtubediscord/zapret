@@ -67,6 +67,25 @@ class TelegramProxyStopRuntimeWorker(QThread):
         self.stopped.emit()
 
 
+class TelegramProxyOpenLogFileWorker(QThread):
+    completed = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, *, open_log_file_fn, path: str, parent=None):
+        super().__init__(parent)
+        self._open_log_file_fn = open_log_file_fn
+        self._path = str(path or "")
+
+    def run(self) -> None:
+        try:
+            result = self._open_log_file_fn(self._path)
+        except Exception as exc:
+            log(f"TelegramProxyOpenLogFileWorker: не удалось открыть файл лога: {exc}", "WARNING")
+            self.failed.emit(str(exc))
+            return
+        self.completed.emit(result)
+
+
 class TelegramProxyRelayCheckWorker(QThread):
     completed = pyqtSignal(int, dict)
     warning = pyqtSignal(str)

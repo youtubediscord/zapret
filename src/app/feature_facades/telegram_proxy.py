@@ -63,6 +63,15 @@ class TelegramProxyFeature:
 
         return TelegramProxyStopRuntimeWorker(manager=manager, parent=parent)
 
+    def create_open_log_file_worker(self, *, path: str, parent=None):
+        from telegram_proxy.workers import TelegramProxyOpenLogFileWorker
+
+        return TelegramProxyOpenLogFileWorker(
+            open_log_file_fn=self.open_log_file,
+            path=str(path or ""),
+            parent=parent,
+        )
+
     def create_relay_check_worker(self, *, generation: int, get_zapret_running, parent=None):
         from telegram_proxy.workers import TelegramProxyRelayCheckWorker
 

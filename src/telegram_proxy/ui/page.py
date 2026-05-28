@@ -123,6 +123,7 @@ class TelegramProxyPage(BasePage):
         self._relay_check_worker = None
         self._ensure_hosts_worker = None
         self._settings_save_worker = None
+        self._open_log_file_worker = None
         self._settings_save_request_id = 0
         self._settings_save_pending: list[dict[str, object]] = []
         self._settings_save_restart_pending = ""
@@ -635,9 +636,48 @@ class TelegramProxyPage(BasePage):
     def _on_open_log_file(self):
         mgr = self._proxy_manager()
         path = mgr.proxy_logger.log_file_path
-        plan = self._telegram_proxy.open_log_file(path)
-        if plan.log_line:
-            self._append_log_line(plan.log_line)
+        self._start_open_log_file_worker(path)
+
+    def create_open_log_file_worker(self, path: str):
+        return self._telegram_proxy.create_open_log_file_worker(path=path, parent=self)
+
+    def _start_open_log_file_worker(self, path: str) -> None:
+        worker = self.__dict__.get("_open_log_file_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except RuntimeError:
+                self._open_log_file_worker = None
+
+        worker = self.create_open_log_file_worker(path)
+        self._open_log_file_worker = worker
+        worker.completed.connect(self._on_open_log_file_finished)
+        worker.failed.connect(self._on_open_log_file_failed)
+        worker.finished.connect(lambda w=worker: self._on_open_log_file_worker_finished(w))
+        worker.start()
+
+    def _on_open_log_file_finished(self, plan) -> None:
+        if self._cleanup_in_progress:
+            return
+        log_line = str(getattr(plan, "log_line", "") or "")
+        if log_line:
+            self._append_log_line(log_line)
+
+    def _on_open_log_file_failed(self, error: str) -> None:
+        if self._cleanup_in_progress:
+            return
+        message = str(error or "").strip()
+        if message:
+            self._append_log_line(f"Failed to open log file: {message}")
+
+    def _on_open_log_file_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_open_log_file_worker") is worker:
+            self._open_log_file_worker = None
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
 
     def _on_clear_logs(self):
         if self._log_edit is not None:
@@ -1138,5 +1178,12 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
             self._settings_save_worker = None
+        open_log_worker = self.__dict__.get("_open_log_file_worker")
+        if open_log_worker is not None:
+            try:
+                open_log_worker.quit()
+            except Exception:
+                pass
+            self._open_log_file_worker = None
         mgr = self._proxy_manager()
         mgr.cleanup()

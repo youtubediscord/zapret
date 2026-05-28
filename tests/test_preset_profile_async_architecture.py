@@ -1143,6 +1143,21 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("check_relay_http", worker_source)
         self.assertIn("socket.create_connection", command_source)
 
+    def test_telegram_proxy_open_log_file_runs_through_worker(self) -> None:
+        page_source = inspect.getsource(TelegramProxyPage)
+        handler_source = inspect.getsource(TelegramProxyPage._on_open_log_file)
+        feature_source = inspect.getsource(TelegramProxyFeature)
+
+        self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxyOpenLogFileWorker"))
+        worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxyOpenLogFileWorker.run)
+
+        self.assertIn("_start_open_log_file_worker", handler_source)
+        self.assertNotIn(".open_log_file(", handler_source)
+        self.assertIn("create_open_log_file_worker", page_source)
+        self.assertIn("_open_log_file_worker", page_source)
+        self.assertIn("create_open_log_file_worker", feature_source)
+        self.assertIn("open_log_file", worker_source)
+
     def test_blockcheck_initial_state_is_backend_plan_not_ui_loading(self) -> None:
         spec = importlib.util.find_spec("blockcheck.workers")
         self.assertIsNotNone(spec)
