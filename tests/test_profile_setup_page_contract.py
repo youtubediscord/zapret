@@ -1130,6 +1130,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._apply_profile_enabled_locally.assert_called_once_with("profile-1", False)
         page.refresh_from_preset_switch.assert_not_called()
 
+    def test_settings_and_raw_profile_changes_refresh_only_changed_profile_row(self) -> None:
+        for change_kind in ("settings", "raw_profile"):
+            with self.subTest(change_kind=change_kind):
+                page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+                page._refresh_profile_item_locally = Mock()
+                page.refresh_from_preset_switch = Mock()
+
+                PresetSetupPageBase.apply_profile_setup_change(page, "profile-1", change_kind)
+
+                page._refresh_profile_item_locally.assert_called_once_with("profile-1", "profile-1")
+                page.refresh_from_preset_switch.assert_not_called()
+
     def test_profile_setup_shell_has_search_input_for_all_profiles(self) -> None:
         build_content = inspect.getsource(PresetSetupPageBase._build_content)
         apply_payload = inspect.getsource(PresetSetupPageBase._apply_payload)

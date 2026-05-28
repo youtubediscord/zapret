@@ -1026,7 +1026,7 @@ class PresetSetupPageBase(BasePage):
     def apply_profile_setup_change(self, profile_key: str, change_kind: str) -> None:
         clean_profile_key = str(profile_key or "").strip()
         kind = str(change_kind or "").strip()
-        if kind in {"strategy", "feedback"} and clean_profile_key:
+        if kind in {"strategy", "feedback", "settings", "raw_profile"} and clean_profile_key:
             self._refresh_profile_item_locally(profile_key, profile_key)
             return
         if kind in {"enabled", "disabled"} and clean_profile_key:
