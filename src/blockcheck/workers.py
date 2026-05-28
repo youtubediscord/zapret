@@ -160,3 +160,41 @@ class StrategyScanSupportPrepareWorker(QThread):
             self.failed.emit(self._request_id, str(exc))
             return
         self.completed.emit(self._request_id, result)
+
+
+class StrategyScanResumeSaveWorker(QThread):
+    completed = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        blockcheck_feature,
+        scan_target: str,
+        scan_protocol: str,
+        next_index: int,
+        udp_games_scope: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._blockcheck = blockcheck_feature
+        self._scan_target = str(scan_target or "")
+        self._scan_protocol = str(scan_protocol or "")
+        self._next_index = int(next_index)
+        self._udp_games_scope = str(udp_games_scope or "all")
+
+    def run(self) -> None:
+        try:
+            self._blockcheck.save_resume_state(
+                self._scan_target,
+                self._scan_protocol,
+                self._next_index,
+                self._udp_games_scope,
+            )
+        except Exception as exc:
+            log(f"StrategyScanResumeSaveWorker: не удалось сохранить прогресс: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, {"next_index": self._next_index})

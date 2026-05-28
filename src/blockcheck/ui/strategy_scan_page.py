@@ -27,7 +27,6 @@ from blockcheck.ui.strategy_scan_page_results_workflow import (
 )
 from blockcheck.strategy_scan_run_workflow import (
     cleanup_strategy_scan_worker,
-    record_strategy_scan_result,
     request_strategy_scan_stop,
     start_strategy_scan_run,
     start_strategy_scan_worker,
@@ -103,6 +102,9 @@ class StrategyScanPage(BasePage):
         self._support_prepare_request_id = 0
         self._quick_targets_worker = None
         self._quick_targets_request_id = 0
+        self._strategy_scan_resume_save_worker = None
+        self._strategy_scan_resume_save_request_id = 0
+        self._strategy_scan_resume_save_pending = None
 
         self._build_ui()
         if self._embedded:
@@ -143,6 +145,24 @@ class StrategyScanPage(BasePage):
             request_id,
             scan_protocol=scan_protocol,
             current_value=current_value,
+            parent=self,
+        )
+
+    def create_strategy_scan_resume_save_worker(
+        self,
+        request_id: int,
+        *,
+        scan_target: str,
+        scan_protocol: str,
+        next_index: int,
+        udp_games_scope: str,
+    ):
+        return self._blockcheck.create_strategy_scan_resume_save_worker(
+            request_id,
+            scan_target=scan_target,
+            scan_protocol=scan_protocol,
+            next_index=next_index,
+            udp_games_scope=udp_games_scope,
             parent=self,
         )
 
@@ -532,14 +552,76 @@ class StrategyScanPage(BasePage):
             on_apply_strategy=self._on_apply_strategy,
         )
         self._result_rows.append(dict(stored_row))
-        self._scan_cursor = record_strategy_scan_result(
-            blockcheck_feature=self._blockcheck,
+        self._scan_cursor = int(self._scan_cursor) + 1
+        self._request_strategy_scan_resume_save(
             scan_target=self._scan_target,
             scan_protocol=self._scan_protocol,
-            scan_udp_games_scope=self._scan_udp_games_scope,
-            scan_cursor=self._scan_cursor,
+            udp_games_scope=self._scan_udp_games_scope,
+            next_index=self._scan_cursor,
         )
         self._progress_bar.setValue(self._scan_cursor)
+
+    def _request_strategy_scan_resume_save(
+        self,
+        *,
+        scan_target: str,
+        scan_protocol: str,
+        udp_games_scope: str,
+        next_index: int,
+    ) -> None:
+        payload = {
+            "scan_target": scan_target,
+            "scan_protocol": scan_protocol,
+            "udp_games_scope": udp_games_scope,
+            "next_index": int(next_index),
+        }
+        worker = self.__dict__.get("_strategy_scan_resume_save_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._strategy_scan_resume_save_pending = payload
+                    return
+            except Exception:
+                self._strategy_scan_resume_save_pending = payload
+                return
+
+        self._strategy_scan_resume_save_pending = None
+        self._start_strategy_scan_resume_save_worker(payload)
+
+    def _start_strategy_scan_resume_save_worker(self, payload: dict) -> None:
+        if self._cleanup_in_progress:
+            return
+
+        self._strategy_scan_resume_save_request_id += 1
+        request_id = self._strategy_scan_resume_save_request_id
+        worker = self.create_strategy_scan_resume_save_worker(request_id, **payload)
+        self._strategy_scan_resume_save_worker = worker
+        worker.completed.connect(self._on_strategy_scan_resume_save_finished)
+        worker.failed.connect(self._on_strategy_scan_resume_save_failed)
+        worker.finished.connect(lambda w=worker: self._on_strategy_scan_resume_save_worker_finished(w))
+        worker.start()
+
+    def _on_strategy_scan_resume_save_finished(self, request_id: int, _result) -> None:
+        if request_id != self._strategy_scan_resume_save_request_id or self._cleanup_in_progress:
+            return
+
+    def _on_strategy_scan_resume_save_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._strategy_scan_resume_save_request_id or self._cleanup_in_progress:
+            return
+        logger.warning("Failed to save strategy-scan resume progress: %s", error)
+
+    def _on_strategy_scan_resume_save_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_strategy_scan_resume_save_worker") is worker:
+            self._strategy_scan_resume_save_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
+
+        pending = self.__dict__.get("_strategy_scan_resume_save_pending")
+        if pending is not None and not self._cleanup_in_progress:
+            self._strategy_scan_resume_save_pending = None
+            self._start_strategy_scan_resume_save_worker(pending)
 
     def _on_log(self, message: str):
         if self._cleanup_in_progress:
@@ -823,4 +905,12 @@ class StrategyScanPage(BasePage):
             except Exception:
                 pass
             self._quick_targets_worker = None
+        self._strategy_scan_resume_save_pending = None
+        resume_save_worker = self.__dict__.get("_strategy_scan_resume_save_worker")
+        if resume_save_worker is not None:
+            try:
+                resume_save_worker.quit()
+            except Exception:
+                pass
+            self._strategy_scan_resume_save_worker = None
         self._worker = cleanup_strategy_scan_worker(self._worker)
