@@ -1599,12 +1599,58 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page.reload_current_profile.assert_not_called()
         page._on_profile_changed_callback.assert_not_called()
 
-    def test_user_profile_update_result_passes_updated_item_to_preset_page(self) -> None:
-        updated_item = SimpleNamespace(key="profile-1", user_profile_id="user-1")
+    def test_user_profile_update_result_updates_detail_without_reload(self) -> None:
+        current_item = ProfileListItem(
+            key="profile-1",
+            persistent_key="profile-1",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=1,
+            user_profile_id="user-1",
+            profile_name="YouTube",
+        )
+        updated_item = ProfileListItem(
+            key="profile-1",
+            persistent_key="profile-1",
+            profile_index=1,
+            display_name="YouTube New",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=1,
+            user_profile_id="user-1",
+            profile_name="YouTube New",
+        )
+        payload = ProfileSetupPayload(
+            item=current_item,
+            strategy_entries={},
+            strategy_states={},
+            raw_profile_text="",
+            raw_strategy_text="",
+            match_summary="",
+        )
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._user_profile_update_request_id = 1
         page._profile_key = "profile-1"
-        page._payload = SimpleNamespace(item=SimpleNamespace(user_profile_id="user-1"))
+        page._payload = payload
+        page._apply_payload = Mock()
         page.reload_current_profile = Mock()
         page._on_profile_changed_callback = Mock()
         page.window = Mock(return_value=None)
@@ -1612,7 +1658,9 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         with patch("profile.ui.profile_setup_page.InfoBar.success"):
             ProfileSetupPageBase._on_user_profile_update_finished(page, 1, "user-1", 3, (updated_item,))
 
-        page.reload_current_profile.assert_called_once()
+        page.reload_current_profile.assert_not_called()
+        page._apply_payload.assert_called_once_with(page._payload)
+        self.assertIs(page._payload.item, updated_item)
         page._on_profile_changed_callback.assert_called_once_with(
             "profile-1",
             "user_profile_updated",

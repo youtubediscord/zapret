@@ -1093,11 +1093,15 @@ class ProfileSetupPageBase(BasePage):
             content=f"Обновлено profile-ов в preset-ах: {int(changed or 0)}.",
             parent=self.window(),
         )
-        self.reload_current_profile()
         updated_item = _updated_user_profile_item(profile_id, self._profile_key, _profile_items)
         if updated_item is not None:
+            if not self._apply_user_profile_update_locally(updated_item):
+                self.reload_current_profile()
+                self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
+                return
             self._on_profile_changed_callback(self._profile_key, "user_profile_updated", updated_item)
             return
+        self.reload_current_profile()
         self._on_profile_changed_callback(self._profile_key, "user_profile_updated")
 
     def _on_user_profile_update_failed(self, request_id: int, error: str) -> None:
@@ -1116,6 +1120,17 @@ class ProfileSetupPageBase(BasePage):
             self._user_profile_update_worker = None
             self._set_user_profile_buttons_enabled(True)
         worker.deleteLater()
+
+    def _apply_user_profile_update_locally(self, updated_item) -> bool:
+        payload = self._payload
+        if payload is None or updated_item is None:
+            return False
+        try:
+            self._payload = replace(payload, item=updated_item)
+        except Exception:
+            return False
+        self._apply_payload(self._payload)
+        return True
 
     def _request_user_profile_delete(self, profile_id: str) -> None:
         profile_id = str(profile_id or "").strip()
