@@ -310,6 +310,33 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(page._resolve_display_name("cached.txt"), "Cached Preset")
         self.assertEqual(page._resolve_display_name("fallback.txt"), "fallback")
 
+    def test_user_presets_builtin_check_uses_visible_cache_not_backend_storage(self) -> None:
+        class _StorageApi:
+            def is_builtin_preset_file_with_cache(self, _name: str, _cached_metadata) -> bool:
+                raise AssertionError("builtin check must not be resolved from backend in GUI path")
+
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._page_api = type("_PageApi", (), {"storage": _StorageApi()})()
+        page._runtime_service = UserPresetsRuntimeService()
+        page._runtime_service._cached_presets_metadata = {
+            "cached.txt": {"is_builtin": True},
+        }
+        page._presets_model = PresetListModel()
+        page._presets_model.set_rows(
+            [
+                {
+                    "kind": "preset",
+                    "file_name": "visible.txt",
+                    "name": "Visible Preset",
+                    "is_builtin": True,
+                }
+            ]
+        )
+
+        self.assertTrue(page._is_builtin_preset_file("visible.txt"))
+        self.assertTrue(page._is_builtin_preset_file("cached.txt"))
+        self.assertFalse(page._is_builtin_preset_file("fallback.txt"))
+
     def test_user_presets_cleanup_stops_action_workers_and_pending_requests(self) -> None:
         class _Worker:
             def __init__(self) -> None:

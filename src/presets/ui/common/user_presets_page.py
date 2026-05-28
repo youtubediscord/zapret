@@ -313,10 +313,29 @@ class UserPresetsPageBase(BasePage):
         icon.set_plan(plan)
 
     def _is_builtin_preset_file(self, name: str) -> bool:
-        return self._storage_api().is_builtin_preset_file_with_cache(
-            name,
-            self._runtime_service.cached_presets_metadata(),
-        )
+        candidate = str(name or "").strip()
+        if not candidate:
+            return False
+
+        model = getattr(self, "_presets_model", None)
+        try:
+            row = model.find_preset_row(candidate) if model is not None else -1
+            if row >= 0:
+                index = model.index(row, 0)
+                builtin_role = getattr(type(model), "BuiltinRole", None)
+                if index.isValid() and builtin_role is not None:
+                    return bool(index.data(builtin_role))
+        except Exception:
+            pass
+
+        cached_metadata = self._runtime_service.cached_presets_metadata()
+        metadata = cached_metadata.get(candidate)
+        if metadata is None and candidate and not candidate.lower().endswith(".txt"):
+            metadata = cached_metadata.get(f"{candidate}.txt")
+        if isinstance(metadata, dict):
+            return bool(metadata.get("is_builtin", False))
+
+        return False
 
     def _folder_scope_key(self) -> str:
         return self._config.folder_scope
