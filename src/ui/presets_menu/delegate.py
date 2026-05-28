@@ -177,7 +177,7 @@ class PresetListDelegate(QStyledItemDelegate):
         action = self._action_at(option.rect, kind, is_active, is_builtin, depth, event.position().toPoint())
 
         if action:
-            self._handle_action_click(item_id, action, event)
+            self._handle_action_click(item_id, action, event, index)
             return True
 
         self._clear_pending_destructive(update=False)
@@ -207,21 +207,22 @@ class PresetListDelegate(QStyledItemDelegate):
         self._tooltip.hide()
         return super().helpEvent(event, view, option, index)
 
-    def _handle_action_click(self, name: str, action: str, _event: QMouseEvent):
+    def _handle_action_click(self, name: str, action: str, _event: QMouseEvent, index: QModelIndex):
         self._clear_pending_destructive(update=False)
         self.action_triggered.emit(action, name)
-        self._view.viewport().update()
+        self._update_preset_row_view(index)
 
     def _clear_pending_destructive(self, update: bool = True):
         self._pending_timer.stop()
         self._pending_shake_timer.stop()
         self._pending_shake_step = 0
         self._pending_shake_rotation = 0
-        if self._pending_destructive is None:
+        pending = self._pending_destructive
+        if pending is None:
             return
         self._pending_destructive = None
         if update:
-            self._view.viewport().update()
+            self._update_pending_destructive_row(pending)
 
     def _advance_pending_shake(self):
         self._pending_shake_step += 1
@@ -229,11 +230,37 @@ class PresetListDelegate(QStyledItemDelegate):
             self._pending_shake_timer.stop()
             self._pending_shake_step = 0
             self._pending_shake_rotation = 0
-            self._view.viewport().update()
+            self._update_pending_destructive_row()
             return
 
         self._pending_shake_rotation = int(self._PENDING_SHAKE_ROTATIONS[self._pending_shake_step])
-        self._view.viewport().update()
+        self._update_pending_destructive_row()
+
+    def _update_pending_destructive_row(self, pending: Optional[tuple[str, str]] = None) -> None:
+        target = pending if pending is not None else self._pending_destructive
+        if target is None:
+            return
+        file_name = str(target[0] or "").strip()
+        if not file_name:
+            return
+        model = self._view.model()
+        finder = getattr(model, "find_preset_row", None)
+        if not callable(finder):
+            return
+        try:
+            row = int(finder(file_name))
+        except Exception:
+            return
+        if row < 0:
+            return
+        self._update_preset_row_view(model.index(row, 0))
+
+    def _update_preset_row_view(self, index: QModelIndex) -> None:
+        if not index.isValid():
+            return
+        rect = self._view.visualRect(index)
+        if rect.isValid():
+            self._view.viewport().update(rect)
 
     def _visible_actions(self, kind: str, is_active: bool, is_builtin: bool) -> list[str]:
         _ = (kind, is_active, is_builtin)

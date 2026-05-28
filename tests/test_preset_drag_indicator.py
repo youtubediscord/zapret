@@ -82,6 +82,18 @@ class PresetDragIndicatorTests(unittest.TestCase):
         self.assertIn("active=is_active and not drag_marker_visible", delegate_source)
         self.assertIn("show_active_marker=False", delegate_source)
 
+    def test_delegate_action_updates_only_affected_preset_row(self) -> None:
+        click_source = inspect.getsource(preset_delegate.PresetListDelegate._handle_action_click)
+        clear_source = inspect.getsource(preset_delegate.PresetListDelegate._clear_pending_destructive)
+        shake_source = inspect.getsource(preset_delegate.PresetListDelegate._advance_pending_shake)
+
+        self.assertIn("_update_preset_row_view", click_source)
+        self.assertIn("_update_pending_destructive_row", clear_source)
+        self.assertIn("_update_pending_destructive_row", shake_source)
+        self.assertNotIn("viewport().update()", click_source)
+        self.assertNotIn("viewport().update()", clear_source)
+        self.assertNotIn("viewport().update()", shake_source)
+
     def test_model_moves_preset_row_without_full_reload(self) -> None:
         model = PresetListModel()
         model.set_rows(
