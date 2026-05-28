@@ -22,6 +22,7 @@ from presets.user_presets_action_workers import UserPresetActivateWorker, UserPr
 import presets.user_presets_action_workers as user_presets_action_workers
 import presets.ui.control.additional_settings_runtime as control_additional_settings_runtime
 import presets.ui.control.control_page_shared as control_page_shared
+import presets.ui.control.windows_features.runtime as windows_features_runtime
 import program_settings.workers as program_settings_workers
 import presets.ui.common.preset_folder_menu as preset_folder_menu
 import presets.ui.common.preset_rating_menu as preset_rating_menu
@@ -1025,6 +1026,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         zapret1_tray_source = inspect.getsource(Zapret1ModeControlPage._on_hide_to_tray_toggled)
         zapret2_auto_source = inspect.getsource(Zapret2ModeControlPage._on_auto_dpi_toggled)
         zapret2_tray_source = inspect.getsource(Zapret2ModeControlPage._on_hide_to_tray_toggled)
+        defender_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._on_defender_toggled)
+        max_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._on_max_blocker_toggled)
 
         self.assertTrue(hasattr(program_settings_workers, "ProgramSettingsSaveWorker"))
         worker_source = inspect.getsource(program_settings_workers.ProgramSettingsSaveWorker.run)
@@ -1044,6 +1047,12 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("program_settings_save_pending", shared_source)
         self.assertIn("set_auto_dpi_enabled", worker_source)
         self.assertIn("set_hide_to_tray_on_minimize_close", worker_source)
+        self.assertIn('_request_program_settings_save("defender_disabled"', defender_source)
+        self.assertIn('_request_program_settings_save("max_block"', max_source)
+        self.assertNotIn("self._program_settings.set_defender_disabled", defender_source)
+        self.assertNotIn("self._program_settings.set_max_block_enabled", max_source)
+        self.assertIn("set_defender_disabled", worker_source)
+        self.assertIn("set_max_block_enabled", worker_source)
 
     def test_zapret2_control_defers_initial_store_snapshot_during_startup(self) -> None:
         helper_source = inspect.getsource(control_page_shared.bind_control_ui_state_store)
@@ -1320,6 +1329,33 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("initial.visibility", load_source)
         self.assertIn("_sync_visible_settings(initial.launch_method, initial.visibility)", load_source)
         self.assertIn("visibility=None", sync_source)
+
+    def test_dpi_orchestra_settings_save_runs_through_worker(self) -> None:
+        spec = importlib.util.find_spec("orchestra.settings_worker")
+        self.assertIsNotNone(spec)
+        orchestra_settings_worker = importlib.import_module("orchestra.settings_worker")
+
+        page_source = inspect.getsource(DpiSettingsPage)
+        request_source = inspect.getsource(DpiSettingsPage._request_orchestra_setting_save)
+        finished_source = inspect.getsource(DpiSettingsPage._on_orchestra_setting_save_worker_finished)
+        worker_source = inspect.getsource(orchestra_settings_worker.OrchestraSettingSaveWorker.run)
+
+        for method_name in (
+            "_on_strict_detection_changed",
+            "_on_debug_file_changed",
+            "_on_auto_restart_discord_changed",
+            "_on_discord_fails_changed",
+            "_on_lock_successes_changed",
+            "_on_unlock_fails_changed",
+        ):
+            source = inspect.getsource(getattr(DpiSettingsPage, method_name))
+            self.assertIn("_request_orchestra_setting_save", source)
+            self.assertNotIn("self._orchestra.set_setting", source)
+
+        self.assertIn("create_orchestra_setting_save_worker", page_source)
+        self.assertIn("_orchestra_settings_save_pending", request_source)
+        self.assertIn("_orchestra_settings_save_pending.pop(0)", finished_source)
+        self.assertIn("set_setting", worker_source)
 
     def test_network_and_telegram_ui_do_not_create_python_threads(self) -> None:
         modules = (

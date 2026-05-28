@@ -73,6 +73,17 @@ class OrchestraFeature:
 
         set_orchestra_setting(key, value, runner=self.runner)
 
+    def create_setting_save_worker(self, request_id: int, *, key: str, value, parent=None):
+        from orchestra.settings_worker import OrchestraSettingSaveWorker
+
+        return OrchestraSettingSaveWorker(
+            request_id,
+            self,
+            key=key,
+            value=value,
+            parent=parent,
+        )
+
     def get_whitelist_snapshot(self, runner, *, refresh: bool = False):
         return self._commands().get_whitelist_snapshot(
             runner,

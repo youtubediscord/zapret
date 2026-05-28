@@ -99,6 +99,9 @@ class DpiSettingsPage(BasePage):
         self.lock_successes_spin = None
         self.unlock_fails_spin = None
         self._settings_loaded = False
+        self._orchestra_settings_save_worker = None
+        self._orchestra_settings_save_request_id = 0
+        self._orchestra_settings_save_pending: list[tuple[str, object]] = []
         self._build_ui()
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
@@ -353,57 +356,97 @@ class DpiSettingsPage(BasePage):
 
     def _on_strict_detection_changed(self, enabled: bool):
         """Обработчик изменения строгого режима детекции"""
-        try:
-            self._orchestra.set_setting("strict_detection", enabled)
-            log(f"Строгий режим детекции: {'включён' if enabled else 'выключен'}", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка сохранения настройки строгого режима: {e}", "ERROR")
+        self._request_orchestra_setting_save("strict_detection", bool(enabled))
+        log(f"Строгий режим детекции: {'включён' if enabled else 'выключен'}", "INFO")
 
     def _on_debug_file_changed(self, enabled: bool):
         """Обработчик изменения сохранения debug файла"""
-        try:
-            self._orchestra.set_setting("debug_file", enabled)
-            log(f"Сохранение debug файла: {'включено' if enabled else 'выключено'}", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка сохранения настройки debug файла: {e}", "ERROR")
+        self._request_orchestra_setting_save("debug_file", bool(enabled))
+        log(f"Сохранение debug файла: {'включено' if enabled else 'выключено'}", "INFO")
 
     def _on_auto_restart_discord_changed(self, enabled: bool):
         """Обработчик изменения авторестарта при Discord FAIL"""
-        try:
-            self._orchestra.set_setting("auto_restart_discord", enabled)
-            log(f"Авторестарт при Discord FAIL: {'включён' if enabled else 'выключен'}", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка сохранения настройки авторестарта Discord: {e}", "ERROR")
+        self._request_orchestra_setting_save("auto_restart_discord", bool(enabled))
+        log(f"Авторестарт при Discord FAIL: {'включён' if enabled else 'выключен'}", "INFO")
 
     def _on_discord_fails_changed(self, value: int):
         """Обработчик изменения количества фейлов для рестарта Discord"""
-        try:
-            self._orchestra.set_setting("discord_fails", value)
-            log(f"Фейлов для рестарта Discord: {value}", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка сохранения настройки DiscordFailsForRestart: {e}", "ERROR")
+        self._request_orchestra_setting_save("discord_fails", int(value))
+        log(f"Фейлов для рестарта Discord: {value}", "INFO")
 
     def _on_lock_successes_changed(self, value: int):
         """Обработчик изменения количества успехов для LOCK"""
-        try:
-            self._orchestra.set_setting("lock_successes", value)
-            log(f"Успехов для LOCK: {value}", "INFO")
-
-        except Exception as e:
-            log(f"Ошибка сохранения настройки LockSuccesses: {e}", "ERROR")
+        self._request_orchestra_setting_save("lock_successes", int(value))
+        log(f"Успехов для LOCK: {value}", "INFO")
 
     def _on_unlock_fails_changed(self, value: int):
         """Обработчик изменения количества ошибок для AUTO-UNLOCK"""
-        try:
-            self._orchestra.set_setting("unlock_fails", value)
-            log(f"Ошибок для AUTO-UNLOCK: {value}", "INFO")
+        self._request_orchestra_setting_save("unlock_fails", int(value))
+        log(f"Ошибок для AUTO-UNLOCK: {value}", "INFO")
 
-        except Exception as e:
-            log(f"Ошибка сохранения настройки UnlockFails: {e}", "ERROR")
+    def create_orchestra_setting_save_worker(self, request_id: int, *, key: str, value):
+        return self._orchestra.create_setting_save_worker(
+            request_id,
+            key=key,
+            value=value,
+            parent=self,
+        )
+
+    def _request_orchestra_setting_save(self, key: str, value) -> None:
+        payload = (str(key or "").strip(), value)
+        worker = self.__dict__.get("_orchestra_settings_save_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._orchestra_settings_save_pending.append(payload)
+                    self._coalesce_orchestra_settings_save_pending()
+                    return
+            except Exception:
+                self._orchestra_settings_save_pending.append(payload)
+                self._coalesce_orchestra_settings_save_pending()
+                return
+        self._start_orchestra_setting_save_worker(payload)
+
+    def _coalesce_orchestra_settings_save_pending(self) -> None:
+        latest_by_key: dict[str, tuple[str, object]] = {}
+        order: list[str] = []
+        for payload in self._orchestra_settings_save_pending:
+            key = str(payload[0] or "").strip()
+            if key not in latest_by_key:
+                order.append(key)
+            latest_by_key[key] = payload
+        self._orchestra_settings_save_pending = [latest_by_key[key] for key in order]
+
+    def _start_orchestra_setting_save_worker(self, payload: tuple[str, object]) -> None:
+        self._orchestra_settings_save_request_id += 1
+        request_id = self._orchestra_settings_save_request_id
+        worker = self.create_orchestra_setting_save_worker(
+            request_id,
+            key=str(payload[0]),
+            value=payload[1],
+        )
+        self._orchestra_settings_save_worker = worker
+        worker.saved.connect(self._on_orchestra_setting_save_finished)
+        worker.failed.connect(self._on_orchestra_setting_save_failed)
+        worker.finished.connect(lambda w=worker: self._on_orchestra_setting_save_worker_finished(w))
+        worker.start()
+
+    def _on_orchestra_setting_save_finished(self, request_id: int, _key: str, _value) -> None:
+        if request_id != self._orchestra_settings_save_request_id:
+            return
+
+    def _on_orchestra_setting_save_failed(self, request_id: int, key: str, error: str) -> None:
+        if request_id != self._orchestra_settings_save_request_id:
+            return
+        log(f"Ошибка сохранения настройки оркестратора {key}: {error}", "ERROR")
+
+    def _on_orchestra_setting_save_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_orchestra_settings_save_worker") is worker:
+            self._orchestra_settings_save_worker = None
+        worker.deleteLater()
+        if self._orchestra_settings_save_pending and not self._cleanup_in_progress:
+            pending = self._orchestra_settings_save_pending.pop(0)
+            self._start_orchestra_setting_save_worker(pending)
     
     def _update_filters_visibility(self, method: str | None = None):
         """Обновляет видимость фильтров и секций"""
@@ -514,3 +557,14 @@ class DpiSettingsPage(BasePage):
                     "Количество ошибок для автоматической разблокировки стратегии",
                 ),
             )
+
+    def cleanup(self) -> None:
+        self._orchestra_settings_save_pending.clear()
+        worker = self.__dict__.get("_orchestra_settings_save_worker")
+        if worker is not None:
+            try:
+                worker.quit()
+            except Exception:
+                pass
+            self._orchestra_settings_save_worker = None
+        super().cleanup()
