@@ -1263,7 +1263,7 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _is_selected_source_preset_file(self, name: str) -> bool:
-        current = str(self._get_selected_source_preset_file_name_light() or "").strip().lower()
+        current = str(self._runtime_service.active_preset_file_name() or "").strip().lower()
         candidate = str(name or "").strip().lower()
         return bool(current and candidate and current == candidate)
 

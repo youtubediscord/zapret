@@ -259,6 +259,12 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_preset_activate_worker", request_source)
         self.assertIn("actions_api.activate_preset", worker_source)
 
+    def test_user_presets_menu_selected_check_uses_runtime_marker(self) -> None:
+        source = inspect.getsource(UserPresetsPageBase._is_selected_source_preset_file)
+
+        self.assertIn("active_preset_file_name", source)
+        self.assertNotIn("_get_selected_source_preset_file_name_light", source)
+
     def test_user_presets_item_file_actions_run_through_worker(self) -> None:
         worker_source = inspect.getsource(UserPresetItemActionWorker.run)
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_item_action)

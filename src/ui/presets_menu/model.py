@@ -55,6 +55,11 @@ class PresetListModel(QAbstractListModel):
             return -1
         return int(self._preset_row_by_file_name.get(candidate, -1))
 
+    def active_preset_file_name(self) -> str:
+        for file_name in self._active_preset_file_names:
+            return str(file_name or "").strip()
+        return ""
+
     def move_preset(
         self,
         file_name: str,

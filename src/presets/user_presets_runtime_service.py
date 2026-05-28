@@ -265,6 +265,17 @@ class UserPresetsRuntimeService:
             page.presets_list.viewport().update()
         return changed
 
+    def active_preset_file_name(self, page=None) -> str:
+        page = self._resolve_page(page)
+        model = getattr(page, "_presets_model", None)
+        getter = getattr(model, "active_preset_file_name", None)
+        if not callable(getter):
+            return ""
+        try:
+            return str(getter() or "").strip()
+        except Exception:
+            return ""
+
     def apply_active_preset_marker(self, page=None) -> bool:
         page = self._resolve_page(page)
         adapter = self._resolve_adapter()
