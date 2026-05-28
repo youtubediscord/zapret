@@ -358,7 +358,6 @@ class UserPresetsRuntimeService:
                 file_name,
                 page=page,
             )
-            page.presets_list.viewport().update()
         return changed
 
     def active_preset_file_name(self, page=None) -> str:

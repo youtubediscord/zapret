@@ -218,10 +218,12 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         fallback_branch = plan_source.split("effective_folder_state", 1)[1]
         self.assertNotIn("load_preset_folder_state", fallback_branch)
 
-    def test_user_presets_active_marker_does_not_force_synchronous_repaint(self) -> None:
+    def test_user_presets_active_marker_uses_model_signals_without_full_viewport_update(self) -> None:
         source = inspect.getsource(UserPresetsRuntimeService.apply_active_preset_marker_for_file)
 
-        self.assertIn("viewport().update()", source)
+        self.assertIn("set_active_preset", source)
+        self.assertIn("set_current_preset_index", source)
+        self.assertNotIn("viewport().update()", source)
         self.assertNotIn("viewport().repaint()", source)
 
     def test_user_presets_switched_signal_uses_delivered_file_name(self) -> None:
