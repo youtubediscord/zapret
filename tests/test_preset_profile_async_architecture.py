@@ -1375,6 +1375,27 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_auto_check_save_worker", feature_source)
         self.assertIn("set_auto_update_enabled", worker_source)
 
+    def test_updater_auto_check_initial_read_runs_through_worker(self) -> None:
+        settings_workers = importlib.import_module("updater.settings_workers")
+        update_runtime_cls = __import__("updater.update_page_runtime", fromlist=["UpdatePageRuntime"]).UpdatePageRuntime
+        updater_feature_cls = __import__("app.feature_facades.updater", fromlist=["UpdaterFeature"]).UpdaterFeature
+
+        init_source = inspect.getsource(update_runtime_cls.__init__)
+        runtime_source = inspect.getsource(update_runtime_cls)
+        page_source = inspect.getsource(ServersPage)
+        feature_source = inspect.getsource(updater_feature_cls)
+
+        self.assertTrue(hasattr(settings_workers, "UpdaterAutoCheckLoadWorker"))
+        worker_source = inspect.getsource(settings_workers.UpdaterAutoCheckLoadWorker.run)
+
+        self.assertNotIn("is_auto_update_enabled", init_source)
+        self.assertIn("_request_auto_check_load", runtime_source)
+        self.assertIn("_auto_check_load_runtime", runtime_source)
+        self.assertIn("set_auto_check_toggle_checked", runtime_source)
+        self.assertIn("start_auto_check_load", page_source)
+        self.assertIn("create_auto_check_load_worker", feature_source)
+        self.assertIn("is_auto_update_enabled", worker_source)
+
     def test_logs_cleanup_stops_overview_worker(self) -> None:
         cleanup_source = inspect.getsource(LogsPage.cleanup)
 

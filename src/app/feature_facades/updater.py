@@ -27,6 +27,15 @@ class UpdaterFeature:
             parent=parent,
         )
 
+    def create_auto_check_load_worker(self, request_id: int, *, parent=None):
+        from updater.settings_workers import UpdaterAutoCheckLoadWorker
+
+        return UpdaterAutoCheckLoadWorker(
+            request_id,
+            updater_feature=self,
+            parent=parent,
+        )
+
     def run_startup_update_check(self) -> dict:
         return self._commands().run_startup_update_check()
 

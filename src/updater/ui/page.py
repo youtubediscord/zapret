@@ -70,6 +70,7 @@ class ServersPage(BasePage):
 
         self._build_ui()
         self._apply_page_theme(force=True)
+        self._update_runtime.start_auto_check_load()
 
     def _tr(self, key: str, default: str) -> str:
         return tr_catalog(key, language=self._ui_language, default=default)
@@ -304,6 +305,19 @@ class ServersPage(BasePage):
 
     def set_update_check_enabled(self, enabled: bool) -> None:
         self.update_card.check_btn.setEnabled(bool(enabled))
+
+    def set_auto_check_toggle_checked(self, enabled: bool) -> None:
+        toggle = getattr(self, "auto_check_toggle", None)
+        if toggle is None:
+            return
+        try:
+            toggle.setChecked(bool(enabled), block_signals=True)
+        except TypeError:
+            previous = toggle.blockSignals(True)
+            try:
+                toggle.setChecked(bool(enabled))
+            finally:
+                toggle.blockSignals(previous)
 
     def present_startup_update(self, version: str, release_notes: str, *, install_after_show: bool = True) -> bool:
         return self._update_runtime.present_startup_update(

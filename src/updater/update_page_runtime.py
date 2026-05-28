@@ -94,6 +94,7 @@ class UpdatePageView(Protocol):
     def hide_update_status_card(self) -> None: ...
     def show_update_status_card(self) -> None: ...
     def set_update_check_enabled(self, enabled: bool) -> None: ...
+    def set_auto_check_toggle_checked(self, enabled: bool) -> None: ...
 
 
 class UpdatePageRuntime:
@@ -111,17 +112,19 @@ class UpdatePageRuntime:
 
         self._server_worker_runtime = OneShotWorkerRuntime()
         self._version_worker_runtime = OneShotWorkerRuntime()
+        self._auto_check_load_runtime = OneShotWorkerRuntime()
         self._auto_check_save_runtime = OneShotWorkerRuntime()
         self._update_thread = None
         self._update_worker = None
         self._cleanup_in_progress = False
         self._auto_check_save_pending: bool | None = None
+        self._auto_check_user_changed = False
 
         self._found_state = UpdateFoundState()
         self._check_state = UpdateCheckState()
         self._download_state = UpdateDownloadState()
 
-        self._auto_check_enabled = bool(self._updater_feature.is_auto_update_enabled())
+        self._auto_check_enabled = False
 
     @property
     def auto_check_enabled(self) -> bool:
@@ -162,6 +165,7 @@ class UpdatePageRuntime:
                 "_handle_update_thread_finished",
                 "_teardown_server_worker",
                 "_teardown_version_worker",
+                "_request_auto_check_load",
                 "_teardown_update_runtime",
             ),
             state_and_network_workflow_methods=(
@@ -189,6 +193,7 @@ class UpdatePageRuntime:
             worker_runtime_fields=(
                 "_server_worker_runtime",
                 "_version_worker_runtime",
+                "_auto_check_load_runtime",
                 "_update_thread",
                 "_update_worker",
             ),
@@ -216,6 +221,7 @@ class UpdatePageRuntime:
             cleanup_extraction_candidates=(
                 "_teardown_server_worker",
                 "_teardown_version_worker",
+                "_teardown_auto_check_load_worker",
                 "_teardown_update_runtime",
             ),
             download_orchestration_candidates=(
@@ -260,6 +266,39 @@ class UpdatePageRuntime:
 
         if view_action == "auto_on":
             self._view.show_auto_enabled_hint()
+
+    def start_auto_check_load(self) -> None:
+        self._request_auto_check_load()
+
+    def _request_auto_check_load(self) -> None:
+        if self._auto_check_load_runtime.is_running():
+            return
+        self._auto_check_load_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._updater_feature.create_auto_check_load_worker(
+                request_id,
+                parent=self._view.window(),
+            ),
+            on_loaded=self._on_auto_check_load_finished,
+            on_failed=self._on_auto_check_load_failed,
+        )
+
+    def _on_auto_check_load_finished(self, request_id: int, enabled: bool) -> None:
+        if not self._auto_check_load_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        if self._auto_check_user_changed:
+            return
+        self._auto_check_enabled = bool(enabled)
+        self._view.set_auto_check_toggle_checked(bool(enabled))
+        idle_decision = self._resolve_idle_view_decision()
+        self.apply_idle_view_state(
+            view_action=idle_decision.action,
+            elapsed_seconds=idle_decision.elapsed_seconds,
+        )
+
+    def _on_auto_check_load_failed(self, request_id: int, error: str) -> None:
+        if not self._auto_check_load_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        log(f"Не удалось загрузить автопроверку обновлений: {error}", "WARNING")
 
     def present_startup_update(self, version: str, release_notes: str, *, install_after_show: bool = True) -> bool:
         if self._cleanup_in_progress:
@@ -359,6 +398,7 @@ class UpdatePageRuntime:
         self._present_deferred_update(version)
 
     def set_auto_check_enabled(self, enabled: bool) -> None:
+        self._auto_check_user_changed = True
         self._auto_check_enabled = bool(enabled)
         self._request_auto_check_save(bool(enabled))
 
@@ -410,6 +450,7 @@ class UpdatePageRuntime:
         self._cleanup_in_progress = True
         self._teardown_server_worker()
         self._teardown_version_worker()
+        self._teardown_auto_check_load_worker()
         self._teardown_auto_check_save_worker()
         self._teardown_update_runtime(wait_for_finish=True)
 
@@ -605,6 +646,14 @@ class UpdatePageRuntime:
             warning_prefix="auto_check_save_worker",
         )
         self._auto_check_save_runtime.cancel()
+
+    def _teardown_auto_check_load_worker(self) -> None:
+        self._auto_check_load_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="auto_check_load_worker",
+        )
+        self._auto_check_load_runtime.cancel()
 
     def _teardown_update_runtime(self, *, wait_for_finish: bool = False) -> None:
         thread = self._update_thread
