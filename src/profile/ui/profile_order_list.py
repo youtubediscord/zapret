@@ -51,9 +51,12 @@ class ProfileOrderListModel(QAbstractListModel):
             insert_index = destination_index + (1 if move_action == "after" else 0)
         rows.insert(insert_index, source)
 
-        self.beginResetModel()
+        if insert_index in {source_index, source_index + 1}:
+            return True
+        destination_child = insert_index + 1 if insert_index > source_index else insert_index
+        self.beginMoveRows(QModelIndex(), source_index, source_index, QModelIndex(), destination_child)
         self._items = tuple(rows)
-        self.endResetModel()
+        self.endMoveRows()
         return True
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
