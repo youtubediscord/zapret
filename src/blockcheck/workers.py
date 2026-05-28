@@ -60,6 +60,35 @@ class BlockcheckSupportPrepareWorker(QThread):
         self.completed.emit(self._request_id, result)
 
 
+class BlockcheckUserDomainActionWorker(QThread):
+    completed = pyqtSignal(int, str, object, object)
+    failed = pyqtSignal(int, str, str, object)
+
+    def __init__(self, request_id: int, *, action: str, domain: str, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._action = str(action or "").strip().lower()
+        self._domain = str(domain or "").strip()
+
+    def run(self) -> None:
+        import blockcheck.page_runtime as blockcheck_page_runtime
+
+        context = {"domain": self._domain}
+        try:
+            if self._action == "add":
+                result = blockcheck_page_runtime.add_user_domain(self._domain)
+            elif self._action == "remove":
+                blockcheck_page_runtime.remove_user_domain(self._domain)
+                result = self._domain
+            else:
+                raise ValueError(f"Неизвестное действие домена BlockCheck: {self._action}")
+        except Exception as exc:
+            log(f"BlockcheckUserDomainActionWorker: не удалось выполнить {self._action}: {exc}", "WARNING")
+            self.failed.emit(self._request_id, self._action, str(exc), context)
+            return
+        self.completed.emit(self._request_id, self._action, result, context)
+
+
 class StrategyScanSupportPrepareWorker(QThread):
     completed = pyqtSignal(int, object)
     failed = pyqtSignal(int, str)

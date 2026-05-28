@@ -120,6 +120,9 @@ class BlockcheckPage(BasePage):
         self._initial_state_load_started_at = 0.0
         self._support_prepare_worker = None
         self._support_prepare_request_id = 0
+        self._user_domain_action_worker = None
+        self._user_domain_action_request_id = 0
+        self._user_domain_action_pending: list[dict[str, str]] = []
         self._build_ui()
         self._request_page_initial_state_load()
         try:
@@ -143,6 +146,14 @@ class BlockcheckPage(BasePage):
             run_log_file=run_log_file,
             mode_label=mode_label,
             extra_domains=extra_domains,
+            parent=self,
+        )
+
+    def create_user_domain_action_worker(self, request_id: int, *, action: str, domain: str):
+        return self._blockcheck.create_user_domain_action_worker(
+            request_id,
+            action=action,
+            domain=domain,
             parent=self,
         )
 
@@ -937,13 +948,54 @@ class BlockcheckPage(BasePage):
         text = self._domain_input.text().strip()
         if not text:
             return
-        try:
-            normalized = blockcheck_page_runtime.add_user_domain(text)
+        self._request_user_domain_action("add", text)
+
+    def _on_remove_domain(self, domain: str):
+        """Remove a domain chip and delete from persistence."""
+        self._request_user_domain_action("remove", domain)
+
+    def _request_user_domain_action(self, action: str, domain: str) -> None:
+        payload = {
+            "action": str(action or "").strip().lower(),
+            "domain": str(domain or "").strip(),
+        }
+        if not payload["action"] or not payload["domain"]:
+            return
+        worker = self.__dict__.get("_user_domain_action_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._user_domain_action_pending.append(payload)
+                    return
+            except Exception:
+                self._user_domain_action_pending.append(payload)
+                return
+        self._start_user_domain_action_worker(payload)
+
+    def _start_user_domain_action_worker(self, payload: dict[str, str]) -> None:
+        self._user_domain_action_request_id += 1
+        request_id = self._user_domain_action_request_id
+        worker = self.create_user_domain_action_worker(
+            request_id,
+            action=str(payload.get("action") or ""),
+            domain=str(payload.get("domain") or ""),
+        )
+        self._user_domain_action_worker = worker
+        worker.completed.connect(self._on_user_domain_action_finished)
+        worker.failed.connect(self._on_user_domain_action_failed)
+        worker.finished.connect(lambda w=worker: self._on_user_domain_action_worker_finished(w))
+        worker.start()
+
+    def _on_user_domain_action_finished(self, request_id: int, action: str, result, context) -> None:
+        if request_id != self._user_domain_action_request_id or self._cleanup_in_progress:
+            return
+        context = dict(context or {})
+        if action == "add":
+            text = str(context.get("domain") or "")
+            normalized = str(result or "").strip()
             if normalized:
                 self._add_chip(normalized)
-                self._domain_input.clear()
             else:
-                # Already exists
                 try:
                     InfoBarHelper.warning(
                         self.window(),
@@ -952,21 +1004,30 @@ class BlockcheckPage(BasePage):
                     )
                 except Exception:
                     pass
-                self._domain_input.clear()
-        except Exception as e:
-            logger.warning("Failed to add domain: %s", e)
+            self._domain_input.clear()
+            return
+        if action == "remove":
+            remove_domain_chip(
+                domain=str(result or context.get("domain") or ""),
+                flow_layout=self._domains_flow_layout,
+                chip_cls=DomainChip,
+            )
 
-    def _on_remove_domain(self, domain: str):
-        """Remove a domain chip and delete from persistence."""
+    def _on_user_domain_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if request_id != self._user_domain_action_request_id or self._cleanup_in_progress:
+            return
+        logger.warning("Failed to %s BlockCheck domain: %s", action, error)
+
+    def _on_user_domain_action_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_user_domain_action_worker") is worker:
+            self._user_domain_action_worker = None
         try:
-            blockcheck_page_runtime.remove_user_domain(domain)
+            worker.deleteLater()
         except Exception:
             pass
-        remove_domain_chip(
-            domain=domain,
-            flow_layout=self._domains_flow_layout,
-            chip_cls=DomainChip,
-        )
+        if self._user_domain_action_pending and not self._cleanup_in_progress:
+            pending = self._user_domain_action_pending.pop(0)
+            self._start_user_domain_action_worker(dict(pending or {}))
 
     def _add_chip(self, domain: str):
         """Add a chip widget for a domain."""
@@ -1005,6 +1066,14 @@ class BlockcheckPage(BasePage):
             except Exception:
                 pass
             self._support_prepare_worker = None
+        self._user_domain_action_pending.clear()
+        domain_worker = self.__dict__.get("_user_domain_action_worker")
+        if domain_worker is not None:
+            try:
+                domain_worker.quit()
+            except Exception:
+                pass
+            self._user_domain_action_worker = None
         self._worker = cleanup_blockcheck_worker(self._worker)
 
         for page in (self._strategy_tab_page, self._diagnostics_tab_page, self._dns_spoofing_tab_page):

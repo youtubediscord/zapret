@@ -48,6 +48,11 @@ class BlockcheckFeature:
 
         return BlockcheckSupportPrepareWorker(request_id, **kwargs)
 
+    def create_user_domain_action_worker(self, request_id: int, **kwargs):
+        from blockcheck.workers import BlockcheckUserDomainActionWorker
+
+        return BlockcheckUserDomainActionWorker(request_id, **kwargs)
+
     def create_strategy_scan_support_prepare_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import StrategyScanSupportPrepareWorker
 
