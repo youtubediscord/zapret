@@ -86,6 +86,39 @@ class TelegramProxyOpenLogFileWorker(QThread):
         self.completed.emit(result)
 
 
+class TelegramProxyExternalLinkWorker(QThread):
+    completed = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(
+        self,
+        *,
+        open_external_link_fn,
+        url: str,
+        success_log: str,
+        error_prefix: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._open_external_link_fn = open_external_link_fn
+        self._url = str(url or "")
+        self._success_log = str(success_log or "")
+        self._error_prefix = str(error_prefix or "")
+
+    def run(self) -> None:
+        try:
+            result = self._open_external_link_fn(
+                self._url,
+                success_log=self._success_log,
+                error_prefix=self._error_prefix,
+            )
+        except Exception as exc:
+            log(f"TelegramProxyExternalLinkWorker: не удалось открыть ссылку: {exc}", "WARNING")
+            self.failed.emit(str(exc))
+            return
+        self.completed.emit(result)
+
+
 class TelegramProxyRelayCheckWorker(QThread):
     completed = pyqtSignal(int, dict)
     warning = pyqtSignal(str)

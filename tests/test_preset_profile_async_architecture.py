@@ -1158,6 +1158,24 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_open_log_file_worker", feature_source)
         self.assertIn("open_log_file", worker_source)
 
+    def test_telegram_proxy_external_links_run_through_worker(self) -> None:
+        page_source = inspect.getsource(TelegramProxyPage)
+        mtproxy_source = inspect.getsource(TelegramProxyPage._on_open_mtproxy)
+        telegram_source = inspect.getsource(TelegramProxyPage._on_open_in_telegram)
+        feature_source = inspect.getsource(TelegramProxyFeature)
+
+        self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxyExternalLinkWorker"))
+        worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxyExternalLinkWorker.run)
+
+        for source in (mtproxy_source, telegram_source):
+            self.assertIn("_start_external_link_worker", source)
+            self.assertNotIn(".open_external_link(", source)
+
+        self.assertIn("create_external_link_worker", page_source)
+        self.assertIn("_external_link_worker", page_source)
+        self.assertIn("create_external_link_worker", feature_source)
+        self.assertIn("open_external_link", worker_source)
+
     def test_blockcheck_initial_state_is_backend_plan_not_ui_loading(self) -> None:
         spec = importlib.util.find_spec("blockcheck.workers")
         self.assertIsNotNone(spec)

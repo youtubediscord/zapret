@@ -124,6 +124,7 @@ class TelegramProxyPage(BasePage):
         self._ensure_hosts_worker = None
         self._settings_save_worker = None
         self._open_log_file_worker = None
+        self._external_link_worker = None
         self._settings_save_request_id = 0
         self._settings_save_pending: list[dict[str, object]] = []
         self._settings_save_restart_pending = ""
@@ -1050,13 +1051,11 @@ class TelegramProxyPage(BasePage):
         link = getattr(self, '_current_mtproxy_link', '')
         if not link:
             return
-        plan = self._telegram_proxy.open_external_link(
+        self._start_external_link_worker(
             link,
             success_log="Opened MTProxy link",
             error_prefix="Failed to open MTProxy link",
         )
-        if plan.log_line:
-            self._append_log_line(plan.log_line)
 
     def _update_manual_instructions(self):
         """Update manual instructions label with current host/port."""
@@ -1073,13 +1072,61 @@ class TelegramProxyPage(BasePage):
             self._host_edit.text().strip(),
             self._port_spin.value(),
         )
-        plan = self._telegram_proxy.open_external_link(
+        self._start_external_link_worker(
             url,
             success_log=f"Opened deep link: {url}",
             error_prefix="Failed to open link",
         )
-        if plan.log_line:
-            self._append_log_line(plan.log_line)
+
+    def create_external_link_worker(self, *, url: str, success_log: str, error_prefix: str):
+        return self._telegram_proxy.create_external_link_worker(
+            url=url,
+            success_log=success_log,
+            error_prefix=error_prefix,
+            parent=self,
+        )
+
+    def _start_external_link_worker(self, url: str, *, success_log: str, error_prefix: str) -> None:
+        worker = self.__dict__.get("_external_link_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except RuntimeError:
+                self._external_link_worker = None
+
+        worker = self.create_external_link_worker(
+            url=url,
+            success_log=success_log,
+            error_prefix=error_prefix,
+        )
+        self._external_link_worker = worker
+        worker.completed.connect(self._on_external_link_finished)
+        worker.failed.connect(self._on_external_link_failed)
+        worker.finished.connect(lambda w=worker: self._on_external_link_worker_finished(w))
+        worker.start()
+
+    def _on_external_link_finished(self, plan) -> None:
+        if self._cleanup_in_progress:
+            return
+        log_line = str(getattr(plan, "log_line", "") or "")
+        if log_line:
+            self._append_log_line(log_line)
+
+    def _on_external_link_failed(self, error: str) -> None:
+        if self._cleanup_in_progress:
+            return
+        message = str(error or "").strip()
+        if message:
+            self._append_log_line(f"Failed to open link: {message}")
+
+    def _on_external_link_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_external_link_worker") is worker:
+            self._external_link_worker = None
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
 
     def _on_copy_link(self):
         """Copy proxy deep link to clipboard."""
@@ -1185,5 +1232,12 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
             self._open_log_file_worker = None
+        external_link_worker = self.__dict__.get("_external_link_worker")
+        if external_link_worker is not None:
+            try:
+                external_link_worker.quit()
+            except Exception:
+                pass
+            self._external_link_worker = None
         mgr = self._proxy_manager()
         mgr.cleanup()

@@ -72,6 +72,17 @@ class TelegramProxyFeature:
             parent=parent,
         )
 
+    def create_external_link_worker(self, *, url: str, success_log: str, error_prefix: str, parent=None):
+        from telegram_proxy.workers import TelegramProxyExternalLinkWorker
+
+        return TelegramProxyExternalLinkWorker(
+            open_external_link_fn=self.open_external_link,
+            url=str(url or ""),
+            success_log=str(success_log or ""),
+            error_prefix=str(error_prefix or ""),
+            parent=parent,
+        )
+
     def create_relay_check_worker(self, *, generation: int, get_zapret_running, parent=None):
         from telegram_proxy.workers import TelegramProxyRelayCheckWorker
 
