@@ -6,6 +6,7 @@ from PyQt6.QtCore import Q_ARG, QMetaObject, QObject, Qt, QTimer, pyqtSlot
 
 from app_notifications import advisory_notification, normalize_notification_payload
 from log.log import global_logger, log
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.window_notification_actions import WindowNotificationActionHandler
 
 
@@ -18,6 +19,7 @@ class WindowNotificationCenter(QObject):
         *,
         startup_state,
         runtime_feature,
+        external_actions_feature,
         show_tray_notification,
         show_page,
         is_window_visible,
@@ -26,10 +28,17 @@ class WindowNotificationCenter(QObject):
         super().__init__(parent)
         self._parent = parent
         self._startup_state = startup_state
+        if external_actions_feature is None:
+            from app.feature_facades.external import build_external_actions_feature
+
+            external_actions_feature = build_external_actions_feature()
+        self._external_actions = external_actions_feature
         self._show_tray_notification = show_tray_notification
         self._show_page = show_page
         self._is_window_visible = is_window_visible
         self._is_window_minimized = is_window_minimized
+        self._external_open_url_runtime = OneShotWorkerRuntime()
+        self._external_open_url_pending: str | None = None
         self._startup_notification_queue: list[dict] = []
         self._startup_notification_timer = QTimer(self)
         self._startup_notification_timer.setSingleShot(True)
@@ -39,6 +48,7 @@ class WindowNotificationCenter(QObject):
             notify=self.notify,
             runtime_feature=runtime_feature,
             show_page=self._show_page,
+            open_url=self._request_external_open_url,
         )
 
     def register_global_error_notifier(self) -> None:
@@ -90,6 +100,59 @@ class WindowNotificationCenter(QObject):
     def notify_many(self, payloads: list[dict] | tuple[dict, ...] | None) -> None:
         for payload in payloads or ():
             self.notify(payload)
+
+    def create_open_url_worker(self, request_id: int, *, url: str):
+        return self._external_actions.create_open_url_worker(request_id, url=url, parent=self)
+
+    def _request_external_open_url(self, url: str) -> None:
+        target = str(url or "").strip()
+        if not target:
+            return
+        if self._external_open_url_runtime.is_running():
+            self._external_open_url_pending = target
+            return
+        self._external_open_url_pending = None
+        self._start_external_open_url_worker(target)
+
+    def _start_external_open_url_worker(self, url: str) -> None:
+        self._external_open_url_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_open_url_worker(request_id, url=url),
+            on_loaded=self._on_external_open_url_finished,
+            on_failed=self._on_external_open_url_failed,
+            on_finished=self._on_external_open_url_worker_finished,
+        )
+
+    def _on_external_open_url_finished(self, request_id: int, result) -> None:
+        if not self._external_open_url_runtime.is_current(request_id):
+            return
+        if getattr(result, "ok", False):
+            return
+        self._notify_external_open_url_error(str(getattr(result, "error", "") or ""))
+
+    def _on_external_open_url_failed(self, request_id: int, error: str) -> None:
+        if not self._external_open_url_runtime.is_current(request_id):
+            return
+        self._notify_external_open_url_error(str(error or ""))
+
+    def _on_external_open_url_worker_finished(self, _worker) -> None:
+        pending = self._external_open_url_pending
+        self._external_open_url_pending = None
+        if pending:
+            self._start_external_open_url_worker(pending)
+
+    def _notify_external_open_url_error(self, error: str) -> None:
+        self.notify(
+            advisory_notification(
+                level="warning",
+                title="Не удалось открыть ссылку",
+                content=str(error or "Ссылка не была открыта."),
+                source="notification.open_url",
+                presentation="infobar",
+                queue="immediate",
+                duration=7000,
+                dedupe_key="notification.open_url.failure",
+            )
+        )
 
     def notify(self, payload: dict | None) -> None:
         normalized = normalize_notification_payload(payload)

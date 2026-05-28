@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import webbrowser
 from typing import Callable
 
 from PyQt6.QtWidgets import QApplication
@@ -18,10 +17,12 @@ class WindowNotificationActionHandler:
         notify: Callable[[dict | None], None],
         runtime_feature,
         show_page,
+        open_url: Callable[[str], None],
     ) -> None:
         self._notify = notify
         self._runtime = runtime_feature
         self._show_page = show_page
+        self._open_url = open_url
 
     def build_action_callback(self, action: dict, bar):
         kind = str(action.get("kind") or "").strip().lower()
@@ -35,7 +36,7 @@ class WindowNotificationActionHandler:
             )
 
         if kind == "open_url":
-            return lambda: webbrowser.open(str(action.get("value") or ""))
+            return lambda: self._open_url(str(action.get("value") or ""))
 
         if kind == "open_preset_setup_page":
             return lambda: self._open_preset_setup_page_for_method(str(action.get("value") or ""), bar)

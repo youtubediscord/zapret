@@ -13,6 +13,11 @@ def attach_window_notifications(window, features) -> None:
         window,
         startup_state=window.startup_state,
         runtime_feature=features.runtime,
+        external_actions_feature=(
+            features.external_actions
+            if hasattr(features, "external_actions")
+            else None
+        ),
         show_tray_notification=features.tray.show_notification_if_available,
         show_page=lambda page_name, *, allow_internal=False: show_page(
             window,
