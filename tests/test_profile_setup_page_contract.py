@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 from profile.ui.profile_setup_page import (
     CompactDisplayComboBox,
@@ -1174,6 +1174,38 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("_item_by_strategy_id[strategy_id] = item", rebuild_source)
         self.assertNotIn("for row in range", source)
 
+    def test_strategy_list_skips_rebuild_when_rows_are_unchanged(self) -> None:
+        widget = ProfileStrategyListWidget.__new__(ProfileStrategyListWidget)
+        widget._entries = {}
+        widget._states = {}
+        widget._current_strategy_id = "none"
+        widget._rebuild_tree = Mock()
+        widget.set_current_strategy_id = Mock()
+        entries = {
+            "fake": SimpleNamespace(
+                name="Fake",
+                args="--lua-desync=fake",
+                visual=SimpleNamespace(icon_name="bolt", color="#fff", label="Fake", description="Fake TLS"),
+            )
+        }
+        states = {"fake": ProfileStrategyState(rating="work", favorite=False)}
+
+        ProfileStrategyListWidget.set_rows(
+            widget,
+            entries=entries,
+            states=states,
+            current_strategy_id="fake",
+        )
+        ProfileStrategyListWidget.set_rows(
+            widget,
+            entries=dict(entries),
+            states=dict(states),
+            current_strategy_id="fake",
+        )
+
+        widget._rebuild_tree.assert_called_once()
+        widget.set_current_strategy_id.assert_not_called()
+
     def test_strategy_change_refreshes_only_changed_profile_row(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._refresh_profile_item_locally = Mock()
@@ -1532,13 +1564,17 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._raw_profile_save_button.setEnabled.assert_called_once_with(False)
         worker.start.assert_called_once()
 
-    def test_raw_profile_save_worker_emits_new_profile_key(self) -> None:
+    def test_raw_profile_save_worker_emits_new_profile_key_and_payload(self) -> None:
         controller = Mock()
+        payload = SimpleNamespace(item=SimpleNamespace(key="profile-2"))
         controller.save_raw_profile_text.return_value = "profile-2"
+        controller.load.return_value = payload
         worker = ProfileRawTextSaveWorker(7, controller, "profile-1", "--new\n")
         saved = []
 
-        worker.saved.connect(lambda request_id, profile_key: saved.append((request_id, profile_key)))
+        worker.saved.connect(lambda request_id, profile_key, emitted_payload: saved.append(
+            (request_id, profile_key, emitted_payload)
+        ))
 
         worker.run()
 
@@ -1546,7 +1582,27 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             profile_key="profile-1",
             raw_text="--new\n",
         )
-        self.assertEqual(saved, [(7, "profile-2")])
+        controller.load.assert_called_once_with("profile-2")
+        self.assertEqual(saved, [(7, "profile-2", payload)])
+
+    def test_raw_profile_save_finish_passes_updated_item_to_preset_page(self) -> None:
+        item = SimpleNamespace(key="profile-2")
+        payload = SimpleNamespace(item=item)
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._raw_profile_save_request_id = 7
+        page._profile_key = "profile-1"
+        page.reload_current_profile = Mock()
+        page._apply_payload = Mock()
+        page._on_profile_changed_callback = Mock()
+        page.window = Mock(return_value=None)
+
+        with patch("profile.ui.profile_setup_page.InfoBar.success"):
+            ProfileSetupPageBase._on_raw_profile_save_finished(page, 7, "profile-2", payload)
+
+        self.assertEqual(page._profile_key, "profile-2")
+        page.reload_current_profile.assert_not_called()
+        page._apply_payload.assert_called_once_with(payload)
+        page._on_profile_changed_callback.assert_called_once_with("profile-2", "raw_profile", item)
 
     def test_enabled_change_starts_worker_without_saving_in_gui_thread(self) -> None:
         class _Signal:
@@ -1684,14 +1740,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._list_file_save_button.setEnabled.assert_called_once_with(False)
         worker.start.assert_called_once()
 
-    def test_list_file_save_worker_emits_saved_state(self) -> None:
+    def test_list_file_save_worker_emits_saved_state_and_payload(self) -> None:
         controller = Mock()
         state = object()
+        payload = SimpleNamespace(item=SimpleNamespace(key="profile-1"))
         controller.save_list_file_text.return_value = state
+        controller.load.return_value = payload
         worker = ProfileListFileSaveWorker(3, controller, "profile-1", "example.com")
         saved = []
 
-        worker.saved.connect(lambda request_id, emitted_state: saved.append((request_id, emitted_state)))
+        worker.saved.connect(lambda request_id, emitted_state, emitted_payload: saved.append(
+            (request_id, emitted_state, emitted_payload)
+        ))
 
         worker.run()
 
@@ -1699,7 +1759,28 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             profile_key="profile-1",
             text="example.com",
         )
-        self.assertEqual(saved, [(3, state)])
+        controller.load.assert_called_once_with("profile-1")
+        self.assertEqual(saved, [(3, state, payload)])
+
+    def test_list_file_save_finish_passes_updated_item_to_preset_page(self) -> None:
+        item = SimpleNamespace(key="profile-1")
+        payload = SimpleNamespace(item=item)
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_save_request_id = 3
+        page._profile_key = "profile-1"
+        page._list_file_status_label = Mock()
+        page.reload_current_profile = Mock()
+        page._apply_list_file_editor_state = Mock()
+        page._apply_payload = Mock()
+        page._on_profile_changed_callback = Mock()
+        page.window = Mock(return_value=None)
+
+        with patch("profile.ui.profile_setup_page.InfoBar.success"):
+            ProfileSetupPageBase._on_list_file_save_finished(page, 3, object(), payload)
+
+        page.reload_current_profile.assert_not_called()
+        page._apply_payload.assert_called_once_with(payload)
+        page._on_profile_changed_callback.assert_called_once_with("profile-1", "list_file", item)
 
     def test_list_file_validation_starts_worker_without_validating_in_gui_thread(self) -> None:
         class _Signal:
@@ -1927,9 +2008,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         worker.start.assert_called_once()
 
-    def test_settings_save_worker_emits_new_profile_key(self) -> None:
+    def test_settings_save_worker_emits_new_profile_key_and_payload(self) -> None:
         controller = Mock()
+        payload = SimpleNamespace(item=SimpleNamespace(key="profile-2"))
         controller.save_winws2_settings.return_value = "profile-2"
+        controller.load.return_value = payload
         worker = ProfileSettingsSaveWorker(
             4,
             controller,
@@ -1941,7 +2024,9 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         saved = []
 
-        worker.saved.connect(lambda request_id, profile_key: saved.append((request_id, profile_key)))
+        worker.saved.connect(lambda request_id, profile_key, emitted_payload: saved.append(
+            (request_id, profile_key, emitted_payload)
+        ))
 
         worker.run()
 
@@ -1952,7 +2037,26 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             in_range="x",
             out_range="a",
         )
-        self.assertEqual(saved, [(4, "profile-2")])
+        controller.load.assert_called_once_with("profile-2")
+        self.assertEqual(saved, [(4, "profile-2", payload)])
+
+    def test_settings_save_finish_passes_updated_item_to_preset_page(self) -> None:
+        item = SimpleNamespace(key="profile-2")
+        payload = SimpleNamespace(item=item)
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._settings_save_request_id = 4
+        page._pending_settings_save = None
+        page._profile_key = "profile-1"
+        page.reload_current_profile = Mock()
+        page._apply_payload = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_settings_save_finished(page, 4, "profile-2", payload)
+
+        self.assertEqual(page._profile_key, "profile-2")
+        page.reload_current_profile.assert_not_called()
+        page._apply_payload.assert_called_once_with(payload)
+        page._on_profile_changed_callback.assert_called_once_with("profile-2", "settings", item)
 
     def test_settings_autosave_while_worker_runs_keeps_last_pending_request(self) -> None:
         class _Worker:

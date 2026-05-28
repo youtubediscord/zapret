@@ -85,7 +85,7 @@ class ProfileListFileValidationWorker(QThread):
 
 
 class ProfileListFileSaveWorker(QThread):
-    saved = pyqtSignal(int, object)
+    saved = pyqtSignal(int, object, object)
     failed = pyqtSignal(int, str)
 
     def __init__(self, request_id: int, controller, profile_key: str, text: str, parent=None):
@@ -101,15 +101,16 @@ class ProfileListFileSaveWorker(QThread):
                 profile_key=self._profile_key,
                 text=self._text,
             )
+            payload = self._controller.load(self._profile_key)
         except Exception as exc:
             log(f"ProfileListFileSaveWorker: не удалось сохранить файл списка profile: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.saved.emit(self._request_id, state)
+        self.saved.emit(self._request_id, state, payload)
 
 
 class ProfileSettingsSaveWorker(QThread):
-    saved = pyqtSignal(int, str)
+    saved = pyqtSignal(int, str, object)
     failed = pyqtSignal(int, str)
 
     def __init__(
@@ -142,15 +143,16 @@ class ProfileSettingsSaveWorker(QThread):
                 in_range=self._in_range,
                 out_range=self._out_range,
             )
+            payload = self._controller.load(str(profile_key or self._profile_key))
         except Exception as exc:
             log(f"ProfileSettingsSaveWorker: не удалось сохранить настройки profile: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.saved.emit(self._request_id, str(profile_key or ""))
+        self.saved.emit(self._request_id, str(profile_key or ""), payload)
 
 
 class ProfileRawTextSaveWorker(QThread):
-    saved = pyqtSignal(int, str)
+    saved = pyqtSignal(int, str, object)
     failed = pyqtSignal(int, str)
 
     def __init__(self, request_id: int, controller, profile_key: str, raw_text: str, parent=None):
@@ -166,11 +168,12 @@ class ProfileRawTextSaveWorker(QThread):
                 profile_key=self._profile_key,
                 raw_text=self._raw_text,
             )
+            payload = self._controller.load(str(profile_key or self._profile_key))
         except Exception as exc:
             log(f"ProfileRawTextSaveWorker: не удалось сохранить сырой текст profile: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.saved.emit(self._request_id, str(profile_key or ""))
+        self.saved.emit(self._request_id, str(profile_key or ""), payload)
 
 
 class ProfileEnabledSaveWorker(QThread):

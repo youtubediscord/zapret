@@ -215,6 +215,7 @@ class ProfileStrategyListWidget(QWidget):
         self._entries = {}
         self._states = {}
         self._item_by_strategy_id = {}
+        self._rows_signature = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -268,9 +269,20 @@ class ProfileStrategyListWidget(QWidget):
         layout.addWidget(self._list, 1)
 
     def set_rows(self, *, entries, states, current_strategy_id: str) -> None:
-        self._entries = dict(entries or {})
-        self._states = dict(states or {})
-        self._current_strategy_id = str(current_strategy_id or "none").strip() or "none"
+        next_entries = dict(entries or {})
+        next_states = dict(states or {})
+        next_current_id = str(current_strategy_id or "none").strip() or "none"
+        next_signature = _strategy_rows_signature(next_entries, next_states)
+        if self.__dict__.get("_rows_signature") == next_signature:
+            self._entries = next_entries
+            self._states = next_states
+            if next_current_id != self._current_strategy_id:
+                self.set_current_strategy_id(next_current_id)
+            return
+        self._entries = next_entries
+        self._states = next_states
+        self._current_strategy_id = next_current_id
+        self._rows_signature = next_signature
         self._rebuild_tree()
 
     def set_current_strategy_id(self, strategy_id: str) -> None:
@@ -383,6 +395,29 @@ class ProfileStrategyListWidget(QWidget):
         strategy_id = self._strategy_id_for_item(item)
         if strategy_id:
             self.strategy_activated.emit(strategy_id)
+
+
+def _strategy_rows_signature(entries, states) -> tuple[tuple, tuple]:
+    entry_rows = []
+    for strategy_id, entry in dict(entries or {}).items():
+        visual = getattr(entry, "visual", None)
+        entry_rows.append((
+            str(strategy_id),
+            str(getattr(entry, "name", "") or ""),
+            str(getattr(entry, "args", "") or ""),
+            str(getattr(visual, "icon_name", "") or ""),
+            str(getattr(visual, "color", "") or ""),
+            str(getattr(visual, "label", "") or ""),
+            str(getattr(visual, "description", "") or ""),
+        ))
+    state_rows = []
+    for strategy_id, state in dict(states or {}).items():
+        state_rows.append((
+            str(strategy_id),
+            str(getattr(state, "rating", "") or ""),
+            bool(getattr(state, "favorite", False)),
+        ))
+    return tuple(sorted(entry_rows)), tuple(sorted(state_rows))
 
 
 def _match_tab_text(payload) -> str:
@@ -1416,15 +1451,20 @@ class ProfileSetupPageBase(BasePage):
         worker.finished.connect(lambda w=worker: self._on_list_file_save_worker_finished(w))
         worker.start()
 
-    def _on_list_file_save_finished(self, request_id: int, state) -> None:
+    def _on_list_file_save_finished(self, request_id: int, state, payload=None) -> None:
         if request_id != self._list_file_save_request_id:
             return
         if state is not None:
             self._apply_list_file_editor_state(state)
         if self._list_file_status_label is not None:
             self._list_file_status_label.setText("Список сохранён.")
-        self.reload_current_profile()
-        self._on_profile_changed_callback(self._profile_key, "list_file")
+        if payload is None:
+            self.reload_current_profile()
+            self._on_profile_changed_callback(self._profile_key, "list_file")
+        else:
+            self._payload = payload
+            self._apply_payload(payload)
+            self._on_profile_changed_callback(self._profile_key, "list_file", getattr(payload, "item", None))
         InfoBar.success(
             title="Список сохранён",
             content="Файл списка обновлён.",
@@ -1683,7 +1723,7 @@ class ProfileSetupPageBase(BasePage):
         worker.finished.connect(lambda w=worker: self._on_settings_save_worker_finished(w))
         worker.start()
 
-    def _on_settings_save_finished(self, request_id: int, profile_key: str) -> None:
+    def _on_settings_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
         if request_id != self._settings_save_request_id:
             return
         if self._pending_settings_save:
@@ -1691,8 +1731,13 @@ class ProfileSetupPageBase(BasePage):
         new_key = str(profile_key or "").strip()
         if new_key:
             self._profile_key = new_key
-        self.reload_current_profile()
-        self._on_profile_changed_callback(self._profile_key, "settings")
+        if payload is None:
+            self.reload_current_profile()
+            self._on_profile_changed_callback(self._profile_key, "settings")
+            return
+        self._payload = payload
+        self._apply_payload(payload)
+        self._on_profile_changed_callback(self._profile_key, "settings", getattr(payload, "item", None))
 
     def _on_settings_save_failed(self, request_id: int, error: str) -> None:
         if request_id != self._settings_save_request_id:
@@ -1734,14 +1779,19 @@ class ProfileSetupPageBase(BasePage):
         worker.finished.connect(lambda w=worker: self._on_raw_profile_save_worker_finished(w))
         worker.start()
 
-    def _on_raw_profile_save_finished(self, request_id: int, profile_key: str) -> None:
+    def _on_raw_profile_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
         if request_id != self._raw_profile_save_request_id:
             return
         new_key = str(profile_key or "").strip()
         if new_key:
             self._profile_key = new_key
-        self.reload_current_profile()
-        self._on_profile_changed_callback(self._profile_key, "raw_profile")
+        if payload is None:
+            self.reload_current_profile()
+            self._on_profile_changed_callback(self._profile_key, "raw_profile")
+        else:
+            self._payload = payload
+            self._apply_payload(payload)
+            self._on_profile_changed_callback(self._profile_key, "raw_profile", getattr(payload, "item", None))
         InfoBar.success(
             title="Profile сохранён",
             content="Текст profile обновлён только в текущем preset.",
