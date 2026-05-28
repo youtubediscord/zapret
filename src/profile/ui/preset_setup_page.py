@@ -442,7 +442,10 @@ class PresetSetupPageBase(BasePage):
                 self._refresh_profile_item_locally(profile_key, target_key)
             return
         if action == "duplicate":
-            self._add_profile_item_locally(profile_key, str(result or ""))
+            target_item = _profile_context_action_result_item(result)
+            if target_item is not None and self._add_created_user_profile_locally(target_item):
+                return
+            self._add_profile_item_locally(profile_key, _profile_context_action_result_key(result))
             return
         if action == "delete" and bool(result):
             self._remove_profile_item_locally(profile_key)

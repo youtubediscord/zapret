@@ -251,6 +251,9 @@ class ProfilePresetProfileActionWorker(QThread):
                         result = {"profile_key": str(result or "").strip(), "profile_item": item}
             elif self._action == "duplicate":
                 result = self._profile.duplicate_profile(self._launch_method, self._profile_key)
+                item = _profile_item_by_key(self._profile, self._launch_method, str(result or ""))
+                if item is not None:
+                    result = {"profile_key": str(result or "").strip(), "profile_item": item}
             elif self._action == "delete":
                 result = bool(self._profile.delete_profile(self._launch_method, self._profile_key))
             else:

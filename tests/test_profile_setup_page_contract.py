@@ -1285,6 +1285,46 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._schedule_profiles_payload_request.assert_not_called()
         self.assertTrue(page._profile_payload_dirty)
 
+    def test_profile_duplicate_finish_adds_worker_item_without_full_reload(self) -> None:
+        duplicated_item = ProfileListItem(
+            key="profile-2",
+            persistent_key="profile-2",
+            profile_index=2,
+            display_name="YouTube Copy",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=2,
+        )
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_context_action_request_id = 8
+        page._profile_payload_dirty = False
+        page._profiles_list = Mock()
+        page._profiles_list.add_profile_item.return_value = True
+        page.refresh_from_preset_switch = Mock()
+        page._schedule_profiles_payload_request = Mock()
+
+        PresetSetupPageBase._on_profile_context_action_finished(
+            page,
+            8,
+            "duplicate",
+            "profile-1",
+            {"profile_key": "profile-2", "profile_item": duplicated_item},
+        )
+
+        page._profiles_list.duplicate_profile_item.assert_not_called()
+        page._profiles_list.add_profile_item.assert_called_once_with(duplicated_item)
+        page.refresh_from_preset_switch.assert_not_called()
+        page._schedule_profiles_payload_request.assert_not_called()
+        self.assertTrue(page._profile_payload_dirty)
+
     def test_profile_context_actions_start_worker_without_direct_profile_calls(self) -> None:
         class _Signal:
             def __init__(self) -> None:
@@ -1360,6 +1400,52 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         profile.set_profile_enabled.assert_called_once_with("zapret2_mode", "profile-1", True)
         self.assertEqual(finished, [(6, "set_enabled", "profile-1", "profile-2")])
+
+    def test_profile_context_action_worker_emits_duplicated_item(self) -> None:
+        duplicated_item = ProfileListItem(
+            key="profile-2",
+            persistent_key="profile-2",
+            profile_index=2,
+            display_name="YouTube Copy",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=2,
+        )
+        profile = Mock()
+        profile.duplicate_profile.return_value = "profile-2"
+        profile.list_profiles.return_value = SimpleNamespace(items=(duplicated_item,))
+        worker = ProfilePresetProfileActionWorker(
+            8,
+            profile,
+            "zapret2_mode",
+            action="duplicate",
+            profile_key="profile-1",
+        )
+        finished = []
+
+        worker.finished_action.connect(
+            lambda request_id, action, profile_key, result: finished.append((
+                request_id,
+                action,
+                profile_key,
+                result,
+            ))
+        )
+
+        worker.run()
+
+        profile.duplicate_profile.assert_called_once_with("zapret2_mode", "profile-1")
+        profile.list_profiles.assert_called_once_with("zapret2_mode")
+        self.assertEqual(finished[0][:3], (8, "duplicate", "profile-1"))
+        self.assertEqual(finished[0][3], {"profile_key": "profile-2", "profile_item": duplicated_item})
 
     def test_profile_context_action_worker_emits_created_item_for_new_enabled_profile(self) -> None:
         created_item = ProfileListItem(
