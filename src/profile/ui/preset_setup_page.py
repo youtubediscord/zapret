@@ -1024,8 +1024,14 @@ class PresetSetupPageBase(BasePage):
     def apply_profile_setup_change(self, profile_key: str, change_kind: str) -> None:
         clean_profile_key = str(profile_key or "").strip()
         kind = str(change_kind or "").strip()
-        if kind in {"strategy", "feedback", "settings", "raw_profile", "list_file"} and clean_profile_key:
+        if (
+            kind in {"strategy", "feedback", "settings", "raw_profile", "list_file", "user_profile_updated"}
+            and clean_profile_key
+        ):
             self._refresh_profile_item_locally(profile_key, profile_key)
+            return
+        if kind == "user_profile_deleted" and clean_profile_key:
+            self._remove_profile_item_locally(clean_profile_key)
             return
         if kind in {"enabled", "disabled"} and clean_profile_key:
             if self._apply_profile_enabled_locally(clean_profile_key, kind == "enabled"):

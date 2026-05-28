@@ -1154,6 +1154,19 @@ class ProfileSetupPageContractTests(unittest.TestCase):
                 page._refresh_profile_item_locally.assert_called_once_with("profile-1", "profile-1")
                 page.refresh_from_preset_switch.assert_not_called()
 
+    def test_user_profile_detail_changes_update_visible_list_locally(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._refresh_profile_item_locally = Mock()
+        page._remove_profile_item_locally = Mock()
+        page.refresh_from_preset_switch = Mock()
+
+        PresetSetupPageBase.apply_profile_setup_change(page, "profile-1", "user_profile_updated")
+        PresetSetupPageBase.apply_profile_setup_change(page, "profile-2", "user_profile_deleted")
+
+        page._refresh_profile_item_locally.assert_called_once_with("profile-1", "profile-1")
+        page._remove_profile_item_locally.assert_called_once_with("profile-2")
+        page.refresh_from_preset_switch.assert_not_called()
+
     def test_profile_setup_shell_has_search_input_for_all_profiles(self) -> None:
         build_content = inspect.getsource(PresetSetupPageBase._build_content)
         apply_payload = inspect.getsource(PresetSetupPageBase._apply_payload)
