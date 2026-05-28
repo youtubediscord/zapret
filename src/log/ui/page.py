@@ -118,6 +118,7 @@ class LogsPage(BasePage):
 
         self._logs_overview_runtime = OneShotWorkerRuntime()
         self._logs_overview_pending_cleanup = False
+        self._support_prepare_runtime = OneShotWorkerRuntime()
 
         # Error panel height tuning (avoid large empty block when no errors).
         self._errors_text_min_height = 52
@@ -685,25 +686,26 @@ class LogsPage(BasePage):
         )
 
     def _prepare_support_from_logs(self):
-        try:
-            result = self._logs.prepare_support_bundle(
+        self._request_support_prepare()
+
+    def _request_support_prepare(self) -> None:
+        if self._support_prepare_runtime.is_running():
+            return
+        self._support_prepare_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._logs.create_support_prepare_worker(
+                request_id,
                 current_log_file=self.current_log_file,
                 orchestra_runner=self._get_orchestra_runner(),
-            )
-        except Exception as e:
-            feedback = self._logs.build_support_error_feedback(str(e))
-            self._send_status_text = feedback.status_text
-            self._send_status_tone = feedback.status_tone
-            self._render_send_status_label()
-            log(f"Ошибка подготовки обращения из логов: {e}", "ERROR")
-            if InfoBar:
-                InfoBar.warning(
-                    title=feedback.infobar_title,
-                    content=feedback.infobar_content,
-                    parent=self.window(),
-                )
-            return
+                parent=self,
+            ),
+            on_loaded=self._on_support_prepare_finished,
+            on_failed=self._on_support_prepare_failed,
+            on_finished=lambda _worker: None,
+        )
 
+    def _on_support_prepare_finished(self, request_id: int, result) -> None:
+        if not self._support_prepare_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
         apply_support_feedback(
             result=result,
             build_feedback_fn=self._logs.build_support_feedback,
@@ -717,7 +719,22 @@ class LogsPage(BasePage):
                 setattr(self, "_send_status_tone", tone),
             ),
         )
-        
+
+    def _on_support_prepare_failed(self, request_id: int, error: str) -> None:
+        if not self._support_prepare_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        feedback = self._logs.build_support_error_feedback(str(error or ""))
+        self._send_status_text = feedback.status_text
+        self._send_status_tone = feedback.status_tone
+        self._render_send_status_label()
+        log(f"Ошибка подготовки обращения из логов: {error}", "ERROR")
+        if InfoBar:
+            InfoBar.warning(
+                title=feedback.infobar_title,
+                content=feedback.infobar_content,
+                parent=self.window(),
+            )
+
     def _refresh_logs_list(self, *, run_cleanup: bool = True):
         """Обновляет список доступных лог-файлов"""
         started_at = time.perf_counter()
@@ -811,6 +828,17 @@ class LogsPage(BasePage):
             )
         except Exception as exc:
             log(f"Ошибка остановки worker обзора логов: {exc}", "DEBUG")
+
+    def _stop_support_prepare_worker(self, blocking: bool = False) -> None:
+        try:
+            self._support_prepare_runtime.stop(
+                blocking=blocking,
+                log_fn=log,
+                warning_prefix="Logs support worker",
+            )
+            self._support_prepare_runtime.cancel()
+        except Exception as exc:
+            log(f"Ошибка остановки worker подготовки обращения: {exc}", "DEBUG")
     
     def _stop_refresh_animation(self):
         """Останавливает анимацию кнопки обновления"""
@@ -1033,4 +1061,5 @@ class LogsPage(BasePage):
         self._cleanup_in_progress = True
         self._spin_timer.stop()
         self._stop_logs_overview_worker(blocking=True)
+        self._stop_support_prepare_worker(blocking=True)
         self._stop_tail_worker(blocking=True)

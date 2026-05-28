@@ -50,6 +50,24 @@ class LogsFeature:
     def create_logs_overview_worker(self, *, run_cleanup: bool):
         return self._commands().create_logs_overview_worker(run_cleanup=run_cleanup)
 
+    def create_support_prepare_worker(
+        self,
+        request_id: int,
+        *,
+        current_log_file: str,
+        orchestra_runner,
+        parent=None,
+    ):
+        from log.support_worker import LogsSupportPrepareWorker
+
+        return LogsSupportPrepareWorker(
+            request_id,
+            logs_feature=self,
+            current_log_file=current_log_file,
+            orchestra_runner=orchestra_runner,
+            parent=parent,
+        )
+
     def build_thread_stop_plan(self, *, has_worker: bool, thread_running: bool, blocking: bool):
         return self._commands().build_thread_stop_plan(
             has_worker=has_worker,

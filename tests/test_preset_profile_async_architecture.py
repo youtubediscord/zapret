@@ -1184,6 +1184,22 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertIn("_stop_logs_overview_worker(blocking=True)", cleanup_source)
 
+    def test_logs_support_bundle_prepares_through_worker(self) -> None:
+        support_worker = importlib.import_module("log.support_worker")
+        page_source = inspect.getsource(LogsPage)
+        handler_source = inspect.getsource(LogsPage._prepare_support_from_logs)
+        feature_source = inspect.getsource(__import__("app.feature_facades.logs", fromlist=["LogsFeature"]).LogsFeature)
+
+        self.assertTrue(hasattr(support_worker, "LogsSupportPrepareWorker"))
+        worker_source = inspect.getsource(support_worker.LogsSupportPrepareWorker.run)
+
+        self.assertIn("_request_support_prepare", handler_source)
+        self.assertNotIn("prepare_support_bundle", handler_source)
+        self.assertIn("create_support_prepare_worker", page_source)
+        self.assertIn("_support_prepare_runtime", page_source)
+        self.assertIn("create_support_prepare_worker", feature_source)
+        self.assertIn("prepare_support_bundle", worker_source)
+
     def test_profile_setup_page_loads_profile_payload_through_worker(self) -> None:
         source = inspect.getsource(ProfileSetupPageBase.reload_current_profile)
 
