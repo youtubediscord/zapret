@@ -157,6 +157,9 @@ class HostsPage(BasePage):
         self._selection_load_show_access_errors = False
         self._selection_save_runtime = OneShotWorkerRuntime()
         self._selection_save_pending = None
+        self._state_load_runtime = OneShotWorkerRuntime()
+        self._state_load_pending = {"show_access_errors": False, "update_status": False}
+        self._state_load_request_context = {"show_access_errors": False, "update_status": False}
         self._applying = False
         self._cleanup_in_progress = False
         self._runtime_cache = create_runtime_cache()
@@ -603,8 +606,11 @@ class HostsPage(BasePage):
 
     def _check_hosts_access(self):
         """Проверяет доступ к hosts файлу при загрузке страницы"""
+        self._request_hosts_state_load(show_access_errors=True, update_status=False)
+
+    def _apply_hosts_access_state(self, runtime_state) -> None:
         check_hosts_access(
-            runtime_state=self._get_hosts_runtime_state(),
+            runtime_state=runtime_state,
             hosts_path=self._get_hosts_path_str(),
             tr_fn=self._tr,
             hide_error=self._hide_error,
@@ -966,7 +972,82 @@ class HostsPage(BasePage):
     def _update_ui(self):
         """Обновляет весь UI"""
         started_at = time.perf_counter()
-        runtime_state = self._get_hosts_runtime_state()
+        self._request_hosts_state_load(show_access_errors=False, update_status=True, started_at=started_at)
+
+    def _request_hosts_state_load(
+        self,
+        *,
+        show_access_errors: bool,
+        update_status: bool,
+        started_at: float | None = None,
+    ) -> None:
+        if self._cleanup_in_progress:
+            return
+        context = {
+            "show_access_errors": bool(show_access_errors),
+            "update_status": bool(update_status),
+            "started_at": started_at,
+        }
+        if self._state_load_runtime.is_running():
+            self._state_load_pending["show_access_errors"] = (
+                bool(self._state_load_pending.get("show_access_errors")) or bool(show_access_errors)
+            )
+            self._state_load_pending["update_status"] = (
+                bool(self._state_load_pending.get("update_status")) or bool(update_status)
+            )
+            return
+
+        self._state_load_request_context = context
+        self._state_load_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._controller.create_state_load_worker(
+                request_id,
+                self.hosts_runtime,
+                self,
+            ),
+            on_loaded=self._on_hosts_state_loaded,
+            on_failed=self._on_hosts_state_failed,
+            on_finished=self._on_hosts_state_worker_finished,
+        )
+
+    def _on_hosts_state_loaded(self, request_id: int, runtime_state) -> None:
+        if not self._state_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        self._runtime_cache.runtime_state = runtime_state
+        self._runtime_cache.active_domains = set(getattr(runtime_state, "active_domains", frozenset()) or frozenset())
+        context = dict(self._state_load_request_context or {})
+        if bool(context.get("show_access_errors")):
+            self._apply_hosts_access_state(runtime_state)
+        if bool(context.get("update_status")):
+            self._apply_hosts_runtime_state_to_ui(runtime_state, started_at=context.get("started_at"))
+
+    def _on_hosts_state_failed(self, request_id: int, error: str) -> None:
+        if not self._state_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        log(f"Hosts: ошибка загрузки состояния: {error}", "ERROR")
+        if bool((self._state_load_request_context or {}).get("show_access_errors")):
+            self._show_error(
+                self._tr("page.hosts.error.read_hosts", "Ошибка чтения hosts: {error}", error=str(error or ""))
+            )
+
+    def _on_hosts_state_worker_finished(self, _worker) -> None:
+        pending = dict(self._state_load_pending or {})
+        self._state_load_pending = {"show_access_errors": False, "update_status": False}
+        if self._cleanup_in_progress:
+            return
+        if bool(pending.get("show_access_errors")) or bool(pending.get("update_status")):
+            self._request_hosts_state_load(
+                show_access_errors=bool(pending.get("show_access_errors")),
+                update_status=bool(pending.get("update_status")),
+            )
+
+    def _apply_hosts_runtime_state_to_ui(self, runtime_state, *, started_at: float | None = None) -> None:
+        started_at = float(started_at or time.perf_counter())
         status_display = hosts_page_plans.build_status_display_plan(
             runtime_state,
             active_text=self._tr("page.hosts.status.active_domains", "Активно {count} доменов", count=len(runtime_state.active_domains)),
@@ -1032,6 +1113,11 @@ class HostsPage(BasePage):
                 blocking=True,
                 log_fn=log,
                 warning_prefix="Hosts selection save worker",
+            )
+            self._state_load_runtime.stop(
+                blocking=True,
+                log_fn=log,
+                warning_prefix="Hosts state load worker",
             )
         except Exception as e:
             log(f"Ошибка при очистке hosts_page: {e}", "DEBUG")

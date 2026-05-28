@@ -27,6 +27,11 @@ class HostsPageController:
 
         return HostsSelectionLoadWorker(request_id, self, parent)
 
+    def create_state_load_worker(self, request_id: int, hosts_runtime, parent=None):
+        from hosts.state_load_worker import HostsStateLoadWorker
+
+        return HostsStateLoadWorker(request_id, self, hosts_runtime, parent)
+
     def create_hosts_runtime(self, *, status_callback=None):
         return self._hosts.create_hosts_runtime(status_callback=status_callback)
 

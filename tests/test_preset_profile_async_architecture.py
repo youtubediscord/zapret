@@ -1447,6 +1447,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_selection_load_worker", controller_source)
         self.assertIn("load_user_selection", worker_source)
 
+    def test_hosts_runtime_state_loads_through_worker(self) -> None:
+        spec = importlib.util.find_spec("hosts.state_load_worker")
+        self.assertIsNotNone(spec)
+        state_load_worker = importlib.import_module("hosts.state_load_worker")
+
+        init_source = inspect.getsource(HostsPage.__init__)
+        update_source = inspect.getsource(HostsPage._update_ui)
+        access_source = inspect.getsource(HostsPage._check_hosts_access)
+        controller_source = inspect.getsource(__import__("hosts.page_controller", fromlist=["HostsPageController"]).HostsPageController)
+        worker_source = inspect.getsource(state_load_worker.HostsStateLoadWorker.run)
+
+        self.assertIn("_state_load_runtime", init_source)
+        self.assertIn("_request_hosts_state_load", update_source)
+        self.assertIn("_request_hosts_state_load", access_source)
+        self.assertNotIn("_get_hosts_runtime_state()", update_source)
+        self.assertNotIn("_get_hosts_runtime_state()", access_source)
+        self.assertIn("create_state_load_worker", controller_source)
+        self.assertIn("get_hosts_state", worker_source)
+
     def test_lazy_pages_start_runtime_after_activation_not_constructor(self) -> None:
         page_classes = (
             dns_page.NetworkPage,
