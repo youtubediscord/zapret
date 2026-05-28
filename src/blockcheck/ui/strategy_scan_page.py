@@ -471,6 +471,7 @@ class StrategyScanPage(BasePage):
             table_row_count=self._table.rowCount(),
             starting_status_text=tr_catalog("page.blockcheck_public.starting", default="Запуск сканирования..."),
             parent=self,
+            on_run_log_started=self._on_run_log_started,
             on_strategy_started=self._on_strategy_started,
             on_strategy_result=self._on_strategy_result,
             on_log=self._on_log,
@@ -490,7 +491,7 @@ class StrategyScanPage(BasePage):
         self._scan_udp_games_scope = run_result.udp_games_scope
         self._scan_mode = run_result.mode
         self._scan_cursor = run_result.scan_cursor
-        self._run_log_file = run_result.run_log_file
+        self._run_log_file = None
         self._worker = run_result.worker
 
         self._apply_interaction_plan(self._blockcheck.build_running_interaction_plan())
@@ -512,17 +513,20 @@ class StrategyScanPage(BasePage):
 
     def _force_stop(self, expected_worker=None):
         apply_force_stop_status(
-            blockcheck_feature=self._blockcheck,
             worker=self._worker,
             expected_worker=expected_worker,
             status_label=self._status_label,
-            run_log_file=self._run_log_file,
             set_support_status=self._set_support_status,
         )
 
     # ------------------------------------------------------------------
     # Signal handlers
     # ------------------------------------------------------------------
+
+    def _on_run_log_started(self, run_log_file) -> None:
+        if self._cleanup_in_progress:
+            return
+        self._run_log_file = run_log_file
 
     def _on_strategy_started(self, name: str, index: int, total: int):
         if self._cleanup_in_progress:
@@ -627,9 +631,7 @@ class StrategyScanPage(BasePage):
         if self._cleanup_in_progress:
             return
         append_scan_log(
-            blockcheck_feature=self._blockcheck,
             log_edit=self._log_edit,
-            run_log_file=self._run_log_file,
             message=message,
         )
 
@@ -637,9 +639,7 @@ class StrategyScanPage(BasePage):
         if self._cleanup_in_progress:
             return
         apply_phase_change(
-            blockcheck_feature=self._blockcheck,
             status_label=self._status_label,
-            run_log_file=self._run_log_file,
             phase=phase,
         )
 
@@ -662,7 +662,6 @@ class StrategyScanPage(BasePage):
             result_rows=self._result_rows,
             progress_bar=self._progress_bar,
             status_label=self._status_label,
-            run_log_file=self._run_log_file,
             set_support_status=self._set_support_status,
             parent_widget=self.window(),
         )

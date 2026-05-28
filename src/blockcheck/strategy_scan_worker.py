@@ -1,4 +1,5 @@
 import logging
+import queue
 import threading
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -14,6 +15,7 @@ class StrategyScanWorker(QObject):
     scan_log = pyqtSignal(str)
     phase_changed = pyqtSignal(str)
     scan_finished = pyqtSignal(object)
+    run_log_started = pyqtSignal(object)
 
     def __init__(
         self,
@@ -39,6 +41,8 @@ class StrategyScanWorker(QObject):
         self._scanner = None
         self._cancelled = False
         self._bg_thread: threading.Thread | None = None
+        self._run_log_file = None
+        self._pending_log_messages: queue.Queue[str] = queue.Queue()
 
     def start(self):
         self._cancelled = False
@@ -51,6 +55,7 @@ class StrategyScanWorker(QObject):
 
     def _run_in_thread(self):
         try:
+            self._start_run_log()
             from blockcheck.strategy_scanner import StrategyScanner
 
             self._scanner = StrategyScanner(
@@ -63,9 +68,11 @@ class StrategyScanWorker(QObject):
                 runtime_feature=self._runtime_feature,
             )
             report = self._scanner.run()
+            self._drain_pending_log_messages()
             self.scan_finished.emit(report)
         except Exception as e:
             logger.exception("StrategyScanWorker crashed")
+            self._append_run_log(f"ERROR: {e}")
             self.scan_log.emit(f"ERROR: {e}")
             self.scan_finished.emit(None)
 
@@ -85,10 +92,51 @@ class StrategyScanWorker(QObject):
         self.strategy_result.emit(result)
 
     def on_log(self, message):
+        self._drain_pending_log_messages()
+        self._append_run_log(message)
         self.scan_log.emit(message)
 
     def on_phase(self, phase):
+        self._drain_pending_log_messages()
+        self._append_run_log(f"[PHASE] {phase}")
         self.phase_changed.emit(phase)
 
     def is_cancelled(self):
         return self._cancelled
+
+    def record_run_log_message(self, message: str) -> None:
+        self._pending_log_messages.put(str(message or ""))
+
+    def _start_run_log(self) -> None:
+        try:
+            from blockcheck.strategy_scan_logs import start_run_log
+
+            log_state = start_run_log(
+                target=self._target,
+                mode=self._mode,
+                scan_protocol=self._scan_protocol,
+                resume_index=self._start_index,
+                udp_games_scope=self._udp_games_scope,
+            )
+            self._run_log_file = log_state.path
+            self.run_log_started.emit(log_state.path)
+        except Exception:
+            logger.exception("StrategyScanWorker failed to start run log")
+            self._run_log_file = None
+            self.run_log_started.emit(None)
+
+    def _append_run_log(self, message: str) -> None:
+        try:
+            from blockcheck.strategy_scan_logs import append_run_log
+
+            append_run_log(self._run_log_file, message)
+        except Exception:
+            logger.exception("StrategyScanWorker failed to append run log")
+
+    def _drain_pending_log_messages(self) -> None:
+        while True:
+            try:
+                message = self._pending_log_messages.get_nowait()
+            except queue.Empty:
+                return
+            self._append_run_log(message)

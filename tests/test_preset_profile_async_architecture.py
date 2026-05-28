@@ -1872,6 +1872,23 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("start_run_log", worker_source)
         self.assertIn("append_run_log", worker_source)
 
+    def test_strategy_scan_run_log_writes_are_owned_by_worker(self) -> None:
+        strategy_scan_run_workflow = importlib.import_module("blockcheck.strategy_scan_run_workflow")
+        strategy_scan_results_workflow = importlib.import_module("blockcheck.ui.strategy_scan_page_results_workflow")
+        strategy_scan_worker = importlib.import_module("blockcheck.strategy_scan_worker")
+
+        start_source = inspect.getsource(strategy_scan_run_workflow.start_strategy_scan_run)
+        run_workflow_source = inspect.getsource(strategy_scan_run_workflow)
+        results_workflow_source = inspect.getsource(strategy_scan_results_workflow)
+        worker_source = inspect.getsource(strategy_scan_worker.StrategyScanWorker)
+
+        self.assertNotIn(".start_run_log", start_source)
+        self.assertNotIn(".append_run_log", run_workflow_source)
+        self.assertNotIn("append_strategy_scan_log", results_workflow_source)
+        self.assertIn("run_log_started", worker_source)
+        self.assertIn("start_run_log", worker_source)
+        self.assertIn("append_run_log", worker_source)
+
     def test_blockcheck_support_bundle_prepares_through_worker(self) -> None:
         blockcheck_workers = importlib.import_module("blockcheck.workers")
         page_source = inspect.getsource(BlockcheckPage)

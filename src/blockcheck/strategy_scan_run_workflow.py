@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from collections.abc import Callable
 
 
 @dataclass(frozen=True)
 class StrategyScanRunStartResult:
     worker: object
-    run_log_file: Path | None
     target: str
     scan_protocol: str
     udp_games_scope: str
@@ -35,6 +33,7 @@ def start_strategy_scan_run(
     table_row_count: int,
     starting_status_text: str,
     parent,
+    on_run_log_started,
     on_strategy_started,
     on_strategy_result,
     on_log,
@@ -59,13 +58,6 @@ def start_strategy_scan_run(
         table_row_count=table_row_count,
         starting_status_text=starting_status_text,
     )
-    log_state = blockcheck_feature.start_run_log(
-        target=start_plan.target,
-        mode=start_plan.mode,
-        scan_protocol=start_plan.scan_protocol,
-        resume_index=start_plan.scan_cursor,
-        udp_games_scope=start_plan.udp_games_scope,
-    )
 
     worker = blockcheck_feature.create_strategy_scan_worker(
         target=start_plan.target,
@@ -76,6 +68,7 @@ def start_strategy_scan_run(
         runtime_feature=runtime_feature,
         parent=parent,
     )
+    worker.run_log_started.connect(on_run_log_started)
     worker.strategy_started.connect(on_strategy_started)
     worker.strategy_result.connect(on_strategy_result)
     worker.scan_log.connect(on_log)
@@ -84,7 +77,6 @@ def start_strategy_scan_run(
 
     return StrategyScanRunStartResult(
         worker=worker,
-        run_log_file=log_state.path,
         target=start_plan.target,
         scan_protocol=start_plan.scan_protocol,
         udp_games_scope=start_plan.udp_games_scope,
@@ -119,16 +111,6 @@ def record_strategy_scan_result(
     return next_cursor
 
 
-def append_strategy_scan_log(*, blockcheck_feature, run_log_file, message: str) -> None:
-    """Записывает строку в лог подбора стратегии."""
-    blockcheck_feature.append_run_log(run_log_file, message)
-
-
-def record_strategy_scan_phase(*, blockcheck_feature, run_log_file, phase: str) -> None:
-    """Записывает phase-событие в лог подбора стратегии."""
-    blockcheck_feature.append_run_log(run_log_file, f"[PHASE] {phase}")
-
-
 def finalize_strategy_scan(
     *,
     blockcheck_feature,
@@ -139,9 +121,8 @@ def finalize_strategy_scan(
     scan_mode: str,
     scan_cursor: int,
     result_rows: list[dict],
-    run_log_file,
 ):
-    """Финализирует отчёт подбора стратегии и записывает итог в лог."""
+    """Финализирует отчёт подбора стратегии."""
     finish_plan = blockcheck_feature.finalize_scan_report(
         report,
         scan_target=scan_target,
@@ -151,19 +132,21 @@ def finalize_strategy_scan(
         scan_cursor=scan_cursor,
         result_rows=result_rows,
     )
-    if finish_plan.log_message:
-        blockcheck_feature.append_run_log(run_log_file, finish_plan.log_message)
     return finish_plan
 
 
 def record_strategy_scan_force_stop_warning(
     *,
-    blockcheck_feature,
-    run_log_file,
+    worker,
     warning_text: str,
 ) -> None:
     """Записывает предупреждение о долгой остановке подбора стратегии."""
-    blockcheck_feature.append_run_log(run_log_file, f"WARNING: {warning_text}")
+    if worker is None:
+        return
+    try:
+        worker.record_run_log_message(f"WARNING: {warning_text}")
+    except Exception:
+        pass
 
 
 def delete_strategy_scan_worker_later(worker) -> None:

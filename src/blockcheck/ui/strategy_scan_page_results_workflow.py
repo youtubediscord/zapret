@@ -37,22 +37,12 @@ def apply_strategy_started_progress(
     status_label.setText(progress_plan.status_text)
 
 
-def append_scan_log(*, blockcheck_feature, log_edit, run_log_file, message: str) -> None:
+def append_scan_log(*, log_edit, message: str) -> None:
     log_edit.append(message)
-    strategy_scan_run_workflow.append_strategy_scan_log(
-        blockcheck_feature=blockcheck_feature,
-        run_log_file=run_log_file,
-        message=message,
-    )
 
 
-def apply_phase_change(*, blockcheck_feature, status_label, run_log_file, phase: str) -> None:
+def apply_phase_change(*, status_label, phase: str) -> None:
     status_label.setText(phase)
-    strategy_scan_run_workflow.record_strategy_scan_phase(
-        blockcheck_feature=blockcheck_feature,
-        run_log_file=run_log_file,
-        phase=phase,
-    )
 
 
 def add_strategy_result_row(
@@ -127,7 +117,6 @@ def apply_finished_scan(
     result_rows: list[dict],
     progress_bar,
     status_label,
-    run_log_file,
     set_support_status,
     parent_widget,
 ) -> None:
@@ -142,7 +131,6 @@ def apply_finished_scan(
         scan_mode=scan_mode,
         scan_cursor=scan_cursor,
         result_rows=result_rows,
-        run_log_file=run_log_file,
     )
 
     if finish_plan.total_available > 0:
@@ -208,11 +196,9 @@ def apply_finished_scan(
 
 def apply_force_stop_status(
     *,
-    blockcheck_feature,
     worker,
     expected_worker,
     status_label,
-    run_log_file,
     set_support_status,
 ) -> None:
     if expected_worker is None:
@@ -224,8 +210,7 @@ def apply_force_stop_status(
         )
         status_label.setText(warning_text)
         strategy_scan_run_workflow.record_strategy_scan_force_stop_warning(
-            blockcheck_feature=blockcheck_feature,
-            run_log_file=run_log_file,
+            worker=worker,
             warning_text=warning_text,
         )
         set_support_status(
