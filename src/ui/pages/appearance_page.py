@@ -131,6 +131,8 @@ class AppearancePage(BasePage):
         self._appearance_save_worker = None
         self._appearance_save_request_id = 0
         self._appearance_save_pending: list[dict[str, object]] = []
+        self._initial_state_load_worker = None
+        self._initial_state_load_request_id = 0
         self._rkn_background_options_worker = None
         self._rkn_background_options_request_id = 0
         self._rkn_background_options_pending = False
@@ -243,11 +245,10 @@ class AppearancePage(BasePage):
 
     def _build_ui(self):
         total_started_at = time.perf_counter()
-        initial_state = (
-            appearance_settings.consume_warmed_page_initial_state()
-            or appearance_settings.load_page_initial_state()
-        )
-        self._initial_state_plan = initial_state
+        warmed_state = appearance_settings.consume_warmed_page_initial_state()
+        initial_state = warmed_state or appearance_settings.build_default_page_initial_state()
+        if warmed_state is not None:
+            self._initial_state_plan = warmed_state
         self._ui_language = initial_state.ui_language
         # ═══════════════════════════════════════════════════════════
         # РЕЖИМ ОТОБРАЖЕНИЯ
@@ -319,6 +320,7 @@ class AppearancePage(BasePage):
         # Load saved display mode and bg preset
         section_started_at = time.perf_counter()
         self._apply_initial_display_state(initial_state)
+        self._request_initial_state_load(force=warmed_state is None)
         self._log_ui_timing("appearance_ui.initial_state.load", section_started_at)
         self._log_ui_timing("appearance_ui.build.total", total_started_at)
 
@@ -340,7 +342,10 @@ class AppearancePage(BasePage):
         self._lower_sections_build_scheduled = False
         if self._cleanup_in_progress or not self.isVisible():
             return False
-        initial_state = self._initial_state_plan or appearance_settings.load_page_initial_state()
+        initial_state = self._initial_state_plan
+        if initial_state is None:
+            self._request_initial_state_load(force=False)
+            return False
         lower_started_at = time.perf_counter()
 
         # ═══════════════════════════════════════════════════════════
@@ -599,6 +604,58 @@ class AppearancePage(BasePage):
             context_extra=context_extra,
             parent=self,
         )
+
+    def create_initial_state_load_worker(self, request_id: int):
+        from settings.appearance_workers import AppearanceInitialStateLoadWorker
+
+        return AppearanceInitialStateLoadWorker(request_id, parent=self)
+
+    def _request_initial_state_load(self, *, force: bool) -> None:
+        if self._cleanup_in_progress:
+            return
+        if not force and self._initial_state_plan is not None:
+            return
+        worker = self.__dict__.get("_initial_state_load_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._start_initial_state_load_worker()
+
+    def _start_initial_state_load_worker(self) -> None:
+        self._initial_state_load_request_id += 1
+        request_id = self._initial_state_load_request_id
+        worker = self.create_initial_state_load_worker(request_id)
+        self._initial_state_load_worker = worker
+        worker.loaded.connect(self._on_initial_state_loaded)
+        worker.failed.connect(self._on_initial_state_failed)
+        worker.finished.connect(lambda w=worker: self._on_initial_state_worker_finished(w))
+        worker.start()
+
+    def _on_initial_state_loaded(self, request_id: int, plan) -> None:
+        if request_id != self._initial_state_load_request_id or self._cleanup_in_progress:
+            return
+        self._initial_state_plan = plan
+        self._ui_language = plan.ui_language
+        self._apply_initial_display_state(plan)
+        if self._lower_sections_build_scheduled or self.isVisible():
+            self._schedule_lower_sections_build()
+
+    def _on_initial_state_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._initial_state_load_request_id or self._cleanup_in_progress:
+            return
+        log(f"Ошибка загрузки настроек оформления: {error}", "WARNING")
+        if self._initial_state_plan is None:
+            self._initial_state_plan = appearance_settings.build_default_page_initial_state()
+        if self._lower_sections_build_scheduled or self.isVisible():
+            self._schedule_lower_sections_build()
+
+    def _on_initial_state_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_initial_state_load_worker") is worker:
+            self._initial_state_load_worker = None
+        worker.deleteLater()
 
     def _request_appearance_save(self, action: str, value=None, **context_extra) -> None:
         payload = {
@@ -1233,6 +1290,13 @@ class AppearancePage(BasePage):
                 pass
 
         self._appearance_save_pending.clear()
+        initial_worker = self.__dict__.get("_initial_state_load_worker")
+        if initial_worker is not None:
+            try:
+                initial_worker.quit()
+            except Exception:
+                pass
+            self._initial_state_load_worker = None
         worker = self.__dict__.get("_appearance_save_worker")
         if worker is not None:
             try:

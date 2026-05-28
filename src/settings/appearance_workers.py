@@ -5,6 +5,28 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from log.log import log
 
 
+class AppearanceInitialStateLoadWorker(QThread):
+    """Загружает начальное состояние страницы оформления вне UI-потока."""
+
+    loaded = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, request_id: int, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+
+    def run(self) -> None:
+        try:
+            import settings.appearance as appearance_settings
+
+            result = appearance_settings.load_page_initial_state()
+        except Exception as exc:
+            log(f"AppearanceInitialStateLoadWorker: не удалось загрузить состояние: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.loaded.emit(self._request_id, result)
+
+
 class AppearanceSettingsSaveWorker(QThread):
     """Сохраняет настройки внешнего вида вне UI-потока."""
 

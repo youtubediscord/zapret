@@ -119,6 +119,28 @@ def consume_warmed_page_initial_state() -> AppearancePageInitialStatePlan | None
         return state
 
 
+def build_default_page_initial_state() -> AppearancePageInitialStatePlan:
+    appearance_defaults = schema.default_appearance()
+    window_defaults = schema.default_window()
+    return AppearancePageInitialStatePlan(
+        display_mode=str(appearance_defaults["display_mode"]),
+        ui_language=normalize_language(str(appearance_defaults["ui_language"])),
+        background_preset=str(appearance_defaults["background_preset"]),
+        rkn_background=None,
+        mica_enabled=bool(appearance_defaults["mica_enabled"]),
+        window_opacity=int(window_defaults["opacity"]),
+        accent_color=None,
+        follow_windows_accent=bool(appearance_defaults["follow_windows_accent"]),
+        tinted_background=bool(appearance_defaults["tinted_background"]),
+        tinted_intensity=int(appearance_defaults["tinted_background_intensity"]),
+        animations_enabled=bool(appearance_defaults["animations_enabled"]),
+        smooth_scroll_enabled=bool(appearance_defaults["smooth_scroll_enabled"]),
+        editor_smooth_scroll_enabled=bool(appearance_defaults["editor_smooth_scroll_enabled"]),
+        garland_enabled=bool(appearance_defaults["garland_enabled"]),
+        snowflakes_enabled=bool(appearance_defaults["snowflakes_enabled"]),
+    )
+
+
 def _plan_str(values: dict, key: str, default: str) -> str:
     return str(values.get(key) or default)
 

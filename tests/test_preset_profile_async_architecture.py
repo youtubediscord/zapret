@@ -542,9 +542,12 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_appearance_page_initial_state_is_single_backend_plan(self) -> None:
         build_source = inspect.getsource(AppearancePage._build_ui)
+        ensure_source = inspect.getsource(AppearancePage._ensure_lower_sections_built)
         settings_source = inspect.getsource(appearance_settings.load_page_initial_state)
 
-        self.assertIn("load_page_initial_state", build_source)
+        self.assertNotIn("load_page_initial_state", build_source)
+        self.assertNotIn("load_page_initial_state", ensure_source)
+        self.assertIn("_request_initial_state_load", build_source)
         self.assertNotIn("appearance_settings.load_ui_language()", build_source)
         self.assertNotIn("appearance_settings.load_window_opacity()", build_source)
         self.assertNotIn("self._load_accent_color()", build_source)
@@ -557,6 +560,17 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("get_display_mode", settings_source)
         self.assertNotIn("get_window_opacity", settings_source)
         self.assertNotIn("get_animations_enabled", settings_source)
+
+    def test_appearance_initial_state_loads_through_worker(self) -> None:
+        self.assertTrue(hasattr(appearance_workers, "AppearanceInitialStateLoadWorker"))
+        worker_source = inspect.getsource(appearance_workers.AppearanceInitialStateLoadWorker.run)
+        page_source = inspect.getsource(AppearancePage)
+        build_source = inspect.getsource(AppearancePage._build_ui)
+
+        self.assertIn("load_page_initial_state", worker_source)
+        self.assertIn("create_initial_state_load_worker", page_source)
+        self.assertIn("_initial_state_load_worker", page_source)
+        self.assertIn("_request_initial_state_load", build_source)
 
     def test_appearance_lower_sections_are_built_after_initial_shell(self) -> None:
         build_source = inspect.getsource(AppearancePage._build_ui)
