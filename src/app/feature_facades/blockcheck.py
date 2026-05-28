@@ -58,6 +58,11 @@ class BlockcheckFeature:
 
         return StrategyScanSupportPrepareWorker(request_id, **kwargs)
 
+    def create_strategy_scan_quick_targets_worker(self, request_id: int, **kwargs):
+        from blockcheck.workers import StrategyScanQuickTargetsWorker
+
+        return StrategyScanQuickTargetsWorker(request_id, **kwargs)
+
     def append_run_log(self, *args, **kwargs) -> None:
         return self._commands().append_run_log(*args, **kwargs)
 

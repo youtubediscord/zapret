@@ -1195,6 +1195,21 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("build_apply_success_plan", finished_source)
         self.assertIn("apply_strategy", worker_source)
 
+    def test_strategy_scan_quick_targets_load_through_worker(self) -> None:
+        import blockcheck.workers as blockcheck_workers
+
+        page_source = inspect.getsource(StrategyScanPage)
+        handler_source = inspect.getsource(StrategyScanPage._show_quick_domains_menu)
+        feature_source = inspect.getsource(BlockcheckFeature)
+
+        self.assertTrue(hasattr(blockcheck_workers, "StrategyScanQuickTargetsWorker"))
+        worker_source = inspect.getsource(blockcheck_workers.StrategyScanQuickTargetsWorker.run)
+
+        self.assertIn("create_quick_targets_worker", page_source)
+        self.assertIn("create_strategy_scan_quick_targets_worker", feature_source)
+        self.assertIn("build_quick_target_menu_plan", worker_source)
+        self.assertNotIn("build_quick_target_menu_plan", handler_source)
+
     def test_logs_file_operations_log_internal_timing_stages(self) -> None:
         list_source = inspect.getsource(log_commands.list_logs)
         stats_source = inspect.getsource(log_commands.build_stats)

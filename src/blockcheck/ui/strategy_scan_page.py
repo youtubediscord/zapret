@@ -101,6 +101,8 @@ class StrategyScanPage(BasePage):
         self._strategy_apply_request_id = 0
         self._support_prepare_worker = None
         self._support_prepare_request_id = 0
+        self._quick_targets_worker = None
+        self._quick_targets_request_id = 0
 
         self._build_ui()
         if self._embedded:
@@ -133,6 +135,14 @@ class StrategyScanPage(BasePage):
             protocol_label=protocol_label,
             mode_label=mode_label,
             scan_protocol=scan_protocol,
+            parent=self,
+        )
+
+    def create_quick_targets_worker(self, request_id: int, *, scan_protocol: str, current_value: str):
+        return self._blockcheck.create_strategy_scan_quick_targets_worker(
+            request_id,
+            scan_protocol=scan_protocol,
+            current_value=current_value,
             parent=self,
         )
 
@@ -306,17 +316,60 @@ class StrategyScanPage(BasePage):
         if self._quick_domain_btn is None:
             return
 
-        menu = RoundMenu(parent=self)
         selection = self._blockcheck.build_selection_state(
             protocol_value=self._protocol_combo.currentData(),
             udp_scope_value=self._games_scope_combo.currentData() if self._games_scope_combo is not None else "all",
             mode_index=self._mode_combo.currentIndex() if self._mode_combo is not None else 0,
         )
-        menu_plan = self._blockcheck.build_quick_target_menu_plan(
+        self._request_quick_targets_menu(
             scan_protocol=selection.scan_protocol,
             current_value=self._target_input.text(),
         )
 
+    def _request_quick_targets_menu(self, *, scan_protocol: str, current_value: str) -> None:
+        worker = self.__dict__.get("_quick_targets_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+
+        self._quick_targets_request_id += 1
+        request_id = self._quick_targets_request_id
+        worker = self.create_quick_targets_worker(
+            request_id,
+            scan_protocol=scan_protocol,
+            current_value=current_value,
+        )
+        self._quick_targets_worker = worker
+        worker.completed.connect(self._on_quick_targets_loaded)
+        worker.failed.connect(self._on_quick_targets_failed)
+        worker.finished.connect(lambda w=worker: self._on_quick_targets_worker_finished(w))
+        worker.start()
+
+    def _on_quick_targets_loaded(self, request_id: int, menu_plan) -> None:
+        if request_id != self._quick_targets_request_id or self._cleanup_in_progress:
+            return
+        self._open_quick_targets_menu(menu_plan)
+
+    def _on_quick_targets_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._quick_targets_request_id or self._cleanup_in_progress:
+            return
+        logger.warning("Failed to load quick targets: %s", error)
+
+    def _on_quick_targets_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_quick_targets_worker") is worker:
+            self._quick_targets_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
+
+    def _open_quick_targets_menu(self, menu_plan) -> None:
+        if self._quick_domain_btn is None:
+            return
+        menu = RoundMenu(parent=self)
         for option in menu_plan.options:
             action = Action(option, menu)
             action.setCheckable(True)
@@ -763,4 +816,11 @@ class StrategyScanPage(BasePage):
             except Exception:
                 pass
             self._support_prepare_worker = None
+        quick_targets_worker = self.__dict__.get("_quick_targets_worker")
+        if quick_targets_worker is not None:
+            try:
+                quick_targets_worker.quit()
+            except Exception:
+                pass
+            self._quick_targets_worker = None
         self._worker = cleanup_strategy_scan_worker(self._worker)

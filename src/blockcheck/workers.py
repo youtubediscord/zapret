@@ -89,6 +89,38 @@ class BlockcheckUserDomainActionWorker(QThread):
         self.completed.emit(self._request_id, self._action, result, context)
 
 
+class StrategyScanQuickTargetsWorker(QThread):
+    completed = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        scan_protocol: str,
+        current_value: str,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._scan_protocol = str(scan_protocol or "").strip()
+        self._current_value = str(current_value or "")
+
+    def run(self) -> None:
+        try:
+            from blockcheck.strategy_scan_page_plans import build_quick_target_menu_plan
+
+            plan = build_quick_target_menu_plan(
+                scan_protocol=self._scan_protocol,
+                current_value=self._current_value,
+            )
+        except Exception as exc:
+            log(f"StrategyScanQuickTargetsWorker: не удалось загрузить быстрые цели: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, plan)
+
+
 class StrategyScanSupportPrepareWorker(QThread):
     completed = pyqtSignal(int, object)
     failed = pyqtSignal(int, str)
