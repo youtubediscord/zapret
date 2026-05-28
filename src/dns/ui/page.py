@@ -129,6 +129,8 @@ class NetworkPage(BasePage):
         self._dns_apply_worker = None
         self._dns_apply_request_id = 0
         self._dns_apply_pending: list[dict[str, object]] = []
+        self._isp_warning_worker = None
+        self._isp_warning_request_id = 0
         
         self.dns_cards = {}
         self.adapter_cards = []
@@ -1160,26 +1162,45 @@ class NetworkPage(BasePage):
     def _check_and_show_isp_dns_warning(self):
         """Показывает предупреждение если у пользователя DNS от провайдера (DHCP).
 
-        Показывается ОДИН раз за всё время установки. Как только баннер
-        отрисован — в settings.json пишется ISPDNSInfoShown=1 и повторно он
-        больше никогда не появится.
+        Показывается ОДИН раз за всё время установки. Решение и запись
+        ISPDNSInfoShown=1 выполняются в worker-е, GUI только рисует готовый план.
         """
-        show_isp_dns_warning(
-            cleanup_in_progress=self._cleanup_in_progress,
+        self._request_isp_dns_warning_plan()
+
+    def _request_isp_dns_warning_plan(self) -> None:
+        worker = self.__dict__.get("_isp_warning_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                self._isp_warning_worker = None
+
+        self._isp_warning_request_id += 1
+        request_id = self._isp_warning_request_id
+        worker = self._dns.create_isp_dns_warning_worker(
+            request_id,
             adapters=self._adapters,
             dns_info=self._dns_info,
             force_dns_active=self._force_dns_active,
             language=self._ui_language,
-            build_warning_plan_fn=lambda *args, **kwargs: dns_page_plans.build_isp_dns_warning_plan(
-                *args,
-                **kwargs,
-                warning_already_shown=self._dns.is_isp_dns_warning_shown(),
-                normalize_alias_fn=self._dns.normalize_adapter_alias,
-            ),
+            parent=self,
+        )
+        self._isp_warning_worker = worker
+        worker.completed.connect(self._on_isp_dns_warning_plan_loaded)
+        worker.failed.connect(self._on_isp_dns_warning_plan_failed)
+        worker.finished.connect(lambda w=worker: self._on_isp_dns_warning_worker_finished(w))
+        worker.start()
+
+    def _on_isp_dns_warning_plan_loaded(self, request_id: int, plan) -> None:
+        if request_id != self._isp_warning_request_id or self._cleanup_in_progress:
+            return
+        show_isp_dns_warning(
+            cleanup_in_progress=self._cleanup_in_progress,
+            plan=plan,
             get_theme_tokens_fn=get_theme_tokens,
             build_warning_ui_fn=build_isp_warning_ui,
             insert_warning_widget_fn=insert_isp_warning_widget,
-            mark_warning_shown_fn=self._dns.mark_isp_dns_warning_shown,
             render_warning_styles_fn=self._render_isp_warning_styles,
             parent=self,
             qframe_cls=QFrame,
@@ -1202,6 +1223,19 @@ class NetworkPage(BasePage):
             ),
             log_fn=log,
         )
+
+    def _on_isp_dns_warning_plan_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._isp_warning_request_id or self._cleanup_in_progress:
+            return
+        log(f"Ошибка подготовки ISP DNS предупреждения: {error}", "DEBUG")
+
+    def _on_isp_dns_warning_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_isp_warning_worker") is worker:
+            self._isp_warning_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
 
     def _render_isp_warning_styles(self, tokens=None) -> None:
         render_isp_warning_theme(
@@ -1267,6 +1301,13 @@ class NetworkPage(BasePage):
             except Exception:
                 pass
             self._dns_apply_worker = None
+        isp_warning_worker = self.__dict__.get("_isp_warning_worker")
+        if isp_warning_worker is not None:
+            try:
+                isp_warning_worker.quit()
+            except Exception:
+                pass
+            self._isp_warning_worker = None
         cleanup_network_page(
             set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
             set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),

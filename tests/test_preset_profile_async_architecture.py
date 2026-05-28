@@ -2308,6 +2308,24 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("get_runtime_state(", cache_source)
         self.assertNotIn("get_active_domains(", cache_source)
 
+    def test_dns_isp_warning_settings_access_runs_through_worker(self) -> None:
+        dns_workers = importlib.import_module("dns.page_workers")
+        dns_feature_module = importlib.import_module("app.feature_facades.dns")
+
+        page_source = inspect.getsource(dns_page.NetworkPage)
+        check_source = inspect.getsource(dns_page.NetworkPage._check_and_show_isp_dns_warning)
+        feature_source = inspect.getsource(dns_feature_module.DnsFeature)
+
+        self.assertTrue(hasattr(dns_workers, "DnsIspWarningWorker"))
+        worker_source = inspect.getsource(dns_workers.DnsIspWarningWorker.run)
+        self.assertIn("_request_isp_dns_warning_plan", check_source)
+        self.assertNotIn("self._dns.is_isp_dns_warning_shown", check_source)
+        self.assertNotIn("self._dns.mark_isp_dns_warning_shown", check_source)
+        self.assertIn("_isp_warning_worker", page_source)
+        self.assertIn("create_isp_dns_warning_worker", feature_source)
+        self.assertIn("is_isp_dns_warning_shown", worker_source)
+        self.assertIn("mark_isp_dns_warning_shown", worker_source)
+
     def test_lazy_pages_start_runtime_after_activation_not_constructor(self) -> None:
         page_classes = (
             dns_page.NetworkPage,

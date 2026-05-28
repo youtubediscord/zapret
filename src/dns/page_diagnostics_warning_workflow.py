@@ -74,15 +74,10 @@ def apply_connectivity_test_result(
 def show_isp_dns_warning(
     *,
     cleanup_in_progress: bool,
-    adapters,
-    dns_info: dict,
-    force_dns_active: bool,
-    language: str,
-    build_warning_plan_fn,
+    plan,
     get_theme_tokens_fn,
     build_warning_ui_fn,
     insert_warning_widget_fn,
-    mark_warning_shown_fn,
     render_warning_styles_fn,
     parent,
     qframe_cls,
@@ -101,12 +96,6 @@ def show_isp_dns_warning(
     if cleanup_in_progress:
         return
     try:
-        plan = build_warning_plan_fn(
-            adapters,
-            dns_info,
-            force_dns_active=force_dns_active,
-            language=language,
-        )
         if not plan.should_show:
             return
 
@@ -124,7 +113,6 @@ def show_isp_dns_warning(
             on_dismiss=on_dismiss,
         )
         set_warning_widgets_fn(warning_widgets)
-        mark_warning_shown_fn()
 
         insert_warning_widget_fn(
             layout=parent.vBoxLayout,

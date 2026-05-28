@@ -23,6 +23,7 @@ class DnsFeature:
     create_dns_quick_check_worker: Callable
     create_force_dns_action_worker: Callable
     create_dns_flush_cache_worker: Callable
+    create_isp_dns_warning_worker: Callable
     create_dns_apply_worker: Callable
     enable_force_dns: Callable
     disable_force_dns: Callable
@@ -77,6 +78,27 @@ def build_dns_feature() -> DnsFeature:
             parent=parent,
         )
 
+    def _create_isp_dns_warning_worker(
+        request_id: int,
+        *,
+        adapters,
+        dns_info: dict,
+        force_dns_active: bool,
+        language: str = "ru",
+        parent=None,
+    ):
+        from dns.page_workers import DnsIspWarningWorker
+
+        return DnsIspWarningWorker(
+            request_id,
+            dns_feature=feature,
+            adapters=adapters,
+            dns_info=dns_info,
+            force_dns_active=force_dns_active,
+            language=language,
+            parent=parent,
+        )
+
     def _create_dns_apply_worker(
         request_id: int,
         *,
@@ -122,6 +144,7 @@ def build_dns_feature() -> DnsFeature:
         create_dns_quick_check_worker=lambda *args, **kwargs: _commands().create_dns_quick_check_worker(*args, **kwargs),
         create_force_dns_action_worker=_create_force_dns_action_worker,
         create_dns_flush_cache_worker=_create_dns_flush_cache_worker,
+        create_isp_dns_warning_worker=_create_isp_dns_warning_worker,
         create_dns_apply_worker=_create_dns_apply_worker,
         enable_force_dns=lambda *args, **kwargs: _public().enable_force_dns(*args, **kwargs),
         disable_force_dns=lambda *args, **kwargs: _public().disable_force_dns(*args, **kwargs),

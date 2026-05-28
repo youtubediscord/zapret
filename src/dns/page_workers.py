@@ -173,6 +173,50 @@ class DnsFlushCacheWorker(QThread):
         self.completed.emit(self._request_id, plan)
 
 
+class DnsIspWarningWorker(QThread):
+    completed = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        dns_feature,
+        *,
+        adapters,
+        dns_info: dict,
+        force_dns_active: bool,
+        language: str = "ru",
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._dns = dns_feature
+        self._adapters = list(adapters or [])
+        self._dns_info = dict(dns_info or {})
+        self._force_dns_active = bool(force_dns_active)
+        self._language = str(language or "ru")
+
+    def run(self) -> None:
+        from dns.ui import page_plans as dns_page_plans
+
+        try:
+            plan = dns_page_plans.build_isp_dns_warning_plan(
+                self._adapters,
+                self._dns_info,
+                force_dns_active=self._force_dns_active,
+                warning_already_shown=self._dns.is_isp_dns_warning_shown(),
+                normalize_alias_fn=self._dns.normalize_adapter_alias,
+                language=self._language,
+            )
+            if plan.should_show:
+                self._dns.mark_isp_dns_warning_shown()
+        except Exception as exc:
+            log(f"DnsIspWarningWorker: ошибка подготовки предупреждения ISP DNS: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, plan)
+
+
 class DnsApplyWorker(QThread):
     completed = pyqtSignal(int, object)
     failed = pyqtSignal(int, str)
