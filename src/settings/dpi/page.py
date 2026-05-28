@@ -99,6 +99,9 @@ class DpiSettingsPage(BasePage):
         self.lock_successes_spin = None
         self.unlock_fails_spin = None
         self._settings_loaded = False
+        self._dpi_settings_worker = None
+        self._dpi_settings_request_id = 0
+        self._dpi_settings_pending: list[tuple[str, str]] = []
         self._orchestra_settings_save_worker = None
         self._orchestra_settings_save_request_id = 0
         self._orchestra_settings_save_pending: list[tuple[str, object]] = []
@@ -296,11 +299,107 @@ class DpiSettingsPage(BasePage):
         if self._settings_loaded:
             return
         self._settings_loaded = True
+        self._request_dpi_initial_state_load()
+
+    def create_dpi_settings_worker(self, request_id: int, *, action: str, method: str = ""):
+        return self._dpi_settings.create_dpi_settings_worker(
+            request_id,
+            action=action,
+            method=method,
+            parent=self,
+        )
+
+    def _request_dpi_initial_state_load(self) -> None:
+        self._request_dpi_settings_action("load_initial_state")
+
+    def _request_launch_method_apply(self, method: str) -> None:
+        self._request_dpi_settings_action("apply_launch_method", method)
+
+    def _request_dpi_settings_action(self, action: str, method: str = "") -> None:
+        payload = (str(action or "").strip(), str(method or "").strip())
+        worker = self.__dict__.get("_dpi_settings_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._dpi_settings_pending.append(payload)
+                    self._coalesce_dpi_settings_pending()
+                    return
+            except Exception:
+                self._dpi_settings_pending.append(payload)
+                self._coalesce_dpi_settings_pending()
+                return
+        self._start_dpi_settings_worker(payload)
+
+    def _coalesce_dpi_settings_pending(self) -> None:
+        latest_load: tuple[str, str] | None = None
+        latest_apply: tuple[str, str] | None = None
+        for payload in self._dpi_settings_pending:
+            if payload[0] == "load_initial_state":
+                latest_load = payload
+            elif payload[0] == "apply_launch_method":
+                latest_apply = payload
+        self._dpi_settings_pending = [
+            payload for payload in (latest_load, latest_apply) if payload is not None
+        ]
+
+    def _start_dpi_settings_worker(self, payload: tuple[str, str]) -> None:
+        self._dpi_settings_request_id += 1
+        request_id = self._dpi_settings_request_id
+        worker = self.create_dpi_settings_worker(
+            request_id,
+            action=payload[0],
+            method=payload[1],
+        )
+        self._dpi_settings_worker = worker
+        worker.completed.connect(self._on_dpi_settings_worker_completed)
+        worker.failed.connect(self._on_dpi_settings_worker_failed)
+        worker.finished.connect(lambda w=worker: self._on_dpi_settings_worker_finished(w))
+        worker.start()
+
+    def _on_dpi_settings_worker_completed(self, request_id: int, action: str, result) -> None:
+        if request_id != self._dpi_settings_request_id:
+            return
+        if not isinstance(result, dict):
+            return
+        if action == "load_initial_state":
+            initial = result.get("initial")
+            if initial is not None:
+                self._apply_dpi_initial_state(initial, result.get("orchestra_settings"))
+            return
+        if action == "apply_launch_method":
+            next_method = str(result.get("launch_method") or "").strip()
+            visibility = result.get("visibility")
+            if not next_method or visibility is None:
+                return
+            self._update_method_selection(next_method)
+            self._apply_visibility(visibility)
+            orchestra_settings = result.get("orchestra_settings")
+            if visibility.show_orchestra_settings and orchestra_settings is not None:
+                self._load_orchestra_settings(orchestra_settings)
+            self._runtime.handle_launch_method_changed(next_method, set_status=self._set_status)
+            self._after_launch_method_changed(next_method)
+
+    def _on_dpi_settings_worker_failed(self, request_id: int, action: str, error: str) -> None:
+        if request_id != self._dpi_settings_request_id:
+            return
+        if action == "load_initial_state":
+            self._settings_loaded = False
+        log(f"Ошибка DPI-настроек ({action}): {error}", "ERROR")
+
+    def _on_dpi_settings_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_dpi_settings_worker") is worker:
+            self._dpi_settings_worker = None
+        worker.deleteLater()
+        if self._dpi_settings_pending and not self._cleanup_in_progress:
+            pending = self._dpi_settings_pending.pop(0)
+            self._start_dpi_settings_worker(pending)
+
+    def _apply_dpi_initial_state(self, initial, orchestra_settings=None) -> None:
         try:
-            initial = self._dpi_settings.load_initial_state()
             self._update_method_selection(initial.launch_method)
             self._apply_visibility(initial.visibility)
-            self._sync_visible_settings(initial.launch_method, initial.visibility)
+            if initial.visibility.show_orchestra_settings and orchestra_settings is not None:
+                self._load_orchestra_settings(orchestra_settings)
 
         except Exception as e:
             self._settings_loaded = False
@@ -321,13 +420,10 @@ class DpiSettingsPage(BasePage):
     def _select_method(self, method: str):
         """Обработчик выбора метода"""
         try:
-            next_method = self._dpi_settings.apply_launch_method(method)
-            visibility = self._dpi_settings.describe_visibility(next_method)
-            self._update_method_selection(next_method)
+            visibility = self._dpi_settings.describe_visibility(method)
+            self._update_method_selection(method)
             self._apply_visibility(visibility)
-            self._sync_visible_settings(next_method, visibility)
-            self._runtime.handle_launch_method_changed(next_method, set_status=self._set_status)
-            self._after_launch_method_changed(next_method)
+            self._request_launch_method_apply(method)
         except Exception as e:
             log(f"Ошибка смены метода: {e}", "ERROR")
 
@@ -469,14 +565,11 @@ class DpiSettingsPage(BasePage):
         try:
             resolved_visibility = visibility
             if resolved_visibility is None:
-                resolved_method = str(method or self._dpi_settings.get_launch_method()).strip().lower()
-                resolved_visibility = self._dpi_settings.describe_visibility(resolved_method)
+                self._request_dpi_initial_state_load()
+                return
 
             if resolved_visibility.show_orchestra_settings:
-                self._ensure_orchestra_settings_built()
-                self._load_orchestra_settings(
-                    self._dpi_settings.load_orchestra_settings()
-                )
+                self._request_dpi_initial_state_load()
         except Exception as e:
             log(f"Ошибка синхронизации видимых настроек DPI: {e}", "WARNING")
 
@@ -559,6 +652,14 @@ class DpiSettingsPage(BasePage):
             )
 
     def cleanup(self) -> None:
+        self._dpi_settings_pending.clear()
+        worker = self.__dict__.get("_dpi_settings_worker")
+        if worker is not None:
+            try:
+                worker.quit()
+            except Exception:
+                pass
+            self._dpi_settings_worker = None
         self._orchestra_settings_save_pending.clear()
         worker = self.__dict__.get("_orchestra_settings_save_worker")
         if worker is not None:

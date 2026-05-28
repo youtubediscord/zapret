@@ -1323,12 +1323,32 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("if self._selected == selected", radio_source)
 
     def test_dpi_settings_initial_load_reuses_initial_visibility(self) -> None:
-        load_source = inspect.getsource(DpiSettingsPage._load_settings)
+        apply_source = inspect.getsource(DpiSettingsPage._apply_dpi_initial_state)
         sync_source = inspect.getsource(DpiSettingsPage._sync_visible_settings)
 
-        self.assertIn("initial.visibility", load_source)
-        self.assertIn("_sync_visible_settings(initial.launch_method, initial.visibility)", load_source)
+        self.assertIn("initial.visibility", apply_source)
+        self.assertNotIn("describe_visibility(initial.launch_method)", apply_source)
         self.assertIn("visibility=None", sync_source)
+        self.assertNotIn("load_orchestra_settings", sync_source)
+
+    def test_dpi_settings_load_and_method_apply_run_through_worker(self) -> None:
+        spec = importlib.util.find_spec("settings.dpi.workers")
+        self.assertIsNotNone(spec)
+        dpi_workers = importlib.import_module("settings.dpi.workers")
+
+        load_source = inspect.getsource(DpiSettingsPage._load_settings)
+        select_source = inspect.getsource(DpiSettingsPage._select_method)
+        page_source = inspect.getsource(DpiSettingsPage)
+        worker_source = inspect.getsource(dpi_workers.DpiSettingsWorker.run)
+
+        self.assertIn("_request_dpi_initial_state_load", load_source)
+        self.assertNotIn("self._dpi_settings.load_initial_state", load_source)
+        self.assertIn("_request_launch_method_apply", select_source)
+        self.assertNotIn("self._dpi_settings.apply_launch_method", select_source)
+        self.assertIn("create_dpi_settings_worker", page_source)
+        self.assertIn("load_initial_state", worker_source)
+        self.assertIn("apply_launch_method", worker_source)
+        self.assertIn("load_orchestra_settings", worker_source)
 
     def test_dpi_orchestra_settings_save_runs_through_worker(self) -> None:
         spec = importlib.util.find_spec("orchestra.settings_worker")
