@@ -342,16 +342,6 @@ class PremiumPage(BasePage):
 
     # ── initialization ───────────────────────────────────────────────────────
 
-    def _init_checker(self):
-        try:
-            if not self._premium.ensure_checker_ready():
-                raise RuntimeError("premium checker init failed")
-            self._update_device_info()
-        except Exception as e:
-            from log.log import log
-
-            log(f"Ошибка инициализации PremiumPage checker: {e}", "ERROR")
-
     def _read_initial_device_info_snapshot(self):
         return self._premium.read_device_info_snapshot(current_time=int(time.time()))
 
@@ -393,6 +383,12 @@ class PremiumPage(BasePage):
         from log.log import log
 
         log(f"Ошибка фоновой инициализации PremiumPage checker: {error}", "ERROR")
+
+    def _request_checker_init(self) -> bool:
+        if self._premium.is_checker_ready():
+            return True
+        self._start_premium_init_worker()
+        return False
 
     # ── UI construction ──────────────────────────────────────────────────────
 
@@ -657,14 +653,12 @@ class PremiumPage(BasePage):
         )
         if not gate_plan.can_start:
             return
-        if not self._premium.is_checker_ready():
-            self._init_checker()
-            if not self._premium.is_checker_ready():
-                self._set_activation_status(
-                    text_key="page.premium.activation.error.init",
-                    text_default="❌ Ошибка инициализации",
-                )
-                return
+        if not self._request_checker_init():
+            self._set_activation_status(
+                text_key="page.premium.activation.init",
+                text_default="Инициализация...",
+            )
+            return
 
         plan = apply_pair_code_start_ui(
             activate_btn=self.activate_btn,
@@ -719,17 +713,14 @@ class PremiumPage(BasePage):
         )
         if not gate_plan.can_start:
             return
-        if not self._premium.is_checker_ready():
-            self._init_checker()
-            if not self._premium.is_checker_ready():
-                self._set_status_badge(
-                    status="expired",
-                    text_key="page.premium.status.error.title",
-                    text_default="Ошибка",
-                    details_key="page.premium.status.error.init_failed",
-                    details_default="Не удалось инициализировать",
-                )
-                return
+        if not self._request_checker_init():
+            self._set_status_badge(
+                status="neutral",
+                text_key="page.premium.status.checking.title",
+                text_default="Проверка...",
+                details="",
+            )
+            return
 
         apply_status_check_start_ui(
             refresh_btn=self.refresh_btn,
@@ -791,8 +782,18 @@ class PremiumPage(BasePage):
         )
         if not gate_plan.can_start:
             return
-        if not self._premium.is_checker_ready():
-            self._init_checker()
+        if not self._request_checker_init():
+            plan = premium_page_plans.build_connection_test_start_plan(
+                checker_ready=False,
+            )
+            self._connection_test_in_progress = apply_connection_test_plan(
+                plan,
+                tr=self._tr,
+                test_btn=self.test_btn,
+                render_server_status=self._render_server_status,
+                set_server_status_state=self._set_server_status_state,
+            )
+            return
         plan = premium_page_plans.build_connection_test_start_plan(
             checker_ready=bool(self._premium.is_checker_ready()),
         )

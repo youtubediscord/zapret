@@ -1693,6 +1693,20 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_device_info_load_worker", feature_source)
         self.assertIn("read_device_info_snapshot", worker_source)
 
+    def test_premium_click_actions_initialize_checker_through_worker(self) -> None:
+        create_source = inspect.getsource(PremiumPage._create_pair_code)
+        status_source = inspect.getsource(PremiumPage._check_status)
+        connection_source = inspect.getsource(PremiumPage._test_connection)
+        init_request_source = inspect.getsource(PremiumPage._request_checker_init)
+
+        for source in (create_source, status_source, connection_source):
+            self.assertIn("_request_checker_init", source)
+            self.assertNotIn("_init_checker()", source)
+            self.assertNotIn("ensure_checker_ready", source)
+
+        self.assertIn("_start_premium_init_worker", init_request_source)
+        self.assertNotIn("ensure_checker_ready", init_request_source)
+
     def test_premium_runtime_init_starts_checker_in_worker(self) -> None:
         calls: list[str] = []
 
