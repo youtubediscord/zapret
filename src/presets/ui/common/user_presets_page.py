@@ -746,6 +746,14 @@ class UserPresetsPageBase(BasePage):
             return
         context = dict(context or {})
         structure_changed = bool(getattr(result, "structure_changed", False))
+        if action == "create" and bool(getattr(result, "ok", False)):
+            preset_file_name = str(getattr(result, "preset_file_name", "") or "").strip()
+            preset_display_name = str(getattr(result, "preset_display_name", "") or context.get("name") or "").strip()
+            if self._runtime_service.add_created_preset_locally(
+                preset_file_name,
+                preset_display_name,
+            ):
+                structure_changed = False
         if action == "rename" and bool(getattr(result, "ok", False)):
             preset_file_name = str(getattr(result, "preset_file_name", "") or "").strip()
             preset_display_name = str(getattr(result, "preset_display_name", "") or context.get("new_name") or "").strip()

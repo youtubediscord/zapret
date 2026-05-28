@@ -705,6 +705,69 @@ class UserPresetsRuntimeService:
         self._ui_dirty = not removed_metadata
         return True
 
+    def add_created_preset_locally(self, file_name: str, display_name: str, page=None) -> bool:
+        page = self._resolve_page(page)
+        normalized_file_name = str(file_name or "").strip()
+        normalized_display_name = str(display_name or normalized_file_name).strip() or normalized_file_name
+        if not normalized_file_name:
+            return False
+
+        query = self.current_search_query(page)
+        metadata = {
+            "file_name": normalized_file_name,
+            "display_name": normalized_display_name,
+            "description": "",
+            "modified_display": "",
+            "is_builtin": False,
+            "icon_color": "",
+        }
+        self._cached_presets_metadata[normalized_file_name] = metadata
+
+        folder_key = "common"
+        try:
+            from presets.folders import classify_preset_folder
+
+            folder_key = classify_preset_folder(normalized_display_name or normalized_file_name, self._scope_key)
+        except Exception:
+            folder_key = "common"
+
+        if self._cached_folder_state is not None:
+            self._cached_folder_state.setdefault("items", {}).setdefault(
+                normalized_file_name,
+                {"folder_key": folder_key, "order": None, "rating": 0},
+            )
+
+        self.sync_watched_preset_files(page, set(self._cached_presets_metadata.keys()))
+        self._request_single_metadata_refresh(normalized_file_name, page)
+
+        if query and query not in normalized_display_name.lower():
+            self._ui_dirty = False
+            return True
+
+        model = getattr(page, "_presets_model", None)
+        if model is None:
+            return False
+        if not model.insert_preset(
+            {
+                "kind": "preset",
+                "name": normalized_display_name,
+                "file_name": normalized_file_name,
+                "description": "",
+                "date": "",
+                "is_active": False,
+                "is_builtin": False,
+                "icon_color": "",
+                "depth": 1,
+                "folder_key": folder_key,
+                "is_pinned": False,
+                "rating": 0,
+            }
+        ):
+            return False
+
+        self._ui_dirty = False
+        return True
+
     def rename_preset_locally(self, current_name: str, next_file_name: str, display_name: str, page=None) -> bool:
         page = self._resolve_page(page)
         current_file_name = str(current_name or "").strip()

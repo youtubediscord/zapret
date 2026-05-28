@@ -398,7 +398,7 @@ class UserPresetsPageRuntime:
         return self._config.get_presets_feature()
 
     def create_preset(self, *, name: str, from_current: bool) -> UserPresetActionResult:
-        self._presets().create_preset(
+        created = self._presets().create_preset(
             self._config.launch_method,
             name,
             from_current=from_current,
@@ -411,6 +411,8 @@ class UserPresetsPageRuntime:
             infobar_title="",
             infobar_content="",
             structure_changed=True,
+            preset_file_name=created.file_name,
+            preset_display_name=created.name,
         )
 
     def rename_preset(self, *, current_name: str, new_name: str) -> UserPresetActionResult:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from unittest.mock import Mock
 
 from ui.presets_menu import delegate as preset_delegate
 from ui.presets_menu import common as preset_common
@@ -104,6 +105,7 @@ class PresetDragIndicatorTests(unittest.TestCase):
                 {"kind": "preset", "file_name": "B.txt", "name": "B", "folder_key": "game-filter"},
             ]
         )
+        model.beginResetModel = Mock(side_effect=AssertionError("move must not reset the whole preset list"))
 
         self.assertTrue(model.move_preset("A.txt", "preset_after", "B.txt", "game-filter"))
 
@@ -131,6 +133,7 @@ class PresetDragIndicatorTests(unittest.TestCase):
                 {"kind": "preset", "file_name": "B.txt", "name": "B", "folder_key": "common"},
             ]
         )
+        model.beginResetModel = Mock(side_effect=AssertionError("move must not reset the whole preset list"))
 
         self.assertTrue(model.move_preset("A.txt", "preset_after", "B.txt", "common"))
 

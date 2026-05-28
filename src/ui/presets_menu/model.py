@@ -103,15 +103,35 @@ class PresetListModel(QAbstractListModel):
         if _folder_is_expanded(rows, target_folder):
             rows.insert(insert_index, source_row)
 
+        visible_after_move = _folder_is_expanded(rows, target_folder)
         if source_folder != target_folder:
             _shift_folder_count(rows, source_folder, -1)
             _shift_folder_count(rows, target_folder, 1)
 
-        self.beginResetModel()
+        if visible_after_move:
+            destination_child = _move_destination_child(source_index, insert_index)
+            if destination_child in {source_index, source_index + 1}:
+                return False
+            self.beginMoveRows(QModelIndex(), source_index, source_index, QModelIndex(), destination_child)
+        else:
+            self.beginRemoveRows(QModelIndex(), source_index, source_index)
         self._rows = rows
         self._rebuild_row_index()
-        self.endResetModel()
+        if visible_after_move:
+            self.endMoveRows()
+        else:
+            self.endRemoveRows()
+        if source_folder != target_folder:
+            self._emit_folder_count_changed(source_folder)
+            self._emit_folder_count_changed(target_folder)
         return True
+
+    def _emit_folder_count_changed(self, folder_key: str) -> None:
+        folder_index = _row_index_for_folder(self._rows, folder_key)
+        if folder_index < 0:
+            return
+        model_index = self.index(folder_index, 0)
+        self.dataChanged.emit(model_index, model_index, [self.CountRole])
 
     def update_preset_row(self, file_name: str, **changes) -> bool:
         row_index = self.find_preset_row(file_name)
@@ -172,6 +192,43 @@ class PresetListModel(QAbstractListModel):
         self._rebuild_row_index()
         self.endRemoveRows()
         folder_index = _row_index_for_folder(self._rows, folder_key)
+        if folder_index >= 0:
+            model_index = self.index(folder_index, 0)
+            self.dataChanged.emit(model_index, model_index, [self.CountRole])
+        return True
+
+    def insert_preset(self, row: dict[str, object]) -> bool:
+        preset_file_name = str(row.get("file_name") or "").strip()
+        if not preset_file_name or preset_file_name in self._preset_row_by_file_name:
+            return False
+
+        next_row = dict(row)
+        next_row["kind"] = "preset"
+        next_row["file_name"] = preset_file_name
+        folder_key = str(next_row.get("folder_key") or "common").strip() or "common"
+        next_row["folder_key"] = folder_key
+        next_row.setdefault("depth", 1)
+        next_row.setdefault("is_active", False)
+        next_row.setdefault("is_builtin", False)
+        next_row.setdefault("description", "")
+        next_row.setdefault("date", "")
+        next_row.setdefault("icon_color", "")
+        next_row.setdefault("is_pinned", False)
+        next_row.setdefault("rating", 0)
+
+        folder_index = _row_index_for_folder(self._rows, folder_key)
+        if folder_index >= 0 and bool(self._rows[folder_index].get("is_collapsed", False)):
+            _shift_folder_count(self._rows, folder_key, 1)
+            model_index = self.index(folder_index, 0)
+            self.dataChanged.emit(model_index, model_index, [self.CountRole])
+            return True
+
+        insert_index = _folder_insert_index(self._rows, folder_key) if folder_index >= 0 else len(self._rows)
+        _shift_folder_count(self._rows, folder_key, 1)
+        self.beginInsertRows(QModelIndex(), insert_index, insert_index)
+        self._rows.insert(insert_index, next_row)
+        self._rebuild_row_index()
+        self.endInsertRows()
         if folder_index >= 0:
             model_index = self.index(folder_index, 0)
             self.dataChanged.emit(model_index, model_index, [self.CountRole])
@@ -345,6 +402,12 @@ def _folder_insert_index(rows: list[dict[str, object]], folder_key: str) -> int:
             continue
         break
     return insert_index
+
+
+def _move_destination_child(source_index: int, insert_index_after_removal: int) -> int:
+    if insert_index_after_removal > source_index:
+        return insert_index_after_removal + 1
+    return insert_index_after_removal
 
 
 def _folder_count(rows: list[dict[str, object]], folder_key: str) -> int:

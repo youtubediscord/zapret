@@ -430,6 +430,70 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         )
         page._runtime_service.mark_presets_structure_changed.assert_not_called()
 
+    def test_preset_model_inserts_created_preset_without_full_reset(self) -> None:
+        model = PresetListModel()
+        model.set_rows([
+            {
+                "kind": "folder",
+                "folder_key": "common",
+                "name": "Общие",
+                "text": "Общие",
+                "count": 1,
+                "is_collapsed": False,
+            },
+            {
+                "kind": "preset",
+                "file_name": "old.txt",
+                "name": "Old",
+                "folder_key": "common",
+                "is_active": False,
+            },
+        ])
+        model.beginResetModel = Mock(side_effect=AssertionError("create must not reset the whole preset list"))
+
+        self.assertTrue(model.insert_preset({
+            "kind": "preset",
+            "file_name": "new.txt",
+            "name": "New",
+            "folder_key": "common",
+            "is_active": False,
+        }))
+
+        self.assertEqual(model.find_preset_row("new.txt"), 2)
+        self.assertEqual(model.index(0, 0).data(PresetListModel.CountRole), 2)
+
+    def test_user_presets_create_updates_visible_row_without_reload(self) -> None:
+        result = SimpleNamespace(
+            ok=True,
+            structure_changed=True,
+            log_message="Создан",
+            log_level="INFO",
+            infobar_level="",
+            infobar_title="",
+            infobar_content="",
+            error_code="",
+            preset_file_name="new.txt",
+            preset_display_name="New",
+        )
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_edit_action_request_id = 6
+        page._runtime_service = Mock()
+        page._runtime_service.add_created_preset_locally.return_value = True
+
+        UserPresetsPageBase._on_preset_edit_action_finished(
+            page,
+            6,
+            "create",
+            result,
+            {"name": "New"},
+        )
+
+        page._runtime_service.add_created_preset_locally.assert_called_once_with(
+            "new.txt",
+            "New",
+        )
+        page._runtime_service.mark_presets_structure_changed.assert_not_called()
+
     def test_user_presets_display_name_uses_visible_cache_not_backend_manifest(self) -> None:
         class _ListingApi:
             def resolve_display_name(self, _reference: str) -> str:
