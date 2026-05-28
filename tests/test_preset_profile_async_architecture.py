@@ -36,6 +36,7 @@ import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 from presets.ui.control.zapret2.page import Zapret2ModeControlPage
 from presets.user_presets_runtime_service import UserPresetsMetadataLoadWorker, UserPresetsRuntimeService
 from hosts.ui.page import HostsPage
+import hosts.ui.page_runtime as hosts_page_runtime
 from autostart.ui.page import AutostartPage
 import log.commands as log_commands
 from log.ui.page import LogsPage
@@ -1608,6 +1609,16 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("_get_hosts_runtime_state()", access_source)
         self.assertIn("create_state_load_worker", controller_source)
         self.assertIn("get_hosts_state", worker_source)
+
+    def test_hosts_page_cache_cannot_sync_read_runtime_state(self) -> None:
+        page_source = inspect.getsource(HostsPage)
+        cache_source = inspect.getsource(hosts_page_runtime.HostsPageRuntimeCache)
+
+        self.assertFalse(hasattr(HostsPage, "_get_hosts_runtime_state"))
+        self.assertFalse(hasattr(HostsPage, "_get_active_domains"))
+        self.assertNotIn("self._controller.get_hosts_state", page_source)
+        self.assertNotIn("get_runtime_state(", cache_source)
+        self.assertNotIn("get_active_domains(", cache_source)
 
     def test_lazy_pages_start_runtime_after_activation_not_constructor(self) -> None:
         page_classes = (

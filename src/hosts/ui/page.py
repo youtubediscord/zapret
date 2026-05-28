@@ -31,9 +31,6 @@ from hosts.ui.selection_workflow import (
     apply_direct_toggle_ui,
     apply_profile_selection_ui,
 )
-from hosts.state_sync_workflow import (
-    build_active_domains_read_plan,
-)
 from hosts.catalog_workflow import (
     ensure_catalog_watcher,
     reconcile_catalog_after_hidden_refresh,
@@ -363,45 +360,8 @@ class HostsPage(BasePage):
         """Сбрасывает кеш активных доменов"""
         self._runtime_cache.invalidate()
 
-    def _get_hosts_runtime_state(self):
-        return self._runtime_cache.get_runtime_state(self.hosts_runtime, self._controller.get_hosts_state)
-
     def _get_hosts_path_str(self) -> str:
         return self._controller.get_hosts_path_str()
-
-    def _get_active_domains(self) -> set:
-        plan = build_active_domains_read_plan(
-            runtime_state=self._get_hosts_runtime_state(),
-            hosts_path=self._get_hosts_path_str(),
-            read_active_domains_fn=lambda: self._runtime_cache.get_active_domains(
-                self.hosts_runtime,
-                self._controller.get_hosts_state,
-            ),
-        )
-        if plan.error_kind == "read_error":
-            self._show_error(
-                self._tr(
-                    "page.hosts.error.read_hosts",
-                    "Ошибка чтения hosts: {error}",
-                    error=plan.error_message,
-                )
-            )
-            return set()
-
-        if plan.error_kind == "no_access":
-            self._show_error(
-                self._tr(
-                    "page.hosts.error.no_access.long",
-                    "Нет доступа для изменения файла hosts.\nЕсли файл редактируется вручную, возможно защитник/антивирус блокирует запись.\nПуть: {path}",
-                    path=plan.hosts_path,
-                )
-            )
-            return set()
-
-        if plan.should_hide_error:
-            self._hide_error()
-
-        return plan.active_domains
 
     def _build_ui(self):
         # Информационная заметка
