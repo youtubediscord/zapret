@@ -201,9 +201,9 @@ class BasePage(_FluentScrollArea):
 
     def _resolve_ui_language(self) -> str:
         try:
-            from settings.appearance import load_ui_language
+            from settings.appearance import peek_warmed_ui_language
 
-            return normalize_language(load_ui_language().language)
+            return normalize_language(peek_warmed_ui_language())
         except Exception:
             return normalize_language(None)
 

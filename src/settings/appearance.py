@@ -97,12 +97,32 @@ class AppearancePageInitialStatePlan:
 
 _warmed_page_initial_state_lock = threading.Lock()
 _warmed_page_initial_state_cache: AppearancePageInitialStatePlan | None = None
+_warmed_ui_language_lock = threading.Lock()
+_warmed_ui_language_cache: str | None = None
+
+
+def store_warmed_ui_language(language: str | None) -> None:
+    global _warmed_ui_language_cache
+    with _warmed_ui_language_lock:
+        _warmed_ui_language_cache = normalize_language(language)
+
+
+def peek_warmed_ui_language() -> str | None:
+    with _warmed_ui_language_lock:
+        return _warmed_ui_language_cache
+
+
+def clear_warmed_ui_language_cache() -> None:
+    global _warmed_ui_language_cache
+    with _warmed_ui_language_lock:
+        _warmed_ui_language_cache = None
 
 
 def store_warmed_page_initial_state(state: AppearancePageInitialStatePlan) -> None:
     global _warmed_page_initial_state_cache
     with _warmed_page_initial_state_lock:
         _warmed_page_initial_state_cache = state
+    store_warmed_ui_language(state.ui_language)
 
 
 def clear_warmed_page_initial_state_cache() -> None:
@@ -241,6 +261,7 @@ def save_ui_language(language: str) -> AppearanceUiLanguagePlan:
         set_ui_language(lang)
     except Exception:
         pass
+    store_warmed_ui_language(lang)
     return AppearanceUiLanguagePlan(language=lang)
 
 def load_background_preset() -> AppearanceBackgroundPresetPlan:

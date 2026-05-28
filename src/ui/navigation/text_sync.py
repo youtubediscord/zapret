@@ -12,10 +12,11 @@ from ui.window_ui_session import get_window_ui_session
 
 
 def resolve_ui_language(window) -> str:
+    _ = window
     try:
-        from settings.appearance import load_ui_language
+        from settings.appearance import peek_warmed_ui_language
 
-        return normalize_language(load_ui_language().language)
+        return normalize_language(peek_warmed_ui_language())
     except Exception:
         return normalize_language(None)
 

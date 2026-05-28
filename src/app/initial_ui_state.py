@@ -11,6 +11,12 @@ def build_initial_ui_state() -> AppUiState:
         from winws_runtime.state import LaunchRuntimeService
 
         settings = read_settings()
+        appearance = settings.get("appearance") if isinstance(settings, dict) else {}
+        if not isinstance(appearance, dict):
+            appearance = {}
+        from settings.appearance import store_warmed_ui_language
+
+        store_warmed_ui_language(appearance.get("ui_language"))
         program = settings.get("program") if isinstance(settings, dict) else {}
         if not isinstance(program, dict):
             program = {}

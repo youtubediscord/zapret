@@ -1169,6 +1169,9 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         from app.initial_ui_state import build_initial_ui_state
 
         data = {
+            "appearance": {
+                "ui_language": "en",
+            },
             "program": {
                 "dpi_autostart": True,
                 "gui_autostart_enabled": False,
@@ -1180,11 +1183,15 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertIn("from winws_runtime.state import LaunchRuntimeService", source)
         self.assertNotIn("from winws_runtime.public import LaunchRuntimeService", source)
 
+        import settings.appearance as appearance_settings
+
+        appearance_settings.clear_warmed_ui_language_cache()
         with patch("settings.store.read_settings", return_value=data) as read_settings:
             state = build_initial_ui_state()
 
         read_settings.assert_called_once_with()
         self.assertEqual(state.launch_method, "zapret2_mode")
+        self.assertEqual(appearance_settings.peek_warmed_ui_language(), "en")
 
     def test_zapret2_control_defers_heavy_sections_until_startup_interactive(self) -> None:
         from presets.ui.control.zapret2 import page as zapret2_page

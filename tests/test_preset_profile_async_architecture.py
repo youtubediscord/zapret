@@ -55,6 +55,7 @@ from donater.ui.page import PremiumPage
 import donater.ui.page_lifecycle as premium_page_lifecycle
 from settings.dpi.page import DpiSettingsPage
 from ui.pages.appearance_page import AppearancePage
+from ui.pages.base_page import BasePage
 import settings.appearance as appearance_settings
 import settings.appearance_workers as appearance_workers
 from orchestra.ui.page import OrchestraPage
@@ -572,6 +573,15 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_initial_state_load_worker", page_source)
         self.assertIn("_initial_state_load_worker", page_source)
         self.assertIn("_request_initial_state_load", build_source)
+
+    def test_base_page_language_uses_warmed_cache_not_settings_read(self) -> None:
+        base_source = inspect.getsource(BasePage._resolve_ui_language)
+        navigation_source = inspect.getsource(navigation_text_sync.resolve_ui_language)
+
+        self.assertIn("peek_warmed_ui_language", base_source)
+        self.assertIn("peek_warmed_ui_language", navigation_source)
+        self.assertNotIn("load_ui_language", base_source)
+        self.assertNotIn("load_ui_language", navigation_source)
 
     def test_appearance_lower_sections_are_built_after_initial_shell(self) -> None:
         build_source = inspect.getsource(AppearancePage._build_ui)
