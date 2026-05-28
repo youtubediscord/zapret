@@ -32,6 +32,7 @@ class ProfileOrderPageBase(BasePage):
         self._order_move_request_id = 0
         self._order_move_worker = None
         self._breadcrumb = None
+        self._cleanup_in_progress = False
         self._build_content()
 
     def on_page_activated(self) -> None:
@@ -62,6 +63,8 @@ class ProfileOrderPageBase(BasePage):
         self._rebuild_breadcrumb()
 
     def _reload_order_profiles(self, *, force: bool = False) -> None:
+        if bool(self.__dict__.get("_cleanup_in_progress", False)):
+            return
         worker = self.__dict__.get("_order_load_worker")
         if worker is not None:
             try:
@@ -86,7 +89,7 @@ class ProfileOrderPageBase(BasePage):
         return self._profile.create_profile_order_load_worker(request_id, launch_method, parent)
 
     def _on_order_profiles_loaded(self, request_id: int, payload) -> None:
-        if request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
+        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
             return
         self._payload = payload
         if self._order_list is not None:
@@ -94,7 +97,7 @@ class ProfileOrderPageBase(BasePage):
         self._rebuild_breadcrumb()
 
     def _on_order_profiles_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
+        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
             return
         log(f"{self.__class__.__name__}: не удалось прочитать порядок profile-ов: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -106,7 +109,7 @@ class ProfileOrderPageBase(BasePage):
         delete_later = getattr(worker, "deleteLater", None)
         if callable(delete_later):
             delete_later()
-        if should_reload:
+        if should_reload and not bool(self.__dict__.get("_cleanup_in_progress", False)):
             self._reload_order_profiles(force=True)
 
     def _on_profile_move_requested(self, source_profile_key: str, destination_profile_key: str) -> None:
@@ -133,6 +136,8 @@ class ProfileOrderPageBase(BasePage):
         *,
         destination_profile_key: str = "",
     ) -> None:
+        if bool(self.__dict__.get("_cleanup_in_progress", False)):
+            return
         source_profile_key = str(source_profile_key or "").strip()
         if not source_profile_key:
             return
@@ -186,7 +191,7 @@ class ProfileOrderPageBase(BasePage):
         destination_profile_key: str,
         result,
     ) -> None:
-        if request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
+        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
             return
         if result and self._apply_profile_order_move_locally(
             action,
@@ -198,7 +203,7 @@ class ProfileOrderPageBase(BasePage):
             self._reload_order_profiles(force=True)
 
     def _on_profile_order_move_failed(self, request_id: int, error: str) -> None:
-        if request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
+        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
             return
         log(f"{self.__class__.__name__}: не удалось переместить profile в порядке preset: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -225,6 +230,25 @@ class ProfileOrderPageBase(BasePage):
             action,
             destination_profile_key,
         )
+
+    def cleanup(self) -> None:
+        self._cleanup_in_progress = True
+        self._order_load_request_id = int(getattr(self, "_order_load_request_id", 0) or 0) + 1
+        self._order_move_request_id = int(getattr(self, "_order_move_request_id", 0) or 0) + 1
+        self._order_load_dirty = False
+        for attr in ("_order_load_worker", "_order_move_worker"):
+            worker = self.__dict__.get(attr)
+            if worker is None:
+                continue
+            try:
+                worker.quit()
+            except Exception:
+                pass
+            setattr(self, attr, None)
+        try:
+            super().cleanup()
+        except Exception:
+            pass
 
     def _rebuild_breadcrumb(self) -> None:
         if self._breadcrumb is None:

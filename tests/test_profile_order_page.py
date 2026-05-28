@@ -182,6 +182,32 @@ class ProfileOrderPageTests(unittest.TestCase):
         page._create_profile_order_load_worker.assert_not_called()
         self.assertEqual(page._payload, "current")
 
+    def test_order_page_cleanup_stops_order_workers(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.quit = Mock()
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        load_worker = _Worker()
+        move_worker = _Worker()
+        page._order_load_worker = load_worker
+        page._order_move_worker = move_worker
+        page._order_load_request_id = 3
+        page._order_move_request_id = 5
+        page._order_load_dirty = True
+
+        ProfileOrderPageBase.cleanup(page)
+
+        load_worker.quit.assert_called_once()
+        move_worker.quit.assert_called_once()
+        self.assertIsNone(page._order_load_worker)
+        self.assertIsNone(page._order_move_worker)
+        self.assertEqual(page._order_load_request_id, 4)
+        self.assertEqual(page._order_move_request_id, 6)
+        self.assertFalse(page._order_load_dirty)
+
     def test_order_workers_call_profile_feature(self) -> None:
         from profile.profile_order_loader import ProfileOrderListLoadWorker, ProfilePresetOrderMoveWorker
 
