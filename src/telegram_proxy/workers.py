@@ -150,6 +150,31 @@ class TelegramProxyLogLineWorker(QThread):
         self.completed.emit(self._request_id)
 
 
+class TelegramProxyAutoDeeplinkWorker(QThread):
+    completed = pyqtSignal(int, bool)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        consume_auto_deeplink_request_fn,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._consume_auto_deeplink_request_fn = consume_auto_deeplink_request_fn
+
+    def run(self) -> None:
+        try:
+            should_open = bool(self._consume_auto_deeplink_request_fn())
+        except Exception as exc:
+            log(f"TelegramProxyAutoDeeplinkWorker: не удалось проверить автоссылку: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, should_open)
+
+
 class TelegramProxyRelayCheckWorker(QThread):
     completed = pyqtSignal(int, dict)
     warning = pyqtSignal(str)

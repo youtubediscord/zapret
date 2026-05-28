@@ -60,6 +60,12 @@ def append_log_line(message: str) -> None:
     manager.proxy_logger.log(str(message or ""))
 
 
+def consume_auto_deeplink_request() -> bool:
+    import telegram_proxy.settings as telegram_proxy_settings
+
+    return bool(telegram_proxy_settings.consume_auto_deeplink_request())
+
+
 def run_diagnostics(*, proxy_port: int, progress_callback=None) -> str:
     from telegram_proxy.diagnostics import run_all
 

@@ -129,6 +129,8 @@ class TelegramProxyPage(BasePage):
         self._log_line_worker = None
         self._log_line_request_id = 0
         self._log_line_pending: list[str] = []
+        self._auto_deeplink_worker = None
+        self._auto_deeplink_request_id = 0
         self._settings_save_request_id = 0
         self._settings_save_pending: list[dict[str, object]] = []
         self._settings_save_restart_pending = ""
@@ -582,10 +584,49 @@ class TelegramProxyPage(BasePage):
 
     def _try_auto_deeplink(self):
         """Open tg:// deep link automatically on first start."""
-        if not telegram_proxy_settings.consume_auto_deeplink_request():
+        self._request_auto_deeplink_check()
+
+    def create_auto_deeplink_worker(self, request_id: int):
+        return self._telegram_proxy.create_auto_deeplink_worker(request_id, parent=self)
+
+    def _request_auto_deeplink_check(self) -> None:
+        worker = self.__dict__.get("_auto_deeplink_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except RuntimeError:
+                self._auto_deeplink_worker = None
+
+        self._auto_deeplink_request_id += 1
+        request_id = self._auto_deeplink_request_id
+        worker = self.create_auto_deeplink_worker(request_id)
+        self._auto_deeplink_worker = worker
+        worker.completed.connect(self._on_auto_deeplink_checked)
+        worker.failed.connect(self._on_auto_deeplink_failed)
+        worker.finished.connect(lambda w=worker: self._on_auto_deeplink_worker_finished(w))
+        worker.start()
+
+    def _on_auto_deeplink_checked(self, request_id: int, should_open: bool) -> None:
+        if request_id != self._auto_deeplink_request_id or self._cleanup_in_progress:
+            return
+        if not should_open:
             return
         QTimer.singleShot(2000, self._on_open_in_telegram)
         self._append_log_line("Auto-opening Telegram proxy setup link...")
+
+    def _on_auto_deeplink_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._auto_deeplink_request_id or self._cleanup_in_progress:
+            return
+        log(f"Telegram Proxy auto deeplink check failed: {error}", "WARNING")
+
+    def _on_auto_deeplink_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_auto_deeplink_worker") is worker:
+            self._auto_deeplink_worker = None
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
 
     # -- Log display (throttled via QTimer, no trimming) --
 
@@ -1321,5 +1362,12 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
             self._log_line_worker = None
+        auto_deeplink_worker = self.__dict__.get("_auto_deeplink_worker")
+        if auto_deeplink_worker is not None:
+            try:
+                auto_deeplink_worker.quit()
+            except Exception:
+                pass
+            self._auto_deeplink_worker = None
         mgr = self._proxy_manager()
         mgr.cleanup()

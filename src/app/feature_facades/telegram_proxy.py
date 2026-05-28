@@ -19,6 +19,7 @@ class TelegramProxyFeature:
     ensure_telegram_hosts: Callable
     run_diagnostics: Callable
     append_log_line: Callable
+    consume_auto_deeplink_request: Callable
 
     def is_running(self) -> bool:
         try:
@@ -95,6 +96,15 @@ class TelegramProxyFeature:
             request_id,
             append_log_line_fn=self.append_log_line,
             message=str(message or ""),
+            parent=parent,
+        )
+
+    def create_auto_deeplink_worker(self, request_id: int, *, parent=None):
+        from telegram_proxy.workers import TelegramProxyAutoDeeplinkWorker
+
+        return TelegramProxyAutoDeeplinkWorker(
+            request_id,
+            consume_auto_deeplink_request_fn=self.consume_auto_deeplink_request,
             parent=parent,
         )
 
@@ -182,4 +192,5 @@ def build_telegram_proxy_feature() -> TelegramProxyFeature:
         ensure_telegram_hosts=lambda *args, **kwargs: _public().ensure_telegram_hosts(*args, **kwargs),
         run_diagnostics=lambda *args, **kwargs: _public().run_diagnostics(*args, **kwargs),
         append_log_line=lambda *args, **kwargs: _public().append_log_line(*args, **kwargs),
+        consume_auto_deeplink_request=lambda *args, **kwargs: _public().consume_auto_deeplink_request(*args, **kwargs),
     )

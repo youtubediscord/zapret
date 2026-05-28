@@ -1428,6 +1428,23 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("append_log_line", command_source)
         self.assertIn("append_log_line", worker_source)
 
+    def test_telegram_proxy_auto_deeplink_check_runs_through_worker(self) -> None:
+        try_source = inspect.getsource(TelegramProxyPage._try_auto_deeplink)
+        page_source = inspect.getsource(TelegramProxyPage)
+        feature_source = inspect.getsource(TelegramProxyFeature)
+
+        self.assertTrue(hasattr(telegram_proxy_commands, "consume_auto_deeplink_request"))
+        command_source = inspect.getsource(telegram_proxy_commands.consume_auto_deeplink_request)
+        self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxyAutoDeeplinkWorker"))
+        worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxyAutoDeeplinkWorker.run)
+
+        self.assertIn("_request_auto_deeplink_check", try_source)
+        self.assertNotIn("telegram_proxy_settings.consume_auto_deeplink_request", try_source)
+        self.assertIn("_auto_deeplink_worker", page_source)
+        self.assertIn("create_auto_deeplink_worker", feature_source)
+        self.assertIn("telegram_proxy.settings", command_source)
+        self.assertIn("consume_auto_deeplink_request", worker_source)
+
     def test_dns_check_save_runs_through_worker(self) -> None:
         page_source = inspect.getsource(dns_check_page.DNSCheckPage)
         save_source = inspect.getsource(dns_check_page.DNSCheckPage.save_results)
