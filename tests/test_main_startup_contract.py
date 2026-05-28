@@ -1326,6 +1326,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
     def test_zapret2_control_defers_top_summary_data_until_startup_interactive(self) -> None:
         from app.state_store import AppUiState
+        from presets.ui.control.additional_settings_runtime import create_refresh_runtime
         from presets.ui.control.zapret2 import page as zapret2_page
         from presets.ui.control.zapret2.page import Zapret2ModeControlPage
 
@@ -1336,12 +1337,54 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             def connect(self, callback, *_args, **_kwargs) -> None:
                 connected.append(callback)
 
+        class WorkerSignal:
+            def __init__(self) -> None:
+                self._callbacks: list[object] = []
+
+            def connect(self, callback) -> None:
+                self._callbacks.append(callback)
+
+            def emit(self, *args) -> None:
+                for callback in list(self._callbacks):
+                    callback(*args)
+
+        class FakeTopSummaryWorker:
+            def __init__(self, request_id: int, presets, profile) -> None:
+                self._request_id = int(request_id)
+                self._presets = presets
+                self._profile = profile
+                self.loaded = WorkerSignal()
+                self.failed = WorkerSignal()
+                self.finished = WorkerSignal()
+
+            def isRunning(self) -> bool:
+                return False
+
+            def start(self) -> None:
+                preset_text, preset_tooltip = self._presets.get_selected_source_preset_display("zapret2_mode")
+                profile_count = self._profile.get_enabled_profile_count_snapshot("zapret2_mode")
+                self.loaded.emit(
+                    self._request_id,
+                    SimpleNamespace(
+                        preset_text=preset_text,
+                        preset_tooltip=preset_tooltip,
+                        profile_count=profile_count,
+                    ),
+                )
+                self.finished.emit()
+
+            def deleteLater(self) -> None:
+                pass
+
         control_page = Zapret2ModeControlPage.__new__(Zapret2ModeControlPage)
         control_page._cleanup_in_progress = False
         control_page._startup_top_summary_waiting = False
-        control_page._refresh_runtime = SimpleNamespace(additional_settings_dirty=False)
+        control_page._refresh_runtime = create_refresh_runtime()
+        control_page._refresh_runtime.additional_settings_dirty = False
         control_page._ui_language = "ru"
         control_page._ui_state_store = None
+        control_page._top_summary_profile_retry_count = 0
+        control_page._top_summary_profile_retry_pending = False
         control_page.top_summary = SimpleNamespace(
             set_preset=Mock(),
             set_profile_count=Mock(),
@@ -1375,12 +1418,29 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             zapret2_page.QTimer,
             "singleShot",
             side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
+        ), patch.object(
+            zapret2_page,
+            "create_control_top_summary_worker",
+            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+                request_id,
+                presets,
+                profile,
+            ),
         ):
             connected[0]("ui_ready")
 
         self.assertEqual(len(scheduled), 1)
         self.assertGreaterEqual(scheduled[0][0], zapret2_page.STARTUP_TOP_SUMMARY_AFTER_INTERACTIVE_MS)
-        scheduled[0][1]()
+        with patch.object(
+            zapret2_page,
+            "create_control_top_summary_worker",
+            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+                request_id,
+                presets,
+                profile,
+            ),
+        ):
+            scheduled[0][1]()
 
         control_page._presets.get_selected_source_preset_display.assert_called_once()
         control_page._profile.get_enabled_profile_count_snapshot.assert_called_once()
@@ -1389,16 +1449,57 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
     def test_zapret2_control_retries_top_summary_profile_count_after_warmup(self) -> None:
         from app.state_store import AppUiState
+        from presets.ui.control.additional_settings_runtime import create_refresh_runtime
         from presets.ui.control.zapret2 import page as zapret2_page
         from presets.ui.control.zapret2.page import Zapret2ModeControlPage
 
         scheduled: list[tuple[int, object]] = []
         profile_count = Mock(side_effect=[None, 4])
 
+        class WorkerSignal:
+            def __init__(self) -> None:
+                self._callbacks: list[object] = []
+
+            def connect(self, callback) -> None:
+                self._callbacks.append(callback)
+
+            def emit(self, *args) -> None:
+                for callback in list(self._callbacks):
+                    callback(*args)
+
+        class FakeTopSummaryWorker:
+            def __init__(self, request_id: int, presets, profile) -> None:
+                self._request_id = int(request_id)
+                self._presets = presets
+                self._profile = profile
+                self.loaded = WorkerSignal()
+                self.failed = WorkerSignal()
+                self.finished = WorkerSignal()
+
+            def isRunning(self) -> bool:
+                return False
+
+            def start(self) -> None:
+                preset_text, preset_tooltip = self._presets.get_selected_source_preset_display("zapret2_mode")
+                current_profile_count = self._profile.get_enabled_profile_count_snapshot("zapret2_mode")
+                self.loaded.emit(
+                    self._request_id,
+                    SimpleNamespace(
+                        preset_text=preset_text,
+                        preset_tooltip=preset_tooltip,
+                        profile_count=current_profile_count,
+                    ),
+                )
+                self.finished.emit()
+
+            def deleteLater(self) -> None:
+                pass
+
         control_page = Zapret2ModeControlPage.__new__(Zapret2ModeControlPage)
         control_page._cleanup_in_progress = False
         control_page._ui_language = "ru"
         control_page._ui_state_store = None
+        control_page._refresh_runtime = create_refresh_runtime()
         control_page._top_summary_profile_retry_count = 0
         control_page._top_summary_profile_retry_pending = False
         control_page.top_summary = SimpleNamespace(
@@ -1415,6 +1516,14 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             zapret2_page.QTimer,
             "singleShot",
             side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
+        ), patch.object(
+            zapret2_page,
+            "create_control_top_summary_worker",
+            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+                request_id,
+                presets,
+                profile,
+            ),
         ):
             Zapret2ModeControlPage._refresh_top_summary(control_page, AppUiState())
 
@@ -1422,7 +1531,16 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertEqual(len(scheduled), 1)
         self.assertGreaterEqual(scheduled[0][0], zapret2_page.TOP_SUMMARY_PROFILE_RETRY_MS)
 
-        scheduled[0][1]()
+        with patch.object(
+            zapret2_page,
+            "create_control_top_summary_worker",
+            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+                request_id,
+                presets,
+                profile,
+            ),
+        ):
+            scheduled[0][1]()
 
         control_page.top_summary.set_profile_count.assert_called_with(4)
         self.assertEqual(control_page._top_summary_profile_retry_count, 0)
