@@ -747,7 +747,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn(("profile", "profile:1"), rows)
         self.assertNotIn(("profile", "profile:2"), rows)
 
-    def test_profile_drag_handlers_run_move_worker_without_local_model_move(self) -> None:
+    def test_profile_drag_handlers_run_move_worker_then_update_visible_list_locally(self) -> None:
         before_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_requested)
         after_handler = inspect.getsource(PresetSetupPageBase._on_profile_move_after_requested)
         request_handler = inspect.getsource(PresetSetupPageBase._request_profile_move)
@@ -757,10 +757,10 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("_request_profile_move", after_handler)
         self.assertNotIn("_apply_profile_move_locally", before_handler)
         self.assertNotIn("_apply_profile_move_locally", after_handler)
-        self.assertNotIn("move_profile_locally", inspect.getsource(PresetSetupPageBase))
         self.assertIn("_create_profile_move_worker", request_handler)
-        self.assertNotIn("_apply_profile_move_locally", finish_handler)
+        self.assertIn("_apply_profile_move_locally", finish_handler)
         self.assertIn("refresh_from_preset_switch()", finish_handler)
+        self.assertLess(finish_handler.index("_apply_profile_move_locally"), finish_handler.index("refresh_from_preset_switch()"))
         self.assertNotIn("_profile.move_profile_before", before_handler)
         self.assertNotIn("_profile.move_profile_after", after_handler)
         self.assertNotIn("refresh_from_preset_switch()", before_handler)
