@@ -111,30 +111,6 @@ def record_strategy_scan_result(
     return next_cursor
 
 
-def finalize_strategy_scan(
-    *,
-    blockcheck_feature,
-    report,
-    scan_target: str,
-    scan_protocol: str,
-    scan_udp_games_scope: str,
-    scan_mode: str,
-    scan_cursor: int,
-    result_rows: list[dict],
-):
-    """Финализирует отчёт подбора стратегии."""
-    finish_plan = blockcheck_feature.finalize_scan_report(
-        report,
-        scan_target=scan_target,
-        scan_protocol=scan_protocol,
-        scan_udp_games_scope=scan_udp_games_scope,
-        scan_mode=scan_mode,
-        scan_cursor=scan_cursor,
-        result_rows=result_rows,
-    )
-    return finish_plan
-
-
 def record_strategy_scan_force_stop_warning(
     *,
     worker,

@@ -27,6 +27,7 @@ from blockcheck.ui.strategy_scan_page_results_workflow import (
 )
 from blockcheck.strategy_scan_run_workflow import (
     cleanup_strategy_scan_worker,
+    delete_strategy_scan_worker_later,
     request_strategy_scan_stop,
     start_strategy_scan_run,
     start_strategy_scan_worker,
@@ -105,6 +106,8 @@ class StrategyScanPage(BasePage):
         self._strategy_scan_resume_save_worker = None
         self._strategy_scan_resume_save_request_id = 0
         self._strategy_scan_resume_save_pending = None
+        self._strategy_scan_finalize_worker = None
+        self._strategy_scan_finalize_request_id = 0
 
         self._build_ui()
         if self._embedded:
@@ -163,6 +166,19 @@ class StrategyScanPage(BasePage):
             scan_protocol=scan_protocol,
             next_index=next_index,
             udp_games_scope=udp_games_scope,
+            parent=self,
+        )
+
+    def create_strategy_scan_finalize_worker(self, request_id: int, *, report):
+        return self._blockcheck.create_strategy_scan_finalize_worker(
+            request_id,
+            report=report,
+            scan_target=self._scan_target,
+            scan_protocol=self._scan_protocol,
+            scan_udp_games_scope=self._scan_udp_games_scope,
+            scan_mode=self._scan_mode,
+            scan_cursor=self._scan_cursor,
+            result_rows=list(self._result_rows),
             parent=self,
         )
 
@@ -649,22 +665,63 @@ class StrategyScanPage(BasePage):
             return
         worker = self._worker
         self._worker = None
+        delete_strategy_scan_worker_later(worker)
+        self._request_strategy_scan_finalize(report)
+
+    def _request_strategy_scan_finalize(self, report) -> None:
+        worker = self.__dict__.get("_strategy_scan_finalize_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+
+        self._strategy_scan_finalize_request_id += 1
+        request_id = self._strategy_scan_finalize_request_id
+        worker = self.create_strategy_scan_finalize_worker(request_id, report=report)
+        self._strategy_scan_finalize_worker = worker
+        worker.completed.connect(self._on_strategy_scan_finalize_finished)
+        worker.failed.connect(self._on_strategy_scan_finalize_failed)
+        worker.finished.connect(lambda w=worker: self._on_strategy_scan_finalize_worker_finished(w))
+        worker.start()
+
+    def _on_strategy_scan_finalize_finished(self, request_id: int, finish_plan) -> None:
+        if request_id != self._strategy_scan_finalize_request_id or self._cleanup_in_progress:
+            return
         apply_finished_scan(
             blockcheck_feature=self._blockcheck,
-            report=report,
-            worker=worker,
+            finish_plan=finish_plan,
             reset_ui=self._reset_ui,
-            scan_target=self._scan_target,
             scan_protocol=self._scan_protocol,
-            scan_udp_games_scope=self._scan_udp_games_scope,
-            scan_mode=self._scan_mode,
-            scan_cursor=self._scan_cursor,
-            result_rows=self._result_rows,
             progress_bar=self._progress_bar,
             status_label=self._status_label,
             set_support_status=self._set_support_status,
             parent_widget=self.window(),
         )
+
+    def _on_strategy_scan_finalize_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._strategy_scan_finalize_request_id or self._cleanup_in_progress:
+            return
+        logger.warning("Failed to finalize strategy scan: %s", error)
+        self._reset_ui()
+        self._status_label.setText(
+            tr_catalog("page.blockcheck_public.scan_finish_error", default="Ошибка завершения сканирования")
+        )
+        self._set_support_status(
+            tr_catalog(
+                "page.blockcheck_public.support_ready_after_error",
+                default="Можно подготовить обращение по логам ошибки",
+            )
+        )
+
+    def _on_strategy_scan_finalize_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_strategy_scan_finalize_worker") is worker:
+            self._strategy_scan_finalize_worker = None
+        try:
+            worker.deleteLater()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Apply strategy
@@ -912,4 +969,11 @@ class StrategyScanPage(BasePage):
             except Exception:
                 pass
             self._strategy_scan_resume_save_worker = None
+        finalize_worker = self.__dict__.get("_strategy_scan_finalize_worker")
+        if finalize_worker is not None:
+            try:
+                finalize_worker.quit()
+            except Exception:
+                pass
+            self._strategy_scan_finalize_worker = None
         self._worker = cleanup_strategy_scan_worker(self._worker)

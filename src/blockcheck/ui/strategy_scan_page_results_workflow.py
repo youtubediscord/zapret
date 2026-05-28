@@ -106,32 +106,15 @@ def add_strategy_result_row(
 def apply_finished_scan(
     *,
     blockcheck_feature,
-    report,
-    worker,
+    finish_plan,
     reset_ui,
-    scan_target: str,
     scan_protocol: str,
-    scan_udp_games_scope: str,
-    scan_mode: str,
-    scan_cursor: int,
-    result_rows: list[dict],
     progress_bar,
     status_label,
     set_support_status,
     parent_widget,
 ) -> None:
-    strategy_scan_run_workflow.delete_strategy_scan_worker_later(worker)
     reset_ui()
-    finish_plan = strategy_scan_run_workflow.finalize_strategy_scan(
-        blockcheck_feature=blockcheck_feature,
-        report=report,
-        scan_target=scan_target,
-        scan_protocol=scan_protocol,
-        scan_udp_games_scope=scan_udp_games_scope,
-        scan_mode=scan_mode,
-        scan_cursor=scan_cursor,
-        result_rows=result_rows,
-    )
 
     if finish_plan.total_available > 0:
         progress_bar.setRange(0, finish_plan.total_available)

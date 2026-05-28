@@ -472,6 +472,76 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(model.index(1, 0).data(PresetListModel.DescriptionRole), "new")
         self.assertEqual(model.index(1, 0).data(PresetListModel.RatingRole), 5)
 
+    def test_preset_model_moves_single_reordered_row_without_full_reset(self) -> None:
+        model = PresetListModel()
+        model.set_rows([
+            {
+                "kind": "folder",
+                "folder_key": "common",
+                "text": "Общие",
+                "count": 3,
+                "is_collapsed": False,
+            },
+            {
+                "kind": "preset",
+                "file_name": "first.txt",
+                "name": "First",
+                "folder_key": "common",
+                "rating": 0,
+            },
+            {
+                "kind": "preset",
+                "file_name": "second.txt",
+                "name": "Second",
+                "folder_key": "common",
+                "rating": 0,
+            },
+            {
+                "kind": "preset",
+                "file_name": "third.txt",
+                "name": "Third",
+                "folder_key": "common",
+                "rating": 0,
+            },
+        ])
+        model.beginResetModel = Mock(side_effect=AssertionError("single-row reorder must not reset the whole preset list"))
+
+        changed = model.set_rows([
+            {
+                "kind": "folder",
+                "folder_key": "common",
+                "text": "Общие",
+                "count": 3,
+                "is_collapsed": False,
+            },
+            {
+                "kind": "preset",
+                "file_name": "second.txt",
+                "name": "Second",
+                "folder_key": "common",
+                "rating": 0,
+            },
+            {
+                "kind": "preset",
+                "file_name": "first.txt",
+                "name": "First",
+                "folder_key": "common",
+                "rating": 5,
+            },
+            {
+                "kind": "preset",
+                "file_name": "third.txt",
+                "name": "Third",
+                "folder_key": "common",
+                "rating": 0,
+            },
+        ])
+
+        self.assertTrue(changed)
+        self.assertEqual(model.find_preset_row("first.txt"), 2)
+        self.assertEqual(model.index(2, 0).data(PresetListModel.FileNameRole), "first.txt")
+        self.assertEqual(model.index(2, 0).data(PresetListModel.RatingRole), 5)
+
     def test_preset_rows_rebuild_skips_layout_when_rows_do_not_change(self) -> None:
         from presets.ui.common.user_presets_page_runtime import rebuild_presets_rows
 
@@ -2026,6 +2096,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_strategy_scan_resume_save_worker", page_source)
         self.assertIn("create_strategy_scan_resume_save_worker", feature_source)
         self.assertIn("save_resume_state", worker_source)
+
+    def test_strategy_scan_finish_plan_finalizes_through_worker(self) -> None:
+        import blockcheck.workers as blockcheck_workers
+
+        strategy_scan_results_workflow = importlib.import_module("blockcheck.ui.strategy_scan_page_results_workflow")
+        page_source = inspect.getsource(StrategyScanPage)
+        finished_source = inspect.getsource(StrategyScanPage._on_finished)
+        apply_finished_source = inspect.getsource(strategy_scan_results_workflow.apply_finished_scan)
+        feature_source = inspect.getsource(BlockcheckFeature)
+
+        self.assertTrue(hasattr(blockcheck_workers, "StrategyScanFinalizeWorker"))
+        worker_source = inspect.getsource(blockcheck_workers.StrategyScanFinalizeWorker.run)
+
+        self.assertIn("_request_strategy_scan_finalize", finished_source)
+        self.assertIn("create_strategy_scan_finalize_worker", page_source)
+        self.assertIn("_strategy_scan_finalize_worker", page_source)
+        self.assertIn("create_strategy_scan_finalize_worker", feature_source)
+        self.assertNotIn("finalize_scan_report", apply_finished_source)
+        self.assertIn("finalize_scan_report", worker_source)
 
     def test_logs_file_operations_log_internal_timing_stages(self) -> None:
         list_source = inspect.getsource(log_commands.list_logs)

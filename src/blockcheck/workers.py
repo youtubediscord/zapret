@@ -198,3 +198,50 @@ class StrategyScanResumeSaveWorker(QThread):
             self.failed.emit(self._request_id, str(exc))
             return
         self.completed.emit(self._request_id, {"next_index": self._next_index})
+
+
+class StrategyScanFinalizeWorker(QThread):
+    completed = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        blockcheck_feature,
+        report,
+        scan_target: str,
+        scan_protocol: str,
+        scan_udp_games_scope: str,
+        scan_mode: str,
+        scan_cursor: int,
+        result_rows: list[dict],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._blockcheck = blockcheck_feature
+        self._report = report
+        self._scan_target = str(scan_target or "")
+        self._scan_protocol = str(scan_protocol or "")
+        self._scan_udp_games_scope = str(scan_udp_games_scope or "all")
+        self._scan_mode = str(scan_mode or "")
+        self._scan_cursor = int(scan_cursor)
+        self._result_rows = [dict(row) for row in (result_rows or [])]
+
+    def run(self) -> None:
+        try:
+            finish_plan = self._blockcheck.finalize_scan_report(
+                self._report,
+                scan_target=self._scan_target,
+                scan_protocol=self._scan_protocol,
+                scan_udp_games_scope=self._scan_udp_games_scope,
+                scan_mode=self._scan_mode,
+                scan_cursor=self._scan_cursor,
+                result_rows=self._result_rows,
+            )
+        except Exception as exc:
+            log(f"StrategyScanFinalizeWorker: не удалось завершить сканирование: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, finish_plan)
