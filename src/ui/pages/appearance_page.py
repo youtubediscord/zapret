@@ -29,7 +29,7 @@ from ui.fluent_widgets import (
     insert_widget_into_setting_card_group,
 )
 from app.state_store import AppUiState, MainWindowStateStore
-from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_rkn_background_options
+from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from app.ui_texts import tr as tr_catalog
 from ui.widgets.win11_controls import Win11ToggleRow
 from log.log import log
@@ -131,6 +131,9 @@ class AppearancePage(BasePage):
         self._appearance_save_worker = None
         self._appearance_save_request_id = 0
         self._appearance_save_pending: list[dict[str, object]] = []
+        self._rkn_background_options_worker = None
+        self._rkn_background_options_request_id = 0
+        self._rkn_background_options_pending = False
         self._build_ui()
         self.bind_ui_state_store(ui_state_store)
 
@@ -788,11 +791,63 @@ class AppearancePage(BasePage):
     def _reload_rkn_background_options(self):
         if self._rkn_background_combo is None:
             return
+        self._request_rkn_background_options_load()
 
-        saved_value = appearance_settings.load_rkn_background().value
+    def create_rkn_background_options_load_worker(self, request_id: int):
+        from settings.appearance_workers import AppearanceRknBackgroundOptionsLoadWorker
 
-        options = get_rkn_background_options()
+        return AppearanceRknBackgroundOptionsLoadWorker(request_id, parent=self)
 
+    def _request_rkn_background_options_load(self) -> None:
+        if self._cleanup_in_progress:
+            return
+        worker = self.__dict__.get("_rkn_background_options_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._rkn_background_options_pending = True
+                    return
+            except Exception:
+                self._rkn_background_options_pending = True
+                return
+        self._start_rkn_background_options_load_worker()
+
+    def _start_rkn_background_options_load_worker(self) -> None:
+        self._rkn_background_options_pending = False
+        self._rkn_background_options_request_id += 1
+        request_id = self._rkn_background_options_request_id
+        worker = self.create_rkn_background_options_load_worker(request_id)
+        self._rkn_background_options_worker = worker
+        worker.loaded.connect(self._on_rkn_background_options_loaded)
+        worker.failed.connect(self._on_rkn_background_options_failed)
+        worker.finished.connect(lambda w=worker: self._on_rkn_background_options_worker_finished(w))
+        worker.start()
+
+    def _on_rkn_background_options_loaded(self, request_id: int, result) -> None:
+        if request_id != self._rkn_background_options_request_id or self._cleanup_in_progress:
+            return
+        data = result if isinstance(result, dict) else {}
+        self._apply_rkn_background_options(
+            saved_value=data.get("saved_value"),
+            options=data.get("options") or (),
+        )
+
+    def _on_rkn_background_options_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._rkn_background_options_request_id or self._cleanup_in_progress:
+            return
+        log(f"Ошибка загрузки RKN-фонов: {error}", "WARNING")
+        self._apply_rkn_background_options(saved_value=None, options=())
+
+    def _on_rkn_background_options_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_rkn_background_options_worker") is worker:
+            self._rkn_background_options_worker = None
+        worker.deleteLater()
+        if self._rkn_background_options_pending and not self._cleanup_in_progress:
+            self._start_rkn_background_options_load_worker()
+
+    def _apply_rkn_background_options(self, *, saved_value, options) -> None:
+        if self._rkn_background_combo is None:
+            return
         self._begin_ui_sync()
         self._rkn_background_combo.blockSignals(True)
         try:
@@ -1185,5 +1240,12 @@ class AppearancePage(BasePage):
             except Exception:
                 pass
             self._appearance_save_worker = None
+        rkn_worker = self.__dict__.get("_rkn_background_options_worker")
+        if rkn_worker is not None:
+            try:
+                rkn_worker.quit()
+            except Exception:
+                pass
+            self._rkn_background_options_worker = None
         self._ui_state_unsubscribe = None
         self._ui_state_store = None

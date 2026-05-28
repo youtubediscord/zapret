@@ -73,3 +73,29 @@ class AppearanceSettingsSaveWorker(QThread):
             self.failed.emit(self._request_id, self._action, str(exc), context)
             return
         self.completed.emit(self._request_id, self._action, result, context)
+
+
+class AppearanceRknBackgroundOptionsLoadWorker(QThread):
+    """Загружает список RKN-фонов вне UI-потока."""
+
+    loaded = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(self, request_id: int, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+
+    def run(self) -> None:
+        try:
+            import settings.appearance as appearance_settings
+            from ui.theme import get_rkn_background_options
+
+            result = {
+                "saved_value": appearance_settings.load_rkn_background().value,
+                "options": tuple(get_rkn_background_options()),
+            }
+        except Exception as exc:
+            log(f"AppearanceRknBackgroundOptionsLoadWorker: не удалось загрузить RKN-фоны: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.loaded.emit(self._request_id, result)
