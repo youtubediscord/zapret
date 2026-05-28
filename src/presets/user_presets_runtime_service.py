@@ -416,7 +416,7 @@ class UserPresetsRuntimeService:
             return False
 
         active_file_name = adapter.selected_source_file_name()
-        updated = model.update_preset_row(
+        return model.update_preset_row(
             normalized_file_name,
             name=next_display_name,
             description=str(next_metadata.get("description") or ""),
@@ -425,12 +425,6 @@ class UserPresetsRuntimeService:
             is_builtin=bool(next_metadata.get("is_builtin", False)),
             icon_color=normalize_preset_icon_color(str(next_metadata.get("icon_color") or "")),
         )
-        if updated:
-            try:
-                page.presets_list.viewport().update()
-            except Exception:
-                pass
-        return updated
 
     def on_store_switched(self, name: str, page=None) -> None:
         page = self._resolve_page(page)

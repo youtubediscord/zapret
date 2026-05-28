@@ -226,6 +226,13 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("viewport().update()", source)
         self.assertNotIn("viewport().repaint()", source)
 
+    def test_user_presets_single_metadata_update_uses_model_signals_without_full_viewport_update(self) -> None:
+        source = inspect.getsource(UserPresetsRuntimeService.try_apply_single_preset_metadata_update)
+
+        self.assertIn("update_preset_row", source)
+        self.assertNotIn("viewport().update()", source)
+        self.assertNotIn("viewport().repaint()", source)
+
     def test_user_presets_switched_signal_uses_delivered_file_name(self) -> None:
         source = inspect.getsource(UserPresetsRuntimeService.on_store_switched)
 
