@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
@@ -108,6 +109,16 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             ],
         )
         self.assertEqual(ui_state.content_revision, 3)
+
+    def test_preset_content_fingerprint_does_not_read_file_body_in_qt_handler(self) -> None:
+        from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
+
+        source = inspect.getsource(PresetRuntimeCoordinator._build_preset_content_apply_fingerprint)
+
+        self.assertNotIn("open(", source)
+        self.assertNotIn(".read(", source)
+        self.assertNotIn("hashlib", source)
+        self.assertIn("os.stat", source)
 
     def test_active_preset_revision_is_published_after_click_event(self) -> None:
         from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 import os
 from typing import Callable, Optional
 
@@ -288,8 +287,7 @@ class PresetRuntimeCoordinator(QObject):
         if not path_value:
             return ""
         try:
-            with open(path_value, "rb") as file:
-                digest = hashlib.sha1(file.read()).hexdigest()
+            file_stat = os.stat(path_value)
         except Exception:
             return ""
         return "|".join(
@@ -297,7 +295,8 @@ class PresetRuntimeCoordinator(QObject):
                 normalize_launch_method(launch_method, default=""),
                 os.path.abspath(path_value).replace("\\", "/").lower(),
                 str(preset_file_name or "").strip().lower(),
-                digest,
+                str(int(getattr(file_stat, "st_size", 0) or 0)),
+                str(int(getattr(file_stat, "st_mtime_ns", 0) or 0)),
             )
         )
 
