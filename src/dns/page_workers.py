@@ -162,3 +162,101 @@ class DnsFlushCacheWorker(QThread):
             self.failed.emit(self._request_id, str(exc))
             return
         self.completed.emit(self._request_id, plan)
+
+
+class DnsApplyWorker(QThread):
+    completed = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        dns_feature,
+        *,
+        action: str,
+        adapters,
+        name: str = "",
+        data=None,
+        primary: str = "",
+        secondary: str | None = None,
+        ipv6_available: bool = False,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._dns = dns_feature
+        self._action = str(action or "").strip()
+        self._adapters = list(adapters or [])
+        self._name = str(name or "")
+        self._data = dict(data or {})
+        self._primary = str(primary or "").strip()
+        self._secondary = None if secondary is None else str(secondary or "").strip()
+        self._ipv6_available = bool(ipv6_available)
+
+    def run(self) -> None:
+        try:
+            result = self._run_apply()
+        except Exception as exc:
+            log(f"DnsApplyWorker: действие {self._action} не выполнено: {exc}", "ERROR")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, result)
+
+    def _run_apply(self) -> dict[str, object]:
+        from dns.ui import page_plans as dns_page_plans
+
+        if not self._adapters:
+            return {"plan": None, "dns_info": None}
+
+        if self._action == "auto":
+            command_result = self._dns.apply_auto_dns(self._adapters)
+            plan = dns_page_plans.build_auto_dns_apply_result_plan(
+                adapter_count=len(self._adapters),
+                success_count=int(command_result.affected_count or 0),
+            )
+        elif self._action == "provider":
+            provider_plan = dns_page_plans.build_provider_dns_plan(
+                name=self._name,
+                data=self._data,
+                ipv6_available=self._ipv6_available,
+            )
+            if not provider_plan.valid:
+                return {
+                    "plan": provider_plan,
+                    "dns_info": None,
+                }
+            command_result = self._dns.apply_provider_dns(
+                self._adapters,
+                provider_plan.ipv4,
+                provider_plan.ipv6,
+                ipv6_available=self._ipv6_available,
+            )
+            plan = dns_page_plans.build_provider_dns_apply_result_plan(
+                name=self._name,
+                adapter_count=len(self._adapters),
+                success_count=int(command_result.affected_count or 0),
+                ipv6_available=self._ipv6_available,
+                ipv6=provider_plan.ipv6,
+            )
+        elif self._action == "custom":
+            if not self._primary:
+                return {"plan": None, "dns_info": None}
+            command_result = self._dns.apply_custom_dns(
+                self._adapters,
+                self._primary,
+                self._secondary,
+            )
+            plan = dns_page_plans.build_custom_dns_apply_result_plan(
+                primary=self._primary,
+                adapter_count=len(self._adapters),
+                success_count=int(command_result.affected_count or 0),
+            )
+        else:
+            raise ValueError(f"Неизвестное DNS действие: {self._action}")
+
+        dns_info = self._dns.refresh_dns_info(self._adapters) if getattr(plan, "should_refresh", False) else None
+        return {
+            "plan": plan,
+            "dns_info": dns_info,
+            "adapters": self._adapters,
+        }

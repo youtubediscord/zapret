@@ -46,11 +46,6 @@ from dns.ui.force_dns_build import build_force_dns_card_ui
 from dns.page_force_dns_workflow import (
     apply_force_dns_status_state,
 )
-from dns.page_apply_workflow import (
-    apply_auto_dns_quick,
-    apply_custom_dns_quick,
-    apply_provider_dns_quick,
-)
 from dns.ui.isp_warning import (
     build_isp_warning_ui,
     hide_isp_warning_widget,
@@ -131,6 +126,9 @@ class NetworkPage(BasePage):
         self._dns_flush_cache_worker = None
         self._dns_flush_cache_request_id = 0
         self._dns_flush_cache_pending = False
+        self._dns_apply_worker = None
+        self._dns_apply_request_id = 0
+        self._dns_apply_pending: list[dict[str, object]] = []
         
         self.dns_cards = {}
         self.adapter_cards = []
@@ -597,26 +595,16 @@ class NetworkPage(BasePage):
     
     def _apply_auto_dns_quick(self):
         """Быстрое применение автоматического DNS (IPv4 + IPv6)"""
-        apply_auto_dns_quick(
-            dns_feature=self._dns_feature(),
-            adapters=self._get_selected_adapters(),
-            build_result_plan_fn=dns_page_plans.build_auto_dns_apply_result_plan,
-            refresh_adapters_dns_fn=self._refresh_adapters_dns,
-            log_fn=log,
-        )
+        self._request_dns_apply("auto", adapters=self._get_selected_adapters())
     
     def _apply_provider_dns_quick(self, name: str, data: dict):
         """Быстрое применение DNS провайдера"""
-        apply_provider_dns_quick(
-            dns_feature=self._dns_feature(),
+        self._request_dns_apply(
+            "provider",
             adapters=self._get_selected_adapters(),
             name=name,
             data=data,
             ipv6_available=self._ipv6_available,
-            build_provider_plan_fn=dns_page_plans.build_provider_dns_plan,
-            build_result_plan_fn=dns_page_plans.build_provider_dns_apply_result_plan,
-            refresh_adapters_dns_fn=self._refresh_adapters_dns,
-            log_fn=log,
         )
     
     def _apply_custom_dns_quick(self):
@@ -643,15 +631,118 @@ class NetworkPage(BasePage):
             set_card_selected_fn=self._set_dns_card_selected,
         )
         
-        apply_custom_dns_quick(
-            dns_feature=self._dns_feature(),
+        self._request_dns_apply(
+            "custom",
             adapters=self._get_selected_adapters(),
             primary=primary,
             secondary=secondary,
-            build_result_plan_fn=dns_page_plans.build_custom_dns_apply_result_plan,
-            refresh_adapters_dns_fn=self._refresh_adapters_dns,
-            log_fn=log,
         )
+
+    def create_dns_apply_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        adapters,
+        name: str = "",
+        data=None,
+        primary: str = "",
+        secondary: str | None = None,
+        ipv6_available: bool = False,
+    ):
+        return self._dns_feature().create_dns_apply_worker(
+            request_id,
+            action=action,
+            adapters=adapters,
+            name=name,
+            data=data,
+            primary=primary,
+            secondary=secondary,
+            ipv6_available=ipv6_available,
+            parent=self,
+        )
+
+    def _request_dns_apply(self, action: str, **payload) -> None:
+        request = {
+            "action": str(action or "").strip(),
+            **payload,
+        }
+        worker = self.__dict__.get("_dns_apply_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._dns_apply_pending.append(request)
+                    return
+            except Exception:
+                self._dns_apply_pending.append(request)
+                return
+        self._start_dns_apply_worker(request)
+
+    def _start_dns_apply_worker(self, payload: dict[str, object]) -> None:
+        self._dns_apply_request_id += 1
+        request_id = self._dns_apply_request_id
+        worker = self.create_dns_apply_worker(
+            request_id,
+            action=str(payload.get("action") or ""),
+            adapters=payload.get("adapters") or [],
+            name=str(payload.get("name") or ""),
+            data=payload.get("data") or {},
+            primary=str(payload.get("primary") or ""),
+            secondary=payload.get("secondary"),
+            ipv6_available=bool(payload.get("ipv6_available", False)),
+        )
+        self._dns_apply_worker = worker
+        worker.completed.connect(self._on_dns_apply_finished)
+        worker.failed.connect(self._on_dns_apply_failed)
+        worker.finished.connect(lambda w=worker: self._on_dns_apply_worker_finished(w))
+        worker.start()
+
+    def _on_dns_apply_finished(self, request_id: int, result) -> None:
+        if request_id != self._dns_apply_request_id or self._cleanup_in_progress:
+            return
+        data = result if isinstance(result, dict) else {}
+        plan = data.get("plan")
+        if plan is not None and getattr(plan, "log_message", ""):
+            log(plan.log_message, getattr(plan, "log_level", None) or "INFO")
+        dns_info = data.get("dns_info")
+        if isinstance(dns_info, dict):
+            self._apply_refreshed_adapter_dns_info(dns_info)
+
+    def _on_dns_apply_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._dns_apply_request_id or self._cleanup_in_progress:
+            return
+        log(f"Ошибка применения DNS: {error}", "ERROR")
+
+    def _on_dns_apply_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_dns_apply_worker") is worker:
+            self._dns_apply_worker = None
+        worker.deleteLater()
+        if self._dns_apply_pending and not self._cleanup_in_progress:
+            pending = self._dns_apply_pending.pop(0)
+            self._start_dns_apply_worker(dict(pending or {}))
+
+    def _apply_refreshed_adapter_dns_info(self, dns_info: dict) -> None:
+        if self._cleanup_in_progress:
+            return
+        try:
+            self._dns_info = dns_info
+            refresh_plan = refresh_adapter_cards(
+                adapter_cards=self.adapter_cards,
+                dns_info=dns_info,
+                build_refresh_plan_fn=lambda names, info: dns_page_plans.build_adapter_dns_refresh_plan(
+                    names,
+                    info,
+                    normalize_alias_fn=self._dns.normalize_adapter_alias,
+                ),
+            )
+
+            self._request_dns_selection_sync()
+            if refresh_plan is not None:
+                log(refresh_plan.log_message, refresh_plan.log_level)
+        except Exception as e:
+            log(f"Ошибка обновления DNS адаптеров: {e}", "WARNING")
+            import traceback
+            log(traceback.format_exc(), "DEBUG")
     
     def _refresh_adapters_dns(self):
         """Обновляет отображение DNS у всех адаптеров"""
@@ -1180,6 +1271,7 @@ class NetworkPage(BasePage):
             pass
         self._force_dns_action_pending.clear()
         self._dns_flush_cache_pending = False
+        self._dns_apply_pending.clear()
         force_dns_worker = self.__dict__.get("_force_dns_action_worker")
         if force_dns_worker is not None:
             try:
@@ -1194,6 +1286,13 @@ class NetworkPage(BasePage):
             except Exception:
                 pass
             self._dns_flush_cache_worker = None
+        dns_apply_worker = self.__dict__.get("_dns_apply_worker")
+        if dns_apply_worker is not None:
+            try:
+                dns_apply_worker.quit()
+            except Exception:
+                pass
+            self._dns_apply_worker = None
         cleanup_network_page(
             set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
             set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),

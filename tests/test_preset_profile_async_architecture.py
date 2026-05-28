@@ -1849,6 +1849,35 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("flush_dns_cache", worker_source)
         self.assertIn("build_flush_dns_cache_result_plan", worker_source)
 
+    def test_dns_apply_actions_run_through_worker(self) -> None:
+        page_workers = importlib.import_module("dns.page_workers")
+        feature_source = inspect.getsource(__import__("app.feature_facades.dns", fromlist=["DnsFeature"]).DnsFeature)
+        page_source = inspect.getsource(dns_page.NetworkPage)
+
+        self.assertTrue(hasattr(page_workers, "DnsApplyWorker"))
+        worker_source = inspect.getsource(page_workers.DnsApplyWorker)
+
+        for method_name, old_action in (
+            ("_apply_auto_dns_quick", "apply_auto_dns_quick"),
+            ("_apply_provider_dns_quick", "apply_provider_dns_quick"),
+            ("_apply_custom_dns_quick", "apply_custom_dns_quick"),
+        ):
+            source = inspect.getsource(getattr(dns_page.NetworkPage, method_name))
+            body_source = source.split("\n", 1)[1]
+            self.assertIn("_request_dns_apply", source)
+            self.assertNotIn(f"{old_action}(", body_source)
+            self.assertNotIn(".apply_auto_dns(", body_source)
+            self.assertNotIn(".apply_provider_dns(", body_source)
+            self.assertNotIn(".apply_custom_dns(", body_source)
+
+        self.assertIn("create_dns_apply_worker", feature_source)
+        self.assertIn("create_dns_apply_worker", page_source)
+        self.assertIn("_dns_apply_pending", page_source)
+        self.assertIn("apply_auto_dns", worker_source)
+        self.assertIn("apply_provider_dns", worker_source)
+        self.assertIn("apply_custom_dns", worker_source)
+        self.assertIn("refresh_dns_info", worker_source)
+
     def test_network_loaded_adapters_do_not_wait_for_current_dns(self) -> None:
         stored = {}
         build_calls = []
