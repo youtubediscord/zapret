@@ -18,6 +18,7 @@ from ui.pages.about_page_support_build import build_about_page_support_content
 from ui.pages.about_page_tabs_build import build_about_page_tabs
 from app.state_store import AppUiState, MainWindowStateStore
 from app.ui_texts import tr as tr_catalog
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
 from log.log import log
 
@@ -80,6 +81,8 @@ class AboutPage(BasePage):
         self._open_kvn_bot_action = open_kvn_bot
         self._open_kvn_bypass_action = open_kvn_bypass
         self._open_kvn_github_action = open_kvn_github
+        self._about_open_runtime = OneShotWorkerRuntime()
+        self._about_open_pending = None
         self._support_icon_label: QLabel | None = None
         self._support_discussions_card = None
         self._support_telegram_card = None
@@ -383,22 +386,25 @@ class AboutPage(BasePage):
         self._support_discord_card = widgets.discord_card
 
     def _open_support_discussions(self) -> None:
-        result = self._open_discussions_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть GitHub Discussions:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "support_discussions",
+            self._open_discussions_action,
+            error_default="Не удалось открыть GitHub Discussions:\n{error}",
+        )
 
     def _open_telegram_support(self) -> None:
-        result = self._open_support_telegram_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "support_telegram",
+            self._open_support_telegram_action,
+            error_default="Не удалось открыть Telegram:\n{error}",
+        )
 
     def _open_discord(self) -> None:
-        result = self._open_support_discord_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Discord:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "support_discord",
+            self._open_support_discord_action,
+            error_default="Не удалось открыть Discord:\n{error}",
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Tab 2: Справка
@@ -490,25 +496,26 @@ class AboutPage(BasePage):
         layout.addWidget(motto_wrap)
 
     def _open_forum_for_beginners(self):
-        result = self._open_forum_for_beginners_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "forum_for_beginners",
+            self._open_forum_for_beginners_action,
+            error_default="Не удалось открыть Telegram:\n{error}",
+        )
 
     def _open_help_folder(self):
-        result = self._open_help_folder_action()
-        if (not result.ok) and InfoBar:
-            if result.message == "Папка с инструкциями не найдена":
-                InfoBar.warning(title="Ошибка", content=result.message, parent=self.window())
-            else:
-                InfoBar.warning(title="Ошибка", content=f"Не удалось открыть папку:\n{result.message}",
-                                parent=self.window())
+        self._request_about_open_action(
+            "help_folder",
+            self._open_help_folder_action,
+            error_default="Не удалось открыть папку:\n{error}",
+            raw_error_message="Папка с инструкциями не найдена",
+        )
 
     def _open_telegram_news(self):
-        result = self._open_telegram_news_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "telegram_news",
+            self._open_telegram_news_action,
+            error_default="Не удалось открыть Telegram:\n{error}",
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Tab 3: Zapret KVN
@@ -530,28 +537,132 @@ class AboutPage(BasePage):
         )
 
     def _open_kvn_channel(self):
-        result = self._open_kvn_channel_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "kvn_channel",
+            self._open_kvn_channel_action,
+            error_default="Не удалось открыть Telegram:\n{error}",
+        )
 
     def _open_kvn_bot(self):
-        result = self._open_kvn_bot_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "kvn_bot",
+            self._open_kvn_bot_action,
+            error_default="Не удалось открыть Telegram:\n{error}",
+        )
 
     def _open_kvn_bypass(self):
-        result = self._open_kvn_bypass_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть Telegram:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "kvn_bypass",
+            self._open_kvn_bypass_action,
+            error_default="Не удалось открыть Telegram:\n{error}",
+        )
 
     def _open_kvn_github(self):
-        result = self._open_kvn_github_action()
-        if (not result.ok) and InfoBar:
-            InfoBar.warning(title="Ошибка", content=f"Не удалось открыть GitHub:\n{result.message}",
-                            parent=self.window())
+        self._request_about_open_action(
+            "kvn_github",
+            self._open_kvn_github_action,
+            error_default="Не удалось открыть GitHub:\n{error}",
+        )
+
+    def create_about_open_action_worker(self, request_id: int, *, action_name: str, action_fn):
+        from ui.pages.about_open_worker import AboutOpenActionWorker
+
+        return AboutOpenActionWorker(
+            request_id,
+            action_name=action_name,
+            action_fn=action_fn,
+            parent=self,
+        )
+
+    def _request_about_open_action(
+        self,
+        action_name: str,
+        action_fn,
+        *,
+        error_default: str,
+        raw_error_message: str = "",
+    ) -> None:
+        request = (
+            str(action_name or "").strip(),
+            action_fn,
+            str(error_default),
+            str(raw_error_message or ""),
+        )
+        if self._about_open_runtime.is_running():
+            self._about_open_pending = request
+            return
+        self._about_open_pending = None
+        self._start_about_open_action_worker(*request)
+
+    def _start_about_open_action_worker(
+        self,
+        action_name: str,
+        action_fn,
+        error_default: str,
+        raw_error_message: str,
+    ) -> None:
+        self._about_open_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_about_open_action_worker(
+                request_id,
+                action_name=action_name,
+                action_fn=action_fn,
+            ),
+            on_loaded=lambda request_id, _action_name, result: self._on_about_open_action_finished(
+                request_id,
+                result,
+                error_default=error_default,
+                raw_error_message=raw_error_message,
+            ),
+            on_failed=lambda request_id, _action_name, error: self._on_about_open_action_failed(
+                request_id,
+                error,
+                error_default=error_default,
+                raw_error_message=raw_error_message,
+            ),
+            on_finished=self._on_about_open_action_worker_finished,
+        )
+
+    def _on_about_open_action_finished(
+        self,
+        request_id: int,
+        result,
+        *,
+        error_default: str,
+        raw_error_message: str,
+    ) -> None:
+        if not self._about_open_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        if result.ok:
+            return
+        self._show_about_open_error(
+            str(getattr(result, "message", "") or ""),
+            error_default=error_default,
+            raw_error_message=raw_error_message,
+        )
+
+    def _on_about_open_action_failed(
+        self,
+        request_id: int,
+        error: str,
+        *,
+        error_default: str,
+        raw_error_message: str,
+    ) -> None:
+        if not self._about_open_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
+            return
+        self._show_about_open_error(str(error), error_default=error_default, raw_error_message=raw_error_message)
+
+    def _on_about_open_action_worker_finished(self, _worker) -> None:
+        pending = self._about_open_pending
+        self._about_open_pending = None
+        if pending is not None and not self._cleanup_in_progress:
+            self._start_about_open_action_worker(*pending)
+
+    def _show_about_open_error(self, error: str, *, error_default: str, raw_error_message: str) -> None:
+        if not InfoBar:
+            return
+        content = error if raw_error_message and error == raw_error_message else error_default.format(error=error)
+        InfoBar.warning(title="Ошибка", content=content, parent=self.window())
 
     # ─────────────────────────────────────────────────────────────────────────
     # Theme
@@ -592,6 +703,8 @@ class AboutPage(BasePage):
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
         self._pending_tab_key = None
+        self._about_open_pending = None
+        self._about_open_runtime.stop(blocking=True, warning_prefix="About open action worker")
 
         unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
         if callable(unsubscribe):

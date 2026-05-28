@@ -58,6 +58,7 @@ import donater.ui.page_plans as premium_page_plans
 from donater.ui.page import PremiumPage
 import donater.ui.page_lifecycle as premium_page_lifecycle
 from settings.dpi.page import DpiSettingsPage
+from ui.pages.about_page import AboutPage
 from ui.pages.appearance_page import AppearancePage
 from ui.pages.base_page import BasePage
 from ui.pages.support_page import SupportPage
@@ -1050,6 +1051,35 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             self.assertNotIn("_open_discussions_action()", source)
             self.assertNotIn("_open_telegram_action()", source)
             self.assertNotIn("_open_discord_action()", source)
+
+        self.assertIn("action_fn", worker_source)
+
+    def test_about_page_external_actions_run_through_worker(self) -> None:
+        spec = importlib.util.find_spec("ui.pages.about_open_worker")
+        self.assertIsNotNone(spec)
+        about_open_worker = importlib.import_module("ui.pages.about_open_worker")
+
+        page_source = inspect.getsource(AboutPage)
+        worker_source = inspect.getsource(about_open_worker.AboutOpenActionWorker.run)
+
+        self.assertTrue(hasattr(about_open_worker, "AboutOpenActionWorker"))
+        self.assertIn("_about_open_runtime", page_source)
+        self.assertIn("create_about_open_action_worker", page_source)
+        for method_name in (
+            "_open_support_discussions",
+            "_open_telegram_support",
+            "_open_discord",
+            "_open_forum_for_beginners",
+            "_open_help_folder",
+            "_open_telegram_news",
+            "_open_kvn_channel",
+            "_open_kvn_bot",
+            "_open_kvn_bypass",
+            "_open_kvn_github",
+        ):
+            source = inspect.getsource(getattr(AboutPage, method_name))
+            self.assertIn("_request_about_open_action", source)
+            self.assertNotIn("_action()", source)
 
         self.assertIn("action_fn", worker_source)
 
