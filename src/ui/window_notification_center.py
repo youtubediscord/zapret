@@ -39,6 +39,9 @@ class WindowNotificationCenter(QObject):
         self._is_window_minimized = is_window_minimized
         self._external_open_url_runtime = OneShotWorkerRuntime()
         self._external_open_url_pending: str | None = None
+        self._notification_action_runtime = OneShotWorkerRuntime()
+        self._notification_action_pending = None
+        self._notification_action_context: dict[int, dict[str, object]] = {}
         self._startup_notification_queue: list[dict] = []
         self._startup_notification_timer = QTimer(self)
         self._startup_notification_timer.setSingleShot(True)
@@ -49,6 +52,10 @@ class WindowNotificationCenter(QObject):
             runtime_feature=runtime_feature,
             show_page=self._show_page,
             open_url=self._request_external_open_url,
+            request_disable_proxy=self._request_disable_proxy,
+            request_disable_kaspersky_warning=self._request_disable_kaspersky_warning,
+            request_disable_telega_warning=self._request_disable_telega_warning,
+            request_windivert_autofix=self._request_windivert_autofix,
         )
 
     def register_global_error_notifier(self) -> None:
@@ -153,6 +160,250 @@ class WindowNotificationCenter(QObject):
                 dedupe_key="notification.open_url.failure",
             )
         )
+
+    def create_notification_action_worker(self, request_id: int, *, action_name: str, action_fn):
+        from ui.window_notification_action_workers import NotificationActionWorker
+
+        return NotificationActionWorker(
+            request_id,
+            action_name=action_name,
+            action_fn=action_fn,
+            parent=self,
+        )
+
+    def _request_disable_proxy(self, bar=None) -> None:
+        self._request_notification_action(
+            "disable_proxy",
+            self._disable_proxy_action,
+            bar=bar,
+        )
+
+    def _request_disable_kaspersky_warning(self, bar=None) -> None:
+        self._request_notification_action(
+            "disable_kaspersky_warning",
+            self._disable_kaspersky_warning_action,
+            bar=bar,
+        )
+
+    def _request_disable_telega_warning(self, bar=None) -> None:
+        self._request_notification_action(
+            "disable_telega_warning",
+            self._disable_telega_warning_action,
+            bar=bar,
+        )
+
+    def _request_windivert_autofix(self, action: str, bar=None) -> None:
+        value = str(action or "").strip()
+        if not value:
+            return
+        self._request_notification_action(
+            "windivert_autofix",
+            lambda: self._runtime.execute_windivert_autofix(value),
+            bar=bar,
+            context={"action": value},
+        )
+
+    def _request_notification_action(self, action_name: str, action_fn, *, bar=None, context=None) -> None:
+        request = (str(action_name or "").strip(), action_fn, bar, dict(context or {}))
+        if self._notification_action_runtime.is_running():
+            self._notification_action_pending = request
+            return
+        self._notification_action_pending = None
+        self._run_notification_action_worker(*request)
+
+    def _run_notification_action_worker(self, action_name: str, action_fn, bar, context: dict[str, object]) -> None:
+        def _worker_factory(request_id: int):
+            self._notification_action_context[int(request_id)] = {
+                "action_name": action_name,
+                "bar": bar,
+                **context,
+            }
+            return self.create_notification_action_worker(
+                request_id,
+                action_name=action_name,
+                action_fn=action_fn,
+            )
+
+        self._notification_action_runtime.start_qthread_worker(
+            worker_factory=_worker_factory,
+            on_loaded=self._on_notification_action_finished,
+            on_failed=self._on_notification_action_failed,
+            on_finished=self._on_notification_action_worker_finished,
+        )
+
+    @staticmethod
+    def _disable_proxy_action():
+        from startup.check_start import _disable_proxy
+
+        return _disable_proxy()
+
+    @staticmethod
+    def _disable_kaspersky_warning_action() -> bool:
+        from startup.kaspersky import disable_kaspersky_warning_forever
+
+        return bool(disable_kaspersky_warning_forever())
+
+    @staticmethod
+    def _disable_telega_warning_action() -> bool:
+        from startup.telega_check import disable_telega_warning_forever
+
+        return bool(disable_telega_warning_forever())
+
+    def _on_notification_action_finished(self, request_id: int, action_name: str, result) -> None:
+        context = self._notification_action_context.pop(int(request_id), {})
+        if not self._notification_action_runtime.is_current(request_id):
+            return
+
+        action = str(action_name or context.get("action_name") or "")
+        bar = context.get("bar")
+        if action == "disable_proxy":
+            self._notify_disable_proxy_result(result, bar=bar)
+        elif action == "disable_kaspersky_warning":
+            self._notify_disable_warning_result(
+                bool(result),
+                bar=bar,
+                product="Kaspersky",
+                source="startup.kaspersky.action",
+                success_content="Предупреждение о Kaspersky больше не будет показываться.",
+                failure_content="Не удалось сохранить настройку для предупреждения о Kaspersky.",
+                dedupe_key="startup.kaspersky.action.disable_warning",
+            )
+        elif action == "disable_telega_warning":
+            self._notify_disable_warning_result(
+                bool(result),
+                bar=bar,
+                product="Telega Desktop",
+                source="startup.telega.action",
+                success_content="Предупреждение о Telega Desktop больше не будет показываться.",
+                failure_content="Не удалось сохранить настройку для предупреждения о Telega Desktop.",
+                dedupe_key="startup.telega.action.disable_warning",
+            )
+        elif action == "windivert_autofix":
+            self._notify_windivert_autofix_result(
+                result,
+                bar=bar,
+                action=str(context.get("action") or ""),
+            )
+
+    def _on_notification_action_failed(self, request_id: int, action_name: str, error: str) -> None:
+        context = self._notification_action_context.pop(int(request_id), {})
+        if not self._notification_action_runtime.is_current(request_id):
+            return
+        action = str(action_name or context.get("action_name") or "")
+        bar = context.get("bar")
+        if action == "disable_proxy":
+            self._notify_disable_proxy_result((False, error), bar=bar)
+        elif action == "disable_kaspersky_warning":
+            self._notify_disable_warning_result(
+                False,
+                bar=bar,
+                product="Kaspersky",
+                source="startup.kaspersky.action",
+                success_content="Предупреждение о Kaspersky больше не будет показываться.",
+                failure_content="Не удалось сохранить настройку для предупреждения о Kaspersky.",
+                dedupe_key="startup.kaspersky.action.disable_warning",
+            )
+        elif action == "disable_telega_warning":
+            self._notify_disable_warning_result(
+                False,
+                bar=bar,
+                product="Telega Desktop",
+                source="startup.telega.action",
+                success_content="Предупреждение о Telega Desktop больше не будет показываться.",
+                failure_content="Не удалось сохранить настройку для предупреждения о Telega Desktop.",
+                dedupe_key="startup.telega.action.disable_warning",
+            )
+        elif action == "windivert_autofix":
+            self._notify_windivert_autofix_result(
+                (False, error),
+                bar=bar,
+                action=str(context.get("action") or ""),
+            )
+
+    def _on_notification_action_worker_finished(self, _worker) -> None:
+        pending = self._notification_action_pending
+        self._notification_action_pending = None
+        if pending is not None:
+            self._run_notification_action_worker(*pending)
+
+    def _notify_disable_proxy_result(self, result, *, bar=None) -> None:
+        success, error = self._coerce_bool_message_result(result)
+        if success:
+            self._close_bar(bar)
+        self.notify(
+            advisory_notification(
+                level="success" if success else "warning",
+                title="Прокси отключен" if success else "Не удалось отключить прокси",
+                content=(
+                    "Ручной системный прокси был отключен."
+                    if success else str(error or "Настройки прокси не были изменены.")
+                ),
+                source="startup.proxy.action",
+                presentation="infobar",
+                queue="immediate",
+                duration=7000 if success else 10000,
+                dedupe_key="startup.proxy.action",
+            )
+        )
+
+    def _notify_disable_warning_result(
+        self,
+        success: bool,
+        *,
+        bar=None,
+        product: str,
+        source: str,
+        success_content: str,
+        failure_content: str,
+        dedupe_key: str,
+    ) -> None:
+        if success:
+            self._close_bar(bar)
+        _ = product
+        self.notify(
+            advisory_notification(
+                level="success" if success else "warning",
+                title="Напоминание отключено" if success else "Не удалось отключить напоминание",
+                content=success_content if success else failure_content,
+                source=source,
+                presentation="infobar",
+                queue="immediate",
+                duration=5000 if success else 8000,
+                dedupe_key=dedupe_key,
+            )
+        )
+
+    def _notify_windivert_autofix_result(self, result, *, bar=None, action: str = "") -> None:
+        ok, message = self._coerce_bool_message_result(result)
+        self._close_bar(bar)
+        self.notify(
+            advisory_notification(
+                level="success" if ok else "warning",
+                title="Готово" if ok else "Не удалось",
+                content=str(message or ""),
+                source="launch.autofix",
+                presentation="infobar",
+                queue="immediate",
+                duration=5000 if ok else 8000,
+                dedupe_key=f"launch.autofix:{action}",
+            )
+        )
+
+    @staticmethod
+    def _coerce_bool_message_result(result) -> tuple[bool, str]:
+        if isinstance(result, (tuple, list)) and result:
+            ok = bool(result[0])
+            message = str(result[1] if len(result) > 1 else "")
+            return ok, message
+        return bool(result), ""
+
+    @staticmethod
+    def _close_bar(bar) -> None:
+        try:
+            if bar is not None:
+                bar.close()
+        except Exception:
+            pass
 
     def notify(self, payload: dict | None) -> None:
         normalized = normalize_notification_payload(payload)

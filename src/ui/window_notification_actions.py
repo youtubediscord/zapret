@@ -18,11 +18,19 @@ class WindowNotificationActionHandler:
         runtime_feature,
         show_page,
         open_url: Callable[[str], None],
+        request_disable_proxy: Callable[[object | None], None],
+        request_disable_kaspersky_warning: Callable[[object | None], None],
+        request_disable_telega_warning: Callable[[object | None], None],
+        request_windivert_autofix: Callable[[str, object | None], None],
     ) -> None:
         self._notify = notify
         self._runtime = runtime_feature
         self._show_page = show_page
         self._open_url = open_url
+        self._request_disable_proxy = request_disable_proxy
+        self._request_disable_kaspersky_warning = request_disable_kaspersky_warning
+        self._request_disable_telega_warning = request_disable_telega_warning
+        self._request_windivert_autofix = request_windivert_autofix
 
     def build_action_callback(self, action: dict, bar):
         kind = str(action.get("kind") or "").strip().lower()
@@ -62,16 +70,16 @@ class WindowNotificationActionHandler:
             )
 
         if kind == "disable_proxy":
-            return self._disable_proxy_with_feedback
+            return lambda: self._request_disable_proxy(bar)
 
         if kind == "disable_kaspersky_warning":
-            return lambda: self._disable_kaspersky_warning_forever(bar)
+            return lambda: self._request_disable_kaspersky_warning(bar)
 
         if kind == "disable_telega_warning":
-            return lambda: self._disable_telega_warning_forever(bar)
+            return lambda: self._request_disable_telega_warning(bar)
 
         if kind == "autofix":
-            return lambda: self._run_windivert_autofix(str(action.get("value") or ""), bar)
+            return lambda: self._request_windivert_autofix(str(action.get("value") or ""), bar)
 
         return None
 
@@ -107,30 +115,6 @@ class WindowNotificationActionHandler:
                     dedupe_key=f"clipboard.failure:{label.lower()}",
                 )
             )
-
-    def _disable_proxy_with_feedback(self) -> None:
-        try:
-            from startup.check_start import _disable_proxy
-
-            success, disable_error = _disable_proxy()
-        except Exception as e:
-            success, disable_error = False, str(e)
-
-        self._notify(
-            advisory_notification(
-                level="success" if success else "warning",
-                title="Прокси отключен" if success else "Не удалось отключить прокси",
-                content=(
-                    "Ручной системный прокси был отключен."
-                    if success else str(disable_error or "Настройки прокси не были изменены.")
-                ),
-                source="startup.proxy.action",
-                presentation="infobar",
-                queue="immediate",
-                duration=7000 if success else 10000,
-                dedupe_key="startup.proxy.action",
-            )
-        )
 
     def _run_launch_conflict_action(self, *, request_id: int, close_conflicts: bool, bar=None) -> None:
         runtime = self._runtime
@@ -210,87 +194,6 @@ class WindowNotificationActionHandler:
                     dedupe_key="navigation.preset_setup_page",
                 )
             )
-
-    def _disable_kaspersky_warning_forever(self, bar=None) -> None:
-        try:
-            from startup.kaspersky import disable_kaspersky_warning_forever
-
-            success = bool(disable_kaspersky_warning_forever())
-        except Exception as e:
-            log(f"Не удалось отключить предупреждение Kaspersky: {e}", "DEBUG")
-            success = False
-
-        if success:
-            self._close_bar(bar)
-
-        self._notify(
-            advisory_notification(
-                level="success" if success else "warning",
-                title="Напоминание отключено" if success else "Не удалось отключить напоминание",
-                content=(
-                    "Предупреждение о Kaspersky больше не будет показываться."
-                    if success else
-                    "Не удалось сохранить настройку для предупреждения о Kaspersky."
-                ),
-                source="startup.kaspersky.action",
-                presentation="infobar",
-                queue="immediate",
-                duration=5000 if success else 8000,
-                dedupe_key="startup.kaspersky.action.disable_warning",
-            )
-        )
-
-    def _disable_telega_warning_forever(self, bar=None) -> None:
-        try:
-            from startup.telega_check import disable_telega_warning_forever
-
-            success = bool(disable_telega_warning_forever())
-        except Exception as e:
-            log(f"Не удалось отключить предупреждение Telega: {e}", "DEBUG")
-            success = False
-
-        if success:
-            self._close_bar(bar)
-
-        self._notify(
-            advisory_notification(
-                level="success" if success else "warning",
-                title="Напоминание отключено" if success else "Не удалось отключить напоминание",
-                content=(
-                    "Предупреждение о Telega Desktop больше не будет показываться."
-                    if success else
-                    "Не удалось сохранить настройку для предупреждения о Telega Desktop."
-                ),
-                source="startup.telega.action",
-                presentation="infobar",
-                queue="immediate",
-                duration=5000 if success else 8000,
-                dedupe_key="startup.telega.action.disable_warning",
-            )
-        )
-
-    def _run_windivert_autofix(self, action: str, bar) -> None:
-        if not action:
-            return
-
-        try:
-            ok, message = self._runtime.execute_windivert_autofix(action)
-            self._close_bar(bar)
-
-            self._notify(
-                advisory_notification(
-                    level="success" if ok else "warning",
-                    title="Готово" if ok else "Не удалось",
-                    content=str(message or ""),
-                    source="launch.autofix",
-                    presentation="infobar",
-                    queue="immediate",
-                    duration=5000 if ok else 8000,
-                    dedupe_key=f"launch.autofix:{action}",
-                )
-            )
-        except Exception as e:
-            log(f"Auto-fix error: {e}", "ERROR")
 
     @staticmethod
     def _close_bar(bar) -> None:
