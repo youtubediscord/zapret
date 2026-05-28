@@ -34,7 +34,10 @@ import presets.ui.control.zapret1.runtime_helpers as zapret1_runtime_helpers
 from presets.ui.control.zapret1.page import Zapret1ModeControlPage
 import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 from presets.ui.control.zapret2.page import Zapret2ModeControlPage
-from presets.user_presets_runtime_service import UserPresetsMetadataLoadWorker, UserPresetsRuntimeService
+from presets.user_presets_runtime_service import (
+    UserPresetsMetadataLoadWorker,
+    UserPresetsRuntimeService,
+)
 from hosts.ui.page import HostsPage
 import hosts.ui.page_runtime as hosts_page_runtime
 from autostart.ui.page import AutostartPage
@@ -180,6 +183,21 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("adapter.load_all_metadata()", load_source)
         self.assertNotIn("adapter.load_all_metadata()", watcher_source)
         self.assertIn("UserPresetsMetadataLoadWorker", load_source)
+
+    def test_user_presets_single_metadata_refresh_is_worker_only(self) -> None:
+        import presets.user_presets_runtime_service as runtime_service
+
+        self.assertTrue(hasattr(runtime_service, "UserPresetsSingleMetadataWorker"))
+        changed_source = inspect.getsource(UserPresetsRuntimeService.on_store_content_changed)
+        request_source = inspect.getsource(UserPresetsRuntimeService._request_single_metadata_refresh)
+        loaded_source = inspect.getsource(UserPresetsRuntimeService._on_single_metadata_loaded)
+        worker_source = inspect.getsource(runtime_service.UserPresetsSingleMetadataWorker.run)
+
+        self.assertNotIn("adapter.read_single_metadata(file_name)", changed_source)
+        self.assertIn("_request_single_metadata_refresh", changed_source)
+        self.assertIn("UserPresetsSingleMetadataWorker", request_source)
+        self.assertIn("_read_single_metadata", worker_source)
+        self.assertIn("try_apply_single_preset_metadata_update", loaded_source)
 
     def test_user_presets_folder_state_for_rows_is_worker_loaded(self) -> None:
         worker_source = inspect.getsource(UserPresetsMetadataLoadWorker.run)

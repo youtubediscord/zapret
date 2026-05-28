@@ -55,6 +55,31 @@ class UserPresetsMetadataLoadWorker(QThread):
         self.loaded.emit(self._request_id, all_presets, folder_state, started_at)
 
 
+class UserPresetsSingleMetadataWorker(QThread):
+    loaded = pyqtSignal(int, str, object)
+    failed = pyqtSignal(int, str, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        file_name: str,
+        read_single_metadata: Callable[[str], tuple[str, dict[str, object]] | None],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._file_name = str(file_name or "").strip()
+        self._read_single_metadata = read_single_metadata
+
+    def run(self) -> None:
+        try:
+            refreshed = self._read_single_metadata(self._file_name)
+        except Exception as exc:
+            self.failed.emit(self._request_id, self._file_name, str(exc))
+            return
+        self.loaded.emit(self._request_id, self._file_name, refreshed)
+
+
 class UserPresetsRuntimeService:
     def __init__(self, *, scope_key: str = "") -> None:
         self._scope_key = str(scope_key or "").strip()
@@ -68,6 +93,9 @@ class UserPresetsRuntimeService:
         self._attached_adapter: UserPresetsRuntimeAdapter | None = None
         self._metadata_load_request_id = 0
         self._metadata_load_worker: UserPresetsMetadataLoadWorker | None = None
+        self._single_metadata_request_id = 0
+        self._single_metadata_worker: UserPresetsSingleMetadataWorker | None = None
+        self._single_metadata_pending: list[str] = []
 
     def is_ui_dirty(self) -> bool:
         return bool(self._ui_dirty)
@@ -158,7 +186,58 @@ class UserPresetsRuntimeService:
         if adapter.bulk_reset_running():
             return
 
-        refreshed = adapter.read_single_metadata(file_name)
+        self._request_single_metadata_refresh(file_name, page)
+
+    def _request_single_metadata_refresh(self, file_name: str, page=None) -> None:
+        page = self._resolve_page(page)
+        adapter = self._resolve_adapter()
+        normalized_file_name = str(file_name or "").strip()
+        if not normalized_file_name:
+            return
+
+        worker = self._single_metadata_worker
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    if normalized_file_name not in self._single_metadata_pending:
+                        self._single_metadata_pending.append(normalized_file_name)
+                    return
+            except Exception:
+                return
+
+        self._single_metadata_request_id += 1
+        request_id = self._single_metadata_request_id
+        worker = UserPresetsSingleMetadataWorker(
+            request_id,
+            normalized_file_name,
+            adapter.read_single_metadata,
+            page,
+        )
+        self._single_metadata_worker = worker
+        worker.loaded.connect(
+            lambda rid, changed_file_name, refreshed, p=page: self._on_single_metadata_loaded(
+                rid,
+                changed_file_name,
+                refreshed,
+                p,
+            )
+        )
+        worker.failed.connect(
+            lambda rid, changed_file_name, error, p=page: self._on_single_metadata_failed(
+                rid,
+                changed_file_name,
+                error,
+                p,
+            )
+        )
+        worker.finished.connect(lambda w=worker, p=page: self._on_single_metadata_worker_finished(w, p))
+        worker.start()
+
+    def _on_single_metadata_loaded(self, request_id: int, file_name: str, refreshed, page=None) -> None:
+        if request_id != self._single_metadata_request_id:
+            return
+        page = self._resolve_page(page)
+        adapter = self._resolve_adapter()
         if refreshed is None:
             self._ui_dirty = True
             if page.isVisible():
@@ -180,6 +259,23 @@ class UserPresetsRuntimeService:
             self.refresh_presets_view_from_cache(page)
         else:
             self._ui_dirty = True
+
+    def _on_single_metadata_failed(self, request_id: int, file_name: str, error: str, page=None) -> None:
+        if request_id != self._single_metadata_request_id:
+            return
+        page = self._resolve_page(page)
+        self._ui_dirty = True
+        log(f"Ошибка обновления metadata preset-а {file_name}: {error}", "ERROR")
+        if page.isVisible():
+            self.schedule_presets_reload(page, 0)
+
+    def _on_single_metadata_worker_finished(self, worker: UserPresetsSingleMetadataWorker, page=None) -> None:
+        if self._single_metadata_worker is worker:
+            self._single_metadata_worker = None
+        worker.deleteLater()
+        if self._single_metadata_pending:
+            pending_file_name = self._single_metadata_pending.pop(0)
+            self._request_single_metadata_refresh(pending_file_name, page)
 
     def current_search_query(self, page=None) -> str:
         page = self._resolve_page(page)
@@ -385,6 +481,7 @@ class UserPresetsRuntimeService:
     def stop_watching_presets(self, page=None) -> None:
         _ = self._resolve_page(page)
         try:
+            self._stop_metadata_workers()
             if not self._watcher_active:
                 timer = self._watcher_reload_timer
                 if timer is not None:
@@ -405,6 +502,20 @@ class UserPresetsRuntimeService:
             self._ui_dirty = True
         except Exception as e:
             log(f"Ошибка остановки мониторинга пресетов: {e}", "DEBUG")
+
+    def _stop_metadata_workers(self) -> None:
+        self._metadata_load_request_id += 1
+        self._single_metadata_request_id += 1
+        self._single_metadata_pending.clear()
+        for attr in ("_metadata_load_worker", "_single_metadata_worker"):
+            worker = getattr(self, attr, None)
+            if worker is None:
+                continue
+            try:
+                worker.quit()
+            except Exception:
+                pass
+            setattr(self, attr, None)
 
     def on_presets_dir_changed(self, path: str, page=None) -> None:
         page = self._resolve_page(page)
