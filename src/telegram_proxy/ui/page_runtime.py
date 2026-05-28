@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import socket
 from dataclasses import dataclass
 
 
@@ -185,14 +184,6 @@ def build_relay_start_plan(*, current_generation: int, host: str, port: int) -> 
         generation=int(current_generation) + 1,
         status_text=f"Работает на {host}:{port} — проверка relay...",
     )
-
-def check_relay_http(relay_ip: str = "149.154.167.220", timeout: float = 5.0) -> bool:
-    try:
-        sock = socket.create_connection((relay_ip, 80), timeout=timeout)
-        sock.close()
-        return True
-    except Exception:
-        return False
 
 def build_relay_result_plan(
     *,

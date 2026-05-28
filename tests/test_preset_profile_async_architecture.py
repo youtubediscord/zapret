@@ -73,6 +73,7 @@ from dns.page_workers import DnsPageLoadWorker
 import telegram_proxy.ui.diagnostics_workflow as telegram_diag_workflow
 import telegram_proxy.ui.proxy_runtime_workflow as telegram_runtime_workflow
 import telegram_proxy.ui.page as telegram_page
+import telegram_proxy.commands as telegram_proxy_commands
 import telegram_proxy.settings as telegram_proxy_settings
 import telegram_proxy.ui.settings_build as telegram_proxy_settings_build
 from app.feature_facades.telegram_proxy import TelegramProxyFeature
@@ -928,6 +929,18 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("set_upstream_enabled", worker_source)
         self.assertIn("set_upstream_fields", worker_source)
         self.assertIn("set_upstream_mode", worker_source)
+
+    def test_telegram_proxy_relay_http_probe_is_command_not_ui_runtime(self) -> None:
+        page_runtime_source = inspect.getsource(telegram_page.telegram_proxy_page_runtime)
+        worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxyRelayCheckWorker.run)
+
+        self.assertTrue(hasattr(telegram_proxy_commands, "check_relay_http"))
+        command_source = inspect.getsource(telegram_proxy_commands.check_relay_http)
+
+        self.assertNotIn("socket.", page_runtime_source)
+        self.assertIn("telegram_proxy.commands", worker_source)
+        self.assertIn("check_relay_http", worker_source)
+        self.assertIn("socket.create_connection", command_source)
 
     def test_blockcheck_initial_state_is_backend_plan_not_ui_loading(self) -> None:
         spec = importlib.util.find_spec("blockcheck.workers")

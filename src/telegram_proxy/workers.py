@@ -78,8 +78,8 @@ class TelegramProxyRelayCheckWorker(QThread):
 
     def run(self) -> None:
         try:
+            import telegram_proxy.commands as telegram_proxy_commands
             from telegram_proxy.wss_proxy import check_relay_reachable
-            import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
 
             time.sleep(2)
             best_result = None
@@ -96,7 +96,7 @@ class TelegramProxyRelayCheckWorker(QThread):
             else:
                 diag = {
                     "status": "fail",
-                    "http_ok": telegram_proxy_page_runtime.check_relay_http(),
+                    "http_ok": telegram_proxy_commands.check_relay_http(),
                     "zapret_running": bool(self._get_zapret_running()),
                 }
             self.completed.emit(self._generation, diag)

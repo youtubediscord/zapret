@@ -59,3 +59,14 @@ def run_diagnostics(*, proxy_port: int, progress_callback=None) -> str:
     from telegram_proxy.diagnostics import run_all
 
     return str(run_all(proxy_port=proxy_port, progress_callback=progress_callback))
+
+
+def check_relay_http(relay_ip: str = "149.154.167.220", timeout: float = 5.0) -> bool:
+    import socket
+
+    try:
+        sock = socket.create_connection((relay_ip, 80), timeout=timeout)
+        sock.close()
+        return True
+    except Exception:
+        return False
