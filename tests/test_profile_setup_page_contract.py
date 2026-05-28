@@ -1200,6 +1200,47 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._schedule_profiles_payload_request.assert_not_called()
         self.assertTrue(page._profile_payload_dirty)
 
+    def test_profile_enabled_finish_adds_created_row_without_full_reload(self) -> None:
+        created_item = ProfileListItem(
+            key="profile-2",
+            persistent_key="profile-2",
+            profile_index=2,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=2,
+        )
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_context_action_request_id = 6
+        page._profile_payload_dirty = False
+        page._profiles_list = Mock()
+        page._profiles_list.set_profile_enabled.return_value = False
+        page._profiles_list.add_profile_item.return_value = True
+        page.refresh_from_preset_switch = Mock()
+        page._schedule_profiles_payload_request = Mock()
+
+        PresetSetupPageBase._on_profile_context_action_finished(
+            page,
+            6,
+            "set_enabled",
+            "template:youtube",
+            {"profile_key": "profile-2", "profile_item": created_item},
+        )
+
+        page._profiles_list.set_profile_enabled.assert_not_called()
+        page._profiles_list.add_profile_item.assert_called_once_with(created_item)
+        page.refresh_from_preset_switch.assert_not_called()
+        page._schedule_profiles_payload_request.assert_not_called()
+        self.assertTrue(page._profile_payload_dirty)
+
     def test_profile_delete_finish_removes_existing_row_without_full_reload(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_context_action_request_id = 4
@@ -1319,6 +1360,53 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         profile.set_profile_enabled.assert_called_once_with("zapret2_mode", "profile-1", True)
         self.assertEqual(finished, [(6, "set_enabled", "profile-1", "profile-2")])
+
+    def test_profile_context_action_worker_emits_created_item_for_new_enabled_profile(self) -> None:
+        created_item = ProfileListItem(
+            key="profile-2",
+            persistent_key="profile-2",
+            profile_index=2,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=2,
+        )
+        profile = Mock()
+        profile.set_profile_enabled.return_value = "profile-2"
+        profile.list_profiles.return_value = SimpleNamespace(items=(created_item,))
+        worker = ProfilePresetProfileActionWorker(
+            7,
+            profile,
+            "zapret2_mode",
+            action="set_enabled",
+            profile_key="template:youtube",
+            enabled=True,
+        )
+        finished = []
+
+        worker.finished_action.connect(
+            lambda request_id, action, profile_key, result: finished.append((
+                request_id,
+                action,
+                profile_key,
+                result,
+            ))
+        )
+
+        worker.run()
+
+        profile.set_profile_enabled.assert_called_once_with("zapret2_mode", "template:youtube", True)
+        profile.list_profiles.assert_called_once_with("zapret2_mode")
+        self.assertEqual(finished[0][:3], (7, "set_enabled", "template:youtube"))
+        self.assertEqual(finished[0][3], {"profile_key": "profile-2", "profile_item": created_item})
 
     def test_strategy_list_repaints_viewport_rect_after_current_strategy_changes(self) -> None:
         source = inspect.getsource(ProfileStrategyListWidget.set_current_strategy_id)

@@ -245,6 +245,10 @@ class ProfilePresetProfileActionWorker(QThread):
                     self._profile_key,
                     bool(self._enabled),
                 )
+                if result and str(result or "").strip() != self._profile_key:
+                    item = _profile_item_by_key(self._profile, self._launch_method, str(result or ""))
+                    if item is not None:
+                        result = {"profile_key": str(result or "").strip(), "profile_item": item}
             elif self._action == "duplicate":
                 result = self._profile.duplicate_profile(self._launch_method, self._profile_key)
             elif self._action == "delete":
@@ -430,11 +434,32 @@ def _user_profile_items(profile, launch_method: str, profile_id: str) -> tuple[o
     clean_profile_id = str(profile_id or "").strip()
     if not clean_profile_id:
         return ()
-    payload = profile.list_profiles(str(launch_method or "").strip())
+    try:
+        payload = profile.list_profiles(str(launch_method or "").strip())
+    except Exception:
+        return ()
     return tuple(
         item for item in tuple(getattr(payload, "items", ()) or ())
         if str(getattr(item, "user_profile_id", "") or "").strip() == clean_profile_id
     )
+
+
+def _profile_item_by_key(profile, launch_method: str, profile_key: str):
+    clean_key = str(profile_key or "").strip()
+    if not clean_key:
+        return None
+    try:
+        payload = profile.list_profiles(str(launch_method or "").strip())
+    except Exception:
+        return None
+    try:
+        items = tuple(getattr(payload, "items", ()) or ())
+    except Exception:
+        return None
+    for item in items:
+        if str(getattr(item, "key", "") or "").strip() == clean_key:
+            return item
+    return None
 
 
 class ProfileFolderActionWorker(QThread):

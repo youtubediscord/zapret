@@ -426,7 +426,8 @@ class PresetSetupPageBase(BasePage):
         if request_id != int(getattr(self, "_profile_context_action_request_id", 0) or 0):
             return
         if action == "set_enabled":
-            target_key = str(result or profile_key)
+            target_key = _profile_context_action_result_key(result) or str(profile_key or "").strip()
+            target_item = _profile_context_action_result_item(result)
             requested_enabled = bool(
                 self.__dict__.get("_profile_context_action_enabled_by_request", {}).pop(request_id, True)
             )
@@ -435,6 +436,8 @@ class PresetSetupPageBase(BasePage):
                 and self._apply_profile_enabled_locally(profile_key, requested_enabled)
             ):
                 self._profile_payload_dirty = True
+            elif target_item is not None and self._add_created_user_profile_locally(target_item):
+                pass
             else:
                 self._refresh_profile_item_locally(profile_key, target_key)
             return
@@ -1202,3 +1205,15 @@ def _user_profile_id_from_item(profile_key: str, item) -> str:
     if key.startswith("template:user:"):
         return key.split("template:user:", 1)[1].strip()
     return ""
+
+
+def _profile_context_action_result_key(result) -> str:
+    if isinstance(result, dict):
+        return str(result.get("profile_key") or "").strip()
+    return str(result or "").strip()
+
+
+def _profile_context_action_result_item(result):
+    if isinstance(result, dict):
+        return result.get("profile_item")
+    return None
