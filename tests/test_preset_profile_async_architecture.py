@@ -1248,6 +1248,29 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_clear_learned_worker", controller_source)
         self.assertIn("clear_learned_data", worker_source)
 
+    def test_orchestra_whitelist_actions_run_through_worker(self) -> None:
+        whitelist_workers = importlib.import_module("orchestra.managed_lists_workers")
+
+        add_source = inspect.getsource(OrchestraWhitelistPage._add_domain)
+        remove_source = inspect.getsource(OrchestraWhitelistPage._on_row_delete_requested)
+        clear_source = inspect.getsource(OrchestraWhitelistPage._clear_user_domains)
+        page_source = inspect.getsource(OrchestraWhitelistPage)
+        controller_source = inspect.getsource(orchestra_managed_lists_controller.WhitelistController)
+        worker_source = inspect.getsource(whitelist_workers.OrchestraWhitelistActionWorker.run)
+
+        for source in (add_source, remove_source, clear_source):
+            self.assertIn("_request_whitelist_action", source)
+            self.assertNotIn("self._controller.add_domain", source)
+            self.assertNotIn("self._controller.remove_domain", source)
+            self.assertNotIn("self._controller.clear_user_domains", source)
+
+        self.assertIn("OneShotWorkerRuntime", page_source)
+        self.assertIn("create_action_worker", page_source)
+        self.assertIn("create_action_worker", controller_source)
+        self.assertIn("add_domain", worker_source)
+        self.assertIn("remove_domain", worker_source)
+        self.assertIn("clear_user_domains", worker_source)
+
     def test_page_host_logs_first_and_repeat_show_for_all_pages(self) -> None:
         init_source = inspect.getsource(WindowPageHost.__init__)
         show_source = inspect.getsource(WindowPageHost.show_page)

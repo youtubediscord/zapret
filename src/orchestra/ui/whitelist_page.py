@@ -23,9 +23,11 @@ from qfluentwidgets import (
 
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
 from app.ui_texts import tr as tr_catalog
+from log.log import log
 
 
 
@@ -156,6 +158,7 @@ class OrchestraWhitelistPage(BasePage):
         self._domains_card = None
         self._runtime_initialized = False
         self._last_snapshot_revision = None
+        self._action_runtime = OneShotWorkerRuntime()
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -393,11 +396,15 @@ class OrchestraWhitelistPage(BasePage):
         if not refresh and snapshot.revision == self._last_snapshot_revision:
             return
         self._last_snapshot_revision = snapshot.revision
-        self._apply_whitelist_entries(snapshot.entries)
+        self._apply_whitelist_snapshot(snapshot)
 
     def _refresh_data(self):
         """Явно перечитывает whitelist из канонического runtime service."""
         self._sync_whitelist_view(refresh=True)
+
+    def _apply_whitelist_snapshot(self, snapshot) -> None:
+        self._last_snapshot_revision = snapshot.revision
+        self._apply_whitelist_entries(snapshot.entries)
 
     def _apply_whitelist_entries(self, entries: tuple[tuple[str, bool], ...]) -> None:
         """Обновляет список доменов из service-owned snapshot."""
@@ -530,33 +537,18 @@ class OrchestraWhitelistPage(BasePage):
         if not domain:
             return
 
-        result = self._controller.add_domain(domain=domain)
-        if result.changed:
-            self.domain_input.clear()
-            self._refresh_data()
-            self._show_restart_warning()
-        else:
-            if InfoBar:
-                InfoBar.info(
-                    title=self._tr("page.orchestra.whitelist.infobar.info_title", "Информация"),
-                    content=self._tr(
-                        "page.orchestra.whitelist.info.already_exists",
-                        "Домен {domain} уже в списке",
-                        domain=domain,
-                    ),
-                    parent=self.window(),
-                )
+        self._request_whitelist_action("add", domain=domain)
 
     def _on_row_delete_requested(self, domain: str):
         """Удаление при нажатии кнопки X в ряду"""
-        result = self._controller.remove_domain(domain=domain)
-        if result.changed:
-            self._refresh_data()
-            self._show_restart_warning()
+        self._request_whitelist_action("remove", domain=domain)
 
     def _clear_user_domains(self):
         """Очищает все пользовательские домены из белого списка"""
-        user_domains = self._controller.user_domains()
+        user_domains = [
+            domain for domain, is_default in tuple(self._all_whitelist_data or ())
+            if not is_default
+        ]
 
         if not user_domains:
             if InfoBar:
@@ -583,7 +575,84 @@ class OrchestraWhitelistPage(BasePage):
             )
             confirmed = bool(box.exec())
         if confirmed:
-            result = self._controller.clear_user_domains(user_domains=user_domains)
-            if result.changed:
-                self._refresh_data()
-                self._show_restart_warning()
+            self._request_whitelist_action("clear_user", user_domains=user_domains)
+
+    def create_action_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        domain: str = "",
+        user_domains: list[str] | None = None,
+    ):
+        return self._controller.create_action_worker(
+            request_id,
+            action=action,
+            domain=domain,
+            user_domains=user_domains,
+            parent=self,
+        )
+
+    def _request_whitelist_action(
+        self,
+        action: str,
+        *,
+        domain: str = "",
+        user_domains: list[str] | None = None,
+    ) -> None:
+        if self._action_runtime.is_running():
+            return
+        self._action_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_action_worker(
+                request_id,
+                action=action,
+                domain=domain,
+                user_domains=user_domains,
+            ),
+            on_loaded=self._on_whitelist_action_loaded,
+            on_failed=self._on_whitelist_action_failed,
+            on_finished=self._on_whitelist_action_finished,
+        )
+
+    def _on_whitelist_action_loaded(self, request_id: int, action: str, payload, context) -> None:
+        if not self._action_runtime.is_current(request_id):
+            return
+        payload = dict(payload or {})
+        context = dict(context or {})
+        result = payload.get("result")
+        snapshot = payload.get("snapshot")
+        changed = bool(getattr(result, "changed", False))
+        if snapshot is not None:
+            self._apply_whitelist_snapshot(snapshot)
+        if changed:
+            if action == "add":
+                self.domain_input.clear()
+            self._show_restart_warning()
+            return
+        if action == "add" and InfoBar:
+            InfoBar.info(
+                title=self._tr("page.orchestra.whitelist.infobar.info_title", "Информация"),
+                content=self._tr(
+                    "page.orchestra.whitelist.info.already_exists",
+                    "Домен {domain} уже в списке",
+                    domain=str(context.get("domain") or ""),
+                ),
+                parent=self.window(),
+            )
+
+    def _on_whitelist_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if not self._action_runtime.is_current(request_id):
+            return
+        log(f"Не удалось выполнить действие whitelist ({action}): {error}", "WARNING")
+
+    def _on_whitelist_action_finished(self, worker) -> None:
+        if self._action_runtime.worker is worker:
+            self._action_runtime.worker = None
+
+    def cleanup(self) -> None:
+        super().cleanup()
+        self._action_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="Orchestra whitelist action worker",
+        )

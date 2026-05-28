@@ -233,6 +233,26 @@ class WhitelistController:
             refresh=refresh,
         )
 
+    def create_action_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        domain: str = "",
+        user_domains: list[str] | None = None,
+        parent=None,
+    ):
+        from orchestra.managed_lists_workers import OrchestraWhitelistActionWorker
+
+        return OrchestraWhitelistActionWorker(
+            request_id,
+            self,
+            action=action,
+            domain=domain,
+            user_domains=user_domains,
+            parent=parent,
+        )
+
     def add_domain(self, *, domain: str):
         return add_whitelist_domain(
             orchestra=self._orchestra,
