@@ -23,3 +23,8 @@ class OrchestraPageController:
             return False
         self._orchestra.clear_learned_data()
         return True
+
+    def create_clear_learned_worker(self, request_id: int, parent=None):
+        from orchestra.page_workers import OrchestraClearLearnedWorker
+
+        return OrchestraClearLearnedWorker(request_id, self, parent)

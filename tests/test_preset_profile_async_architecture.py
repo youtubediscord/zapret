@@ -51,6 +51,7 @@ from settings.dpi.page import DpiSettingsPage
 from ui.pages.appearance_page import AppearancePage
 import settings.appearance as appearance_settings
 import settings.appearance_workers as appearance_workers
+from orchestra.ui.page import OrchestraPage
 from orchestra.ui.blocked_page import OrchestraBlockedPage
 from orchestra.ui.locked_page import OrchestraLockedPage
 from orchestra.ui.ratings_page import OrchestraRatingsPage
@@ -58,6 +59,7 @@ from orchestra.ui.settings_page import OrchestraSettingsPage
 from orchestra.ui.whitelist_page import OrchestraWhitelistPage
 import orchestra.managed_lists_controller as orchestra_managed_lists_controller
 import orchestra.ratings_controller as orchestra_ratings_controller
+import orchestra.page_controller as orchestra_page_controller
 import dns.page_diagnostics_warning_workflow as dns_diag_workflow
 import dns.page_load_workflow as dns_load_workflow
 import dns.ui.page as dns_page
@@ -1228,6 +1230,23 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn(".load_state(", ratings_refresh_source)
         self.assertIn("create_snapshot_load_worker", managed_controller_source)
         self.assertIn("create_state_load_worker", ratings_controller_source)
+
+    def test_orchestra_clear_learned_runs_through_worker(self) -> None:
+        spec = importlib.util.find_spec("orchestra.page_workers")
+        self.assertIsNotNone(spec)
+        orchestra_page_workers = importlib.import_module("orchestra.page_workers")
+
+        clear_source = inspect.getsource(OrchestraPage._clear_learned)
+        page_source = inspect.getsource(OrchestraPage)
+        controller_source = inspect.getsource(orchestra_page_controller.OrchestraPageController)
+        worker_source = inspect.getsource(orchestra_page_workers.OrchestraClearLearnedWorker.run)
+
+        self.assertIn("_start_clear_learned_worker", clear_source)
+        self.assertNotIn("self._controller.clear_learned_data()", clear_source)
+        self.assertIn("OneShotWorkerRuntime", page_source)
+        self.assertIn("create_clear_learned_worker", page_source)
+        self.assertIn("create_clear_learned_worker", controller_source)
+        self.assertIn("clear_learned_data", worker_source)
 
     def test_page_host_logs_first_and_repeat_show_for_all_pages(self) -> None:
         init_source = inspect.getsource(WindowPageHost.__init__)

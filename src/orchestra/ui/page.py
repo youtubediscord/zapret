@@ -47,6 +47,7 @@ from orchestra.ui.page_log_history_workflow import (
     delete_log_history_entry,
     view_log_history_entry,
 )
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from app.ui_texts import tr as tr_catalog
 from qfluentwidgets import (
@@ -100,6 +101,7 @@ class OrchestraPage(BasePage):
         self._log_history_card_title = None
         self._clear_learned_pending = False
         self._cleanup_in_progress = False
+        self._clear_learned_runtime = OneShotWorkerRuntime()
         self._clear_learned_reset_timer = QTimer(self)
         self._clear_learned_reset_timer.setSingleShot(True)
         self._clear_learned_reset_timer.timeout.connect(self._reset_clear_learned_button)
@@ -380,12 +382,45 @@ class OrchestraPage(BasePage):
         if self._cleanup_in_progress:
             return
         log("Запрошена очистка данных обучения", "INFO")
-        if self._controller.clear_learned_data():
+        self._start_clear_learned_worker()
+
+    def create_clear_learned_worker(self, request_id: int):
+        return self._controller.create_clear_learned_worker(request_id, self)
+
+    def _start_clear_learned_worker(self) -> None:
+        if self._clear_learned_runtime.is_running():
+            return
+        self._clear_learned_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_clear_learned_worker(request_id),
+            on_loaded=self._on_clear_learned_worker_loaded,
+            on_failed=self._on_clear_learned_worker_failed,
+            on_finished=self._on_clear_learned_worker_finished,
+        )
+
+    def _on_clear_learned_worker_loaded(self, request_id: int, cleared: bool) -> None:
+        if not self._clear_learned_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        if bool(cleared):
             log("Данные обучения очищены", "INFO")
         self.append_log(
             self._tr("page.orchestra.log.learned_cleared", "[INFO] Данные обучения сброшены")
         )
         self._update_domains({})
+
+    def _on_clear_learned_worker_failed(self, request_id: int, error: str) -> None:
+        if not self._clear_learned_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        log(f"Не удалось сбросить данные обучения: {error}", "WARNING")
+
+    def _on_clear_learned_worker_finished(self, worker) -> None:
+        if self._clear_learned_runtime.worker is worker:
+            self._clear_learned_runtime.worker = None
 
     def _update_all(self):
         """Обновляет статус, данные обучения, историю и whitelist"""
@@ -633,6 +668,11 @@ class OrchestraPage(BasePage):
         self._clear_learned_pending = False
         self.stop_monitoring()
         self._clear_learned_reset_timer.stop()
+        self._clear_learned_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="Orchestra clear learned worker",
+        )
 
         try:
             while not self._log_queue.empty():
