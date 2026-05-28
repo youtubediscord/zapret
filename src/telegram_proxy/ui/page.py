@@ -45,8 +45,6 @@ from telegram_proxy.ui.runtime_helpers import (
 from telegram_proxy.ui.upstream_workflow import (
     handle_upstream_preset_changed,
     handle_upstream_toggle,
-    save_upstream_fields,
-    save_upstream_mode,
     schedule_upstream_restart,
 )
 from telegram_proxy.ui.settings_build import (
@@ -123,6 +121,9 @@ class TelegramProxyPage(BasePage):
         self._restart_stop_worker = None
         self._relay_check_worker = None
         self._ensure_hosts_worker = None
+        self._settings_save_worker = None
+        self._settings_save_request_id = 0
+        self._settings_save_pending: list[dict[str, object]] = []
         self._relay_check_gen = 0
         self._cleanup_in_progress = False
         self._runtime_initialized = False
@@ -633,6 +634,96 @@ class TelegramProxyPage(BasePage):
             delay_ms=800,
         )
 
+    def create_settings_save_worker(self, request_id: int, *, action: str, context_extra: dict | None = None, **kwargs):
+        return self._telegram_proxy.create_settings_save_worker(
+            request_id,
+            action=action,
+            context_extra=context_extra,
+            parent=self,
+            **kwargs,
+        )
+
+    def _request_settings_save(
+        self,
+        action: str,
+        *,
+        host: str = "",
+        port: int = 0,
+        user: str = "",
+        password: str = "",
+        enabled: bool = False,
+        restart: str = "",
+        update_manual: bool = False,
+    ) -> None:
+        payload = {
+            "action": str(action or ""),
+            "host": str(host or ""),
+            "port": int(port or 0),
+            "user": str(user or ""),
+            "password": str(password or ""),
+            "enabled": bool(enabled),
+            "context_extra": {
+                "restart": str(restart or ""),
+                "update_manual": bool(update_manual),
+            },
+        }
+        worker = self.__dict__.get("_settings_save_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    self._settings_save_pending.append(payload)
+                    return
+            except Exception:
+                self._settings_save_pending.append(payload)
+                return
+        self._start_settings_save_worker(payload)
+
+    def _start_settings_save_worker(self, payload: dict) -> None:
+        self._settings_save_request_id = int(getattr(self, "_settings_save_request_id", 0) or 0) + 1
+        request_id = self._settings_save_request_id
+        worker = self.create_settings_save_worker(
+            request_id,
+            action=str(payload.get("action") or ""),
+            host=str(payload.get("host") or ""),
+            port=int(payload.get("port") or 0),
+            user=str(payload.get("user") or ""),
+            password=str(payload.get("password") or ""),
+            enabled=bool(payload.get("enabled")),
+            context_extra=dict(payload.get("context_extra") or {}),
+        )
+        self._settings_save_worker = worker
+        worker.completed.connect(self._on_settings_save_finished)
+        worker.failed.connect(self._on_settings_save_failed)
+        worker.finished.connect(lambda w=worker: self._on_settings_save_worker_finished(w))
+        worker.start()
+
+    def _on_settings_save_finished(self, request_id: int, _action: str, _result, context) -> None:
+        if request_id != int(getattr(self, "_settings_save_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_settings_save_pending"):
+            return
+        context = dict(context or {})
+        if bool(context.get("update_manual")):
+            self._update_manual_instructions()
+        restart = str(context.get("restart") or "")
+        if restart == "schedule":
+            self._schedule_upstream_restart()
+        elif restart == "now":
+            self._restart_if_running()
+
+    def _on_settings_save_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if request_id != int(getattr(self, "_settings_save_request_id", 0) or 0):
+            return
+        log(f"{self.__class__.__name__}: не удалось сохранить настройку Telegram Proxy ({action}): {error}", "WARNING")
+
+    def _on_settings_save_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_settings_save_worker") is worker:
+            self._settings_save_worker = None
+        worker.deleteLater()
+        if self._settings_save_pending and not self._cleanup_in_progress:
+            pending = self._settings_save_pending.pop(0)
+            self._start_settings_save_worker(dict(pending or {}))
+
     @pyqtSlot()
     def _start_proxy(self):
         mgr = self._proxy_manager()
@@ -751,27 +842,32 @@ class TelegramProxyPage(BasePage):
         )
 
     def _on_port_changed(self, port: int):
-        normalized = telegram_proxy_settings.set_port(port)
+        normalized = telegram_proxy_settings.normalize_port(port)
         if normalized != port:
             self._port_spin.blockSignals(True)
             self._port_spin.setValue(normalized)
             self._port_spin.blockSignals(False)
         self._update_manual_instructions()
+        self._request_settings_save("port", port=normalized)
 
     def _on_host_changed(self):
-        host = telegram_proxy_settings.set_host(self._host_edit.text().strip())
+        host = telegram_proxy_settings.normalize_host(self._host_edit.text().strip())
         self._host_edit.setText(host)
         self._update_manual_instructions()
+        self._request_settings_save("host", host=host)
 
     # -- Upstream proxy handlers --
 
     def _on_upstream_changed(self, checked: bool):
         handle_upstream_toggle(
             checked=checked,
-            set_upstream_enabled=telegram_proxy_settings.set_upstream_enabled,
+            request_upstream_enabled=lambda value: self._request_settings_save(
+                "upstream_enabled",
+                enabled=bool(value),
+                restart="now",
+            ),
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
             current_index=self._upstream_preset_row.combo.currentIndex(),
-            restart_if_running=self._restart_if_running,
         )
 
     def _on_upstream_preset_changed(self, index: int):
@@ -784,49 +880,58 @@ class TelegramProxyPage(BasePage):
             upstream_port_spin=self._upstream_port_spin,
             upstream_user_edit=self._upstream_user_edit,
             upstream_pass_edit=self._upstream_pass_edit,
-            set_upstream_fields=telegram_proxy_settings.set_upstream_fields,
-            restart_if_running=self._restart_if_running,
+            request_upstream_fields_save=lambda host, port, user, password: self._request_settings_save(
+                "upstream_fields",
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                restart="now",
+            ),
         )
 
     def _on_upstream_host_changed(self):
-        save_upstream_fields(
+        self._request_settings_save(
+            "upstream_fields",
             host=self._upstream_host_edit.text(),
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
+            restart="now",
         )
-        self._restart_if_running()
 
     def _on_upstream_port_changed(self, port: int):
-        save_upstream_fields(
+        self._request_settings_save(
+            "upstream_fields",
             host=self._upstream_host_edit.text(),
             port=port,
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
+            restart="schedule",
         )
-        self._schedule_upstream_restart()
 
     def _on_upstream_user_changed(self):
-        save_upstream_fields(
+        self._request_settings_save(
+            "upstream_fields",
             host=self._upstream_host_edit.text(),
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
+            restart="now",
         )
-        self._restart_if_running()
 
     def _on_upstream_pass_changed(self):
-        save_upstream_fields(
+        self._request_settings_save(
+            "upstream_fields",
             host=self._upstream_host_edit.text(),
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
             password=self._upstream_pass_edit.text(),
+            restart="now",
         )
-        self._restart_if_running()
 
     def _on_upstream_mode_changed(self, checked: bool):
-        save_upstream_mode(checked=checked)
-        self._restart_if_running()
+        self._request_settings_save("upstream_mode", enabled=bool(checked), restart="now")
 
     def _on_open_mtproxy(self):
         """Open MTProxy deep link in browser."""
@@ -945,5 +1050,13 @@ class TelegramProxyPage(BasePage):
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
             self._upstream_restart_timer = None
+        self._settings_save_pending.clear()
+        settings_worker = self.__dict__.get("_settings_save_worker")
+        if settings_worker is not None:
+            try:
+                settings_worker.quit()
+            except Exception:
+                pass
+            self._settings_save_worker = None
         mgr = self._proxy_manager()
         mgr.cleanup()

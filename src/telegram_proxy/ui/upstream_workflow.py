@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QTimer
 
-import telegram_proxy.settings as telegram_proxy_settings
-
 
 def schedule_upstream_restart(*, page, timer, restart_callback, delay_ms: int = 800):
     if timer is None:
@@ -19,14 +17,12 @@ def schedule_upstream_restart(*, page, timer, restart_callback, delay_ms: int = 
 def handle_upstream_toggle(
     *,
     checked: bool,
-    set_upstream_enabled,
+    request_upstream_enabled,
     apply_upstream_preset_ui,
     current_index: int,
-    restart_if_running,
 ) -> None:
-    set_upstream_enabled(checked)
+    request_upstream_enabled(checked)
     apply_upstream_preset_ui(current_index)
-    restart_if_running()
 
 
 def handle_upstream_preset_changed(
@@ -38,8 +34,7 @@ def handle_upstream_preset_changed(
     upstream_port_spin,
     upstream_user_edit,
     upstream_pass_edit,
-    set_upstream_fields,
-    restart_if_running,
+    request_upstream_fields_save,
 ) -> str:
     preset = upstream_catalog.preset_at(index)
     if preset is None:
@@ -57,8 +52,7 @@ def handle_upstream_preset_changed(
         upstream_port_spin.blockSignals(False)
         upstream_user_edit.clear()
         upstream_pass_edit.clear()
-        set_upstream_fields("", 1080, "", "")
-        restart_if_running()
+        request_upstream_fields_save("", 1080, "", "")
         return ""
 
     if is_mtproxy:
@@ -70,30 +64,10 @@ def handle_upstream_preset_changed(
     upstream_port_spin.blockSignals(False)
     upstream_user_edit.setText(preset.get("username", ""))
     upstream_pass_edit.setText(preset.get("password", ""))
-    set_upstream_fields(
+    request_upstream_fields_save(
         preset.get("host", ""),
         preset.get("port", 0),
         preset.get("username", ""),
         preset.get("password", ""),
     )
-    restart_if_running()
     return ""
-
-
-def save_upstream_fields(
-    *,
-    host: str,
-    port: int,
-    user: str,
-    password: str,
-) -> None:
-    telegram_proxy_settings.set_upstream_fields(
-        host.strip(),
-        port,
-        user.strip(),
-        password,
-    )
-
-
-def save_upstream_mode(*, checked: bool) -> None:
-    telegram_proxy_settings.set_upstream_mode(checked)

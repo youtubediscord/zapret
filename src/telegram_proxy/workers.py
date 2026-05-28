@@ -119,3 +119,66 @@ class TelegramHostsEnsureWorker(QThread):
             log(f"TelegramHostsEnsureWorker: ошибка проверки hosts: {exc}", "WARNING")
             plan = None
         self.completed.emit(plan)
+
+
+class TelegramProxySettingsSaveWorker(QThread):
+    completed = pyqtSignal(int, str, object, object)
+    failed = pyqtSignal(int, str, str, object)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        host: str = "",
+        port: int = 0,
+        user: str = "",
+        password: str = "",
+        enabled: bool = False,
+        context_extra: dict | None = None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._action = str(action or "").strip()
+        self._host = str(host or "").strip()
+        self._port = int(port or 0)
+        self._user = str(user or "").strip()
+        self._password = str(password or "")
+        self._enabled = bool(enabled)
+        self._context_extra = dict(context_extra or {})
+
+    def run(self) -> None:
+        import telegram_proxy.settings as telegram_proxy_settings
+
+        context = {
+            "host": self._host,
+            "port": self._port,
+            "user": self._user,
+            "password": self._password,
+            "enabled": self._enabled,
+        }
+        context.update(self._context_extra)
+        try:
+            if self._action == "host":
+                result = telegram_proxy_settings.set_host(self._host)
+            elif self._action == "port":
+                result = telegram_proxy_settings.set_port(self._port)
+            elif self._action == "upstream_enabled":
+                result = telegram_proxy_settings.set_upstream_enabled(self._enabled)
+            elif self._action == "upstream_fields":
+                result = telegram_proxy_settings.set_upstream_fields(
+                    self._host,
+                    self._port,
+                    self._user,
+                    self._password,
+                )
+            elif self._action == "upstream_mode":
+                result = telegram_proxy_settings.set_upstream_mode(self._enabled)
+            else:
+                raise ValueError(f"Неизвестная настройка Telegram Proxy: {self._action}")
+        except Exception as exc:
+            log(f"TelegramProxySettingsSaveWorker: не удалось сохранить настройку {self._action}: {exc}", "WARNING")
+            self.failed.emit(self._request_id, self._action, str(exc), context)
+            return
+        self.completed.emit(self._request_id, self._action, result, context)

@@ -86,6 +86,11 @@ class TelegramProxyFeature:
 
         return TelegramHostsEnsureWorker(ensure_hosts_fn=self.ensure_telegram_hosts, parent=parent)
 
+    def create_settings_save_worker(self, request_id: int, **kwargs):
+        from telegram_proxy.workers import TelegramProxySettingsSaveWorker
+
+        return TelegramProxySettingsSaveWorker(request_id, **kwargs)
+
     def load_page_initial_state(self):
         from telegram_proxy.settings import load_page_initial_state
 

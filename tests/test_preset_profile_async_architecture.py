@@ -62,6 +62,8 @@ import telegram_proxy.ui.proxy_runtime_workflow as telegram_runtime_workflow
 import telegram_proxy.ui.page as telegram_page
 import telegram_proxy.settings as telegram_proxy_settings
 import telegram_proxy.ui.settings_build as telegram_proxy_settings_build
+import telegram_proxy.ui.upstream_workflow as telegram_upstream_workflow
+import telegram_proxy.workers as telegram_proxy_workers
 from telegram_proxy.ui.page import TelegramProxyPage
 from telegram_proxy.workers import TelegramProxyDiagnosticsWorker
 import ui.navigation.text_sync as navigation_text_sync
@@ -728,6 +730,43 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(plan.settings.upstream_password, "p")
         self.assertEqual(plan.settings.upstream_mode, "always")
         self.assertEqual(plan.settings.upstream_preset_index, 1)
+
+    def test_telegram_proxy_settings_save_runs_through_worker(self) -> None:
+        page_source = inspect.getsource(TelegramProxyPage)
+        upstream_source = inspect.getsource(telegram_upstream_workflow)
+        request_source = inspect.getsource(TelegramProxyPage._request_settings_save)
+        finished_source = inspect.getsource(TelegramProxyPage._on_settings_save_worker_finished)
+
+        self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxySettingsSaveWorker"))
+        worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxySettingsSaveWorker.run)
+
+        for handler_name in (
+            "_on_port_changed",
+            "_on_host_changed",
+            "_on_upstream_changed",
+            "_on_upstream_preset_changed",
+            "_on_upstream_host_changed",
+            "_on_upstream_port_changed",
+            "_on_upstream_user_changed",
+            "_on_upstream_pass_changed",
+            "_on_upstream_mode_changed",
+        ):
+            source = inspect.getsource(getattr(TelegramProxyPage, handler_name))
+            self.assertIn("_request_settings_save", source)
+            self.assertNotIn("telegram_proxy_settings.set_", source)
+            self.assertNotIn("save_upstream_fields(", source)
+            self.assertNotIn("save_upstream_mode(", source)
+
+        self.assertIn("create_settings_save_worker", page_source)
+        self.assertIn("_settings_save_pending.append", request_source)
+        self.assertIn("_settings_save_pending.pop(0)", finished_source)
+        self.assertNotIn("import telegram_proxy.settings", upstream_source)
+        self.assertNotIn("telegram_proxy_settings.set_", upstream_source)
+        self.assertIn("set_host", worker_source)
+        self.assertIn("set_port", worker_source)
+        self.assertIn("set_upstream_enabled", worker_source)
+        self.assertIn("set_upstream_fields", worker_source)
+        self.assertIn("set_upstream_mode", worker_source)
 
     def test_blockcheck_initial_state_is_backend_plan_not_ui_loading(self) -> None:
         init_source = inspect.getsource(BlockcheckPage.__init__)
