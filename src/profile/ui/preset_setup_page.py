@@ -1024,9 +1024,15 @@ class PresetSetupPageBase(BasePage):
             )
 
     def apply_profile_setup_change(self, profile_key: str, change_kind: str) -> None:
-        if str(change_kind or "").strip() in {"strategy", "feedback"} and str(profile_key or "").strip():
+        clean_profile_key = str(profile_key or "").strip()
+        kind = str(change_kind or "").strip()
+        if kind in {"strategy", "feedback"} and clean_profile_key:
             self._refresh_profile_item_locally(profile_key, profile_key)
             return
+        if kind in {"enabled", "disabled"} and clean_profile_key:
+            if self._apply_profile_enabled_locally(clean_profile_key, kind == "enabled"):
+                self._profile_payload_dirty = True
+                return
         self.refresh_from_preset_switch()
 
     def handle_page_command(self, command: str, payload: dict) -> bool:
