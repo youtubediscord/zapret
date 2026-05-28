@@ -54,6 +54,17 @@ def create_dns_check_worker():
     return DNSCheckWorker()
 
 
+def create_dns_check_save_worker(request_id: int, *, file_path: str, plain_text: str, parent=None):
+    from dns.dns_check_worker import DNSCheckSaveWorker
+
+    return DNSCheckSaveWorker(
+        request_id,
+        file_path=file_path,
+        plain_text=plain_text,
+        parent=parent,
+    )
+
+
 def check_ipv6_connectivity() -> bool:
     from dns.runtime import detect_ipv6_availability
 

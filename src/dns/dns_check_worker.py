@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 
 class DNSCheckWorker(QObject):
@@ -33,3 +33,24 @@ class DNSCheckWorker(QObject):
             if not self._stop_requested:
                 self.update_signal.emit(f"❌ Ошибка: {str(e)}")
             self.finished_signal.emit({})
+
+
+class DNSCheckSaveWorker(QThread):
+    """Сохраняет отчёт DNS Check вне UI-потока."""
+
+    saved = pyqtSignal(int, object)
+
+    def __init__(self, request_id: int, *, file_path: str, plain_text: str, parent=None):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._file_path = str(file_path or "")
+        self._plain_text = str(plain_text or "")
+
+    def run(self) -> None:
+        from dns.dns_check_plans import save_results_text
+
+        plan = save_results_text(
+            file_path=self._file_path,
+            plain_text=self._plain_text,
+        )
+        self.saved.emit(self._request_id, plan)

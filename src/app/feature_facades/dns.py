@@ -19,6 +19,7 @@ class DnsFeature:
     is_isp_dns_warning_shown: Callable
     mark_isp_dns_warning_shown: Callable
     create_dns_check_worker: Callable
+    create_dns_check_save_worker: Callable
     enable_force_dns: Callable
     disable_force_dns: Callable
     flush_dns_cache: Callable
@@ -50,6 +51,7 @@ def build_dns_feature() -> DnsFeature:
         is_isp_dns_warning_shown=lambda *args, **kwargs: _public().is_isp_dns_warning_shown(*args, **kwargs),
         mark_isp_dns_warning_shown=lambda *args, **kwargs: _public().mark_isp_dns_warning_shown(*args, **kwargs),
         create_dns_check_worker=lambda *args, **kwargs: _commands().create_dns_check_worker(*args, **kwargs),
+        create_dns_check_save_worker=lambda *args, **kwargs: _commands().create_dns_check_save_worker(*args, **kwargs),
         enable_force_dns=lambda *args, **kwargs: _public().enable_force_dns(*args, **kwargs),
         disable_force_dns=lambda *args, **kwargs: _public().disable_force_dns(*args, **kwargs),
         flush_dns_cache=lambda *args, **kwargs: _public().flush_dns_cache(*args, **kwargs),

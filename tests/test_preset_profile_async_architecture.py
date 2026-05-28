@@ -56,6 +56,8 @@ import orchestra.ratings_controller as orchestra_ratings_controller
 import dns.page_diagnostics_warning_workflow as dns_diag_workflow
 import dns.page_load_workflow as dns_load_workflow
 import dns.ui.page as dns_page
+import dns.ui.dns_check_page as dns_check_page
+import dns.dns_check_worker as dns_check_worker
 from dns.page_workers import DnsPageLoadWorker
 import telegram_proxy.ui.diagnostics_workflow as telegram_diag_workflow
 import telegram_proxy.ui.proxy_runtime_workflow as telegram_runtime_workflow
@@ -730,6 +732,18 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(plan.settings.upstream_password, "p")
         self.assertEqual(plan.settings.upstream_mode, "always")
         self.assertEqual(plan.settings.upstream_preset_index, 1)
+
+    def test_dns_check_save_runs_through_worker(self) -> None:
+        page_source = inspect.getsource(dns_check_page.DNSCheckPage)
+        save_source = inspect.getsource(dns_check_page.DNSCheckPage.save_results)
+
+        self.assertTrue(hasattr(dns_check_worker, "DNSCheckSaveWorker"))
+        worker_source = inspect.getsource(dns_check_worker.DNSCheckSaveWorker.run)
+
+        self.assertIn("create_dns_check_save_worker", page_source)
+        self.assertIn("_start_save_results_worker", save_source)
+        self.assertNotIn("save_results_text(", save_source)
+        self.assertIn("save_results_text", worker_source)
 
     def test_telegram_proxy_settings_save_runs_through_worker(self) -> None:
         page_source = inspect.getsource(TelegramProxyPage)

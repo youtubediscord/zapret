@@ -42,6 +42,8 @@ class DNSCheckPage(BasePage):
         self.worker = None
         self.thread = None
         self._cleanup_in_progress = False
+        self._save_worker = None
+        self._save_request_id = 0
         self._status_tone = "muted"
         self._status_bold = False
         self._info_icon_labels = []
@@ -377,15 +379,52 @@ class DNSCheckPage(BasePage):
         )
         
         if file_path:
-            plan = dns_check_page_plans.save_results_text(
+            self._start_save_results_worker(
                 file_path=file_path,
                 plain_text=self.result_text.toPlainText(),
             )
-            if InfoBar:
-                if plan.success:
-                    InfoBar.success(title=plan.title, content=plan.content, parent=self.window())
-                else:
-                    InfoBar.error(title=plan.title, content=plan.content, parent=self.window())
+
+    def create_dns_check_save_worker(self, request_id: int, *, file_path: str, plain_text: str):
+        return self._dns.create_dns_check_save_worker(
+            request_id,
+            file_path=file_path,
+            plain_text=plain_text,
+            parent=self,
+        )
+
+    def _start_save_results_worker(self, *, file_path: str, plain_text: str) -> None:
+        worker = self.__dict__.get("_save_worker")
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return
+            except Exception:
+                return
+        self._save_request_id += 1
+        request_id = self._save_request_id
+        worker = self.create_dns_check_save_worker(
+            request_id,
+            file_path=file_path,
+            plain_text=plain_text,
+        )
+        self._save_worker = worker
+        worker.saved.connect(self._on_save_results_finished)
+        worker.finished.connect(lambda w=worker: self._on_save_results_worker_finished(w))
+        worker.start()
+
+    def _on_save_results_finished(self, request_id: int, plan) -> None:
+        if self._cleanup_in_progress or request_id != self._save_request_id:
+            return
+        if InfoBar:
+            if bool(getattr(plan, "success", False)):
+                InfoBar.success(title=plan.title, content=plan.content, parent=self.window())
+            else:
+                InfoBar.error(title=plan.title, content=plan.content, parent=self.window())
+
+    def _on_save_results_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_save_worker") is worker:
+            self._save_worker = None
+        worker.deleteLater()
     
     def cleanup(self):
         """Очистка потоков при закрытии"""
@@ -414,6 +453,13 @@ class DNSCheckPage(BasePage):
                         pass
             self.thread = None
             self.worker = None
+            save_worker = self.__dict__.get("_save_worker")
+            if save_worker is not None:
+                try:
+                    save_worker.quit()
+                except Exception:
+                    pass
+                self._save_worker = None
         except Exception as e:
             log(f"Ошибка при очистке dns_check_page: {e}", "DEBUG")
 
