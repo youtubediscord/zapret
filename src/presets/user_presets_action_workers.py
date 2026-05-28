@@ -191,6 +191,7 @@ class UserPresetStorageActionWorker(QThread):
         rating: int = 0,
         direction: int = 0,
         cached_metadata=None,
+        folder_scope: str = "",
         source_kind: str = "",
         source_id: str = "",
         destination_kind: str = "",
@@ -207,6 +208,7 @@ class UserPresetStorageActionWorker(QThread):
         self._rating = int(rating or 0)
         self._direction = int(direction or 0)
         self._cached_metadata = cached_metadata
+        self._folder_scope = str(folder_scope or "").strip()
         self._source_kind = str(source_kind or "").strip()
         self._source_id = str(source_id or "").strip()
         self._destination_kind = str(destination_kind or "").strip()
@@ -258,6 +260,13 @@ class UserPresetStorageActionWorker(QThread):
             log(f"UserPresetStorageActionWorker: действие {self._action} не выполнено: {exc}", "ERROR")
             self.failed.emit(self._request_id, self._action, str(exc), context)
             return
+        if self._folder_scope and (self._action == "pin" or bool(result)):
+            try:
+                from presets.folders import load_preset_folder_state
+
+                context["folder_state"] = load_preset_folder_state(self._folder_scope)
+            except Exception as exc:
+                log(f"UserPresetStorageActionWorker: не удалось обновить состояние папок preset: {exc}", "DEBUG")
         self.completed.emit(self._request_id, self._action, result, context)
 
 
@@ -337,6 +346,11 @@ class UserPresetFolderActionWorker(QThread):
             log(f"UserPresetFolderActionWorker: действие {self._action} не выполнено: {exc}", "ERROR")
             self.failed.emit(self._request_id, self._action, str(exc), context)
             return
+        if self._action != "load_state" and bool(result):
+            try:
+                context["folder_state"] = load_preset_folder_state(self._scope_key)
+            except Exception as exc:
+                log(f"UserPresetFolderActionWorker: не удалось обновить состояние папок preset: {exc}", "DEBUG")
         self.completed.emit(self._request_id, self._action, result, context)
 
 

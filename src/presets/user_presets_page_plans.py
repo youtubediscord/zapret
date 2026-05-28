@@ -23,7 +23,7 @@ def build_preset_rows_plan(
     empty_none_key: str,
 ) -> UserPresetListPlan:
     from presets.icon_color import normalize_preset_icon_color
-    from presets.folders import build_preset_folder_rows, load_preset_folder_state
+    from presets.folders import build_preset_folder_rows
     from app.ui_texts import tr as tr_catalog
 
     normalized_query = str(query or "").strip().lower()
@@ -47,7 +47,7 @@ def build_preset_rows_plan(
             }
         )
 
-    effective_folder_state = folder_state if folder_state is not None else load_preset_folder_state(folder_scope)
+    effective_folder_state = folder_state if folder_state is not None else {}
 
     if visible_entries:
         rows.extend(

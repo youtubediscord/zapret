@@ -19,6 +19,7 @@ from presets.ui.common.preset_subpage_base import PresetRawEditorPage
 from presets.ui.common.user_presets_page import UserPresetsPageBase
 from presets.raw_preset_loader import RawPresetActionWorker, RawPresetActivateWorker, RawPresetSaveWorker
 from presets.user_presets_action_workers import UserPresetActivateWorker, UserPresetItemActionWorker
+from presets.user_presets_page_plans import build_preset_rows_plan
 from ui.presets_menu.model import PresetListModel
 import presets.user_presets_action_workers as user_presets_action_workers
 import presets.ui.control.additional_settings_runtime as control_additional_settings_runtime
@@ -33,7 +34,7 @@ import presets.ui.control.zapret1.runtime_helpers as zapret1_runtime_helpers
 from presets.ui.control.zapret1.page import Zapret1ModeControlPage
 import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 from presets.ui.control.zapret2.page import Zapret2ModeControlPage
-from presets.user_presets_runtime_service import UserPresetsRuntimeService
+from presets.user_presets_runtime_service import UserPresetsMetadataLoadWorker, UserPresetsRuntimeService
 from hosts.ui.page import HostsPage
 from autostart.ui.page import AutostartPage
 import log.commands as log_commands
@@ -165,6 +166,22 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("adapter.load_all_metadata()", load_source)
         self.assertNotIn("adapter.load_all_metadata()", watcher_source)
         self.assertIn("UserPresetsMetadataLoadWorker", load_source)
+
+    def test_user_presets_folder_state_for_rows_is_worker_loaded(self) -> None:
+        worker_source = inspect.getsource(UserPresetsMetadataLoadWorker.run)
+        load_source = inspect.getsource(UserPresetsRuntimeService.load_presets)
+        loaded_source = inspect.getsource(UserPresetsRuntimeService._on_metadata_loaded)
+        cache_refresh_source = inspect.getsource(UserPresetsRuntimeService.refresh_presets_view_from_cache)
+        rebuild_source = inspect.getsource(UserPresetsPageBase._rebuild_presets_rows)
+        plan_source = inspect.getsource(build_preset_rows_plan)
+
+        self.assertIn("_load_folder_state", worker_source)
+        self.assertIn("folder_state", load_source)
+        self.assertIn("_cached_folder_state", loaded_source)
+        self.assertIn("_cached_folder_state", cache_refresh_source)
+        self.assertIn("folder_state=folder_state", rebuild_source)
+        fallback_branch = plan_source.split("effective_folder_state", 1)[1]
+        self.assertNotIn("load_preset_folder_state", fallback_branch)
 
     def test_user_presets_active_marker_does_not_force_synchronous_repaint(self) -> None:
         source = inspect.getsource(UserPresetsRuntimeService.apply_active_preset_marker_for_file)
@@ -321,6 +338,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("storage_api.set_preset_rating", worker_source)
         self.assertIn("storage_api.move_preset_by_step", worker_source)
         self.assertIn("storage_api.move_preset_on_drop", worker_source)
+        self.assertIn('self._action == "pin"', worker_source)
+        self.assertIn('context["folder_state"]', worker_source)
+        self.assertIn("update_cached_folder_state", finished_source)
 
     def test_user_presets_folder_actions_run_through_worker(self) -> None:
         toggle_source = inspect.getsource(UserPresetsPageBase._on_toggle_folder)
@@ -362,8 +382,10 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("set_preset_folder_collapsed", worker_source)
         self.assertIn("reset_preset_folders", worker_source)
         self.assertIn("load_preset_folder_state", worker_source)
+        self.assertIn('context["folder_state"]', worker_source)
         self.assertIn("_preset_folder_action_pending.append", request_source)
         self.assertIn("_preset_folder_action_pending.pop(0)", finished_source)
+        self.assertIn("update_cached_folder_state", action_finished_source)
         self.assertIn("show_menu", action_finished_source)
         self.assertIn("create_preset_folder_action_worker", request_source)
 
@@ -1636,6 +1658,26 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("enable_gui_autostart", worker_source)
         self.assertIn("disable_gui_autostart", worker_source)
         self.assertIn("save_gui_autostart_enabled", worker_source)
+
+    def test_autostart_mode_load_runs_through_worker(self) -> None:
+        spec = importlib.util.find_spec("autostart.workers")
+        self.assertIsNotNone(spec)
+        autostart_workers = importlib.import_module("autostart.workers")
+
+        init_source = inspect.getsource(AutostartPage.__init__)
+        update_mode_source = inspect.getsource(AutostartPage._update_mode)
+        page_source = inspect.getsource(AutostartPage)
+        feature_source = inspect.getsource(__import__("app.feature_facades.autostart", fromlist=["AutostartFeature"]).AutostartFeature)
+
+        self.assertTrue(hasattr(autostart_workers, "AutostartModeLoadWorker"))
+        worker_source = inspect.getsource(autostart_workers.AutostartModeLoadWorker.run)
+
+        self.assertIn("_mode_load_worker", init_source)
+        self.assertIn("_request_mode_load", update_mode_source)
+        self.assertNotIn("get_current_launch_method()", update_mode_source)
+        self.assertIn("create_autostart_mode_load_worker", page_source)
+        self.assertIn("create_autostart_mode_load_worker", feature_source)
+        self.assertIn("get_current_launch_method", worker_source)
 
     def test_network_and_telegram_ui_do_not_create_python_threads(self) -> None:
         modules = (

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 from log.log import log
 from presets.user_presets_page_plans import UserPresetListPlan, build_preset_rows_plan
@@ -89,6 +89,7 @@ class UserPresetsListingApi(Protocol):
         query: str,
         active_file_name: str,
         language: str,
+        folder_state: dict[str, Any] | None = None,
     ) -> UserPresetListPlan: ...
 
 
@@ -219,6 +220,7 @@ def rebuild_presets_rows(
     update_presets_view_height_fn,
     log_fn,
     all_presets: dict[str, dict[str, object]],
+    folder_state: dict[str, object] | None = None,
     started_at: float | None = None,
     log_source: str = "UserPresetsPage",
 ) -> None:
@@ -230,6 +232,7 @@ def rebuild_presets_rows(
             query=runtime_service.current_search_query(),
             active_file_name=active_file_name,
             language=ui_language,
+            folder_state=folder_state,
         )
 
         if presets_delegate:
@@ -294,12 +297,14 @@ class _UserPresetsListingApiImpl:
         query: str,
         active_file_name: str,
         language: str,
+        folder_state: dict[str, Any] | None = None,
     ) -> UserPresetListPlan:
         return self._runtime.build_preset_rows_plan(
             all_presets=all_presets,
             query=query,
             active_file_name=active_file_name,
             language=language,
+            folder_state=folder_state,
         )
 
 
@@ -851,12 +856,14 @@ class UserPresetsPageRuntime:
         query: str,
         active_file_name: str,
         language: str,
+        folder_state: dict[str, Any] | None = None,
     ) -> UserPresetListPlan:
         return build_preset_rows_plan(
             all_presets=all_presets,
             query=query,
             active_file_name=active_file_name,
             language=language,
+            folder_state=folder_state,
             folder_scope=self._config.folder_scope,
             empty_not_found_key=self._config.empty_not_found_key,
             empty_none_key=self._config.empty_none_key,

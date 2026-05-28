@@ -1687,6 +1687,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         page = SimpleNamespace(
             isVisible=Mock(return_value=True),
         )
+        service.update_cached_folder_state({})
         adapter = UserPresetsRuntimeAdapter(
             bulk_reset_running=Mock(return_value=False),
             read_single_metadata=Mock(return_value=None),
@@ -1694,7 +1695,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             presets_dir=Mock(),
             cached_metadata=Mock(return_value={"a.txt": {"display_name": "A"}}),
             load_all_metadata=Mock(return_value={}),
-            rebuild_rows=lambda metadata, _started_at=None: rebuilt.append(dict(metadata)),
+            load_folder_state=Mock(return_value={}),
+            rebuild_rows=lambda metadata, _folder_state=None, _started_at=None: rebuilt.append(dict(metadata)),
             delete_preset_item_meta=Mock(),
         )
         service.attach_page(page, adapter)

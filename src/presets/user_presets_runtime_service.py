@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 import weakref
 
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -19,18 +19,26 @@ class UserPresetsRuntimeAdapter:
     presets_dir: Callable[[], Path]
     cached_metadata: Callable[[], dict[str, dict[str, object]] | None]
     load_all_metadata: Callable[[], dict[str, dict[str, object]]]
-    rebuild_rows: Callable[[dict[str, dict[str, object]], float | None], None]
+    load_folder_state: Callable[[], dict[str, Any]]
+    rebuild_rows: Callable[[dict[str, dict[str, object]], dict[str, Any] | None, float | None], None]
     delete_preset_item_meta: Callable[[str], None]
 
 
 class UserPresetsMetadataLoadWorker(QThread):
-    loaded = pyqtSignal(int, dict, float)
+    loaded = pyqtSignal(int, dict, dict, float)
     failed = pyqtSignal(int, str)
 
-    def __init__(self, request_id: int, load_all_metadata: Callable[[], dict[str, dict[str, object]]], parent=None):
+    def __init__(
+        self,
+        request_id: int,
+        load_all_metadata: Callable[[], dict[str, dict[str, object]]],
+        load_folder_state: Callable[[], dict[str, Any]],
+        parent=None,
+    ):
         super().__init__(parent)
         self._request_id = int(request_id)
         self._load_all_metadata = load_all_metadata
+        self._load_folder_state = load_folder_state
 
     def run(self) -> None:
         import time
@@ -38,12 +46,13 @@ class UserPresetsMetadataLoadWorker(QThread):
         started_at = time.perf_counter()
         try:
             all_presets = dict(self._load_all_metadata())
+            folder_state = dict(self._load_folder_state() or {})
             elapsed_ms = (time.perf_counter() - started_at) * 1000.0
             log(f"user_presets.metadata.read: {elapsed_ms:.1f}ms ({len(all_presets)} presets)", "DEBUG")
         except Exception as exc:
             self.failed.emit(self._request_id, str(exc))
             return
-        self.loaded.emit(self._request_id, all_presets, started_at)
+        self.loaded.emit(self._request_id, all_presets, folder_state, started_at)
 
 
 class UserPresetsRuntimeService:
@@ -51,6 +60,7 @@ class UserPresetsRuntimeService:
         self._scope_key = str(scope_key or "").strip()
         self._ui_dirty = True
         self._cached_presets_metadata: dict[str, dict[str, object]] = {}
+        self._cached_folder_state: dict[str, Any] | None = None
         self._file_watcher = None
         self._watcher_active = False
         self._watcher_reload_timer = None
@@ -67,6 +77,13 @@ class UserPresetsRuntimeService:
 
     def cached_presets_metadata(self) -> dict[str, dict[str, object]]:
         return self._cached_presets_metadata
+
+    def cached_folder_state(self) -> dict[str, Any] | None:
+        return dict(self._cached_folder_state) if self._cached_folder_state is not None else None
+
+    def update_cached_folder_state(self, folder_state: dict[str, Any] | None) -> None:
+        if isinstance(folder_state, dict):
+            self._cached_folder_state = dict(folder_state)
 
     @staticmethod
     def _make_page_ref(page):
@@ -466,25 +483,41 @@ class UserPresetsRuntimeService:
 
         self._metadata_load_request_id += 1
         request_id = self._metadata_load_request_id
-        worker = UserPresetsMetadataLoadWorker(request_id, adapter.load_all_metadata, page)
+        worker = UserPresetsMetadataLoadWorker(request_id, adapter.load_all_metadata, adapter.load_folder_state, page)
         self._metadata_load_worker = worker
-        worker.loaded.connect(lambda rid, all_presets, started_at, p=page: self._on_metadata_loaded(rid, all_presets, started_at, p))
+        worker.loaded.connect(
+            lambda rid, all_presets, folder_state, started_at, p=page: self._on_metadata_loaded(
+                rid,
+                all_presets,
+                folder_state,
+                started_at,
+                p,
+            )
+        )
         worker.failed.connect(lambda rid, error, p=page: self._on_metadata_failed(rid, error, p))
         worker.finished.connect(lambda w=worker: self._on_metadata_worker_finished(w))
         worker.start()
 
-    def _on_metadata_loaded(self, request_id: int, all_presets: dict, started_at: float, page=None) -> None:
+    def _on_metadata_loaded(
+        self,
+        request_id: int,
+        all_presets: dict,
+        folder_state: dict,
+        started_at: float,
+        page=None,
+    ) -> None:
         if request_id != self._metadata_load_request_id:
             return
         page = self._resolve_page(page)
         adapter = self._resolve_adapter()
         self._cached_presets_metadata = dict(all_presets)
+        self._cached_folder_state = dict(folder_state or {})
         self.sync_watched_preset_files(page, set(all_presets.keys()))
         if not page.isVisible():
             self._ui_dirty = True
             return
         self._ui_dirty = False
-        adapter.rebuild_rows(all_presets, started_at)
+        adapter.rebuild_rows(all_presets, self._cached_folder_state, started_at)
 
     def _on_metadata_failed(self, request_id: int, error: str, page=None) -> None:
         if request_id != self._metadata_load_request_id:
@@ -522,7 +555,10 @@ class UserPresetsRuntimeService:
         if not self._cached_presets_metadata:
             self.load_presets(page)
             return
-        adapter.rebuild_rows(self._cached_presets_metadata, None)
+        if self._cached_folder_state is None:
+            self.load_presets(page)
+            return
+        adapter.rebuild_rows(self._cached_presets_metadata, self._cached_folder_state, None)
 
     def recover_missing_deleted_preset(self, name: str, page=None) -> None:
         page = self._resolve_page(page)

@@ -211,8 +211,10 @@ class UserPresetsPageBase(BasePage):
             presets_dir=self._listing_api().get_presets_dir_light,
             cached_metadata=self._listing_api().get_cached_preset_list_metadata_light,
             load_all_metadata=self._listing_api().load_preset_list_metadata_light,
-            rebuild_rows=lambda all_presets, started_at=None: self._rebuild_presets_rows(
+            load_folder_state=self._load_preset_folder_state_light,
+            rebuild_rows=lambda all_presets, folder_state=None, started_at=None: self._rebuild_presets_rows(
                 all_presets,
+                folder_state=folder_state,
                 started_at=started_at,
             ),
             delete_preset_item_meta=lambda name: delete_preset_item_meta(self._folder_scope_key(), name),
@@ -290,6 +292,11 @@ class UserPresetsPageBase(BasePage):
 
     def _folder_scope_key(self) -> str:
         return self._config.folder_scope
+
+    def _load_preset_folder_state_light(self) -> dict[str, object]:
+        from presets.folders import load_preset_folder_state
+
+        return load_preset_folder_state(self._folder_scope_key())
 
     def on_page_activated(self) -> None:
         activate_user_presets_page(
@@ -810,7 +817,13 @@ class UserPresetsPageBase(BasePage):
             self._schedule_layout_resync()
         return moved
 
-    def _rebuild_presets_rows(self, all_presets: dict[str, dict[str, object]], *, started_at: float | None = None) -> None:
+    def _rebuild_presets_rows(
+        self,
+        all_presets: dict[str, dict[str, object]],
+        *,
+        folder_state: dict[str, object] | None = None,
+        started_at: float | None = None,
+    ) -> None:
         rebuild_presets_rows(
             runtime_service=self._runtime_service,
             listing_api=self._listing_api(),
@@ -823,6 +836,7 @@ class UserPresetsPageBase(BasePage):
             update_presets_view_height_fn=self._update_presets_view_height,
             log_fn=log,
             all_presets=all_presets,
+            folder_state=folder_state,
             started_at=started_at,
             log_source=self._config.log_prefix,
         )
@@ -956,6 +970,10 @@ class UserPresetsPageBase(BasePage):
         if request_id != int(getattr(self, "_preset_folder_action_request_id", 0) or 0):
             return
         context = dict(context or {})
+        if isinstance(result, dict):
+            self._runtime_service.update_cached_folder_state(result)
+        elif isinstance(context.get("folder_state"), dict):
+            self._runtime_service.update_cached_folder_state(context.get("folder_state"))
         if str(action or "") == "load_state" and bool(context.get("show_menu")):
             self._show_folder_menu_with_state(
                 str(context.get("folder_key") or ""),
@@ -1046,6 +1064,7 @@ class UserPresetsPageBase(BasePage):
             rating=rating,
             direction=direction,
             cached_metadata=cached_metadata,
+            folder_scope=self._folder_scope_key(),
             source_kind=source_kind,
             source_id=source_id,
             destination_kind=destination_kind,
@@ -1102,6 +1121,8 @@ class UserPresetsPageBase(BasePage):
         if request_id != int(getattr(self, "_preset_storage_action_request_id", 0) or 0):
             return
         context = dict(context or {})
+        if isinstance(context.get("folder_state"), dict):
+            self._runtime_service.update_cached_folder_state(context.get("folder_state"))
         if action == "pin":
             display_name = str(context.get("display_name") or context.get("name") or "")
             log(f"Пресет '{display_name}' {'закреплён' if bool(result) else 'откреплён'}", "INFO")
