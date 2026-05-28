@@ -552,6 +552,57 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
         self.assertIn("--wf-dup-check=0", dry_run_config)
         self.assertIn("--dry-run", dry_run_config)
 
+    def test_winws2_dry_run_retries_once_after_dll_init_failure(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+
+        from winws_runtime.runners.preset_runner_support import PreparedPresetArtifact
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            runner = object.__new__(Winws2StrategyRunner)
+            runner.winws_exe = "winws2.exe"
+            runner.work_dir = str(root)
+            runner._last_spawn_exit_code = None
+            runner._last_spawn_stderr = ""
+            runner._create_startup_info = Mock(return_value=None)
+            runner._set_last_error = Mock()
+            runner._set_runner_state_locked = Mock()
+
+            artifact = PreparedPresetArtifact(
+                preset_path=str(root / "selected.txt"),
+                cache_key=None,
+                normalized_text="--wf-tcp-out=443\n",
+                launch_args=("@original.txt",),
+                validation_ok=True,
+                validation_report="",
+            )
+
+            with (
+                patch(
+                    "winws_runtime.runners.zapret2_runner.subprocess.run",
+                    side_effect=[
+                        SimpleNamespace(returncode=3221225794, stdout=b"", stderr=b""),
+                        SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
+                    ],
+                ) as run_mock,
+                patch("winws_runtime.runners.zapret2_runner.time.sleep") as sleep_mock,
+            ):
+                ok = runner._run_preset_dry_run_locked(
+                    artifact,
+                    "Preset",
+                    preset_switch=False,
+                    notify_failure=True,
+                )
+
+        self.assertTrue(ok)
+        self.assertEqual(run_mock.call_count, 2)
+        sleep_mock.assert_called_once()
+        runner._set_runner_state_locked.assert_not_called()
+        runner._set_last_error.assert_not_called()
+        self.assertEqual(runner._last_spawn_exit_code, 0)
+
     def test_winws2_spawn_stops_before_real_process_when_dry_run_fails(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import Mock, patch

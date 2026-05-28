@@ -38,6 +38,8 @@ from winws_runtime.runtime.system_ops import get_all_winws_process_pids, get_pro
 
 
 _WINDOWS_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
+_STATUS_DLL_INIT_FAILED = 0xC0000142
+_TRANSIENT_DRY_RUN_RETRY_DELAY_SEC = 0.75
 
 
 def _is_windows_abs(path: str) -> bool:
@@ -585,6 +587,10 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             return data.decode("utf-8", errors="replace")
         return str(data or "")
 
+    @staticmethod
+    def _should_retry_dry_run_exit_code(exit_code: int) -> bool:
+        return int(exit_code) == _STATUS_DLL_INIT_FAILED
+
     def _run_preset_dry_run_locked(
         self,
         artifact: PreparedPresetArtifact,
@@ -598,45 +604,55 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             return True
 
         cmd = [self.winws_exe, *dry_run_artifact.launch_args]
-        try:
-            result = subprocess.run(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
-                startupinfo=self._create_startup_info(),
-                creationflags=CREATE_NO_WINDOW,
-                cwd=self.work_dir,
-                timeout=6.0,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            message = "Preset dry-run timeout"
-            self._last_spawn_exit_code = 124
-            self._last_spawn_stderr = message
-            log(message, "WARNING" if not notify_failure else "ERROR")
-            self._set_last_error(message, notify=notify_failure)
-            return False
-        except Exception as exc:
-            message = f"Preset dry-run failed: {exc}"
-            self._last_spawn_exit_code = None
-            self._last_spawn_stderr = message
-            log(message, "WARNING" if not notify_failure else "ERROR")
-            self._set_last_error(message, notify=notify_failure)
-            return False
+        for attempt in range(2):
+            try:
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    stdin=subprocess.DEVNULL,
+                    startupinfo=self._create_startup_info(),
+                    creationflags=CREATE_NO_WINDOW,
+                    cwd=self.work_dir,
+                    timeout=6.0,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                message = "Preset dry-run timeout"
+                self._last_spawn_exit_code = 124
+                self._last_spawn_stderr = message
+                log(message, "WARNING" if not notify_failure else "ERROR")
+                self._set_last_error(message, notify=notify_failure)
+                return False
+            except Exception as exc:
+                message = f"Preset dry-run failed: {exc}"
+                self._last_spawn_exit_code = None
+                self._last_spawn_stderr = message
+                log(message, "WARNING" if not notify_failure else "ERROR")
+                self._set_last_error(message, notify=notify_failure)
+                return False
 
-        output = "\n".join(
-            part.strip()
-            for part in (
-                self._decode_process_output(getattr(result, "stdout", b"")),
-                self._decode_process_output(getattr(result, "stderr", b"")),
+            output = "\n".join(
+                part.strip()
+                for part in (
+                    self._decode_process_output(getattr(result, "stdout", b"")),
+                    self._decode_process_output(getattr(result, "stderr", b"")),
+                )
+                if part and part.strip()
             )
-            if part and part.strip()
-        )
-        self._last_spawn_exit_code = int(getattr(result, "returncode", -1))
-        self._last_spawn_stderr = output
-        if self._last_spawn_exit_code == 0:
-            return True
+            self._last_spawn_exit_code = int(getattr(result, "returncode", -1))
+            self._last_spawn_stderr = output
+            if self._last_spawn_exit_code == 0:
+                return True
+            if attempt == 0 and self._should_retry_dry_run_exit_code(self._last_spawn_exit_code):
+                log(
+                    "Preset dry-run hit transient Windows process init error "
+                    f"(code: {self._last_spawn_exit_code}), retrying once",
+                    "WARNING",
+                )
+                time.sleep(_TRANSIENT_DRY_RUN_RETRY_DELAY_SEC)
+                continue
+            break
 
         failure_log_level = "ERROR" if notify_failure else "WARNING"
         first_line = next((line.strip() for line in output.splitlines() if line.strip()), "")
