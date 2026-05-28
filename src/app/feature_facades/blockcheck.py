@@ -33,8 +33,10 @@ class BlockcheckFeature:
     def create_strategy_scan_worker(self, **kwargs):
         return self._worker_commands().create_strategy_scan_worker(**kwargs)
 
-    def load_page_initial_state(self):
-        return self._page_runtime().load_page_initial_state()
+    def create_page_initial_state_worker(self, request_id: int, *, parent=None):
+        from blockcheck.workers import BlockcheckInitialStateWorker
+
+        return BlockcheckInitialStateWorker(request_id, parent=parent)
 
     def append_run_log(self, *args, **kwargs) -> None:
         return self._commands().append_run_log(*args, **kwargs)

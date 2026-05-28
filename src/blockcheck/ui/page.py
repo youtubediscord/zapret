@@ -114,14 +114,47 @@ class BlockcheckPage(BasePage):
         self._actions_bar = None
         self._prepare_support_btn = None
         self._support_status_label = None
-        initial_state_started_at = time.perf_counter()
-        self._initial_state = self._blockcheck.load_page_initial_state()
-        self._log_ui_timing("blockcheck_ui.initial_state.load", initial_state_started_at)
+        self._initial_state = blockcheck_page_runtime.BlockcheckPageInitialStatePlan(user_domains=())
+        self._initial_state_worker = None
+        self._initial_state_request_id = 0
+        self._initial_state_load_started_at = 0.0
         self._build_ui()
+        self._request_page_initial_state_load()
         try:
             self.set_ui_language(self._ui_language)
         except Exception:
             pass
+
+    def create_initial_state_worker(self, request_id: int):
+        return self._blockcheck.create_page_initial_state_worker(request_id, parent=self)
+
+    def _request_page_initial_state_load(self) -> None:
+        self._initial_state_request_id += 1
+        request_id = self._initial_state_request_id
+        self._initial_state_load_started_at = time.perf_counter()
+        worker = self.create_initial_state_worker(request_id)
+        self._initial_state_worker = worker
+        worker.completed.connect(self._on_initial_state_loaded)
+        worker.failed.connect(self._on_initial_state_failed)
+        worker.finished.connect(lambda w=worker: self._on_initial_state_worker_finished(w))
+        worker.start()
+
+    def _on_initial_state_loaded(self, request_id: int, initial_state) -> None:
+        if request_id != self._initial_state_request_id or self._cleanup_in_progress:
+            return
+        self._log_ui_timing("blockcheck_ui.initial_state.load", self._initial_state_load_started_at)
+        self._initial_state = initial_state
+        self._apply_initial_domain_chips(tuple(getattr(initial_state, "user_domains", ()) or ()))
+
+    def _on_initial_state_failed(self, request_id: int, error: str) -> None:
+        if request_id != self._initial_state_request_id or self._cleanup_in_progress:
+            return
+        log(f"Не удалось загрузить начальное состояние BlockCheck: {error}", "WARNING")
+
+    def _on_initial_state_worker_finished(self, worker) -> None:
+        if self.__dict__.get("_initial_state_worker") is worker:
+            self._initial_state_worker = None
+        worker.deleteLater()
 
     def _apply_pending_tab_if_ready(self) -> None:
         pending_tab_key = str(getattr(self, "_pending_tab_key", "") or "").strip().lower()
@@ -827,8 +860,12 @@ class BlockcheckPage(BasePage):
     def _apply_initial_domain_chips(self, domains: tuple[str, ...]) -> None:
         """Create chips from a backend-prepared domain list."""
         started_at = time.perf_counter()
+        existing = set(self._get_extra_domains())
         for domain in tuple(domains or ()):
+            if domain in existing:
+                continue
             self._add_chip(domain)
+            existing.add(domain)
         self._log_ui_timing("blockcheck_ui.domain_chips.apply.total", started_at)
 
     @staticmethod
@@ -898,6 +935,13 @@ class BlockcheckPage(BasePage):
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
+        worker = self.__dict__.get("_initial_state_worker")
+        if worker is not None:
+            try:
+                worker.quit()
+            except Exception:
+                pass
+            self._initial_state_worker = None
         self._worker = cleanup_blockcheck_worker(self._worker)
 
         for page in (self._strategy_tab_page, self._diagnostics_tab_page, self._dns_spoofing_tab_page):

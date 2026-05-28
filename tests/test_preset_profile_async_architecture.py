@@ -448,6 +448,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         telegram_init_source = inspect.getsource(TelegramProxyPage.__init__)
         telegram_apply_source = inspect.getsource(TelegramProxyPage._apply_initial_settings_state)
         blockcheck_source = inspect.getsource(BlockcheckPage._build_ui)
+        blockcheck_initial_source = inspect.getsource(BlockcheckPage._on_initial_state_loaded)
         hosts_activation_source = inspect.getsource(HostsPage.on_page_activated)
         hosts_rebuild_source = inspect.getsource(HostsPage._rebuild_services_selectors)
 
@@ -458,7 +459,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("logs_ui.update_stats.total", logs_stats_source)
         self.assertIn("telegram_proxy_ui.initial_state.load", telegram_init_source)
         self.assertIn("telegram_proxy_ui.settings.apply", telegram_apply_source)
-        self.assertIn("blockcheck_ui.initial_state.load", inspect.getsource(BlockcheckPage.__init__))
+        self.assertIn("blockcheck_ui.initial_state.load", blockcheck_initial_source)
         self.assertIn("blockcheck_ui.build.total", blockcheck_source)
         self.assertIn("blockcheck_ui.domain_chips.apply", blockcheck_source)
         self.assertIn("hosts_ui.activation.total", hosts_activation_source)
@@ -832,19 +833,29 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("set_upstream_mode", worker_source)
 
     def test_blockcheck_initial_state_is_backend_plan_not_ui_loading(self) -> None:
+        spec = importlib.util.find_spec("blockcheck.workers")
+        self.assertIsNotNone(spec)
+        blockcheck_workers = importlib.import_module("blockcheck.workers")
+
         init_source = inspect.getsource(BlockcheckPage.__init__)
         build_source = inspect.getsource(BlockcheckPage._build_ui)
+        page_source = inspect.getsource(BlockcheckPage)
         helper_source = inspect.getsource(blockcheck_ui_helpers)
         runtime_source = inspect.getsource(blockcheck_page_runtime.load_page_initial_state)
-        feature_source = inspect.getsource(BlockcheckFeature.load_page_initial_state)
+        feature_source = inspect.getsource(BlockcheckFeature)
+        worker_source = inspect.getsource(blockcheck_workers.BlockcheckInitialStateWorker.run)
 
-        self.assertIn("load_page_initial_state", init_source)
+        self.assertIn("_request_page_initial_state_load", init_source)
+        self.assertNotIn("self._blockcheck.load_page_initial_state()", init_source)
         self.assertIn("_apply_initial_domain_chips", build_source)
         self.assertNotIn("self._load_domain_chips()", build_source)
         self.assertNotIn("load_domain_chips", helper_source)
         self.assertIn("read_settings", runtime_source)
         self.assertNotIn("get_blockcheck_settings", runtime_source)
-        self.assertIn("blockcheck_page_runtime.load_page_initial_state", feature_source)
+        self.assertIn("create_initial_state_worker", page_source)
+        self.assertIn("create_page_initial_state_worker", feature_source)
+        self.assertNotIn("def load_page_initial_state", feature_source)
+        self.assertIn("load_page_initial_state", worker_source)
 
     def test_blockcheck_initial_state_plan_reads_settings_once(self) -> None:
         data = {
