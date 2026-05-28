@@ -1018,12 +1018,24 @@ class PresetSetupPageBase(BasePage):
                 pass
         self._ui_state_unsubscribe = None
         self._ui_state_store = None
-        worker = self._profile_load_worker
-        if worker is not None:
+        self._profile_folder_action_pending.clear()
+        for attr in (
+            "_profile_load_worker",
+            "_profile_context_action_worker",
+            "_profile_move_worker",
+            "_profile_folder_action_worker",
+            "_user_profile_create_worker",
+            "_user_profile_update_worker",
+            "_user_profile_delete_worker",
+        ):
+            worker = self.__dict__.get(attr)
+            if worker is None:
+                continue
             try:
                 worker.quit()
             except Exception:
                 pass
+            setattr(self, attr, None)
 
     def _expand_all(self) -> None:
         if self._profiles_list is not None:

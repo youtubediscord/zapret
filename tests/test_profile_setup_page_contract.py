@@ -766,6 +766,22 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertNotIn("refresh_from_preset_switch()", before_handler)
         self.assertNotIn("refresh_from_preset_switch()", after_handler)
 
+    def test_preset_setup_cleanup_stops_all_profile_workers(self) -> None:
+        source = inspect.getsource(PresetSetupPageBase.cleanup)
+
+        for attr in (
+            "_profile_load_worker",
+            "_profile_context_action_worker",
+            "_profile_move_worker",
+            "_profile_folder_action_worker",
+            "_user_profile_create_worker",
+            "_user_profile_update_worker",
+            "_user_profile_delete_worker",
+        ):
+            self.assertIn(attr, source)
+        self.assertIn("_profile_folder_action_pending.clear()", source)
+        self.assertGreaterEqual(source.count(".quit()"), 1)
+
     def test_profile_move_starts_worker_without_direct_profile_call(self) -> None:
         class _Signal:
             def __init__(self) -> None:
