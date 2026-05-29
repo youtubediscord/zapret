@@ -33,7 +33,7 @@ from presets.ui.control.control_page_runtime_shared import apply_last_status_mes
 from app.ui_texts import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
 from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
-import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
+from presets.ui.control.refresh_runtime_state import create_refresh_runtime
 from log.log import log
 
 from qfluentwidgets import (
@@ -55,6 +55,12 @@ def create_control_top_summary_worker(*args, **kwargs):
     from presets.ui.control.additional_settings_runtime import create_top_summary_worker
 
     return create_top_summary_worker(*args, **kwargs)
+
+
+def _zapret2_page_runtime():
+    from presets.ui.control.zapret2 import page_runtime
+
+    return page_runtime
 
 
 def _accent_fg_for_tokens(tokens) -> str:
@@ -140,7 +146,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._startup_initial_ui_state_waiting = False
         self._top_summary_profile_retry_count = 0
         self._top_summary_profile_retry_pending = False
-        self._refresh_runtime = zapret2_page_runtime.create_refresh_runtime()
+        self._refresh_runtime = create_refresh_runtime()
         self.profile_ui_mode_label = None
         self.profile_ui_mode_caption = None
         self.top_summary = None
@@ -187,7 +193,6 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
                 pass
         else:
             self._wait_for_startup_interactive_before_top_summary()
-        self._update_stop_winws_button_text()
         self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
@@ -711,7 +716,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _on_additional_settings_loaded(self, request_id: int, state: dict) -> None:
         if not self._refresh_runtime.accept_additional_settings_result(request_id):
             return
-        plan = zapret2_page_runtime.build_additional_settings_state(state if isinstance(state, dict) else {})
+        plan = _zapret2_page_runtime().build_additional_settings_state(state if isinstance(state, dict) else {})
         self._apply_additional_settings_state(plan)
 
     def _on_discord_restart_changed(self, enabled: bool) -> None:
@@ -786,7 +791,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_profile_ui_mode_selected(self, mode: str) -> None:
         _ = mode
-        plan = zapret2_page_runtime.build_profile_ui_mode_change_plan(
+        plan = _zapret2_page_runtime().build_profile_ui_mode_change_plan(
             wanted_mode="basic",
             current_mode="basic",
         )
@@ -821,7 +826,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._request_program_settings_save("hide_to_tray", bool(enabled))
 
     def _update_stop_winws_button_text(self):
-        plan = zapret2_page_runtime.build_stop_button_plan(language=self._ui_language)
+        plan = _zapret2_page_runtime().build_stop_button_plan(language=self._ui_language)
         self.stop_winws_btn.setText(plan.text)
 
     def set_loading(self, loading: bool, text: str = ""):
@@ -925,7 +930,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
 
     def update_status(self, state: str | bool, last_error: str = ""):
-        plan = zapret2_page_runtime.build_status_plan(
+        plan = _zapret2_page_runtime().build_status_plan(
             state=state,
             last_error=last_error,
             language=self._ui_language,

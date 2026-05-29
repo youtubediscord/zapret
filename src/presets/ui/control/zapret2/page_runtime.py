@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-from settings.mode import EXE_NAME_WINWS1, ZAPRET2_MODE
+from settings.mode import EXE_NAME_WINWS1
 from presets.ui.control import control_runtime
 from presets.ui.control.control_runtime import ControlStatusPlan, ControlStopButtonPlan
-from profile.ui_mode import (
-    PROFILE_UI_MODE_DEFAULT,
-    load_current_profile_ui_mode,
-    normalize_profile_ui_mode,
-    save_current_profile_ui_mode,
-)
 from app.ui_texts import tr as tr_catalog
 
 
+PROFILE_UI_MODE_DEFAULT = "basic"
+
+
 def create_refresh_runtime():
-    from presets.ui.control.additional_settings_runtime import create_refresh_runtime as _create_refresh_runtime
+    from presets.ui.control.refresh_runtime_state import create_refresh_runtime as _create_refresh_runtime
 
     return _create_refresh_runtime()
 
@@ -38,7 +35,6 @@ class ProfileUiModeChangePlan:
 
 
 def get_profile_ui_mode_setting() -> str:
-    _ = load_current_profile_ui_mode
     return PROFILE_UI_MODE_DEFAULT
 
 def build_profile_ui_mode_label_plan(*, language: str) -> ProfileUiModeLabelPlan:
@@ -51,7 +47,7 @@ def build_profile_ui_mode_label_plan(*, language: str) -> ProfileUiModeLabelPlan
     )
 
 def build_profile_ui_mode_change_plan(*, wanted_mode: str, current_mode: str) -> ProfileUiModeChangePlan:
-    _ = (wanted_mode, current_mode, normalize_profile_ui_mode)
+    _ = (wanted_mode, current_mode)
     return ProfileUiModeChangePlan(
         should_apply=False,
         refresh_strategy_after=False,
@@ -60,6 +56,7 @@ def build_profile_ui_mode_change_plan(*, wanted_mode: str, current_mode: str) ->
 
 def apply_profile_ui_mode_change(*, wanted_mode: str, reload_host) -> None:
     _ = (wanted_mode, reload_host)
+    from profile.ui_mode import save_current_profile_ui_mode
 
     save_current_profile_ui_mode(PROFILE_UI_MODE_DEFAULT)
 

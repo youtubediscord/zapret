@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from app.ui_texts import tr as tr_catalog
-import presets.ui.control.zapret2.page_runtime as zapret2_page_runtime
 from presets.ui.control.control_page_runtime_shared import (
     apply_program_settings_toggles,
     apply_status_plan as apply_status_plan_shared,
@@ -50,6 +49,8 @@ def apply_additional_settings_state(state, *, discord_restart_toggle, wssize_tog
 def sync_profile_ui_mode_label(*, language: str, profile_ui_mode_label) -> None:
     if profile_ui_mode_label is None:
         return
+    from presets.ui.control.zapret2 import page_runtime as zapret2_page_runtime
+
     plan = zapret2_page_runtime.build_profile_ui_mode_label_plan(language=language)
     profile_ui_mode_label.setText(plan.label_text)
 
