@@ -82,7 +82,7 @@ class PresetsToolbarLayout:
         self.refresh_layout(available_width)
 
     def refresh_layout(self, available_width: int) -> None:
-        available_width = int(available_width)
+        available_width = self._effective_available_width(available_width)
         layout_state = self._layout_state(available_width)
         if self._last_layout_state == layout_state:
             return
@@ -107,6 +107,17 @@ class PresetsToolbarLayout:
                 row_widget.setVisible(True)
             else:
                 row_widget.setVisible(False)
+        self.container.updateGeometry()
+
+    def _effective_available_width(self, available_width: int) -> int:
+        available_width = int(available_width)
+        container_width = int(self.container.width())
+        parent = self.container.parentWidget()
+        if container_width > 0 and (
+            self.container.isVisible() or (parent is not None and parent.isVisible())
+        ):
+            return min(available_width, container_width)
+        return available_width
 
     def _layout_state(self, available_width: int) -> tuple[object, ...]:
         visible_buttons = tuple(id(button) for button in self._visible_buttons())

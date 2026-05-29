@@ -90,6 +90,37 @@ class QuickActionsBarLayoutTests(unittest.TestCase):
         self.assertIn(second, first_row_widgets)
         self.assertIn(search, second_row_widgets)
 
+    def test_presets_toolbar_uses_visible_container_width_for_wrapping(self) -> None:
+        parent = QWidget()
+        toolbar = PresetsToolbarLayout(parent, row_count=3, button_spacing=8)
+        first = PushButton("Импорт")
+        second = PushButton("Папка")
+        first.setFixedWidth(80)
+        second.setFixedWidth(80)
+        search = LineEdit()
+
+        toolbar.set_buttons([first, second])
+        toolbar.set_trailing_widget(search, minimum_width=180)
+        toolbar.container.setFixedWidth(230)
+        parent.show()
+        self._app.processEvents()
+
+        toolbar.refresh_layout(420)
+
+        first_row_widgets = [
+            toolbar._rows[0][1].itemAt(index).widget()
+            for index in range(toolbar._rows[0][1].count())
+        ]
+        second_row_widgets = [
+            toolbar._rows[1][1].itemAt(index).widget()
+            for index in range(toolbar._rows[1][1].count())
+        ]
+
+        self.assertIn(first, first_row_widgets)
+        self.assertIn(second, first_row_widgets)
+        self.assertNotIn(search, first_row_widgets)
+        self.assertIn(search, second_row_widgets)
+
     def test_presets_toolbar_skips_relayout_when_state_is_unchanged(self) -> None:
         parent = QWidget()
         toolbar = PresetsToolbarLayout(parent, row_count=3, button_spacing=8)
