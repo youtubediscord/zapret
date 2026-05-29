@@ -66,6 +66,39 @@ def consume_auto_deeplink_request() -> bool:
     return bool(telegram_proxy_settings.consume_auto_deeplink_request())
 
 
+def load_page_initial_state():
+    import telegram_proxy.settings as telegram_proxy_settings
+
+    return telegram_proxy_settings.load_page_initial_state()
+
+
+def save_settings_action(
+    action: str,
+    *,
+    host: str = "",
+    port: int = 0,
+    user: str = "",
+    password: str = "",
+    enabled: bool = False,
+):
+    import telegram_proxy.settings as telegram_proxy_settings
+
+    action_name = str(action or "").strip()
+    if action_name == "host":
+        return telegram_proxy_settings.set_host(host)
+    if action_name == "port":
+        return telegram_proxy_settings.set_port(port)
+    if action_name == "proxy_enabled":
+        return telegram_proxy_settings.set_proxy_enabled(enabled)
+    if action_name == "upstream_enabled":
+        return telegram_proxy_settings.set_upstream_enabled(enabled)
+    if action_name == "upstream_fields":
+        return telegram_proxy_settings.set_upstream_fields(host, port, user, password)
+    if action_name == "upstream_mode":
+        return telegram_proxy_settings.set_upstream_mode(enabled)
+    raise ValueError(f"Неизвестная настройка Telegram Proxy: {action_name}")
+
+
 def run_diagnostics(*, proxy_port: int, progress_callback=None) -> str:
     from telegram_proxy.diagnostics import run_all
 

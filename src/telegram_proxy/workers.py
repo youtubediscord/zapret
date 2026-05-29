@@ -17,9 +17,9 @@ class TelegramProxyInitialStateWorker(QThread):
 
     def run(self) -> None:
         try:
-            from telegram_proxy.settings import load_page_initial_state
+            import telegram_proxy.commands as telegram_proxy_commands
 
-            result = load_page_initial_state()
+            result = telegram_proxy_commands.load_page_initial_state()
         except Exception as exc:
             log(f"TelegramProxyInitialStateWorker: не удалось загрузить начальное состояние: {exc}", "WARNING")
             self.failed.emit(self._request_id, str(exc))
@@ -277,7 +277,7 @@ class TelegramProxySettingsSaveWorker(QThread):
         self._context_extra = dict(context_extra or {})
 
     def run(self) -> None:
-        import telegram_proxy.settings as telegram_proxy_settings
+        import telegram_proxy.commands as telegram_proxy_commands
 
         context = {
             "host": self._host,
@@ -288,25 +288,14 @@ class TelegramProxySettingsSaveWorker(QThread):
         }
         context.update(self._context_extra)
         try:
-            if self._action == "host":
-                result = telegram_proxy_settings.set_host(self._host)
-            elif self._action == "port":
-                result = telegram_proxy_settings.set_port(self._port)
-            elif self._action == "proxy_enabled":
-                result = telegram_proxy_settings.set_proxy_enabled(self._enabled)
-            elif self._action == "upstream_enabled":
-                result = telegram_proxy_settings.set_upstream_enabled(self._enabled)
-            elif self._action == "upstream_fields":
-                result = telegram_proxy_settings.set_upstream_fields(
-                    self._host,
-                    self._port,
-                    self._user,
-                    self._password,
-                )
-            elif self._action == "upstream_mode":
-                result = telegram_proxy_settings.set_upstream_mode(self._enabled)
-            else:
-                raise ValueError(f"Неизвестная настройка Telegram Proxy: {self._action}")
+            result = telegram_proxy_commands.save_settings_action(
+                self._action,
+                host=self._host,
+                port=self._port,
+                user=self._user,
+                password=self._password,
+                enabled=self._enabled,
+            )
         except Exception as exc:
             log(f"TelegramProxySettingsSaveWorker: не удалось сохранить настройку {self._action}: {exc}", "WARNING")
             self.failed.emit(self._request_id, self._action, str(exc), context)

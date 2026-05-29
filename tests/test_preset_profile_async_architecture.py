@@ -1980,6 +1980,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("get_tg_proxy_host", settings_source)
         self.assertNotIn("get_tg_proxy_port", settings_source)
         self.assertNotIn("get_tg_proxy_upstream_enabled", settings_source)
+        self.assertIn("telegram_proxy.commands", worker_source)
+        self.assertNotIn("telegram_proxy.settings", worker_source)
         self.assertIn("load_page_initial_state", worker_source)
 
     def test_telegram_proxy_initial_state_plan_reads_settings_once(self) -> None:
@@ -2098,6 +2100,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         runtime_source = inspect.getsource(telegram_runtime_workflow)
         request_source = inspect.getsource(TelegramProxyPage._request_settings_save)
         finished_source = inspect.getsource(TelegramProxyPage._on_settings_save_worker_finished)
+        command_source = inspect.getsource(telegram_proxy_commands)
 
         self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxySettingsSaveWorker"))
         worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxySettingsSaveWorker.run)
@@ -2127,12 +2130,15 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("telegram_proxy_settings.set_proxy_enabled", runtime_source)
         self.assertIn("request_proxy_enabled_save", runtime_source)
         self.assertIn('"proxy_enabled"', page_source)
-        self.assertIn("set_host", worker_source)
-        self.assertIn("set_port", worker_source)
-        self.assertIn("set_proxy_enabled", worker_source)
-        self.assertIn("set_upstream_enabled", worker_source)
-        self.assertIn("set_upstream_fields", worker_source)
-        self.assertIn("set_upstream_mode", worker_source)
+        self.assertIn("telegram_proxy.commands", worker_source)
+        self.assertNotIn("telegram_proxy.settings", worker_source)
+        self.assertIn("save_settings_action", worker_source)
+        self.assertIn("set_host", command_source)
+        self.assertIn("set_port", command_source)
+        self.assertIn("set_proxy_enabled", command_source)
+        self.assertIn("set_upstream_enabled", command_source)
+        self.assertIn("set_upstream_fields", command_source)
+        self.assertIn("set_upstream_mode", command_source)
 
     def test_telegram_proxy_relay_http_probe_is_command_not_ui_runtime(self) -> None:
         page_runtime_source = inspect.getsource(telegram_page.telegram_proxy_page_runtime)
