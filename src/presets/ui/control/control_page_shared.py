@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QTimer
-from qfluentwidgets import InfoBar
+from typing import TYPE_CHECKING
 
-from app.state_store import MainWindowStateStore
 from presets.ui.control.control_page_runtime_shared import set_toggle_checked
-from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+if TYPE_CHECKING:
+    from app.state_store import MainWindowStateStore
+    from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 
 RUNTIME_START_RETRY_MS = 250
@@ -112,6 +114,8 @@ class ControlPageActionMixin:
     def _ensure_external_open_url_runtime(self) -> OneShotWorkerRuntime:
         runtime = self.__dict__.get("_external_open_url_runtime")
         if runtime is None:
+            from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
             runtime = OneShotWorkerRuntime()
             self._external_open_url_runtime = runtime
             self._external_open_url_pending = None
@@ -184,6 +188,8 @@ class ControlPageActionMixin:
             self._start_external_open_url_worker(*pending)
 
     def _show_external_open_url_error(self, title: str, default: str, error: str) -> None:
+        from qfluentwidgets import InfoBar
+
         InfoBar.warning(title=title, content=default.format(error=error), parent=self.window())
 
     def _stop_external_open_url_worker(self) -> None:

@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
-from qfluentwidgets import InfoBar, MessageBox
+from typing import TYPE_CHECKING
 
 from presets.ui.control.control_page_runtime_shared import (
     run_confirmation_dialog,
     show_action_result_plan,
 )
-import presets.ui.control.control_runtime as control_runtime
-from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+if TYPE_CHECKING:
+    from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 
 class ControlPageWindowsFeatureMixin:
     """Общие обработчики служебных Windows-функций на страницах управления."""
 
     def _show_windows_feature_action_result(self, plan, toggle=None) -> None:
+        from qfluentwidgets import InfoBar
+
         show_action_result_plan(
             plan,
             parent_widget=self.window(),
@@ -25,6 +28,8 @@ class ControlPageWindowsFeatureMixin:
         )
 
     def _confirm_windows_feature_action(self, dialog_plan, toggle=None) -> bool:
+        from qfluentwidgets import MessageBox
+
         return run_confirmation_dialog(
             dialog_plan,
             message_box_cls=MessageBox,
@@ -44,6 +49,8 @@ class ControlPageWindowsFeatureMixin:
     def _ensure_defender_admin_check_runtime(self) -> OneShotWorkerRuntime:
         runtime = self.__dict__.get("_defender_admin_check_runtime")
         if runtime is None:
+            from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
             runtime = OneShotWorkerRuntime()
             self._defender_admin_check_runtime = runtime
             self._defender_admin_check_pending = None
@@ -93,6 +100,9 @@ class ControlPageWindowsFeatureMixin:
             self._start_defender_admin_check_worker(bool(pending))
 
     def _continue_defender_toggle(self, disable: bool, *, is_admin: bool) -> None:
+        from qfluentwidgets import InfoBar
+        import presets.ui.control.control_runtime as control_runtime
+
         start_plan = control_runtime.build_defender_toggle_start_plan(
             disable=disable,
             language=self._ui_language,
@@ -126,6 +136,8 @@ class ControlPageWindowsFeatureMixin:
             runtime.cancel()
 
     def _on_max_blocker_toggled(self, enable: bool) -> None:
+        import presets.ui.control.control_runtime as control_runtime
+
         start_plan = control_runtime.build_max_block_toggle_start_plan(
             enable=enable,
             language=self._ui_language,

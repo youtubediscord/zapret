@@ -1,7 +1,10 @@
 # dpi/ui/zapret2_mode/page.py
 """Zapret 2 mode management page (Strategies landing for zapret2_mode)."""
 
+from __future__ import annotations
+
 import time as _time
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
@@ -20,24 +23,25 @@ from presets.ui.control.zapret2.runtime_helpers import (
     sync_profile_ui_mode_label,
 )
 from presets.ui.control.shared_builders import build_last_status_message_card_common
-from app.state_store import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
 )
 from presets.ui.control.control_page_runtime_shared import apply_last_status_message
-from app.ui_texts import tr as tr_catalog
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
 from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
 from presets.ui.control.refresh_runtime_state import create_refresh_runtime
-from log.log import log
+from app.ui_texts import tr as tr_catalog
 
 from qfluentwidgets import (
     CaptionLabel, StrongBodyLabel,
-    IndeterminateProgressBar, InfoBar,
+    IndeterminateProgressBar,
     PrimaryPushButton, PushButton, SettingCardGroup, PushSettingCard,
 )
+
+if TYPE_CHECKING:
+    from app.state_store import AppUiState, MainWindowStateStore
 
 
 STARTUP_DEFERRED_SECTIONS_AFTER_INTERACTIVE_MS = 1_500
@@ -462,6 +466,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _on_top_summary_failed(self, request_id: int, error: str) -> None:
         if request_id != self._refresh_runtime.top_summary_request_id or self._cleanup_in_progress:
             return
+        from log.log import log
+
         log(f"Не удалось обновить сводку Zapret 2: {error}", "WARNING")
 
     def _on_top_summary_worker_finished(self, worker) -> None:
@@ -761,6 +767,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _on_additional_settings_save_failed(self, request_id: int, _setting: str, error: str) -> None:
         if request_id != self._refresh_runtime.additional_settings_save_request_id:
             return
+        from qfluentwidgets import InfoBar
+
         InfoBar.warning(title="Ошибка", content=f"Не удалось сохранить настройку: {error}", parent=self.window())
 
     def _on_additional_settings_save_worker_finished(self, worker) -> None:

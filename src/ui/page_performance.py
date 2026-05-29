@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from app.page_names import PageName
-from log.log import log
 
 
 
@@ -36,6 +35,8 @@ def log_page_metric(
     level = "⏱ STARTUP" if rounded >= 80 else "DEBUG"
     if budget_ms is not None and rounded > int(budget_ms):
         level = "WARNING"
+
+    from log.log import log
 
     log(
         f"⏱ PageLifecycle: {label} {stage_label} {rounded}ms{budget_suffix}{extra_suffix}",
