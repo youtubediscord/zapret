@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from app_notifications import advisory_notification
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 
 
 class _UpdateCheckBridge(QObject):
@@ -125,7 +125,7 @@ def install_update_check(
         except Exception:
             pass
 
-        start_daemon_thread("StartupUpdateCheckWorker", _startup_update_worker)
+        enqueue_subsystem_task("update", "StartupUpdateCheckWorker", _startup_update_worker)
 
     def _schedule_startup_update_check_deferred() -> None:
         if not is_startup_host_alive(startup_host):

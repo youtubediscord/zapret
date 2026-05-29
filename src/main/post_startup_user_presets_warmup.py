@@ -4,7 +4,7 @@ import time
 
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 from settings.dpi.strategy_settings import get_strategy_launch_method
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_preset_launch_method, normalize_launch_method
 
@@ -44,7 +44,8 @@ def install_user_presets_warmup(
     def _start_user_presets_warmup(methods: tuple[str, ...]) -> None:
         log_startup_metric("StartupUserPresetsWarmupStarted", ", ".join(methods))
         for method in methods:
-            start_daemon_thread(
+            enqueue_subsystem_task(
+                "presets",
                 f"UserPresetsWarmup-{method}",
                 lambda method=method: _run_user_presets_warmup_method(method),
             )

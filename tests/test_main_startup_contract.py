@@ -360,6 +360,59 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         self.assertEqual(calls, ["begin:thread:DemoWorker", "target", "end:thread:DemoWorker:11"])
 
+    def test_startup_threading_uses_separate_serial_queues_per_subsystem(self) -> None:
+        import threading
+        import time
+        from main import post_startup_threading
+
+        queue_suffix = str(time.monotonic_ns())
+        calls: list[str] = []
+        first_started = threading.Event()
+        release_first = threading.Event()
+        second_done = threading.Event()
+        other_done = threading.Event()
+
+        def first_hosts_task() -> None:
+            calls.append("hosts:first:start")
+            first_started.set()
+            release_first.wait(2)
+            calls.append("hosts:first:end")
+
+        def second_hosts_task() -> None:
+            calls.append("hosts:second")
+            second_done.set()
+
+        def profile_task() -> None:
+            calls.append("profile:first")
+            other_done.set()
+
+        post_startup_threading.enqueue_subsystem_task(
+            f"hosts-{queue_suffix}",
+            "HostsWarmup-1",
+            first_hosts_task,
+        )
+        post_startup_threading.enqueue_subsystem_task(
+            f"hosts-{queue_suffix}",
+            "HostsWarmup-2",
+            second_hosts_task,
+        )
+        post_startup_threading.enqueue_subsystem_task(
+            f"profile-{queue_suffix}",
+            "ProfileWarmup-1",
+            profile_task,
+        )
+
+        self.assertTrue(first_started.wait(1.0))
+        self.assertTrue(other_done.wait(1.0))
+        self.assertFalse(second_done.wait(0.05))
+        self.assertIn("profile:first", calls)
+
+        release_first.set()
+        self.assertTrue(second_done.wait(1.0))
+        self.assertLess(calls.index("hosts:first:start"), calls.index("hosts:first:end"))
+        self.assertLess(calls.index("hosts:first:end"), calls.index("hosts:second"))
+        self.assertLess(calls.index("profile:first"), calls.index("hosts:first:end"))
+
     def test_startup_audit_summary_installed_by_post_startup_tasks(self) -> None:
         from main import post_startup
 
@@ -1156,7 +1209,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             is_alive=Mock(return_value=True),
         )
         scheduled: list[tuple[int, object]] = []
-        thread_names: list[str] = []
+        queued_tasks: list[tuple[str, str]] = []
 
         with (
             patch.object(
@@ -1167,8 +1220,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ),
             patch.object(
                 post_startup_checks,
-                "start_daemon_thread",
-                side_effect=lambda name, target: thread_names.append(name),
+                "enqueue_subsystem_task",
+                side_effect=lambda queue, name, target: queued_tasks.append((queue, name)),
             ),
         ):
             install_startup_checks(
@@ -1179,12 +1232,12 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             )
             signal.emit("ui_ready")
 
-            self.assertEqual(thread_names, [])
+            self.assertEqual(queued_tasks, [])
             self.assertEqual(len(scheduled), 1)
             self.assertGreaterEqual(scheduled[0][0], 6000)
 
             scheduled[0][1]()
-            self.assertEqual(thread_names, ["StartupChecksWorker"])
+            self.assertEqual(queued_tasks, [("checks", "StartupChecksWorker")])
 
     def test_post_init_lists_and_telegram_are_delayed_past_dpi_start(self) -> None:
         from main import post_startup_lists, post_startup_proxy
@@ -1219,8 +1272,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         with (
             patch.object(post_startup_lists, "schedule_after", side_effect=schedule_lists),
             patch.object(post_startup_proxy, "schedule_after", side_effect=schedule_proxy),
-            patch.object(post_startup_lists, "start_daemon_thread"),
-            patch.object(post_startup_proxy, "start_daemon_thread"),
+            patch.object(post_startup_lists, "enqueue_subsystem_task"),
+            patch.object(post_startup_proxy, "enqueue_subsystem_task"),
         ):
             install_lists_check(
                 startup_host,
@@ -2268,7 +2321,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         dns_feature = SimpleNamespace(warm_page_data_cache=Mock(return_value=object()))
         metric = Mock()
         delays: list[int] = []
-        thread_names: list[str] = []
+        queued_tasks: list[tuple[str, str]] = []
 
         with (
             patch.object(
@@ -2278,8 +2331,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ),
             patch.object(
                 post_startup_dns_warmup,
-                "start_daemon_thread",
-                side_effect=lambda name, target: thread_names.append(name) or target(),
+                "enqueue_subsystem_task",
+                side_effect=lambda queue, name, target: queued_tasks.append((queue, name)) or target(),
             ),
         ):
             install_dns_page_data_warmup(
@@ -2290,7 +2343,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             signal.emit("interactive")
 
         self.assertEqual(delays, [10000])
-        self.assertEqual(thread_names, ["DnsPageDataWarmup"])
+        self.assertEqual(queued_tasks, [("dns", "DnsPageDataWarmup")])
         dns_feature.warm_page_data_cache.assert_called_once_with()
         self.assertFalse(hasattr(startup_host, "warm_page"))
         metric.assert_any_call("StartupNetworkDataWarmupQueued", "10000ms after interactive")
@@ -2331,7 +2384,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         profile_feature = SimpleNamespace(list_profiles=Mock(return_value=object()))
         metric = Mock()
         delays: list[int] = []
-        thread_names: list[str] = []
+        queued_tasks: list[tuple[str, str]] = []
         ready_methods: list[str] = []
 
         with (
@@ -2342,8 +2395,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ),
             patch.object(
                 post_startup_profile_warmup,
-                "start_daemon_thread",
-                side_effect=lambda name, target: thread_names.append(name) or target(),
+                "enqueue_subsystem_task",
+                side_effect=lambda queue, name, target: queued_tasks.append((queue, name)) or target(),
             ),
             patch.object(
                 post_startup_profile_warmup,
@@ -2360,7 +2413,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             signal.emit("interactive")
 
         self.assertEqual(delays, [6500, 12000])
-        self.assertEqual(thread_names, ["ProfileWarmup-zapret1_mode", "ProfileWarmup-zapret2_mode"])
+        self.assertEqual(
+            queued_tasks,
+            [("profile", "ProfileWarmup-zapret1_mode"), ("profile", "ProfileWarmup-zapret2_mode")],
+        )
         self.assertEqual(ready_methods, ["zapret1_mode", "zapret2_mode"])
         self.assertEqual(
             [recorded_call.args[0] for recorded_call in profile_feature.list_profiles.call_args_list],
@@ -2396,7 +2452,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         presets_feature = SimpleNamespace(warm_preset_list_metadata_cache=Mock(return_value={"a.txt": {}}))
         metric = Mock()
         delays: list[int] = []
-        thread_names: list[str] = []
+        queued_tasks: list[tuple[str, str]] = []
 
         with (
             patch.object(
@@ -2406,8 +2462,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ),
             patch.object(
                 post_startup_user_presets_warmup,
-                "start_daemon_thread",
-                side_effect=lambda name, target: thread_names.append(name) or target(),
+                "enqueue_subsystem_task",
+                side_effect=lambda queue, name, target: queued_tasks.append((queue, name)) or target(),
             ),
             patch.object(
                 post_startup_user_presets_warmup,
@@ -2423,7 +2479,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             signal.emit("interactive")
 
         self.assertEqual(delays, [8000, 15000])
-        self.assertEqual(thread_names, ["UserPresetsWarmup-zapret1_mode", "UserPresetsWarmup-zapret2_mode"])
+        self.assertEqual(
+            queued_tasks,
+            [("presets", "UserPresetsWarmup-zapret1_mode"), ("presets", "UserPresetsWarmup-zapret2_mode")],
+        )
         self.assertEqual(
             [recorded_call.args[0] for recorded_call in presets_feature.warm_preset_list_metadata_cache.call_args_list],
             ["zapret1_mode", "zapret2_mode"],

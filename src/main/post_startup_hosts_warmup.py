@@ -4,7 +4,7 @@ import time
 
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 
 
 HOSTS_PAGE_WARMUP_DELAY_MS = 5_000
@@ -36,7 +36,7 @@ def install_hosts_page_warmup(
     def _start_hosts_page_warmup() -> None:
         if not is_startup_host_alive(startup_host):
             return
-        start_daemon_thread("HostsPageDataWarmup", _run_hosts_page_data_warmup)
+        enqueue_subsystem_task("hosts", "HostsPageDataWarmup", _run_hosts_page_data_warmup)
 
     def _schedule_hosts_page_warmup() -> None:
         if not is_startup_host_alive(startup_host):

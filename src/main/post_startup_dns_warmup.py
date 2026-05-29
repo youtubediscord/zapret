@@ -4,7 +4,7 @@ import time
 
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 
 
 def install_dns_page_data_warmup(
@@ -28,7 +28,7 @@ def install_dns_page_data_warmup(
 
     def _start_dns_page_data_warmup() -> None:
         log_startup_metric("StartupPostInitNetworkDataWarmupStarted", "backend_cache")
-        start_daemon_thread("DnsPageDataWarmup", _run_dns_page_data_warmup)
+        enqueue_subsystem_task("dns", "DnsPageDataWarmup", _run_dns_page_data_warmup)
 
     def _schedule_dns_page_data_warmup() -> None:
         if not is_startup_host_alive(startup_host):

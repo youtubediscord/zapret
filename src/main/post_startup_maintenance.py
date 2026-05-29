@@ -5,7 +5,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
 from main.post_startup_maintenance_workers import collect_deferred_maintenance_payload
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 
 
 class _DeferredMaintenanceBridge(QObject):
@@ -51,7 +51,7 @@ def install_deferred_maintenance(
             return
 
         log_startup_metric("StartupPostInitMaintenanceStarted", "telega_association_worker")
-        start_daemon_thread("DeferredMaintenanceWorker", _deferred_maintenance_worker)
+        enqueue_subsystem_task("maintenance", "DeferredMaintenanceWorker", _deferred_maintenance_worker)
 
     def _schedule_deferred_maintenance() -> None:
         if not is_startup_host_alive(startup_host):

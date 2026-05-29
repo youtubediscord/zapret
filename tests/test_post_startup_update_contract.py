@@ -43,7 +43,7 @@ class PostStartupUpdateContractTests(unittest.TestCase):
         with (
             patch.object(post_startup_update, "bind_startup_gate", side_effect=lambda _signal, callback, **_kwargs: callback()),
             patch.object(post_startup_update, "schedule_after", side_effect=lambda _delay_ms, callback: callback()),
-            patch.object(post_startup_update, "start_daemon_thread", side_effect=lambda _name, target: target()),
+            patch.object(post_startup_update, "enqueue_subsystem_task", side_effect=lambda _queue, _name, target: target()),
             patch.object(post_startup_update, "log"),
         ):
             post_startup_update.install_update_check(

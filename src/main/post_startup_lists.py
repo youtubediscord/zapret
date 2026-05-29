@@ -3,7 +3,7 @@ from __future__ import annotations
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
 from main.post_startup_list_workers import run_startup_lists_check
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 
 
 LISTS_STARTUP_CHECK_DELAY_MS = 7_500
@@ -18,7 +18,8 @@ def install_lists_check(
     def _start_lists_check() -> None:
         if not is_startup_host_alive(startup_host):
             return
-        start_daemon_thread(
+        enqueue_subsystem_task(
+            "lists",
             "ListsStartupPostInitCheck",
             lambda: run_startup_lists_check(
                 startup_lists_check=startup_lists_check,

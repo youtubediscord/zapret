@@ -4,7 +4,7 @@ import time
 
 from log.log import log
 from main.post_startup_gate import bind_startup_gate, is_startup_host_alive
-from main.post_startup_threading import schedule_after, start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task, schedule_after
 from settings import appearance as appearance_settings
 
 
@@ -34,7 +34,8 @@ def install_backend_page_data_warmup(
         )
         log_startup_metric("StartupBackendPageDataWarmupStarted", "appearance, logs")
         for name, callback in warmups:
-            start_daemon_thread(
+            enqueue_subsystem_task(
+                name.lower(),
                 f"BackendPageDataWarmup-{name}",
                 lambda name=name, callback=callback: (
                     is_startup_host_alive(startup_host) and _run_named_warmup(name, callback)
@@ -43,7 +44,8 @@ def install_backend_page_data_warmup(
 
     def _start_premium_page_data_warmup() -> None:
         log_startup_metric("StartupBackendPageDataWarmupStarted", "premium")
-        start_daemon_thread(
+        enqueue_subsystem_task(
+            "premium",
             "BackendPageDataWarmup-Premium",
             lambda: is_startup_host_alive(startup_host)
             and _run_named_warmup("Premium", premium_feature.warm_page_data_cache),

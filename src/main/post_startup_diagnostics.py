@@ -8,12 +8,12 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from log.log import log
 from main.post_startup_diagnostic_workers import build_global_exception_handler, run_cpu_diagnostic
 from main.runtime_state import is_cpu_diagnostic_enabled
-from main.post_startup_threading import start_daemon_thread
+from main.post_startup_threading import enqueue_subsystem_task
 
 
 def install_cpu_diagnostic() -> None:
     if is_cpu_diagnostic_enabled():
-        start_daemon_thread("CPUDiagnostic", run_cpu_diagnostic)
+        enqueue_subsystem_task("diagnostics", "CPUDiagnostic", run_cpu_diagnostic)
 
 
 def _auto_qt_event_diag_enabled() -> bool:
@@ -65,7 +65,7 @@ def install_qt_event_diagnostic_probe() -> None:
         except Exception as exc:
             log(f"Auto Qt event diagnostic probe failed: {exc}", "DEBUG")
 
-    start_daemon_thread("QtEventAutoDiagnosticProbe", _auto_qt_event_diag_probe)
+    enqueue_subsystem_task("diagnostics", "QtEventAutoDiagnosticProbe", _auto_qt_event_diag_probe)
 
 
 def install_global_exception_handler() -> None:
