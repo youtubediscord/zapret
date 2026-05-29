@@ -73,6 +73,50 @@ class BackendPageDataWarmupTests(unittest.TestCase):
         metric.assert_any_call("StartupBackendPageDataWarmupStarted", "appearance, logs")
         metric.assert_any_call("StartupBackendPageDataWarmupStarted", "premium")
 
+    def test_hosts_page_is_prepared_immediately_after_interactive(self) -> None:
+        from app.page_names import PageName
+        from main import post_startup_hosts_warmup
+        from main.post_startup_hosts_warmup import install_hosts_page_warmup
+
+        class Signal:
+            def __init__(self) -> None:
+                self._callback = None
+
+            def connect(self, callback) -> None:
+                self._callback = callback
+
+            def emit(self, value: str = "") -> None:
+                self._callback(value)
+
+        signal = Signal()
+        page = SimpleNamespace(warmup_initial_load=Mock(return_value=True))
+        startup_host = SimpleNamespace(
+            startup_interactive_ready=signal,
+            startup_state=SimpleNamespace(interactive_logged=False),
+            is_alive=Mock(return_value=True),
+            ensure_page=Mock(return_value=page),
+        )
+        metric = Mock()
+        delays: list[int] = []
+
+        with patch.object(
+            post_startup_hosts_warmup,
+            "schedule_after",
+            side_effect=lambda delay_ms, callback: delays.append(delay_ms) or callback(),
+        ):
+            install_hosts_page_warmup(
+                startup_host,
+                log_startup_metric=metric,
+            )
+            signal.emit("interactive")
+
+        self.assertEqual(delays, [0])
+        startup_host.ensure_page.assert_called_once_with(PageName.HOSTS)
+        page.warmup_initial_load.assert_called_once_with()
+        metric.assert_any_call("StartupHostsPageWarmupQueued", "0ms after interactive")
+        metric.assert_any_call("StartupHostsPageWarmupStarted", "ensure_page")
+        metric.assert_any_call("StartupHostsPageWarmupFinished", "warmup_initial_load")
+
     def test_premium_page_uses_warmed_device_snapshot_before_worker(self) -> None:
         from app.feature_facades.premium import PremiumPageData
         from donater.ui.page import PremiumPage

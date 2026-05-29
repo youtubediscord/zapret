@@ -52,6 +52,12 @@ def install_dns_page_data_warmup(*args, **kwargs):
     return install(*args, **kwargs)
 
 
+def install_hosts_page_warmup(*args, **kwargs):
+    from main.post_startup_hosts_warmup import install_hosts_page_warmup as install
+
+    return install(*args, **kwargs)
+
+
 def install_lists_check(*args, **kwargs):
     from main.post_startup_lists import install_lists_check as install
 
@@ -147,6 +153,10 @@ def install_post_startup_tasks(deps: PostStartupDeps) -> None:
     install_dns_page_data_warmup(
         startup_host,
         dns_feature=deps.dns_feature,
+        log_startup_metric=deps.log_startup_metric,
+    )
+    install_hosts_page_warmup(
+        startup_host,
         log_startup_metric=deps.log_startup_metric,
     )
     if deps.premium_feature is not None and deps.logs_feature is not None:

@@ -45,6 +45,11 @@ class PostStartupHost:
 
         show_page(self._window, page_name)
 
+    def ensure_page(self, page_name):
+        from ui.window_adapter import ensure_page
+
+        return ensure_page(self._window, page_name)
+
     def get_loaded_page(self, page_name):
         from ui.window_adapter import get_loaded_page
 

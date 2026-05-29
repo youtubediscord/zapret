@@ -1923,7 +1923,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertEqual(page.loading_calls[-1], (False, ""))
         self.assertIn("Подготовка запуска...", page.status_calls)
 
-    def test_post_startup_tasks_do_not_install_gui_page_warmup(self) -> None:
+    def test_post_startup_tasks_install_hosts_page_warmup(self) -> None:
         from main import post_startup
         from main.post_startup import PostStartupDeps, install_post_startup_tasks
 
@@ -1952,6 +1952,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             patch.object(post_startup, "install_lists_check"),
             patch.object(post_startup, "install_dns_startup"),
             patch.object(post_startup, "install_dns_page_data_warmup"),
+            patch.object(post_startup, "install_hosts_page_warmup") as install_hosts_page_warmup,
             patch.object(post_startup, "install_profile_warmup"),
             patch.object(post_startup, "install_update_check"),
             patch.object(post_startup, "install_cpu_diagnostic"),
@@ -1960,6 +1961,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         ):
             install_post_startup_tasks(deps)
 
+        install_hosts_page_warmup.assert_called_once_with(
+            startup_host,
+            log_startup_metric=log_startup_metric,
+        )
         self.assertFalse(hasattr(post_startup, "install_page_warmup"))
 
     def test_post_startup_tasks_install_profile_warmup(self) -> None:
