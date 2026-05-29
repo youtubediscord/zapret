@@ -57,10 +57,18 @@ class ProfileListModel(QAbstractListModel):
             self._active_profile_types if active_profile_types is None else active_profile_types
         )
         normalized_search = self._search_query if search_query is None else _normalized_search_query(search_query)
+        group_expanded = _initial_group_expanded(display_items)
+        if (
+            self._all_items == display_items
+            and self._group_expanded == group_expanded
+            and self._active_profile_types == active
+            and self._search_query == normalized_search
+        ):
+            return
         self.beginResetModel()
         self._all_items = display_items
         self._profile_items = {item.key: item for item in display_items}
-        self._group_expanded = _initial_group_expanded(display_items)
+        self._group_expanded = group_expanded
         self._active_profile_types = active
         self._search_query = normalized_search
         self._rows = self._build_rows()
