@@ -11,14 +11,15 @@ class PremiumOpenBotWorker(QThread):
     loaded = pyqtSignal(int, object)
     failed = pyqtSignal(int, str)
 
-    def __init__(self, request_id: int, *, premium_feature, parent=None):
+    def __init__(self, request_id: int, *, parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._premium = premium_feature
 
     def run(self) -> None:
+        import donater.commands as premium_commands
+
         try:
-            result = self._premium.open_extend_bot()
+            result = premium_commands.open_extend_bot()
         except Exception as exc:
             log(f"PremiumOpenBotWorker: не удалось открыть Premium-бота: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))

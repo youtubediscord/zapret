@@ -86,7 +86,7 @@ class PremiumFeature:
     def create_open_extend_bot_worker(self, request_id: int, *, parent=None):
         from donater.open_bot_worker import PremiumOpenBotWorker
 
-        return PremiumOpenBotWorker(request_id, premium_feature=self, parent=parent)
+        return PremiumOpenBotWorker(request_id, parent=parent)
 
     def create_device_info_load_worker(self, request_id: int, *, current_time: int, parent=None):
         from donater.device_info_worker import PremiumDeviceInfoLoadWorker
