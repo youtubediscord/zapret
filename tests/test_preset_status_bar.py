@@ -48,6 +48,22 @@ class _RunningRuntimeOwner(_StoppedRuntimeOwner):
         self.pending_switch_calls += 1
 
 
+class _RuntimeToggleButton:
+    def __init__(self) -> None:
+        self.text_calls: list[str] = []
+        self.icon_calls: list[object] = []
+        self.enabled_calls: list[bool] = []
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self.text_calls.append(str(text))
+
+    def setIcon(self, icon) -> None:  # noqa: N802
+        self.icon_calls.append(icon)
+
+    def setEnabled(self, enabled: bool) -> None:  # noqa: N802
+        self.enabled_calls.append(bool(enabled))
+
+
 class PresetStatusBarPlanTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -320,6 +336,49 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         self.assertEqual(stopping_plan.text, "Остановить")
         self.assertTrue(stopping_plan.should_stop)
         self.assertFalse(stopping_plan.enabled)
+
+    def test_raw_editor_runtime_toggle_skips_duplicate_button_render(self) -> None:
+        from presets.ui.common.preset_subpage_base import (
+            RuntimeToggleButtonPlan,
+            apply_runtime_toggle_button_plan,
+        )
+
+        button = _RuntimeToggleButton()
+        plan = RuntimeToggleButtonPlan(
+            text="Запустить",
+            icon_name="PLAY",
+            should_stop=False,
+            enabled=True,
+        )
+
+        self.assertFalse(
+            apply_runtime_toggle_button_plan(
+                button,
+                plan,
+                runtime_available=True,
+                icon_factory=lambda name: f"icon:{name}",
+            )
+        )
+        self.assertEqual(button.text_calls, ["Запустить"])
+        self.assertEqual(button.icon_calls, ["icon:PLAY"])
+        self.assertEqual(button.enabled_calls, [True])
+
+        button.setText = Mock(side_effect=AssertionError("same runtime toggle must not rewrite text"))
+        button.setIcon = Mock(side_effect=AssertionError("same runtime toggle must not rewrite icon"))
+        button.setEnabled = Mock(side_effect=AssertionError("same runtime toggle must not rewrite enabled"))
+
+        self.assertFalse(
+            apply_runtime_toggle_button_plan(
+                button,
+                plan,
+                runtime_available=True,
+                icon_factory=lambda name: f"icon:{name}",
+            )
+        )
+
+        button.setText.assert_not_called()
+        button.setIcon.assert_not_called()
+        button.setEnabled.assert_not_called()
 
 
 if __name__ == "__main__":

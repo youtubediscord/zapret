@@ -90,6 +90,24 @@ def build_runtime_toggle_button_plan(
     )
 
 
+def apply_runtime_toggle_button_plan(
+    button,
+    plan: RuntimeToggleButtonPlan,
+    *,
+    runtime_available: bool,
+    icon_factory=_fluent_icon,
+) -> bool:
+    enabled = bool(plan.enabled and runtime_available)
+    plan_key = (plan.text, plan.icon_name, bool(plan.should_stop), enabled)
+    if getattr(button, "_last_runtime_toggle_button_plan_key", None) == plan_key:
+        return plan.should_stop
+    setattr(button, "_last_runtime_toggle_button_plan_key", plan_key)
+    button.setText(plan.text)
+    button.setIcon(icon_factory(plan.icon_name))
+    button.setEnabled(enabled)
+    return plan.should_stop
+
+
 class _RenameDialog(MessageBoxBase):
     def __init__(self, current_name: str, existing_names: list[str], parent=None):
         if parent is not None and not parent.isWindow():
@@ -724,10 +742,11 @@ class PresetRawEditorPage(BasePage):
             launch_running=launch_running,
             launch_busy=launch_busy,
         )
-        button.setText(plan.text)
-        button.setIcon(_fluent_icon(plan.icon_name))
-        button.setEnabled(plan.enabled and self._runtime_feature is not None)
-        self._runtime_toggle_should_stop = plan.should_stop
+        self._runtime_toggle_should_stop = apply_runtime_toggle_button_plan(
+            button,
+            plan,
+            runtime_available=self._runtime_feature is not None,
+        )
 
     def _toggle_runtime(self) -> None:
         runtime = self._runtime_feature
