@@ -13,7 +13,6 @@ class AutostartActionWorker(QThread):
     def __init__(
         self,
         request_id: int,
-        autostart_feature,
         *,
         action: str,
         enabled: bool | None = None,
@@ -22,12 +21,13 @@ class AutostartActionWorker(QThread):
     ):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._autostart = autostart_feature
         self._action = str(action or "").strip()
         self._enabled = None if enabled is None else bool(enabled)
         self._strategy_name = strategy_name
 
     def run(self) -> None:
+        import autostart.public as autostart_public
+
         context = {
             "enabled": self._enabled,
             "strategy_name": self._strategy_name,
@@ -38,15 +38,15 @@ class AutostartActionWorker(QThread):
 
         try:
             if self._action == "enable":
-                result = self._autostart.enable_gui_autostart(status_cb=emit_status)
+                result = autostart_public.enable_gui_autostart(status_cb=emit_status)
                 if getattr(result, "success", False):
-                    self._autostart.save_gui_autostart_enabled(True)
+                    autostart_public.save_gui_autostart_enabled(True)
             elif self._action == "disable":
-                result = self._autostart.disable_gui_autostart()
+                result = autostart_public.disable_gui_autostart()
                 if getattr(result, "success", False):
-                    self._autostart.save_gui_autostart_enabled(False)
+                    autostart_public.save_gui_autostart_enabled(False)
             elif self._action == "save_state":
-                result = self._autostart.save_gui_autostart_enabled(bool(self._enabled))
+                result = autostart_public.save_gui_autostart_enabled(bool(self._enabled))
             else:
                 raise ValueError(f"Неизвестное действие автозапуска: {self._action}")
         except Exception as exc:
@@ -60,14 +60,15 @@ class AutostartModeLoadWorker(QThread):
     loaded = pyqtSignal(int, str)
     failed = pyqtSignal(int, str)
 
-    def __init__(self, request_id: int, autostart_feature, parent=None):
+    def __init__(self, request_id: int, parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._autostart = autostart_feature
 
     def run(self) -> None:
+        import autostart.public as autostart_public
+
         try:
-            method = str(self._autostart.get_current_launch_method() or "").strip()
+            method = str(autostart_public.get_current_launch_method() or "").strip()
         except Exception as exc:
             log(f"AutostartModeLoadWorker: не удалось загрузить режим запуска: {exc}", "WARNING")
             self.failed.emit(self._request_id, str(exc))

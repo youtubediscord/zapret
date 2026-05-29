@@ -38,7 +38,6 @@ def build_autostart_feature(*, runtime_state=None) -> AutostartFeature:
 
         return AutostartActionWorker(
             request_id,
-            autostart_feature=feature,
             action=action,
             enabled=enabled,
             strategy_name=strategy_name,
@@ -50,7 +49,6 @@ def build_autostart_feature(*, runtime_state=None) -> AutostartFeature:
 
         return AutostartModeLoadWorker(
             request_id,
-            autostart_feature=feature,
             parent=parent,
         )
 
