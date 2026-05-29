@@ -57,6 +57,14 @@ class ProfileDragIndicatorTests(unittest.TestCase):
         self.assertIn("dragLeaveEvent", view_source)
         self.assertIn("self.set_drop_marker(-1, \"\")", view_source)
 
+    def test_view_updates_only_drop_marker_rows(self) -> None:
+        payload_source = inspect.getsource(profile_list_view.ProfileListView.set_drop_marker_payload)
+        update_source = inspect.getsource(profile_list_view.ProfileListView._update_drop_marker_rows)
+
+        self.assertIn("_update_drop_marker_rows", payload_source)
+        self.assertNotIn("viewport().update()", payload_source)
+        self.assertIn("viewport().update(rect", update_source)
+
     def test_view_sends_destination_group_with_row_drop(self) -> None:
         view_source = inspect.getsource(profile_list_view.ProfileListView)
 

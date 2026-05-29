@@ -96,10 +96,31 @@ class ProfileListView(ListView):
         self.set_drop_marker_payload(marker)
 
     def set_drop_marker_payload(self, marker: dict[str, object]) -> None:
-        if self.property(PROFILE_DROP_MARKER_PROPERTY) == marker:
+        previous_marker = self.property(PROFILE_DROP_MARKER_PROPERTY)
+        if previous_marker == marker:
             return
         self.setProperty(PROFILE_DROP_MARKER_PROPERTY, marker)
-        self.viewport().update()
+        self._update_drop_marker_rows(previous_marker, marker)
+
+    def _update_drop_marker_rows(self, previous_marker, next_marker) -> None:
+        model = self.model()
+        if model is None:
+            return
+        for marker in (previous_marker, next_marker):
+            if not isinstance(marker, dict):
+                continue
+            try:
+                row = int(marker.get("row", -1) or -1)
+            except Exception:
+                continue
+            if row < 0 or row >= model.rowCount():
+                continue
+            index = model.index(row, 0)
+            if not index.isValid():
+                continue
+            rect = self.visualRect(index).adjusted(0, -4, 0, 4)
+            if rect.isValid():
+                self.viewport().update(rect)
 
     def _drop_target_at(self, point: QPoint) -> tuple[dict[str, object], str, str]:
         drop_index = self.indexAt(point)
