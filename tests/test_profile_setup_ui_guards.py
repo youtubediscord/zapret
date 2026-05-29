@@ -298,6 +298,56 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._raw_profile_save_button.enabled_calls, [])
         page._apply_feedback_buttons.assert_called_once_with(payload)
 
+    def test_editable_settings_skip_duplicate_text_and_visibility(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+        from settings.mode import ZAPRET2_MODE
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page.launch_method = ZAPRET2_MODE
+        page._settings_container = _BoolWidget(visible=True)
+        page._filter_combo = _BoolWidget(visible=False)
+        page._filter_value = _PropertyWidget(visible=False)
+        page._filter_value._text = "youtube.txt"
+        page._in_range_label = _BoolWidget(visible=True)
+        page._in_range_mode = _BoolWidget(visible=True)
+        page._in_range_value = _BoolWidget(visible=True)
+        page._out_range_label = _BoolWidget(visible=True)
+        page._out_range_mode = _BoolWidget(visible=True)
+        page._out_range_value = _BoolWidget(visible=True)
+        page._rebuild_filter_kind_combo = Mock()
+        page._update_all_range_tooltips = Mock()
+        payload = SimpleNamespace(
+            editable_filter_enabled=True,
+            editable_filter_kinds=("hostlist",),
+            editable_filter_kind="hostlist",
+            editable_filter_value="youtube.txt",
+            in_range="x",
+            out_range="a",
+        )
+
+        with (
+            patch("profile.ui.profile_setup_page.set_combo_by_data"),
+            patch("profile.ui.profile_setup_page.set_range_controls"),
+        ):
+            ProfileSetupPageBase._apply_editable_settings(page, payload)
+
+        self.assertEqual(page._settings_container.visible_calls, [])
+        self.assertEqual(page._filter_combo.visible_calls, [])
+        self.assertEqual(page._filter_value.visible_calls, [])
+        self.assertEqual(page._filter_value.text_calls, [])
+        for widget in (
+            page._in_range_label,
+            page._in_range_mode,
+            page._in_range_value,
+            page._out_range_label,
+            page._out_range_mode,
+            page._out_range_value,
+        ):
+            self.assertEqual(widget.visible_calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

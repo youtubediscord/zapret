@@ -1849,22 +1849,22 @@ class ProfileSetupPageBase(BasePage):
         is_winws2 = is_zapret2_launch_method(self.launch_method)
         if not is_preset_mode:
             if self._settings_container is not None:
-                self._settings_container.setVisible(False)
+                set_widget_visible_if_changed(self._settings_container, False)
             return
 
         filter_enabled = bool(getattr(payload, "editable_filter_enabled", True))
         available_kinds = tuple(getattr(payload, "editable_filter_kinds", ()) or ())
         filter_switchable = filter_enabled and len({kind for kind in available_kinds if kind in {"hostlist", "ipset"}}) > 1
         if self._settings_container is not None:
-            self._settings_container.setVisible(is_winws2 or filter_switchable)
+            set_widget_visible_if_changed(self._settings_container, is_winws2 or filter_switchable)
         self._rebuild_filter_kind_combo(
             available_kinds,
             str(getattr(payload, "editable_filter_kind", "") or "hostlist"),
         )
         set_combo_by_data(self._filter_combo, getattr(payload, "editable_filter_kind", "") or "hostlist")
-        self._filter_value.setText(str(getattr(payload, "editable_filter_value", "") or ""))
-        self._filter_combo.setVisible(filter_switchable)
-        self._filter_value.setVisible(filter_switchable)
+        set_widget_text_if_changed(self._filter_value, str(getattr(payload, "editable_filter_value", "") or ""))
+        set_widget_visible_if_changed(self._filter_combo, filter_switchable)
+        set_widget_visible_if_changed(self._filter_value, filter_switchable)
         for widget in (
             self._in_range_label,
             self._in_range_mode,
@@ -1874,7 +1874,7 @@ class ProfileSetupPageBase(BasePage):
             self._out_range_value,
         ):
             if widget is not None:
-                widget.setVisible(is_winws2)
+                set_widget_visible_if_changed(widget, is_winws2)
         set_range_controls(self._in_range_mode, self._in_range_value, getattr(payload, "in_range", "") or "x")
         set_range_controls(self._out_range_mode, self._out_range_value, getattr(payload, "out_range", "") or "a")
         self._update_all_range_tooltips()
