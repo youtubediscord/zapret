@@ -113,6 +113,26 @@ class ProfileOrderPageTests(unittest.TestCase):
             ["profile:a", "profile:b"],
         )
 
+    def test_order_model_updates_stable_rows_without_full_reset(self) -> None:
+        from profile.ui.profile_order_list import ProfileOrderListModel
+        from profile.ui.profile_list_model import ProfileListModel
+
+        model = ProfileOrderListModel()
+        model.set_profiles((
+            _item("A", key="profile:a", profile_index=0),
+            _item("B", key="profile:b", profile_index=1),
+        ))
+        model.beginResetModel = Mock(side_effect=AssertionError("stable profile order rows must not reset the whole model"))
+
+        model.set_profiles((
+            _item("A updated", key="profile:a", profile_index=0),
+            _item("B", key="profile:b", profile_index=1),
+        ))
+
+        self.assertEqual(model.rowCount(), 2)
+        self.assertEqual(model.index(0, 0).data(ProfileListModel.ProfileKeyRole), "profile:a")
+        self.assertEqual(model.index(0, 0).data(ProfileListModel.DisplayNameRole), "A updated")
+
     def test_order_page_explains_priority_and_uses_order_workers(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
 

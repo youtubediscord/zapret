@@ -28,6 +28,19 @@ class ProfileOrderListModel(QAbstractListModel):
         next_items = tuple(rows)
         if self._items == next_items:
             return
+        if tuple(_profile_order_identity(item) for item in self._items) == tuple(
+            _profile_order_identity(item) for item in next_items
+        ):
+            changed_rows = tuple(
+                row_index
+                for row_index, (current_item, next_item) in enumerate(zip(self._items, next_items, strict=True))
+                if current_item != next_item
+            )
+            self._items = next_items
+            for row_index in changed_rows:
+                model_index = self.index(row_index, 0)
+                self.dataChanged.emit(model_index, model_index, _profile_order_data_roles())
+            return
         self.beginResetModel()
         self._items = next_items
         self.endResetModel()
@@ -187,6 +200,36 @@ class ProfileOrderList(QWidget):
 
     def move_profile_item(self, source_profile_key: str, action: str, destination_profile_key: str = "") -> bool:
         return self._model.move_profile(source_profile_key, action, destination_profile_key)
+
+
+def _profile_order_identity(item: Any) -> str:
+    return str(getattr(item, "persistent_key", "") or getattr(item, "key", "") or "")
+
+
+def _profile_order_data_roles() -> list[int]:
+    return [
+        int(Qt.ItemDataRole.DisplayRole),
+        ProfileListModel.KindRole,
+        ProfileListModel.ProfileKeyRole,
+        ProfileListModel.PersistentKeyRole,
+        ProfileListModel.DisplayNameRole,
+        ProfileListModel.DescriptionRole,
+        ProfileListModel.StrategyIdRole,
+        ProfileListModel.StrategyNameRole,
+        ProfileListModel.MatchLinesRole,
+        ProfileListModel.ListTypeRole,
+        ProfileListModel.RatingRole,
+        ProfileListModel.FavoriteRole,
+        ProfileListModel.InPresetRole,
+        ProfileListModel.EnabledRole,
+        ProfileListModel.GroupRole,
+        ProfileListModel.GroupNameRole,
+        ProfileListModel.CollapsedRole,
+        ProfileListModel.CountRole,
+        ProfileListModel.IconNameRole,
+        ProfileListModel.IconColorRole,
+        ProfileListModel.TooltipRole,
+    ]
 
 
 __all__ = ["ProfileOrderList", "ProfileOrderListModel"]
