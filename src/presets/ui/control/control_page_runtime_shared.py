@@ -1,6 +1,70 @@
 from __future__ import annotations
 
 
+def _current_widget_text(widget) -> str | None:
+    try:
+        getter = getattr(widget, "text", None)
+        if callable(getter):
+            return str(getter())
+        if getter is not None:
+            return str(getter)
+    except Exception:
+        return None
+    return None
+
+
+def set_text_if_changed(widget, text: str) -> bool:
+    next_text = str(text or "")
+    current = _current_widget_text(widget)
+    if current is not None and current == next_text:
+        return False
+    widget.setText(next_text)
+    return True
+
+
+def _current_widget_visible(widget) -> bool | None:
+    try:
+        return not bool(widget.isHidden())
+    except Exception:
+        pass
+    try:
+        return bool(widget.isVisible())
+    except Exception:
+        return None
+
+
+def set_visible_if_changed(widget, visible: bool) -> bool:
+    next_visible = bool(visible)
+    current = _current_widget_visible(widget)
+    if current is not None and current == next_visible:
+        return False
+    widget.setVisible(next_visible)
+    return True
+
+
+def set_enabled_if_changed(widget, enabled: bool) -> bool:
+    next_enabled = bool(enabled)
+    try:
+        if bool(widget.isEnabled()) == next_enabled:
+            return False
+    except Exception:
+        pass
+    widget.setEnabled(next_enabled)
+    return True
+
+
+def set_progress_active_if_changed(progress, active: bool) -> bool:
+    next_active = bool(active)
+    if getattr(progress, "_last_control_progress_active", None) == next_active:
+        return False
+    setattr(progress, "_last_control_progress_active", next_active)
+    if next_active:
+        progress.start()
+    else:
+        progress.stop()
+    return True
+
+
 def set_toggle_checked(toggle, checked: bool) -> None:
     """Устанавливает состояние toggle по каноническому контракту Win11ToggleRow."""
     next_checked = bool(checked)

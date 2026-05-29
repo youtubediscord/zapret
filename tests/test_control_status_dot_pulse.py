@@ -50,6 +50,49 @@ class _ToggleTarget:
         self.checked = bool(checked)
 
 
+class _WidgetStateTarget:
+    def __init__(self, *, text: str = "", visible: bool = True, enabled: bool = True) -> None:
+        self._text = text
+        self._hidden = not bool(visible)
+        self._enabled = bool(enabled)
+        self.text_calls: list[str] = []
+        self.visible_calls: list[bool] = []
+        self.enabled_calls: list[bool] = []
+
+    def text(self) -> str:
+        return self._text
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self.text_calls.append(str(text))
+        self._text = str(text)
+
+    def isHidden(self) -> bool:  # noqa: N802
+        return self._hidden
+
+    def setVisible(self, visible: bool) -> None:  # noqa: N802
+        self.visible_calls.append(bool(visible))
+        self._hidden = not bool(visible)
+
+    def isEnabled(self) -> bool:  # noqa: N802
+        return self._enabled
+
+    def setEnabled(self, enabled: bool) -> None:  # noqa: N802
+        self.enabled_calls.append(bool(enabled))
+        self._enabled = bool(enabled)
+
+
+class _ProgressTarget:
+    def __init__(self) -> None:
+        self.started = 0
+        self.stopped = 0
+
+    def start(self) -> None:
+        self.started += 1
+
+    def stop(self) -> None:
+        self.stopped += 1
+
+
 class ControlStatusDotPulseTests(unittest.TestCase):
     def _apply_plan(self, *, pulsing: bool) -> _StatusDot:
         from presets.ui.control.control_page_runtime_shared import apply_status_plan
@@ -194,6 +237,53 @@ class ControlStatusDotPulseTests(unittest.TestCase):
 
         self.assertEqual(toggle.calls, [(True, True)])
         self.assertTrue(toggle.checked)
+
+    def test_widget_text_visibility_and_enabled_updates_skip_duplicate_state(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import (
+            set_enabled_if_changed,
+            set_text_if_changed,
+            set_visible_if_changed,
+        )
+
+        widget = _WidgetStateTarget(text="Запуск", visible=True, enabled=False)
+
+        self.assertFalse(set_text_if_changed(widget, "Запуск"))
+        self.assertFalse(set_visible_if_changed(widget, True))
+        self.assertFalse(set_enabled_if_changed(widget, False))
+
+        self.assertEqual(widget.text_calls, [])
+        self.assertEqual(widget.visible_calls, [])
+        self.assertEqual(widget.enabled_calls, [])
+
+    def test_widget_text_visibility_and_enabled_updates_apply_changed_state(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import (
+            set_enabled_if_changed,
+            set_text_if_changed,
+            set_visible_if_changed,
+        )
+
+        widget = _WidgetStateTarget(text="Запуск", visible=True, enabled=False)
+
+        self.assertTrue(set_text_if_changed(widget, "Остановка"))
+        self.assertTrue(set_visible_if_changed(widget, False))
+        self.assertTrue(set_enabled_if_changed(widget, True))
+
+        self.assertEqual(widget.text_calls, ["Остановка"])
+        self.assertEqual(widget.visible_calls, [False])
+        self.assertEqual(widget.enabled_calls, [True])
+
+    def test_progress_active_update_skips_duplicate_start_and_stop(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import set_progress_active_if_changed
+
+        progress = _ProgressTarget()
+
+        self.assertTrue(set_progress_active_if_changed(progress, True))
+        self.assertFalse(set_progress_active_if_changed(progress, True))
+        self.assertTrue(set_progress_active_if_changed(progress, False))
+        self.assertFalse(set_progress_active_if_changed(progress, False))
+
+        self.assertEqual(progress.started, 1)
+        self.assertEqual(progress.stopped, 1)
 
     def test_running_status_pulses_for_both_control_modes(self) -> None:
         from presets.ui.control import control_runtime

@@ -28,7 +28,13 @@ from presets.ui.control.control_page_shared import (
     bind_control_ui_state_store,
     cleanup_control_page_subscriptions,
 )
-from presets.ui.control.control_page_runtime_shared import apply_last_status_message
+from presets.ui.control.control_page_runtime_shared import (
+    apply_last_status_message,
+    set_enabled_if_changed,
+    set_progress_active_if_changed,
+    set_text_if_changed,
+    set_visible_if_changed,
+)
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
 from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
 from presets.ui.control.refresh_runtime_state import create_refresh_runtime
@@ -831,20 +837,17 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _update_stop_winws_button_text(self):
         plan = _zapret2_page_runtime().build_stop_button_plan(language=self._ui_language)
-        self.stop_winws_btn.setText(plan.text)
+        set_text_if_changed(self.stop_winws_btn, plan.text)
 
     def set_loading(self, loading: bool, text: str = ""):
-        if loading:
-            self.progress_bar.start()
-        else:
-            self.progress_bar.stop()
-        self.progress_bar.setVisible(loading)
-        self.loading_label.setVisible(loading and bool(text))
-        self.loading_label.setText(text)
+        set_progress_active_if_changed(self.progress_bar, loading)
+        set_visible_if_changed(self.progress_bar, loading)
+        set_visible_if_changed(self.loading_label, loading and bool(text))
+        set_text_if_changed(self.loading_label, text)
 
-        self.start_btn.setEnabled(not loading)
-        self.stop_winws_btn.setEnabled(not loading)
-        self.stop_and_exit_btn.setEnabled(not loading)
+        set_enabled_if_changed(self.start_btn, not loading)
+        set_enabled_if_changed(self.stop_winws_btn, not loading)
+        set_enabled_if_changed(self.stop_and_exit_btn, not loading)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
         defer_initial_state = not self._startup_can_apply_initial_ui_state()

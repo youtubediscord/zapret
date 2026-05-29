@@ -21,7 +21,13 @@ from presets.ui.control.zapret1.runtime_helpers import (
 import presets.ui.control.zapret1.runtime_helpers as winws1_page_runtime
 from presets.ui.control.shared_builders import build_last_status_message_card_common
 import presets.ui.control.control_runtime as control_runtime
-from presets.ui.control.control_page_runtime_shared import apply_last_status_message
+from presets.ui.control.control_page_runtime_shared import (
+    apply_last_status_message,
+    set_enabled_if_changed,
+    set_progress_active_if_changed,
+    set_text_if_changed,
+    set_visible_if_changed,
+)
 from presets.ui.control.windows_features.runtime import ControlPageWindowsFeatureMixin
 from app.state_store import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
@@ -599,16 +605,13 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._open_preset_setup_callback()
 
     def set_loading(self, loading: bool, text: str = ""):
-        if loading:
-            self.progress_bar.start()
-        else:
-            self.progress_bar.stop()
-        self.progress_bar.setVisible(loading)
-        self.loading_label.setVisible(loading and bool(text))
-        self.loading_label.setText(text)
-        self.start_btn.setEnabled(not loading)
-        self.stop_winws_btn.setEnabled(not loading)
-        self.stop_and_exit_btn.setEnabled(not loading)
+        set_progress_active_if_changed(self.progress_bar, loading)
+        set_visible_if_changed(self.progress_bar, loading)
+        set_visible_if_changed(self.loading_label, loading and bool(text))
+        set_text_if_changed(self.loading_label, text)
+        set_enabled_if_changed(self.start_btn, not loading)
+        set_enabled_if_changed(self.stop_winws_btn, not loading)
+        set_enabled_if_changed(self.stop_and_exit_btn, not loading)
 
     def bind_ui_state_store(self, store: MainWindowStateStore) -> None:
         bind_control_ui_state_store(
