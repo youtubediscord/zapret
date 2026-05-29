@@ -1571,12 +1571,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._create_profile_move_worker.return_value.start.assert_called_once()
 
     def test_profile_move_worker_emits_move_result(self) -> None:
-        profile = Mock()
-        profile.move_profile_before.return_value = "profile-1"
+        service = Mock()
+        service.move_profile_before.return_value = "profile-1"
         worker = ProfilePresetProfileMoveWorker(
             9,
-            profile,
-            "zapret2_mode",
+            service,
             action="before",
             source_profile_key="profile-1",
             destination_profile_key="profile-2",
@@ -1597,8 +1596,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         worker.run()
 
-        profile.move_profile_before.assert_called_once_with(
-            "zapret2_mode",
+        service.move_profile_before.assert_called_once_with(
             "profile-1",
             "profile-2",
             destination_folder_key="youtube",
@@ -1845,12 +1843,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         worker.start.assert_called_once()
 
     def test_profile_context_action_worker_emits_result(self) -> None:
-        profile = Mock()
-        profile.set_profile_enabled.return_value = "profile-2"
+        service = Mock()
+        service.set_profile_enabled.return_value = "profile-2"
         worker = ProfilePresetProfileActionWorker(
             6,
-            profile,
-            "zapret2_mode",
+            service,
             action="set_enabled",
             profile_key="profile-1",
             enabled=True,
@@ -1868,7 +1865,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         worker.run()
 
-        profile.set_profile_enabled.assert_called_once_with("zapret2_mode", "profile-1", True)
+        service.set_profile_enabled.assert_called_once_with("profile-1", True)
         self.assertEqual(finished, [(6, "set_enabled", "profile-1", "profile-2")])
 
     def test_profile_context_action_worker_emits_duplicated_item(self) -> None:
@@ -1889,13 +1886,12 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             group_name="",
             order=2,
         )
-        profile = Mock()
-        profile.duplicate_profile.return_value = "profile-2"
-        profile.list_profiles.return_value = SimpleNamespace(items=(duplicated_item,))
+        service = Mock()
+        service.duplicate_profile.return_value = "profile-2"
+        service.list_profiles.return_value = SimpleNamespace(items=(duplicated_item,))
         worker = ProfilePresetProfileActionWorker(
             8,
-            profile,
-            "zapret2_mode",
+            service,
             action="duplicate",
             profile_key="profile-1",
         )
@@ -1912,8 +1908,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         worker.run()
 
-        profile.duplicate_profile.assert_called_once_with("zapret2_mode", "profile-1")
-        profile.list_profiles.assert_called_once_with("zapret2_mode")
+        service.duplicate_profile.assert_called_once_with("profile-1")
+        service.list_profiles.assert_called_once_with()
         self.assertEqual(finished[0][:3], (8, "duplicate", "profile-1"))
         self.assertEqual(finished[0][3], {"profile_key": "profile-2", "profile_item": duplicated_item})
 
@@ -1935,13 +1931,12 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             group_name="",
             order=2,
         )
-        profile = Mock()
-        profile.set_profile_enabled.return_value = "profile-2"
-        profile.list_profiles.return_value = SimpleNamespace(items=(created_item,))
+        service = Mock()
+        service.set_profile_enabled.return_value = "profile-2"
+        service.list_profiles.return_value = SimpleNamespace(items=(created_item,))
         worker = ProfilePresetProfileActionWorker(
             7,
-            profile,
-            "zapret2_mode",
+            service,
             action="set_enabled",
             profile_key="template:youtube",
             enabled=True,
@@ -1959,8 +1954,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         worker.run()
 
-        profile.set_profile_enabled.assert_called_once_with("zapret2_mode", "template:youtube", True)
-        profile.list_profiles.assert_called_once_with("zapret2_mode")
+        service.set_profile_enabled.assert_called_once_with("template:youtube", True)
+        service.list_profiles.assert_called_once_with()
         self.assertEqual(finished[0][:3], (7, "set_enabled", "template:youtube"))
         self.assertEqual(finished[0][3], {"profile_key": "profile-2", "profile_item": created_item})
 

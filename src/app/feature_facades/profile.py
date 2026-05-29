@@ -343,3 +343,49 @@ class ProfileFeature:
             destination_profile_key=destination_profile_key,
             parent=parent,
         )
+
+    def create_profile_context_action_worker(
+        self,
+        request_id: int,
+        launch_method: str,
+        *,
+        action: str,
+        profile_key: str,
+        enabled: bool | None = None,
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfilePresetProfileActionWorker
+
+        service = self._commands()._profile_preset_service(self, launch_method)
+        return ProfilePresetProfileActionWorker(
+            request_id,
+            service,
+            action=action,
+            profile_key=profile_key,
+            enabled=enabled,
+            parent=parent,
+        )
+
+    def create_profile_move_worker(
+        self,
+        request_id: int,
+        launch_method: str,
+        *,
+        action: str,
+        source_profile_key: str,
+        destination_profile_key: str = "",
+        destination_group_key: str = "",
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfilePresetProfileMoveWorker
+
+        service = self._commands()._profile_preset_service(self, launch_method)
+        return ProfilePresetProfileMoveWorker(
+            request_id,
+            service,
+            action=action,
+            source_profile_key=source_profile_key,
+            destination_profile_key=destination_profile_key,
+            destination_group_key=destination_group_key,
+            parent=parent,
+        )

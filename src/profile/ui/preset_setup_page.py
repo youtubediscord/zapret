@@ -10,8 +10,6 @@ from profile.ui.profile_context_menu import ProfileContextMenuActions, show_prof
 from profile.ui.profile_folder_menu import show_profile_folder_menu
 from profile.profile_setup_loader import (
     ProfileFolderActionWorker,
-    ProfilePresetProfileActionWorker,
-    ProfilePresetProfileMoveWorker,
     ProfileUserProfileCreateWorker,
     ProfileUserProfileDeleteWorker,
     ProfileUserProfileUpdateWorker,
@@ -471,9 +469,8 @@ class PresetSetupPageBase(BasePage):
         enabled: bool | None = None,
         parent=None,
     ):
-        return ProfilePresetProfileActionWorker(
+        return self._profile.create_profile_context_action_worker(
             request_id,
-            self._profile,
             launch_method,
             action=action,
             profile_key=profile_key,
@@ -932,9 +929,8 @@ class PresetSetupPageBase(BasePage):
         destination_profile_key: str = "",
         destination_group_key: str = "",
     ):
-        return ProfilePresetProfileMoveWorker(
+        return self._profile.create_profile_move_worker(
             request_id,
-            self._profile,
             launch_method,
             action=action,
             source_profile_key=source_profile_key,
