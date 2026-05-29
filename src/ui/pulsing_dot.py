@@ -14,7 +14,7 @@ class PulsingDot(QWidget):
         self._pulse_phase = 0.0
         self._is_pulsing = False
 
-        self.setFixedSize(28, 28)
+        self.setFixedSize(32, 32)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self._timer = QTimer(self)
@@ -59,7 +59,7 @@ class PulsingDot(QWidget):
                 self._timer.start()
 
     def _tick(self) -> None:
-        self._pulse_phase = (self._pulse_phase + 0.08) % 1.0
+        self._pulse_phase = (self._pulse_phase + 0.1) % 1.0
         self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802
@@ -69,12 +69,12 @@ class PulsingDot(QWidget):
 
         cx = self.width() / 2
         cy = self.height() / 2
-        base_r = 5
+        base_r = 6
 
         if self._is_pulsing:
             for phase_offset in (0.0, 0.5):
                 phase = (self._pulse_phase + phase_offset) % 1.0
-                opacity = max(0.0, 0.5 * (1.0 - phase))
+                opacity = max(0.0, 0.72 * (1.0 - phase))
                 radius = base_r + 10 * phase
                 c = QColor(self._color)
                 c.setAlphaF(opacity)
@@ -84,14 +84,14 @@ class PulsingDot(QWidget):
                 painter.drawEllipse(int(cx - r), int(cy - r), r * 2, r * 2)
 
         glow = QColor(self._color)
-        glow.setAlphaF(0.3)
+        glow.setAlphaF(0.42)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(glow)
         painter.drawEllipse(
-            int(cx - base_r - 2),
-            int(cy - base_r - 2),
-            (base_r + 2) * 2,
-            (base_r + 2) * 2,
+            int(cx - base_r - 3),
+            int(cy - base_r - 3),
+            (base_r + 3) * 2,
+            (base_r + 3) * 2,
         )
 
         painter.setBrush(self._color)

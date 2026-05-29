@@ -99,7 +99,7 @@ def build_status_plan(*, state: str | bool, last_error: str, language: str) -> C
             title=tr_catalog("page.winws2_control.status.running", language=language, default="Zapret работает"),
             description=tr_catalog("page.winws2_control.status.bypass_active", language=language, default="Обход блокировок активен"),
             dot_color="#6ccb5f",
-            pulsing=False,
+            pulsing=True,
             show_start=False,
             show_stop_only=True,
             show_stop_and_exit=True,

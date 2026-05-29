@@ -53,7 +53,10 @@ def apply_status_plan(
     status_title.setText(plan.title)
     status_desc.setText(plan.description)
     status_dot.set_color(plan.dot_color)
-    status_dot.stop_pulse()
+    if plan.pulsing:
+        status_dot.start_pulse()
+    else:
+        status_dot.stop_pulse()
     start_btn.setVisible(plan.show_start)
     update_stop_button_text()
     stop_winws_btn.setVisible(plan.show_stop_only)
