@@ -1427,6 +1427,17 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("time.perf_counter", source)
         self.assertIn("profile_feature.worker.list_profiles.total", source)
 
+    def test_profile_list_worker_receives_narrow_profile_service(self) -> None:
+        init_source = inspect.getsource(ProfileListLoadWorker.__init__)
+        run_source = inspect.getsource(ProfileListLoadWorker.run)
+
+        self.assertIn("profile_service", init_source)
+        self.assertIn("self._service", init_source)
+        self.assertNotIn("self._profile", init_source)
+        self.assertNotIn("launch_method", init_source)
+        self.assertIn("self._service.list_profiles()", run_source)
+        self.assertNotIn("self._profile.list_profiles", run_source)
+
     def test_profile_service_logs_profile_payload_stages(self) -> None:
         source = inspect.getsource(ProfilePresetService._list_profiles_locked)
 
