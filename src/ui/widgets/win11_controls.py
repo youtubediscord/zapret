@@ -290,13 +290,33 @@ class Win11RadioOption(QWidget):
         return self._selected
 
     def set_texts(self, title: str, description: str, recommended_badge: str | None = None) -> None:
+        next_title = str(title or "")
+        next_description = str(description or "")
+        next_badge = None if recommended_badge is None else str(recommended_badge or "")
+        text_key = (next_title, next_description, next_badge)
+        try:
+            title_label = getattr(self, "_title_label", None)
+            desc_label = getattr(self, "_desc_label", None)
+            badge_label = getattr(self, "_badge_label", None)
+            current_title = str(title_label.text() if title_label is not None else "")
+            current_description = str(desc_label.text() if desc_label is not None else "")
+            current_badge = None
+            if next_badge is not None and badge_label is not None and hasattr(badge_label, "text"):
+                current_badge = str(badge_label.text())
+            if (current_title, current_description, current_badge) == text_key:
+                self._last_win11_radio_texts_key = text_key
+                return
+        except Exception:
+            if getattr(self, "_last_win11_radio_texts_key", None) == text_key:
+                return
         try:
             if self._title_label is not None:
-                self._title_label.setText(title)
+                self._title_label.setText(next_title)
             if self._desc_label is not None:
-                self._desc_label.setText(description)
-            if recommended_badge is not None and self._badge_label is not None and hasattr(self._badge_label, "setText"):
-                self._badge_label.setText(recommended_badge)
+                self._desc_label.setText(next_description)
+            if next_badge is not None and self._badge_label is not None and hasattr(self._badge_label, "setText"):
+                self._badge_label.setText(next_badge)
+            self._last_win11_radio_texts_key = text_key
         except Exception:
             pass
 

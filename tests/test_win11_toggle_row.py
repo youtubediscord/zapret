@@ -6,9 +6,15 @@ import unittest
 class _TextLabel:
     def __init__(self, text: str) -> None:
         self._text = str(text)
+        self.set_calls: list[str] = []
 
     def text(self) -> str:
         return self._text
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        value = str(text)
+        self.set_calls.append(value)
+        self._text = value
 
 
 class _SwitchButton:
@@ -99,6 +105,40 @@ class Win11ToggleRowTests(unittest.TestCase):
 
         self.assertEqual(title_calls, ["Title"])
         self.assertEqual(content_calls, ["Description"])
+
+    def test_radio_option_set_texts_skips_duplicate_text(self) -> None:
+        from ui.widgets.win11_controls import Win11RadioOption
+
+        row = Win11RadioOption.__new__(Win11RadioOption)
+        title_label = _TextLabel("Zapret 2")
+        desc_label = _TextLabel("Preset mode")
+        badge_label = _TextLabel("recommended")
+        row._title_label = title_label
+        row._desc_label = desc_label
+        row._badge_label = badge_label
+
+        Win11RadioOption.set_texts(row, "Zapret 2", "Preset mode", "recommended")
+
+        self.assertEqual(title_label.set_calls, [])
+        self.assertEqual(desc_label.set_calls, [])
+        self.assertEqual(badge_label.set_calls, [])
+
+    def test_radio_option_set_texts_applies_changed_text(self) -> None:
+        from ui.widgets.win11_controls import Win11RadioOption
+
+        row = Win11RadioOption.__new__(Win11RadioOption)
+        title_label = _TextLabel("Old")
+        desc_label = _TextLabel("Old description")
+        badge_label = _TextLabel("old")
+        row._title_label = title_label
+        row._desc_label = desc_label
+        row._badge_label = badge_label
+
+        Win11RadioOption.set_texts(row, "Zapret 2", "Preset mode", "recommended")
+
+        self.assertEqual(title_label.set_calls, ["Zapret 2"])
+        self.assertEqual(desc_label.set_calls, ["Preset mode"])
+        self.assertEqual(badge_label.set_calls, ["recommended"])
 
 
 if __name__ == "__main__":
