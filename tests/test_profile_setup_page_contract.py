@@ -1063,6 +1063,37 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertFalse(model.index(row, 0).data(ProfileListModel.EnabledRole))
         self.assertEqual(model.index(row, 0).data(ProfileListModel.StrategyNameRole), "Выключен")
 
+    def test_profile_model_skips_replacing_identical_profile_row(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        youtube = SimpleNamespace(
+            key="profile:0",
+            persistent_key="p0",
+            profile_index=0,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="tls_fake",
+            strategy_name="TLS Fake",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=0,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+
+        model = ProfileListModel()
+        model.set_profiles((youtube,))
+        model.beginResetModel = Mock(side_effect=AssertionError("same profile row must not reset the whole model"))
+        model.index = Mock(side_effect=AssertionError("same profile row must not repaint"))
+
+        self.assertTrue(model.replace_profile("profile:0", youtube))
+        self.assertEqual(model.rowCount(), 2)
+
     def test_profile_model_removes_single_profile_row_without_reset(self) -> None:
         from profile.ui.profile_list_model import ProfileListModel
 
