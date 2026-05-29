@@ -485,6 +485,13 @@ class ProfileFolderActionWorker(QThread):
     def __init__(
         self,
         request_id: int,
+        load_profile_folder_state,
+        create_profile_folder,
+        rename_profile_folder,
+        delete_profile_folder,
+        move_profile_folder_by_step,
+        set_profile_folder_collapsed,
+        reset_profile_folders,
         *,
         action: str,
         folder_key: str = "",
@@ -496,6 +503,13 @@ class ProfileFolderActionWorker(QThread):
     ):
         super().__init__(parent)
         self._request_id = int(request_id)
+        self._load_profile_folder_state = load_profile_folder_state
+        self._create_profile_folder = create_profile_folder
+        self._rename_profile_folder = rename_profile_folder
+        self._delete_profile_folder = delete_profile_folder
+        self._move_profile_folder_by_step = move_profile_folder_by_step
+        self._set_profile_folder_collapsed = set_profile_folder_collapsed
+        self._reset_profile_folders = reset_profile_folders
         self._action = str(action or "").strip()
         self._folder_key = str(folder_key or "").strip()
         self._name = str(name or "").strip()
@@ -504,16 +518,6 @@ class ProfileFolderActionWorker(QThread):
         self._context_extra = dict(context_extra or {})
 
     def run(self) -> None:
-        from profile.folders import (
-            create_profile_folder,
-            delete_profile_folder,
-            load_profile_folder_state,
-            move_profile_folder_by_step,
-            rename_profile_folder,
-            reset_profile_folders,
-            set_profile_folder_collapsed,
-        )
-
         context = {
             "folder_key": self._folder_key,
             "name": self._name,
@@ -523,19 +527,19 @@ class ProfileFolderActionWorker(QThread):
         context.update(self._context_extra)
         try:
             if self._action == "load_state":
-                result = load_profile_folder_state()
+                result = self._load_profile_folder_state()
             elif self._action == "create":
-                result = create_profile_folder(self._name)
+                result = self._create_profile_folder(self._name)
             elif self._action == "rename":
-                result = rename_profile_folder(self._folder_key, self._name)
+                result = self._rename_profile_folder(self._folder_key, self._name)
             elif self._action == "delete":
-                result = delete_profile_folder(self._folder_key)
+                result = self._delete_profile_folder(self._folder_key)
             elif self._action == "move_step":
-                result = move_profile_folder_by_step(self._folder_key, self._direction)
+                result = self._move_profile_folder_by_step(self._folder_key, self._direction)
             elif self._action == "set_collapsed":
-                result = set_profile_folder_collapsed(self._folder_key, self._collapsed)
+                result = self._set_profile_folder_collapsed(self._folder_key, self._collapsed)
             elif self._action == "reset":
-                result = reset_profile_folders()
+                result = self._reset_profile_folders()
             else:
                 raise ValueError(f"Неизвестное действие папки profile: {self._action}")
         except Exception as exc:
@@ -544,7 +548,7 @@ class ProfileFolderActionWorker(QThread):
             return
         if self._action != "load_state" and bool(result):
             try:
-                context["folder_state"] = load_profile_folder_state()
+                context["folder_state"] = self._load_profile_folder_state()
             except Exception as exc:
                 log(f"ProfileFolderActionWorker: не удалось обновить состояние папок profile: {exc}", "DEBUG")
         self.completed.emit(self._request_id, self._action, result, context)

@@ -5,6 +5,15 @@ import time
 from PyQt6.QtCore import QTimer
 
 from log.log import log
+from profile.folders import (
+    create_profile_folder,
+    delete_profile_folder,
+    load_profile_folder_state,
+    move_profile_folder_by_step,
+    rename_profile_folder,
+    reset_profile_folders,
+    set_profile_folder_collapsed,
+)
 from profile.match_filters import filter_values
 from profile.ui.profile_context_menu import ProfileContextMenuActions, show_profile_context_menu
 from profile.ui.profile_folder_menu import show_profile_folder_menu
@@ -1011,6 +1020,13 @@ class PresetSetupPageBase(BasePage):
     ):
         return ProfileFolderActionWorker(
             request_id,
+            load_profile_folder_state,
+            create_profile_folder,
+            rename_profile_folder,
+            delete_profile_folder,
+            move_profile_folder_by_step,
+            set_profile_folder_collapsed,
+            reset_profile_folders,
             action=action,
             folder_key=folder_key,
             name=name,
