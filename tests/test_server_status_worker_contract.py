@@ -131,12 +131,17 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
         from updater.retry_workers import UpdaterServerRetryWithoutDpiWorker
 
         worker_source = inspect.getsource(UpdaterServerRetryWithoutDpiWorker.run)
+        init_signature = inspect.signature(UpdaterServerRetryWithoutDpiWorker.__init__)
         self.assertTrue(hasattr(updater_commands, "retry_server_check_without_dpi"))
+        command_signature = inspect.signature(updater_commands.retry_server_check_without_dpi)
         command_source = inspect.getsource(updater_commands.retry_server_check_without_dpi)
 
         self.assertIn("updater_commands.retry_server_check_without_dpi", worker_source)
-        self.assertNotIn("shutdown_sync", worker_source)
-        self.assertNotIn("is_any_running", worker_source)
+        self.assertNotIn("runtime_feature", init_signature.parameters)
+        self.assertNotIn("runtime_feature", command_signature.parameters)
+        self.assertNotIn("_runtime_feature", inspect.getsource(UpdaterServerRetryWithoutDpiWorker))
+        self.assertNotIn("self._shutdown_sync(", worker_source)
+        self.assertNotIn("self._is_any_running(", worker_source)
         self.assertIn("shutdown_sync", command_source)
         self.assertIn("is_any_running", command_source)
 
@@ -144,7 +149,11 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
             is_any_running=Mock(return_value=True),
             shutdown_sync=Mock(return_value=SimpleNamespace(still_running=False)),
         )
-        worker = UpdaterServerRetryWithoutDpiWorker(7, runtime_feature=runtime_feature)
+        worker = UpdaterServerRetryWithoutDpiWorker(
+            7,
+            is_any_running=runtime_feature.is_any_running,
+            shutdown_sync=runtime_feature.shutdown_sync,
+        )
         results = []
         worker.loaded.connect(lambda *args: results.append(args))
 
@@ -161,12 +170,17 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
         from updater.retry_workers import UpdaterDpiRestartWorker
 
         worker_source = inspect.getsource(UpdaterDpiRestartWorker.run)
+        init_signature = inspect.signature(UpdaterDpiRestartWorker.__init__)
         self.assertTrue(hasattr(updater_commands, "restart_dpi_after_update"))
+        command_signature = inspect.signature(updater_commands.restart_dpi_after_update)
         command_source = inspect.getsource(updater_commands.restart_dpi_after_update)
 
         self.assertIn("updater_commands.restart_dpi_after_update", worker_source)
-        self.assertNotIn("self._runtime_feature.restart", worker_source)
-        self.assertNotIn("self._runtime_feature.is_available", worker_source)
+        self.assertNotIn("runtime_feature", init_signature.parameters)
+        self.assertNotIn("runtime_feature", command_signature.parameters)
+        self.assertNotIn("_runtime_feature", inspect.getsource(UpdaterDpiRestartWorker))
+        self.assertNotIn("self._restart()", worker_source)
+        self.assertNotIn("self._is_available()", worker_source)
         self.assertIn("restart", command_source)
         self.assertIn("is_available", command_source)
 
@@ -174,7 +188,12 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
             is_available=Mock(return_value=True),
             restart=Mock(return_value=True),
         )
-        worker = UpdaterDpiRestartWorker(9, runtime_feature=runtime_feature, context="test")
+        worker = UpdaterDpiRestartWorker(
+            9,
+            is_available=runtime_feature.is_available,
+            restart=runtime_feature.restart,
+            context="test",
+        )
         results = []
         worker.loaded.connect(lambda *args: results.append(args))
 

@@ -39,11 +39,11 @@ def open_update_channel(channel: str) -> UpdateChannelActionResult:
         return UpdateChannelActionResult(False, str(exc))
 
 
-def retry_server_check_without_dpi(runtime_feature) -> tuple[bool, bool, str]:
-    if not runtime_feature.is_any_running():
+def retry_server_check_without_dpi(*, is_any_running, shutdown_sync) -> tuple[bool, bool, str]:
+    if not is_any_running():
         return False, False, ""
 
-    shutdown_result = runtime_feature.shutdown_sync(
+    shutdown_result = shutdown_sync(
         reason="server_status_probe_retry",
         include_cleanup=True,
     )
@@ -52,7 +52,7 @@ def retry_server_check_without_dpi(runtime_feature) -> tuple[bool, bool, str]:
     return True, True, ""
 
 
-def restart_dpi_after_update(runtime_feature) -> bool:
-    if not runtime_feature.is_available():
+def restart_dpi_after_update(*, is_available, restart) -> bool:
+    if not is_available():
         return False
-    return bool(runtime_feature.restart())
+    return bool(restart())

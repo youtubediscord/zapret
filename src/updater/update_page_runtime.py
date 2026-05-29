@@ -641,7 +641,8 @@ class UpdatePageRuntime:
 
         return UpdaterServerRetryWithoutDpiWorker(
             request_id,
-            runtime_feature=self._runtime_feature,
+            is_any_running=self._runtime_feature.is_any_running,
+            shutdown_sync=self._runtime_feature.shutdown_sync,
             parent=self._view.window(),
         )
 
@@ -650,7 +651,8 @@ class UpdatePageRuntime:
 
         return UpdaterDpiRestartWorker(
             request_id,
-            runtime_feature=self._runtime_feature,
+            is_available=self._runtime_feature.is_available,
+            restart=self._runtime_feature.restart,
             context=context,
             parent=self._view.window(),
         )
