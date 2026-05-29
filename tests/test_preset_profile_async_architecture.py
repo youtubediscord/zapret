@@ -2472,6 +2472,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_update_channel_open_worker", feature_source)
         self.assertIn("open_update_channel", worker_source)
 
+    def test_updater_server_retry_without_dpi_runs_through_worker(self) -> None:
+        retry_workers = importlib.import_module("updater.retry_workers")
+        update_runtime_cls = __import__("updater.update_page_runtime", fromlist=["UpdatePageRuntime"]).UpdatePageRuntime
+
+        retry_source = inspect.getsource(update_runtime_cls._maybe_retry_server_check_without_dpi)
+        runtime_source = inspect.getsource(update_runtime_cls)
+
+        self.assertTrue(hasattr(retry_workers, "UpdaterServerRetryWithoutDpiWorker"))
+        worker_source = inspect.getsource(retry_workers.UpdaterServerRetryWithoutDpiWorker.run)
+
+        self.assertIn("_request_server_retry_without_dpi", retry_source)
+        self.assertNotIn("shutdown_sync", retry_source)
+        self.assertNotIn("is_any_running", retry_source)
+        self.assertIn("_server_retry_without_dpi_runtime", runtime_source)
+        self.assertIn("create_server_retry_without_dpi_worker", runtime_source)
+        self.assertIn("_teardown_server_retry_without_dpi_worker", runtime_source)
+        self.assertIn("is_any_running", worker_source)
+        self.assertIn("shutdown_sync", worker_source)
+
     def test_logs_cleanup_stops_overview_worker(self) -> None:
         cleanup_source = inspect.getsource(LogsPage.cleanup)
 

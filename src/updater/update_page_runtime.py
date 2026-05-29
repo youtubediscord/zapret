@@ -122,6 +122,7 @@ class UpdatePageRuntime:
 
         self._server_worker_runtime = OneShotWorkerRuntime()
         self._version_worker_runtime = OneShotWorkerRuntime()
+        self._server_retry_without_dpi_runtime = OneShotWorkerRuntime()
         self._auto_check_load_runtime = OneShotWorkerRuntime()
         self._auto_check_save_runtime = OneShotWorkerRuntime()
         self._update_channel_open_runtime = OneShotWorkerRuntime()
@@ -167,8 +168,10 @@ class UpdatePageRuntime:
                 "install_update",
                 "cleanup",
                 "_start_server_check_workflow",
+                "_request_server_retry_without_dpi",
                 "_start_version_check_workflow",
                 "_create_server_worker",
+                "create_server_retry_without_dpi_worker",
                 "_create_version_worker",
                 "_create_update_worker_runtime",
                 "_bind_server_worker_signals",
@@ -176,6 +179,7 @@ class UpdatePageRuntime:
                 "_bind_update_worker_signals",
                 "_handle_update_thread_finished",
                 "_teardown_server_worker",
+                "_teardown_server_retry_without_dpi_worker",
                 "_teardown_version_worker",
                 "_request_auto_check_load",
                 "request_open_update_channel",
@@ -210,6 +214,7 @@ class UpdatePageRuntime:
             worker_runtime_fields=(
                 "_server_worker_runtime",
                 "_version_worker_runtime",
+                "_server_retry_without_dpi_runtime",
                 "_auto_check_load_runtime",
                 "_update_channel_open_runtime",
                 "_update_thread",
@@ -238,6 +243,7 @@ class UpdatePageRuntime:
             ),
             cleanup_extraction_candidates=(
                 "_teardown_server_worker",
+                "_teardown_server_retry_without_dpi_worker",
                 "_teardown_version_worker",
                 "_teardown_auto_check_load_worker",
                 "_teardown_update_channel_open_worker",
@@ -500,6 +506,7 @@ class UpdatePageRuntime:
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
         self._teardown_server_worker()
+        self._teardown_server_retry_without_dpi_worker()
         self._teardown_version_worker()
         self._teardown_auto_check_load_worker()
         self._teardown_auto_check_save_worker()
@@ -624,6 +631,15 @@ class UpdatePageRuntime:
             language=self._view.get_ui_language(),
         )
 
+    def create_server_retry_without_dpi_worker(self, request_id: int):
+        from updater.retry_workers import UpdaterServerRetryWithoutDpiWorker
+
+        return UpdaterServerRetryWithoutDpiWorker(
+            request_id,
+            runtime_feature=self._runtime_feature,
+            parent=self._view.window(),
+        )
+
     def _create_version_worker(self):
         from updater.server_status_workers import VersionCheckWorker
 
@@ -679,6 +695,14 @@ class UpdatePageRuntime:
             warning_prefix="server_worker",
         )
         self._server_worker_runtime.cancel()
+
+    def _teardown_server_retry_without_dpi_worker(self) -> None:
+        self._server_retry_without_dpi_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="server_retry_without_dpi_worker",
+        )
+        self._server_retry_without_dpi_runtime.cancel()
 
     def _teardown_version_worker(self) -> None:
         self._version_worker_runtime.stop(
@@ -798,35 +822,56 @@ class UpdatePageRuntime:
         ):
             return False
 
-        try:
-            if not self._runtime_feature.is_any_running():
-                return False
-        except Exception as e:
-            log(f"Не удалось проверить состояние DPI перед повторной проверкой серверов: {e}", "DEBUG")
-            return False
+        self._request_server_retry_without_dpi()
+        return True
 
+    def _request_server_retry_without_dpi(self) -> None:
+        recovery = self._server_check_recovery
         recovery.attempted = True
         recovery.retry_running = True
         recovery.online_source_seen = False
+        self._server_retry_without_dpi_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_server_retry_without_dpi_worker(request_id),
+            on_loaded=self._on_server_retry_without_dpi_finished,
+            on_failed=self._on_server_retry_without_dpi_failed,
+            on_finished=self._on_server_retry_without_dpi_worker_finished,
+        )
 
-        try:
-            log("⚠️ Серверы недоступны при запущенном DPI — делаем один повтор без DPI", "🔄 UPDATE")
-            shutdown_result = self._runtime_feature.shutdown_sync(
-                reason="server_status_probe_retry",
-                include_cleanup=True,
-            )
-            if bool(getattr(shutdown_result, "still_running", False)):
-                log("Повтор проверки серверов без DPI пропущен: DPI не остановился", "🔄 UPDATE")
-                recovery.retry_running = False
-                return False
-        except Exception as e:
-            log(f"Не удалось временно остановить DPI для проверки серверов: {e}", "❌ ERROR")
-            recovery.retry_running = False
-            return False
+    def _on_server_retry_without_dpi_finished(
+        self,
+        request_id: int,
+        should_retry: bool,
+        dpi_stopped: bool,
+        _message: str,
+    ) -> None:
+        if not self._server_retry_without_dpi_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
 
-        recovery.dpi_stopped = True
-        self._start_server_check_workflow(telegram_only=False)
-        return True
+        recovery = self._server_check_recovery
+        recovery.retry_running = False
+        if should_retry:
+            recovery.dpi_stopped = bool(dpi_stopped)
+            self._start_server_check_workflow(telegram_only=False)
+            return
+
+        self._start_version_check_workflow()
+
+    def _on_server_retry_without_dpi_failed(self, request_id: int, error: str) -> None:
+        if not self._server_retry_without_dpi_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        log(f"Не удалось подготовить повторную проверку серверов без DPI: {error}", "❌ ERROR")
+        self._server_check_recovery.retry_running = False
+        self._start_version_check_workflow()
+
+    def _on_server_retry_without_dpi_worker_finished(self, worker) -> None:
+        if self._server_retry_without_dpi_runtime.worker is worker:
+            self._server_retry_without_dpi_runtime.worker = None
 
     def _restart_dpi_after_server_check_retry(self) -> None:
         recovery = self._server_check_recovery
