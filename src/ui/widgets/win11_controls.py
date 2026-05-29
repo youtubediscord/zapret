@@ -127,9 +127,15 @@ class Win11ToggleRow(FluentSettingCard):
         toggle = getattr(self, "_switch_button", None)
         if toggle is None:
             return
+        next_checked = bool(checked)
+        try:
+            if bool(toggle.isChecked()) == next_checked:
+                return
+        except Exception:
+            pass
         if block_signals:
             toggle.blockSignals(True)
-        toggle.setChecked(bool(checked))
+        toggle.setChecked(next_checked)
         if block_signals:
             toggle.blockSignals(False)
 
