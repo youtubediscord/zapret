@@ -164,6 +164,8 @@ class OrchestraLockedPage(BasePage):
         self._refresh_loading = False
         self._cleanup_in_progress = False
         self._snapshot_load_runtime = OneShotWorkerRuntime()
+        self._managed_action_runtime = OneShotWorkerRuntime()
+        self._managed_action_pending: list[tuple[str, dict]] = []
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -454,6 +456,93 @@ class OrchestraLockedPage(BasePage):
         if self._snapshot_load_runtime.worker is worker:
             self._snapshot_load_runtime.worker = None
 
+    def create_action_worker(self, request_id: int, *, action: str, **kwargs):
+        return self._managed.create_action_worker(
+            request_id,
+            action=action,
+            parent=self,
+            **kwargs,
+        )
+
+    def _request_managed_action(self, action: str, **kwargs) -> None:
+        if self._cleanup_in_progress:
+            return
+        payload = (str(action or "").strip(), dict(kwargs))
+        if self._managed_action_runtime.is_running():
+            self._managed_action_pending.append(payload)
+            return
+        self._start_managed_action(payload)
+
+    def _start_managed_action(self, payload: tuple[str, dict]) -> None:
+        action, kwargs = payload
+        self._managed_action_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_action_worker(
+                request_id,
+                action=action,
+                **kwargs,
+            ),
+            on_loaded=self._on_managed_action_loaded,
+            on_failed=self._on_managed_action_failed,
+            on_finished=self._on_managed_action_worker_finished,
+        )
+
+    def _on_managed_action_loaded(self, request_id: int, action: str, payload, context) -> None:
+        if not self._managed_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        payload = dict(payload or {})
+        context = dict(context or {})
+        result = payload.get("result")
+        if payload.get("snapshot") is not None:
+            self._snapshot_load_runtime.cancel()
+            self._refresh_data()
+
+        if action == "locked_add" and bool(getattr(result, "changed", False)):
+            self.domain_input.clear()
+
+        if not bool(getattr(result, "restarted", False)) or InfoBar is None:
+            return
+
+        if action == "locked_remove":
+            content = self._tr(
+                "page.orchestra.locked.infobar.unlocked",
+                "Стратегия разлочена для {domain}. Оркестратор перезапускается.",
+                domain=str(context.get("domain") or ""),
+            )
+        elif action == "locked_clear":
+            content = self._tr(
+                "page.orchestra.locked.infobar.unlocked_all",
+                "Разлочены все {total} стратегий. Оркестратор перезапускается.",
+                total=int(context.get("total") or 0),
+            )
+        else:
+            return
+
+        InfoBar.success(
+            title=self._tr("page.orchestra.locked.infobar.applied.title", "Применено"),
+            content=content,
+            isClosable=True,
+            duration=3000,
+            parent=self.window(),
+        )
+
+    def _on_managed_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if not self._managed_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        log(f"Не удалось выполнить действие залоченных стратегий ({action}): {error}", "WARNING")
+
+    def _on_managed_action_worker_finished(self, worker) -> None:
+        if self._managed_action_runtime.worker is worker:
+            self._managed_action_runtime.worker = None
+        if self._managed_action_pending and not self._cleanup_in_progress:
+            pending = self._managed_action_pending.pop(0)
+            self._start_managed_action(pending)
+
     def _refresh_locked_list(self):
         """Обновляет список залоченных стратегий"""
         if self._cleanup_in_progress:
@@ -518,7 +607,8 @@ class OrchestraLockedPage(BasePage):
                 row.strat_spin.blockSignals(False)
             return  # Не сохраняем заблокированную стратегию
 
-        self._managed.change_strategy(
+        self._request_managed_action(
+            "locked_change",
             domain=domain,
             new_strategy=new_strategy,
             askey=askey,
@@ -526,23 +616,11 @@ class OrchestraLockedPage(BasePage):
 
     def _on_row_delete_requested(self, domain: str, askey: str):
         """Разлочивание при нажатии кнопки удаления"""
-        result = self._managed.remove_strategy(
+        self._request_managed_action(
+            "locked_remove",
             domain=domain,
             askey=askey,
         )
-        self._refresh_data()
-        if result.restarted and InfoBar is not None:
-            InfoBar.success(
-                title=self._tr("page.orchestra.locked.infobar.applied.title", "Применено"),
-                content=self._tr(
-                    "page.orchestra.locked.infobar.unlocked",
-                    "Стратегия разлочена для {domain}. Оркестратор перезапускается.",
-                    domain=domain,
-                ),
-                isClosable=True,
-                duration=3000,
-                parent=self.window()
-            )
 
     def _update_count(self):
         """Обновляет счётчик"""
@@ -579,15 +657,12 @@ class OrchestraLockedPage(BasePage):
             log(f"[USER] Попытка залочить заблокированную стратегию #{strategy} для {domain}", "WARNING")
             return  # Не лочим заблокированную стратегию
 
-        self._managed.add_strategy(
+        self._request_managed_action(
+            "locked_add",
             domain=domain,
             strategy=strategy,
             askey=askey,
         )
-
-        # Очищаем поле и обновляем список
-        self.domain_input.clear()
-        self._refresh_data()
 
     def _unlock_all(self):
         """Разлочивает все стратегии"""
@@ -615,21 +690,7 @@ class OrchestraLockedPage(BasePage):
             confirmed = False  # qfluentwidgets недоступен — действие отменено
 
         if confirmed:
-            result = self._managed.clear_strategies(total=total)
-            self._refresh_data()
-            if result.restarted:
-                if InfoBar is not None:
-                    InfoBar.success(
-                        title=self._tr("page.orchestra.locked.infobar.applied.title", "Применено"),
-                        content=self._tr(
-                            "page.orchestra.locked.infobar.unlocked_all",
-                            "Разлочены все {total} стратегий. Оркестратор перезапускается.",
-                            total=total,
-                        ),
-                        isClosable=True,
-                        duration=3000,
-                        parent=self.window()
-                    )
+            self._request_managed_action("locked_clear", total=total)
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
@@ -639,7 +700,14 @@ class OrchestraLockedPage(BasePage):
             log_fn=log,
             warning_prefix="Orchestra locked snapshot worker",
         )
+        self._managed_action_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="Orchestra locked action worker",
+        )
         self._snapshot_load_runtime.cancel()
+        self._managed_action_runtime.cancel()
+        self._managed_action_pending.clear()
         try:
             self.notification_banner.auto_hide_timer.stop()
             self.notification_banner.hide()

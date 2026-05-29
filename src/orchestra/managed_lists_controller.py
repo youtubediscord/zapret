@@ -51,6 +51,17 @@ class BlockedStrategiesController:
 
         return OrchestraManagedSnapshotLoadWorker(request_id, self, parent)
 
+    def create_action_worker(self, request_id: int, *, action: str, parent=None, **kwargs):
+        from orchestra.managed_lists_workers import OrchestraManagedActionWorker
+
+        return OrchestraManagedActionWorker(
+            request_id,
+            self,
+            action=action,
+            parent=parent,
+            **kwargs,
+        )
+
     def load_direct_snapshot(self) -> None:
         snapshot = reload_blocked_snapshot(
             orchestra=self._orchestra,
@@ -132,6 +143,17 @@ class LockedStrategiesController:
         from orchestra.managed_lists_workers import OrchestraManagedSnapshotLoadWorker
 
         return OrchestraManagedSnapshotLoadWorker(request_id, self, parent)
+
+    def create_action_worker(self, request_id: int, *, action: str, parent=None, **kwargs):
+        from orchestra.managed_lists_workers import OrchestraManagedActionWorker
+
+        return OrchestraManagedActionWorker(
+            request_id,
+            self,
+            action=action,
+            parent=parent,
+            **kwargs,
+        )
 
     def load_direct_snapshot(self) -> None:
         snapshot = reload_locked_snapshot(

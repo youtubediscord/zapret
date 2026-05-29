@@ -2882,6 +2882,48 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_snapshot_load_worker", controller_source)
         self.assertIn("snapshot(refresh=self._refresh)", worker_source)
 
+    def test_orchestra_managed_list_actions_run_through_worker(self) -> None:
+        managed_workers = importlib.import_module("orchestra.managed_lists_workers")
+
+        blocked_sources = (
+            inspect.getsource(OrchestraBlockedPage._on_row_strategy_changed),
+            inspect.getsource(OrchestraBlockedPage._on_row_delete_requested),
+            inspect.getsource(OrchestraBlockedPage._block_strategy),
+            inspect.getsource(OrchestraBlockedPage._unblock_all),
+        )
+        locked_sources = (
+            inspect.getsource(OrchestraLockedPage._on_row_strategy_changed),
+            inspect.getsource(OrchestraLockedPage._on_row_delete_requested),
+            inspect.getsource(OrchestraLockedPage._lock_strategy),
+            inspect.getsource(OrchestraLockedPage._unlock_all),
+        )
+        page_sources = "\n".join(
+            (
+                inspect.getsource(OrchestraBlockedPage),
+                inspect.getsource(OrchestraLockedPage),
+            )
+        )
+        controller_source = inspect.getsource(orchestra_managed_lists_controller)
+
+        for source in blocked_sources + locked_sources:
+            self.assertIn("_request_managed_action", source)
+            self.assertNotIn("self._managed.change_strategy", source)
+            self.assertNotIn("self._managed.remove_strategy", source)
+            self.assertNotIn("self._managed.add_strategy", source)
+            self.assertNotIn("self._managed.clear_user_strategies", source)
+            self.assertNotIn("self._managed.clear_strategies", source)
+
+        self.assertTrue(hasattr(managed_workers, "OrchestraManagedActionWorker"))
+        worker_source = inspect.getsource(managed_workers.OrchestraManagedActionWorker.run)
+        self.assertIn("OneShotWorkerRuntime", page_sources)
+        self.assertIn("create_action_worker", page_sources)
+        self.assertIn("create_action_worker", controller_source)
+        self.assertIn("change_strategy", worker_source)
+        self.assertIn("remove_strategy", worker_source)
+        self.assertIn("add_strategy", worker_source)
+        self.assertIn("clear_user_strategies", worker_source)
+        self.assertIn("clear_strategies", worker_source)
+
     def test_page_host_logs_first_and_repeat_show_for_all_pages(self) -> None:
         init_source = inspect.getsource(WindowPageHost.__init__)
         show_source = inspect.getsource(WindowPageHost.show_page)

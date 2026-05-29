@@ -227,6 +227,8 @@ class OrchestraBlockedPage(BasePage):
         self._refresh_loading = False
         self._cleanup_in_progress = False
         self._snapshot_load_runtime = OneShotWorkerRuntime()
+        self._managed_action_runtime = OneShotWorkerRuntime()
+        self._managed_action_pending: list[tuple[str, dict]] = []
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -535,6 +537,100 @@ class OrchestraBlockedPage(BasePage):
         if self._snapshot_load_runtime.worker is worker:
             self._snapshot_load_runtime.worker = None
 
+    def create_action_worker(self, request_id: int, *, action: str, **kwargs):
+        return self._managed.create_action_worker(
+            request_id,
+            action=action,
+            parent=self,
+            **kwargs,
+        )
+
+    def _request_managed_action(self, action: str, **kwargs) -> None:
+        if self._cleanup_in_progress:
+            return
+        payload = (str(action or "").strip(), dict(kwargs))
+        if self._managed_action_runtime.is_running():
+            self._managed_action_pending.append(payload)
+            return
+        self._start_managed_action(payload)
+
+    def _start_managed_action(self, payload: tuple[str, dict]) -> None:
+        action, kwargs = payload
+        self._managed_action_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_action_worker(
+                request_id,
+                action=action,
+                **kwargs,
+            ),
+            on_loaded=self._on_managed_action_loaded,
+            on_failed=self._on_managed_action_failed,
+            on_finished=self._on_managed_action_worker_finished,
+        )
+
+    def _on_managed_action_loaded(self, request_id: int, action: str, payload, context) -> None:
+        if not self._managed_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        payload = dict(payload or {})
+        context = dict(context or {})
+        result = payload.get("result")
+        if payload.get("snapshot") is not None:
+            self._snapshot_load_runtime.cancel()
+            self._refresh_data()
+
+        if action == "blocked_add" and bool(getattr(result, "changed", False)):
+            self.domain_input.clear()
+
+        if not bool(getattr(result, "restarted", False)) or InfoBar is None:
+            return
+
+        if action == "blocked_add":
+            content = self._tr(
+                "page.orchestra.blocked.infobar.blocked",
+                "Стратегия #{strategy} заблокирована для {domain}. Оркестратор перезапускается.",
+                strategy=int(context.get("strategy") or 0),
+                domain=str(context.get("domain") or ""),
+            )
+        elif action == "blocked_remove":
+            content = self._tr(
+                "page.orchestra.blocked.infobar.unblocked",
+                "Стратегия #{strategy} разблокирована для {domain}. Оркестратор перезапускается.",
+                strategy=int(context.get("strategy") or 0),
+                domain=str(context.get("hostname") or ""),
+            )
+        elif action == "blocked_clear_user":
+            content = self._tr(
+                "page.orchestra.blocked.infobar.cleared",
+                "Чёрный список очищен. Оркестратор перезапускается.",
+            )
+        else:
+            return
+
+        InfoBar.success(
+            title=self._tr("page.orchestra.blocked.infobar.applied.title", "Применено"),
+            content=content,
+            isClosable=True,
+            duration=3000,
+            parent=self.window(),
+        )
+
+    def _on_managed_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
+        if not self._managed_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        log(f"Не удалось выполнить действие заблокированных стратегий ({action}): {error}", "WARNING")
+
+    def _on_managed_action_worker_finished(self, worker) -> None:
+        if self._managed_action_runtime.worker is worker:
+            self._managed_action_runtime.worker = None
+        if self._managed_action_pending and not self._cleanup_in_progress:
+            pending = self._managed_action_pending.pop(0)
+            self._start_managed_action(pending)
+
     def _refresh_blocked_list(self):
         """Обновляет список заблокированных стратегий"""
         if self._cleanup_in_progress:
@@ -634,7 +730,8 @@ class OrchestraBlockedPage(BasePage):
             self._refresh_data()
             return
 
-        self._managed.change_strategy(
+        self._request_managed_action(
+            "blocked_change",
             hostname=hostname,
             old_strategy=old_strategy,
             new_strategy=new_strategy,
@@ -643,25 +740,12 @@ class OrchestraBlockedPage(BasePage):
 
     def _on_row_delete_requested(self, hostname: str, strategy: int, askey: str):
         """Разблокирование при нажатии кнопки удаления"""
-        result = self._managed.remove_strategy(
+        self._request_managed_action(
+            "blocked_remove",
             hostname=hostname,
             strategy=strategy,
             askey=askey,
         )
-        if result.restarted and InfoBar is not None:
-            InfoBar.success(
-                title=self._tr("page.orchestra.blocked.infobar.applied.title", "Применено"),
-                content=self._tr(
-                    "page.orchestra.blocked.infobar.unblocked",
-                    "Стратегия #{strategy} разблокирована для {domain}. Оркестратор перезапускается.",
-                    strategy=strategy,
-                    domain=hostname,
-                ),
-                isClosable=True,
-                duration=3000,
-                parent=self.window(),
-            )
-        self._refresh_data()
 
     def _prefill_domain(self, hostname: str):
         """Заполняет форму добавления указанным доменом и фокусируется на SpinBox"""
@@ -700,30 +784,12 @@ class OrchestraBlockedPage(BasePage):
         strategy = self.strat_spin.value()
         askey = self.proto_combo.currentText().lower()
 
-        # Очищаем поле после добавления
-        self.domain_input.clear()
-
-        result = self._managed.add_strategy(
+        self._request_managed_action(
+            "blocked_add",
             domain=domain,
             strategy=strategy,
             askey=askey,
         )
-        self._refresh_data()
-
-        if result.restarted:
-            if InfoBar is not None:
-                InfoBar.success(
-                    title=self._tr("page.orchestra.blocked.infobar.applied.title", "Применено"),
-                    content=self._tr(
-                        "page.orchestra.blocked.infobar.blocked",
-                        "Стратегия #{strategy} заблокирована для {domain}. Оркестратор перезапускается.",
-                        strategy=strategy,
-                        domain=domain,
-                    ),
-                    isClosable=True,
-                    duration=3000,
-                    parent=self.window(),
-                )
 
     def _unblock_all(self):
         """Очищает пользовательский чёрный список (системные блокировки остаются)"""
@@ -761,20 +827,7 @@ class OrchestraBlockedPage(BasePage):
             )
             confirmed = bool(box.exec())
         if confirmed:
-            result = self._managed.clear_user_strategies(user_count=user_count)
-            self._refresh_data()
-            if result.restarted:
-                if InfoBar is not None:
-                    InfoBar.success(
-                        title=self._tr("page.orchestra.blocked.infobar.applied.title", "Применено"),
-                        content=self._tr(
-                            "page.orchestra.blocked.infobar.cleared",
-                            "Чёрный список очищен. Оркестратор перезапускается.",
-                        ),
-                        isClosable=True,
-                        duration=3000,
-                        parent=self.window(),
-                    )
+            self._request_managed_action("blocked_clear_user", user_count=user_count)
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
@@ -784,4 +837,11 @@ class OrchestraBlockedPage(BasePage):
             log_fn=log,
             warning_prefix="Orchestra blocked snapshot worker",
         )
+        self._managed_action_runtime.stop(
+            blocking=True,
+            log_fn=log,
+            warning_prefix="Orchestra blocked action worker",
+        )
         self._snapshot_load_runtime.cancel()
+        self._managed_action_runtime.cancel()
+        self._managed_action_pending.clear()
