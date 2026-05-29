@@ -438,8 +438,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         request_id = runtime.next_top_summary_request_id()
         worker = create_control_top_summary_worker(
             request_id,
-            self._presets,
-            self._profile,
+            self._presets.get_selected_source_preset_display,
+            self._profile.get_enabled_profile_count_snapshot,
             launch_method=ZAPRET2_MODE,
             parent=self,
         )
@@ -712,7 +712,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         request_id = runtime.next_additional_settings_request_id()
         worker = create_control_additional_settings_worker(
             request_id,
-            self._profile,
+            self._profile.create_additional_settings_load_worker,
             launch_method=ZAPRET2_MODE,
             parent=self,
         )
@@ -752,9 +752,13 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             except Exception:
                 return
         request_id = runtime.next_additional_settings_save_request_id()
+        from discord.discord_restart import set_discord_restart_setting
+
         worker = create_control_additional_settings_save_worker(
             request_id,
-            self._profile,
+            set_discord_restart_setting,
+            self._profile.set_wssize_enabled,
+            self._profile.set_debug_log_enabled,
             launch_method=launch_method,
             setting=setting,
             enabled=bool(enabled),

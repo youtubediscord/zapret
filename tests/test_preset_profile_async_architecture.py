@@ -2795,6 +2795,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("count_enabled_profiles", zapret1_source)
         self.assertNotIn("get_enabled_profile_count_snapshot", worker_source)
         self.assertIn("get_enabled_profile_count_snapshot", factory_source)
+        self.assertNotIn("presets_feature", factory_source)
+        self.assertNotIn("profile_feature", factory_source)
 
     def test_control_page_docs_open_through_worker(self) -> None:
         spec = importlib.util.find_spec("app.external_workers")
@@ -2845,6 +2847,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("self._state_loader()", worker_run_source)
         self.assertNotIn("get_additional_settings_state", worker_run_source)
         self.assertNotIn("ZAPRET2_MODE", worker_run_source)
+        factory_source = inspect.getsource(control_additional_settings_runtime.create_additional_settings_worker)
+        self.assertIn("create_load_worker", factory_source)
+        self.assertNotIn("profile_feature", factory_source)
 
     def test_control_additional_settings_runtime_is_shared(self) -> None:
         shared_source = inspect.getsource(control_additional_settings_runtime)
@@ -2906,6 +2911,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("set_discord_restart_setting", factory_source)
         self.assertIn("set_wssize_enabled", factory_source)
         self.assertIn("set_debug_log_enabled", factory_source)
+        self.assertNotIn("profile_feature", factory_source)
 
     def test_control_additional_settings_has_no_legacy_sync_save_helpers(self) -> None:
         for module in (zapret1_runtime_helpers, zapret2_page_runtime):
@@ -3178,10 +3184,10 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("_load_selected_preset_name()", winws2_refresh_source)
         self.assertNotIn("_load_enabled_profile_count()", winws1_refresh_source)
         self.assertNotIn("_load_enabled_profile_count()", winws2_refresh_source)
-        self.assertNotIn("get_selected_source_preset_display", winws1_page_source)
-        self.assertNotIn("get_selected_source_preset_display", winws2_page_source)
-        self.assertNotIn("get_enabled_profile_count_snapshot", winws1_page_source)
-        self.assertNotIn("get_enabled_profile_count_snapshot", winws2_page_source)
+        self.assertNotIn("get_selected_source_preset_display(", winws1_page_source)
+        self.assertNotIn("get_selected_source_preset_display(", winws2_page_source)
+        self.assertNotIn("get_enabled_profile_count_snapshot(", winws1_page_source)
+        self.assertNotIn("get_enabled_profile_count_snapshot(", winws2_page_source)
         self.assertIn("create_top_summary_worker", runtime_source)
         self.assertIn("summary_loader", worker_init_source)
         self.assertIn("self._summary_loader", worker_init_source)
@@ -3193,6 +3199,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("get_enabled_profile_count_snapshot", worker_source)
         self.assertIn("get_selected_source_preset_display", factory_source)
         self.assertIn("get_enabled_profile_count_snapshot", factory_source)
+        self.assertNotIn("presets_feature", factory_source)
+        self.assertNotIn("profile_feature", factory_source)
 
     def test_orchestra_clear_learned_runs_through_worker(self) -> None:
         spec = importlib.util.find_spec("orchestra.page_workers")

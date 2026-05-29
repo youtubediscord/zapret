@@ -25,8 +25,8 @@ class ControlTopSummaryState:
         self.profile_count = profile_count
 
 
-def create_additional_settings_worker(request_id: int, profile_feature, *, launch_method: str, parent=None):
-    return profile_feature.create_additional_settings_load_worker(
+def create_additional_settings_worker(request_id: int, create_load_worker, *, launch_method: str, parent=None):
+    return create_load_worker(
         request_id,
         parent,
         launch_method=launch_method,
@@ -59,8 +59,8 @@ class ControlTopSummaryWorker(QThread):
 
 def create_top_summary_worker(
     request_id: int,
-    presets_feature,
-    profile_feature,
+    get_selected_source_preset_display,
+    get_enabled_profile_count_snapshot,
     *,
     launch_method: str,
     parent=None,
@@ -71,7 +71,7 @@ def create_top_summary_worker(
         preset_text = ""
         preset_tooltip = ""
         try:
-            preset_display = presets_feature.get_selected_source_preset_display(
+            preset_display = get_selected_source_preset_display(
                 clean_launch_method,
             )
             if preset_display:
@@ -82,7 +82,7 @@ def create_top_summary_worker(
 
         profile_count = None
         try:
-            count = profile_feature.get_enabled_profile_count_snapshot(
+            count = get_enabled_profile_count_snapshot(
                 clean_launch_method,
             )
             profile_count = int(count) if count is not None else None
@@ -133,7 +133,9 @@ class AdditionalSettingsSaveWorker(QThread):
 
 def create_additional_settings_save_worker(
     request_id: int,
-    profile_feature,
+    set_discord_restart_setting,
+    set_wssize_enabled,
+    set_debug_log_enabled,
     *,
     launch_method: str,
     setting: str,
@@ -144,16 +146,14 @@ def create_additional_settings_save_worker(
 
     def _save_setting(setting: str, enabled: bool) -> None:
         if setting == "discord_restart":
-            from discord.discord_restart import set_discord_restart_setting
-
             set_discord_restart_setting(bool(enabled))
         elif setting == "wssize":
-            profile_feature.set_wssize_enabled(
+            set_wssize_enabled(
                 bool(enabled),
                 launch_method=clean_launch_method,
             )
         elif setting == "debug_log":
-            profile_feature.set_debug_log_enabled(
+            set_debug_log_enabled(
                 bool(enabled),
                 launch_method=clean_launch_method,
             )
