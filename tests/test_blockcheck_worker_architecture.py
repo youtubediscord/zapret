@@ -9,7 +9,7 @@ import blockcheck.workers as blockcheck_workers
 
 
 class BlockcheckWorkerArchitectureTests(unittest.TestCase):
-    def test_scan_resume_and_finalize_workers_use_public_commands_not_feature_object(self) -> None:
+    def test_scan_resume_and_finalize_workers_receive_feature_action_callables(self) -> None:
         feature_source = "\n".join(
             (
                 inspect.getsource(BlockcheckFeature.create_strategy_scan_resume_save_worker),
@@ -25,8 +25,12 @@ class BlockcheckWorkerArchitectureTests(unittest.TestCase):
 
         self.assertNotIn("blockcheck_feature=self", feature_source)
         self.assertNotIn("self._blockcheck", worker_source)
-        self.assertIn("blockcheck_public.save_resume_state", worker_source)
-        self.assertIn("blockcheck_public.finalize_scan_report", worker_source)
+        self.assertIn("save_resume_state=self.save_resume_state", feature_source)
+        self.assertIn("finalize_scan_report=self.finalize_scan_report", feature_source)
+        self.assertIn("_save_resume_state", worker_source)
+        self.assertIn("_finalize_scan_report", worker_source)
+        self.assertNotIn("blockcheck_public.", worker_source)
+        self.assertNotIn("import blockcheck.public", worker_source)
 
     def test_strategy_apply_worker_uses_apply_callable_not_feature_object(self) -> None:
         feature_source = inspect.getsource(BlockcheckFeature.create_strategy_apply_worker)

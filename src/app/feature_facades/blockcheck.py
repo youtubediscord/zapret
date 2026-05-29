@@ -35,37 +35,68 @@ class BlockcheckFeature:
     def create_page_initial_state_worker(self, request_id: int, *, parent=None):
         from blockcheck.workers import BlockcheckInitialStateWorker
 
-        return BlockcheckInitialStateWorker(request_id, parent=parent)
+        return BlockcheckInitialStateWorker(
+            request_id,
+            load_page_initial_state=self.load_page_initial_state,
+            parent=parent,
+        )
 
     def create_blockcheck_support_prepare_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import BlockcheckSupportPrepareWorker
 
-        return BlockcheckSupportPrepareWorker(request_id, **kwargs)
+        return BlockcheckSupportPrepareWorker(
+            request_id,
+            prepare_support=self.prepare_support,
+            **kwargs,
+        )
 
     def create_user_domain_action_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import BlockcheckUserDomainActionWorker
 
-        return BlockcheckUserDomainActionWorker(request_id, **kwargs)
+        return BlockcheckUserDomainActionWorker(
+            request_id,
+            run_user_domain_action=self.run_user_domain_action,
+            **kwargs,
+        )
 
     def create_strategy_scan_support_prepare_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import StrategyScanSupportPrepareWorker
 
-        return StrategyScanSupportPrepareWorker(request_id, **kwargs)
+        return StrategyScanSupportPrepareWorker(
+            request_id,
+            prepare_strategy_scan_support=self.prepare_strategy_scan_support,
+            **kwargs,
+        )
 
     def create_strategy_scan_quick_targets_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import StrategyScanQuickTargetsWorker
 
-        return StrategyScanQuickTargetsWorker(request_id, **kwargs)
+        return StrategyScanQuickTargetsWorker(
+            request_id,
+            build_quick_target_menu_plan=self.build_quick_target_menu_plan,
+            **kwargs,
+        )
 
     def create_strategy_scan_resume_save_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import StrategyScanResumeSaveWorker
 
-        return StrategyScanResumeSaveWorker(request_id, **kwargs)
+        return StrategyScanResumeSaveWorker(
+            request_id,
+            save_resume_state=self.save_resume_state,
+            **kwargs,
+        )
 
     def create_strategy_scan_finalize_worker(self, request_id: int, **kwargs):
         from blockcheck.workers import StrategyScanFinalizeWorker
 
-        return StrategyScanFinalizeWorker(request_id, **kwargs)
+        return StrategyScanFinalizeWorker(
+            request_id,
+            finalize_scan_report=self.finalize_scan_report,
+            **kwargs,
+        )
+
+    def load_page_initial_state(self, *args, **kwargs):
+        return self._worker_commands().load_page_initial_state(*args, **kwargs)
 
     def append_run_log(self, *args, **kwargs) -> None:
         return self._commands().append_run_log(*args, **kwargs)
@@ -77,7 +108,13 @@ class BlockcheckFeature:
         return self._commands().save_resume_state(*args, **kwargs)
 
     def prepare_support(self, *args, **kwargs):
-        return self._commands().prepare_support(*args, **kwargs)
+        return self._worker_commands().prepare_support(*args, **kwargs)
+
+    def run_user_domain_action(self, *args, **kwargs):
+        return self._worker_commands().run_user_domain_action(*args, **kwargs)
+
+    def prepare_strategy_scan_support(self, *args, **kwargs):
+        return self._worker_commands().prepare_strategy_scan_support(*args, **kwargs)
 
     def apply_strategy(self, **kwargs):
         return self._commands().apply_strategy(

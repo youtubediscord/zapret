@@ -22,8 +22,10 @@ class BlockcheckDomainActionWorkerTests(unittest.TestCase):
         add_source = inspect.getsource(BlockcheckPage._on_add_domain)
         remove_source = inspect.getsource(BlockcheckPage._on_remove_domain)
 
-        self.assertIn("blockcheck_page_runtime.add_user_domain", worker_source)
-        self.assertIn("blockcheck_page_runtime.remove_user_domain", worker_source)
+        self.assertIn("_run_user_domain_action", worker_source)
+        self.assertNotIn("blockcheck_page_runtime.add_user_domain", worker_source)
+        self.assertNotIn("blockcheck_page_runtime.remove_user_domain", worker_source)
+        self.assertNotIn("blockcheck_commands.run_user_domain_action", worker_source)
         self.assertIn("_request_user_domain_action", add_source)
         self.assertIn("_request_user_domain_action", remove_source)
         self.assertNotIn("blockcheck_page_runtime.add_user_domain", add_source)

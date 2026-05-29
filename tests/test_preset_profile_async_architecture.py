@@ -2309,8 +2309,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("get_blockcheck_settings", runtime_source)
         self.assertIn("create_initial_state_worker", page_source)
         self.assertIn("create_page_initial_state_worker", feature_source)
-        self.assertNotIn("def load_page_initial_state", feature_source)
-        self.assertIn("blockcheck.commands", worker_source)
+        self.assertIn("load_page_initial_state=self.load_page_initial_state", feature_source)
+        self.assertIn("_load_page_initial_state", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
         self.assertNotIn("blockcheck.page_runtime", worker_source)
         self.assertIn("load_page_initial_state", worker_source)
 
@@ -2372,7 +2373,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_support_prepare_worker", page_source)
         self.assertIn("_support_prepare_worker", page_source)
         self.assertIn("create_blockcheck_support_prepare_worker", feature_source)
-        self.assertIn("blockcheck.commands", worker_source)
+        self.assertIn("prepare_support=self.prepare_support", feature_source)
+        self.assertIn("_prepare_support", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
         self.assertNotIn("blockcheck.page_runtime", worker_source)
         self.assertIn("prepare_support", worker_source)
 
@@ -2384,7 +2387,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertIn("create_user_domain_action_worker", page_source)
         self.assertIn("create_user_domain_action_worker", feature_source)
-        self.assertIn("blockcheck.commands", worker_source)
+        self.assertIn("run_user_domain_action=self.run_user_domain_action", feature_source)
+        self.assertIn("_run_user_domain_action", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
         self.assertNotIn("blockcheck.page_runtime", worker_source)
         self.assertIn("run_user_domain_action", worker_source)
 
@@ -2400,7 +2405,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_support_prepare_worker", page_source)
         self.assertIn("_support_prepare_worker", page_source)
         self.assertIn("create_strategy_scan_support_prepare_worker", feature_source)
-        self.assertIn("blockcheck.commands", worker_source)
+        self.assertIn("prepare_strategy_scan_support=self.prepare_strategy_scan_support", feature_source)
+        self.assertIn("_prepare_strategy_scan_support", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
         self.assertNotIn("blockcheck.strategy_scan_logs", worker_source)
         self.assertIn("prepare_strategy_scan_support", worker_source)
 
@@ -2435,7 +2442,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertIn("create_quick_targets_worker", page_source)
         self.assertIn("create_strategy_scan_quick_targets_worker", feature_source)
-        self.assertIn("blockcheck.commands", worker_source)
+        self.assertIn("build_quick_target_menu_plan=self.build_quick_target_menu_plan", feature_source)
+        self.assertIn("_build_quick_target_menu_plan", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
         self.assertNotIn("blockcheck.strategy_scan_page_plans", worker_source)
         self.assertIn("build_quick_target_menu_plan", worker_source)
         self.assertNotIn("build_quick_target_menu_plan", handler_source)
@@ -2454,6 +2463,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("record_strategy_scan_result(", result_source)
         self.assertIn("_strategy_scan_resume_save_worker", page_source)
         self.assertIn("create_strategy_scan_resume_save_worker", feature_source)
+        self.assertIn("save_resume_state=self.save_resume_state", feature_source)
+        self.assertIn("_save_resume_state", worker_source)
+        self.assertNotIn("blockcheck_public", worker_source)
         self.assertIn("save_resume_state", worker_source)
 
     def test_strategy_scan_finish_plan_finalizes_through_worker(self) -> None:
@@ -2473,6 +2485,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_strategy_scan_finalize_worker", page_source)
         self.assertIn("create_strategy_scan_finalize_worker", feature_source)
         self.assertNotIn("finalize_scan_report", apply_finished_source)
+        self.assertIn("finalize_scan_report=self.finalize_scan_report", feature_source)
+        self.assertIn("_finalize_scan_report", worker_source)
+        self.assertNotIn("blockcheck_public", worker_source)
         self.assertIn("finalize_scan_report", worker_source)
 
     def test_logs_file_operations_log_internal_timing_stages(self) -> None:
