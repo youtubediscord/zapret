@@ -808,11 +808,27 @@ class PresetRawEditorPage(BasePage):
         except Exception:
             return False
 
+    def _is_redundant_active_preset_activation(self) -> bool:
+        if not self._is_current_selected_file():
+            return False
+        if bool(self.__dict__.get("_content_publish_pending", False)):
+            return False
+        if self.__dict__.get("_pending_raw_preset_save") is not None:
+            return False
+        try:
+            if self._save_timer.isActive():
+                return False
+        except Exception:
+            pass
+        return True
+
     def _activate_preset(self) -> None:
         if not self._run_after_raw_preset_save(self._activate_preset):
             return
         if not self._preset_file_name:
             self._show_error(f"Не удалось активировать пресет «{self._preset_name}»")
+            return
+        if self._is_redundant_active_preset_activation():
             return
         self._set_footer(self._activation_footer_text())
         self._request_preset_activation()
