@@ -15,31 +15,21 @@ class UpdaterServerRetryWithoutDpiWorker(QThread):
         self._runtime_feature = runtime_feature
 
     def run(self) -> None:
-        try:
-            if not self._runtime_feature.is_any_running():
-                self.loaded.emit(self._request_id, False, False, "")
-                return
-        except Exception as exc:
-            log(f"Не удалось проверить состояние DPI перед повторной проверкой серверов: {exc}", "DEBUG")
-            self.loaded.emit(self._request_id, False, False, str(exc))
-            return
+        import updater.commands as updater_commands
 
         try:
             log("⚠️ Серверы недоступны при запущенном DPI — делаем один повтор без DPI", "🔄 UPDATE")
-            shutdown_result = self._runtime_feature.shutdown_sync(
-                reason="server_status_probe_retry",
-                include_cleanup=True,
+            should_retry, stopped_dpi, error = updater_commands.retry_server_check_without_dpi(
+                self._runtime_feature,
             )
-            if bool(getattr(shutdown_result, "still_running", False)):
+            if error == "DPI не остановился":
                 log("Повтор проверки серверов без DPI пропущен: DPI не остановился", "🔄 UPDATE")
-                self.loaded.emit(self._request_id, False, False, "DPI не остановился")
-                return
         except Exception as exc:
             log(f"Не удалось временно остановить DPI для проверки серверов: {exc}", "❌ ERROR")
             self.loaded.emit(self._request_id, False, False, str(exc))
             return
 
-        self.loaded.emit(self._request_id, True, True, "")
+        self.loaded.emit(self._request_id, should_retry, stopped_dpi, error)
 
 
 class UpdaterDpiRestartWorker(QThread):
@@ -53,12 +43,11 @@ class UpdaterDpiRestartWorker(QThread):
         self._context = str(context or "скачивания обновления")
 
     def run(self) -> None:
+        import updater.commands as updater_commands
+
         try:
-            if not self._runtime_feature.is_available():
-                self.loaded.emit(self._request_id, False)
-                return
             log(f"🔄 Перезапуск DPI после {self._context}", "🔁 UPDATE")
-            restarted = bool(self._runtime_feature.restart())
+            restarted = updater_commands.restart_dpi_after_update(self._runtime_feature)
         except Exception as exc:
             log(f"Не удалось перезапустить DPI: {exc}", "❌ ERROR")
             self.failed.emit(self._request_id, str(exc))

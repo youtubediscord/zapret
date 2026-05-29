@@ -127,7 +127,18 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
         return patch.object(restart_runtime, "start_qthread_worker", side_effect=_start_qthread_worker)
 
     def test_retry_without_dpi_worker_stops_dpi_in_background(self) -> None:
+        import updater.commands as updater_commands
         from updater.retry_workers import UpdaterServerRetryWithoutDpiWorker
+
+        worker_source = inspect.getsource(UpdaterServerRetryWithoutDpiWorker.run)
+        self.assertTrue(hasattr(updater_commands, "retry_server_check_without_dpi"))
+        command_source = inspect.getsource(updater_commands.retry_server_check_without_dpi)
+
+        self.assertIn("updater_commands.retry_server_check_without_dpi", worker_source)
+        self.assertNotIn("shutdown_sync", worker_source)
+        self.assertNotIn("is_any_running", worker_source)
+        self.assertIn("shutdown_sync", command_source)
+        self.assertIn("is_any_running", command_source)
 
         runtime_feature = SimpleNamespace(
             is_any_running=Mock(return_value=True),
@@ -146,7 +157,18 @@ class UpdatePageRuntimeServerRecoveryTests(unittest.TestCase):
         self.assertEqual(results, [(7, True, True, "")])
 
     def test_dpi_restart_worker_restarts_runtime_in_background(self) -> None:
+        import updater.commands as updater_commands
         from updater.retry_workers import UpdaterDpiRestartWorker
+
+        worker_source = inspect.getsource(UpdaterDpiRestartWorker.run)
+        self.assertTrue(hasattr(updater_commands, "restart_dpi_after_update"))
+        command_source = inspect.getsource(updater_commands.restart_dpi_after_update)
+
+        self.assertIn("updater_commands.restart_dpi_after_update", worker_source)
+        self.assertNotIn("self._runtime_feature.restart", worker_source)
+        self.assertNotIn("self._runtime_feature.is_available", worker_source)
+        self.assertIn("restart", command_source)
+        self.assertIn("is_available", command_source)
 
         runtime_feature = SimpleNamespace(
             is_available=Mock(return_value=True),
