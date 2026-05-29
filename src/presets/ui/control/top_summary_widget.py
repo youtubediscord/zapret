@@ -24,6 +24,7 @@ class ControlTopSummaryItem(QWidget):
         super().__init__(parent)
         self._icon_name = str(icon_name or "fa5s.circle")
         self._clickable = bool(clickable)
+        self._last_texts: tuple[str, str, str] | None = None
         self._icon_label = QLabel(self)
         self._icon_label.setFixedSize(24, 24)
         self._caption_label = CaptionLabel(self)
@@ -60,11 +61,16 @@ class ControlTopSummaryItem(QWidget):
             self._activate_theme_refresh()
 
     def set_texts(self, *, caption: str, value: str, details: str = "") -> None:
-        self._caption_label.setText(str(caption or ""))
-        self._caption_label.setVisible(bool(str(caption or "").strip()))
-        self._value_label.setText(str(value or ""))
-        self._details_label.setText(str(details or ""))
-        self._details_label.setVisible(bool(str(details or "").strip()))
+        next_texts = (str(caption or ""), str(value or ""), str(details or ""))
+        if self._last_texts == next_texts:
+            return
+        self._last_texts = next_texts
+        caption_text, value_text, details_text = next_texts
+        self._caption_label.setText(caption_text)
+        self._caption_label.setVisible(bool(caption_text.strip()))
+        self._value_label.setText(value_text)
+        self._details_label.setText(details_text)
+        self._details_label.setVisible(bool(details_text.strip()))
 
     def mousePressEvent(self, event):  # noqa: N802
         if self._clickable and event.button() == Qt.MouseButton.LeftButton:

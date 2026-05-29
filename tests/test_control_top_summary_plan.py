@@ -123,6 +123,28 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
             widget.mode_item.set_texts.assert_not_called()
             widget.premium_item.set_texts.assert_not_called()
 
+    def test_top_summary_item_skips_same_text_render(self) -> None:
+        with patch.dict("os.environ", {"QT_QPA_PLATFORM": "offscreen"}):
+            from PyQt6.QtWidgets import QApplication
+            from presets.ui.control.top_summary_widget import ControlTopSummaryItem
+
+            self.__class__._app = QApplication.instance() or QApplication([])
+            item = ControlTopSummaryItem(icon_name="fa5s.star")
+            item.set_texts(caption="Caption", value="Value", details="Details")
+            item._caption_label.setText = Mock(side_effect=AssertionError("same item text must not rewrite caption"))
+            item._caption_label.setVisible = Mock(side_effect=AssertionError("same item text must not rewrite caption visibility"))
+            item._value_label.setText = Mock(side_effect=AssertionError("same item text must not rewrite value"))
+            item._details_label.setText = Mock(side_effect=AssertionError("same item text must not rewrite details"))
+            item._details_label.setVisible = Mock(side_effect=AssertionError("same item text must not rewrite details visibility"))
+
+            item.set_texts(caption="Caption", value="Value", details="Details")
+
+            item._caption_label.setText.assert_not_called()
+            item._caption_label.setVisible.assert_not_called()
+            item._value_label.setText.assert_not_called()
+            item._details_label.setText.assert_not_called()
+            item._details_label.setVisible.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
