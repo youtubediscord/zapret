@@ -172,7 +172,10 @@ class TrayFeature:
     def create_github_api_removal_toggle_worker(self, *, parent=None):
         from tray_workers import TrayGithubApiRemovalToggleWorker
 
-        return TrayGithubApiRemovalToggleWorker(parent=parent)
+        return TrayGithubApiRemovalToggleWorker(
+            toggle_github_api_removal=self._commands().toggle_github_api_removal,
+            parent=parent,
+        )
 
     def _on_github_api_removal_toggle_finished(self, worker, ok: bool, message: str, status_callback) -> None:
         self._clear_github_api_removal_toggle_worker(worker)

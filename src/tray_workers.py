@@ -9,16 +9,15 @@ class TrayGithubApiRemovalToggleWorker(QThread):
     completed = pyqtSignal(bool, str)
     failed = pyqtSignal(str)
 
-    def __init__(self, *, parent=None):
+    def __init__(self, *, toggle_github_api_removal, parent=None):
         super().__init__(parent)
+        self._toggle_github_api_removal = toggle_github_api_removal
 
     def run(self) -> None:
-        import tray_commands
-
         messages: list[str] = []
         try:
             ok = bool(
-                tray_commands.toggle_github_api_removal(
+                self._toggle_github_api_removal(
                     status_callback=lambda message: messages.append(str(message or "")),
                 )
             )

@@ -65,6 +65,7 @@ class TrayOpacityWorkerTests(unittest.TestCase):
 
     def test_github_api_removal_toggle_starts_worker_instead_of_direct_command(self) -> None:
         from app.feature_facades.tray import TrayFeature
+        from tray_workers import TrayGithubApiRemovalToggleWorker
 
         class FakeWorker:
             def __init__(self) -> None:
@@ -103,6 +104,15 @@ class TrayOpacityWorkerTests(unittest.TestCase):
         commands.toggle_github_api_removal.assert_not_called()
         create_worker.assert_called_once_with(parent=None)
         self.assertTrue(worker.started)
+
+        feature_source = inspect.getsource(TrayFeature.create_github_api_removal_toggle_worker)
+        worker_init_signature = inspect.signature(TrayGithubApiRemovalToggleWorker.__init__)
+        worker_source = inspect.getsource(TrayGithubApiRemovalToggleWorker.run)
+
+        self.assertIn("toggle_github_api_removal=self._commands().toggle_github_api_removal", feature_source)
+        self.assertIn("toggle_github_api_removal", worker_init_signature.parameters)
+        self.assertIn("self._toggle_github_api_removal", worker_source)
+        self.assertNotIn("import tray_commands", worker_source)
 
 
 if __name__ == "__main__":
