@@ -6,7 +6,6 @@ from PyQt6.QtCore import QMetaObject, Qt as QtNS
 from qfluentwidgets import FluentIcon
 
 import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
-import telegram_proxy.settings as telegram_proxy_settings
 
 
 def handle_toggle_proxy(
@@ -79,13 +78,12 @@ def start_proxy_runtime(
     append_log_line,
     telegram_proxy_feature,
 ) -> None:
-    upstream_config = telegram_proxy_settings.build_upstream_config()
     plan = telegram_proxy_page_runtime.build_start_plan(
         starting=bool(starting),
         running=bool(running),
         host=host,
         port=port,
-        upstream_config=upstream_config,
+        upstream_config=None,
     )
     if not plan.should_start:
         return
@@ -101,7 +99,7 @@ def start_proxy_runtime(
         port=port,
         mode="socks5",
         host=host,
-        upstream_config=upstream_config,
+        upstream_config=None,
         parent=page,
     )
     setattr(page, "_proxy_start_worker", worker)

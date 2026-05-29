@@ -49,6 +49,12 @@ def get_start_config() -> TelegramProxyStartConfig:
     )
 
 
+def build_upstream_config():
+    from telegram_proxy.settings import build_upstream_config as _build_upstream_config
+
+    return _build_upstream_config()
+
+
 def set_enabled(enabled: bool) -> None:
     from settings.store import set_tg_proxy_enabled
 

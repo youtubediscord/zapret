@@ -30,7 +30,7 @@ class TelegramProxyInitialStateWorker(QThread):
 class TelegramProxyStartWorker(QThread):
     completed = pyqtSignal(bool)
 
-    def __init__(self, *, manager, port: int, mode: str, host: str, upstream_config, parent=None):
+    def __init__(self, *, manager, port: int, mode: str, host: str, upstream_config=None, parent=None):
         super().__init__(parent)
         self._manager = manager
         self._port = int(port)
@@ -40,11 +40,16 @@ class TelegramProxyStartWorker(QThread):
 
     def run(self) -> None:
         try:
+            import telegram_proxy.commands as telegram_proxy_commands
+
+            upstream_config = self._upstream_config
+            if upstream_config is None:
+                upstream_config = telegram_proxy_commands.build_upstream_config()
             ok = self._manager.start_proxy(
                 port=self._port,
                 mode=self._mode,
                 host=self._host,
-                upstream_config=self._upstream_config,
+                upstream_config=upstream_config,
             )
         except Exception as exc:
             log(f"TelegramProxyStartWorker: ошибка запуска proxy: {exc}", "WARNING")

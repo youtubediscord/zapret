@@ -48,7 +48,7 @@ class TelegramProxyFeature:
         except Exception:
             pass
 
-    def create_start_worker(self, *, manager, port: int, mode: str, host: str, upstream_config, parent=None):
+    def create_start_worker(self, *, manager, port: int, mode: str, host: str, upstream_config=None, parent=None):
         from telegram_proxy.workers import TelegramProxyStartWorker
 
         return TelegramProxyStartWorker(
