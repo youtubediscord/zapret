@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import os
 import unittest
+from unittest.mock import Mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -252,6 +253,44 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         self.assertIn("border-radius: 12px", icon.check_label.styleSheet())
         self.assertIn("color: #ffffff", icon.check_label.styleSheet())
         self.assertNotIn("font-weight: 700", icon.check_label.styleSheet())
+
+    def test_status_bar_skips_duplicate_plan_render(self) -> None:
+        from presets.ui.common.preset_status_bar import PresetStatusBar, build_preset_status_plan
+
+        status_bar = PresetStatusBar()
+        plan = build_preset_status_plan("applied", launch_method=ZAPRET2_MODE)
+        status_bar.set_plan(plan)
+        status_bar.spinner.stop = Mock(side_effect=AssertionError("same status must not stop spinner again"))
+        status_bar.spinner.start = Mock(side_effect=AssertionError("same status must not start spinner again"))
+        status_bar.check_label.setVisible = Mock(side_effect=AssertionError("same status must not update visibility"))
+        status_bar.text_label.setText = Mock(side_effect=AssertionError("same status must not rewrite text"))
+
+        status_bar.set_plan(plan)
+
+        status_bar.spinner.stop.assert_not_called()
+        status_bar.spinner.start.assert_not_called()
+        status_bar.check_label.setVisible.assert_not_called()
+        status_bar.text_label.setText.assert_not_called()
+
+    def test_title_status_icon_skips_duplicate_plan_render(self) -> None:
+        from presets.ui.common.preset_status_bar import PresetStatusIcon, build_preset_status_plan
+
+        icon = PresetStatusIcon(size=24)
+        plan = build_preset_status_plan("applied", launch_method=ZAPRET2_MODE)
+        icon.set_plan(plan)
+        icon.spinner.stop = Mock(side_effect=AssertionError("same status must not stop spinner again"))
+        icon.spinner.start = Mock(side_effect=AssertionError("same status must not start spinner again"))
+        icon.check_label.setVisible = Mock(side_effect=AssertionError("same status must not update visibility"))
+        icon.setToolTip = Mock(side_effect=AssertionError("same status must not rewrite tooltip"))
+        icon.setVisible = Mock(side_effect=AssertionError("same status must not update visibility"))
+
+        icon.set_plan(plan)
+
+        icon.spinner.stop.assert_not_called()
+        icon.spinner.start.assert_not_called()
+        icon.check_label.setVisible.assert_not_called()
+        icon.setToolTip.assert_not_called()
+        icon.setVisible.assert_not_called()
 
     def test_raw_editor_runtime_toggle_uses_single_button_plan(self) -> None:
         from presets.ui.common.preset_subpage_base import build_runtime_toggle_button_plan

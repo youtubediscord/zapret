@@ -90,9 +90,19 @@ def build_runtime_preset_status_plan(
     return build_preset_status_plan(base_status, launch_method=method, text=base_text)
 
 
+def _status_theme_key() -> tuple[str, bool]:
+    try:
+        tokens = get_theme_tokens()
+        return str(tokens.accent_hex), bool(tokens.is_light)
+    except Exception:
+        return "", False
+
+
 class PresetStatusBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._last_plan: PresetStatusPlan | None = None
+        self._last_theme_key: tuple[str, bool] | None = None
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(24)
 
@@ -119,6 +129,13 @@ class PresetStatusBar(QWidget):
 
     def set_plan(self, plan: PresetStatusPlan) -> None:
         indicator = str(plan.indicator or "none").strip().lower()
+        mode = str(plan.mode or "neutral").strip().lower()
+        normalized_plan = PresetStatusPlan(str(plan.text or ""), mode, indicator)
+        theme_key = _status_theme_key()
+        if normalized_plan == self._last_plan and theme_key == self._last_theme_key:
+            return
+        self._last_plan = normalized_plan
+        self._last_theme_key = theme_key
         if indicator == "spinner":
             self.check_label.hide()
             self.spinner.start()
@@ -126,8 +143,8 @@ class PresetStatusBar(QWidget):
             self.spinner.stop()
             self.check_label.setVisible(indicator == "check")
 
-        self.text_label.setText(str(plan.text or ""))
-        self._apply_mode_style(str(plan.mode or "neutral").strip().lower())
+        self.text_label.setText(normalized_plan.text)
+        self._apply_mode_style(mode)
 
     def _apply_mode_style(self, mode: str) -> None:
         try:
@@ -152,6 +169,8 @@ class PresetStatusBar(QWidget):
 class PresetStatusIcon(QWidget):
     def __init__(self, parent=None, *, size: int = 24):
         super().__init__(parent)
+        self._last_plan: PresetStatusPlan | None = None
+        self._last_theme_key: tuple[str, bool] | None = None
         self._icon_size = max(16, int(size))
         box_size = self._icon_size + 4
         self.setFixedSize(box_size, box_size)
@@ -174,6 +193,13 @@ class PresetStatusIcon(QWidget):
 
     def set_plan(self, plan: PresetStatusPlan) -> None:
         indicator = str(plan.indicator or "none").strip().lower()
+        mode = str(plan.mode or "neutral").strip().lower()
+        normalized_plan = PresetStatusPlan(str(plan.text or ""), mode, indicator)
+        theme_key = _status_theme_key()
+        if normalized_plan == self._last_plan and theme_key == self._last_theme_key:
+            return
+        self._last_plan = normalized_plan
+        self._last_theme_key = theme_key
         if indicator == "spinner":
             self.check_label.hide()
             self.spinner.start()
@@ -181,9 +207,9 @@ class PresetStatusIcon(QWidget):
             self.spinner.stop()
             self.check_label.setVisible(indicator == "check")
 
-        self.setToolTip(str(plan.text or ""))
+        self.setToolTip(normalized_plan.text)
         self.setVisible(indicator in {"spinner", "check"})
-        self._apply_mode_style(str(plan.mode or "neutral").strip().lower())
+        self._apply_mode_style(mode)
 
     def _apply_mode_style(self, mode: str) -> None:
         if mode == "error":
