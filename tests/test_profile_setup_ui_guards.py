@@ -51,6 +51,20 @@ class _BoolWidget:
         self._visible = value
 
 
+class _IndexWidget:
+    def __init__(self, index: int = 0) -> None:
+        self._index = int(index)
+        self.calls: list[int] = []
+
+    def currentIndex(self) -> int:  # noqa: N802
+        return self._index
+
+    def setCurrentIndex(self, index: int) -> None:  # noqa: N802
+        value = int(index)
+        self.calls.append(value)
+        self._index = value
+
+
 class ProfileSetupUiGuardTests(unittest.TestCase):
     def test_text_update_skips_duplicate_value(self) -> None:
         from profile.ui.profile_setup_page import set_widget_text_if_changed
@@ -85,6 +99,17 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(widget.checked_calls, [False])
         self.assertEqual(widget.enabled_calls, [True])
         self.assertEqual(widget.visible_calls, [False])
+
+    def test_current_index_update_skips_duplicate_value(self) -> None:
+        from profile.ui.profile_setup_page import set_current_index_if_changed
+
+        widget = _IndexWidget(1)
+
+        self.assertFalse(set_current_index_if_changed(widget, 1))
+        self.assertEqual(widget.calls, [])
+
+        self.assertTrue(set_current_index_if_changed(widget, 0))
+        self.assertEqual(widget.calls, [0])
 
 
 if __name__ == "__main__":

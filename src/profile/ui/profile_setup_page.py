@@ -101,6 +101,17 @@ def set_widget_visible_if_changed(widget, visible: bool) -> bool:
     return True
 
 
+def set_current_index_if_changed(widget, index: int) -> bool:
+    value = int(index)
+    try:
+        if int(widget.currentIndex()) == value:
+            return False
+    except Exception:
+        pass
+    widget.setCurrentIndex(value)
+    return True
+
+
 class ProfileStrategyListDelegate(QStyledItemDelegate):
     """Рисует готовые стратегии как единый текстовый список."""
 
@@ -862,7 +873,7 @@ class ProfileSetupPageBase(BasePage):
         elif index == 2:
             self._ensure_match_tab_built()
             self._apply_match_tab_payload()
-        self._strategy_stack.setCurrentIndex(index)
+        set_current_index_if_changed(self._strategy_stack, index)
 
     def _ensure_editor_tab_built(self) -> None:
         if self._editor_tab_built:
@@ -1460,7 +1471,7 @@ class ProfileSetupPageBase(BasePage):
             return
 
         if self._strategy_stack.currentIndex() == 1:
-            self._strategy_stack.setCurrentIndex(0)
+            set_current_index_if_changed(self._strategy_stack, 0)
             self._strategy_tabs.setCurrentItem("strategies")
         self._strategy_tabs.removeWidget("editor")
 
