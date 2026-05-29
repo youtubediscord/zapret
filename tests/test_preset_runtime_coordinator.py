@@ -208,6 +208,50 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
 
         self.assertEqual(switch_calls, [(ZAPRET2_MODE, "preset_switched", "Default v5.txt")])
 
+    def test_reapplying_same_preset_skips_ui_refresh_but_keeps_runtime_apply(self) -> None:
+        from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
+        from settings.mode import ZAPRET2_MODE
+
+        switch_calls: list[tuple[str, str, str]] = []
+        refresh_calls: list[str] = []
+
+        ui_state = SimpleNamespace(
+            active_revision=0,
+            bump_active_preset_revision=lambda: setattr(
+                ui_state,
+                "active_revision",
+                ui_state.active_revision + 1,
+            ),
+        )
+        coordinator = PresetRuntimeCoordinator(
+            presets_feature=SimpleNamespace(),
+            ui_state_store=ui_state,
+            get_launch_method=lambda: ZAPRET2_MODE,
+            get_active_preset_path=lambda: "",
+            refresh_after_switch=lambda: refresh_calls.append("refresh"),
+            request_selected_source_preset_apply=lambda method, reason, file_name: switch_calls.append(
+                (method, reason, file_name)
+            )
+            or True,
+            request_preset_content_apply=lambda *_args: True,
+        )
+        coordinator.setup_active_preset_file_watcher = lambda: None
+
+        coordinator.handle_preset_switched(ZAPRET2_MODE, "Default v5.txt")
+        self._app.processEvents()
+        coordinator.handle_preset_switched(ZAPRET2_MODE, "Default v5.txt")
+        self._app.processEvents()
+
+        self.assertEqual(
+            switch_calls,
+            [
+                (ZAPRET2_MODE, "preset_switched", "Default v5.txt"),
+                (ZAPRET2_MODE, "preset_switched", "Default v5.txt"),
+            ],
+        )
+        self.assertEqual(ui_state.active_revision, 1)
+        self.assertEqual(refresh_calls, ["refresh"])
+
     def test_raw_editor_can_save_active_preset_without_publishing_until_commit(self) -> None:
         from presets.raw_preset_editor_workflow import RawPresetEditorController
         from settings.mode import ZAPRET2_MODE
