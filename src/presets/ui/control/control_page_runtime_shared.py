@@ -94,8 +94,13 @@ def apply_last_status_message(
     empty_text: str,
 ) -> None:
     text = str(message or "").strip() or str(empty_text or "")
+    color = status_message_dot_color(text)
+    message_key = (text, color)
+    if getattr(message_dot, "_last_control_status_message_key", None) == message_key:
+        return
+    setattr(message_dot, "_last_control_status_message_key", message_key)
     message_label.setText(text)
-    message_dot.set_color(status_message_dot_color(text))
+    message_dot.set_color(color)
     message_dot.stop_pulse()
 
 

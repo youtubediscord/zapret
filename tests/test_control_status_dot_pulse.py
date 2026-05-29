@@ -136,6 +136,33 @@ class ControlStatusDotPulseTests(unittest.TestCase):
         stop_winws_btn.setVisible.assert_not_called()
         stop_and_exit_btn.setVisible.assert_not_called()
 
+    def test_last_status_message_skips_duplicate_render(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import apply_last_status_message
+
+        message_label = _TextTarget()
+        message_dot = _StatusDot()
+
+        apply_last_status_message(
+            "Пресет успешно применён",
+            message_label=message_label,
+            message_dot=message_dot,
+            empty_text="Нет сообщений",
+        )
+        message_label.setText = Mock(side_effect=AssertionError("same message must not rewrite label"))
+        message_dot.set_color = Mock(side_effect=AssertionError("same message must not rewrite dot color"))
+        message_dot.stop_pulse = Mock(side_effect=AssertionError("same message must not stop pulse again"))
+
+        apply_last_status_message(
+            "Пресет успешно применён",
+            message_label=message_label,
+            message_dot=message_dot,
+            empty_text="Нет сообщений",
+        )
+
+        message_label.setText.assert_not_called()
+        message_dot.set_color.assert_not_called()
+        message_dot.stop_pulse.assert_not_called()
+
     def test_running_status_pulses_for_both_control_modes(self) -> None:
         from presets.ui.control import control_runtime
         from presets.ui.control.zapret2 import page_runtime as zapret2_page_runtime
