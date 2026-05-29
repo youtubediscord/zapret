@@ -25,6 +25,7 @@ from presets.user_presets_action_workers import UserPresetActivateWorker, UserPr
 from presets.user_presets_page_plans import build_preset_rows_plan
 from ui.presets_menu.model import PresetListModel
 import presets.user_presets_action_workers as user_presets_action_workers
+import app.feature_facades.presets as presets_feature_facade
 import presets.ui.control.additional_settings_runtime as control_additional_settings_runtime
 import presets.ui.control.control_page_shared as control_page_shared
 import presets.ui.control.windows_features.runtime as windows_features_runtime
@@ -359,10 +360,16 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         create_worker_source = inspect.getsource(UserPresetsPageBase.create_preset_open_folder_worker)
         worker_source = inspect.getsource(user_presets_action_workers.UserPresetOpenFolderWorker.run)
         worker_init_source = inspect.getsource(user_presets_action_workers.UserPresetOpenFolderWorker.__init__)
+        feature_source = inspect.getsource(presets_feature_facade.PresetsFeature.create_user_presets_open_folder_worker)
         self.assertIn("create_user_presets_open_folder_worker", create_worker_source)
         self.assertNotIn("UserPresetOpenFolderWorker(", create_worker_source)
         self.assertNotIn("_presets_feature", worker_init_source)
-        self.assertIn("preset_commands.open_user_presets_folder", worker_source)
+        self.assertIn("open_folder", worker_init_source)
+        self.assertIn("self._open_folder", worker_init_source)
+        self.assertIn("self._open_folder()", worker_source)
+        self.assertNotIn("preset_commands.open_user_presets_folder", worker_source)
+        self.assertNotIn("_preset_services", worker_init_source)
+        self.assertIn("open_user_presets_folder", feature_source)
 
     def test_preset_list_active_marker_updates_indexed_rows_only(self) -> None:
         class CountingRow(dict):
