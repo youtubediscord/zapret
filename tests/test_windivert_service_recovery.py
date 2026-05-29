@@ -3,6 +3,29 @@ from unittest.mock import Mock, patch
 
 
 class WinDivertServiceRecoveryTests(unittest.TestCase):
+    def test_regular_runner_stop_does_not_delete_monkey_service(self) -> None:
+        from winws_runtime.runners import runner_base
+
+        class DummyRunner(runner_base.StrategyRunnerBase):
+            def start_from_preset_file(self, preset_path: str, strategy_name: str = "Preset") -> bool:
+                return True
+
+            def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
+                return True
+
+        with (
+            patch.object(runner_base.os.path, "exists", return_value=True),
+            patch.object(runner_base, "standard_windivert_cleanup_runtime") as standard_cleanup,
+            patch.object(runner_base, "force_kill_all_winws_processes", return_value=True),
+            patch.object(runner_base, "stop_and_delete_named_service") as stop_and_delete,
+        ):
+            runner = DummyRunner(r"C:\Zapret\Dev\exe\winws2.exe")
+            stopped = runner.stop(cleanup_services=True)
+
+        self.assertTrue(stopped)
+        standard_cleanup.assert_called_once_with()
+        stop_and_delete.assert_not_called()
+
     def test_stop_and_delete_waits_until_service_is_really_removed(self) -> None:
         from utils import service_manager
 

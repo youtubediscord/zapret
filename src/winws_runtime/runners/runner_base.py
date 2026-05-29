@@ -412,11 +412,10 @@ class StrategyRunnerBase(ABC):
             else:
                 log("No running process to stop", "INFO")
 
-            # Additional cleanup
             if cleanup_services:
-                self._stop_windivert_service()
-                self._stop_monkey_service()
-            self._kill_all_winws_processes()
+                self._perform_standard_windivert_cleanup()
+            else:
+                self._kill_all_winws_processes()
 
             # Clear state
             self._clear_process_runtime_state()
