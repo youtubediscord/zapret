@@ -56,3 +56,10 @@ def restart_dpi_after_update(*, is_available, restart) -> bool:
     if not is_available():
         return False
     return bool(restart())
+
+
+def stop_dpi_for_download(*, is_any_running, shutdown_sync) -> bool:
+    if not is_any_running():
+        return False
+    shutdown_sync(reason="updater_download_connectivity", include_cleanup=True)
+    return True

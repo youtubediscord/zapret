@@ -2663,8 +2663,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_teardown_server_retry_without_dpi_worker", runtime_source)
         self.assertIn("updater.commands", worker_source)
         self.assertIn("retry_server_check_without_dpi", worker_source)
-        self.assertNotIn("is_any_running", worker_source)
-        self.assertNotIn("shutdown_sync", worker_source)
+        self.assertNotIn("self._is_any_running(", worker_source)
+        self.assertNotIn("self._shutdown_sync(", worker_source)
         self.assertIn("is_any_running", command_source)
         self.assertIn("shutdown_sync", command_source)
 

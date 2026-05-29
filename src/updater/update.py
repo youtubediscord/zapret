@@ -332,13 +332,22 @@ class UpdateWorker(QObject):
     download_failed = pyqtSignal(str)
     dpi_restart_needed = pyqtSignal()
 
-    def __init__(self, parent=None, silent: bool = False, skip_rate_limit: bool = False, *, runtime_feature):
+    def __init__(
+        self,
+        parent=None,
+        silent: bool = False,
+        skip_rate_limit: bool = False,
+        *,
+        is_any_running,
+        shutdown_sync,
+    ):
         super().__init__()
         self._parent = parent
         self._silent = silent
         self._skip_rate_limit = skip_rate_limit
         self._stop_requested = False
-        self._runtime_feature = runtime_feature
+        self._is_any_running = is_any_running
+        self._shutdown_sync = shutdown_sync
 
     def stop(self) -> None:
         self._stop_requested = True
@@ -413,13 +422,17 @@ class UpdateWorker(QObject):
 
     def _stop_dpi_for_download(self) -> bool:
         """Останавливает winws/winws2 если запущены. Возвращает True если что-то остановили."""
-        if not self._runtime_feature.is_any_running():
+        import updater.commands as updater_commands
+
+        stopped = updater_commands.stop_dpi_for_download(
+            is_any_running=self._is_any_running,
+            shutdown_sync=self._shutdown_sync,
+        )
+        if not stopped:
             return False
 
         log("⚠️ DPI (winws) мешает скачиванию — временно останавливаем", "🔁 UPDATE")
         self._emit("Остановка DPI для скачивания...")
-
-        self._runtime_feature.shutdown_sync(reason="updater_download_connectivity", include_cleanup=True)
         time.sleep(0.5)
         return True
 

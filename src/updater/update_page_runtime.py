@@ -671,7 +671,8 @@ class UpdatePageRuntime:
             parent_window,
             silent=True,
             skip_rate_limit=True,
-            runtime_feature=self._runtime_feature,
+            is_any_running=self._runtime_feature.is_any_running,
+            shutdown_sync=self._runtime_feature.shutdown_sync,
         )
         update_worker.moveToThread(update_thread)
         return update_thread, update_worker
