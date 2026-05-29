@@ -278,12 +278,20 @@ class PresetRawEditorPage(BasePage):
         breadcrumb = getattr(self, "_breadcrumb", None)
         if breadcrumb is None:
             return
+        breadcrumb_key = (
+            self._breadcrumb_root_text(),
+            self._breadcrumb_parent_text(),
+            self._breadcrumb_current_text(),
+        )
+        if self.__dict__.get("_last_breadcrumb_key") == breadcrumb_key:
+            return
         try:
             breadcrumb.blockSignals(True)
             breadcrumb.clear()
-            breadcrumb.addItem("root", self._breadcrumb_root_text())
-            breadcrumb.addItem("list", self._breadcrumb_parent_text())
-            breadcrumb.addItem("raw_preset", self._breadcrumb_current_text())
+            breadcrumb.addItem("root", breadcrumb_key[0])
+            breadcrumb.addItem("list", breadcrumb_key[1])
+            breadcrumb.addItem("raw_preset", breadcrumb_key[2])
+            self.__dict__["_last_breadcrumb_key"] = breadcrumb_key
         finally:
             try:
                 breadcrumb.blockSignals(False)

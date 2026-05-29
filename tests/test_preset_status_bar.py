@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import os
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -92,6 +93,23 @@ class _VisibleWidget:
         self._visible = value
 
 
+class _BreadcrumbWidget:
+    def __init__(self) -> None:
+        self.block_calls: list[bool] = []
+        self.clear_calls = 0
+        self.items: list[tuple[str, str]] = []
+
+    def blockSignals(self, blocked: bool) -> None:  # noqa: N802
+        self.block_calls.append(bool(blocked))
+
+    def clear(self) -> None:
+        self.clear_calls += 1
+        self.items.clear()
+
+    def addItem(self, key: str, text: str) -> None:  # noqa: N802
+        self.items.append((str(key), str(text)))
+
+
 class PresetStatusBarPlanTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -128,6 +146,30 @@ class PresetStatusBarPlanTests(unittest.TestCase):
 
         self.assertTrue(set_visible_if_changed(widget, True))
         self.assertEqual(widget.visible_calls, [True])
+
+    def test_preset_breadcrumb_rebuild_skips_duplicate_items(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        breadcrumb = _BreadcrumbWidget()
+        page = SimpleNamespace(
+            _breadcrumb=breadcrumb,
+            _breadcrumb_root_text=lambda: "Управление",
+            _breadcrumb_parent_text=lambda: "Мои пресеты",
+            _breadcrumb_current_text=lambda: "Default",
+        )
+
+        PresetRawEditorPage._rebuild_breadcrumb(page)
+        PresetRawEditorPage._rebuild_breadcrumb(page)
+
+        self.assertEqual(breadcrumb.clear_calls, 1)
+        self.assertEqual(
+            breadcrumb.items,
+            [
+                ("root", "Управление"),
+                ("list", "Мои пресеты"),
+                ("raw_preset", "Default"),
+            ],
+        )
 
     def test_loaded_status_uses_success_check_and_clear_text(self) -> None:
         from presets.ui.common.preset_status_bar import build_preset_status_plan
