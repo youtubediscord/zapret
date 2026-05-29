@@ -2812,12 +2812,13 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         worker.start.assert_called_once()
 
     def test_list_file_save_worker_emits_saved_state_and_payload(self) -> None:
-        controller = Mock()
+        save_text = Mock()
+        load_profile = Mock()
         state = object()
         payload = SimpleNamespace(item=SimpleNamespace(key="profile-1"))
-        controller.save_list_file_text.return_value = state
-        controller.load.return_value = payload
-        worker = ProfileListFileSaveWorker(3, controller, "profile-1", "example.com")
+        save_text.return_value = state
+        load_profile.return_value = payload
+        worker = ProfileListFileSaveWorker(3, save_text, load_profile, "profile-1", "example.com")
         saved = []
 
         worker.saved.connect(lambda request_id, emitted_state, emitted_payload: saved.append(
@@ -2826,11 +2827,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         worker.run()
 
-        controller.save_list_file_text.assert_called_once_with(
+        save_text.assert_called_once_with(
             profile_key="profile-1",
             text="example.com",
         )
-        controller.load.assert_called_once_with("profile-1")
+        load_profile.assert_called_once_with("profile-1")
         self.assertEqual(saved, [(3, state, payload)])
 
     def test_list_file_save_finish_passes_updated_item_to_preset_page(self) -> None:
@@ -2946,9 +2947,13 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._list_file_status_label.setText.assert_not_called()
 
     def test_list_file_validation_worker_emits_invalid_lines(self) -> None:
-        controller = Mock()
-        controller.validate_list_file_text.return_value = ((2, "bad domain"),)
-        worker = ProfileListFileValidationWorker(4, controller, kind="hostlist", text="ok.example\nbad domain")
+        validate_text = Mock(return_value=((2, "bad domain"),))
+        worker = ProfileListFileValidationWorker(
+            4,
+            validate_text,
+            kind="hostlist",
+            text="ok.example\nbad domain",
+        )
         validated = []
 
         worker.validated.connect(
@@ -2962,7 +2967,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         worker.run()
 
-        controller.validate_list_file_text.assert_called_once_with(
+        validate_text.assert_called_once_with(
             kind="hostlist",
             text="ok.example\nbad domain",
         )

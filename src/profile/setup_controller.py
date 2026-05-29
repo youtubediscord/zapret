@@ -32,7 +32,7 @@ class ProfileSetupController:
     def create_load_worker(self, request_id: int, profile_key: str, parent=None):
         from profile.profile_setup_loader import ProfileSetupLoadWorker
 
-        return ProfileSetupLoadWorker(request_id, self, profile_key, parent)
+        return ProfileSetupLoadWorker(request_id, self.load, profile_key, parent)
 
     def load_list_file_editor_state(self, profile_key: str, *, filter_kind: str = "", filter_value: str = ""):
         return load_profile_list_file_editor_state(
@@ -56,7 +56,7 @@ class ProfileSetupController:
 
         return ProfileListFileLoadWorker(
             request_id,
-            self,
+            self.load_list_file_editor_state,
             profile_key,
             filter_kind=filter_kind,
             filter_value=filter_value,
@@ -66,12 +66,25 @@ class ProfileSetupController:
     def create_list_file_save_worker(self, request_id: int, profile_key: str, text: str, parent=None):
         from profile.profile_setup_loader import ProfileListFileSaveWorker
 
-        return ProfileListFileSaveWorker(request_id, self, profile_key, text, parent)
+        return ProfileListFileSaveWorker(
+            request_id,
+            self.save_list_file_text,
+            self.load,
+            profile_key,
+            text,
+            parent,
+        )
 
     def create_list_file_validation_worker(self, request_id: int, *, kind: str, text: str, parent=None):
         from profile.profile_setup_loader import ProfileListFileValidationWorker
 
-        return ProfileListFileValidationWorker(request_id, self, kind=kind, text=text, parent=parent)
+        return ProfileListFileValidationWorker(
+            request_id,
+            self.validate_list_file_text,
+            kind=kind,
+            text=text,
+            parent=parent,
+        )
 
     def create_settings_save_worker(
         self,
