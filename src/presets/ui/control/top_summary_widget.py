@@ -7,8 +7,6 @@ from qfluentwidgets import CaptionLabel, FlowLayout, StrongBodyLabel, SubtitleLa
 
 from app.ui_texts import tr as tr_catalog
 from presets.ui.control.top_summary_plan import build_premium_summary, build_profiles_value
-from ui.theme import get_cached_qta_pixmap, get_theme_tokens
-from ui.theme_refresh import ThemeRefreshBinding
 
 
 class ControlTopSummaryItem(QWidget):
@@ -51,12 +49,15 @@ class ControlTopSummaryItem(QWidget):
         layout.addLayout(text_layout, 1)
 
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-        self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_refresh)
+        self._theme_refresh = None
         delay_ms = max(0, int(initial_icon_delay_ms or 0))
+        self._schedule_icon_refresh(delay_ms)
+
+    def _schedule_icon_refresh(self, delay_ms: int) -> None:
         if delay_ms > 0:
-            QTimer.singleShot(delay_ms, self._refresh_icon)
+            QTimer.singleShot(delay_ms, self._activate_theme_refresh)
         else:
-            self._refresh_icon()
+            self._activate_theme_refresh()
 
     def set_texts(self, *, caption: str, value: str, details: str = "") -> None:
         self._caption_label.setText(str(caption or ""))
@@ -71,6 +72,8 @@ class ControlTopSummaryItem(QWidget):
         super().mousePressEvent(event)
 
     def _refresh_icon(self, tokens=None) -> None:
+        from ui.theme import get_cached_qta_pixmap, get_theme_tokens
+
         theme_tokens = tokens or get_theme_tokens()
         self._icon_label.setPixmap(
             get_cached_qta_pixmap(self._icon_name, color=theme_tokens.accent_hex, size=22)
@@ -79,6 +82,13 @@ class ControlTopSummaryItem(QWidget):
     def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
         _ = force
         self._refresh_icon(tokens)
+
+    def _activate_theme_refresh(self) -> None:
+        if self._theme_refresh is None:
+            from ui.theme_refresh import ThemeRefreshBinding
+
+            self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_refresh)
+        self._refresh_icon()
 
 
 class ControlTopSummaryWidget(QWidget):

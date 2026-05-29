@@ -195,9 +195,6 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self._wait_for_startup_interactive_before_top_summary()
         self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
 
-    def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
-        _ = (tokens, force)
-
     def _apply_pending_mode_refresh_if_ready(self) -> None:
         if self._cleanup_in_progress:
             return

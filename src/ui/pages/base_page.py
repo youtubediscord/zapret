@@ -17,7 +17,6 @@ from qfluentwidgets import (
 
 from app.ui_texts import tr as tr_catalog, normalize_language
 from ui.page_performance import log_page_metric
-from ui.theme_refresh import ThemeRefreshBinding
 from ui.smooth_scroll import (
     apply_editor_smooth_scroll_preference,
     apply_page_smooth_scroll_preference,
@@ -92,11 +91,7 @@ class BasePage(_FluentScrollArea):
         self._page_load_generation = 0
         self._ready_callbacks: list[object] = []
         self._cleanup_in_progress = False
-        self._page_theme_refresh = ThemeRefreshBinding(
-            self,
-            self._apply_page_theme,
-            is_build_pending=lambda: False,
-        )
+        self._page_theme_refresh = self._create_page_theme_refresh_if_needed()
 
         # Ensure objectName is set (required by FluentWindow.addSubInterface)
         if not self.objectName():
@@ -250,8 +245,21 @@ class BasePage(_FluentScrollArea):
         _ = tokens
         _ = force
 
+    def _create_page_theme_refresh_if_needed(self):
+        if type(self)._apply_page_theme is BasePage._apply_page_theme:
+            return None
+        from ui.theme_refresh import ThemeRefreshBinding
+
+        return ThemeRefreshBinding(
+            self,
+            self._apply_page_theme,
+            is_build_pending=lambda: False,
+        )
+
     def _flush_page_theme_refresh(self) -> None:
         try:
+            if self._page_theme_refresh is None:
+                return
             self._page_theme_refresh.flush_pending()
         except Exception:
             pass
