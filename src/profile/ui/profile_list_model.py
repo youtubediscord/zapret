@@ -379,6 +379,14 @@ class ProfileListModel(QAbstractListModel):
         next_items = tuple(item for item in self._all_items if item.key != key)
         next_profile_items = {entry.key: entry for entry in next_items}
         next_rows = self._build_rows_from(next_items, self._group_expanded)
+        if [_stable_row_identity(row) for row in self._rows] == [_stable_row_identity(row) for row in next_rows]:
+            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+            self._all_items = next_items
+            self._profile_items = next_profile_items
+            self._rows = next_rows
+            self._emit_data_changed_for_rows(changed_rows)
+            return True
+
         remove_index = _single_removed_row_index(self._rows, next_rows)
         if remove_index >= 0:
             changed_rows = _changed_existing_row_indexes(self._rows, next_rows)
