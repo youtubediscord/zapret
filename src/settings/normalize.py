@@ -451,7 +451,7 @@ def normalize_updater(data: object) -> dict[str, Any]:
     return {
         "release_cache": as_dict(_json_safe(raw.get("release_cache"))),
         "rate_limit": as_dict(_json_safe(raw.get("rate_limit"))),
-        "github_cache": as_dict(_json_safe(raw.get("github_cache"))),
+        "github_cache": {},
         "github_rate_limit_reset": as_nullable_int(raw.get("github_rate_limit_reset")),
         "server_pool": {
             "stats": as_dict(_json_safe(server_pool_raw.get("stats"))),

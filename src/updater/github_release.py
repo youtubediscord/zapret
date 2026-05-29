@@ -19,6 +19,7 @@ from .channel_utils import (
     normalize_update_channel,
     is_dev_release_asset_name,
 )
+from .github_cache_storage import load_github_cache, save_github_cache
 from .network_hints import maybe_log_disable_dpi_for_update
 from .proxy_bypass import request_get_bypass_proxy
 # ────────────────────────────────────────────────────────────────
@@ -49,10 +50,10 @@ _github_cache: Dict[str, Tuple[Any, float]] = {}
 CACHE_TTL = 300  # 5 минут
 
 def _load_persistent_cache():
-    """Загружает кэш из settings.json."""
+    """Загружает временный GitHub-кэш из отдельного cache-файла."""
     global _github_cache
     try:
-        data = settings_store.get_updater_settings().get("github_cache", {})
+        data = load_github_cache()
         if not isinstance(data, dict):
             _github_cache = {}
             return
@@ -72,7 +73,7 @@ def _load_persistent_cache():
         _github_cache = {}
 
 def _save_persistent_cache():
-    """Сохраняет кэш в settings.json."""
+    """Сохраняет временный GitHub-кэш отдельно от пользовательских настроек."""
     try:
         cache_data = {}
         for url, (content, timestamp) in _github_cache.items():
@@ -85,7 +86,7 @@ def _save_persistent_cache():
             else:
                 saved_content = content
             cache_data[url] = {"content": saved_content, "timestamp": timestamp}
-        settings_store.set_updater_settings({"github_cache": cache_data})
+        save_github_cache(cache_data)
     except Exception as e:
         log(f"Ошибка сохранения кэша: {e}", "⚠️ CACHE")
 

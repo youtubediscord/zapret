@@ -43,6 +43,8 @@ from settings.schema import (
 from utils.atomic_text import atomic_write_text
 
 _SETTINGS_LOCK = RLock()
+_SETTINGS_CACHE: dict[str, Any] | None = None
+_SETTINGS_CACHE_SIGNATURE: tuple[str, int | None, int | None] | None = None
 _DIRECT_PRESET_SELECTION_PATHS = {
     ENGINE_WINWS1: ("program", SELECTED_SOURCE_PRESET_FILE_NAME_KEY_WINWS1),
     ENGINE_WINWS2: ("program", SELECTED_SOURCE_PRESET_FILE_NAME_KEY_WINWS2),
@@ -60,15 +62,28 @@ def get_settings_path() -> Path:
     return _settings_root() / _SETTINGS_DIR_NAME / _SETTINGS_FILE_NAME
 
 
+def _settings_file_signature(path: Path | None = None) -> tuple[str, int | None, int | None]:
+    resolved = path or get_settings_path()
+    try:
+        stat = resolved.stat()
+        return (str(resolved), int(stat.st_mtime_ns), int(stat.st_size))
+    except OSError:
+        return (str(resolved), None, None)
+
+
 def _format_settings_json(data: dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
 def _write_settings_file_locked(data: dict[str, Any]) -> None:
+    global _SETTINGS_CACHE, _SETTINGS_CACHE_SIGNATURE
+
     normalized = _normalize_settings(data)
     path = get_settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, _format_settings_json(normalized), encoding="utf-8")
+    _SETTINGS_CACHE = copy.deepcopy(normalized)
+    _SETTINGS_CACHE_SIGNATURE = _settings_file_signature(path)
 
 
 def _read_settings_file_locked(*, materialize: bool = True) -> dict[str, Any]:
@@ -96,15 +111,28 @@ def _read_settings_file_locked(*, materialize: bool = True) -> dict[str, Any]:
     return normalized
 
 
+def _read_settings_cached_locked(*, materialize: bool = True) -> dict[str, Any]:
+    global _SETTINGS_CACHE, _SETTINGS_CACHE_SIGNATURE
+
+    signature = _settings_file_signature()
+    if _SETTINGS_CACHE is not None and _SETTINGS_CACHE_SIGNATURE == signature:
+        return _SETTINGS_CACHE
+
+    data = _read_settings_file_locked(materialize=materialize)
+    _SETTINGS_CACHE = copy.deepcopy(data)
+    _SETTINGS_CACHE_SIGNATURE = _settings_file_signature()
+    return _SETTINGS_CACHE
+
+
 def read_settings() -> dict[str, Any]:
     with _SETTINGS_LOCK:
-        return copy.deepcopy(_read_settings_file_locked())
+        return copy.deepcopy(_read_settings_cached_locked())
 
 
 def materialize_settings_file() -> dict[str, Any]:
     """Гарантирует, что settings.json существует и содержит полный нормализованный JSON."""
     with _SETTINGS_LOCK:
-        return copy.deepcopy(_read_settings_file_locked(materialize=True))
+        return copy.deepcopy(_read_settings_cached_locked(materialize=True))
 
 
 def reset_settings() -> dict[str, Any]:
@@ -134,7 +162,7 @@ def _set_path_value(data: dict[str, Any], path: tuple[str, ...], value: Any) -> 
 
 def _update_settings(mutator) -> dict[str, Any]:
     with _SETTINGS_LOCK:
-        current = _read_settings_file_locked()
+        current = _read_settings_cached_locked()
         working = copy.deepcopy(current)
         mutator(working)
         normalized = _normalize_settings(working)
