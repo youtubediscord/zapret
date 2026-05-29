@@ -2472,6 +2472,22 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_update_channel_open_worker", feature_source)
         self.assertIn("open_update_channel", worker_source)
 
+    def test_updater_changelog_links_open_through_worker(self) -> None:
+        external_workers = importlib.import_module("app.external_workers")
+        page_source = inspect.getsource(ServersPage)
+        build_source = inspect.getsource(ServersPage._build_ui)
+
+        self.assertTrue(hasattr(external_workers, "ExternalOpenUrlWorker"))
+        worker_source = inspect.getsource(external_workers.ExternalOpenUrlWorker.run)
+
+        self.assertIn("open_url=self._request_changelog_link_open", build_source)
+        self.assertNotIn("open_url=self._external_actions.open_url", build_source)
+        self.assertIn("create_changelog_link_open_worker", page_source)
+        self.assertIn("_request_changelog_link_open", page_source)
+        self.assertIn("_changelog_link_open_runtime", page_source)
+        self.assertIn("_stop_changelog_link_open_worker", page_source)
+        self.assertIn("open_url", worker_source)
+
     def test_updater_server_retry_without_dpi_runs_through_worker(self) -> None:
         retry_workers = importlib.import_module("updater.retry_workers")
         update_runtime_cls = __import__("updater.update_page_runtime", fromlist=["UpdatePageRuntime"]).UpdatePageRuntime

@@ -28,6 +28,7 @@ from updater.ui.settings_build import (
     build_servers_settings_section,
     build_servers_telegram_section,
 )
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.widgets.win11_controls import Win11ToggleRow
 from qfluentwidgets import (
     CaptionLabel, PushSettingCard, SettingCardGroup, InfoBar,
@@ -67,6 +68,8 @@ class ServersPage(BasePage):
         self._open_about = open_about
         self._runtime_initialized = False
         self._cleanup_in_progress = False
+        self._changelog_link_open_runtime = OneShotWorkerRuntime()
+        self._changelog_link_open_pending: str | None = None
 
         self._build_ui()
         self._apply_page_theme(force=True)
@@ -183,7 +186,7 @@ class ServersPage(BasePage):
         # Changelog card (hidden by default)
         self.changelog_card = ChangelogCard(
             language=self._ui_language,
-            open_url=self._external_actions.open_url,
+            open_url=self._request_changelog_link_open,
         )
         self.changelog_card.install_clicked.connect(self._request_install_update)
         self.changelog_card.dismiss_clicked.connect(self._request_dismiss_update)
@@ -335,6 +338,74 @@ class ServersPage(BasePage):
     def _request_dismiss_update(self) -> None:
         self._update_runtime.dismiss_update()
 
+    def create_changelog_link_open_worker(self, request_id: int, *, url: str):
+        return self._external_actions.create_open_url_worker(
+            request_id,
+            url=url,
+            parent=self,
+        )
+
+    def _request_changelog_link_open(self, url: str) -> None:
+        target = str(url or "").strip()
+        if self._changelog_link_open_runtime.is_running():
+            self._changelog_link_open_pending = target
+            return
+        self._changelog_link_open_pending = None
+        self._start_changelog_link_open_worker(target)
+
+    def _start_changelog_link_open_worker(self, url: str) -> None:
+        self._changelog_link_open_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_changelog_link_open_worker(
+                request_id,
+                url=url,
+            ),
+            on_loaded=self._on_changelog_link_open_finished,
+            on_failed=self._on_changelog_link_open_failed,
+            on_finished=self._on_changelog_link_open_worker_finished,
+        )
+
+    def _on_changelog_link_open_finished(self, request_id: int, result) -> None:
+        if not self._changelog_link_open_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        if getattr(result, "ok", False):
+            return
+        self._show_changelog_link_open_error(str(getattr(result, "error", "") or ""))
+
+    def _on_changelog_link_open_failed(self, request_id: int, error: str) -> None:
+        if not self._changelog_link_open_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        self._show_changelog_link_open_error(str(error or ""))
+
+    def _on_changelog_link_open_worker_finished(self, _worker) -> None:
+        pending = self._changelog_link_open_pending
+        self._changelog_link_open_pending = None
+        if pending is not None and not self._cleanup_in_progress:
+            self._start_changelog_link_open_worker(pending)
+
+    def _show_changelog_link_open_error(self, error: str) -> None:
+        InfoBar.warning(
+            title=self._tr("page.servers.telegram.error.title", "Ошибка"),
+            content=self._tr(
+                "page.servers.telegram.error.open_channel",
+                "Не удалось открыть Telegram канал:\n{error}",
+            ).format(error=str(error or "")),
+            parent=self.window(),
+        )
+
+    def _stop_changelog_link_open_worker(self) -> None:
+        self._changelog_link_open_pending = None
+        self._changelog_link_open_runtime.stop(
+            blocking=True,
+            warning_prefix="Changelog link open worker",
+        )
+        self._changelog_link_open_runtime.cancel()
+
     def _open_telegram_channel(self):
         self._update_runtime.request_open_update_channel(CHANNEL)
 
@@ -359,4 +430,5 @@ class ServersPage(BasePage):
 
     def cleanup(self):
         self._cleanup_in_progress = True
+        self._stop_changelog_link_open_worker()
         self._update_runtime.cleanup()
