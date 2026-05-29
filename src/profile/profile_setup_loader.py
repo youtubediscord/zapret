@@ -545,7 +545,7 @@ class ProfileFolderActionWorker(QThread):
 
 
 class ProfileStrategyApplyWorker(QThread):
-    applied = pyqtSignal(int, str, str, str)
+    applied = pyqtSignal(int, str, str, str, object)
     failed = pyqtSignal(int, str)
 
     def __init__(self, request_id: int, controller, profile_key: str, strategy_id: str, parent=None):
@@ -568,7 +568,12 @@ class ProfileStrategyApplyWorker(QThread):
         if not profile_key:
             self.failed.emit(self._request_id, "Стратегия не применена")
             return
-        self.applied.emit(self._request_id, self._profile_key, str(profile_key), self._strategy_id)
+        payload = None
+        try:
+            payload = self._controller.load(str(profile_key))
+        except Exception as exc:
+            log(f"ProfileStrategyApplyWorker: не удалось загрузить обновлённый profile payload: {exc}", "DEBUG")
+        self.applied.emit(self._request_id, self._profile_key, str(profile_key), self._strategy_id, payload)
 
 
 class ProfileStrategyFeedbackSaveWorker(QThread):

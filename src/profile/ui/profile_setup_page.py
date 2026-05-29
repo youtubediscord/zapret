@@ -2110,6 +2110,7 @@ class ProfileSetupPageBase(BasePage):
         requested_profile_key: str,
         profile_key: str,
         strategy_id: str,
+        payload=None,
     ) -> None:
         if request_id != int(getattr(self, "_strategy_apply_request_id", 0) or 0):
             return
@@ -2122,6 +2123,15 @@ class ProfileSetupPageBase(BasePage):
         new_key = str(profile_key or "").strip()
         if new_key:
             self._profile_key = new_key
+        if payload is not None:
+            self._payload = payload
+            self._apply_payload(payload)
+            self._on_profile_changed_callback(
+                self._profile_key,
+                "strategy",
+                getattr(payload, "item", None),
+            )
+            return
         applied_locally = self._apply_strategy_locally(strategy_id)
         if not applied_locally or self._profile_key != previous_key:
             self.reload_current_profile()
