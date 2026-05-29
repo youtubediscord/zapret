@@ -834,6 +834,38 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(model.rowCount(), 2)
         self.assertEqual(model.index(1, 0).data(ProfileListModel.ProfileKeyRole), "profile:1")
 
+    def test_profile_model_type_filter_skips_reset_when_visible_rows_do_not_change(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        youtube = SimpleNamespace(
+            key="profile:1",
+            persistent_key="p1",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="none",
+            strategy_name="Стратегия не выбрана",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=2,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+
+        model = ProfileListModel()
+        model.set_profiles((youtube,))
+        model.beginResetModel = Mock(side_effect=AssertionError("type filter with same visible rows must not reset"))
+
+        model.set_active_profile_types({"tcp"})
+
+        self.assertEqual(model.rowCount(), 2)
+        self.assertEqual(model.index(1, 0).data(ProfileListModel.ProfileKeyRole), "profile:1")
+
     def test_profile_model_moves_profile_without_reloading_payload(self) -> None:
         from profile.ui.profile_list_model import ProfileListModel
 

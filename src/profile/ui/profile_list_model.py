@@ -135,9 +135,25 @@ class ProfileListModel(QAbstractListModel):
         active = _normalized_profile_types(profile_types)
         if self._active_profile_types == active:
             return
+        previous_active = self._active_profile_types
+        self._active_profile_types = active
+        try:
+            next_rows = self._build_rows()
+        finally:
+            self._active_profile_types = previous_active
+
+        old_ids = [_stable_row_identity(row) for row in self._rows]
+        next_ids = [_stable_row_identity(row) for row in next_rows]
+        if old_ids == next_ids:
+            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+            self._active_profile_types = active
+            self._rows = next_rows
+            self._emit_data_changed_for_rows(changed_rows)
+            return
+
         self.beginResetModel()
         self._active_profile_types = active
-        self._rows = self._build_rows()
+        self._rows = next_rows
         self.endResetModel()
 
     def set_search_query(self, query: str) -> None:
