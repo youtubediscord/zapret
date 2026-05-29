@@ -2251,9 +2251,11 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("blockcheck_page_runtime.start_run_log", start_source)
         self.assertNotIn("blockcheck_page_runtime.append_run_log", page_source)
         self.assertNotIn("_append_run_log", page_source)
+        self.assertIn("blockcheck.commands", worker_source)
+        self.assertNotIn("blockcheck.page_runtime", worker_source)
         self.assertIn("run_log_started", worker_source)
-        self.assertIn("start_run_log", worker_source)
-        self.assertIn("append_run_log", worker_source)
+        self.assertIn("start_blockcheck_run_log", worker_source)
+        self.assertIn("append_blockcheck_run_log", worker_source)
 
     def test_strategy_scan_run_log_writes_are_owned_by_worker(self) -> None:
         strategy_scan_run_workflow = importlib.import_module("blockcheck.strategy_scan_run_workflow")
@@ -2268,9 +2270,11 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn(".start_run_log", start_source)
         self.assertNotIn(".append_run_log", run_workflow_source)
         self.assertNotIn("append_strategy_scan_log", results_workflow_source)
+        self.assertIn("blockcheck.commands", worker_source)
+        self.assertNotIn("blockcheck.strategy_scan_logs", worker_source)
         self.assertIn("run_log_started", worker_source)
-        self.assertIn("start_run_log", worker_source)
-        self.assertIn("append_run_log", worker_source)
+        self.assertIn("start_strategy_scan_run_log", worker_source)
+        self.assertIn("append_strategy_scan_run_log", worker_source)
 
     def test_blockcheck_support_bundle_prepares_through_worker(self) -> None:
         blockcheck_workers = importlib.import_module("blockcheck.workers")
@@ -2312,8 +2316,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_support_prepare_worker", page_source)
         self.assertIn("_support_prepare_worker", page_source)
         self.assertIn("create_strategy_scan_support_prepare_worker", feature_source)
-        self.assertIn("blockcheck.strategy_scan_logs", worker_source)
-        self.assertIn("prepare_support", worker_source)
+        self.assertIn("blockcheck.commands", worker_source)
+        self.assertNotIn("blockcheck.strategy_scan_logs", worker_source)
+        self.assertIn("prepare_strategy_scan_support", worker_source)
 
     def test_strategy_scan_apply_runs_through_worker(self) -> None:
         spec = importlib.util.find_spec("blockcheck.strategy_apply_worker")
@@ -2346,6 +2351,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertIn("create_quick_targets_worker", page_source)
         self.assertIn("create_strategy_scan_quick_targets_worker", feature_source)
+        self.assertIn("blockcheck.commands", worker_source)
+        self.assertNotIn("blockcheck.strategy_scan_page_plans", worker_source)
         self.assertIn("build_quick_target_menu_plan", worker_source)
         self.assertNotIn("build_quick_target_menu_plan", handler_source)
 

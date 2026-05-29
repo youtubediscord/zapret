@@ -102,9 +102,9 @@ class StrategyScanQuickTargetsWorker(QThread):
 
     def run(self) -> None:
         try:
-            from blockcheck.strategy_scan_page_plans import build_quick_target_menu_plan
+            import blockcheck.commands as blockcheck_commands
 
-            plan = build_quick_target_menu_plan(
+            plan = blockcheck_commands.build_quick_target_menu_plan(
                 scan_protocol=self._scan_protocol,
                 current_value=self._current_value,
             )
@@ -140,9 +140,9 @@ class StrategyScanSupportPrepareWorker(QThread):
 
     def run(self) -> None:
         try:
-            from blockcheck.strategy_scan_logs import prepare_support
+            import blockcheck.commands as blockcheck_commands
 
-            result = prepare_support(
+            result = blockcheck_commands.prepare_strategy_scan_support(
                 run_log_file=self._run_log_file,
                 target=self._target,
                 protocol_label=self._protocol_label,

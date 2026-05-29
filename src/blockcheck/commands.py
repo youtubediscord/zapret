@@ -67,3 +67,65 @@ def run_user_domain_action(action: str, domain: str):
         blockcheck_page_runtime.remove_user_domain(domain)
         return str(domain or "").strip()
     raise ValueError(f"Неизвестное действие домена BlockCheck: {action_name}")
+
+
+def start_blockcheck_run_log(mode: str, extra_domains: list[str]):
+    from blockcheck.page_runtime import start_run_log
+
+    return start_run_log(mode, extra_domains)
+
+
+def append_blockcheck_run_log(path: str | None, message: str) -> None:
+    from blockcheck.page_runtime import append_run_log
+
+    append_run_log(path, message)
+
+
+def build_quick_target_menu_plan(*, scan_protocol: str, current_value: str):
+    from blockcheck.strategy_scan_page_plans import build_quick_target_menu_plan as _build_plan
+
+    return _build_plan(scan_protocol=scan_protocol, current_value=current_value)
+
+
+def prepare_strategy_scan_support(
+    *,
+    run_log_file,
+    target: str,
+    protocol_label: str,
+    mode_label: str,
+    scan_protocol: str,
+):
+    from blockcheck.strategy_scan_logs import prepare_support
+
+    return prepare_support(
+        run_log_file=run_log_file,
+        target=target,
+        protocol_label=protocol_label,
+        mode_label=mode_label,
+        scan_protocol=scan_protocol,
+    )
+
+
+def start_strategy_scan_run_log(
+    *,
+    target: str,
+    mode: str,
+    scan_protocol: str,
+    resume_index: int,
+    udp_games_scope: str,
+):
+    from blockcheck.strategy_scan_logs import start_run_log
+
+    return start_run_log(
+        target=target,
+        mode=mode,
+        scan_protocol=scan_protocol,
+        resume_index=resume_index,
+        udp_games_scope=udp_games_scope,
+    )
+
+
+def append_strategy_scan_run_log(path: str | None, message: str) -> None:
+    from blockcheck.strategy_scan_logs import append_run_log
+
+    append_run_log(path, message)

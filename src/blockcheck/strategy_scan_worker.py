@@ -109,9 +109,9 @@ class StrategyScanWorker(QObject):
 
     def _start_run_log(self) -> None:
         try:
-            from blockcheck.strategy_scan_logs import start_run_log
+            import blockcheck.commands as blockcheck_commands
 
-            log_state = start_run_log(
+            log_state = blockcheck_commands.start_strategy_scan_run_log(
                 target=self._target,
                 mode=self._mode,
                 scan_protocol=self._scan_protocol,
@@ -127,9 +127,9 @@ class StrategyScanWorker(QObject):
 
     def _append_run_log(self, message: str) -> None:
         try:
-            from blockcheck.strategy_scan_logs import append_run_log
+            import blockcheck.commands as blockcheck_commands
 
-            append_run_log(self._run_log_file, message)
+            blockcheck_commands.append_strategy_scan_run_log(self._run_log_file, message)
         except Exception:
             logger.exception("StrategyScanWorker failed to append run log")
 

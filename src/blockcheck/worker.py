@@ -40,10 +40,10 @@ class BlockcheckWorker(QObject):
 
     def _run_in_thread(self):
         try:
-            from blockcheck.page_runtime import start_run_log
+            import blockcheck.commands as blockcheck_commands
             from blockcheck.runner import BlockcheckRunner
 
-            log_state = start_run_log(self._mode, list(self._extra_domains or []))
+            log_state = blockcheck_commands.start_blockcheck_run_log(self._mode, list(self._extra_domains or []))
             self._run_log_file = log_state.path
             self.run_log_started.emit(log_state.path)
             if not log_state.created:
@@ -100,8 +100,8 @@ class BlockcheckWorker(QObject):
 
     def _append_run_log(self, message: str) -> None:
         try:
-            from blockcheck.page_runtime import append_run_log
+            import blockcheck.commands as blockcheck_commands
 
-            append_run_log(self._run_log_file, message)
+            blockcheck_commands.append_blockcheck_run_log(self._run_log_file, message)
         except Exception:
             pass
