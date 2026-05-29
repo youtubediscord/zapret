@@ -11,14 +11,15 @@ class HostsPermissionRestoreWorker(QThread):
     loaded = pyqtSignal(int, object)
     failed = pyqtSignal(int, str)
 
-    def __init__(self, request_id: int, controller, parent=None):
+    def __init__(self, request_id: int, parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._controller = controller
 
     def run(self) -> None:
+        from hosts import commands as hosts_commands
+
         try:
-            result = self._controller.restore_hosts_permissions()
+            result = hosts_commands.restore_hosts_permissions()
         except Exception as exc:
             log(f"HostsPermissionRestoreWorker: не удалось восстановить права hosts: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))

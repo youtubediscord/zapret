@@ -3309,7 +3309,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("_get_hosts_runtime_state()", update_source)
         self.assertNotIn("_get_hosts_runtime_state()", access_source)
         self.assertIn("create_state_load_worker", controller_source)
-        self.assertIn("get_hosts_state", worker_source)
+        self.assertIn("hosts_commands.get_hosts_state", worker_source)
+        self.assertNotIn("self._controller", worker_source)
+        self.assertIn("get_hosts_state", inspect.getsource(hosts_commands.get_hosts_state))
 
     def test_hosts_open_file_runs_through_worker(self) -> None:
         spec = importlib.util.find_spec("hosts.open_file_worker")
@@ -3327,7 +3329,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn(".open_hosts_file(", open_source)
         self.assertIn("create_open_hosts_file_worker", page_source)
         self.assertIn("create_open_hosts_file_worker", controller_source)
-        self.assertIn("open_hosts_file", worker_source)
+        self.assertIn("hosts_commands.open_hosts_file", worker_source)
+        self.assertNotIn("self._controller", worker_source)
+        self.assertIn("open_hosts_file", inspect.getsource(hosts_commands.open_hosts_file))
 
     def test_hosts_restore_permissions_runs_through_worker(self) -> None:
         spec = importlib.util.find_spec("hosts.permission_restore_worker")
@@ -3345,7 +3349,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("restore_hosts_permissions_flow(", restore_source)
         self.assertIn("create_permission_restore_worker", request_source)
         self.assertIn("create_permission_restore_worker", controller_source)
-        self.assertIn("restore_hosts_permissions", worker_source)
+        self.assertIn("hosts_commands.restore_hosts_permissions", worker_source)
+        self.assertNotIn("self._controller", worker_source)
+        self.assertIn("restore_hosts_permissions", inspect.getsource(hosts_commands.restore_hosts_permissions))
 
     def test_hosts_page_cache_cannot_sync_read_runtime_state(self) -> None:
         page_source = inspect.getsource(HostsPage)

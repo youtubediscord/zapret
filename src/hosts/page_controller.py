@@ -30,17 +30,17 @@ class HostsPageController:
     def create_state_load_worker(self, request_id: int, hosts_runtime, parent=None):
         from hosts.state_load_worker import HostsStateLoadWorker
 
-        return HostsStateLoadWorker(request_id, self, hosts_runtime, parent)
+        return HostsStateLoadWorker(request_id, hosts_runtime, parent)
 
     def create_open_hosts_file_worker(self, request_id: int, parent=None):
         from hosts.open_file_worker import HostsOpenFileWorker
 
-        return HostsOpenFileWorker(request_id, self, parent)
+        return HostsOpenFileWorker(request_id, parent)
 
     def create_permission_restore_worker(self, request_id: int, parent=None):
         from hosts.permission_restore_worker import HostsPermissionRestoreWorker
 
-        return HostsPermissionRestoreWorker(request_id, self, parent)
+        return HostsPermissionRestoreWorker(request_id, parent)
 
     def create_hosts_runtime(self, *, status_callback=None):
         return self._hosts.create_hosts_runtime(status_callback=status_callback)
