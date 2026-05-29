@@ -225,13 +225,11 @@ class QuickActionsBarLayoutTests(unittest.TestCase):
 
         feature.create_blobs_load_worker = lambda request_id, reload=False, parent=None: BlobsLoadWorker(
             request_id,
-            feature,
             reload=reload,
             parent=parent,
         )
         feature.create_blob_action_worker = lambda request_id, **kwargs: BlobActionWorker(
             request_id,
-            feature,
             **kwargs,
         )
         page = BlobsPage(blobs_feature=feature, open_control=lambda: None)

@@ -208,7 +208,7 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
 
         self.assertEqual(switch_calls, [(ZAPRET2_MODE, "preset_switched", "Default v5.txt")])
 
-    def test_reapplying_same_preset_skips_ui_refresh_but_keeps_runtime_apply(self) -> None:
+    def test_reapplying_same_preset_skips_ui_refresh_and_runtime_apply(self) -> None:
         from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
         from settings.mode import ZAPRET2_MODE
 
@@ -245,7 +245,6 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertEqual(
             switch_calls,
             [
-                (ZAPRET2_MODE, "preset_switched", "Default v5.txt"),
                 (ZAPRET2_MODE, "preset_switched", "Default v5.txt"),
             ],
         )

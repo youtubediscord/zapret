@@ -9,18 +9,19 @@ class BlobsLoadWorker(QThread):
     loaded = pyqtSignal(int, dict, bool)
     failed = pyqtSignal(int, str, bool)
 
-    def __init__(self, request_id: int, blobs_feature, *, reload: bool = False, parent=None):
+    def __init__(self, request_id: int, *, reload: bool = False, parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._blobs = blobs_feature
         self._reload = bool(reload)
 
     def run(self) -> None:
+        import blobs.public as blobs_public
+
         try:
             if self._reload:
-                blobs_info = self._blobs.reload_blobs()
+                blobs_info = blobs_public.reload_blobs()
             else:
-                blobs_info = self._blobs.get_blobs_info()
+                blobs_info = blobs_public.get_blobs_info()
         except Exception as exc:
             log(f"BlobsLoadWorker: не удалось загрузить blobs: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc), self._reload)
@@ -35,7 +36,6 @@ class BlobActionWorker(QThread):
     def __init__(
         self,
         request_id: int,
-        blobs_feature,
         *,
         action: str,
         name: str = "",
@@ -46,7 +46,6 @@ class BlobActionWorker(QThread):
     ):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._blobs = blobs_feature
         self._action = str(action or "").strip()
         self._name = str(name or "").strip()
         self._blob_type = str(blob_type or "").strip()
@@ -61,9 +60,11 @@ class BlobActionWorker(QThread):
             "description": self._description,
         }
         try:
+            import blobs.public as blobs_public
+
             if self._action == "save":
                 result = bool(
-                    self._blobs.save_user_blob(
+                    blobs_public.save_user_blob(
                         self._name,
                         self._blob_type,
                         self._value,
@@ -71,7 +72,7 @@ class BlobActionWorker(QThread):
                     )
                 )
             elif self._action == "delete":
-                result = bool(self._blobs.delete_user_blob(self._name))
+                result = bool(blobs_public.delete_user_blob(self._name))
             else:
                 raise ValueError(f"Неизвестное действие blob: {self._action}")
         except Exception as exc:
@@ -85,18 +86,19 @@ class BlobOpenActionWorker(QThread):
     completed = pyqtSignal(int, str)
     failed = pyqtSignal(int, str, str)
 
-    def __init__(self, request_id: int, blobs_feature, *, action: str, parent=None):
+    def __init__(self, request_id: int, *, action: str, parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
-        self._blobs = blobs_feature
         self._action = str(action or "").strip()
 
     def run(self) -> None:
         try:
+            import blobs.public as blobs_public
+
             if self._action == "bin_folder":
-                self._blobs.open_bin_folder()
+                blobs_public.open_bin_folder()
             elif self._action == "blobs_json":
-                self._blobs.open_blobs_json()
+                blobs_public.open_blobs_json()
             else:
                 raise ValueError(f"Неизвестное действие открытия blob: {self._action}")
         except Exception as exc:

@@ -95,11 +95,17 @@ class PresetRuntimeCoordinator(QObject):
         if not self._is_current_preset_method(method):
             return
 
-        log(f"Пресет переключен: {preset_file_name}", "INFO")
         selected_file_name = str(preset_file_name or "").strip()
         active_key = (method, selected_file_name.lower())
         active_changed = self._last_active_preset_key != active_key
         self._last_active_preset_key = active_key
+        if not active_changed:
+            log(
+                f"Повторное переключение на тот же preset пропущено: {selected_file_name}",
+                "DEBUG",
+            )
+            return
+        log(f"Пресет переключен: {selected_file_name}", "INFO")
         self.setup_active_preset_file_watcher()
         self._schedule_selected_source_preset_apply(
             launch_method=method,
@@ -107,14 +113,13 @@ class PresetRuntimeCoordinator(QObject):
             preset_file_name=selected_file_name,
             delay_ms=0,
         )
-        if active_changed:
-            try:
-                store = self._ui_state_store
-                if store is not None:
-                    self._publish_active_preset_revision_deferred()
-            except Exception:
-                pass
-            self.schedule_refresh_after_preset_switch()
+        try:
+            store = self._ui_state_store
+            if store is not None:
+                self._publish_active_preset_revision_deferred()
+        except Exception:
+            pass
+        self.schedule_refresh_after_preset_switch()
 
     def handle_preset_identity_changed(self, launch_method: str, preset_file_name: str) -> None:
         method = normalize_launch_method(launch_method, default="")

@@ -29,7 +29,6 @@ def build_blobs_feature() -> BlobsFeature:
 
         return BlobsLoadWorker(
             request_id,
-            blobs_feature=feature,
             reload=bool(reload),
             parent=parent,
         )
@@ -48,7 +47,6 @@ def build_blobs_feature() -> BlobsFeature:
 
         return BlobActionWorker(
             request_id,
-            blobs_feature=feature,
             action=action,
             name=name,
             blob_type=blob_type,
@@ -62,7 +60,6 @@ def build_blobs_feature() -> BlobsFeature:
 
         return BlobOpenActionWorker(
             request_id,
-            blobs_feature=feature,
             action=action,
             parent=parent,
         )
