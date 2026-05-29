@@ -2137,6 +2137,10 @@ class ProfileSetupPageBase(BasePage):
                 getattr(payload, "item", None),
             )
             return
+        item = getattr(getattr(self, "_payload", None), "item", None)
+        if self._profile_key == previous_key and strategy_id == str(getattr(item, "strategy_id", "") or "").strip():
+            self._on_profile_changed_callback(self._profile_key, "strategy", item)
+            return
         applied_locally = self._apply_strategy_locally(strategy_id)
         if not applied_locally or self._profile_key != previous_key:
             self.reload_current_profile()

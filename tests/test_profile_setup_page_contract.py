@@ -3363,6 +3363,23 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page.reload_current_profile.assert_not_called()
         page._on_profile_changed_callback.assert_called_once_with("profile-1", "strategy", updated_item)
 
+    def test_strategy_apply_finish_does_not_apply_same_strategy_locally_again(self) -> None:
+        updated_item = SimpleNamespace(strategy_id="tls_fake", in_preset=True, enabled=True)
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._strategy_apply_request_id = 1
+        page._pending_strategy_apply = None
+        page._payload = SimpleNamespace(item=updated_item)
+        page._apply_strategy_locally = Mock(side_effect=AssertionError("confirmed strategy must not redraw twice"))
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_strategy_apply_finished(page, 1, "profile-1", "profile-1", "tls_fake")
+
+        page._apply_strategy_locally.assert_not_called()
+        page.reload_current_profile.assert_not_called()
+        page._on_profile_changed_callback.assert_called_once_with("profile-1", "strategy", updated_item)
+
     def test_strategy_apply_worker_emits_new_profile_key(self) -> None:
         controller = Mock()
         controller.apply_strategy.return_value = "profile-1"
