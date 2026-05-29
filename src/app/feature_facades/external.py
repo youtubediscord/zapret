@@ -27,7 +27,7 @@ class ExternalActionsFeature:
     def create_open_url_worker(self, request_id: int, *, url: str, parent=None):
         from app.external_workers import ExternalOpenUrlWorker
 
-        return ExternalOpenUrlWorker(request_id, external_actions_feature=self, url=url, parent=parent)
+        return ExternalOpenUrlWorker(request_id, url=url, open_url_fn=self._open_url, parent=parent)
 
 
 def build_external_actions_feature() -> ExternalActionsFeature:
