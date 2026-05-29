@@ -30,6 +30,31 @@ class ProgramSettingsLoadWorker(QThread):
         self.loaded.emit(self._request_id, snapshot)
 
 
+class ProgramSettingsAdminCheckWorker(QThread):
+    loaded = pyqtSignal(int, bool)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        program_settings_feature,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._program_settings = program_settings_feature
+
+    def run(self) -> None:
+        try:
+            is_admin = bool(self._program_settings.is_user_admin())
+        except Exception as exc:
+            log(f"ProgramSettingsAdminCheckWorker: не удалось проверить права администратора: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.loaded.emit(self._request_id, is_admin)
+
+
 class ProgramSettingsSaveWorker(QThread):
     saved = pyqtSignal(int, str, object)
     failed = pyqtSignal(int, str, str)

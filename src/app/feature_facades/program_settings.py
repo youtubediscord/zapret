@@ -91,6 +91,15 @@ class ProgramSettingsFeature:
             parent=parent,
         )
 
+    def create_program_settings_admin_check_worker(self, request_id: int, *, parent=None):
+        from program_settings.workers import ProgramSettingsAdminCheckWorker
+
+        return ProgramSettingsAdminCheckWorker(
+            request_id,
+            program_settings_feature=self,
+            parent=parent,
+        )
+
     def set_defender_disabled(self, disable: bool, *, status_callback=None):
         return self._commands().set_defender_disabled(disable, status_callback=status_callback)
 

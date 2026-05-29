@@ -2637,7 +2637,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         zapret1_tray_source = inspect.getsource(Zapret1ModeControlPage._on_hide_to_tray_toggled)
         zapret2_auto_source = inspect.getsource(Zapret2ModeControlPage._on_auto_dpi_toggled)
         zapret2_tray_source = inspect.getsource(Zapret2ModeControlPage._on_hide_to_tray_toggled)
-        defender_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._on_defender_toggled)
+        defender_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._continue_defender_toggle)
         max_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._on_max_blocker_toggled)
 
         self.assertTrue(hasattr(program_settings_workers, "ProgramSettingsSaveWorker"))
@@ -2664,6 +2664,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._program_settings.set_max_block_enabled", max_source)
         self.assertIn("set_defender_disabled", worker_source)
         self.assertIn("set_max_block_enabled", worker_source)
+
+    def test_defender_admin_check_runs_through_worker(self) -> None:
+        defender_source = "\n".join(
+            (
+                inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._on_defender_toggled),
+                inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin._continue_defender_toggle),
+            )
+        )
+        mixin_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin)
+        feature_source = inspect.getsource(__import__("app.feature_facades.program_settings", fromlist=["ProgramSettingsFeature"]).ProgramSettingsFeature)
+
+        self.assertTrue(hasattr(program_settings_workers, "ProgramSettingsAdminCheckWorker"))
+        worker_source = inspect.getsource(program_settings_workers.ProgramSettingsAdminCheckWorker.run)
+
+        self.assertIn("_request_defender_admin_check", defender_source)
+        self.assertNotIn("self._program_settings.is_user_admin", defender_source)
+        self.assertIn("create_program_settings_admin_check_worker", mixin_source)
+        self.assertIn("create_program_settings_admin_check_worker", feature_source)
+        self.assertIn("is_user_admin", worker_source)
 
     def test_control_program_settings_load_runs_through_worker(self) -> None:
         zapret1_sync_source = inspect.getsource(Zapret1ModeControlPage._sync_program_settings)

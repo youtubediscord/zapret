@@ -1063,5 +1063,6 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
+        self._stop_defender_admin_check_worker()
         self._stop_external_open_url_worker()
         cleanup_control_page_subscriptions(self)
