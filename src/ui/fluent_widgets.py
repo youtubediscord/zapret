@@ -14,6 +14,7 @@ import qtawesome as qta
 
 from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
+from ui.pulsing_dot import PulsingDot
 from qfluentwidgets import (
     BodyLabel, CaptionLabel, CardWidget, CheckBox, ComboBox, FlowLayout,
     FluentIcon, HeaderCardWidget, IndeterminateProgressBar, InfoBar,
@@ -696,121 +697,6 @@ class SettingsRow(FluentSettingCard):
             self.setContent(text)
         except Exception:
             pass
-
-
-# ---------------------------------------------------------------------------
-# PulsingDot — animated status indicator dot with glow effect
-# ---------------------------------------------------------------------------
-
-class PulsingDot(QWidget):
-    """Pulsing dot indicator — QTimer at 100 ms (10 FPS).
-
-    QPropertyAnimation was intentionally avoided: it runs at the display
-    refresh rate (~60 FPS), tripling paint calls vs a fixed interval timer.
-    Lifecycle: timer stops when the widget is hidden and resumes on show,
-    so there is zero CPU cost while the user is on a different page.
-    """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._color = QColor("#aeb5c1")
-        self._pulse_phase = 0.0
-        self._is_pulsing = False
-
-        self.setFixedSize(28, 28)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
-        self._timer = QTimer(self)
-        self._timer.setInterval(100)         # 10 FPS — smooth enough, half the CPU vs 50 ms
-        self._timer.timeout.connect(self._tick)
-
-    # --- Public API -------------------------------------------------------
-
-    def set_color(self, color: str) -> None:
-        c = QColor(color)
-        if c.isValid():
-            self._color = c
-        self.update()
-
-    def start_pulse(self) -> None:
-        if not self._is_pulsing:
-            self._is_pulsing = True
-            self._pulse_phase = 0.0
-            if self.isVisible():
-                self._timer.start()
-
-    def stop_pulse(self) -> None:
-        self._is_pulsing = False
-        self._timer.stop()
-        self._pulse_phase = 0.0
-        self.update()
-
-    # --- Lifecycle: stop timer when hidden, restart when shown -----------
-
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        if self._is_pulsing and not self._timer.isActive():
-            self._timer.start()
-
-    def hideEvent(self, event) -> None:
-        super().hideEvent(event)
-        self._timer.stop()   # zero CPU while page is not visible
-
-    def changeEvent(self, event) -> None:
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.WindowStateChange:
-            window = self.window()
-            if window and window.isMinimized():
-                self._timer.stop()
-            elif self._is_pulsing and not self._timer.isActive():
-                self._timer.start()
-
-    # --- Animation tick ---------------------------------------------------
-
-    def _tick(self) -> None:
-        self._pulse_phase = (self._pulse_phase + 0.08) % 1.0  # ~0.8 cycles/sec at 10 FPS
-        self.update()
-
-    # --- Paint ------------------------------------------------------------
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        cx = self.width() / 2
-        cy = self.height() / 2
-        base_r = 5
-
-        # Pulsing rings (two offset by 0.5 phase for continuous ripple)
-        if self._is_pulsing:
-            for phase_offset in (0.0, 0.5):
-                phase = (self._pulse_phase + phase_offset) % 1.0
-                opacity = max(0.0, 0.5 * (1.0 - phase))
-                radius = base_r + 10 * phase
-                c = QColor(self._color)
-                c.setAlphaF(opacity)
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(c)
-                r = int(radius)
-                painter.drawEllipse(int(cx - r), int(cy - r), r * 2, r * 2)
-
-        # Static outer glow
-        glow = QColor(self._color)
-        glow.setAlphaF(0.3)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(glow)
-        painter.drawEllipse(
-            int(cx - base_r - 2), int(cy - base_r - 2),
-            (base_r + 2) * 2, (base_r + 2) * 2,
-        )
-
-        # Main dot
-        painter.setBrush(self._color)
-        painter.drawEllipse(int(cx - base_r), int(cy - base_r), base_r * 2, base_r * 2)
-
-        # Highlight
-        painter.setBrush(QColor(255, 255, 255, 90))
-        painter.drawEllipse(int(cx - 2), int(cy - 3), 3, 3)
 
 
 # ---------------------------------------------------------------------------

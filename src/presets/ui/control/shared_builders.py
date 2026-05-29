@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
 
 from qfluentwidgets import CardWidget, FluentIcon
 
-from ui.fluent_widgets import PulsingDot
+from ui.pulsing_dot import PulsingDot
 
 
 @dataclass(slots=True)

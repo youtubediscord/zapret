@@ -20,9 +20,6 @@ from presets.ui.control.zapret2.runtime_helpers import (
     sync_profile_ui_mode_label,
 )
 from presets.ui.control.shared_builders import build_last_status_message_card_common
-from ui.fluent_widgets import (
-    enable_setting_card_group_auto_height,
-)
 from app.state_store import AppUiState, MainWindowStateStore
 from presets.ui.control.control_page_shared import (
     ControlPageActionMixin,
@@ -633,6 +630,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.add_spacing(8)
         self.add_spacing(16)
         self.add_widget(self.program_settings_card)
+        from ui.fluent_widgets import enable_setting_card_group_auto_height
+
         enable_setting_card_group_auto_height(self.program_settings_card)
 
         self.additional_settings_section_label = None

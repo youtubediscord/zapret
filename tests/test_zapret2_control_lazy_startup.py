@@ -45,12 +45,17 @@ class Zapret2ControlLazyStartupTests(unittest.TestCase):
         self.assertNotIn("_update_stop_winws_button_text()", after_ui_source)
 
     def test_zapret2_first_page_defers_theme_refresh_imports(self) -> None:
+        import presets.ui.control.shared_builders as shared_builders
         import presets.ui.control.top_summary_widget as top_summary_widget
         import presets.ui.control.zapret2.page as zapret2_page
         import ui.pages.base_page as base_page
 
+        shared_source = inspect.getsource(shared_builders)
+        shared_import_block = "\n".join(shared_source.splitlines()[:30])
         top_summary_source = inspect.getsource(top_summary_widget)
         top_summary_import_block = "\n".join(top_summary_source.splitlines()[:30])
+        zapret2_page_source = inspect.getsource(zapret2_page)
+        zapret2_import_block = "\n".join(zapret2_page_source.splitlines()[:45])
         item_init_source = inspect.getsource(top_summary_widget.ControlTopSummaryItem.__init__)
         activate_source = inspect.getsource(top_summary_widget.ControlTopSummaryItem._activate_theme_refresh)
         base_page_source = inspect.getsource(base_page)
@@ -64,6 +69,9 @@ class Zapret2ControlLazyStartupTests(unittest.TestCase):
         self.assertNotIn("from ui.theme_refresh import", base_page_import_block)
         self.assertIn("_create_page_theme_refresh_if_needed", base_page_source)
         self.assertNotIn("def _apply_page_theme", zapret2_source)
+        self.assertNotIn("from ui.fluent_widgets import", shared_import_block)
+        self.assertIn("from ui.pulsing_dot import PulsingDot", shared_import_block)
+        self.assertNotIn("from ui.fluent_widgets import", zapret2_import_block)
 
 
 if __name__ == "__main__":
