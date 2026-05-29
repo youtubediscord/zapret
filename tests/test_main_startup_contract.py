@@ -655,6 +655,38 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             for import_line in forbidden_imports:
                 self.assertNotIn(import_line, top_level)
 
+    def test_tray_window_port_defers_heavy_ui_helpers(self) -> None:
+        import inspect
+        import main.tray_window_port as tray_window_port
+
+        source = inspect.getsource(tray_window_port)
+        top_level = source.split("@dataclass", 1)[0]
+
+        self.assertNotIn("from ui.window_adapter import", top_level)
+        self.assertNotIn("from ui.popup_menu import", top_level)
+        self.assertNotIn("from qfluentwidgets import", top_level)
+        self.assertNotIn("from log.log import", top_level)
+        self.assertIn("from ui.window_adapter import show_window", inspect.getsource(tray_window_port.TrayWindowPort.show))
+        self.assertIn("from ui.popup_menu import exec_popup_menu", inspect.getsource(tray_window_port.TrayWindowPort.exec_popup_menu))
+
+    def test_window_page_actions_defers_heavy_ui_helpers(self) -> None:
+        import inspect
+        import main.window_page_actions as window_page_actions
+
+        source = inspect.getsource(window_page_actions)
+        top_level = source.split("@dataclass", 1)[0]
+
+        self.assertNotIn("from ui.window_adapter import", top_level)
+        self.assertNotIn("from ui.workflows.mode import", top_level)
+        self.assertNotIn("from ui.window_appearance_state import", top_level)
+        self.assertNotIn("from ui.navigation.text_sync import", top_level)
+        self.assertNotIn("from main.window_page_presenters import", top_level)
+        self.assertIn("from ui.window_adapter import show_page", inspect.getsource(window_page_actions.show_page))
+        self.assertIn(
+            "from ui.window_appearance_state import on_mica_changed",
+            inspect.getsource(window_page_actions.on_mica_changed),
+        )
+
     def test_lazy_feature_facades_still_call_loaded_command_modules(self) -> None:
         from app.feature_facades.blockcheck import BlockcheckFeature
         from app.feature_facades.external import ExternalActionsFeature

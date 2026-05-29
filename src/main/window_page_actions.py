@@ -3,26 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from main.window_page_presenters import (
-    apply_profile_setup_change_for_method,
-    open_preset_raw_editor_for_method,
-    open_profile_setup_for_method,
-)
-from ui.navigation.text_sync import on_ui_language_changed
-from ui.window_appearance_state import (
-    on_animations_changed,
-    on_background_preset_changed,
-    on_background_refresh_needed,
-    on_editor_smooth_scroll_changed,
-    on_mica_changed,
-    on_smooth_scroll_changed,
-)
-from ui.workflows.mode import (
-    apply_launch_method_changed_ui,
-    show_active_mode_control_page,
-)
-from ui.window_adapter import show_page
-
 
 @dataclass(frozen=True, slots=True)
 class WindowPageActions:
@@ -47,6 +27,92 @@ class WindowPageActions:
     on_smooth_scroll_changed: Callable[..., Any]
     on_editor_smooth_scroll_changed: Callable[..., Any]
     on_ui_language_changed: Callable[..., Any]
+
+
+def show_page(window, page_name, *, allow_internal: bool = False) -> bool:
+    from ui.window_adapter import show_page as _show_page
+
+    return bool(_show_page(window, page_name, allow_internal=allow_internal))
+
+
+def show_active_mode_control_page(window, *, allow_internal: bool = False) -> bool:
+    from ui.workflows.mode import show_active_mode_control_page as _show_active_mode_control_page
+
+    return bool(_show_active_mode_control_page(window, allow_internal=allow_internal))
+
+
+def open_profile_setup_for_method(window, method, profile_key, *, allow_internal: bool = True) -> bool:
+    from main.window_page_presenters import open_profile_setup_for_method as _open_profile_setup_for_method
+
+    return bool(_open_profile_setup_for_method(window, method, profile_key, allow_internal=allow_internal))
+
+
+def apply_profile_setup_change_for_method(window, method, profile_key, change_kind, *, profile_item=None) -> bool:
+    from main.window_page_presenters import apply_profile_setup_change_for_method as _apply_profile_setup_change_for_method
+
+    return bool(
+        _apply_profile_setup_change_for_method(
+            window,
+            method,
+            profile_key,
+            change_kind,
+            profile_item=profile_item,
+        )
+    )
+
+
+def open_preset_raw_editor_for_method(window, method, preset_name, *, allow_internal: bool = True) -> bool:
+    from main.window_page_presenters import open_preset_raw_editor_for_method as _open_preset_raw_editor_for_method
+
+    return bool(_open_preset_raw_editor_for_method(window, method, preset_name, allow_internal=allow_internal))
+
+
+def apply_launch_method_changed_ui(window, method) -> None:
+    from ui.workflows.mode import apply_launch_method_changed_ui as _apply_launch_method_changed_ui
+
+    _apply_launch_method_changed_ui(window, method)
+
+
+def on_background_refresh_needed(window) -> None:
+    from ui.window_appearance_state import on_background_refresh_needed as _on_background_refresh_needed
+
+    _on_background_refresh_needed(window)
+
+
+def on_background_preset_changed(window, preset) -> None:
+    from ui.window_appearance_state import on_background_preset_changed as _on_background_preset_changed
+
+    _on_background_preset_changed(window, preset)
+
+
+def on_mica_changed(window, enabled) -> None:
+    from ui.window_appearance_state import on_mica_changed as _on_mica_changed
+
+    _on_mica_changed(window, enabled)
+
+
+def on_animations_changed(window, enabled) -> None:
+    from ui.window_appearance_state import on_animations_changed as _on_animations_changed
+
+    _on_animations_changed(window, enabled)
+
+
+def on_smooth_scroll_changed(window, enabled) -> None:
+    from ui.window_appearance_state import on_smooth_scroll_changed as _on_smooth_scroll_changed
+
+    _on_smooth_scroll_changed(window, enabled)
+
+
+def on_editor_smooth_scroll_changed(window, enabled) -> None:
+    from ui.window_appearance_state import on_editor_smooth_scroll_changed as _on_editor_smooth_scroll_changed
+
+    _on_editor_smooth_scroll_changed(window, enabled)
+
+
+def on_ui_language_changed(window, language) -> None:
+    from ui.navigation.text_sync import on_ui_language_changed as _on_ui_language_changed
+
+    _on_ui_language_changed(window, language)
 
 
 def build_window_page_actions(*, window, appearance_actions) -> WindowPageActions:

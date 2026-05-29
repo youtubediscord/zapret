@@ -3,18 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from log.log import log
-from PyQt6.QtWidgets import QInputDialog, QLineEdit
-from qfluentwidgets import RoundMenu
-from ui.popup_menu import exec_popup_menu
-from ui.window_adapter import (
-    hide_window,
-    persist_window_geometry,
-    release_input_interaction_states,
-    request_exit,
-    show_window,
-)
-
 
 @dataclass(frozen=True, slots=True)
 class TrayWindowPort:
@@ -26,9 +14,13 @@ class TrayWindowPort:
         self._window.setWindowIcon(icon)
 
     def create_menu(self):
+        from qfluentwidgets import RoundMenu
+
         return RoundMenu(parent=self._window)
 
     def exec_popup_menu(self, menu, position) -> None:
+        from ui.popup_menu import exec_popup_menu
+
         exec_popup_menu(
             menu,
             position,
@@ -37,6 +29,8 @@ class TrayWindowPort:
         )
 
     def prompt_console_command(self):
+        from PyQt6.QtWidgets import QInputDialog, QLineEdit
+
         return QInputDialog.getText(
             self._window,
             "Консоль",
@@ -53,20 +47,32 @@ class TrayWindowPort:
 
     def persist_geometry(self) -> None:
         try:
+            from ui.window_adapter import persist_window_geometry
+
             persist_window_geometry(self._window)
         except Exception as exc:
+            from log.log import log
+
             log(f"Ошибка сохранения геометрии окна: {exc}", "ERROR")
 
     def release_input_interaction_states(self) -> None:
+        from ui.window_adapter import release_input_interaction_states
+
         release_input_interaction_states(self._window)
 
     def hide(self) -> None:
+        from ui.window_adapter import hide_window
+
         hide_window(self._window)
 
     def show(self) -> None:
+        from ui.window_adapter import show_window
+
         show_window(self._window)
 
     def request_exit(self, *, stop_dpi: bool) -> None:
+        from ui.window_adapter import request_exit
+
         request_exit(self._window, stop_dpi=bool(stop_dpi))
 
 
