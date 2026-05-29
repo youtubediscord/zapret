@@ -380,6 +380,21 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         status_bar.check_label.setVisible.assert_not_called()
         status_bar.text_label.setText.assert_not_called()
 
+    def test_status_bar_text_change_keeps_same_indicator_render(self) -> None:
+        from presets.ui.common.preset_status_bar import PresetStatusBar, build_preset_status_plan
+
+        status_bar = PresetStatusBar()
+        status_bar.set_plan(build_preset_status_plan("saved", launch_method=ZAPRET2_MODE, text="Сохранено"))
+        status_bar.spinner.stop = Mock(side_effect=AssertionError("same indicator must not stop spinner again"))
+        status_bar.spinner.start = Mock(side_effect=AssertionError("same indicator must not start spinner again"))
+        status_bar.check_label.setVisible = Mock(side_effect=AssertionError("same indicator must not update visibility"))
+
+        status_bar.set_plan(build_preset_status_plan("saved", launch_method=ZAPRET2_MODE, text="Сохранено повторно"))
+
+        status_bar.spinner.stop.assert_not_called()
+        status_bar.spinner.start.assert_not_called()
+        status_bar.check_label.setVisible.assert_not_called()
+
     def test_title_status_icon_skips_duplicate_plan_render(self) -> None:
         from presets.ui.common.preset_status_bar import PresetStatusIcon, build_preset_status_plan
 
@@ -398,6 +413,23 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         icon.spinner.start.assert_not_called()
         icon.check_label.setVisible.assert_not_called()
         icon.setToolTip.assert_not_called()
+        icon.setVisible.assert_not_called()
+
+    def test_title_status_icon_text_change_keeps_same_indicator_render(self) -> None:
+        from presets.ui.common.preset_status_bar import PresetStatusIcon, build_preset_status_plan
+
+        icon = PresetStatusIcon(size=24)
+        icon.set_plan(build_preset_status_plan("saved", launch_method=ZAPRET2_MODE, text="Сохранено"))
+        icon.spinner.stop = Mock(side_effect=AssertionError("same indicator must not stop spinner again"))
+        icon.spinner.start = Mock(side_effect=AssertionError("same indicator must not start spinner again"))
+        icon.check_label.setVisible = Mock(side_effect=AssertionError("same indicator must not update visibility"))
+        icon.setVisible = Mock(side_effect=AssertionError("same indicator must not update widget visibility"))
+
+        icon.set_plan(build_preset_status_plan("saved", launch_method=ZAPRET2_MODE, text="Сохранено повторно"))
+
+        icon.spinner.stop.assert_not_called()
+        icon.spinner.start.assert_not_called()
+        icon.check_label.setVisible.assert_not_called()
         icon.setVisible.assert_not_called()
 
     def test_raw_editor_runtime_toggle_uses_single_button_plan(self) -> None:

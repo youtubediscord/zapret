@@ -103,6 +103,7 @@ class PresetStatusBar(QWidget):
         super().__init__(parent)
         self._last_plan: PresetStatusPlan | None = None
         self._last_theme_key: tuple[str, bool] | None = None
+        self._last_indicator: str | None = None
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(24)
 
@@ -136,12 +137,15 @@ class PresetStatusBar(QWidget):
             return
         self._last_plan = normalized_plan
         self._last_theme_key = theme_key
-        if indicator == "spinner":
-            self.check_label.hide()
-            self.spinner.start()
-        else:
-            self.spinner.stop()
-            self.check_label.setVisible(indicator == "check")
+        indicator_changed = indicator != self._last_indicator
+        if indicator_changed:
+            self._last_indicator = indicator
+            if indicator == "spinner":
+                self.check_label.hide()
+                self.spinner.start()
+            else:
+                self.spinner.stop()
+                self.check_label.setVisible(indicator == "check")
 
         self.text_label.setText(normalized_plan.text)
         self._apply_mode_style(mode)
@@ -171,6 +175,7 @@ class PresetStatusIcon(QWidget):
         super().__init__(parent)
         self._last_plan: PresetStatusPlan | None = None
         self._last_theme_key: tuple[str, bool] | None = None
+        self._last_indicator: str | None = None
         self._icon_size = max(16, int(size))
         box_size = self._icon_size + 4
         self.setFixedSize(box_size, box_size)
@@ -200,15 +205,19 @@ class PresetStatusIcon(QWidget):
             return
         self._last_plan = normalized_plan
         self._last_theme_key = theme_key
-        if indicator == "spinner":
-            self.check_label.hide()
-            self.spinner.start()
-        else:
-            self.spinner.stop()
-            self.check_label.setVisible(indicator == "check")
+        indicator_changed = indicator != self._last_indicator
+        if indicator_changed:
+            self._last_indicator = indicator
+            if indicator == "spinner":
+                self.check_label.hide()
+                self.spinner.start()
+            else:
+                self.spinner.stop()
+                self.check_label.setVisible(indicator == "check")
 
         self.setToolTip(normalized_plan.text)
-        self.setVisible(indicator in {"spinner", "check"})
+        if indicator_changed:
+            self.setVisible(indicator in {"spinner", "check"})
         self._apply_mode_style(mode)
 
     def _apply_mode_style(self, mode: str) -> None:
