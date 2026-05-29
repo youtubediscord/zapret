@@ -2822,7 +2822,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._loading = False
         page._profile_key = "profile-1"
-        page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="tls_fake", in_preset=True, enabled=True))
+        page._payload = SimpleNamespace(item=SimpleNamespace(strategy_id="pass", in_preset=True, enabled=True))
         page._strategy_apply_worker = None
         page._strategy_apply_request_id = 0
         page._pending_strategy_apply = None
@@ -3115,6 +3115,24 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             favorite=True,
         )
         self.assertEqual(saved, [(10, "profile-1", "tls_fake", state)])
+
+    def test_clicking_current_strategy_does_not_apply_strategy_again(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(in_preset=True, enabled=True, strategy_id="tls_fake"))
+        page._controller = Mock()
+        page._apply_strategy_locally = Mock(side_effect=AssertionError("current strategy must not be applied again"))
+        page._request_strategy_apply = Mock(side_effect=AssertionError("current strategy must not start worker again"))
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_strategy_list_activated(page, "tls_fake")
+
+        page._apply_strategy_locally.assert_not_called()
+        page._request_strategy_apply.assert_not_called()
+        page.reload_current_profile.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
 
     def test_clicking_strategy_for_skipped_profile_does_not_apply_strategy(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)

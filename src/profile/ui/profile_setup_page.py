@@ -2069,6 +2069,8 @@ class ProfileSetupPageBase(BasePage):
         item = getattr(getattr(self, "_payload", None), "item", None)
         if bool(getattr(item, "in_preset", False)) and not bool(getattr(item, "enabled", False)):
             return
+        if strategy_id == str(getattr(item, "strategy_id", "") or "").strip():
+            return
         self._apply_strategy_locally(strategy_id)
         self._request_strategy_apply(strategy_id)
 
