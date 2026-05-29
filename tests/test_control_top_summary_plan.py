@@ -56,6 +56,7 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
             from PyQt6.QtWidgets import QApplication
             from presets.ui.control import top_summary_widget
             from presets.ui.control.top_summary_widget import ControlTopSummaryItem
+            import ui.theme as theme
 
             self.__class__._app = QApplication.instance() or QApplication([])
             scheduled: list[tuple[int, object]] = []
@@ -68,7 +69,7 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
                     "singleShot",
                     side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
                 ),
-                patch.object(top_summary_widget, "get_cached_qta_pixmap", Mock(return_value=pixmap)) as icon_cache,
+                patch.object(theme, "get_cached_qta_pixmap", Mock(return_value=pixmap)) as icon_cache,
             ):
                 item = ControlTopSummaryItem(icon_name="fa5s.star", initial_icon_delay_ms=250)
 
@@ -81,6 +82,46 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
 
                 icon_cache.assert_called_once()
             self.assertFalse(item._icon_label.pixmap().isNull())
+
+    def test_top_summary_skips_same_preset_render(self) -> None:
+        with patch.dict("os.environ", {"QT_QPA_PLATFORM": "offscreen"}):
+            from PyQt6.QtWidgets import QApplication
+            from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
+
+            self.__class__._app = QApplication.instance() or QApplication([])
+            widget = ControlTopSummaryWidget(language="ru", mode_value="Zapret 2")
+            widget.set_preset("Default")
+            widget.preset_item.set_texts = Mock(side_effect=AssertionError("same preset must not repaint summary"))
+            widget.profiles_item.set_texts = Mock(side_effect=AssertionError("same preset must not repaint summary"))
+            widget.mode_item.set_texts = Mock(side_effect=AssertionError("same preset must not repaint summary"))
+            widget.premium_item.set_texts = Mock(side_effect=AssertionError("same preset must not repaint summary"))
+
+            widget.set_preset("Default")
+
+            widget.preset_item.set_texts.assert_not_called()
+            widget.profiles_item.set_texts.assert_not_called()
+            widget.mode_item.set_texts.assert_not_called()
+            widget.premium_item.set_texts.assert_not_called()
+
+    def test_top_summary_skips_same_profile_count_render(self) -> None:
+        with patch.dict("os.environ", {"QT_QPA_PLATFORM": "offscreen"}):
+            from PyQt6.QtWidgets import QApplication
+            from presets.ui.control.top_summary_widget import ControlTopSummaryWidget
+
+            self.__class__._app = QApplication.instance() or QApplication([])
+            widget = ControlTopSummaryWidget(language="ru", mode_value="Zapret 2")
+            widget.set_profile_count(3)
+            widget.preset_item.set_texts = Mock(side_effect=AssertionError("same profile count must not repaint summary"))
+            widget.profiles_item.set_texts = Mock(side_effect=AssertionError("same profile count must not repaint summary"))
+            widget.mode_item.set_texts = Mock(side_effect=AssertionError("same profile count must not repaint summary"))
+            widget.premium_item.set_texts = Mock(side_effect=AssertionError("same profile count must not repaint summary"))
+
+            widget.set_profile_count(3)
+
+            widget.preset_item.set_texts.assert_not_called()
+            widget.profiles_item.set_texts.assert_not_called()
+            widget.mode_item.set_texts.assert_not_called()
+            widget.premium_item.set_texts.assert_not_called()
 
 
 if __name__ == "__main__":

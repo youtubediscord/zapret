@@ -150,19 +150,30 @@ class ControlTopSummaryWidget(QWidget):
         self.retranslate()
 
     def set_language(self, language: str) -> None:
-        self._language = str(language or "ru")
+        next_language = str(language or "ru")
+        if self._language == next_language:
+            return
+        self._language = next_language
         self.retranslate()
 
     def set_preset(self, value: str) -> None:
-        self._preset_value = str(value or "")
+        next_value = str(value or "")
+        if self._preset_value == next_value:
+            return
+        self._preset_value = next_value
         self.retranslate()
 
     def set_profile_count(self, enabled_count: int | None) -> None:
+        if self._profile_count == enabled_count:
+            return
         self._profile_count = enabled_count
         self.retranslate()
 
     def set_premium(self, *, is_premium: bool, days_remaining: int | None) -> None:
-        self._is_premium = bool(is_premium)
+        next_is_premium = bool(is_premium)
+        if self._is_premium == next_is_premium and self._premium_days == days_remaining:
+            return
+        self._is_premium = next_is_premium
         self._premium_days = days_remaining
         self.retranslate()
 
