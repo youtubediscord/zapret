@@ -2605,7 +2605,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("set_auto_update_enabled", handler_source)
         self.assertIn("_auto_check_save_pending", runtime_source)
         self.assertIn("create_auto_check_save_worker", feature_source)
-        self.assertIn("set_auto_update_enabled", worker_source)
+        self.assertIn("set_auto_update_enabled=self.set_auto_update_enabled", feature_source)
+        self.assertIn("_set_auto_update_enabled", worker_source)
+        self.assertNotIn("updater_commands", worker_source)
 
     def test_updater_auto_check_initial_read_runs_through_worker(self) -> None:
         settings_workers = importlib.import_module("updater.settings_workers")
@@ -2626,7 +2628,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("set_auto_check_toggle_checked", runtime_source)
         self.assertIn("start_auto_check_load", page_source)
         self.assertIn("create_auto_check_load_worker", feature_source)
-        self.assertIn("is_auto_update_enabled", worker_source)
+        self.assertIn("is_auto_update_enabled=self.is_auto_update_enabled", feature_source)
+        self.assertIn("_is_auto_update_enabled", worker_source)
+        self.assertNotIn("updater_commands", worker_source)
 
     def test_updater_open_channel_runs_through_worker(self) -> None:
         settings_workers = importlib.import_module("updater.settings_workers")
@@ -2644,7 +2648,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._update_runtime.open_update_channel", page_handler_source)
         self.assertIn("_update_channel_open_runtime", runtime_source)
         self.assertIn("create_update_channel_open_worker", feature_source)
-        self.assertIn("open_update_channel", worker_source)
+        self.assertIn("open_update_channel=self.open_update_channel", feature_source)
+        self.assertIn("_open_update_channel", worker_source)
+        self.assertNotIn("updater_commands", worker_source)
 
     def test_updater_changelog_links_open_through_worker(self) -> None:
         external_workers = importlib.import_module("app.external_workers")

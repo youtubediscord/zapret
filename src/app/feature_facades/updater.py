@@ -23,6 +23,7 @@ class UpdaterFeature:
         return UpdaterAutoCheckSaveWorker(
             request_id,
             enabled=bool(enabled),
+            set_auto_update_enabled=self.set_auto_update_enabled,
             parent=parent,
         )
 
@@ -31,6 +32,7 @@ class UpdaterFeature:
 
         return UpdaterAutoCheckLoadWorker(
             request_id,
+            is_auto_update_enabled=self.is_auto_update_enabled,
             parent=parent,
         )
 
@@ -40,6 +42,7 @@ class UpdaterFeature:
         return UpdaterChannelOpenWorker(
             request_id,
             channel=channel,
+            open_update_channel=self.open_update_channel,
             parent=parent,
         )
 
