@@ -8,6 +8,39 @@ from lists.core.paths import get_lists_dir
 
 LISTS_FOLDER = get_lists_dir()
 
+REQUIRED_RUNTIME_LIST_FILES = ("other.txt", "ipset-all.txt", "ipset-ru.txt")
+
+
+def _runtime_required_file_ready(path: str) -> bool:
+    try:
+        return os.path.isfile(path) and os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
+def ensure_required_files_fast():
+    """Быстро проверяет готовность итоговых списков для обычного запуска."""
+    try:
+        os.makedirs(LISTS_FOLDER, exist_ok=True)
+        missing_files = [
+            name
+            for name in REQUIRED_RUNTIME_LIST_FILES
+            if not _runtime_required_file_ready(os.path.join(LISTS_FOLDER, name))
+        ]
+        if not missing_files:
+            log("Обязательные итоговые списки уже готовы", "DEBUG")
+            return True
+
+        log(
+            "Не найдены обязательные итоговые списки: "
+            f"{', '.join(missing_files)}; выполняем полную подготовку",
+            "WARNING",
+        )
+        return bool(ensure_required_files())
+    except Exception as e:
+        log(f"Ошибка ensure_required_files_fast: {e}", "❌ ERROR")
+        return False
+
 
 def ensure_required_files():
     """Проверяет/подготавливает обязательные файлы списков."""

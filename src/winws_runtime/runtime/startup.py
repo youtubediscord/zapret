@@ -78,8 +78,8 @@ def init_process_monitor(*, process_monitor_manager=None, runtime_api=None, runt
 def init_core_startup() -> None:
     started_at = time.perf_counter()
 
-    from lists.file_manager import ensure_required_files
+    from lists.file_manager import ensure_required_files_fast
 
-    ensure_required_files()
+    ensure_required_files_fast()
 
     log(f"✅ Core startup: {(time.perf_counter() - started_at) * 1000:.0f}ms", "DEBUG")
