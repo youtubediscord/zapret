@@ -429,9 +429,6 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.add_spacing(8)
         self.add_spacing(16)
         self.add_widget(self.program_settings_card)
-        from ui.fluent_widgets import enable_setting_card_group_auto_height
-
-        enable_setting_card_group_auto_height(self.program_settings_card)
 
         self.additional_settings_section_label = None
         self.discord_restart_toggle = section_widgets.discord_restart_toggle

@@ -98,6 +98,18 @@ class ControlPageImmediateStartupTests(unittest.TestCase):
         self.assertNotIn("get_cached_qta_pixmap", source)
         self.assertIn("profile_ui_mode_btn=None", source)
 
+    def test_zapret2_program_settings_auto_height_is_not_applied_twice(self) -> None:
+        import inspect
+
+        import presets.ui.control.zapret2.sections_build as sections_build
+        from presets.ui.control.zapret2.page import Zapret2ModeControlPage
+
+        page_source = inspect.getsource(Zapret2ModeControlPage._build_settings_sections)
+        builder_source = inspect.getsource(sections_build.build_winws2_pages_settings_sections)
+
+        self.assertIn("enable_setting_card_group_auto_height(program_settings_card)", builder_source)
+        self.assertNotIn("enable_setting_card_group_auto_height(self.program_settings_card)", page_source)
+
 
 if __name__ == "__main__":
     unittest.main()
