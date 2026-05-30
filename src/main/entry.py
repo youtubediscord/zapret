@@ -36,7 +36,7 @@ def _install_post_startup_tasks(deps) -> None:
     install_post_startup_tasks(deps)
 
 
-def _install_post_startup_tasks_after_interactive(window, deps) -> None:
+def _install_post_startup_tasks_after_interactive(window, deps_or_factory) -> None:
     installed = False
 
     def _install_once(*_args) -> None:
@@ -44,6 +44,7 @@ def _install_post_startup_tasks_after_interactive(window, deps) -> None:
         if installed:
             return
         installed = True
+        deps = deps_or_factory() if callable(deps_or_factory) else deps_or_factory
         QTimer.singleShot(0, lambda: _install_post_startup_tasks(deps))
 
     try:
@@ -103,7 +104,7 @@ def _finish_event_loop_bootstrap(*, app, window, application_controller, start_i
 
     _install_post_startup_tasks_after_interactive(
         window,
-        _build_application_post_startup_deps(
+        lambda: _build_application_post_startup_deps(
             window=window,
             app_runtime=application_controller.app_runtime,
         ),

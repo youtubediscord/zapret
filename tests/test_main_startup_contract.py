@@ -295,6 +295,54 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         self.assertEqual(installed, [deps])
 
+    def test_post_startup_deps_are_built_after_interactive_ready(self) -> None:
+        from main import entry
+
+        class Signal:
+            def __init__(self) -> None:
+                self._callbacks: list[object] = []
+
+            def connect(self, callback) -> None:
+                self._callbacks.append(callback)
+
+            def emit(self, value: str = "") -> None:
+                for callback in list(self._callbacks):
+                    callback(value)
+
+        signal = Signal()
+        window = SimpleNamespace(
+            startup_state=SimpleNamespace(interactive_logged=False),
+            startup_interactive_ready=signal,
+        )
+        built: list[str] = []
+        installed: list[object] = []
+        scheduled: list[tuple[int, object]] = []
+
+        def build_deps():
+            built.append("deps")
+            return "deps"
+
+        with (
+            patch.object(
+                entry.QTimer,
+                "singleShot",
+                side_effect=lambda delay, callback: scheduled.append((int(delay), callback)),
+            ),
+            patch.object(entry, "_install_post_startup_tasks", side_effect=lambda deps: installed.append(deps)),
+        ):
+            entry._install_post_startup_tasks_after_interactive(window, build_deps)
+            self.assertEqual(built, [])
+            self.assertEqual(installed, [])
+
+            window.startup_state.interactive_logged = True
+            signal.emit("ui_ready")
+            self.assertEqual(built, ["deps"])
+            self.assertEqual(installed, [])
+
+            scheduled.pop(0)[1]()
+
+        self.assertEqual(installed, ["deps"])
+
     def test_entry_keeps_post_startup_imports_out_of_top_level(self) -> None:
         import inspect
         from main import entry
