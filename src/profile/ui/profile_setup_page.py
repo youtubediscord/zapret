@@ -2379,6 +2379,8 @@ class ProfileSetupPageBase(BasePage):
         old_key = str(self._profile_key or "").strip()
         new_key = str(profile_key or "").strip()
         if payload is not None:
+            if self.__dict__.get("_payload") is payload and (not new_key or new_key == old_key):
+                return
             if new_key:
                 self._profile_key = new_key
             self._payload = payload
