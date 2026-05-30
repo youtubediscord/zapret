@@ -69,6 +69,17 @@ class UpdaterFeature:
             parent=parent,
         )
 
+    def create_update_install_worker(self, *, parent_window, is_any_running, shutdown_sync):
+        from updater.update import UpdateWorker
+
+        return UpdateWorker(
+            parent_window,
+            silent=True,
+            skip_rate_limit=True,
+            is_any_running=is_any_running,
+            shutdown_sync=shutdown_sync,
+        )
+
     def run_startup_update_check(self) -> dict:
         return self._commands().run_startup_update_check()
 

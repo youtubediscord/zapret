@@ -659,14 +659,10 @@ class UpdatePageRuntime:
         return VersionCheckWorker()
 
     def _create_update_worker_runtime(self) -> tuple[QThread, object]:
-        from updater.update import UpdateWorker
-
         parent_window = self._view.window()
         update_thread = QThread(parent_window)
-        update_worker = UpdateWorker(
-            parent_window,
-            silent=True,
-            skip_rate_limit=True,
+        update_worker = self._updater_feature.create_update_install_worker(
+            parent_window=parent_window,
             is_any_running=self._runtime_feature.is_any_running,
             shutdown_sync=self._runtime_feature.shutdown_sync,
         )

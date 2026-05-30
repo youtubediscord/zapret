@@ -2706,6 +2706,18 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_stop_changelog_link_open_worker", page_source)
         self.assertIn("open_url", worker_source)
 
+    def test_updater_install_worker_is_created_through_feature(self) -> None:
+        update_runtime_cls = __import__("updater.update_page_runtime", fromlist=["UpdatePageRuntime"]).UpdatePageRuntime
+        updater_feature_cls = __import__("app.feature_facades.updater", fromlist=["UpdaterFeature"]).UpdaterFeature
+
+        runtime_factory_source = inspect.getsource(update_runtime_cls._create_update_worker_runtime)
+        feature_source = inspect.getsource(updater_feature_cls)
+
+        self.assertIn("create_update_install_worker", runtime_factory_source)
+        self.assertNotIn("from updater.update import UpdateWorker", runtime_factory_source)
+        self.assertIn("create_update_install_worker", feature_source)
+        self.assertIn("UpdateWorker", feature_source)
+
     def test_updater_server_retry_without_dpi_runs_through_worker(self) -> None:
         retry_workers = importlib.import_module("updater.retry_workers")
         update_runtime_cls = __import__("updater.update_page_runtime", fromlist=["UpdatePageRuntime"]).UpdatePageRuntime
