@@ -480,6 +480,12 @@ class ProfilePresetService:
         entry = setup.strategy_entries.get(strategy_id)
         if entry is None:
             return None
+        if (
+            setup.item.in_preset
+            and setup.item.enabled
+            and str(setup.item.strategy_id or "").strip() == strategy_id
+        ):
+            return setup.item.key
 
         preset, _manifest = self.load_selected_preset()
         resolved_key = profile_key
