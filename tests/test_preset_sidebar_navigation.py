@@ -815,6 +815,50 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertFalse(any(session.nav_items[page_name].visible for page_name in old_pages))
         self.assertTrue(all(session.nav_items[page_name].visible for page_name in new_pages))
 
+    def test_nav_visibility_filter_skips_unchanged_widgets(self) -> None:
+        from app.page_names import PageName
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        class FakeNavItem:
+            def __init__(self, visible: bool) -> None:
+                self.visible = bool(visible)
+                self.set_visible_calls: list[bool] = []
+
+            def isVisible(self) -> bool:
+                return self.visible
+
+            def setVisible(self, visible: bool) -> None:
+                self.set_visible_calls.append(bool(visible))
+                self.visible = bool(visible)
+
+        visible_item = FakeNavItem(True)
+        hidden_item = FakeNavItem(False)
+        header = FakeNavItem(True)
+        session = SimpleNamespace(
+            nav_items={
+                PageName.ZAPRET2_MODE_CONTROL: visible_item,
+                PageName.ZAPRET1_MODE_CONTROL: hidden_item,
+            },
+            nav_labels={
+                PageName.ZAPRET2_MODE_CONTROL: "Управление Zapret 2",
+                PageName.ZAPRET1_MODE_CONTROL: "Управление Zapret 1",
+            },
+            nav_headers=[(header, (PageName.ZAPRET2_MODE_CONTROL,), "nav.header.root")],
+            nav_search_query="",
+            nav_mode_visibility={
+                PageName.ZAPRET2_MODE_CONTROL: True,
+                PageName.ZAPRET1_MODE_CONTROL: False,
+            },
+            ui_language="ru",
+        )
+        window = SimpleNamespace(ui_session=session)
+
+        sidebar_builder.apply_nav_visibility_filter(window)
+
+        self.assertEqual(visible_item.set_visible_calls, [])
+        self.assertEqual(hidden_item.set_visible_calls, [])
+        self.assertEqual(header.set_visible_calls, [])
+
     def test_mode_switch_reorders_existing_sidebar_items_for_new_mode(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE

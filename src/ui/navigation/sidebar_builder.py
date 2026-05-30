@@ -76,6 +76,22 @@ def _read_saved_sidebar_expanded() -> bool:
     return bool(saved)
 
 
+def _set_visible_if_changed(widget, visible: bool) -> bool:
+    target = bool(visible)
+    try:
+        is_visible = getattr(widget, "isVisible", None)
+        if callable(is_visible) and bool(is_visible()) == target:
+            return False
+    except Exception:
+        pass
+
+    try:
+        widget.setVisible(target)
+        return True
+    except Exception:
+        return False
+
+
 def _start_sidebar_expanded_save_worker(window, expanded: bool) -> None:
     session = get_window_ui_session(window)
     if session is None:
@@ -283,10 +299,7 @@ def add_nav_item(
     if item is not None:
         session.nav_items[page_name] = item
         if initial_visible is not None:
-            try:
-                item.setVisible(bool(initial_visible))
-            except Exception:
-                pass
+            _set_visible_if_changed(item, bool(initial_visible))
     else:
         log(f"[NAV] addSubInterface returned None for {page_name.name} - not in nav_items!", "WARNING")
 
@@ -640,10 +653,7 @@ def sync_nav_visibility(window, method: str | None = None) -> None:
     log(f"[NAV] _sync_nav_visibility method={method!r}, nav_items keys={[p.name for p in session.nav_items]}", "DEBUG")
     for page_name, item in tuple(session.nav_items.items()):
         if page_name in visibility_by_page and not bool(visibility_by_page.get(page_name, True)):
-            try:
-                item.setVisible(False)
-            except Exception:
-                pass
+            _set_visible_if_changed(item, False)
 
     mode_visibility: dict[PageName, bool] = {
         page_name: bool(visibility_by_page.get(page_name, True))
@@ -690,13 +700,16 @@ def apply_nav_visibility_filter(window) -> None:
         label = get_nav_label(window, page_name)
         matches_query = not search_query or (search_query in label.casefold())
         final_visible = mode_visible and matches_query
-        item.setVisible(final_visible)
+        _set_visible_if_changed(item, final_visible)
         visible_by_page[page_name] = final_visible
 
     for header, grouped_pages, _header_key in session.nav_headers:
         if header is None:
             continue
-        header.setVisible(any(visible_by_page.get(page_name, False) for page_name in grouped_pages))
+        _set_visible_if_changed(
+            header,
+            any(visible_by_page.get(page_name, False) for page_name in grouped_pages),
+        )
 
 
 __all__ = [
