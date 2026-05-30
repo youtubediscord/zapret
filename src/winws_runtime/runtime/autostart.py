@@ -1,5 +1,5 @@
 from log.log import log
-from settings.mode import ALL_LAUNCH_METHODS, is_preset_launch_method
+from settings.mode import ALL_LAUNCH_METHODS, exe_name_for_launch_method, is_preset_launch_method
 
 
 def start_dpi_autostart(
@@ -31,6 +31,9 @@ def start_dpi_autostart(
         _mark_runtime_stopped(runtime_feature)
         return
 
+    if _reuse_running_expected_process(runtime_feature, resolved_method):
+        return
+
     try:
         startup_snapshot = _resolve_startup_snapshot(runtime_feature, resolved_method)
     except Exception as e:
@@ -59,6 +62,26 @@ def _mark_runtime_stopped(runtime_feature) -> None:
 
 def _mark_runtime_failed(runtime_feature, message: str) -> None:
     runtime_feature.objects.runtime_service.mark_start_failed(str(message or "").strip())
+
+
+def _reuse_running_expected_process(runtime_feature, launch_method: str) -> bool:
+    if not is_preset_launch_method(launch_method):
+        return False
+    try:
+        runtime_api = getattr(runtime_feature.objects, "launch_runtime_api", None)
+        if runtime_api is None or not runtime_api.is_expected_running(silent=True):
+            return False
+        expected_process = exe_name_for_launch_method(launch_method).strip().lower()
+        runtime_feature.objects.runtime_service.bootstrap_probe(
+            True,
+            launch_method=launch_method,
+            expected_process=expected_process,
+        )
+        log(f"Автозапуск DPI: {expected_process or launch_method} уже работает, повторный старт не нужен", "INFO")
+        return True
+    except Exception as e:
+        log(f"Не удалось подхватить уже запущенный DPI при автозапуске: {e}", "DEBUG")
+        return False
 
 
 def _resolve_startup_snapshot(runtime_feature, launch_method: str):

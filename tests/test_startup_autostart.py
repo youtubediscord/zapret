@@ -97,6 +97,51 @@ class StartupAutostartTests(unittest.TestCase):
             _startup_autostart=True,
         )
 
+    def test_preset_autostart_reuses_already_running_expected_process(self) -> None:
+        from winws_runtime.runtime.autostart import start_dpi_autostart
+
+        runtime_service = SimpleNamespace(
+            bootstrap_probe=Mock(),
+            mark_start_failed=Mock(),
+            mark_stopped=Mock(),
+        )
+        launch_runtime = SimpleNamespace(start_dpi_async=Mock())
+        launch_runtime_api = SimpleNamespace(is_expected_running=Mock(return_value=True))
+        presets_feature = SimpleNamespace(
+            get_launch_snapshot=Mock(),
+            refresh_launch_summary_in_store=Mock(),
+        )
+        runtime_feature = SimpleNamespace(
+            objects=SimpleNamespace(
+                runtime_service=runtime_service,
+                launch_runtime=launch_runtime,
+                launch_runtime_api=launch_runtime_api,
+            ),
+            dependencies=SimpleNamespace(
+                presets_feature=presets_feature,
+                profile_feature=object(),
+            ),
+        )
+        startup_state = SimpleNamespace(dpi_autostart_initiated=False)
+
+        with patch("program_settings.public.is_auto_dpi_enabled", return_value=True):
+            start_dpi_autostart(
+                startup_state,
+                runtime_feature=runtime_feature,
+                ui_state=object(),
+                launch_method="zapret2_mode",
+            )
+
+        launch_runtime_api.is_expected_running.assert_called_once_with(silent=True)
+        runtime_service.bootstrap_probe.assert_called_once_with(
+            True,
+            launch_method="zapret2_mode",
+            expected_process="winws2.exe",
+        )
+        launch_runtime.start_dpi_async.assert_not_called()
+        presets_feature.get_launch_snapshot.assert_not_called()
+        presets_feature.refresh_launch_summary_in_store.assert_not_called()
+
     def test_startup_autostart_skips_expensive_preset_prevalidation_in_gui_thread(self) -> None:
         from winws_runtime.flow import start_preparation
 
