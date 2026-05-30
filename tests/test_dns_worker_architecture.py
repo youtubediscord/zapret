@@ -111,6 +111,31 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         ):
             self.assertIn(name, cleanup_source)
 
+    def test_network_page_load_and_connectivity_use_feature_worker_runtime(self) -> None:
+        feature_source = inspect.getsource(build_dns_feature)
+        page_source = inspect.getsource(NetworkPage)
+        loading_source = inspect.getsource(NetworkPage._start_loading)
+        test_source = inspect.getsource(NetworkPage._test_connection)
+        cleanup_source = inspect.getsource(NetworkPage.cleanup)
+
+        for name in (
+            "create_page_load_worker",
+            "create_connectivity_test_worker",
+        ):
+            self.assertIn(name, feature_source)
+            self.assertIn(name, page_source)
+        for name in (
+            "_page_load_runtime",
+            "_connectivity_test_runtime",
+        ):
+            self.assertIn(name, page_source)
+            self.assertIn(f"{name}.stop", cleanup_source)
+        for source in (loading_source, test_source):
+            self.assertIn("start_qthread_worker", source)
+            self.assertNotIn("worker.start()", source)
+        self.assertNotIn("start_background_loading(", loading_source)
+        self.assertNotIn("start_connectivity_test(", test_source)
+
 
 if __name__ == "__main__":
     unittest.main()

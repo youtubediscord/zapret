@@ -21,6 +21,8 @@ class DnsFeature:
     create_dns_check_worker: Callable
     create_dns_check_save_worker: Callable
     create_dns_quick_check_worker: Callable
+    create_page_load_worker: Callable
+    create_connectivity_test_worker: Callable
     create_force_dns_action_worker: Callable
     create_dns_flush_cache_worker: Callable
     create_isp_dns_warning_worker: Callable
@@ -137,6 +139,21 @@ def build_dns_feature() -> DnsFeature:
             parent=parent,
         )
 
+    def _create_page_load_worker(request_id: int, *, parent=None):
+        from dns.page_workers import DnsPageLoadWorker
+
+        return DnsPageLoadWorker(request_id, feature.load_page_data, parent)
+
+    def _create_connectivity_test_worker(request_id: int, *, test_hosts, parent=None):
+        from dns.page_workers import DnsConnectivityTestWorker
+
+        return DnsConnectivityTestWorker(
+            request_id,
+            feature.run_connectivity_test,
+            test_hosts,
+            parent,
+        )
+
     def _create_dns_check_worker():
         from dns.dns_check_worker import DNSCheckWorker
 
@@ -180,6 +197,8 @@ def build_dns_feature() -> DnsFeature:
         create_dns_check_worker=_create_dns_check_worker,
         create_dns_check_save_worker=_create_dns_check_save_worker,
         create_dns_quick_check_worker=_create_dns_quick_check_worker,
+        create_page_load_worker=_create_page_load_worker,
+        create_connectivity_test_worker=_create_connectivity_test_worker,
         create_force_dns_action_worker=_create_force_dns_action_worker,
         create_dns_flush_cache_worker=_create_dns_flush_cache_worker,
         create_isp_dns_warning_worker=_create_isp_dns_warning_worker,

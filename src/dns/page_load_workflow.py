@@ -18,14 +18,6 @@ def run_network_runtime_init(
     schedule_fn(plan.load_delay_ms, start_loading_fn)
 
 
-def start_background_loading(*, load_page_data_fn, parent=None):
-    from dns.page_workers import DnsPageLoadWorker
-
-    worker = DnsPageLoadWorker(load_page_data_fn, parent)
-    worker.start()
-    return worker
-
-
 def apply_loaded_page_state(
     *,
     state,

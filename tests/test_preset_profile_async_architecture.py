@@ -3905,12 +3905,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             self.assertNotIn("threading.Thread", source)
 
     def test_dns_page_worker_returns_state_instead_of_calling_page_method(self) -> None:
-        workflow_source = inspect.getsource(dns_load_workflow.start_background_loading)
+        feature_source = inspect.getsource(__import__("app.feature_facades.dns", fromlist=["build_dns_feature"]).build_dns_feature)
+        loading_source = inspect.getsource(dns_page.NetworkPage._start_loading)
         page_source = inspect.getsource(dns_page.NetworkPage)
         worker_source = inspect.getsource(DnsPageLoadWorker)
 
-        self.assertIn("load_page_data_fn", workflow_source)
-        self.assertNotIn("load_data_fn", workflow_source)
+        self.assertIn("create_page_load_worker", feature_source)
+        self.assertIn("create_page_load_worker", loading_source)
+        self.assertIn("start_qthread_worker", loading_source)
         self.assertIn("loaded = pyqtSignal", worker_source)
         self.assertIn("self.loaded.emit", worker_source)
         self.assertNotIn("self._load_data_fn()", worker_source)

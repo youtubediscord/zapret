@@ -3,39 +3,20 @@
 from __future__ import annotations
 
 
-def start_connectivity_test(
+def prepare_connectivity_test(
     *,
     cleanup_in_progress: bool,
     set_test_in_progress_fn,
     update_test_action_text_fn,
-    test_completed_signal,
-    on_test_complete_fn,
     build_connectivity_test_plan_fn,
-    run_connectivity_test_fn,
     language: str,
-    parent=None,
 ):
     if cleanup_in_progress:
         return None
 
     set_test_in_progress_fn(True)
     update_test_action_text_fn()
-
-    try:
-        test_completed_signal.disconnect()
-    except TypeError:
-        pass
-    test_completed_signal.connect(on_test_complete_fn)
-
-    test_plan = build_connectivity_test_plan_fn(language=language)
-
-    from dns.page_workers import DnsConnectivityTestWorker
-
-    worker = DnsConnectivityTestWorker(run_connectivity_test_fn, test_plan.test_hosts, parent)
-    worker.completed.connect(test_completed_signal.emit)
-    worker.finished.connect(worker.deleteLater)
-    worker.start()
-    return worker
+    return build_connectivity_test_plan_fn(language=language)
 
 
 def apply_connectivity_test_result(

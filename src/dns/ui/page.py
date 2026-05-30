@@ -58,16 +58,15 @@ from dns.page_diagnostics_warning_workflow import (
     apply_connectivity_test_result,
     cleanup_network_page,
     dismiss_isp_dns_warning,
+    prepare_connectivity_test,
     render_isp_warning_theme,
     show_isp_dns_warning,
-    start_connectivity_test,
 )
 from dns.page_load_workflow import (
     apply_loaded_page_state,
     handle_loaded_adapters,
     handle_loaded_dns_info,
     run_network_runtime_init,
-    start_background_loading,
 )
 from dns.ui.page_runtime_helpers import (
     build_adapter_cards_ui,
@@ -119,8 +118,8 @@ class NetworkPage(BasePage):
         self._runtime_initialized = False
         self._cleanup_in_progress = False
         self._dns_selection_sync_queued = False
-        self._page_load_worker = None
-        self._connectivity_test_worker = None
+        self._page_load_runtime = OneShotWorkerRuntime()
+        self._connectivity_test_runtime = OneShotWorkerRuntime()
         self._force_dns_action_runtime = OneShotWorkerRuntime()
         self._force_dns_action_pending: list[dict[str, object]] = []
         self._dns_flush_cache_runtime = OneShotWorkerRuntime()
@@ -449,6 +448,8 @@ class NetworkPage(BasePage):
         """Запускает асинхронную загрузку данных"""
         if self._cleanup_in_progress:
             return
+        if self._page_load_runtime.is_running():
+            return
         try:
             cached_state = self._dns_feature().consume_warmed_page_data()
         except Exception:
@@ -456,13 +457,25 @@ class NetworkPage(BasePage):
         if cached_state is not None:
             self._on_page_state_loaded(cached_state)
             return
-        worker = start_background_loading(
-            load_page_data_fn=self._dns_feature().load_page_data,
-            parent=self,
+        self._page_load_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._dns_feature().create_page_load_worker(
+                request_id,
+                parent=self,
+            ),
+            on_loaded=self._on_page_state_loaded_from_worker,
+            on_finished=self._on_page_load_worker_finished,
         )
-        self._page_load_worker = worker
-        worker.loaded.connect(self._on_page_state_loaded)
-        worker.finished_loading.connect(lambda: setattr(self, "_page_load_worker", None))
+
+    def _on_page_state_loaded_from_worker(self, request_id: int, state) -> None:
+        if not self._page_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        self._on_page_state_loaded(state)
+
+    def _on_page_load_worker_finished(self, _worker) -> None:
+        pass
     
     def _on_page_state_loaded(self, state):
         """Применяет готовое состояние DNS страницы в UI-потоке."""
@@ -1130,17 +1143,40 @@ class NetworkPage(BasePage):
 
     def _test_connection(self):
         """Тестирует соединение с интернетом"""
-        self._connectivity_test_worker = start_connectivity_test(
+        if self._connectivity_test_runtime.is_running():
+            return
+        test_plan = prepare_connectivity_test(
             cleanup_in_progress=self._cleanup_in_progress,
             set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),
             update_test_action_text_fn=self._update_test_action_text,
-            test_completed_signal=self.test_completed,
-            on_test_complete_fn=self._on_test_complete,
             build_connectivity_test_plan_fn=dns_page_plans.build_connectivity_test_plan,
-            run_connectivity_test_fn=self._dns_feature().run_connectivity_test,
             language=self._ui_language,
-            parent=self,
         )
+        if test_plan is None:
+            return
+        self._connectivity_test_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._dns_feature().create_connectivity_test_worker(
+                request_id,
+                test_hosts=test_plan.test_hosts,
+                parent=self,
+            ),
+            on_finished=self._on_connectivity_test_worker_finished,
+            bind_worker=self._bind_connectivity_test_worker,
+        )
+
+    def _bind_connectivity_test_worker(self, worker) -> None:
+        worker.completed.connect(self._on_connectivity_test_complete)
+
+    def _on_connectivity_test_complete(self, request_id: int, results: list) -> None:
+        if not self._connectivity_test_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        self._on_test_complete(results)
+
+    def _on_connectivity_test_worker_finished(self, _worker) -> None:
+        pass
 
     def _on_test_complete(self, results: list):
         """Вызывается из главного потока после завершения теста"""
@@ -1276,6 +1312,18 @@ class NetworkPage(BasePage):
         self._force_dns_action_pending.clear()
         self._dns_flush_cache_pending = False
         self._dns_apply_pending.clear()
+        self._page_load_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="dns_page_load_worker",
+        )
+        self._page_load_runtime.cancel()
+        self._connectivity_test_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="dns_connectivity_test_worker",
+        )
+        self._connectivity_test_runtime.cancel()
         self._force_dns_action_runtime.stop(
             blocking=False,
             log_fn=log,
