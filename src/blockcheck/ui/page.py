@@ -35,6 +35,7 @@ from blockcheck.page_run_workflow import (
     start_blockcheck_page_run,
 )
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from app.ui_texts import tr as tr_catalog
 
 from qfluentwidgets import (
@@ -115,8 +116,7 @@ class BlockcheckPage(BasePage):
         self._prepare_support_btn = None
         self._support_status_label = None
         self._initial_state = blockcheck_page_runtime.BlockcheckPageInitialStatePlan(user_domains=())
-        self._initial_state_worker = None
-        self._initial_state_request_id = 0
+        self._initial_state_runtime = OneShotWorkerRuntime()
         self._initial_state_load_started_at = 0.0
         self._support_prepare_worker = None
         self._support_prepare_request_id = 0
@@ -158,32 +158,34 @@ class BlockcheckPage(BasePage):
         )
 
     def _request_page_initial_state_load(self) -> None:
-        self._initial_state_request_id += 1
-        request_id = self._initial_state_request_id
         self._initial_state_load_started_at = time.perf_counter()
-        worker = self.create_initial_state_worker(request_id)
-        self._initial_state_worker = worker
-        worker.completed.connect(self._on_initial_state_loaded)
-        worker.failed.connect(self._on_initial_state_failed)
-        worker.finished.connect(lambda w=worker: self._on_initial_state_worker_finished(w))
-        worker.start()
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_initial_state_loaded)
+            worker.failed.connect(self._on_initial_state_failed)
+
+        self._initial_state_runtime.start_qthread_worker(
+            worker_factory=self.create_initial_state_worker,
+            bind_worker=bind_worker,
+        )
 
     def _on_initial_state_loaded(self, request_id: int, initial_state) -> None:
-        if request_id != self._initial_state_request_id or self._cleanup_in_progress:
+        if not self._initial_state_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         self._log_ui_timing("blockcheck_ui.initial_state.load", self._initial_state_load_started_at)
         self._initial_state = initial_state
         self._apply_initial_domain_chips(tuple(getattr(initial_state, "user_domains", ()) or ()))
 
     def _on_initial_state_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._initial_state_request_id or self._cleanup_in_progress:
+        if not self._initial_state_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Не удалось загрузить начальное состояние BlockCheck: {error}", "WARNING")
-
-    def _on_initial_state_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_initial_state_worker") is worker:
-            self._initial_state_worker = None
-        worker.deleteLater()
 
     def _apply_pending_tab_if_ready(self) -> None:
         pending_tab_key = str(getattr(self, "_pending_tab_key", "") or "").strip().lower()
@@ -1052,13 +1054,12 @@ class BlockcheckPage(BasePage):
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
-        worker = self.__dict__.get("_initial_state_worker")
-        if worker is not None:
-            try:
-                worker.quit()
-            except Exception:
-                pass
-            self._initial_state_worker = None
+        self._initial_state_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="blockcheck initial state worker",
+        )
+        self._initial_state_runtime.cancel()
         support_worker = self.__dict__.get("_support_prepare_worker")
         if support_worker is not None:
             try:
