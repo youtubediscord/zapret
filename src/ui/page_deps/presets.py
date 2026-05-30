@@ -3,7 +3,10 @@ from __future__ import annotations
 from app.page_names import PageName
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from presets.ui.control.control_page_shared import ControlRuntimeActions
-from presets.ui.control.additional_settings_runtime import create_top_summary_worker
+from presets.ui.control.additional_settings_runtime import (
+    create_additional_settings_save_worker,
+    create_top_summary_worker,
+)
 from presets.ui.common.preset_subpage_base import RawPresetRuntimeActions
 from presets.ui.common.user_presets_page_runtime import UserPresetsRuntimeActions
 from ui.navigation_pages import (
@@ -47,11 +50,24 @@ def build_control_page_kwargs(
             parent=parent,
         )
 
+    def _create_additional_settings_save_worker(request_id: int, *, setting: str, enabled: bool, parent=None):
+        from discord.discord_restart import set_discord_restart_setting
+
+        return create_additional_settings_save_worker(
+            request_id,
+            set_discord_restart_setting,
+            profile_feature.set_wssize_enabled,
+            profile_feature.set_debug_log_enabled,
+            launch_method=method,
+            setting=setting,
+            enabled=enabled,
+            parent=parent,
+        )
+
     return {
         "create_top_summary_worker": _create_top_summary_worker,
         "create_additional_settings_load_worker": profile_feature.create_additional_settings_load_worker,
-        "set_wssize_enabled": profile_feature.set_wssize_enabled,
-        "set_debug_log_enabled": profile_feature.set_debug_log_enabled,
+        "create_additional_settings_save_worker": _create_additional_settings_save_worker,
         "runtime_actions": ControlRuntimeActions(
             start=runtime_feature.start,
             stop=runtime_feature.stop,

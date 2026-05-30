@@ -59,8 +59,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         *,
         create_top_summary_worker,
         create_additional_settings_load_worker,
-        set_wssize_enabled,
-        set_debug_log_enabled,
+        create_additional_settings_save_worker,
         runtime_actions,
         create_program_settings_save_worker,
         create_program_settings_load_worker,
@@ -89,8 +88,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         )
         self._create_top_summary_worker = create_top_summary_worker
         self._create_additional_settings_load_worker = create_additional_settings_load_worker
-        self._set_wssize_enabled = set_wssize_enabled
-        self._set_debug_log_enabled = set_debug_log_enabled
+        self._create_additional_settings_save_worker = create_additional_settings_save_worker
         self._runtime_actions = runtime_actions
         self._create_program_settings_save_worker = create_program_settings_save_worker
         self._create_program_settings_load_worker = create_program_settings_load_worker
@@ -488,14 +486,8 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             except Exception:
                 return
         request_id = runtime.next_additional_settings_save_request_id()
-        from discord.discord_restart import set_discord_restart_setting
-
-        worker = winws1_page_runtime.create_additional_settings_save_worker(
+        worker = self._create_additional_settings_save_worker(
             request_id,
-            set_discord_restart_setting,
-            self._set_wssize_enabled,
-            self._set_debug_log_enabled,
-            launch_method=launch_method,
             setting=setting,
             enabled=bool(enabled),
             parent=self,
