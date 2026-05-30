@@ -591,6 +591,9 @@ class ProfilePresetService:
         index = _profile_index_for_key(preset, profile_key)
         if index is None:
             return None
+        normalized_text = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+        if _profile_raw_text(preset.profiles[index]) == normalized_text:
+            return preset.profiles[index].key
         preset = with_profile_raw_text(preset, index, raw_text)
         self.save_selected_preset(preset)
         return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None

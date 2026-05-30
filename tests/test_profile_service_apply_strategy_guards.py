@@ -82,6 +82,30 @@ class ProfileServiceApplyStrategyGuardTests(unittest.TestCase):
         self.assertEqual(result, "profile:0")
         self.assertEqual(store.save_count, 0)
 
+    def test_update_raw_profile_text_skips_save_when_text_is_unchanged(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            raw_text = "\n".join(
+                (
+                    "--name=Speedtest",
+                    "--filter-tcp=443,8080",
+                    "--hostlist=lists/speedtest.txt",
+                    "--lua-desync=pass",
+                    "",
+                )
+            )
+            store = _PresetStore(raw_text)
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            service = ProfilePresetService(feature, "zapret2_mode")
+            result = service.update_profile_raw_text("profile:0", raw_text)
+
+        self.assertEqual(result, "profile:0")
+        self.assertEqual(store.save_count, 0)
+
     def test_apply_strategy_skips_save_when_profile_already_uses_strategy(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
