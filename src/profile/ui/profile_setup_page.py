@@ -614,11 +614,15 @@ class ProfileStrategyListWidget(QWidget):
 
     def _on_item_clicked(self, item) -> None:
         strategy_id = self._strategy_id_for_item(item)
+        if strategy_id == self._current_strategy_id:
+            return
         if strategy_id:
             self.strategy_activated.emit(strategy_id)
 
     def _on_item_activated(self, item) -> None:
         strategy_id = self._strategy_id_for_item(item)
+        if strategy_id == self._current_strategy_id:
+            return
         if strategy_id:
             self.strategy_activated.emit(strategy_id)
 
