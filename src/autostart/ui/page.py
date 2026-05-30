@@ -382,9 +382,13 @@ class AutostartPage(BasePage):
             pending = self._autostart_action_pending.pop(0)
             self._start_autostart_action_worker(pending)
 
-    def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
+    def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
+        changed = set(changed_fields or ())
         strategy_name = state.current_strategy_summary or self.strategy_name
-        self.update_status(state.autostart_enabled, strategy_name)
+        if not changed or "autostart_enabled" in changed:
+            self.update_status(state.autostart_enabled, strategy_name)
+        elif "current_strategy_summary" in changed:
+            self._set_current_strategy_label(strategy_name)
 
     def _build_ui(self):
         tokens = get_theme_tokens()
@@ -689,10 +693,25 @@ class AutostartPage(BasePage):
             self.status_icon.setPixmap(get_cached_qta_pixmap("fa5s.circle", color=tokens.fg_faint, size=20))
             self.disable_btn.setVisible(False)
 
-        self.current_strategy_label.setText(strategy_text)
+        self._set_current_strategy_label(strategy_text)
 
         self._update_options_state(enabled)
         self._update_mode()
+
+    def _set_current_strategy_label(self, strategy_name: str | None) -> None:
+        if strategy_name:
+            self.strategy_name = strategy_name
+        strategy_text = (
+            strategy_name
+            or self.current_strategy_label.text()
+            or self._tr("page.autostart.strategy.not_selected", "Не выбрана")
+        )
+        try:
+            if str(self.current_strategy_label.text() or "") == str(strategy_text or ""):
+                return
+        except Exception:
+            pass
+        self.current_strategy_label.setText(strategy_text)
 
     def _current_autostart_state(self) -> bool:
         store = self._ui_state_store
