@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,15 @@ from unittest.mock import patch
 
 
 class ListsStartupContractTests(unittest.TestCase):
+    def test_fast_required_files_check_does_not_import_layered_rebuild_at_module_load(self) -> None:
+        from lists import file_manager
+
+        module_prefix = inspect.getsource(file_manager).split("def ensure_required_files_fast", 1)[0]
+
+        self.assertNotIn("lists.core.layered_files", module_prefix)
+        self.assertNotIn("rebuild_all_layered_list_files", module_prefix)
+        self.assertNotIn("\nfrom log.log import log", module_prefix)
+
     def test_core_startup_uses_fast_required_files_check(self) -> None:
         from winws_runtime.runtime import startup
 
