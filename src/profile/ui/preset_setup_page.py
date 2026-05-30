@@ -130,6 +130,8 @@ class PresetSetupPageBase(BasePage):
         self._user_profile_delete_worker = None
         self._profile_payload_loaded_once = False
         self._profile_payload_dirty = True
+        self._profile_payload_request_scheduled = False
+        self._profile_payload_request_force = False
         self._profile_context_action_enabled_by_request: dict[int, bool] = {}
         self._cleanup_in_progress = False
         self._ui_state_store = None
@@ -141,10 +143,22 @@ class PresetSetupPageBase(BasePage):
         self._schedule_profiles_payload_request()
 
     def _schedule_profiles_payload_request(self, *, force: bool = False) -> None:
+        self._profile_payload_request_force = (
+            bool(self.__dict__.get("_profile_payload_request_force", False)) or bool(force)
+        )
+        if self.__dict__.get("_profile_payload_request_scheduled", False):
+            return
+        self._profile_payload_request_scheduled = True
         try:
-            QTimer.singleShot(0, lambda: self._request_profiles_payload(force=force))
+            QTimer.singleShot(0, self._run_scheduled_profiles_payload_request)
         except Exception:
-            self._request_profiles_payload(force=force)
+            self._run_scheduled_profiles_payload_request()
+
+    def _run_scheduled_profiles_payload_request(self) -> None:
+        force = bool(self.__dict__.get("_profile_payload_request_force", False))
+        self._profile_payload_request_scheduled = False
+        self._profile_payload_request_force = False
+        self._request_profiles_payload(force=force)
 
     def _build_content(self) -> None:
         shell = build_profile_shell(

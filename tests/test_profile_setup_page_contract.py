@@ -2357,11 +2357,33 @@ class ProfileSetupPageContractTests(unittest.TestCase):
     def test_preset_setup_activation_schedules_profile_refresh_after_lifecycle_returns(self) -> None:
         activated_source = inspect.getsource(PresetSetupPageBase.on_page_activated)
         schedule_source = inspect.getsource(PresetSetupPageBase._schedule_profiles_payload_request)
+        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profiles_payload_request)
 
         self.assertIn("_schedule_profiles_payload_request", activated_source)
         self.assertNotIn("_request_profiles_payload()", activated_source)
         self.assertIn("QTimer.singleShot", schedule_source)
-        self.assertIn("_request_profiles_payload", schedule_source)
+        self.assertIn("_run_scheduled_profiles_payload_request", schedule_source)
+        self.assertIn("_request_profiles_payload", run_source)
+
+    def test_preset_setup_coalesces_queued_profile_refresh_requests(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._request_profiles_payload = Mock()
+        callbacks = []
+
+        with patch(
+            "profile.ui.preset_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetSetupPageBase._schedule_profiles_payload_request(page)
+            PresetSetupPageBase._schedule_profiles_payload_request(page, force=True)
+            PresetSetupPageBase._schedule_profiles_payload_request(page)
+
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._request_profiles_payload.assert_called_once_with(force=True)
+        self.assertFalse(page._profile_payload_request_scheduled)
 
     def test_preset_setup_page_does_not_use_profile_loading_skeleton(self) -> None:
         shell_builder = inspect.getsource(build_profile_shell)
