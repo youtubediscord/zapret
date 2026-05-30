@@ -202,7 +202,7 @@ class PresetSetupPageBase(BasePage):
             pass
 
     def refresh_from_preset_switch(self) -> None:
-        self._request_profiles_payload(force=True)
+        self._schedule_profiles_payload_request(force=True)
 
     def bind_ui_state_store(self, store) -> None:
         if self._ui_state_store is store:

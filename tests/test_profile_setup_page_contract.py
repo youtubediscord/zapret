@@ -2385,6 +2385,16 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._request_profiles_payload.assert_called_once_with(force=True)
         self.assertFalse(page._profile_payload_request_scheduled)
 
+    def test_preset_switch_refresh_schedules_profile_payload_request(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._schedule_profiles_payload_request = Mock()
+        page._request_profiles_payload = Mock(side_effect=AssertionError("preset switch must not load immediately"))
+
+        PresetSetupPageBase.refresh_from_preset_switch(page)
+
+        page._schedule_profiles_payload_request.assert_called_once_with(force=True)
+        page._request_profiles_payload.assert_not_called()
+
     def test_preset_setup_ui_state_change_schedules_profile_refresh(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._cleanup_in_progress = False
