@@ -145,6 +145,22 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
             item._details_label.setText.assert_not_called()
             item._details_label.setVisible.assert_not_called()
 
+    def test_top_summary_item_skips_unchanged_text_parts(self) -> None:
+        with patch.dict("os.environ", {"QT_QPA_PLATFORM": "offscreen"}):
+            from PyQt6.QtWidgets import QApplication
+            from presets.ui.control.top_summary_widget import ControlTopSummaryItem
+
+            self.__class__._app = QApplication.instance() or QApplication([])
+            item = ControlTopSummaryItem(icon_name="fa5s.star")
+            item.set_texts(caption="Preset", value="Default", details="Выбран")
+            item._caption_label.setText = Mock(side_effect=AssertionError("same caption must not rewrite"))
+            item._details_label.setText = Mock(side_effect=AssertionError("same details must not rewrite"))
+
+            item.set_texts(caption="Preset", value="Custom", details="Выбран")
+
+            item._caption_label.setText.assert_not_called()
+            item._details_label.setText.assert_not_called()
+
     def test_top_summary_visibility_update_skips_duplicate_state(self) -> None:
         from presets.ui.control.top_summary_widget import set_visible_if_changed
 

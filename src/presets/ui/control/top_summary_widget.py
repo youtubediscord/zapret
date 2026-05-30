@@ -24,6 +24,17 @@ def set_visible_if_changed(widget, visible: bool) -> bool:
     return True
 
 
+def set_text_if_changed(widget, text: str) -> bool:
+    value = str(text or "")
+    try:
+        if str(widget.text()) == value:
+            return False
+    except Exception:
+        pass
+    widget.setText(value)
+    return True
+
+
 class ControlTopSummaryItem(QWidget):
     clicked = pyqtSignal()
 
@@ -81,10 +92,10 @@ class ControlTopSummaryItem(QWidget):
             return
         self._last_texts = next_texts
         caption_text, value_text, details_text = next_texts
-        self._caption_label.setText(caption_text)
+        set_text_if_changed(self._caption_label, caption_text)
         set_visible_if_changed(self._caption_label, bool(caption_text.strip()))
-        self._value_label.setText(value_text)
-        self._details_label.setText(details_text)
+        set_text_if_changed(self._value_label, value_text)
+        set_text_if_changed(self._details_label, details_text)
         set_visible_if_changed(self._details_label, bool(details_text.strip()))
 
     def mousePressEvent(self, event):  # noqa: N802
