@@ -2205,6 +2205,14 @@ class ProfileSetupPageBase(BasePage):
             "in_range": range_expression_from_controls(self._in_range_mode, self._in_range_value, default="x"),
             "out_range": range_expression_from_controls(self._out_range_mode, self._out_range_value, default="a"),
         }
+        payload = self.__dict__.get("_payload")
+        if payload is not None and (
+            str(getattr(payload, "editable_filter_kind", "") or "hostlist") == request["filter_kind"]
+            and str(getattr(payload, "editable_filter_value", "") or "") == request["filter_value"]
+            and str(getattr(payload, "in_range", "") or "x") == request["in_range"]
+            and str(getattr(payload, "out_range", "") or "a") == request["out_range"]
+        ):
+            return
         self._request_settings_save(request)
 
     def _request_settings_save(self, request: dict) -> None:

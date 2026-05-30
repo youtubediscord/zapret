@@ -3132,6 +3132,40 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         worker.start.assert_called_once()
 
+    def test_settings_autosave_skips_when_controls_match_payload(self) -> None:
+        class _Combo:
+            def __init__(self, value: str) -> None:
+                self._value = value
+
+            def currentIndex(self) -> int:
+                return 0
+
+            def itemData(self, _index: int) -> str:
+                return self._value
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page.launch_method = "zapret2_mode"
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(
+            editable_filter_enabled=True,
+            editable_filter_kind="hostlist",
+            editable_filter_value="lists/youtube.txt",
+            in_range="x",
+            out_range="a",
+        )
+        page._filter_value = SimpleNamespace(text=lambda: "lists/youtube.txt")
+        page._current_filter_kind = lambda: "hostlist"
+        page._in_range_mode = _Combo("x")
+        page._out_range_mode = _Combo("a")
+        page._in_range_value = SimpleNamespace(text=lambda: "")
+        page._out_range_value = SimpleNamespace(text=lambda: "")
+        page._request_settings_save = Mock(side_effect=AssertionError("same settings must not start save worker"))
+
+        ProfileSetupPageBase._autosave_editable_settings(page)
+
+        page._request_settings_save.assert_not_called()
+
     def test_settings_save_worker_emits_new_profile_key_and_payload(self) -> None:
         save_settings = Mock()
         load_profile = Mock()
