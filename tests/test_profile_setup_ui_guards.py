@@ -182,6 +182,9 @@ class _ListWidget:
     def __init__(self) -> None:
         self.clear_calls = 0
         self.items = []
+        self.current_item = None
+        self.current_item_calls = []
+        self.update_calls = []
 
     def clear(self) -> None:
         self.clear_calls += 1
@@ -189,6 +192,45 @@ class _ListWidget:
 
     def addItem(self, item) -> None:  # noqa: N802
         self.items.append(item)
+
+    def currentItem(self):  # noqa: N802
+        return self.current_item
+
+    def setCurrentItem(self, item) -> None:  # noqa: N802
+        self.current_item_calls.append(item)
+        self.current_item = item
+
+    def viewport(self):
+        return self
+
+    def visualItemRect(self, item):  # noqa: N802
+        return ("rect", item)
+
+    def update(self, rect) -> None:
+        self.update_calls.append(rect)
+
+
+class _StrategyItem:
+    def __init__(self, *, data: dict[int, object] | None = None, selected: bool = False) -> None:
+        self._data = dict(data or {})
+        self._selected = bool(selected)
+        self.data_calls: list[tuple[int, object]] = []
+        self.selected_calls: list[bool] = []
+
+    def data(self, role: int):
+        return self._data.get(role)
+
+    def setData(self, role: int, value) -> None:  # noqa: N802
+        self.data_calls.append((role, value))
+        self._data[role] = value
+
+    def isSelected(self) -> bool:  # noqa: N802
+        return self._selected
+
+    def setSelected(self, selected: bool) -> None:  # noqa: N802
+        value = bool(selected)
+        self.selected_calls.append(value)
+        self._selected = value
 
 
 class _Signal:
@@ -364,6 +406,29 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         ProfileStrategyListWidget._rebuild_tree(widget)
 
         self.assertEqual(widget._summary.calls, [])
+
+    def test_strategy_item_refresh_skips_duplicate_repaint(self) -> None:
+        from types import SimpleNamespace
+
+        from profile.ui.profile_setup_page import ProfileStrategyListWidget
+
+        widget = ProfileStrategyListWidget.__new__(ProfileStrategyListWidget)
+        widget._states = {"tls_fake": SimpleNamespace(favorite=True, rating="work")}
+        widget._list = _ListWidget()
+        item = _StrategyItem(
+            data={
+                ProfileStrategyListWidget._ROLE_STATUS_TEXT: "В избранном • Работает",
+                ProfileStrategyListWidget._ROLE_IS_ACTIVE: False,
+            },
+            selected=False,
+        )
+
+        ProfileStrategyListWidget._refresh_strategy_item(widget, item, "tls_fake", is_current=False)
+
+        self.assertEqual(item.data_calls, [])
+        self.assertEqual(item.selected_calls, [])
+        self.assertEqual(widget._list.current_item_calls, [])
+        self.assertEqual(widget._list.update_calls, [])
 
     def test_list_file_request_skips_duplicate_loading_status(self) -> None:
         from unittest.mock import Mock

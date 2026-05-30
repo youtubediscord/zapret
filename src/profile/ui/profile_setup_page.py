@@ -550,14 +550,39 @@ class ProfileStrategyListWidget(QWidget):
             status_parts.append("Работает")
         elif rating == "notwork":
             status_parts.append("Не работает")
-        item.setData(self._ROLE_STATUS_TEXT, " • ".join(status_parts))
-        item.setData(self._ROLE_IS_ACTIVE, is_current)
+        changed = False
+        status_text = " • ".join(status_parts)
+        if str(item.data(self._ROLE_STATUS_TEXT) or "") != status_text:
+            item.setData(self._ROLE_STATUS_TEXT, status_text)
+            changed = True
+        if bool(item.data(self._ROLE_IS_ACTIVE)) != bool(is_current):
+            item.setData(self._ROLE_IS_ACTIVE, is_current)
+            changed = True
         if is_current:
-            self._list.setCurrentItem(item)
-            item.setSelected(True)
+            try:
+                if self._list.currentItem() is not item:
+                    self._list.setCurrentItem(item)
+                    changed = True
+            except Exception:
+                self._list.setCurrentItem(item)
+                changed = True
+            try:
+                selected = bool(item.isSelected())
+            except Exception:
+                selected = False
+            if not selected:
+                item.setSelected(True)
+                changed = True
         else:
-            item.setSelected(False)
-        self._list.viewport().update(self._list.visualItemRect(item))
+            try:
+                selected = bool(item.isSelected())
+            except Exception:
+                selected = True
+            if selected:
+                item.setSelected(False)
+                changed = True
+        if changed:
+            self._list.viewport().update(self._list.visualItemRect(item))
 
     def _apply_filter(self) -> None:
         self._rebuild_tree()
