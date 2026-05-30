@@ -41,7 +41,12 @@ def resolve_checker_bundle() -> PremiumCheckerBundle:
 def create_subscription_manager(*, thread_parent, ui_actions):
     from donater.subscription_manager import SubscriptionManager
 
-    return SubscriptionManager(thread_parent=thread_parent, ui_actions=ui_actions)
+    return SubscriptionManager(
+        thread_parent=thread_parent,
+        ui_actions=ui_actions,
+        get_premium_checker=get_premium_checker,
+        check_device_activation=check_device_activation,
+    )
 
 
 def initialize_subscription_manager(subscription_manager) -> None:

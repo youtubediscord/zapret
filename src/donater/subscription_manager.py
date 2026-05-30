@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Optional
 
 from PyQt6.QtCore import QThread, QObject
@@ -18,9 +19,18 @@ from log.log import log
 class SubscriptionManager:
     """Запускает PremiumService в фоне и передаёт результат в UI-слой."""
 
-    def __init__(self, *, thread_parent, ui_actions: SubscriptionUiActions):
+    def __init__(
+        self,
+        *,
+        thread_parent,
+        ui_actions: SubscriptionUiActions,
+        get_premium_checker: Callable[[], object],
+        check_device_activation: Callable[..., dict],
+    ):
         self.thread_parent = thread_parent
         self.ui_actions = ui_actions
+        self._get_premium_checker = get_premium_checker
+        self._check_device_activation = check_device_activation
         self._subscription_thread: Optional[QThread] = None
         self._subscription_worker: Optional[QObject] = None
         self._cleanup_in_progress = False
@@ -57,7 +67,10 @@ class SubscriptionManager:
         apply_subscription_starting_to_ui(set_status=self.ui_actions.set_status)
 
         self._subscription_thread = QThread(self.thread_parent)
-        self._subscription_worker = SubscriptionInitWorker()
+        self._subscription_worker = SubscriptionInitWorker(
+            get_premium_checker=self._get_premium_checker,
+            check_device_activation=self._check_device_activation,
+        )
         self._subscription_worker.moveToThread(self._subscription_thread)
 
         def _cleanup_subscription_objects():
