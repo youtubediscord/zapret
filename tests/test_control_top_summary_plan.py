@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 
@@ -82,6 +83,26 @@ class ControlTopSummaryPlanTests(unittest.TestCase):
 
                 icon_cache.assert_called_once()
             self.assertFalse(item._icon_label.pixmap().isNull())
+
+    def test_top_summary_item_icon_refresh_skips_duplicate_theme_key(self) -> None:
+        from presets.ui.control.top_summary_widget import ControlTopSummaryItem
+
+        item = ControlTopSummaryItem.__new__(ControlTopSummaryItem)
+        item._icon_name = "fa5s.star"
+        item._icon_label = Mock()
+        pixmap = object()
+        tokens = SimpleNamespace(accent_hex="#8ab4f8")
+
+        with patch("ui.theme.get_cached_qta_pixmap", return_value=pixmap) as icon_cache:
+            ControlTopSummaryItem._refresh_icon(item, tokens)
+            item._icon_label.setPixmap = Mock(
+                side_effect=AssertionError("same top summary icon must not repaint")
+            )
+
+            ControlTopSummaryItem._refresh_icon(item, tokens)
+
+        icon_cache.assert_called_once_with("fa5s.star", color="#8ab4f8", size=22)
+        item._icon_label.setPixmap.assert_not_called()
 
     def test_top_summary_skips_same_preset_render(self) -> None:
         with patch.dict("os.environ", {"QT_QPA_PLATFORM": "offscreen"}):

@@ -51,6 +51,7 @@ class ControlTopSummaryItem(QWidget):
         self._icon_name = str(icon_name or "fa5s.circle")
         self._clickable = bool(clickable)
         self._last_texts: tuple[str, str, str] | None = None
+        self._last_icon_theme_key: tuple[str, str] | None = None
         self._icon_label = QLabel(self)
         self._icon_label.setFixedSize(24, 24)
         self._caption_label = CaptionLabel(self)
@@ -107,12 +108,18 @@ class ControlTopSummaryItem(QWidget):
         from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 
         theme_tokens = tokens or get_theme_tokens()
+        accent_hex = str(getattr(theme_tokens, "accent_hex", "") or "")
+        icon_key = (self._icon_name, accent_hex)
+        if self.__dict__.get("_last_icon_theme_key") == icon_key:
+            return
+        self.__dict__["_last_icon_theme_key"] = icon_key
         self._icon_label.setPixmap(
-            get_cached_qta_pixmap(self._icon_name, color=theme_tokens.accent_hex, size=22)
+            get_cached_qta_pixmap(self._icon_name, color=accent_hex, size=22)
         )
 
     def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
-        _ = force
+        if force:
+            self._last_icon_theme_key = None
         self._refresh_icon(tokens)
 
     def _activate_theme_refresh(self) -> None:
