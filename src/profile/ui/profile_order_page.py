@@ -4,6 +4,7 @@ from log.log import log
 from profile.ui.profile_order_list import ProfileOrderList
 from qfluentwidgets import BodyLabel, BreadcrumbBar, InfoBar
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.pages.base_page import BasePage
 from app.ui_texts import tr as tr_catalog
 
@@ -35,11 +36,9 @@ class ProfileOrderPageBase(BasePage):
         self._open_root = open_root
         self._payload = None
         self._order_list: ProfileOrderList | None = None
-        self._order_load_request_id = 0
-        self._order_load_worker = None
+        self._order_load_runtime = OneShotWorkerRuntime()
         self._order_load_dirty = False
-        self._order_move_request_id = 0
-        self._order_move_worker = None
+        self._order_move_runtime = OneShotWorkerRuntime()
         self._breadcrumb = None
         self._cleanup_in_progress = False
         self._build_content()
@@ -74,31 +73,33 @@ class ProfileOrderPageBase(BasePage):
     def _reload_order_profiles(self, *, force: bool = False) -> None:
         if bool(self.__dict__.get("_cleanup_in_progress", False)):
             return
-        worker = self.__dict__.get("_order_load_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    if force:
-                        self._order_load_request_id = int(getattr(self, "_order_load_request_id", 0) or 0) + 1
-                        self._order_load_dirty = True
-                    return
-            except Exception:
+        runtime = self._order_load_runtime
+        if runtime.is_running():
+            if force:
+                runtime.next_request_id()
+                self._order_load_dirty = True
                 return
+            return
         self._order_load_dirty = False
-        self._order_load_request_id = int(getattr(self, "_order_load_request_id", 0) or 0) + 1
-        request_id = self._order_load_request_id
-        worker = self._create_profile_order_load_worker(request_id, self.launch_method, self)
-        self._order_load_worker = worker
-        worker.loaded.connect(self._on_order_profiles_loaded)
-        worker.failed.connect(self._on_order_profiles_failed)
-        worker.finished.connect(lambda w=worker: self._on_order_profiles_worker_finished(w))
-        worker.start()
+        runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._create_profile_order_load_worker(
+                request_id,
+                self.launch_method,
+                self,
+            ),
+            on_loaded=self._on_order_profiles_loaded,
+            on_failed=self._on_order_profiles_failed,
+            on_finished=self._on_order_profiles_worker_finished,
+        )
 
     def _create_profile_order_load_worker(self, request_id: int, launch_method: str, parent=None):
         return self._create_profile_order_load_worker_fn(request_id, launch_method, parent)
 
     def _on_order_profiles_loaded(self, request_id: int, payload) -> None:
-        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
+        if not self._order_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        ):
             return
         self._payload = payload
         if self._order_list is not None:
@@ -106,18 +107,16 @@ class ProfileOrderPageBase(BasePage):
         self._rebuild_breadcrumb()
 
     def _on_order_profiles_failed(self, request_id: int, error: str) -> None:
-        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
+        if not self._order_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        ):
             return
         log(f"{self.__class__.__name__}: не удалось прочитать порядок profile-ов: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
-    def _on_order_profiles_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_order_load_worker") is worker:
-            self._order_load_worker = None
+    def _on_order_profiles_worker_finished(self, _worker) -> None:
         should_reload = bool(getattr(self, "_order_load_dirty", False))
-        delete_later = getattr(worker, "deleteLater", None)
-        if callable(delete_later):
-            delete_later()
         if should_reload and not bool(self.__dict__.get("_cleanup_in_progress", False)):
             self._reload_order_profiles(force=True)
 
@@ -150,28 +149,22 @@ class ProfileOrderPageBase(BasePage):
         source_profile_key = str(source_profile_key or "").strip()
         if not source_profile_key:
             return
-        worker = self.__dict__.get("_order_move_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except Exception:
-                return
-        self._order_move_request_id = int(getattr(self, "_order_move_request_id", 0) or 0) + 1
-        request_id = self._order_move_request_id
-        worker = self._create_profile_order_move_worker(
-            request_id,
-            self.launch_method,
-            action=str(action or ""),
-            source_profile_key=source_profile_key,
-            destination_profile_key=str(destination_profile_key or ""),
-            parent=self,
+        if self._order_move_runtime.is_running():
+            return
+        self._order_move_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._create_profile_order_move_worker(
+                request_id,
+                self.launch_method,
+                action=str(action or ""),
+                source_profile_key=source_profile_key,
+                destination_profile_key=str(destination_profile_key or ""),
+                parent=self,
+            ),
+            on_loaded=self._on_profile_order_moved,
+            on_failed=self._on_profile_order_move_failed,
+            on_finished=self._on_profile_order_move_worker_finished,
+            loaded_signal_name="moved",
         )
-        self._order_move_worker = worker
-        worker.moved.connect(self._on_profile_order_moved)
-        worker.failed.connect(self._on_profile_order_move_failed)
-        worker.finished.connect(lambda w=worker: self._on_profile_order_move_worker_finished(w))
-        worker.start()
 
     def _create_profile_order_move_worker(
         self,
@@ -200,7 +193,10 @@ class ProfileOrderPageBase(BasePage):
         destination_profile_key: str,
         result,
     ) -> None:
-        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
+        if not self._order_move_runtime.is_current(
+            request_id,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        ):
             return
         if result and self._apply_profile_order_move_locally(
             action,
@@ -212,17 +208,16 @@ class ProfileOrderPageBase(BasePage):
             self._reload_order_profiles(force=True)
 
     def _on_profile_order_move_failed(self, request_id: int, error: str) -> None:
-        if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_move_request_id", 0) or 0):
+        if not self._order_move_runtime.is_current(
+            request_id,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        ):
             return
         log(f"{self.__class__.__name__}: не удалось переместить profile в порядке preset: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
-    def _on_profile_order_move_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_order_move_worker") is worker:
-            self._order_move_worker = None
-        delete_later = getattr(worker, "deleteLater", None)
-        if callable(delete_later):
-            delete_later()
+    def _on_profile_order_move_worker_finished(self, _worker) -> None:
+        return
 
     def _apply_profile_order_move_locally(
         self,
@@ -242,18 +237,11 @@ class ProfileOrderPageBase(BasePage):
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
-        self._order_load_request_id = int(getattr(self, "_order_load_request_id", 0) or 0) + 1
-        self._order_move_request_id = int(getattr(self, "_order_move_request_id", 0) or 0) + 1
         self._order_load_dirty = False
-        for attr in ("_order_load_worker", "_order_move_worker"):
-            worker = self.__dict__.get(attr)
-            if worker is None:
-                continue
-            try:
-                worker.quit()
-            except Exception:
-                pass
-            setattr(self, attr, None)
+        self._order_load_runtime.stop(warning_prefix="Profile order load worker")
+        self._order_load_runtime.cancel()
+        self._order_move_runtime.stop(warning_prefix="Profile order move worker")
+        self._order_move_runtime.cancel()
         try:
             super().cleanup()
         except Exception:

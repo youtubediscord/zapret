@@ -138,12 +138,21 @@ class ProfileOrderPageTests(unittest.TestCase):
 
         build_source = inspect.getsource(ProfileOrderPageBase._build_content)
         load_source = inspect.getsource(ProfileOrderPageBase._reload_order_profiles)
+        move_request_source = inspect.getsource(ProfileOrderPageBase._request_profile_order_move)
         before_source = inspect.getsource(ProfileOrderPageBase._on_profile_move_requested)
         after_source = inspect.getsource(ProfileOrderPageBase._on_profile_move_after_requested)
         end_source = inspect.getsource(ProfileOrderPageBase._on_profile_move_to_end_requested)
+        init_source = inspect.getsource(ProfileOrderPageBase.__init__)
 
         self.assertIn("Profile выше в списке имеет больший приоритет", build_source)
         self.assertIn("create_profile_order_load_worker", load_source)
+        self.assertIn("OneShotWorkerRuntime", init_source)
+        self.assertIn("_order_load_runtime", init_source)
+        self.assertIn("_order_move_runtime", init_source)
+        self.assertIn("start_qthread_worker", load_source)
+        self.assertIn("start_qthread_worker", move_request_source)
+        self.assertNotIn("worker.start()", load_source)
+        self.assertNotIn("worker.start()", move_request_source)
         self.assertIn("_request_profile_order_move", before_source)
         self.assertIn("_request_profile_order_move", after_source)
         self.assertIn("_request_profile_order_move", end_source)
@@ -183,16 +192,19 @@ class ProfileOrderPageTests(unittest.TestCase):
                 self.failed = _Signal()
                 self.finished = _Signal()
                 self.start = Mock()
+                self.deleteLater = Mock()
 
             def isRunning(self) -> bool:
                 return False
 
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
         page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
         page.launch_method = "zapret2_mode"
-        page._order_load_worker = None
-        page._order_load_request_id = 0
-        page._order_move_worker = None
-        page._order_move_request_id = 0
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_move_runtime = OneShotWorkerRuntime()
+        page._order_load_dirty = False
+        page._cleanup_in_progress = False
         load_worker = _Worker()
         move_worker = _Worker()
         page._create_profile_order_load_worker = Mock(return_value=load_worker)
@@ -242,50 +254,59 @@ class ProfileOrderPageTests(unittest.TestCase):
 
     def test_order_page_invalidates_running_load_before_refresh_after_move(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
         class _RunningWorker:
             def isRunning(self) -> bool:
                 return True
 
         page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
-        page._order_load_worker = _RunningWorker()
-        page._order_load_request_id = 7
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_load_runtime.worker = _RunningWorker()
+        page._order_load_runtime.request_id = 7
         page._order_load_dirty = False
         page._create_profile_order_load_worker = Mock()
         page._payload = "current"
+        page._cleanup_in_progress = False
 
         ProfileOrderPageBase._reload_order_profiles(page, force=True)
         ProfileOrderPageBase._on_order_profiles_loaded(page, 7, "stale")
 
-        self.assertEqual(page._order_load_request_id, 8)
+        self.assertEqual(page._order_load_runtime.request_id, 8)
         self.assertTrue(page._order_load_dirty)
         page._create_profile_order_load_worker.assert_not_called()
         self.assertEqual(page._payload, "current")
 
     def test_order_page_cleanup_stops_order_workers(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
         class _Worker:
             def __init__(self) -> None:
                 self.quit = Mock()
 
+            def isRunning(self) -> bool:
+                return True
+
         page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
         load_worker = _Worker()
         move_worker = _Worker()
-        page._order_load_worker = load_worker
-        page._order_move_worker = move_worker
-        page._order_load_request_id = 3
-        page._order_move_request_id = 5
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_load_runtime.worker = load_worker
+        page._order_load_runtime.request_id = 3
+        page._order_move_runtime = OneShotWorkerRuntime()
+        page._order_move_runtime.worker = move_worker
+        page._order_move_runtime.request_id = 5
         page._order_load_dirty = True
 
         ProfileOrderPageBase.cleanup(page)
 
         load_worker.quit.assert_called_once()
         move_worker.quit.assert_called_once()
-        self.assertIsNone(page._order_load_worker)
-        self.assertIsNone(page._order_move_worker)
-        self.assertEqual(page._order_load_request_id, 4)
-        self.assertEqual(page._order_move_request_id, 6)
+        self.assertIsNone(page._order_load_runtime.worker)
+        self.assertIsNone(page._order_move_runtime.worker)
+        self.assertEqual(page._order_load_runtime.request_id, 4)
+        self.assertEqual(page._order_move_runtime.request_id, 6)
         self.assertFalse(page._order_load_dirty)
 
     def test_order_workers_call_profile_service(self) -> None:
