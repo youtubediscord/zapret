@@ -4072,6 +4072,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertIn("_ensure_hosts_runtime", page_source)
         self.assertIn("start_qthread_worker", ensure_source)
+        self.assertIn("bind_worker", ensure_source)
+        self.assertIn("worker.completed.connect(self._on_telegram_hosts_ensured)", ensure_source)
         self.assertIn("create_ensure_hosts_worker", feature_source)
         self.assertIn("completed = pyqtSignal(int, object)", worker_source)
         self.assertIn("_ensure_hosts_runtime.stop", cleanup_source)

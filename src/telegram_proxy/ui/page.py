@@ -1261,12 +1261,16 @@ class TelegramProxyPage(BasePage):
         """Проверяет и добавляет Telegram-записи в hosts через worker."""
         if self._ensure_hosts_runtime.is_running():
             return
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_telegram_hosts_ensured)
+
         self._ensure_hosts_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._telegram_proxy.create_ensure_hosts_worker(
                 request_id,
                 parent=self,
             ),
-            on_loaded=self._on_telegram_hosts_ensured,
+            bind_worker=bind_worker,
         )
 
     def _on_telegram_hosts_ensured(self, request_id: int, plan):
