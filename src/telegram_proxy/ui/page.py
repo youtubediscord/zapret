@@ -135,8 +135,7 @@ class TelegramProxyPage(BasePage):
         self._settings_save_request_id = 0
         self._settings_save_pending: list[dict[str, object]] = []
         self._settings_save_restart_pending = ""
-        self._initial_state_worker = None
-        self._initial_state_request_id = 0
+        self._initial_state_runtime = OneShotWorkerRuntime()
         self._initial_state_load_started_at = 0.0
         self._relay_check_gen = 0
         self._cleanup_in_progress = False
@@ -167,18 +166,22 @@ class TelegramProxyPage(BasePage):
         return self._telegram_proxy.create_page_initial_state_worker(request_id, parent=self)
 
     def _request_initial_state_load(self) -> None:
-        self._initial_state_request_id += 1
-        request_id = self._initial_state_request_id
         self._initial_state_load_started_at = time.perf_counter()
-        worker = self.create_initial_state_worker(request_id)
-        self._initial_state_worker = worker
-        worker.completed.connect(self._on_initial_state_loaded)
-        worker.failed.connect(self._on_initial_state_failed)
-        worker.finished.connect(lambda w=worker: self._on_initial_state_worker_finished(w))
-        worker.start()
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_initial_state_loaded)
+            worker.failed.connect(self._on_initial_state_failed)
+
+        self._initial_state_runtime.start_qthread_worker(
+            worker_factory=self.create_initial_state_worker,
+            bind_worker=bind_worker,
+        )
 
     def _on_initial_state_loaded(self, request_id: int, initial_state) -> None:
-        if request_id != self._initial_state_request_id or self._cleanup_in_progress:
+        if not self._initial_state_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         self._log_ui_timing("telegram_proxy_ui.initial_state.load", self._initial_state_load_started_at)
         self._initial_state = initial_state
@@ -186,14 +189,12 @@ class TelegramProxyPage(BasePage):
         self._apply_initial_settings_state(getattr(initial_state, "settings", telegram_proxy_settings.default_state()))
 
     def _on_initial_state_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._initial_state_request_id or self._cleanup_in_progress:
+        if not self._initial_state_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Не удалось загрузить начальное состояние Telegram Proxy: {error}", "WARNING")
-
-    def _on_initial_state_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_initial_state_worker") is worker:
-            self._initial_state_worker = None
-        worker.deleteLater()
 
     def _after_ui_built(self) -> None:
         started_at = time.perf_counter()
@@ -1334,6 +1335,12 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy hosts worker",
         )
         self._ensure_hosts_runtime.cancel()
+        self._initial_state_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="telegram proxy initial state worker",
+        )
+        self._initial_state_runtime.cancel()
         if self._upstream_restart_timer is not None:
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
@@ -1341,13 +1348,6 @@ class TelegramProxyPage(BasePage):
         self._log_line_pending.clear()
         self._settings_save_pending.clear()
         self._settings_save_restart_pending = ""
-        initial_state_worker = self.__dict__.get("_initial_state_worker")
-        if initial_state_worker is not None:
-            try:
-                initial_state_worker.quit()
-            except Exception:
-                pass
-            self._initial_state_worker = None
         settings_worker = self.__dict__.get("_settings_save_worker")
         if settings_worker is not None:
             try:
