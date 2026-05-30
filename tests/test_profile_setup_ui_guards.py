@@ -431,6 +431,36 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         )
         self.assertEqual(worker.start_calls, 1)
 
+    def test_enabled_change_skips_duplicate_checkbox_disable(self) -> None:
+        from unittest.mock import Mock
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        worker = _SaveWorker()
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._enabled_save_worker = None
+        page._enabled_save_request_id = 0
+        page._enabled_checkbox = _BoolWidget(checked=True, enabled=False)
+        page._current_filter_kind = lambda: "hostlist"
+        page._current_filter_value = lambda: "lists/youtube.txt"
+        page._controller = Mock()
+        page._controller.create_enabled_save_worker.return_value = worker
+
+        ProfileSetupPageBase._on_enabled_changed(page, 2)
+
+        self.assertEqual(page._enabled_checkbox.enabled_calls, [])
+        page._controller.create_enabled_save_worker.assert_called_once_with(
+            1,
+            profile_key="profile-1",
+            enabled=True,
+            filter_kind="hostlist",
+            filter_value="lists/youtube.txt",
+            parent=page,
+        )
+        self.assertEqual(worker.start_calls, 1)
+
     def test_editable_settings_skip_duplicate_text_and_visibility(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import Mock, patch

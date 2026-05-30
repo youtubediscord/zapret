@@ -2112,7 +2112,7 @@ class ProfileSetupPageBase(BasePage):
         self._enabled_save_request_id += 1
         request_id = self._enabled_save_request_id
         if self._enabled_checkbox is not None:
-            self._enabled_checkbox.setEnabled(False)
+            set_widget_enabled_if_changed(self._enabled_checkbox, False)
         worker = self._controller.create_enabled_save_worker(
             request_id,
             profile_key=self._profile_key,
