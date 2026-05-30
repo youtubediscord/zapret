@@ -18,5 +18,9 @@ def build_diagnostics_feature() -> DiagnosticsFeature:
 
     return DiagnosticsFeature(
         create_connection_test_worker=lambda *args, **kwargs: _commands().create_connection_test_worker(*args, **kwargs),
-        create_connection_support_prepare_worker=lambda *args, **kwargs: _commands().create_connection_support_prepare_worker(*args, **kwargs),
+        create_connection_support_prepare_worker=lambda *args, **kwargs: _commands().create_connection_support_prepare_worker(
+            *args,
+            prepare_connection_support=_commands().prepare_connection_support,
+            **kwargs,
+        ),
     )

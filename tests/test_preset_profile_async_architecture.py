@@ -98,6 +98,7 @@ from telegram_proxy.ui.page import TelegramProxyPage
 from telegram_proxy.workers import TelegramProxyDiagnosticsWorker
 from diagnostics.ui.page import ConnectionTestPage
 import diagnostics.ui.runtime_helpers as diagnostics_runtime_helpers
+import app.feature_facades.diagnostics as diagnostics_feature_facade
 from app.feature_facades.diagnostics import DiagnosticsFeature
 import ui.navigation.text_sync as navigation_text_sync
 import ui.theme as ui_theme
@@ -3899,13 +3900,16 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         handler_body = handler_source.split("\n", 1)[1]
         worker_source = inspect.getsource(support_worker.ConnectionSupportPrepareWorker.run)
         feature_source = inspect.getsource(DiagnosticsFeature)
+        feature_build_source = inspect.getsource(diagnostics_feature_facade.build_diagnostics_feature)
 
         self.assertIn("_request_support_prepare", handler_source)
         self.assertNotIn("open_support_with_log(", handler_body)
         self.assertIn("create_support_prepare_worker", page_source)
         self.assertIn("_support_prepare_worker", page_source)
         self.assertIn("create_connection_support_prepare_worker", feature_source)
-        self.assertIn("diagnostics.commands", worker_source)
+        self.assertIn("prepare_connection_support=", feature_build_source)
+        self.assertIn("_prepare_connection_support", worker_source)
+        self.assertNotIn("diagnostics.commands", worker_source)
         self.assertIn("prepare_connection_support", worker_source)
         self.assertFalse(hasattr(diagnostics_runtime_helpers, "open_support_with_log"))
 
