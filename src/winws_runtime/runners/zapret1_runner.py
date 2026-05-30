@@ -456,6 +456,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         *,
         retry_count: int,
         max_retries: int,
+        stable_start_window_seconds: float = 1.0,
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
@@ -475,6 +476,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
                 strategy_name,
                 retry_count=retry_count + 1,
                 max_retries=max_retries,
+                stable_start_window_seconds=stable_start_window_seconds,
             )
 
         if self._is_windivert_system_error(stderr_output, exit_code):
@@ -488,6 +490,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
                 strategy_name,
                 retry_count=retry_count + 1,
                 max_retries=max_retries,
+                stable_start_window_seconds=stable_start_window_seconds,
             )
 
         causes = check_common_crash_causes()
@@ -549,6 +552,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             strategy_name,
             retry_count=retry_count,
             max_retries=max_retries,
+            stable_start_window_seconds=stable_start_window_seconds,
         )
 
     def stop(self, *, cleanup_services: bool = True) -> bool:

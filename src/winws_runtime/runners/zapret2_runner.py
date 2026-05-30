@@ -1115,6 +1115,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
         *,
         cleanup_required: bool,
         retry_count: int,
+        stable_start_window_seconds: float = 1.0,
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
@@ -1134,6 +1135,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 strategy_name,
                 force_cleanup=True,
                 retry_count=retry_count + 1,
+                stable_start_window_seconds=stable_start_window_seconds,
             )
 
         if self._is_windivert_system_error(stderr_output, exit_code):
@@ -1151,6 +1153,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 strategy_name,
                 force_cleanup=True,
                 retry_count=1,
+                stable_start_window_seconds=stable_start_window_seconds,
             )
 
         return False
@@ -1209,6 +1212,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             strategy_name,
             cleanup_required=cleanup_required,
             retry_count=retry_count,
+            stable_start_window_seconds=stable_start_window_seconds,
         )
 
     def stop_background_watchers(self) -> None:

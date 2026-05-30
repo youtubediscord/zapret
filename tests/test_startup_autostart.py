@@ -246,6 +246,32 @@ class StartupAutostartTests(unittest.TestCase):
         kwargs = runner.start_from_preset_file.call_args.kwargs
         self.assertLess(kwargs["_stable_start_window_seconds"], 1.0)
 
+    def test_winws1_retry_preserves_short_startup_stable_window(self) -> None:
+        from winws_runtime.runners.zapret1_runner import Winws1StrategyRunner
+
+        runner = object.__new__(Winws1StrategyRunner)
+        runner._last_spawn_exit_code = 34
+        runner._last_spawn_stderr = "windivert conflict"
+        runner._should_retry_transient_windivert_service_error = Mock(return_value=False)
+        runner._is_windivert_system_error = Mock(return_value=False)
+        runner._is_windivert_conflict_error = Mock(return_value=True)
+        runner._start_from_preset_file_locked = Mock(return_value=True)
+
+        self.assertTrue(
+            runner._maybe_retry_after_failed_spawn_locked(
+                "preset.txt",
+                "Preset",
+                retry_count=0,
+                max_retries=2,
+                stable_start_window_seconds=0.35,
+            )
+        )
+
+        self.assertEqual(
+            runner._start_from_preset_file_locked.call_args.kwargs["stable_start_window_seconds"],
+            0.35,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
