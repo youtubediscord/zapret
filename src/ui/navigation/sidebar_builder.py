@@ -8,6 +8,7 @@ from log.log import log
 from ui.navigation.layout_plan import (
     build_sidebar_group_plans,
     iter_sidebar_entries_after_page,
+    iter_sidebar_layout_entries,
 )
 from ui.navigation.schema import (
     get_eager_page_names_for_method,
@@ -182,6 +183,25 @@ def _resolve_scroll_insert_index(window, page_name: PageName, method: str | None
             return next_index
 
     return None
+
+
+def _reorder_sidebar_scroll_layout_for_method(window, method: str | None) -> None:
+    nav = getattr(window, "navigationInterface", None)
+    panel = getattr(nav, "panel", None)
+    scroll_layout = getattr(panel, "scrollLayout", None)
+    if scroll_layout is None or not hasattr(scroll_layout, "insertWidget"):
+        return
+
+    insert_index = 0
+    for entry in iter_sidebar_layout_entries(method):
+        widget = _get_scroll_widget_for_layout_entry(window, entry)
+        if widget is None or _scroll_layout_index(window, widget) < 0:
+            continue
+        try:
+            scroll_layout.insertWidget(insert_index, widget)
+        except Exception:
+            continue
+        insert_index += 1
 
 
 def add_nav_item(
@@ -645,6 +665,7 @@ def sync_nav_visibility(window, method: str | None = None) -> None:
         elif bool(should_show):
             log(f"[NAV]   {page_name.name} → NOT in nav_items!", "WARNING")
 
+    _reorder_sidebar_scroll_layout_for_method(window, method)
     session.nav_mode_visibility = mode_visibility
     apply_nav_visibility_filter(window)
     update_sidebar_search_suggestions(window)

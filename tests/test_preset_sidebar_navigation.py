@@ -814,6 +814,117 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertFalse(any(session.nav_items[page_name].visible for page_name in old_pages))
         self.assertTrue(all(session.nav_items[page_name].visible for page_name in new_pages))
 
+    def test_mode_switch_reorders_existing_sidebar_items_for_new_mode(self) -> None:
+        from app.page_names import PageName
+        from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
+        from ui.navigation.layout_plan import build_sidebar_group_plans
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        class FakeNavItem:
+            def __init__(self, name: str, visible: bool = True) -> None:
+                self.name = name
+                self.visible = visible
+
+            def setVisible(self, visible: bool) -> None:
+                self.visible = bool(visible)
+
+            def __repr__(self) -> str:
+                return self.name
+
+        class FakeScrollLayout:
+            def __init__(self, widgets) -> None:
+                self.widgets = list(widgets)
+
+            def indexOf(self, widget) -> int:
+                try:
+                    return self.widgets.index(widget)
+                except ValueError:
+                    return -1
+
+            def insertWidget(self, index: int, widget) -> None:
+                if widget in self.widgets:
+                    self.widgets.remove(widget)
+                self.widgets.insert(index, widget)
+
+        class FakeNavigationInterface:
+            def __init__(self, layout: FakeScrollLayout) -> None:
+                self.panel = SimpleNamespace(scrollLayout=layout)
+
+            def addItem(self, *, routeKey, icon, text, onClick, selectable, position):
+                _ = routeKey, icon, text, onClick, selectable, position
+                return FakeNavItem(text)
+
+            def insertItem(self, index, *, routeKey, icon, text, onClick, selectable, position):
+                _ = index, routeKey, icon, text, onClick, selectable, position
+                return FakeNavItem(text)
+
+        settings_header = FakeNavItem("settings-header")
+        z2_user = FakeNavItem("z2-user")
+        z2_setup = FakeNavItem("z2-setup")
+        dpi = FakeNavItem("dpi")
+        z1_user = FakeNavItem("z1-user", visible=False)
+        z1_setup = FakeNavItem("z1-setup", visible=False)
+        layout = FakeScrollLayout(
+            [
+                settings_header,
+                z2_user,
+                z2_setup,
+                dpi,
+                z1_user,
+                z1_setup,
+            ]
+        )
+        session = SimpleNamespace(
+            nav_items={
+                PageName.ZAPRET2_USER_PRESETS: z2_user,
+                PageName.ZAPRET2_PRESET_SETUP: z2_setup,
+                PageName.DPI_SETTINGS: dpi,
+                PageName.ZAPRET1_USER_PRESETS: z1_user,
+                PageName.ZAPRET1_PRESET_SETUP: z1_setup,
+            },
+            nav_icons={},
+            nav_labels={},
+            nav_headers=[
+                (
+                    settings_header,
+                    next(
+                        group_plan.page_names
+                        for group_plan in build_sidebar_group_plans(ZAPRET2_MODE)
+                        if group_plan.group_name == "settings"
+                    ),
+                    "nav.header.settings",
+                )
+            ],
+            nav_header_by_group={"settings": settings_header},
+            nav_search_query="",
+            nav_mode_visibility={},
+            nav_scroll_position=None,
+            default_nav_icon=None,
+            ui_language="ru",
+            sidebar_search_model=None,
+            sidebar_search_completer=None,
+            page_host=SimpleNamespace(ensure_page=lambda page_name: None),
+        )
+        window = SimpleNamespace(
+            ui_session=session,
+            navigationInterface=FakeNavigationInterface(layout),
+            get_launch_method=lambda: ZAPRET2_MODE,
+        )
+
+        sidebar_builder.sync_nav_visibility(window, ZAPRET1_MODE)
+
+        self.assertEqual(
+            layout.widgets[:6],
+            [
+                settings_header,
+                z1_user,
+                z1_setup,
+                dpi,
+                z2_user,
+                z2_setup,
+            ],
+        )
+
     def test_add_nav_item_reuses_loaded_eager_page_without_second_ensure(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET2_MODE
