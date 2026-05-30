@@ -20,7 +20,7 @@ class FolderDefaultsTests(unittest.TestCase):
 
         self.assertEqual(
             [folder["name"] for folder in state["folders"].values()],
-            ["ALL TCP & UDP", "Общие", "Game filter", "Circular"],
+            ["ALL TCP & UDP", "Общие", "1.9.9", "Game filter", "Circular"],
         )
         self.assertEqual(state["folders"][COMMON_FOLDER_KEY]["system"], True)
 
@@ -36,6 +36,7 @@ class FolderDefaultsTests(unittest.TestCase):
     def test_preset_default_folder_is_classified_from_known_name(self) -> None:
         self.assertEqual(classify_preset_folder("ALL TCP & UDP v3_2.txt"), "all-tcp-udp")
         self.assertEqual(classify_preset_folder("Default (circular).txt"), "circular")
+        self.assertEqual(classify_preset_folder("general ALT10 1.9.9 (game filter).txt"), "1-9-9")
         self.assertEqual(classify_preset_folder("Preset X (game filter).txt"), "game-filter")
         self.assertEqual(classify_preset_folder("Unknown custom.txt"), COMMON_FOLDER_KEY)
 
@@ -182,7 +183,7 @@ class FolderStoreTests(unittest.TestCase):
             for _key, folder in sorted(folders.items(), key=lambda pair: pair[1]["order"])
         ]
         self.assertEqual(folder_key, "моя-папка")
-        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Моя папка", "Game filter", "Circular"])
+        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Моя папка", "1.9.9", "Game filter", "Circular"])
 
     def test_system_folder_cannot_be_renamed(self) -> None:
         store = FolderLibraryStore(build_default_preset_folders())
@@ -200,7 +201,7 @@ class FolderStoreTests(unittest.TestCase):
             folder["name"]
             for _key, folder in sorted(store.to_dict()["folders"].items(), key=lambda pair: pair[1]["order"])
         ]
-        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Game filter", "Моя папка", "Circular"])
+        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "1.9.9", "Моя папка", "Game filter", "Circular"])
 
 
 if __name__ == "__main__":

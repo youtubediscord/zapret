@@ -31,6 +31,7 @@ class SettingsFoldersTests(unittest.TestCase):
         self.assertNotIn("all-tcp-udp", winws1_folders)
         self.assertNotIn("circular", winws1_folders)
         self.assertIn("all-tcp-udp", winws2_folders)
+        self.assertIn("1-9-9", winws2_folders)
         self.assertIn("circular", winws2_folders)
         self.assertNotIn("alt", winws2_folders)
 

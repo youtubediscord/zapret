@@ -37,7 +37,7 @@ class PresetFolderActionTests(unittest.TestCase):
             for _key, folder in sorted(state["folders"].items(), key=lambda pair: pair[1]["order"])
         ]
         self.assertEqual(folder_key, "моя-папка")
-        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Моя папка", "Game filter", "Circular"])
+        self.assertEqual(ordered_names, ["ALL TCP & UDP", "Общие", "Моя папка", "1.9.9", "Game filter", "Circular"])
 
     def test_delete_folder_moves_presets_to_common(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -63,7 +63,7 @@ class PresetFolderActionTests(unittest.TestCase):
             folder["name"]
             for _key, folder in sorted(state["folders"].items(), key=lambda pair: pair[1]["order"])
         ]
-        self.assertEqual(ordered_names[:2], ["ALL TCP & UDP", "Game filter"])
+        self.assertEqual(ordered_names[:2], ["ALL TCP & UDP", "1.9.9"])
         self.assertIn("Общие", ordered_names)
 
     def test_rating_and_pin_are_stored_in_folders_items(self) -> None:
