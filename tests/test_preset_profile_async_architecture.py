@@ -2407,6 +2407,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
     def test_telegram_proxy_open_log_file_runs_through_worker(self) -> None:
         page_source = inspect.getsource(TelegramProxyPage)
         handler_source = inspect.getsource(TelegramProxyPage._on_open_log_file)
+        start_source = inspect.getsource(TelegramProxyPage._start_open_log_file_worker)
+        cleanup_source = inspect.getsource(TelegramProxyPage.cleanup)
         feature_source = inspect.getsource(TelegramProxyFeature)
 
         self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxyOpenLogFileWorker"))
@@ -2415,7 +2417,15 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_start_open_log_file_worker", handler_source)
         self.assertNotIn(".open_log_file(", handler_source)
         self.assertIn("create_open_log_file_worker", page_source)
-        self.assertIn("_open_log_file_worker", page_source)
+        self.assertIn("_open_log_file_runtime", page_source)
+        self.assertIn("start_qthread_worker", start_source)
+        self.assertIn("bind_worker", start_source)
+        self.assertIn("worker.completed.connect(self._on_open_log_file_finished)", start_source)
+        self.assertIn("worker.failed.connect(self._on_open_log_file_failed)", start_source)
+        self.assertIn("_open_log_file_runtime.is_running()", start_source)
+        self.assertIn("_open_log_file_runtime.stop", cleanup_source)
+        self.assertNotIn("_open_log_file_worker =", page_source)
+        self.assertNotIn("worker.start()", start_source)
         self.assertIn("create_open_log_file_worker", feature_source)
         self.assertIn("open_log_file", worker_source)
 

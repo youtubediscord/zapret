@@ -125,7 +125,7 @@ class TelegramProxyPage(BasePage):
         self._relay_check_worker = None
         self._ensure_hosts_runtime = OneShotWorkerRuntime()
         self._settings_save_worker = None
-        self._open_log_file_worker = None
+        self._open_log_file_runtime = OneShotWorkerRuntime()
         self._external_link_worker = None
         self._log_line_runtime = OneShotWorkerRuntime()
         self._log_line_pending: list[str] = []
@@ -730,20 +730,17 @@ class TelegramProxyPage(BasePage):
         return self._telegram_proxy.create_open_log_file_worker(path=path, parent=self)
 
     def _start_open_log_file_worker(self, path: str) -> None:
-        worker = self.__dict__.get("_open_log_file_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except RuntimeError:
-                self._open_log_file_worker = None
+        if self._open_log_file_runtime.is_running():
+            return
 
-        worker = self.create_open_log_file_worker(path)
-        self._open_log_file_worker = worker
-        worker.completed.connect(self._on_open_log_file_finished)
-        worker.failed.connect(self._on_open_log_file_failed)
-        worker.finished.connect(lambda w=worker: self._on_open_log_file_worker_finished(w))
-        worker.start()
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_open_log_file_finished)
+            worker.failed.connect(self._on_open_log_file_failed)
+
+        self._open_log_file_runtime.start_qthread_worker(
+            worker_factory=lambda _request_id: self.create_open_log_file_worker(path),
+            bind_worker=bind_worker,
+        )
 
     def _on_open_log_file_finished(self, plan) -> None:
         if self._cleanup_in_progress:
@@ -758,14 +755,6 @@ class TelegramProxyPage(BasePage):
         message = str(error or "").strip()
         if message:
             self._append_log_line(f"Failed to open log file: {message}")
-
-    def _on_open_log_file_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_open_log_file_worker") is worker:
-            self._open_log_file_worker = None
-        try:
-            worker.deleteLater()
-        except RuntimeError:
-            pass
 
     def _on_clear_logs(self):
         if self._log_edit is not None:
@@ -1340,6 +1329,12 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy log line worker",
         )
         self._log_line_runtime.cancel()
+        self._open_log_file_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="telegram proxy open log file worker",
+        )
+        self._open_log_file_runtime.cancel()
         if self._upstream_restart_timer is not None:
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
@@ -1368,13 +1363,6 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
             self._restart_stop_worker = None
-        open_log_worker = self.__dict__.get("_open_log_file_worker")
-        if open_log_worker is not None:
-            try:
-                open_log_worker.quit()
-            except Exception:
-                pass
-            self._open_log_file_worker = None
         external_link_worker = self.__dict__.get("_external_link_worker")
         if external_link_worker is not None:
             try:
