@@ -73,6 +73,7 @@ class LogsFeature:
             request_id,
             current_log_file=current_log_file,
             orchestra_runner=orchestra_runner,
+            prepare_support_bundle=self.prepare_support_bundle,
             parent=parent,
         )
 

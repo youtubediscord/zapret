@@ -2768,6 +2768,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("create_support_prepare_worker", page_source)
         self.assertIn("_support_prepare_runtime", page_source)
         self.assertIn("create_support_prepare_worker", feature_source)
+        self.assertIn("prepare_support_bundle=self.prepare_support_bundle", feature_source)
+        self.assertIn("_prepare_support_bundle", worker_source)
+        self.assertNotIn("log_commands", worker_source)
         self.assertIn("prepare_support_bundle", worker_source)
 
     def test_logs_open_folder_runs_through_worker(self) -> None:
