@@ -81,6 +81,15 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
         self.assertTrue(hasattr(runtime_module, "apply_presets_rows_plan"))
         self.assertFalse(hasattr(runtime_module, "rebuild_presets_rows"))
 
+    def test_user_presets_listing_api_has_no_legacy_active_preset_name_reader(self) -> None:
+        import presets.ui.common.user_presets_page_runtime as runtime_module
+
+        self.assertFalse(hasattr(runtime_module.UserPresetsPageRuntime, "get_active_preset_name_light"))
+        self.assertNotIn(
+            "get_active_preset_name_light",
+            inspect.getsource(runtime_module.UserPresetsListingApi),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
