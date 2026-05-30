@@ -2178,7 +2178,7 @@ class ProfileSetupPageBase(BasePage):
         if request_id != self._enabled_save_request_id:
             return
         if self._enabled_checkbox is not None:
-            self._enabled_checkbox.setEnabled(True)
+            set_widget_enabled_if_changed(self._enabled_checkbox, True)
         log(f"{self.__class__.__name__}: не удалось изменить состояние профиля: {error}", "ERROR")
 
     def _on_enabled_save_worker_finished(self, worker) -> None:

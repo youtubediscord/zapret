@@ -461,6 +461,17 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         )
         self.assertEqual(worker.start_calls, 1)
 
+    def test_enabled_save_failure_skips_duplicate_checkbox_enable(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._enabled_save_request_id = 4
+        page._enabled_checkbox = _BoolWidget(enabled=True)
+
+        ProfileSetupPageBase._on_enabled_save_failed(page, 4, "boom")
+
+        self.assertEqual(page._enabled_checkbox.enabled_calls, [])
+
     def test_editable_settings_skip_duplicate_text_and_visibility(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import Mock, patch
