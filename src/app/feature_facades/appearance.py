@@ -37,6 +37,7 @@ class AppearanceFeature:
             save_display_mode=appearance.save_display_mode,
             save_ui_language=appearance.save_ui_language,
             save_background_preset=appearance.save_background_preset,
+            save_mica_enabled=appearance.save_mica_enabled,
             save_rkn_background=appearance.save_rkn_background,
             save_window_opacity=appearance.save_window_opacity,
             save_snowflakes_enabled=appearance.save_snowflakes_enabled,

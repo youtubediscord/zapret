@@ -1652,6 +1652,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             "_on_ui_language_changed",
             "_on_rkn_background_changed",
             "_on_bg_preset_toggled",
+            "_on_mica_changed",
             "_on_opacity_changed",
             "_on_snowflakes_changed",
             "_on_garland_changed",
@@ -1678,12 +1679,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("save_display_mode", worker_init_source)
         self.assertIn("save_ui_language", worker_init_source)
         self.assertIn("save_background_preset", worker_init_source)
+        self.assertIn("save_mica_enabled", worker_init_source)
         self.assertIn("save_window_opacity", worker_init_source)
         self.assertIn("save_accent_color", worker_init_source)
         self.assertIn("save_animations_enabled", worker_init_source)
         self.assertIn("save_display_mode", worker_source)
         self.assertIn("save_ui_language", worker_source)
         self.assertIn("save_background_preset", worker_source)
+        self.assertIn("save_mica_enabled", worker_source)
         self.assertIn("save_window_opacity", worker_source)
         self.assertIn("save_accent_color", worker_source)
         self.assertIn("save_animations_enabled", worker_source)

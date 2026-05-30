@@ -42,6 +42,7 @@ class AppearanceSettingsSaveWorker(QThread):
         save_display_mode,
         save_ui_language,
         save_background_preset,
+        save_mica_enabled,
         save_rkn_background,
         save_window_opacity,
         save_snowflakes_enabled,
@@ -65,6 +66,7 @@ class AppearanceSettingsSaveWorker(QThread):
         self._save_display_mode = save_display_mode
         self._save_ui_language = save_ui_language
         self._save_background_preset = save_background_preset
+        self._save_mica_enabled = save_mica_enabled
         self._save_rkn_background = save_rkn_background
         self._save_window_opacity = save_window_opacity
         self._save_snowflakes_enabled = save_snowflakes_enabled
@@ -89,6 +91,8 @@ class AppearanceSettingsSaveWorker(QThread):
                 result = self._save_ui_language(str(self._value or ""))
             elif self._action == "background_preset":
                 result = self._save_background_preset(str(self._value or "standard"))
+            elif self._action == "mica_enabled":
+                result = self._save_mica_enabled(bool(self._value))
             elif self._action == "rkn_background":
                 result = self._save_rkn_background(self._value)
             elif self._action == "window_opacity":

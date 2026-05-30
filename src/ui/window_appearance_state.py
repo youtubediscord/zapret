@@ -37,14 +37,8 @@ def on_opacity_changed(window, value: int) -> None:
 
 
 def on_mica_changed(window, enabled: bool) -> None:
-    """Сохраняет настройку Mica и заново применяет фон окна."""
-    try:
-        from settings.appearance import save_mica_enabled
-
-        save_mica_enabled(enabled)
-    except Exception:
-        pass
-
+    """Заново применяет фон окна после изменения Mica."""
+    _ = enabled
     on_background_refresh_needed(window)
 
 

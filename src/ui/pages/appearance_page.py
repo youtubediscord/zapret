@@ -1004,6 +1004,7 @@ class AppearancePage(BasePage):
         """Handle Mica SwitchButton toggle."""
         if self._is_ui_syncing():
             return
+        self._request_appearance_save("mica_enabled", bool(checked))
         self._on_mica_changed_callback(checked)
 
     def set_mica_state(self, enabled: bool):
