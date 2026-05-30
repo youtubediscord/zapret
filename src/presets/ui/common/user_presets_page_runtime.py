@@ -34,7 +34,6 @@ class UserPresetsPageRuntimeConfig:
 
 class UserPresetsListingApi(Protocol):
     def list_preset_entries_light(self) -> list[dict[str, object]]: ...
-    def get_active_preset_name_light(self) -> str: ...
     def get_selected_source_preset_file_name_light(self) -> str: ...
     def get_presets_dir_light(self): ...
     def get_cached_preset_list_metadata_light(self) -> dict[str, dict[str, object]] | None: ...
@@ -194,9 +193,6 @@ class _UserPresetsListingApiImpl:
     def list_preset_entries_light(self) -> list[dict[str, object]]:
         return self._runtime.list_preset_entries_light()
 
-    def get_active_preset_name_light(self) -> str:
-        return self._runtime.get_active_preset_name_light()
-
     def get_selected_source_preset_file_name_light(self) -> str:
         return self._runtime.get_selected_source_preset_file_name_light()
 
@@ -278,15 +274,6 @@ class UserPresetsPageRuntime:
         except Exception as e:
             log(f"{self._config.list_log_prefix}: не удалось загрузить lightweight список пресетов: {e}", "ERROR")
             return []
-
-    def get_active_preset_name_light(self) -> str:
-        try:
-            preset = self._preset_actions().get_selected_source_preset_manifest(
-                self._config.launch_method,
-            )
-            return str(preset.name if preset is not None else "").strip()
-        except Exception:
-            return ""
 
     def get_selected_source_preset_file_name_light(self) -> str:
         try:

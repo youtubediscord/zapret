@@ -377,45 +377,21 @@ blobs = quic6
 
 # --- missing builtin strategy coverage (generated from presets) ---
 [stock_missing_199_udp_01]
-name = general 1.9.9 (game filter) / WhatsApp UDP wide (QUIC)
+name = general 1.9.9 (game filter) / WhatsApp UDP wide
 author = builtin
 label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (WhatsApp UDP wide (QUIC)) в basic-режиме.
+description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (WhatsApp UDP wide) в basic-режиме.
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
-[stock_missing_199_udp_02]
-name = general 1.9.9 (game filter) / WhatsApp UDP wide (WireGuard)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (WhatsApp UDP wide (WireGuard)) в basic-режиме.
 --lua-desync=fake:blob=zero64:repeats=12
-
-[stock_missing_199_udp_03]
-name = general 1.9.9 (game filter) / WhatsApp UDP wide (UDP other)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (WhatsApp UDP wide (UDP other)) в basic-режиме.
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
-[stock_missing_199_udp_04]
-name = general ALT11 1.9.9 (game filter) / WhatsApp UDP wide (QUIC)
+[stock_missing_199_udp_02]
+name = general ALT11 1.9.9 (game filter) / WhatsApp UDP wide
 author = builtin
 label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (WhatsApp UDP wide (QUIC)) в basic-режиме.
+description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (WhatsApp UDP wide) в basic-режиме.
 --lua-desync=fake:blob=fake_default_quic:repeats=10
-
-[stock_missing_199_udp_05]
-name = general ALT11 1.9.9 (game filter) / WhatsApp UDP wide (WireGuard)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (WhatsApp UDP wide (WireGuard)) в basic-режиме.
 --lua-desync=fake:blob=zero64:repeats=10
-
-[stock_missing_199_udp_06]
-name = general ALT11 1.9.9 (game filter) / WhatsApp UDP wide (UDP other)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (WhatsApp UDP wide (UDP other)) в basic-режиме.
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=10
 
 # --- end missing builtin strategy coverage ---

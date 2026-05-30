@@ -25,6 +25,7 @@
 --name=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:ip_id=zero
 
 --new
@@ -32,14 +33,15 @@
 --name=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:ip_id=zero
 
 --new
 
---name=youtube.com (QUIC)
+--name=youtube.com
 --filter-udp=443
 --ipset=lists/ipset-youtube.txt
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=quic_google:repeats=6
 
 --new
@@ -47,6 +49,7 @@
 --name=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist-domains=discord.media
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
 
 --new
@@ -54,6 +57,7 @@
 --name=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
 
 --new
@@ -61,40 +65,25 @@
 --name=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
 
 --new
 
---name=Discord UDP (QUIC)
+--name=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Discord UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-discord.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Discord UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-discord.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=Голосовые звонки/чаты (Discord discovery+STUN)
+--name=Голосовые звонки/чаты
 --filter-l7=stun,discord
---payload=discord_ip_discovery,stun
+--payload=all
 --lua-desync=fake:blob=fake_dbankcloud:repeats=6
 
 --new
@@ -102,6 +91,7 @@
 --name=Telegram
 --filter-tcp=80,443,5222
 --ipset=lists/ipset-telegram.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -109,33 +99,18 @@
 --name=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=WhatsApp UDP wide (QUIC)
+--name=WhatsApp UDP wide
 --filter-udp=443-65535
 --ipset=lists/ipset-whatsapp.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=WhatsApp UDP wide (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-whatsapp.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=WhatsApp UDP wide (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-whatsapp.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
@@ -143,6 +118,7 @@
 --name=Twitter Images (twimg.com)
 --filter-tcp=80,443
 --hostlist=lists/twimg.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -150,6 +126,7 @@
 --name=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -157,6 +134,7 @@
 --name=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -164,6 +142,7 @@
 --name=Twitter/X
 --filter-tcp=80,443
 --ipset=lists/ipset-twitter.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -172,6 +151,7 @@
 --filter-tcp=80,443
 --hostlist=lists/steam.txt
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -180,33 +160,18 @@
 --filter-tcp=80,443-65535
 --hostlist=tankix.txt
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=Tanki X UDP (QUIC)
+--name=Tanki X UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-tankix.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Tanki X UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-tankix.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Tanki X UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-tankix.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
@@ -215,6 +180,7 @@
 --filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -223,6 +189,7 @@
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -231,6 +198,7 @@
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-ru.txt
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -239,87 +207,40 @@
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-euw.txt
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=Roblox UDP (QUIC)
+--name=Roblox UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-roblox.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Roblox UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-roblox.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Roblox UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-roblox.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=League of Legends RU UDP (QUIC)
+--name=League of Legends RU UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-lol-ru.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=League of Legends RU UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-lol-ru.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=League of Legends RU UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-lol-ru.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=League of Legends EUW UDP (QUIC)
+--name=League of Legends EUW UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-lol-euw.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=League of Legends EUW UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-lol-euw.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=League of Legends EUW UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-lol-euw.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
@@ -328,30 +249,17 @@
 --filter-tcp=443
 --hostlist-domains=riotgames.com,valorant.com,riotcdn.net
 --out-range=-n3
+--payload=all
 --lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=Riot / Valorant UDP (QUIC)
+--name=Riot / Valorant UDP
 --filter-udp=5000-5500,7000-8000
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Riot / Valorant UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=5000-5500,7000-8000
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Riot / Valorant UDP (UDP other)
---filter-udp=5000-5500,7000-8000
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
@@ -359,6 +267,7 @@
 --name=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -366,6 +275,7 @@
 --name=Cloudflare legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -373,6 +283,7 @@
 --name=Cloudflare IPv6 legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -380,6 +291,7 @@
 --name=Cloudflare alt TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare1.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -387,6 +299,7 @@
 --name=Amazon TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-amazon.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -394,6 +307,7 @@
 --name=OVH TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-ovh.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -401,195 +315,84 @@
 --name=WARP TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-warp.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=Cloudflare UDP (QUIC)
+--name=Cloudflare UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Cloudflare UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-cloudflare.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Cloudflare UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-cloudflare.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=Cloudflare legacy UDP (QUIC)
+--name=Cloudflare legacy UDP
 --filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Cloudflare legacy UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/cloudflare-ipset.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Cloudflare legacy UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/cloudflare-ipset.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=Cloudflare IPv6 legacy UDP (QUIC)
+--name=Cloudflare IPv6 legacy UDP
 --filter-udp=443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Cloudflare IPv6 legacy UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Cloudflare IPv6 legacy UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/cloudflare-ipset_v6.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=Cloudflare alt UDP (QUIC)
+--name=Cloudflare alt UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare1.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Cloudflare alt UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-cloudflare1.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Cloudflare alt UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-cloudflare1.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=Amazon UDP (QUIC)
+--name=Amazon UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-amazon.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Amazon UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-amazon.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Amazon UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-amazon.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=OVH UDP (QUIC)
+--name=OVH UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-ovh.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=OVH UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-ovh.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=OVH UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-ovh.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=WARP UDP (QUIC)
+--name=WARP UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-warp.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=WARP UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-warp.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=WARP UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-warp.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
@@ -597,6 +400,7 @@
 --name=ntc.party
 --filter-tcp=80,443
 --hostlist-domains=ntc.party
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -604,6 +408,7 @@
 --name=18+ сайты
 --filter-tcp=80,443
 --ipset=lists/ipset-porn.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -611,6 +416,7 @@
 --name=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -618,6 +424,7 @@
 --name=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -625,6 +432,7 @@
 --name=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -632,6 +440,7 @@
 --name=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -639,33 +448,18 @@
 --name=Мои сайты
 --filter-tcp=80,443-65535
 --hostlist=lists/other.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=AnyDesk UDP (QUIC)
+--name=AnyDesk UDP
 --filter-udp=443,6568,50000-51000
 --ipset=lists/ipset-anydesk.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=AnyDesk UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443,6568,50000-51000
---ipset=lists/ipset-anydesk.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=AnyDesk UDP (UDP other)
---filter-udp=443,6568,50000-51000
---ipset=lists/ipset-anydesk.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
@@ -673,6 +467,7 @@
 --name=Google (сервисы)
 --filter-tcp=80,443
 --hostlist=lists/google.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -680,6 +475,7 @@
 --name=7tv (10tv)
 --filter-tcp=80,443
 --hostlist-domains=7tv.app,7tv.io,10tv.app
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -687,6 +483,7 @@
 --name=obsidian.md
 --filter-tcp=80,443
 --hostlist=lists/obsidian.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -694,6 +491,7 @@
 --name=GitHub
 --filter-tcp=443
 --hostlist=lists/github.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -701,6 +499,7 @@
 --name=AnyDesk TCP
 --filter-tcp=80,443,6568
 --ipset=lists/ipset-anydesk.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -708,6 +507,7 @@
 --name=Twitch
 --filter-tcp=443
 --hostlist=lists/twitch.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -715,6 +515,7 @@
 --name=Speedtest
 --filter-tcp=443,8080
 --hostlist=lists/speedtest.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -722,6 +523,7 @@
 --name=Ubisoft / DeepSeek
 --filter-tcp=443
 --hostlist-domains=ubisoft.com,uplay.com,ubi.com,chat.deepseek.com,api.deepseek.com
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -729,6 +531,7 @@
 --name=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -736,6 +539,7 @@
 --name=Russia blacklist TCP wide
 --filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -743,6 +547,7 @@
 --name=ZapretKVN TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-zapretkvn.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
@@ -750,58 +555,27 @@
 --name=Timeweb TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-timeweb.txt
+--payload=all
 --lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
 
 --new
 
---name=ZapretKVN UDP (QUIC)
+--name=ZapretKVN UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-zapretkvn.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=ZapretKVN UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-zapretkvn.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=ZapretKVN UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-zapretkvn.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
 --new
 
---name=Timeweb UDP (QUIC)
+--name=Timeweb UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-timeweb.txt
 --out-range=-n2
---payload=quic_initial
+--payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
---new
-
---name=Timeweb UDP (WireGuard+DHT+Discord discovery+STUN)
---filter-udp=443-65535
---ipset=lists/ipset-timeweb.txt
---payload=wireguard_initiation,wireguard_response,wireguard_cookie,wireguard_keepalive,dht,discord_ip_discovery,stun
---out-range=-n2
 --lua-desync=fake:blob=zero64:repeats=12
-
---new
-
---name=Timeweb UDP (UDP other)
---filter-udp=443-65535
---ipset=lists/ipset-timeweb.txt
---out-range=-n2
---payload=unknown,dtls_client_hello,dtls_server_hello,dns_query,dns_response,utp_bt_handshake
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12

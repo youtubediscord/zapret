@@ -445,67 +445,36 @@ blobs = quic_google,quic_initial
 
 # --- missing builtin strategy coverage (generated from presets) ---
 [stock_missing_199_voice_01]
-name = general 1.9.9 (game filter) / Discord UDP (QUIC)
+name = general 1.9.9 (game filter) / Discord UDP
 author = builtin
 label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (Discord UDP (QUIC)) в basic-режиме.
+description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (Discord UDP) в basic-режиме.
 --lua-desync=fake:blob=fake_default_quic:repeats=12
-
-[stock_missing_199_voice_02]
-name = general 1.9.9 (game filter) / Discord UDP (WireGuard)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (Discord UDP (WireGuard)) в basic-режиме.
 --lua-desync=fake:blob=zero64:repeats=12
-
-[stock_missing_199_voice_03]
-name = general 1.9.9 (game filter) / Discord UDP (UDP other)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (Discord UDP (UDP other)) в basic-режиме.
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
 
-[stock_missing_199_voice_04]
-name = general 1.9.9 (game filter) / Голосовые звонки/чаты (Discord discovery)
+[stock_missing_199_voice_02]
+name = general 1.9.9 (game filter) / Голосовые звонки/чаты
 author = builtin
 label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (Голосовые звонки/чаты (Discord discovery)) в basic-режиме.
+description = Автодобавлено для распознавания нового builtin preset-а general 1.9.9 (game filter).txt (Голосовые звонки/чаты) в basic-режиме.
 --lua-desync=fake:blob=fake_dbankcloud:repeats=6
 
-[stock_missing_199_voice_05]
-name = general ALT11 1.9.9 (game filter) / Discord UDP (QUIC)
+[stock_missing_199_voice_03]
+name = general ALT11 1.9.9 (game filter) / Discord UDP
 author = builtin
 label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (Discord UDP (QUIC)) в basic-режиме.
+description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (Discord UDP) в basic-режиме.
 --lua-desync=fake:blob=fake_default_quic:repeats=10
-
-[stock_missing_199_voice_06]
-name = general ALT11 1.9.9 (game filter) / Discord UDP (WireGuard)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (Discord UDP (WireGuard)) в basic-режиме.
 --lua-desync=fake:blob=zero64:repeats=10
-
-[stock_missing_199_voice_07]
-name = general ALT11 1.9.9 (game filter) / Discord UDP (UDP other)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT11 1.9.9 (game filter).txt (Discord UDP (UDP other)) в basic-режиме.
 --lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=10
 
-[stock_missing_199_voice_08]
-name = general ALT12 1.9.9 (game filter) / Голосовые звонки/чаты (Discord discovery)
+[stock_missing_199_voice_04]
+name = general ALT12 1.9.9 (game filter) / Голосовые звонки/чаты
 author = builtin
 label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT12 1.9.9 (game filter).txt (Голосовые звонки/чаты (Discord discovery)) в basic-режиме.
+description = Автодобавлено для распознавания нового builtin preset-а general ALT12 1.9.9 (game filter).txt (Голосовые звонки/чаты) в basic-режиме.
 --lua-desync=fake:blob=fake_stun:repeats=3
---lua-desync=fake:blob=fake_dbankcloud:repeats=3
-
-[stock_missing_199_voice_09]
-name = general ALT12 1.9.9 (game filter) / Голосовые звонки/чаты (STUN)
-author = builtin
-label = stock
-description = Автодобавлено для распознавания нового builtin preset-а general ALT12 1.9.9 (game filter).txt (Голосовые звонки/чаты (STUN)) в basic-режиме.
 --lua-desync=fake:blob=fake_dbankcloud:repeats=3
 
 # --- end missing builtin strategy coverage ---
