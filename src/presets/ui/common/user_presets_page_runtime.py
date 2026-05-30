@@ -10,16 +10,7 @@ from presets.user_presets_page_plans import UserPresetListPlan, build_preset_row
 
 @dataclass(frozen=True, slots=True)
 class UserPresetsRuntimeActions:
-    create_preset: Callable[..., object]
-    rename_preset_by_file_name: Callable[..., object]
-    is_selected_preset_file_name: Callable[..., object]
-    import_preset_from_file: Callable[..., object]
-    reset_all_presets_to_builtin: Callable[..., object]
     get_selected_source_preset_file_name: Callable[..., object]
-    duplicate_preset_by_file_name: Callable[..., object]
-    reset_preset_to_builtin_by_file_name: Callable[..., object]
-    delete_preset_by_file_name: Callable[..., object]
-    export_preset_plain_text: Callable[..., object]
     get_preset_manifest_by_file_name: Callable[..., object]
     list_preset_manifests: Callable[..., object]
     get_selected_source_preset_manifest: Callable[..., object]
@@ -27,7 +18,6 @@ class UserPresetsRuntimeActions:
     get_cached_preset_list_metadata: Callable[..., object]
     warm_preset_list_metadata_cache: Callable[..., object]
     get_preset_source_path_by_file_name: Callable[..., object]
-    activate_preset_file: Callable[..., object]
 
 
 @dataclass(frozen=True, slots=True)

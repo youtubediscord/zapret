@@ -110,6 +110,41 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
         self.assertIs(kwargs["load_preset_folder_state"], presets.load_preset_folder_state)
         self.assertIs(kwargs["delete_preset_item_meta"], presets.delete_preset_item_meta)
 
+    def test_user_presets_runtime_actions_do_not_expose_mutating_preset_commands(self) -> None:
+        from dataclasses import fields
+
+        from presets.ui.common.user_presets_page_runtime import UserPresetsRuntimeActions
+        from ui.page_deps.presets import build_user_presets_page_kwargs
+        from app.page_names import PageName
+
+        field_names = {field.name for field in fields(UserPresetsRuntimeActions)}
+        forbidden = {
+            "create_preset",
+            "rename_preset_by_file_name",
+            "import_preset_from_file",
+            "reset_all_presets_to_builtin",
+            "duplicate_preset_by_file_name",
+            "reset_preset_to_builtin_by_file_name",
+            "delete_preset_by_file_name",
+            "export_preset_plain_text",
+            "activate_preset_file",
+        }
+
+        self.assertFalse(field_names & forbidden)
+
+        presets = Mock()
+        kwargs = build_user_presets_page_kwargs(
+            page_name=PageName.ZAPRET2_USER_PRESETS,
+            presets_feature=presets,
+            external_actions_feature=Mock(),
+            open_preset_raw_editor=Mock(),
+            ui_state_store=Mock(),
+        )
+        runtime_actions = kwargs["preset_runtime_actions"]
+
+        for name in forbidden:
+            self.assertFalse(hasattr(runtime_actions, name), name)
+
 
 if __name__ == "__main__":
     unittest.main()
