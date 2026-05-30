@@ -14,7 +14,7 @@ if str(PROJECT_SRC) not in sys.path:
 
 
 class StartupAutostartTests(unittest.TestCase):
-    def test_preset_autostart_stops_with_error_when_startup_preset_is_not_ready(self) -> None:
+    def test_preset_autostart_defers_startup_preset_snapshot_to_worker(self) -> None:
         from winws_runtime.runtime.autostart import start_dpi_autostart
 
         runtime_service = SimpleNamespace(
@@ -23,7 +23,7 @@ class StartupAutostartTests(unittest.TestCase):
         )
         launch_runtime = SimpleNamespace(start_dpi_async=Mock())
         presets_feature = SimpleNamespace(
-            get_launch_snapshot=Mock(side_effect=RuntimeError("Пресеты не найдены")),
+            get_launch_snapshot=Mock(side_effect=AssertionError("startup snapshot must be resolved in worker")),
             refresh_launch_summary_in_store=Mock(),
         )
         runtime_feature = SimpleNamespace(
@@ -46,25 +46,82 @@ class StartupAutostartTests(unittest.TestCase):
                 launch_method="zapret2_mode",
             )
 
-        presets_feature.get_launch_snapshot.assert_called_once_with(
-            "zapret2_mode",
-            require_filters=False,
+        presets_feature.get_launch_snapshot.assert_not_called()
+        runtime_service.mark_start_failed.assert_not_called()
+        launch_runtime.start_dpi_async.assert_called_once_with(
+            selected_mode=None,
+            launch_method="zapret2_mode",
+            _startup_autostart=True,
         )
-        runtime_service.mark_start_failed.assert_called_once()
-        launch_runtime.start_dpi_async.assert_not_called()
         presets_feature.refresh_launch_summary_in_store.assert_not_called()
 
-    def test_preset_autostart_resolves_snapshot_without_gui_thread_filter_validation(self) -> None:
+    def test_start_flow_defers_startup_snapshot_when_autostart_has_no_selected_mode(self) -> None:
+        from winws_runtime.runtime import start_flow
+
+        runtime_owner = SimpleNamespace(
+            _runtime_feature=SimpleNamespace(
+                dependencies=SimpleNamespace(
+                    presets_feature=SimpleNamespace(
+                        get_launch_snapshot=Mock(side_effect=AssertionError("startup snapshot must be resolved in worker")),
+                    ),
+                ),
+            ),
+            _pending_launch_warnings=[],
+        )
+
+        request = start_flow.build_start_request(
+            runtime_owner,
+            selected_mode=None,
+            launch_method="zapret2_mode",
+            startup_autostart=True,
+        )
+
+        self.assertIsNotNone(request)
+        self.assertIsNone(request.selected_mode)
+        self.assertEqual(request.mode_name, "Пресет")
+
+    def test_startup_worker_resolves_deferred_startup_preset_snapshot(self) -> None:
+        from winws_runtime.runtime.start_workers import PresetLaunchStartWorker
+
+        selected_mode = {
+            "is_preset_file": True,
+            "preset_path": __file__,
+            "name": "Startup preset",
+        }
+        snapshot = SimpleNamespace(to_selected_mode=Mock(return_value=selected_mode))
+        presets_feature = SimpleNamespace(
+            get_launch_snapshot=Mock(return_value=snapshot),
+        )
+        worker = PresetLaunchStartWorker(
+            None,
+            "zapret2_mode",
+            runtime_feature=SimpleNamespace(
+                dependencies=SimpleNamespace(presets_feature=presets_feature),
+            ),
+            runtime_api=SimpleNamespace(has_residual_processes=Mock(return_value=False)),
+            startup_autostart=True,
+        )
+        worker._start_presets_with_runner = Mock(return_value=True)
+
+        worker.run()
+
+        presets_feature.get_launch_snapshot.assert_called_once_with(
+            "zapret2_mode",
+            require_filters=False,
+        )
+        self.assertEqual(worker.selected_mode, selected_mode)
+        worker._start_presets_with_runner.assert_called_once_with(__file__, "Startup preset")
+
+    def test_preset_autostart_dispatches_without_gui_thread_filter_validation(self) -> None:
         from winws_runtime.runtime.autostart import start_dpi_autostart
 
-        snapshot = SimpleNamespace(to_selected_mode=Mock(return_value={"is_preset_file": True}))
         runtime_service = SimpleNamespace(
             mark_start_failed=Mock(),
             mark_stopped=Mock(),
         )
         launch_runtime = SimpleNamespace(start_dpi_async=Mock())
         presets_feature = SimpleNamespace(
-            get_launch_snapshot=Mock(return_value=snapshot),
+            get_launch_snapshot=Mock(side_effect=AssertionError("startup snapshot must be resolved in worker")),
             refresh_launch_summary_in_store=Mock(),
         )
         runtime_feature = SimpleNamespace(
@@ -87,12 +144,9 @@ class StartupAutostartTests(unittest.TestCase):
                 launch_method="zapret2_mode",
             )
 
-        presets_feature.get_launch_snapshot.assert_called_once_with(
-            "zapret2_mode",
-            require_filters=False,
-        )
+        presets_feature.get_launch_snapshot.assert_not_called()
         launch_runtime.start_dpi_async.assert_called_once_with(
-            selected_mode={"is_preset_file": True},
+            selected_mode=None,
             launch_method="zapret2_mode",
             _startup_autostart=True,
         )

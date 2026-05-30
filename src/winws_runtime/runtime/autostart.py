@@ -36,17 +36,9 @@ def start_dpi_autostart(
     if _reuse_running_expected_process(runtime_feature, resolved_method):
         return
 
-    try:
-        startup_snapshot = _resolve_startup_snapshot(runtime_feature, resolved_method)
-    except Exception as e:
-        message = f"Не удалось подготовить стартовый preset для {resolved_method}: {e}"
-        log(message, "ERROR")
-        _mark_runtime_failed(runtime_feature, message)
-        return
-
     log(f"Автозапуск передан в единый DPI runtime-путь: {resolved_method}", "INFO")
     runtime_feature.objects.launch_runtime.start_dpi_async(
-        selected_mode=startup_snapshot.to_selected_mode() if startup_snapshot is not None else None,
+        selected_mode=None,
         launch_method=resolved_method,
         _startup_autostart=True,
     )
@@ -83,17 +75,6 @@ def _reuse_running_expected_process(runtime_feature, launch_method: str) -> bool
     except Exception as e:
         log(f"Не удалось подхватить уже запущенный DPI при автозапуске: {e}", "DEBUG")
         return False
-
-
-def _resolve_startup_snapshot(runtime_feature, launch_method: str):
-    method = str(launch_method or "").strip().lower()
-    if is_preset_launch_method(method):
-        return runtime_feature.dependencies.presets_feature.get_launch_snapshot(
-            method,
-            require_filters=False,
-        )
-
-    return None
 
 
 def _schedule_autostart_launch_summary_refresh(*, runtime_feature, ui_state, launch_method: str) -> None:

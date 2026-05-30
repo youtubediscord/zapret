@@ -47,7 +47,13 @@ def resolve_mode_name(selected_mode) -> str:
     return "Неизвестная стратегия"
 
 
-def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, presets_feature):
+def prepare_selected_mode_for_start(
+    selected_mode,
+    launch_method: str,
+    *,
+    presets_feature,
+    defer_preset_snapshot: bool = False,
+):
     method = normalize_launch_method(launch_method, default="")
 
     if is_orchestra_launch_method(method):
@@ -57,6 +63,8 @@ def prepare_selected_mode_for_start(selected_mode, launch_method: str, *, preset
         return selected_mode
 
     if is_preset_launch_method(method):
+        if defer_preset_snapshot:
+            return None
         snapshot = presets_feature.get_launch_snapshot(
             method,
             require_filters=True,
@@ -134,6 +142,7 @@ def prepare_start_request(
     *,
     presets_feature,
     skip_preset_prevalidation: bool = False,
+    defer_preset_snapshot: bool = False,
 ) -> tuple[PreparedDpiStartRequest, list[str]]:
     resolved_method = resolve_launch_method(launch_method)
     log(f"Используется метод запуска: {resolved_method}", "INFO")
@@ -142,6 +151,7 @@ def prepare_start_request(
         selected_mode,
         resolved_method,
         presets_feature=presets_feature,
+        defer_preset_snapshot=bool(defer_preset_snapshot),
     )
 
     warnings: list[str] = []
@@ -166,11 +176,17 @@ def prepare_start_request(
 
         warnings = list(prelaunch_warnings)
 
+    mode_name = (
+        "Пресет"
+        if bool(defer_preset_snapshot) and is_preset_launch_method(resolved_method) and prepared_selected_mode is None
+        else resolve_mode_name(prepared_selected_mode)
+    )
+
     return (
         PreparedDpiStartRequest(
             launch_method=resolved_method,
             selected_mode=prepared_selected_mode,
-            mode_name=resolve_mode_name(prepared_selected_mode),
+            mode_name=mode_name,
             method_name=resolve_method_name(resolved_method),
         ),
         warnings,

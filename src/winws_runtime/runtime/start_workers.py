@@ -99,6 +99,29 @@ class PresetLaunchStartWorker(QObject):
             return True, str(mode_param.get("preset_path") or "").strip()
         return False, ""
 
+    def _resolve_startup_preset_snapshot_if_needed(self) -> bool:
+        if not (
+            self._startup_autostart
+            and is_preset_launch_method(self.launch_method)
+            and (self.selected_mode is None or self.selected_mode == "default")
+        ):
+            return True
+
+        try:
+            snapshot = self._runtime_feature.dependencies.presets_feature.get_launch_snapshot(
+                self.launch_method,
+                require_filters=False,
+            )
+            self.selected_mode = snapshot.to_selected_mode()
+            return True
+        except Exception as e:
+            message = f"Не удалось подготовить стартовый preset для {self.launch_method}: {e}"
+            log(message, "ERROR")
+            self._last_error_message = message
+            self.progress.emit(message)
+            self.finished.emit(False, message)
+            return False
+
     def _validate_preset_before_stop(self, *, is_preset_file: bool, preset_path: str, skip_stop: bool) -> bool:
         if not is_preset_file or not preset_path or skip_stop:
             return True
@@ -251,6 +274,9 @@ class PresetLaunchStartWorker(QObject):
     def run(self):
         try:
             self.progress.emit("Подготовка к запуску...")
+
+            if not self._resolve_startup_preset_snapshot_if_needed():
+                return
 
             is_preset_file, preset_path = self._extract_preset_launch_input()
             skip_stop = False

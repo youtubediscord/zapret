@@ -61,6 +61,7 @@ def build_start_request(
             launch_method,
             presets_feature=runtime_owner._runtime_feature.dependencies.presets_feature,
             skip_preset_prevalidation=bool(startup_autostart),
+            defer_preset_snapshot=bool(startup_autostart),
         )
     except Exception as e:
         fail_start_preparation(runtime_owner, str(e))
