@@ -7,6 +7,8 @@ starts, stops, and switches to the concrete preset file it is given.
 """
 
 import os
+import hashlib
+import shlex
 import subprocess
 import threading
 import time
@@ -21,6 +23,7 @@ from .preset_runner_support import (
     PreparedPresetArtifact,
     PresetRunnerState,
     PresetRunnerStateMachine,
+    launch_args_from_preset_text,
     is_process_alive_with_expected_name,
     preset_cache_key,
     remember_cache_entry,
@@ -113,7 +116,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             if cache_key is not None:
                 with self._state_lock:
                     cached = self._prepared_preset_cache.get(cache_key)
-                if cached is not None:
+                if cached is not None and self._launch_args_files_exist(cached.launch_args):
                     return cached
 
             try:
@@ -122,11 +125,23 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             except Exception as e:
                 return PreparedPresetArtifact(p, None, "", tuple(), False, f"Не удалось прочитать preset файл: {e}")
 
+            try:
+                at_config_path = self._write_winws1_at_config(p, source_text)
+            except Exception as e:
+                return PreparedPresetArtifact(
+                    preset_path=p,
+                    cache_key=cache_key,
+                    normalized_text="",
+                    launch_args=tuple(),
+                    validation_ok=False,
+                    validation_report=f"Не удалось подготовить preset файл: {e}",
+                )
+
             artifact = PreparedPresetArtifact(
                 preset_path=p,
                 cache_key=cache_key,
                 normalized_text=source_text,
-                launch_args=self._build_launch_args_from_preset_text(source_text),
+                launch_args=(f"@{at_config_path}",),
                 validation_ok=True,
                 validation_report="",
             )
@@ -213,6 +228,46 @@ class Winws1StrategyRunner(StrategyRunnerBase):
             "INFO",
         )
         return self._compile_preset_artifact(artifact.preset_path)
+
+    def _build_winws1_at_config_text(self, source_text: str) -> str:
+        args = self._resolve_file_paths(launch_args_from_preset_text(source_text))
+        if not args:
+            return ""
+        return "\n".join(shlex.quote(arg) for arg in args) + "\n"
+
+    def _winws1_at_config_dir(self) -> str:
+        return os.path.join(str(self.work_dir or ""), "tmp", "winws1_at_config")
+
+    def _write_winws1_at_config(self, preset_path: str, source_text: str) -> str:
+        config_text = self._build_winws1_at_config_text(source_text)
+        digest_source = f"{os.path.abspath(str(preset_path or ''))}\0{config_text}".encode("utf-8", "surrogatepass")
+        digest = hashlib.sha1(digest_source).hexdigest()[:20]
+        config_dir = self._winws1_at_config_dir()
+        os.makedirs(config_dir, exist_ok=True)
+        config_path = os.path.join(config_dir, f"winws1_at_{digest}.txt")
+
+        try:
+            with open(config_path, "r", encoding="utf-8", errors="replace") as f:
+                if f.read() == config_text:
+                    return config_path
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+
+        with open(config_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(config_text)
+        return config_path
+
+    @staticmethod
+    def _launch_args_files_exist(launch_args: tuple[str, ...]) -> bool:
+        if not launch_args:
+            return False
+        for arg in launch_args:
+            value = str(arg or "")
+            if value.startswith("@") and len(value) > 1 and not os.path.exists(value[1:]):
+                return False
+        return True
 
     def _spawn_process_locked(
         self,
