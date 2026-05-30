@@ -16,6 +16,7 @@ from qfluentwidgets import (
 )
 
 from ui.pages.base_page import BasePage
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.widgets.win11_controls import Win11ToggleRow
 from ui.fluent_widgets import (
     SettingsCard,
@@ -120,17 +121,13 @@ class NetworkPage(BasePage):
         self._dns_selection_sync_queued = False
         self._page_load_worker = None
         self._connectivity_test_worker = None
-        self._force_dns_action_worker = None
-        self._force_dns_action_request_id = 0
+        self._force_dns_action_runtime = OneShotWorkerRuntime()
         self._force_dns_action_pending: list[dict[str, object]] = []
-        self._dns_flush_cache_worker = None
-        self._dns_flush_cache_request_id = 0
+        self._dns_flush_cache_runtime = OneShotWorkerRuntime()
         self._dns_flush_cache_pending = False
-        self._dns_apply_worker = None
-        self._dns_apply_request_id = 0
+        self._dns_apply_runtime = OneShotWorkerRuntime()
         self._dns_apply_pending: list[dict[str, object]] = []
-        self._isp_warning_worker = None
-        self._isp_warning_request_id = 0
+        self._isp_warning_runtime = OneShotWorkerRuntime()
         
         self.dns_cards = {}
         self.adapter_cards = []
@@ -670,38 +667,36 @@ class NetworkPage(BasePage):
             "action": str(action or "").strip(),
             **payload,
         }
-        worker = self.__dict__.get("_dns_apply_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._dns_apply_pending.append(request)
-                    return
-            except Exception:
-                self._dns_apply_pending.append(request)
-                return
+        if self._dns_apply_runtime.is_running():
+            self._dns_apply_pending.append(request)
+            return
         self._start_dns_apply_worker(request)
 
     def _start_dns_apply_worker(self, payload: dict[str, object]) -> None:
-        self._dns_apply_request_id += 1
-        request_id = self._dns_apply_request_id
-        worker = self.create_dns_apply_worker(
-            request_id,
-            action=str(payload.get("action") or ""),
-            adapters=payload.get("adapters") or [],
-            name=str(payload.get("name") or ""),
-            data=payload.get("data") or {},
-            primary=str(payload.get("primary") or ""),
-            secondary=payload.get("secondary"),
-            ipv6_available=bool(payload.get("ipv6_available", False)),
+        self._dns_apply_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_dns_apply_worker(
+                request_id,
+                action=str(payload.get("action") or ""),
+                adapters=payload.get("adapters") or [],
+                name=str(payload.get("name") or ""),
+                data=payload.get("data") or {},
+                primary=str(payload.get("primary") or ""),
+                secondary=payload.get("secondary"),
+                ipv6_available=bool(payload.get("ipv6_available", False)),
+            ),
+            on_failed=self._on_dns_apply_failed,
+            on_finished=self._on_dns_apply_worker_finished,
+            bind_worker=self._bind_dns_apply_worker,
         )
-        self._dns_apply_worker = worker
+
+    def _bind_dns_apply_worker(self, worker) -> None:
         worker.completed.connect(self._on_dns_apply_finished)
-        worker.failed.connect(self._on_dns_apply_failed)
-        worker.finished.connect(lambda w=worker: self._on_dns_apply_worker_finished(w))
-        worker.start()
 
     def _on_dns_apply_finished(self, request_id: int, result) -> None:
-        if request_id != self._dns_apply_request_id or self._cleanup_in_progress:
+        if not self._dns_apply_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         data = result if isinstance(result, dict) else {}
         plan = data.get("plan")
@@ -712,14 +707,14 @@ class NetworkPage(BasePage):
             self._apply_refreshed_adapter_dns_info(dns_info)
 
     def _on_dns_apply_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._dns_apply_request_id or self._cleanup_in_progress:
+        if not self._dns_apply_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Ошибка применения DNS: {error}", "ERROR")
 
-    def _on_dns_apply_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_dns_apply_worker") is worker:
-            self._dns_apply_worker = None
-        worker.deleteLater()
+    def _on_dns_apply_worker_finished(self, _worker) -> None:
         if self._dns_apply_pending and not self._cleanup_in_progress:
             pending = self._dns_apply_pending.pop(0)
             self._start_dns_apply_worker(dict(pending or {}))
@@ -869,34 +864,32 @@ class NetworkPage(BasePage):
             "action": str(action or "").strip(),
             "enabled": enabled,
         }
-        worker = self.__dict__.get("_force_dns_action_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._force_dns_action_pending.append(payload)
-                    return
-            except Exception:
-                self._force_dns_action_pending.append(payload)
-                return
+        if self._force_dns_action_runtime.is_running():
+            self._force_dns_action_pending.append(payload)
+            return
         self._start_force_dns_action_worker(payload)
 
     def _start_force_dns_action_worker(self, payload: dict[str, object]) -> None:
-        self._force_dns_action_request_id += 1
-        request_id = self._force_dns_action_request_id
-        worker = self.create_force_dns_action_worker(
-            request_id,
-            action=str(payload.get("action") or ""),
-            enabled=payload.get("enabled"),
-            adapters=[card.adapter_name for card in self.adapter_cards],
+        self._force_dns_action_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_force_dns_action_worker(
+                request_id,
+                action=str(payload.get("action") or ""),
+                enabled=payload.get("enabled"),
+                adapters=[card.adapter_name for card in self.adapter_cards],
+            ),
+            on_failed=self._on_force_dns_action_failed,
+            on_finished=self._on_force_dns_action_worker_finished,
+            bind_worker=self._bind_force_dns_action_worker,
         )
-        self._force_dns_action_worker = worker
+
+    def _bind_force_dns_action_worker(self, worker) -> None:
         worker.completed.connect(self._on_force_dns_action_finished)
-        worker.failed.connect(self._on_force_dns_action_failed)
-        worker.finished.connect(lambda w=worker: self._on_force_dns_action_worker_finished(w))
-        worker.start()
 
     def _on_force_dns_action_finished(self, request_id: int, action: str, result, context) -> None:
-        if request_id != self._force_dns_action_request_id or self._cleanup_in_progress:
+        if not self._force_dns_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         data = result if isinstance(result, dict) else {}
         message = str(data.get("message") or "")
@@ -931,7 +924,7 @@ class NetworkPage(BasePage):
         result_plan = data.get("plan")
         if result_plan is None:
             self._on_force_dns_action_failed(
-                self._force_dns_action_request_id,
+                self._force_dns_action_runtime.request_id,
                 "reset_dhcp",
                 "Пустой результат сброса DNS",
                 {},
@@ -976,7 +969,10 @@ class NetworkPage(BasePage):
             )
 
     def _on_force_dns_action_failed(self, request_id: int, action: str, error: str, context) -> None:
-        if request_id != self._force_dns_action_request_id or self._cleanup_in_progress:
+        if not self._force_dns_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Ошибка Force DNS ({action}): {error}", "ERROR")
         if action == "toggle":
@@ -993,10 +989,7 @@ class NetworkPage(BasePage):
             parent=self.window(),
         )
 
-    def _on_force_dns_action_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_force_dns_action_worker") is worker:
-            self._force_dns_action_worker = None
-        worker.deleteLater()
+    def _on_force_dns_action_worker_finished(self, _worker) -> None:
         if self._force_dns_action_pending and not self._cleanup_in_progress:
             pending = self._force_dns_action_pending.pop(0)
             self._start_force_dns_action_worker(dict(pending or {}))
@@ -1009,29 +1002,27 @@ class NetworkPage(BasePage):
         )
 
     def _request_dns_flush_cache(self) -> None:
-        worker = self.__dict__.get("_dns_flush_cache_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._dns_flush_cache_pending = True
-                    return
-            except Exception:
-                self._dns_flush_cache_pending = True
-                return
+        if self._dns_flush_cache_runtime.is_running():
+            self._dns_flush_cache_pending = True
+            return
         self._start_dns_flush_cache_worker()
 
     def _start_dns_flush_cache_worker(self) -> None:
-        self._dns_flush_cache_request_id += 1
-        request_id = self._dns_flush_cache_request_id
-        worker = self.create_dns_flush_cache_worker(request_id)
-        self._dns_flush_cache_worker = worker
+        self._dns_flush_cache_runtime.start_qthread_worker(
+            worker_factory=self.create_dns_flush_cache_worker,
+            on_failed=self._on_dns_flush_cache_failed,
+            on_finished=self._on_dns_flush_cache_worker_finished,
+            bind_worker=self._bind_dns_flush_cache_worker,
+        )
+
+    def _bind_dns_flush_cache_worker(self, worker) -> None:
         worker.completed.connect(self._on_dns_flush_cache_finished)
-        worker.failed.connect(self._on_dns_flush_cache_failed)
-        worker.finished.connect(lambda w=worker: self._on_dns_flush_cache_worker_finished(w))
-        worker.start()
 
     def _on_dns_flush_cache_finished(self, request_id: int, plan) -> None:
-        if request_id != self._dns_flush_cache_request_id or self._cleanup_in_progress:
+        if not self._dns_flush_cache_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         if getattr(plan, "infobar_level", None) == "warning":
             InfoBar.warning(
@@ -1041,7 +1032,10 @@ class NetworkPage(BasePage):
             )
 
     def _on_dns_flush_cache_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._dns_flush_cache_request_id or self._cleanup_in_progress:
+        if not self._dns_flush_cache_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         plan = dns_page_plans.build_flush_dns_cache_result_plan(
             success=False,
@@ -1054,10 +1048,7 @@ class NetworkPage(BasePage):
             parent=self.window(),
         )
 
-    def _on_dns_flush_cache_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_dns_flush_cache_worker") is worker:
-            self._dns_flush_cache_worker = None
-        worker.deleteLater()
+    def _on_dns_flush_cache_worker_finished(self, _worker) -> None:
         if self._dns_flush_cache_pending and not self._cleanup_in_progress:
             self._dns_flush_cache_pending = False
             self._start_dns_flush_cache_worker()
@@ -1177,32 +1168,30 @@ class NetworkPage(BasePage):
         self._request_isp_dns_warning_plan()
 
     def _request_isp_dns_warning_plan(self) -> None:
-        worker = self.__dict__.get("_isp_warning_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except Exception:
-                self._isp_warning_worker = None
-
-        self._isp_warning_request_id += 1
-        request_id = self._isp_warning_request_id
-        worker = self._dns.create_isp_dns_warning_worker(
-            request_id,
-            adapters=self._adapters,
-            dns_info=self._dns_info,
-            force_dns_active=self._force_dns_active,
-            language=self._ui_language,
-            parent=self,
+        if self._isp_warning_runtime.is_running():
+            return
+        self._isp_warning_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self._dns.create_isp_dns_warning_worker(
+                request_id,
+                adapters=self._adapters,
+                dns_info=self._dns_info,
+                force_dns_active=self._force_dns_active,
+                language=self._ui_language,
+                parent=self,
+            ),
+            on_failed=self._on_isp_dns_warning_plan_failed,
+            on_finished=self._on_isp_dns_warning_worker_finished,
+            bind_worker=self._bind_isp_dns_warning_worker,
         )
-        self._isp_warning_worker = worker
+
+    def _bind_isp_dns_warning_worker(self, worker) -> None:
         worker.completed.connect(self._on_isp_dns_warning_plan_loaded)
-        worker.failed.connect(self._on_isp_dns_warning_plan_failed)
-        worker.finished.connect(lambda w=worker: self._on_isp_dns_warning_worker_finished(w))
-        worker.start()
 
     def _on_isp_dns_warning_plan_loaded(self, request_id: int, plan) -> None:
-        if request_id != self._isp_warning_request_id or self._cleanup_in_progress:
+        if not self._isp_warning_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         show_isp_dns_warning(
             cleanup_in_progress=self._cleanup_in_progress,
@@ -1234,17 +1223,15 @@ class NetworkPage(BasePage):
         )
 
     def _on_isp_dns_warning_plan_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._isp_warning_request_id or self._cleanup_in_progress:
+        if not self._isp_warning_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Ошибка подготовки ISP DNS предупреждения: {error}", "DEBUG")
 
-    def _on_isp_dns_warning_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_isp_warning_worker") is worker:
-            self._isp_warning_worker = None
-        try:
-            worker.deleteLater()
-        except Exception:
-            pass
+    def _on_isp_dns_warning_worker_finished(self, _worker) -> None:
+        pass
 
     def _render_isp_warning_styles(self, tokens=None) -> None:
         render_isp_warning_theme(
@@ -1289,34 +1276,30 @@ class NetworkPage(BasePage):
         self._force_dns_action_pending.clear()
         self._dns_flush_cache_pending = False
         self._dns_apply_pending.clear()
-        force_dns_worker = self.__dict__.get("_force_dns_action_worker")
-        if force_dns_worker is not None:
-            try:
-                force_dns_worker.quit()
-            except Exception:
-                pass
-            self._force_dns_action_worker = None
-        flush_cache_worker = self.__dict__.get("_dns_flush_cache_worker")
-        if flush_cache_worker is not None:
-            try:
-                flush_cache_worker.quit()
-            except Exception:
-                pass
-            self._dns_flush_cache_worker = None
-        dns_apply_worker = self.__dict__.get("_dns_apply_worker")
-        if dns_apply_worker is not None:
-            try:
-                dns_apply_worker.quit()
-            except Exception:
-                pass
-            self._dns_apply_worker = None
-        isp_warning_worker = self.__dict__.get("_isp_warning_worker")
-        if isp_warning_worker is not None:
-            try:
-                isp_warning_worker.quit()
-            except Exception:
-                pass
-            self._isp_warning_worker = None
+        self._force_dns_action_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="force_dns_action_worker",
+        )
+        self._force_dns_action_runtime.cancel()
+        self._dns_flush_cache_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="dns_flush_cache_worker",
+        )
+        self._dns_flush_cache_runtime.cancel()
+        self._dns_apply_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="dns_apply_worker",
+        )
+        self._dns_apply_runtime.cancel()
+        self._isp_warning_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="isp_dns_warning_worker",
+        )
+        self._isp_warning_runtime.cancel()
         cleanup_network_page(
             set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
             set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),

@@ -5,6 +5,7 @@ import unittest
 
 from app.feature_facades.dns import build_dns_feature
 from dns import dns_check_worker, page_workers
+from dns.ui.page import NetworkPage
 
 
 class DnsWorkerArchitectureTests(unittest.TestCase):
@@ -82,6 +83,33 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("from dns import commands", worker_source)
         self.assertNotIn("from dns.commands import", worker_source)
         self.assertNotIn("dns_commands.", worker_source)
+
+    def test_network_page_uses_one_shot_runtime_for_action_workers(self) -> None:
+        page_source = inspect.getsource(NetworkPage)
+        apply_source = inspect.getsource(NetworkPage._start_dns_apply_worker)
+        force_source = inspect.getsource(NetworkPage._start_force_dns_action_worker)
+        flush_source = inspect.getsource(NetworkPage._start_dns_flush_cache_worker)
+        warning_source = inspect.getsource(NetworkPage._request_isp_dns_warning_plan)
+        cleanup_source = inspect.getsource(NetworkPage.cleanup)
+
+        self.assertIn("OneShotWorkerRuntime", page_source)
+        for name in (
+            "_dns_apply_runtime",
+            "_force_dns_action_runtime",
+            "_dns_flush_cache_runtime",
+            "_isp_warning_runtime",
+        ):
+            self.assertIn(name, page_source)
+        for source in (apply_source, force_source, flush_source, warning_source):
+            self.assertIn("start_qthread_worker", source)
+            self.assertNotIn("worker.start()", source)
+        for name in (
+            "_dns_apply_runtime.stop",
+            "_force_dns_action_runtime.stop",
+            "_dns_flush_cache_runtime.stop",
+            "_isp_warning_runtime.stop",
+        ):
+            self.assertIn(name, cleanup_source)
 
 
 if __name__ == "__main__":
