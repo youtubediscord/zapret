@@ -2416,6 +2416,28 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertTrue(page._profile_load_refresh_pending)
         page._create_profile_list_load_worker.assert_not_called()
 
+    def test_pending_running_profile_refresh_does_not_schedule_extra_timer(self) -> None:
+        worker = SimpleNamespace(isRunning=Mock(return_value=True))
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_load_worker = worker
+        page._profile_load_refresh_pending = True
+        page._profile_payload_request_scheduled = False
+        page._profile_payload_request_force = False
+        page._profile_payload_dirty = False
+        page._run_scheduled_profiles_payload_request = Mock(
+            side_effect=AssertionError("pending running worker must not queue another timer")
+        )
+
+        with patch(
+            "profile.ui.preset_setup_page.QTimer.singleShot",
+            side_effect=AssertionError("pending running worker must not queue another timer"),
+        ):
+            PresetSetupPageBase._schedule_profiles_payload_request(page, force=True)
+
+        self.assertTrue(page._profile_payload_dirty)
+        self.assertFalse(page._profile_payload_request_scheduled)
+        self.assertTrue(page._profile_load_refresh_pending)
+
     def test_preset_setup_ui_state_change_schedules_profile_refresh(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._cleanup_in_progress = False

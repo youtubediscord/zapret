@@ -144,6 +144,14 @@ class PresetSetupPageBase(BasePage):
         self._schedule_profiles_payload_request()
 
     def _schedule_profiles_payload_request(self, *, force: bool = False) -> None:
+        if bool(force) and self.__dict__.get("_profile_load_refresh_pending", False):
+            worker = self.__dict__.get("_profile_load_worker")
+            try:
+                if worker is not None and worker.isRunning():
+                    self._profile_payload_dirty = True
+                    return
+            except Exception:
+                pass
         self._profile_payload_request_force = (
             bool(self.__dict__.get("_profile_payload_request_force", False)) or bool(force)
         )
