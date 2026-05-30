@@ -408,3 +408,62 @@ class ProfileFeature:
             destination_group_key=destination_group_key,
             parent=parent,
         )
+
+    def create_user_profile_create_worker(
+        self,
+        request_id: int,
+        launch_method: str,
+        *,
+        name: str,
+        protocol: str,
+        ports: str,
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfileUserProfileCreateWorker, load_user_profile_items_from_payload
+
+        service = self._commands()._profile_preset_service(self, launch_method)
+        return ProfileUserProfileCreateWorker(
+            request_id,
+            service.create_user_profile,
+            lambda profile_id: load_user_profile_items_from_payload(service.list_profiles, profile_id),
+            name=name,
+            protocol=protocol,
+            ports=ports,
+            parent=parent,
+        )
+
+    def create_user_profile_update_worker(
+        self,
+        request_id: int,
+        launch_method: str,
+        *,
+        profile_id: str,
+        name: str,
+        protocol: str,
+        ports: str,
+        parent=None,
+    ):
+        from profile.profile_setup_loader import ProfileUserProfileUpdateWorker, load_user_profile_items_from_payload
+
+        service = self._commands()._profile_preset_service(self, launch_method)
+        return ProfileUserProfileUpdateWorker(
+            request_id,
+            service.update_user_profile,
+            lambda profile_id: load_user_profile_items_from_payload(service.list_profiles, profile_id),
+            profile_id=profile_id,
+            name=name,
+            protocol=protocol,
+            ports=ports,
+            parent=parent,
+        )
+
+    def create_user_profile_delete_worker(self, request_id: int, launch_method: str, *, profile_id: str, parent=None):
+        from profile.profile_setup_loader import ProfileUserProfileDeleteWorker
+
+        service = self._commands()._profile_preset_service(self, launch_method)
+        return ProfileUserProfileDeleteWorker(
+            request_id,
+            service.delete_user_profile,
+            profile_id=profile_id,
+            parent=parent,
+        )

@@ -19,10 +19,6 @@ from profile.ui.profile_context_menu import ProfileContextMenuActions, show_prof
 from profile.ui.profile_folder_menu import show_profile_folder_menu
 from profile.profile_setup_loader import (
     ProfileFolderActionWorker,
-    ProfileUserProfileCreateWorker,
-    ProfileUserProfileDeleteWorker,
-    ProfileUserProfileUpdateWorker,
-    load_user_profile_items_from_payload,
 )
 from profile.ui.profiles_list import ProfilesList
 from profile.ui.shell import build_profile_shell
@@ -81,13 +77,12 @@ class PresetSetupPageBase(BasePage):
         parent=None,
         *,
         get_cached_profile_list,
-        list_profiles,
-        create_user_profile,
-        update_user_profile,
-        delete_user_profile,
         create_profile_list_load_worker,
         create_profile_context_action_worker,
         create_profile_move_worker,
+        create_user_profile_create_worker,
+        create_user_profile_update_worker,
+        create_user_profile_delete_worker,
         open_profile_setup,
         open_profile_order,
         ui_state_store=None,
@@ -98,13 +93,12 @@ class PresetSetupPageBase(BasePage):
             title_key=self.title_key,
         )
         self._get_cached_profile_list = get_cached_profile_list
-        self._list_profiles_fn = list_profiles
-        self._create_user_profile_fn = create_user_profile
-        self._update_user_profile_fn = update_user_profile
-        self._delete_user_profile_fn = delete_user_profile
         self._create_profile_list_load_worker_fn = create_profile_list_load_worker
         self._create_profile_context_action_worker_fn = create_profile_context_action_worker
         self._create_profile_move_worker_fn = create_profile_move_worker
+        self._create_user_profile_create_worker_fn = create_user_profile_create_worker
+        self._create_user_profile_update_worker_fn = create_user_profile_update_worker
+        self._create_user_profile_delete_worker_fn = create_user_profile_delete_worker
         self._open_profile_setup = open_profile_setup
         self._open_profile_order_page = open_profile_order
 
@@ -653,10 +647,9 @@ class PresetSetupPageBase(BasePage):
         return False
 
     def _create_user_profile_create_worker(self, request_id: int, *, name: str, protocol: str, ports: str):
-        return ProfileUserProfileCreateWorker(
+        return self._create_user_profile_create_worker_fn(
             request_id,
-            self._create_user_profile_fn,
-            self._load_user_profile_items,
+            self.launch_method,
             name=name,
             protocol=protocol,
             ports=ports,
@@ -672,10 +665,9 @@ class PresetSetupPageBase(BasePage):
         protocol: str,
         ports: str,
     ):
-        return ProfileUserProfileUpdateWorker(
+        return self._create_user_profile_update_worker_fn(
             request_id,
-            self._update_user_profile_fn,
-            self._load_user_profile_items,
+            self.launch_method,
             profile_id=profile_id,
             name=name,
             protocol=protocol,
@@ -684,17 +676,11 @@ class PresetSetupPageBase(BasePage):
         )
 
     def _create_user_profile_delete_worker(self, request_id: int, *, profile_id: str):
-        return ProfileUserProfileDeleteWorker(
+        return self._create_user_profile_delete_worker_fn(
             request_id,
-            self._delete_user_profile_fn,
+            self.launch_method,
             profile_id=profile_id,
             parent=self,
-        )
-
-    def _load_user_profile_items(self, profile_id: str):
-        return load_user_profile_items_from_payload(
-            lambda: self._list_profiles_fn(self.launch_method),
-            profile_id,
         )
 
     def _request_user_profile_create(self, *, name: str, protocol: str, ports: str) -> None:

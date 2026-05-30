@@ -93,22 +93,38 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         page_source = inspect.getsource(PresetSetupPageBase)
         action_source = inspect.getsource(PresetSetupPageBase._create_profile_context_action_worker)
         move_source = inspect.getsource(PresetSetupPageBase._create_profile_move_worker)
+        create_user_source = inspect.getsource(PresetSetupPageBase._create_user_profile_create_worker)
+        update_user_source = inspect.getsource(PresetSetupPageBase._create_user_profile_update_worker)
+        delete_user_source = inspect.getsource(PresetSetupPageBase._create_user_profile_delete_worker)
 
         self.assertIn("get_cached_profile_list", init_source)
-        self.assertIn("list_profiles", init_source)
-        self.assertIn("create_user_profile", init_source)
-        self.assertIn("update_user_profile", init_source)
-        self.assertIn("delete_user_profile", init_source)
         self.assertIn("create_profile_list_load_worker", init_source)
         self.assertIn("create_profile_context_action_worker", init_source)
         self.assertIn("create_profile_move_worker", init_source)
+        self.assertIn("create_user_profile_create_worker", init_source)
+        self.assertIn("create_user_profile_update_worker", init_source)
+        self.assertIn("create_user_profile_delete_worker", init_source)
+        self.assertNotIn("list_profiles", init_source)
+        self.assertNotIn("create_user_profile,", init_source)
+        self.assertNotIn("update_user_profile,", init_source)
+        self.assertNotIn("delete_user_profile,", init_source)
         self.assertNotIn("profile_feature", init_source)
         self.assertNotIn("self._profile =", page_source)
         self.assertNotIn("self._profile.", page_source)
+        self.assertNotIn("_list_profiles_fn", page_source)
+        self.assertNotIn("_create_user_profile_fn", page_source)
+        self.assertNotIn("_update_user_profile_fn", page_source)
+        self.assertNotIn("_delete_user_profile_fn", page_source)
         self.assertNotIn("self._profile.create_profile_context_action_worker", action_source)
         self.assertNotIn("ProfilePresetProfileActionWorker(", action_source)
         self.assertNotIn("self._profile.create_profile_move_worker", move_source)
         self.assertNotIn("ProfilePresetProfileMoveWorker(", move_source)
+        self.assertNotIn("ProfileUserProfileCreateWorker(", create_user_source)
+        self.assertNotIn("ProfileUserProfileUpdateWorker(", update_user_source)
+        self.assertNotIn("ProfileUserProfileDeleteWorker(", delete_user_source)
+        self.assertIn("_create_user_profile_create_worker_fn", create_user_source)
+        self.assertIn("_create_user_profile_update_worker_fn", update_user_source)
+        self.assertIn("_create_user_profile_delete_worker_fn", delete_user_source)
 
         profile_feature = Mock()
         kwargs = build_preset_setup_page_kwargs(
@@ -120,16 +136,28 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         )
 
         self.assertIs(kwargs["get_cached_profile_list"], profile_feature.get_cached_profile_list)
-        self.assertIs(kwargs["list_profiles"], profile_feature.list_profiles)
-        self.assertIs(kwargs["create_user_profile"], profile_feature.create_user_profile)
-        self.assertIs(kwargs["update_user_profile"], profile_feature.update_user_profile)
-        self.assertIs(kwargs["delete_user_profile"], profile_feature.delete_user_profile)
         self.assertIs(kwargs["create_profile_list_load_worker"], profile_feature.create_profile_list_load_worker)
         self.assertIs(
             kwargs["create_profile_context_action_worker"],
             profile_feature.create_profile_context_action_worker,
         )
         self.assertIs(kwargs["create_profile_move_worker"], profile_feature.create_profile_move_worker)
+        self.assertIs(
+            kwargs["create_user_profile_create_worker"],
+            profile_feature.create_user_profile_create_worker,
+        )
+        self.assertIs(
+            kwargs["create_user_profile_update_worker"],
+            profile_feature.create_user_profile_update_worker,
+        )
+        self.assertIs(
+            kwargs["create_user_profile_delete_worker"],
+            profile_feature.create_user_profile_delete_worker,
+        )
+        self.assertNotIn("list_profiles", kwargs)
+        self.assertNotIn("create_user_profile", kwargs)
+        self.assertNotIn("update_user_profile", kwargs)
+        self.assertNotIn("delete_user_profile", kwargs)
         self.assertNotIn("profile_feature", kwargs)
 
 
