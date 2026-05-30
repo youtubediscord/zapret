@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import SettingsCard
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.theme import (
     get_cached_qta_pixmap,
     get_theme_tokens,
@@ -219,11 +220,9 @@ class AutostartPage(BasePage):
 
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
-        self._autostart_action_worker = None
-        self._autostart_action_request_id = 0
+        self._autostart_action_runtime = OneShotWorkerRuntime()
         self._autostart_action_pending: list[tuple[str, bool | None, str | None]] = []
-        self._mode_load_worker = None
-        self._mode_load_request_id = 0
+        self._mode_load_runtime = OneShotWorkerRuntime()
         self._mode_load_pending = False
 
         self._build_ui()
@@ -294,41 +293,42 @@ class AutostartPage(BasePage):
         strategy_name=None,
     ) -> None:
         payload = (str(action or "").strip(), enabled, strategy_name)
-        worker = self.__dict__.get("_autostart_action_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._autostart_action_pending.append(payload)
-                    return
-            except Exception:
-                self._autostart_action_pending.append(payload)
-                return
+        if self._autostart_action_runtime.is_running():
+            self._autostart_action_pending.append(payload)
+            return
         self._start_autostart_action_worker(payload)
 
     def _start_autostart_action_worker(self, payload: tuple[str, bool | None, str | None]) -> None:
-        self._autostart_action_request_id += 1
-        request_id = self._autostart_action_request_id
-        worker = self.create_autostart_action_worker(
-            request_id,
-            action=payload[0],
-            enabled=payload[1],
-            strategy_name=payload[2],
+        self._autostart_action_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_autostart_action_worker(
+                request_id,
+                action=payload[0],
+                enabled=payload[1],
+                strategy_name=payload[2],
+            ),
+            on_failed=self._on_autostart_action_failed,
+            on_finished=self._on_autostart_action_worker_finished,
+            bind_worker=self._bind_autostart_action_worker,
         )
-        self._autostart_action_worker = worker
+
+    def _bind_autostart_action_worker(self, worker) -> None:
         worker.completed.connect(self._on_autostart_action_finished)
-        worker.failed.connect(self._on_autostart_action_failed)
         worker.status.connect(self._on_autostart_action_status)
-        worker.finished.connect(lambda w=worker: self._on_autostart_action_worker_finished(w))
-        worker.start()
 
     def _on_autostart_action_status(self, request_id: int, _action: str, message: str) -> None:
-        if request_id != self._autostart_action_request_id:
+        if not self._autostart_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         if message:
             log(message, "INFO")
 
     def _on_autostart_action_finished(self, request_id: int, action: str, result, context) -> None:
-        if request_id != self._autostart_action_request_id or self._cleanup_in_progress:
+        if not self._autostart_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         context = context if isinstance(context, dict) else {}
         if action == "save_state":
@@ -368,16 +368,16 @@ class AutostartPage(BasePage):
             self.update_status(True, strategy_name)
 
     def _on_autostart_action_failed(self, request_id: int, _action: str, error: str, _context) -> None:
-        if request_id != self._autostart_action_request_id or self._cleanup_in_progress:
+        if not self._autostart_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         message = f"Не удалось изменить автозапуск: {error}"
         log(message, "WARNING")
         self._show_autostart_error(message)
 
-    def _on_autostart_action_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_autostart_action_worker") is worker:
-            self._autostart_action_worker = None
-        worker.deleteLater()
+    def _on_autostart_action_worker_finished(self, _worker) -> None:
         if self._autostart_action_pending and not self._cleanup_in_progress:
             pending = self._autostart_action_pending.pop(0)
             self._start_autostart_action_worker(pending)
@@ -533,43 +533,38 @@ class AutostartPage(BasePage):
     def _request_mode_load(self) -> None:
         if self._cleanup_in_progress:
             return
-        worker = self.__dict__.get("_mode_load_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._mode_load_pending = True
-                    return
-            except Exception:
-                self._mode_load_pending = True
-                return
+        if self._mode_load_runtime.is_running():
+            self._mode_load_pending = True
+            return
         self._start_mode_load_worker()
 
     def _start_mode_load_worker(self) -> None:
         self._mode_load_pending = False
-        self._mode_load_request_id += 1
-        request_id = self._mode_load_request_id
-        worker = self.create_autostart_mode_load_worker(request_id)
-        self._mode_load_worker = worker
-        worker.loaded.connect(self._on_mode_loaded)
-        worker.failed.connect(self._on_mode_load_failed)
-        worker.finished.connect(lambda w=worker: self._on_mode_load_worker_finished(w))
-        worker.start()
+        self._mode_load_runtime.start_qthread_worker(
+            worker_factory=self.create_autostart_mode_load_worker,
+            on_loaded=self._on_mode_loaded,
+            on_failed=self._on_mode_load_failed,
+            on_finished=self._on_mode_load_worker_finished,
+        )
 
     def _on_mode_loaded(self, request_id: int, method: str) -> None:
-        if request_id != self._mode_load_request_id or self._cleanup_in_progress:
+        if not self._mode_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         self._apply_loaded_mode(method)
 
     def _on_mode_load_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._mode_load_request_id or self._cleanup_in_progress:
+        if not self._mode_load_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Ошибка обновления режима: {error}", "WARNING")
         self.mode_label.setText(self._tr("page.autostart.mode.unknown", "Неизвестно"))
 
-    def _on_mode_load_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_mode_load_worker") is worker:
-            self._mode_load_worker = None
-        worker.deleteLater()
+    def _on_mode_load_worker_finished(self, _worker) -> None:
         if self._mode_load_pending and not self._cleanup_in_progress:
             self._start_mode_load_worker()
 
@@ -732,17 +727,15 @@ class AutostartPage(BasePage):
     def cleanup(self):
         self._cleanup_in_progress = True
         self._autostart_action_pending.clear()
-        worker = self.__dict__.get("_autostart_action_worker")
-        if worker is not None:
-            try:
-                worker.quit()
-            except Exception:
-                pass
-            self._autostart_action_worker = None
-        mode_worker = self.__dict__.get("_mode_load_worker")
-        if mode_worker is not None:
-            try:
-                mode_worker.quit()
-            except Exception:
-                pass
-            self._mode_load_worker = None
+        self._autostart_action_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="autostart_action_worker",
+        )
+        self._autostart_action_runtime.cancel()
+        self._mode_load_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="autostart_mode_load_worker",
+        )
+        self._mode_load_runtime.cancel()
