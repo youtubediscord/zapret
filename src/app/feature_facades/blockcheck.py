@@ -22,10 +22,22 @@ class BlockcheckFeature:
         return blockcheck_worker_commands
 
     def create_blockcheck_worker(self, **kwargs):
-        return self._worker_commands().create_blockcheck_worker(**kwargs)
+        from blockcheck.worker import BlockcheckWorker
+
+        return BlockcheckWorker(
+            start_run_log=self.start_blockcheck_run_log,
+            append_run_log=self.append_blockcheck_run_log,
+            **kwargs,
+        )
 
     def create_strategy_scan_worker(self, **kwargs):
-        return self._worker_commands().create_strategy_scan_worker(**kwargs)
+        from blockcheck.strategy_scan_worker import StrategyScanWorker
+
+        return StrategyScanWorker(
+            start_run_log=self.start_strategy_scan_run_log,
+            append_run_log=self.append_strategy_scan_run_log,
+            **kwargs,
+        )
 
     def create_strategy_apply_worker(self, request_id: int, **kwargs):
         from blockcheck.strategy_apply_worker import StrategyApplyWorker
@@ -106,6 +118,18 @@ class BlockcheckFeature:
 
     def save_resume_state(self, *args, **kwargs):
         return self._commands().save_resume_state(*args, **kwargs)
+
+    def start_blockcheck_run_log(self, *args, **kwargs):
+        return self._worker_commands().start_blockcheck_run_log(*args, **kwargs)
+
+    def append_blockcheck_run_log(self, *args, **kwargs) -> None:
+        return self._worker_commands().append_blockcheck_run_log(*args, **kwargs)
+
+    def start_strategy_scan_run_log(self, *args, **kwargs):
+        return self._worker_commands().start_strategy_scan_run_log(*args, **kwargs)
+
+    def append_strategy_scan_run_log(self, *args, **kwargs) -> None:
+        return self._worker_commands().append_strategy_scan_run_log(*args, **kwargs)
 
     def prepare_support(self, *args, **kwargs):
         return self._worker_commands().prepare_support(*args, **kwargs)

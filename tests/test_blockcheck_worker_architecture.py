@@ -4,6 +4,9 @@ import inspect
 import unittest
 
 from app.feature_facades.blockcheck import BlockcheckFeature
+import blockcheck.commands as blockcheck_commands
+import blockcheck.strategy_scan_worker as strategy_scan_worker
+import blockcheck.worker as blockcheck_worker
 import blockcheck.strategy_apply_worker as strategy_apply_worker
 import blockcheck.workers as blockcheck_workers
 
@@ -43,6 +46,32 @@ class BlockcheckWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._blockcheck", worker_init_source)
         self.assertIn("self._apply_strategy(", worker_run_source)
         self.assertNotIn("self._blockcheck.apply_strategy", worker_run_source)
+
+    def test_blockcheck_run_worker_receives_log_actions_as_callables(self) -> None:
+        feature_source = inspect.getsource(BlockcheckFeature.create_blockcheck_worker)
+        command_factory_source = inspect.getsource(blockcheck_commands.create_blockcheck_worker)
+        worker_source = inspect.getsource(blockcheck_worker.BlockcheckWorker)
+
+        self.assertIn("start_run_log=self.start_blockcheck_run_log", feature_source)
+        self.assertIn("append_run_log=self.append_blockcheck_run_log", feature_source)
+        self.assertIn("start_run_log=start_blockcheck_run_log", command_factory_source)
+        self.assertIn("append_run_log=append_blockcheck_run_log", command_factory_source)
+        self.assertIn("_start_run_log", worker_source)
+        self.assertIn("_append_run_log_action", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
+
+    def test_strategy_scan_worker_receives_log_actions_as_callables(self) -> None:
+        feature_source = inspect.getsource(BlockcheckFeature.create_strategy_scan_worker)
+        command_factory_source = inspect.getsource(blockcheck_commands.create_strategy_scan_worker)
+        worker_source = inspect.getsource(strategy_scan_worker.StrategyScanWorker)
+
+        self.assertIn("start_run_log=self.start_strategy_scan_run_log", feature_source)
+        self.assertIn("append_run_log=self.append_strategy_scan_run_log", feature_source)
+        self.assertIn("start_run_log=start_strategy_scan_run_log", command_factory_source)
+        self.assertIn("append_run_log=append_strategy_scan_run_log", command_factory_source)
+        self.assertIn("_start_run_log_action", worker_source)
+        self.assertIn("_append_run_log_action", worker_source)
+        self.assertNotIn("blockcheck.commands", worker_source)
 
 
 if __name__ == "__main__":

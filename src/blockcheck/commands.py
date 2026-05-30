@@ -14,6 +14,8 @@ def create_blockcheck_worker(
         mode=mode,
         extra_domains=extra_domains,
         skip_preflight_failed=skip_preflight_failed,
+        start_run_log=start_blockcheck_run_log,
+        append_run_log=append_blockcheck_run_log,
         parent=parent,
     )
 
@@ -37,6 +39,8 @@ def create_strategy_scan_worker(
         scan_protocol=scan_protocol,
         udp_games_scope=udp_games_scope,
         runtime_feature=runtime_feature,
+        start_run_log=start_strategy_scan_run_log,
+        append_run_log=append_strategy_scan_run_log,
         parent=parent,
     )
 

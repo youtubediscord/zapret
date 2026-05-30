@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -20,12 +21,22 @@ class BlockcheckWorker(QObject):
     log_message = pyqtSignal(str)
     finished = pyqtSignal(object)
 
-    def __init__(self, mode: str = "full", extra_domains: list[str] | None = None,
-                 skip_preflight_failed: bool = False, parent=None):
+    def __init__(
+        self,
+        mode: str = "full",
+        extra_domains: list[str] | None = None,
+        skip_preflight_failed: bool = False,
+        *,
+        start_run_log: Callable[[str, list[str]], object],
+        append_run_log: Callable[[str | None, str], None],
+        parent=None,
+    ):
         super().__init__(parent)
         self._mode = mode
         self._extra_domains = extra_domains
         self._skip_preflight_failed = skip_preflight_failed
+        self._start_run_log = start_run_log
+        self._append_run_log_action = append_run_log
         self._runner = None
         self._cancelled = False
         self._bg_thread: threading.Thread | None = None
@@ -40,10 +51,9 @@ class BlockcheckWorker(QObject):
 
     def _run_in_thread(self):
         try:
-            import blockcheck.commands as blockcheck_commands
             from blockcheck.runner import BlockcheckRunner
 
-            log_state = blockcheck_commands.start_blockcheck_run_log(self._mode, list(self._extra_domains or []))
+            log_state = self._start_run_log(self._mode, list(self._extra_domains or []))
             self._run_log_file = log_state.path
             self.run_log_started.emit(log_state.path)
             if not log_state.created:
@@ -100,8 +110,6 @@ class BlockcheckWorker(QObject):
 
     def _append_run_log(self, message: str) -> None:
         try:
-            import blockcheck.commands as blockcheck_commands
-
-            blockcheck_commands.append_blockcheck_run_log(self._run_log_file, message)
+            self._append_run_log_action(self._run_log_file, message)
         except Exception:
             pass

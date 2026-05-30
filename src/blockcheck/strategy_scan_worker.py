@@ -1,6 +1,7 @@
 import logging
 import queue
 import threading
+from collections.abc import Callable
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -26,6 +27,8 @@ class StrategyScanWorker(QObject):
         udp_games_scope: str = "all",
         *,
         runtime_feature,
+        start_run_log: Callable[..., object],
+        append_run_log: Callable[[object, str], None],
         parent=None,
     ):
         super().__init__(parent)
@@ -34,6 +37,8 @@ class StrategyScanWorker(QObject):
         self._scan_protocol = scan_protocol
         self._udp_games_scope = udp_games_scope
         self._runtime_feature = runtime_feature
+        self._start_run_log_action = start_run_log
+        self._append_run_log_action = append_run_log
         try:
             self._start_index = max(0, int(start_index))
         except Exception:
@@ -109,9 +114,7 @@ class StrategyScanWorker(QObject):
 
     def _start_run_log(self) -> None:
         try:
-            import blockcheck.commands as blockcheck_commands
-
-            log_state = blockcheck_commands.start_strategy_scan_run_log(
+            log_state = self._start_run_log_action(
                 target=self._target,
                 mode=self._mode,
                 scan_protocol=self._scan_protocol,
@@ -127,9 +130,7 @@ class StrategyScanWorker(QObject):
 
     def _append_run_log(self, message: str) -> None:
         try:
-            import blockcheck.commands as blockcheck_commands
-
-            blockcheck_commands.append_strategy_scan_run_log(self._run_log_file, message)
+            self._append_run_log_action(self._run_log_file, message)
         except Exception:
             logger.exception("StrategyScanWorker failed to append run log")
 
