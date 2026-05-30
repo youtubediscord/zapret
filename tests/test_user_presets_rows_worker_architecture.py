@@ -56,6 +56,11 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
 
         self.assertNotIn("Path(path).exists()", source)
 
+    def test_runtime_service_does_not_keep_legacy_active_marker_settings_read_api(self) -> None:
+        import presets.user_presets_runtime_service as runtime_service
+
+        self.assertFalse(hasattr(runtime_service.UserPresetsRuntimeService, "apply_active_preset_marker"))
+
 
 if __name__ == "__main__":
     unittest.main()

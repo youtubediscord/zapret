@@ -425,12 +425,6 @@ class UserPresetsRuntimeService:
         except Exception:
             return ""
 
-    def apply_active_preset_marker(self, page=None) -> bool:
-        page = self._resolve_page(page)
-        adapter = self._resolve_adapter()
-        active_file_name = adapter.selected_source_file_name()
-        return self.apply_active_preset_marker_for_file(active_file_name, page=page)
-
     def ensure_preset_list_current_index(self, page=None) -> None:
         page = self._resolve_page(page)
         if page._presets_model is None:
