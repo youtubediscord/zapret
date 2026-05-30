@@ -7,7 +7,6 @@ from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from log.log import log
 from main.post_startup_threading import start_daemon_thread
 from main.qt_dispatch import run_queued
-from settings.mode import normalize_launch_method
 
 
 TASK_LAUNCH_RUNTIME_API = "launch_runtime_api"
@@ -382,27 +381,19 @@ class StartupCoordinator:
         try:
             # Быструю часть post-init оставляем в критическом пути,
             # а реальный автозапуск передаём в единый dispatcher после возврата в event loop.
-            t_method = _time.perf_counter()
-            from settings.dpi.strategy_settings import get_strategy_launch_method
-            launch_method = get_strategy_launch_method()
-            self._log_startup_step(
-                "StartupPostInitResolveMethod",
-                f"{launch_method} {(_time.perf_counter() - t_method)*1000:.0f}ms",
-            )
-
             QTimer.singleShot(
                 STARTUP_DPI_AUTOSTART_DELAY_MS,
-                lambda method=str(launch_method or ""): self._run_deferred_post_init_launch(method),
+                lambda: self._run_deferred_post_init_launch(None),
             )
             self._log_startup_step(
                 "StartupPostInitDeferredScheduled",
-                f"{launch_method}, {STARTUP_DPI_AUTOSTART_DELAY_MS}ms after post-init",
+                f"auto, {STARTUP_DPI_AUTOSTART_DELAY_MS}ms after post-init",
             )
             self._log_startup_step(
                 "StartupDpiAutostart",
-                f"{launch_method}, {STARTUP_DPI_AUTOSTART_DELAY_MS}ms after post-init",
+                f"auto, {STARTUP_DPI_AUTOSTART_DELAY_MS}ms after post-init",
             )
-            post_init_metric_source = f"post_init_scheduled:{launch_method}"
+            post_init_metric_source = "post_init_scheduled:auto"
 
             # Обновления проверяются вручную на вкладке "Серверы"
 
@@ -415,14 +406,14 @@ class StartupCoordinator:
             self._log_startup_step("StartupPostInitQuickPhase", f"{(_time.perf_counter() - t_total)*1000:.0f}ms")
             self.window_shell.mark_startup_post_init_done(post_init_metric_source)
 
-    def _run_deferred_post_init_launch(self, launch_method: str) -> None:
+    def _run_deferred_post_init_launch(self, launch_method: str | None) -> None:
         """Запускает тяжёлую post-init часть позже, когда окно уже стабилизировалось."""
         if self._post_init_dispatch_started:
             return
         self._post_init_dispatch_started = True
 
         started_at = _time.perf_counter()
-        method = normalize_launch_method(launch_method)
+        method = self._resolve_deferred_launch_method(launch_method)
         self._log_startup_step("StartupPostInitDeferredStart", method or "unknown")
 
         try:
@@ -436,3 +427,20 @@ class StartupCoordinator:
                 "StartupPostInitDeferredDispatch",
                 f"{method or 'unknown'} {(_time.perf_counter() - started_at)*1000:.0f}ms",
             )
+
+    def _resolve_deferred_launch_method(self, launch_method: str | None) -> str:
+        t_method = _time.perf_counter()
+        from settings.mode import normalize_launch_method
+
+        raw_method = launch_method
+        if raw_method is None:
+            from settings.dpi.strategy_settings import get_strategy_launch_method
+
+            raw_method = get_strategy_launch_method()
+
+        method = normalize_launch_method(raw_method)
+        self._log_startup_step(
+            "StartupPostInitResolveMethod",
+            f"{method} {(_time.perf_counter() - t_method)*1000:.0f}ms",
+        )
+        return method
