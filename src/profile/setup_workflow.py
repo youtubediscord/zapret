@@ -3,21 +3,21 @@
 from __future__ import annotations
 
 
-def load_profile_setup(*, profile_feature, launch_method: str, profile_key: str):
+def load_profile_setup(*, profile_actions, launch_method: str, profile_key: str):
     """Загружает данные экрана настройки profile."""
-    return profile_feature.get_profile_setup(launch_method, profile_key)
+    return profile_actions.get_profile_setup(launch_method, profile_key)
 
 
 def load_profile_list_file_editor_state(
     *,
-    profile_feature,
+    profile_actions,
     launch_method: str,
     profile_key: str,
     filter_kind: str = "",
     filter_value: str = "",
 ):
     """Загружает файл списка для вкладки «Редактор»."""
-    return profile_feature.get_profile_list_file_editor_state(
+    return profile_actions.get_profile_list_file_editor_state(
         launch_method,
         profile_key,
         filter_kind=filter_kind,
@@ -27,7 +27,7 @@ def load_profile_list_file_editor_state(
 
 def save_winws2_profile_settings(
     *,
-    profile_feature,
+    profile_actions,
     launch_method: str,
     profile_key: str,
     filter_kind: str,
@@ -36,7 +36,7 @@ def save_winws2_profile_settings(
     out_range: str,
 ) -> str | None:
     """Сохраняет редактируемые поля winws2 profile."""
-    return profile_feature.update_winws2_profile_settings(
+    return profile_actions.update_winws2_profile_settings(
         launch_method,
         profile_key,
         filter_kind=filter_kind,
@@ -46,28 +46,28 @@ def save_winws2_profile_settings(
     )
 
 
-def save_profile_raw_text(*, profile_feature, launch_method: str, profile_key: str, raw_text: str) -> str | None:
+def save_profile_raw_text(*, profile_actions, launch_method: str, profile_key: str, raw_text: str) -> str | None:
     """Сохраняет полный текст profile в текущий preset."""
-    return profile_feature.update_profile_raw_text(
+    return profile_actions.update_profile_raw_text(
         launch_method,
         profile_key,
         raw_text,
     )
 
 
-def validate_profile_list_file_text(*, profile_feature, launch_method: str, kind: str, text: str):
+def validate_profile_list_file_text(*, profile_actions, launch_method: str, kind: str, text: str):
     """Проверяет строки файла списка для вкладки «Редактор»."""
-    return profile_feature.validate_profile_list_file_text(launch_method, kind, text)
+    return profile_actions.validate_profile_list_file_text(launch_method, kind, text)
 
 
-def save_profile_list_file_text(*, profile_feature, launch_method: str, profile_key: str, text: str):
+def save_profile_list_file_text(*, profile_actions, launch_method: str, profile_key: str, text: str):
     """Сохраняет файл списка текущего profile."""
-    return profile_feature.save_profile_list_file_text(launch_method, profile_key, text)
+    return profile_actions.save_profile_list_file_text(launch_method, profile_key, text)
 
 
 def set_profile_enabled(
     *,
-    profile_feature,
+    profile_actions,
     launch_method: str,
     profile_key: str,
     enabled: bool,
@@ -75,7 +75,7 @@ def set_profile_enabled(
     filter_value: str = "",
 ) -> str | None:
     """Включает или выключает profile."""
-    return profile_feature.set_profile_enabled(
+    return profile_actions.set_profile_enabled(
         launch_method,
         profile_key,
         enabled,
@@ -84,14 +84,14 @@ def set_profile_enabled(
     )
 
 
-def apply_strategy_to_profile(*, profile_feature, launch_method: str, profile_key: str, strategy_id: str) -> str | None:
+def apply_strategy_to_profile(*, profile_actions, launch_method: str, profile_key: str, strategy_id: str) -> str | None:
     """Применяет готовую стратегию к profile."""
-    return profile_feature.apply_strategy_to_profile(launch_method, profile_key, strategy_id)
+    return profile_actions.apply_strategy_to_profile(launch_method, profile_key, strategy_id)
 
 
 def set_current_strategy_feedback(
     *,
-    profile_feature,
+    profile_actions,
     launch_method: str,
     profile_key: str,
     rating: str | None = None,
@@ -103,4 +103,4 @@ def set_current_strategy_feedback(
         kwargs["rating"] = rating
     if favorite is not None:
         kwargs["favorite"] = favorite
-    return profile_feature.set_current_strategy_state(launch_method, profile_key, **kwargs)
+    return profile_actions.set_current_strategy_state(launch_method, profile_key, **kwargs)

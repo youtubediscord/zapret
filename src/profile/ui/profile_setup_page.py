@@ -28,7 +28,7 @@ from profile.ui.profile_setup_controls import (
     set_range_controls,
     sync_range_value_enabled,
 )
-from profile.setup_controller import ProfileSetupController
+from profile.setup_controller import ProfileSetupActions, ProfileSetupController
 from profile.strategy_visuals import describe_strategy_visual
 from profile.strategy_state import ProfileStrategyState
 from profile.ui.user_profile_dialog import CreateUserProfileDialog
@@ -728,14 +728,14 @@ class ProfileSetupPageBase(BasePage):
     profiles_key = "page.winws2_pages.title"
     profiles_default = "Настройка пресета"
 
-    def __init__(self, parent=None, *, profile_feature, open_profiles, open_root, on_profile_changed):
+    def __init__(self, parent=None, *, profile_setup_actions: ProfileSetupActions, open_profiles, open_root, on_profile_changed):
         super().__init__(
             title="",
             parent=parent,
             title_key=self.title_key_name,
         )
         self._controller = ProfileSetupController(
-            profile_feature=profile_feature,
+            profile_setup_actions=profile_setup_actions,
             launch_method=self.launch_method,
         )
         self._open_profiles = open_profiles

@@ -2,9 +2,41 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from unittest.mock import Mock
 
 
 class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
+    def test_profile_setup_page_receives_actions_instead_of_profile_feature(self) -> None:
+        from profile.setup_controller import ProfileSetupController
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+        from ui.navigation_pages import PageName
+        from ui.page_deps.presets import build_profile_setup_page_kwargs
+
+        init_source = inspect.getsource(ProfileSetupPageBase.__init__)
+        controller_init_source = inspect.getsource(ProfileSetupController.__init__)
+        controller_source = inspect.getsource(ProfileSetupController)
+
+        self.assertIn("profile_setup_actions", init_source)
+        self.assertNotIn("profile_feature", init_source)
+        self.assertIn("profile_setup_actions", controller_init_source)
+        self.assertNotIn("profile_feature", controller_init_source)
+        self.assertNotIn("self._profile", controller_source)
+
+        profile_feature = Mock()
+        kwargs = build_profile_setup_page_kwargs(
+            page_name=PageName.ZAPRET2_PROFILE_SETUP,
+            profile_feature=profile_feature,
+            show_page=Mock(),
+            on_profile_setup_changed=Mock(),
+        )
+
+        self.assertIn("profile_setup_actions", kwargs)
+        self.assertNotIn("profile_feature", kwargs)
+        actions = kwargs["profile_setup_actions"]
+        self.assertIs(actions.get_profile_setup, profile_feature.get_profile_setup)
+        self.assertIs(actions.apply_strategy_to_profile, profile_feature.apply_strategy_to_profile)
+        self.assertIs(actions.update_profile_raw_text, profile_feature.update_profile_raw_text)
+
     def test_context_action_worker_receives_action_functions(self) -> None:
         from profile.profile_setup_loader import ProfilePresetProfileActionWorker
 

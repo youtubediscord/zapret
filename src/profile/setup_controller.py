@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Callable
+
 from profile.setup_workflow import (
     apply_strategy_to_profile,
     load_profile_list_file_editor_state,
@@ -15,16 +18,32 @@ from profile.setup_workflow import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class ProfileSetupActions:
+    get_profile_setup: Callable[..., object]
+    get_profile_list_file_editor_state: Callable[..., object]
+    update_winws2_profile_settings: Callable[..., object]
+    update_profile_raw_text: Callable[..., object]
+    validate_profile_list_file_text: Callable[..., object]
+    save_profile_list_file_text: Callable[..., object]
+    set_profile_enabled: Callable[..., object]
+    update_user_profile: Callable[..., object]
+    list_profiles: Callable[..., object]
+    delete_user_profile: Callable[..., object]
+    apply_strategy_to_profile: Callable[..., object]
+    set_current_strategy_state: Callable[..., object]
+
+
 class ProfileSetupController:
     """Действия страницы настройки profile без привязки к QWidget."""
 
-    def __init__(self, *, profile_feature, launch_method: str) -> None:
-        self._profile = profile_feature
+    def __init__(self, *, profile_setup_actions: ProfileSetupActions, launch_method: str) -> None:
+        self._actions = profile_setup_actions
         self._launch_method = launch_method
 
     def load(self, profile_key: str):
         return load_profile_setup(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
         )
@@ -36,7 +55,7 @@ class ProfileSetupController:
 
     def load_list_file_editor_state(self, profile_key: str, *, filter_kind: str = "", filter_value: str = ""):
         return load_profile_list_file_editor_state(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             filter_kind=filter_kind,
@@ -223,7 +242,7 @@ class ProfileSetupController:
         out_range: str,
     ) -> str | None:
         return save_winws2_profile_settings(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             filter_kind=filter_kind,
@@ -234,7 +253,7 @@ class ProfileSetupController:
 
     def save_raw_profile_text(self, *, profile_key: str, raw_text: str) -> str | None:
         return save_profile_raw_text(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             raw_text=raw_text,
@@ -242,7 +261,7 @@ class ProfileSetupController:
 
     def validate_list_file_text(self, *, kind: str, text: str):
         return validate_profile_list_file_text(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             kind=kind,
             text=text,
@@ -250,7 +269,7 @@ class ProfileSetupController:
 
     def save_list_file_text(self, *, profile_key: str, text: str):
         return save_profile_list_file_text(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             text=text,
@@ -265,7 +284,7 @@ class ProfileSetupController:
         filter_value: str = "",
     ) -> str | None:
         return set_profile_enabled(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             enabled=enabled,
@@ -274,7 +293,7 @@ class ProfileSetupController:
         )
 
     def update_user_profile(self, *, profile_id: str, name: str, protocol: str, ports: str) -> int:
-        return int(self._profile.update_user_profile(
+        return int(self._actions.update_user_profile(
             profile_id,
             name=name,
             protocol=protocol,
@@ -282,7 +301,7 @@ class ProfileSetupController:
         ))
 
     def list_profiles(self, launch_method: str = ""):
-        return self._profile.list_profiles(launch_method or self._launch_method)
+        return self._actions.list_profiles(launch_method or self._launch_method)
 
     def load_user_profile_items(self, profile_id: str):
         from profile.profile_setup_loader import load_user_profile_items_from_payload
@@ -290,11 +309,11 @@ class ProfileSetupController:
         return load_user_profile_items_from_payload(self.list_profiles, profile_id)
 
     def delete_user_profile(self, *, profile_id: str) -> int:
-        return int(self._profile.delete_user_profile(profile_id))
+        return int(self._actions.delete_user_profile(profile_id))
 
     def apply_strategy(self, *, profile_key: str, strategy_id: str) -> str | None:
         return apply_strategy_to_profile(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             strategy_id=strategy_id,
@@ -308,7 +327,7 @@ class ProfileSetupController:
         favorite: bool | None = None,
     ):
         return set_current_strategy_feedback(
-            profile_feature=self._profile,
+            profile_actions=self._actions,
             launch_method=self._launch_method,
             profile_key=profile_key,
             rating=rating,

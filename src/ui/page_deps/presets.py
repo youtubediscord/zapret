@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.page_names import PageName
+from profile.setup_controller import ProfileSetupActions
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from presets.ui.common.user_presets_page_runtime import UserPresetsRuntimeActions
 from ui.navigation_pages import (
@@ -89,7 +90,20 @@ def build_profile_setup_page_kwargs(
         else PageName.ZAPRET1_PRESET_SETUP
     )
     return {
-        "profile_feature": profile_feature,
+        "profile_setup_actions": ProfileSetupActions(
+            get_profile_setup=profile_feature.get_profile_setup,
+            get_profile_list_file_editor_state=profile_feature.get_profile_list_file_editor_state,
+            update_winws2_profile_settings=profile_feature.update_winws2_profile_settings,
+            update_profile_raw_text=profile_feature.update_profile_raw_text,
+            validate_profile_list_file_text=profile_feature.validate_profile_list_file_text,
+            save_profile_list_file_text=profile_feature.save_profile_list_file_text,
+            set_profile_enabled=profile_feature.set_profile_enabled,
+            update_user_profile=profile_feature.update_user_profile,
+            list_profiles=profile_feature.list_profiles,
+            delete_user_profile=profile_feature.delete_user_profile,
+            apply_strategy_to_profile=profile_feature.apply_strategy_to_profile,
+            set_current_strategy_state=profile_feature.set_current_strategy_state,
+        ),
         "open_profiles": lambda page=profiles_page: show_page(page, allow_internal=True),
         "open_root": lambda m=method: show_page(resolve_profile_setup_root_page_for_method(m), allow_internal=True),
         "on_profile_changed": lambda profile_key, change_kind, profile_item=None, m=method: on_profile_setup_changed(
