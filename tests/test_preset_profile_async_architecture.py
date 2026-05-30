@@ -306,14 +306,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         load_source = inspect.getsource(UserPresetsRuntimeService.load_presets)
         loaded_source = inspect.getsource(UserPresetsRuntimeService._on_metadata_loaded)
         cache_refresh_source = inspect.getsource(UserPresetsRuntimeService.refresh_presets_view_from_cache)
-        rebuild_source = inspect.getsource(UserPresetsPageBase._rebuild_presets_rows)
+        request_rows_source = inspect.getsource(UserPresetsRuntimeService._request_rows_plan_refresh)
         plan_source = inspect.getsource(build_preset_rows_plan)
 
         self.assertIn("_load_folder_state", worker_source)
         self.assertIn("folder_state", load_source)
         self.assertIn("_cached_folder_state", loaded_source)
         self.assertIn("_cached_folder_state", cache_refresh_source)
-        self.assertIn("folder_state=folder_state", rebuild_source)
+        self.assertIn("folder_state=folder_state", request_rows_source)
         fallback_branch = plan_source.split("effective_folder_state", 1)[1]
         self.assertNotIn("load_preset_folder_state", fallback_branch)
 

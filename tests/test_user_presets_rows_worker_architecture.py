@@ -68,6 +68,13 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
 
         self.assertNotIn(".exists()", source)
 
+    def test_user_presets_page_has_no_legacy_gui_rows_rebuild_entrypoint(self) -> None:
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+        import presets.ui.common.user_presets_page as page_module
+
+        self.assertFalse(hasattr(UserPresetsPageBase, "_rebuild_presets_rows"))
+        self.assertFalse(hasattr(page_module, "rebuild_presets_rows"))
+
 
 if __name__ == "__main__":
     unittest.main()
