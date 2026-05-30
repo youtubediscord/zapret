@@ -328,7 +328,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.top_summary = ControlTopSummaryWidget(
             language=self._ui_language,
             mode_value="Zapret 2",
-            initial_icon_delay_ms=0,
+            initial_icon_delay_ms=250,
             parent=self.content,
         )
         self.top_summary.presetClicked.connect(self._open_presets_callback)
@@ -675,6 +675,17 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             "subscription_is_premium" in changed
             or "subscription_days_remaining" in changed
         )
+        runtime_status_changed = (
+            not changed
+            or bool(changed & {
+                "launch_phase",
+                "launch_running",
+                "launch_busy",
+                "launch_busy_text",
+                "launch_last_error",
+            })
+        )
+        strategy_changed = not changed or "current_strategy_summary" in changed
         if top_summary_data_changed:
             self._refresh_top_summary(state)
         elif top_summary_premium_changed:
@@ -693,12 +704,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
                 self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
         if not changed or "last_status_message" in changed:
             self._refresh_last_status_message(state)
-        self.set_loading(bool(state.launch_busy), str(state.launch_busy_text or ""))
-        self.update_status(
-            state.launch_phase or ("running" if state.launch_running else "stopped"),
-            str(state.launch_last_error or ""),
-        )
-        self.update_strategy(str(state.current_strategy_summary or ""))
+        if runtime_status_changed:
+            self.set_loading(bool(state.launch_busy), str(state.launch_busy_text or ""))
+            self.update_status(
+                state.launch_phase or ("running" if state.launch_running else "stopped"),
+                str(state.launch_last_error or ""),
+            )
+        if strategy_changed:
+            self.update_strategy(str(state.current_strategy_summary or ""))
 
     def _refresh_last_status_message(self, state: AppUiState | None = None) -> None:
         if self.last_status_message_label is None or self.last_status_message_dot is None:

@@ -587,18 +587,32 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             "subscription_is_premium" in changed
             or "subscription_days_remaining" in changed
         )
+        runtime_status_changed = (
+            not changed
+            or bool(changed & {
+                "launch_phase",
+                "launch_running",
+                "launch_busy",
+                "launch_busy_text",
+                "launch_last_error",
+            })
+        )
+        strategy_changed = not changed or "current_strategy_summary" in changed
         if top_summary_data_changed:
             self._refresh_top_summary(state)
         elif top_summary_premium_changed:
             self._apply_top_summary_premium(state)
-        self.set_loading(bool(state.launch_busy), str(state.launch_busy_text or ""))
+        if runtime_status_changed:
+            self.set_loading(bool(state.launch_busy), str(state.launch_busy_text or ""))
         if not changed or "last_status_message" in changed:
             self._refresh_last_status_message(state)
-        self.update_status(
-            state.launch_phase or ("running" if state.launch_running else "stopped"),
-            str(state.launch_last_error or ""),
-        )
-        self.update_strategy(str(state.current_strategy_summary or ""))
+        if runtime_status_changed:
+            self.update_status(
+                state.launch_phase or ("running" if state.launch_running else "stopped"),
+                str(state.launch_last_error or ""),
+            )
+        if strategy_changed:
+            self.update_strategy(str(state.current_strategy_summary or ""))
 
     def _refresh_last_status_message(self, state: AppUiState | None = None) -> None:
         if self.last_status_message_label is None or self.last_status_message_dot is None:
