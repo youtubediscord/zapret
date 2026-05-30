@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class _TextTarget:
@@ -324,6 +324,19 @@ class ControlStatusDotPulseTests(unittest.TestCase):
         self.assertEqual(discord_toggle.calls, [])
         self.assertEqual(wssize_toggle.calls, [])
         self.assertEqual(debug_log_toggle.calls, [])
+
+    def test_zapret2_profile_ui_mode_label_skips_duplicate_text(self) -> None:
+        from presets.ui.control.zapret2.runtime_helpers import sync_profile_ui_mode_label
+
+        label = _WidgetStateTarget(text="Basic")
+
+        with patch(
+            "presets.ui.control.zapret2.page_runtime.build_profile_ui_mode_label_plan",
+            return_value=SimpleNamespace(label_text="Basic"),
+        ):
+            sync_profile_ui_mode_label(language="ru_RU", profile_ui_mode_label=label)
+
+        self.assertEqual(label.text_calls, [])
 
     def test_widget_text_visibility_and_enabled_updates_skip_duplicate_state(self) -> None:
         from presets.ui.control.control_page_runtime_shared import (

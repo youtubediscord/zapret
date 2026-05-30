@@ -6,6 +6,7 @@ from app.ui_texts import tr as tr_catalog
 from presets.ui.control.control_page_runtime_shared import (
     apply_program_settings_toggles,
     apply_status_plan as apply_status_plan_shared,
+    set_text_if_changed,
     set_toggle_checked,
 )
 
@@ -35,7 +36,7 @@ def sync_profile_ui_mode_label(*, language: str, profile_ui_mode_label) -> None:
     from presets.ui.control.zapret2 import page_runtime as zapret2_page_runtime
 
     plan = zapret2_page_runtime.build_profile_ui_mode_label_plan(language=language)
-    profile_ui_mode_label.setText(plan.label_text)
+    set_text_if_changed(profile_ui_mode_label, plan.label_text)
 
 
 def apply_status_plan(plan, *, status_title, status_desc, status_dot, start_btn, stop_winws_btn, stop_and_exit_btn, update_stop_button_text) -> None:
