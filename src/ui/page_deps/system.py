@@ -79,6 +79,7 @@ def build_autostart_page_kwargs(*, page_name: PageName, autostart_feature, show_
 def build_appearance_page_kwargs(
     *,
     page_name: PageName,
+    appearance_feature,
     set_garland_enabled,
     set_snowflakes_enabled,
     on_background_refresh_needed,
@@ -103,6 +104,7 @@ def build_appearance_page_kwargs(
         "on_smooth_scroll_changed": on_smooth_scroll_changed,
         "on_editor_smooth_scroll_changed": on_editor_smooth_scroll_changed,
         "on_ui_language_changed": on_ui_language_changed,
+        "appearance_feature": appearance_feature,
         "ui_state_store": ui_state_store,
     }
 

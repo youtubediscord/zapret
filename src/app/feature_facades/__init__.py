@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.feature_facades.appearance import AppearanceFeature, build_appearance_feature
 from app.feature_facades.autostart import AutostartFeature, build_autostart_feature
 from app.feature_facades.blockcheck import BlockcheckFeature
 from app.feature_facades.blobs import BlobsFeature, build_blobs_feature
@@ -26,6 +27,7 @@ def build_logs_feature() -> LogsFeature:
 
 __all__ = [
     "AutostartFeature",
+    "AppearanceFeature",
     "BlockcheckFeature",
     "BlobsFeature",
     "DiagnosticsFeature",
@@ -45,6 +47,7 @@ __all__ = [
     "TrayFeature",
     "UpdaterFeature",
     "build_autostart_feature",
+    "build_appearance_feature",
     "build_blobs_feature",
     "build_diagnostics_feature",
     "build_dns_feature",

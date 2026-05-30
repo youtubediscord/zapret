@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.feature_facades import (
+        AppearanceFeature,
         AutostartFeature,
         BlockcheckFeature,
         BlobsFeature,
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class AppFeatures:
+    appearance: AppearanceFeature
     runtime: RuntimeFeature
     premium: PremiumFeature
     presets: PresetsFeature

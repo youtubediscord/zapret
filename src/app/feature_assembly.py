@@ -82,6 +82,7 @@ def build_app_features(*, deps: AppFeatureAssemblyDeps, paths: Any, state: Any) 
     t_import = _time.perf_counter()
     from app.feature_facades import (
         BlockcheckFeature,
+        build_appearance_feature,
         build_autostart_feature,
         build_blobs_feature,
         build_diagnostics_feature,
@@ -150,6 +151,7 @@ def build_app_features(*, deps: AppFeatureAssemblyDeps, paths: Any, state: Any) 
 
     t_secondary = _time.perf_counter()
     features = AppFeatures(
+        appearance=build_appearance_feature(),
         runtime=runtime_feature,
         premium=build_premium_feature(deps=deps.premium, ui_state_store=state.ui),
         presets=preset_profile.presets,

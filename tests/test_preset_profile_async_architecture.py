@@ -1546,14 +1546,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_appearance_initial_state_loads_through_worker(self) -> None:
         self.assertTrue(hasattr(appearance_workers, "AppearanceInitialStateLoadWorker"))
+        appearance_feature = importlib.import_module("app.feature_facades.appearance")
         worker_source = inspect.getsource(appearance_workers.AppearanceInitialStateLoadWorker.run)
+        worker_init_source = inspect.getsource(appearance_workers.AppearanceInitialStateLoadWorker.__init__)
         page_source = inspect.getsource(AppearancePage)
+        page_init_source = inspect.getsource(AppearancePage.__init__)
+        create_source = inspect.getsource(AppearancePage.create_initial_state_load_worker)
+        feature_source = inspect.getsource(appearance_feature.AppearanceFeature)
         build_source = inspect.getsource(AppearancePage._build_ui)
 
         self.assertIn("load_page_initial_state", worker_source)
+        self.assertIn("load_page_initial_state", worker_init_source)
+        self.assertIn("appearance_feature", page_init_source)
         self.assertIn("create_initial_state_load_worker", page_source)
+        self.assertIn("create_initial_state_load_worker", feature_source)
+        self.assertNotIn("AppearanceInitialStateLoadWorker", create_source)
+        self.assertIn("self._appearance.create_initial_state_load_worker", create_source)
         self.assertIn("_initial_state_load_worker", page_source)
         self.assertIn("_request_initial_state_load", build_source)
+        self.assertNotIn("settings.appearance", worker_source)
 
     def test_base_page_language_uses_warmed_cache_not_settings_read(self) -> None:
         base_source = inspect.getsource(BasePage._resolve_ui_language)
@@ -1579,10 +1590,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("build_performance_section", ensure_source)
 
     def test_appearance_settings_save_runs_through_worker(self) -> None:
+        appearance_feature = importlib.import_module("app.feature_facades.appearance")
         page_source = inspect.getsource(AppearancePage)
 
         self.assertTrue(hasattr(appearance_workers, "AppearanceSettingsSaveWorker"))
         worker_source = inspect.getsource(appearance_workers.AppearanceSettingsSaveWorker.run)
+        worker_init_source = inspect.getsource(appearance_workers.AppearanceSettingsSaveWorker.__init__)
+        create_source = inspect.getsource(AppearancePage.create_appearance_save_worker)
+        feature_source = inspect.getsource(appearance_feature.AppearanceFeature)
         request_source = inspect.getsource(AppearancePage._request_appearance_save)
         finished_source = inspect.getsource(AppearancePage._on_appearance_save_worker_finished)
 
@@ -1608,15 +1623,25 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             self.assertNotIn("appearance_settings.save_", source)
 
         self.assertIn("create_appearance_save_worker", page_source)
+        self.assertIn("create_appearance_save_worker", feature_source)
+        self.assertNotIn("AppearanceSettingsSaveWorker", create_source)
+        self.assertIn("self._appearance.create_appearance_save_worker", create_source)
         self.assertIn("_coalesce_appearance_save_pending", request_source)
         self.assertIn("_appearance_save_pending.append", page_source)
         self.assertIn("_appearance_save_pending.pop(0)", finished_source)
+        self.assertIn("save_display_mode", worker_init_source)
+        self.assertIn("save_ui_language", worker_init_source)
+        self.assertIn("save_background_preset", worker_init_source)
+        self.assertIn("save_window_opacity", worker_init_source)
+        self.assertIn("save_accent_color", worker_init_source)
+        self.assertIn("save_animations_enabled", worker_init_source)
         self.assertIn("save_display_mode", worker_source)
         self.assertIn("save_ui_language", worker_source)
         self.assertIn("save_background_preset", worker_source)
         self.assertIn("save_window_opacity", worker_source)
         self.assertIn("save_accent_color", worker_source)
         self.assertIn("save_animations_enabled", worker_source)
+        self.assertNotIn("settings.appearance", worker_source)
 
     def test_telegram_proxy_restart_request_survives_queued_settings_saves(self) -> None:
         from telegram_proxy.ui.settings_save_flow import merge_restart_request
@@ -1634,19 +1659,29 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_settings_save_restart_pending", finished_source)
 
     def test_appearance_rkn_background_options_load_through_worker(self) -> None:
+        appearance_feature = importlib.import_module("app.feature_facades.appearance")
         page_source = inspect.getsource(AppearancePage)
+        create_source = inspect.getsource(AppearancePage.create_rkn_background_options_load_worker)
         reload_source = inspect.getsource(AppearancePage._reload_rkn_background_options)
 
         self.assertTrue(hasattr(appearance_workers, "AppearanceRknBackgroundOptionsLoadWorker"))
         worker_source = inspect.getsource(appearance_workers.AppearanceRknBackgroundOptionsLoadWorker.run)
+        worker_init_source = inspect.getsource(appearance_workers.AppearanceRknBackgroundOptionsLoadWorker.__init__)
+        feature_source = inspect.getsource(appearance_feature.AppearanceFeature)
 
         self.assertIn("_rkn_background_options_worker", page_source)
         self.assertIn("create_rkn_background_options_load_worker", page_source)
+        self.assertIn("create_rkn_background_options_load_worker", feature_source)
+        self.assertNotIn("AppearanceRknBackgroundOptionsLoadWorker", create_source)
+        self.assertIn("self._appearance.create_rkn_background_options_load_worker", create_source)
         self.assertIn("_request_rkn_background_options_load", reload_source)
         self.assertNotIn("appearance_settings.load_rkn_background()", reload_source)
         self.assertNotIn("get_rkn_background_options()", reload_source)
+        self.assertIn("load_rkn_background", worker_init_source)
+        self.assertIn("get_rkn_background_options", worker_init_source)
         self.assertIn("load_rkn_background", worker_source)
         self.assertIn("get_rkn_background_options", worker_source)
+        self.assertNotIn("settings.appearance", worker_source)
 
     def test_window_background_uses_warmed_rkn_background_without_folder_scan(self) -> None:
         apply_source = inspect.getsource(ui_theme.apply_window_background)
@@ -1708,17 +1743,26 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("load_window_opacity", combined)
 
     def test_appearance_windows_accent_loads_through_worker(self) -> None:
+        appearance_feature = importlib.import_module("app.feature_facades.appearance")
         self.assertTrue(hasattr(appearance_workers, "AppearanceWindowsAccentLoadWorker"))
         worker_source = inspect.getsource(appearance_workers.AppearanceWindowsAccentLoadWorker.run)
+        worker_init_source = inspect.getsource(appearance_workers.AppearanceWindowsAccentLoadWorker.__init__)
         page_source = inspect.getsource(AppearancePage)
+        create_source = inspect.getsource(AppearancePage.create_windows_accent_load_worker)
         handler_source = inspect.getsource(AppearancePage._on_follow_windows_accent_changed)
         apply_source = inspect.getsource(AppearancePage._apply_windows_accent)
+        feature_source = inspect.getsource(appearance_feature.AppearanceFeature)
 
         self.assertIn("load_windows_system_accent", worker_source)
+        self.assertIn("load_windows_system_accent", worker_init_source)
         self.assertIn("create_windows_accent_load_worker", page_source)
+        self.assertIn("create_windows_accent_load_worker", feature_source)
+        self.assertNotIn("AppearanceWindowsAccentLoadWorker", create_source)
+        self.assertIn("self._appearance.create_windows_accent_load_worker", create_source)
         self.assertIn("_windows_accent_load_worker", page_source)
         self.assertIn("_request_windows_accent_load", handler_source)
         self.assertNotIn("load_windows_system_accent", apply_source)
+        self.assertNotIn("settings.appearance", worker_source)
 
     def test_premium_navigation_does_not_read_device_info_during_language_refresh(self) -> None:
         language_source = inspect.getsource(premium_page_lifecycle.apply_premium_language)

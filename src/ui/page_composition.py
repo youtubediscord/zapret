@@ -125,6 +125,7 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
     ),
     PageName.APPEARANCE: PageDepsSpec(
         build_appearance_page_kwargs,
+        features=("appearance",),
         actions=(
             "set_garland_enabled",
             "set_snowflakes_enabled",

@@ -65,6 +65,7 @@ class AppearancePage(BasePage):
         on_smooth_scroll_changed,
         on_editor_smooth_scroll_changed,
         on_ui_language_changed,
+        appearance_feature,
         ui_state_store,
     ):
         super().__init__(
@@ -84,6 +85,7 @@ class AppearancePage(BasePage):
         self._on_smooth_scroll_changed_callback = on_smooth_scroll_changed
         self._on_editor_smooth_scroll_changed_callback = on_editor_smooth_scroll_changed
         self._on_ui_language_changed_callback = on_ui_language_changed
+        self._appearance = appearance_feature
 
         self._display_mode_seg = None    # SegmentedWidget
         self._display_mode_section_title = None
@@ -599,9 +601,7 @@ class AppearancePage(BasePage):
                 self._end_ui_sync()
 
     def create_appearance_save_worker(self, request_id: int, *, action: str, value=None, context_extra: dict | None = None):
-        from settings.appearance_workers import AppearanceSettingsSaveWorker
-
-        return AppearanceSettingsSaveWorker(
+        return self._appearance.create_appearance_save_worker(
             request_id,
             action=action,
             value=value,
@@ -610,9 +610,7 @@ class AppearancePage(BasePage):
         )
 
     def create_initial_state_load_worker(self, request_id: int):
-        from settings.appearance_workers import AppearanceInitialStateLoadWorker
-
-        return AppearanceInitialStateLoadWorker(request_id, parent=self)
+        return self._appearance.create_initial_state_load_worker(request_id, parent=self)
 
     def _request_initial_state_load(self, *, force: bool) -> None:
         if self._cleanup_in_progress:
@@ -855,9 +853,7 @@ class AppearancePage(BasePage):
         self._request_rkn_background_options_load()
 
     def create_rkn_background_options_load_worker(self, request_id: int):
-        from settings.appearance_workers import AppearanceRknBackgroundOptionsLoadWorker
-
-        return AppearanceRknBackgroundOptionsLoadWorker(request_id, parent=self)
+        return self._appearance.create_rkn_background_options_load_worker(request_id, parent=self)
 
     def _request_rkn_background_options_load(self) -> None:
         if self._cleanup_in_progress:
@@ -1123,9 +1119,7 @@ class AppearancePage(BasePage):
                 self._color_picker_btn.setEnabled(True)
 
     def create_windows_accent_load_worker(self, request_id: int):
-        from settings.appearance_workers import AppearanceWindowsAccentLoadWorker
-
-        return AppearanceWindowsAccentLoadWorker(request_id, parent=self)
+        return self._appearance.create_windows_accent_load_worker(request_id, parent=self)
 
     def _request_windows_accent_load(self) -> None:
         if self._cleanup_in_progress:
