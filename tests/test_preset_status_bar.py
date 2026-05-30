@@ -93,6 +93,22 @@ class _VisibleWidget:
         self._visible = value
 
 
+class _SpinnerWidget:
+    def __init__(self) -> None:
+        self.started = 0
+        self.stopped = 0
+        self.hidden = 0
+
+    def start(self) -> None:
+        self.started += 1
+
+    def stop(self) -> None:
+        self.stopped += 1
+
+    def hide(self) -> None:
+        self.hidden += 1
+
+
 class _BreadcrumbWidget:
     def __init__(self) -> None:
         self.block_calls: list[bool] = []
@@ -179,6 +195,27 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         self.assertEqual(plan.text, "Пресет загружен")
         self.assertEqual(plan.mode, "success")
         self.assertEqual(plan.indicator, "check")
+
+    def test_status_bar_theme_refresh_skips_duplicate_text(self) -> None:
+        from unittest.mock import Mock, patch
+
+        from presets.ui.common.preset_status_bar import PresetStatusBar, PresetStatusPlan
+
+        plan = PresetStatusPlan("Пресет применён", "success", "check")
+        bar = PresetStatusBar.__new__(PresetStatusBar)
+        bar._last_plan = plan
+        bar._last_theme_key = ("#5caee8", False)
+        bar._last_indicator = "check"
+        bar.spinner = _SpinnerWidget()
+        bar.check_label = _VisibleWidget(True)
+        bar.text_label = _TextWidget("Пресет применён")
+        bar._apply_mode_style = Mock()
+
+        with patch("presets.ui.common.preset_status_bar._status_theme_key", return_value=("#8cc63f", False)):
+            PresetStatusBar.set_plan(bar, plan)
+
+        self.assertEqual(bar.text_label.text_calls, [])
+        bar._apply_mode_style.assert_called_once_with("success")
 
     def test_switch_preset_sets_busy_status_until_runtime_finishes_or_skips(self) -> None:
         from winws_runtime.runtime.restart_flow import switch_presets_async

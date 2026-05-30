@@ -98,6 +98,17 @@ def _status_theme_key() -> tuple[str, bool]:
         return "", False
 
 
+def set_text_if_changed(widget, text: str) -> bool:
+    value = str(text or "")
+    try:
+        if str(widget.text()) == value:
+            return False
+    except Exception:
+        pass
+    widget.setText(value)
+    return True
+
+
 class PresetStatusBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -147,7 +158,7 @@ class PresetStatusBar(QWidget):
                 self.spinner.stop()
                 self.check_label.setVisible(indicator == "check")
 
-        self.text_label.setText(normalized_plan.text)
+        set_text_if_changed(self.text_label, normalized_plan.text)
         self._apply_mode_style(mode)
 
     def _apply_mode_style(self, mode: str) -> None:
