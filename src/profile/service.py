@@ -448,6 +448,8 @@ class ProfilePresetService:
         preset, _manifest = self.load_selected_preset()
         index = _profile_index_for_key(preset, profile_key)
         if index is not None:
+            if bool(preset.profiles[index].enabled) == bool(enabled):
+                return preset.profiles[index].key
             preset = with_profile_enabled(preset, index, bool(enabled))
             self.save_selected_preset(preset)
             return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None
