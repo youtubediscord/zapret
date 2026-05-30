@@ -1331,7 +1331,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             ],
         )
         self.assertEqual(len(scheduled), 1)
-        self.assertLessEqual(scheduled[0][0], 250)
+        self.assertLessEqual(scheduled[0][0], 16)
         metric.assert_called_once_with("StartupContinueAfterUiReadyQueued", f"{scheduled[0][0]}ms")
 
         with patch.object(window_startup, "emit_startup_metric") as metric:
