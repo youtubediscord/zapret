@@ -119,8 +119,7 @@ class BlockcheckPage(BasePage):
         self._initial_state_runtime = OneShotWorkerRuntime()
         self._initial_state_load_started_at = 0.0
         self._support_prepare_runtime = OneShotWorkerRuntime()
-        self._user_domain_action_worker = None
-        self._user_domain_action_request_id = 0
+        self._user_domain_action_runtime = OneShotWorkerRuntime()
         self._user_domain_action_pending: list[dict[str, str]] = []
         self._build_ui()
         self._request_page_initial_state_load()
@@ -961,33 +960,34 @@ class BlockcheckPage(BasePage):
         }
         if not payload["action"] or not payload["domain"]:
             return
-        worker = self.__dict__.get("_user_domain_action_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._user_domain_action_pending.append(payload)
-                    return
-            except Exception:
-                self._user_domain_action_pending.append(payload)
-                return
+        if self._user_domain_action_runtime.is_running():
+            self._user_domain_action_pending.append(payload)
+            return
         self._start_user_domain_action_worker(payload)
 
     def _start_user_domain_action_worker(self, payload: dict[str, str]) -> None:
-        self._user_domain_action_request_id += 1
-        request_id = self._user_domain_action_request_id
-        worker = self.create_user_domain_action_worker(
-            request_id,
-            action=str(payload.get("action") or ""),
-            domain=str(payload.get("domain") or ""),
+        def worker_factory(request_id: int):
+            return self.create_user_domain_action_worker(
+                request_id,
+                action=str(payload.get("action") or ""),
+                domain=str(payload.get("domain") or ""),
+            )
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_user_domain_action_finished)
+            worker.failed.connect(self._on_user_domain_action_failed)
+
+        self._user_domain_action_runtime.start_qthread_worker(
+            worker_factory=worker_factory,
+            bind_worker=bind_worker,
+            on_finished=self._on_user_domain_action_runtime_finished,
         )
-        self._user_domain_action_worker = worker
-        worker.completed.connect(self._on_user_domain_action_finished)
-        worker.failed.connect(self._on_user_domain_action_failed)
-        worker.finished.connect(lambda w=worker: self._on_user_domain_action_worker_finished(w))
-        worker.start()
 
     def _on_user_domain_action_finished(self, request_id: int, action: str, result, context) -> None:
-        if request_id != self._user_domain_action_request_id or self._cleanup_in_progress:
+        if not self._user_domain_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         context = dict(context or {})
         if action == "add":
@@ -1014,17 +1014,14 @@ class BlockcheckPage(BasePage):
             )
 
     def _on_user_domain_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
-        if request_id != self._user_domain_action_request_id or self._cleanup_in_progress:
+        if not self._user_domain_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         logger.warning("Failed to %s BlockCheck domain: %s", action, error)
 
-    def _on_user_domain_action_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_user_domain_action_worker") is worker:
-            self._user_domain_action_worker = None
-        try:
-            worker.deleteLater()
-        except Exception:
-            pass
+    def _on_user_domain_action_runtime_finished(self, _worker) -> None:
         if self._user_domain_action_pending and not self._cleanup_in_progress:
             pending = self._user_domain_action_pending.pop(0)
             self._start_user_domain_action_worker(dict(pending or {}))
@@ -1065,13 +1062,12 @@ class BlockcheckPage(BasePage):
         )
         self._support_prepare_runtime.cancel()
         self._user_domain_action_pending.clear()
-        domain_worker = self.__dict__.get("_user_domain_action_worker")
-        if domain_worker is not None:
-            try:
-                domain_worker.quit()
-            except Exception:
-                pass
-            self._user_domain_action_worker = None
+        self._user_domain_action_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="blockcheck user domain action worker",
+        )
+        self._user_domain_action_runtime.cancel()
         self._worker = cleanup_blockcheck_worker(self._worker)
 
         for page in (self._strategy_tab_page, self._diagnostics_tab_page, self._dns_spoofing_tab_page):
