@@ -255,6 +255,18 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._favorite_button.text_calls, [])
         self.assertEqual(page._favorite_button._text, "Убрать из избранного")
 
+    def test_user_profile_buttons_skip_duplicate_enabled_state(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._update_user_profile_button = _BoolWidget(enabled=False)
+        page._delete_user_profile_button = _BoolWidget(enabled=False)
+
+        ProfileSetupPageBase._set_user_profile_buttons_enabled(page, False)
+
+        self.assertEqual(page._update_user_profile_button.enabled_calls, [])
+        self.assertEqual(page._delete_user_profile_button.enabled_calls, [])
+
     def test_profile_payload_request_skips_duplicate_loading_state(self) -> None:
         from unittest.mock import Mock
 

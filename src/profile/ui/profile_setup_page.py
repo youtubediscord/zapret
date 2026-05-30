@@ -1276,9 +1276,9 @@ class ProfileSetupPageBase(BasePage):
 
     def _set_user_profile_buttons_enabled(self, enabled: bool) -> None:
         if self._update_user_profile_button is not None:
-            self._update_user_profile_button.setEnabled(enabled)
+            set_widget_enabled_if_changed(self._update_user_profile_button, enabled)
         if self._delete_user_profile_button is not None:
-            self._delete_user_profile_button.setEnabled(enabled)
+            set_widget_enabled_if_changed(self._delete_user_profile_button, enabled)
 
     def _current_user_profile_id(self) -> str:
         return _user_profile_id_from_payload(self._profile_key, self._payload)
