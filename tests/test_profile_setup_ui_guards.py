@@ -143,6 +143,22 @@ class _IndexWidget:
         self._index = value
 
 
+class _Signal:
+    def connect(self, _callback) -> None:
+        pass
+
+
+class _LoadWorker:
+    def __init__(self) -> None:
+        self.loaded = _Signal()
+        self.failed = _Signal()
+        self.finished = _Signal()
+        self.start_calls = 0
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+
 class ProfileSetupUiGuardTests(unittest.TestCase):
     def test_text_update_skips_duplicate_value(self) -> None:
         from profile.ui.profile_setup_page import set_widget_text_if_changed
@@ -227,6 +243,27 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._notwork_button.property_calls, [])
         self.assertEqual(page._favorite_button.text_calls, [])
         self.assertEqual(page._favorite_button._text, "Убрать из избранного")
+
+    def test_profile_payload_request_skips_duplicate_loading_state(self) -> None:
+        from unittest.mock import Mock
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        worker = _LoadWorker()
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._setup_load_request_id = 0
+        page._summary = _TextWidget("Загрузка profile...")
+        page._enabled_checkbox = _BoolWidget(enabled=False)
+        page._controller = Mock()
+        page._controller.create_load_worker.return_value = worker
+
+        ProfileSetupPageBase._request_profile_setup_payload(page)
+
+        self.assertEqual(page._summary.calls, [])
+        self.assertEqual(page._enabled_checkbox.enabled_calls, [])
+        page._controller.create_load_worker.assert_called_once_with(1, "profile-1", page)
+        self.assertEqual(worker.start_calls, 1)
 
     def test_list_file_editor_state_skips_duplicate_plain_text(self) -> None:
         from types import SimpleNamespace

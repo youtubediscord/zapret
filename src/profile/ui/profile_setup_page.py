@@ -1439,8 +1439,8 @@ class ProfileSetupPageBase(BasePage):
             return
         self._setup_load_request_id += 1
         request_id = self._setup_load_request_id
-        self._summary.setText("Загрузка profile...")
-        self._enabled_checkbox.setEnabled(False)
+        set_widget_text_if_changed(self._summary, "Загрузка profile...")
+        set_widget_enabled_if_changed(self._enabled_checkbox, False)
         worker = self._controller.create_load_worker(request_id, self._profile_key, self)
         self._setup_load_worker = worker
         worker.loaded.connect(self._on_profile_setup_payload_loaded)
@@ -1452,8 +1452,11 @@ class ProfileSetupPageBase(BasePage):
         if request_id != self._setup_load_request_id:
             return
         if payload is None:
-            self._summary.setText("Профиль не найден. Вернитесь к списку и выберите profile заново.")
-            self._enabled_checkbox.setEnabled(False)
+            set_widget_text_if_changed(
+                self._summary,
+                "Профиль не найден. Вернитесь к списку и выберите profile заново.",
+            )
+            set_widget_enabled_if_changed(self._enabled_checkbox, False)
             return
         self._payload = payload
         self._apply_payload(payload)
@@ -1462,8 +1465,11 @@ class ProfileSetupPageBase(BasePage):
         if request_id != self._setup_load_request_id:
             return
         log(f"{self.__class__.__name__}: не удалось прочитать профиль {self._profile_key}: {error}", "ERROR")
-        self._summary.setText("Профиль не найден. Вернитесь к списку и выберите profile заново.")
-        self._enabled_checkbox.setEnabled(False)
+        set_widget_text_if_changed(
+            self._summary,
+            "Профиль не найден. Вернитесь к списку и выберите profile заново.",
+        )
+        set_widget_enabled_if_changed(self._enabled_checkbox, False)
 
     def _on_profile_setup_worker_finished(self, worker) -> None:
         if self._setup_load_worker is worker:
