@@ -107,3 +107,7 @@ class LogsFeature:
 
     def handle_thread_stop(self, **kwargs):
         return self._runtime().handle_thread_stop(**kwargs)
+
+
+def build_logs_feature() -> LogsFeature:
+    return LogsFeature()
