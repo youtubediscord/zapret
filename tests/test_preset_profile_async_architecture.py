@@ -1952,16 +1952,19 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_reset_storage", worker_source)
 
     def test_support_page_external_links_run_through_worker(self) -> None:
-        spec = importlib.util.find_spec("ui.pages.support_open_worker")
-        self.assertIsNotNone(spec)
-        support_open_worker = importlib.import_module("ui.pages.support_open_worker")
+        from app.feature_facades.external import ExternalActionsFeature
+        import app.external_workers as external_workers
 
         page_source = inspect.getsource(SupportPage)
-        worker_source = inspect.getsource(support_open_worker.SupportOpenActionWorker.run)
+        feature_source = inspect.getsource(ExternalActionsFeature)
+        worker_source = inspect.getsource(external_workers.ExternalActionWorker.run)
 
-        self.assertTrue(hasattr(support_open_worker, "SupportOpenActionWorker"))
+        self.assertTrue(hasattr(external_workers, "ExternalActionWorker"))
         self.assertIn("_support_open_runtime", page_source)
         self.assertIn("create_support_open_action_worker", page_source)
+        self.assertIn("_create_support_open_action_worker", page_source)
+        self.assertIn("create_external_action_worker", feature_source)
+        self.assertNotIn("ui.pages.support_open_worker", page_source)
         for method_name in (
             "_open_support_discussions",
             "_open_telegram_support",
@@ -1976,16 +1979,19 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("action_fn", worker_source)
 
     def test_about_page_external_actions_run_through_worker(self) -> None:
-        spec = importlib.util.find_spec("ui.pages.about_open_worker")
-        self.assertIsNotNone(spec)
-        about_open_worker = importlib.import_module("ui.pages.about_open_worker")
+        from app.feature_facades.external import ExternalActionsFeature
+        import app.external_workers as external_workers
 
         page_source = inspect.getsource(AboutPage)
-        worker_source = inspect.getsource(about_open_worker.AboutOpenActionWorker.run)
+        feature_source = inspect.getsource(ExternalActionsFeature)
+        worker_source = inspect.getsource(external_workers.ExternalActionWorker.run)
 
-        self.assertTrue(hasattr(about_open_worker, "AboutOpenActionWorker"))
+        self.assertTrue(hasattr(external_workers, "ExternalActionWorker"))
         self.assertIn("_about_open_runtime", page_source)
         self.assertIn("create_about_open_action_worker", page_source)
+        self.assertIn("_create_about_open_action_worker", page_source)
+        self.assertIn("create_external_action_worker", feature_source)
+        self.assertNotIn("ui.pages.about_open_worker", page_source)
         for method_name in (
             "_open_support_discussions",
             "_open_telegram_support",

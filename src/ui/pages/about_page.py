@@ -58,6 +58,7 @@ class AboutPage(BasePage):
         open_kvn_bot,
         open_kvn_bypass,
         open_kvn_github,
+        create_open_action_worker,
         ui_state_store,
     ):
         super().__init__(
@@ -81,6 +82,7 @@ class AboutPage(BasePage):
         self._open_kvn_bot_action = open_kvn_bot
         self._open_kvn_bypass_action = open_kvn_bypass
         self._open_kvn_github_action = open_kvn_github
+        self._create_about_open_action_worker = create_open_action_worker
         self._about_open_runtime = OneShotWorkerRuntime()
         self._about_open_pending = None
         self._support_icon_label: QLabel | None = None
@@ -565,9 +567,7 @@ class AboutPage(BasePage):
         )
 
     def create_about_open_action_worker(self, request_id: int, *, action_name: str, action_fn):
-        from ui.pages.about_open_worker import AboutOpenActionWorker
-
-        return AboutOpenActionWorker(
+        return self._create_about_open_action_worker(
             request_id,
             action_name=action_name,
             action_fn=action_fn,

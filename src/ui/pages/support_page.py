@@ -15,7 +15,7 @@ from .base_page import BasePage
 class SupportPage(BasePage):
     """Страница поддержки с одним основным маршрутом через GitHub Discussions."""
 
-    def __init__(self, parent=None, *, open_discussions, open_telegram, open_discord):
+    def __init__(self, parent=None, *, open_discussions, open_telegram, open_discord, create_open_action_worker):
         super().__init__(
             "Поддержка",
             "GitHub Discussions и каналы сообщества",
@@ -26,6 +26,7 @@ class SupportPage(BasePage):
         self._open_discussions_action = open_discussions
         self._open_telegram_action = open_telegram
         self._open_discord_action = open_discord
+        self._create_support_open_action_worker = create_open_action_worker
         self._support_open_runtime = OneShotWorkerRuntime()
         self._support_open_pending = None
 
@@ -188,9 +189,7 @@ class SupportPage(BasePage):
         )
 
     def create_support_open_action_worker(self, request_id: int, *, action_name: str, action_fn):
-        from ui.pages.support_open_worker import SupportOpenActionWorker
-
-        return SupportOpenActionWorker(
+        return self._create_support_open_action_worker(
             request_id,
             action_name=action_name,
             action_fn=action_fn,

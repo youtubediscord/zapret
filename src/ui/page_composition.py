@@ -116,7 +116,7 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
         features=("premium",),
         include_ui_state_store=True,
     ),
-    PageName.SUPPORT: PageDepsSpec(build_support_page_kwargs),
+    PageName.SUPPORT: PageDepsSpec(build_support_page_kwargs, features=("external_actions",)),
     PageName.AUTOSTART: PageDepsSpec(
         build_autostart_page_kwargs,
         features=("autostart",),
@@ -142,6 +142,7 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
     ),
     PageName.ABOUT: PageDepsSpec(
         build_about_page_kwargs,
+        features=("external_actions",),
         actions=("show_page",),
         include_ui_state_store=True,
     ),

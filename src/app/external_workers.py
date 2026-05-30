@@ -25,24 +25,36 @@ class ExternalOpenUrlWorker(QThread):
         self.loaded.emit(self._request_id, result)
 
 
-class ExternalNotificationActionWorker(QThread):
+class ExternalActionWorker(QThread):
     loaded = pyqtSignal(int, str, object)
     failed = pyqtSignal(int, str, str)
 
-    def __init__(self, request_id: int, *, action_name: str, action_fn, parent=None):
+    def __init__(self, request_id: int, *, action_name: str, action_fn, log_name: str = "ExternalActionWorker", parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
         self._action_name = str(action_name or "").strip()
         self._action_fn = action_fn
+        self._log_name = str(log_name or "ExternalActionWorker")
 
     def run(self) -> None:
         try:
             result = self._action_fn()
         except Exception as exc:
-            log(f"ExternalNotificationActionWorker: действие {self._action_name} не выполнено: {exc}", "ERROR")
+            log(f"{self._log_name}: действие {self._action_name} не выполнено: {exc}", "ERROR")
             self.failed.emit(self._request_id, self._action_name, str(exc))
             return
         self.loaded.emit(self._request_id, self._action_name, result)
 
 
-__all__ = ["ExternalOpenUrlWorker", "ExternalNotificationActionWorker"]
+class ExternalNotificationActionWorker(ExternalActionWorker):
+    def __init__(self, request_id: int, *, action_name: str, action_fn, parent=None):
+        super().__init__(
+            request_id,
+            action_name=action_name,
+            action_fn=action_fn,
+            log_name="ExternalNotificationActionWorker",
+            parent=parent,
+        )
+
+
+__all__ = ["ExternalActionWorker", "ExternalOpenUrlWorker", "ExternalNotificationActionWorker"]

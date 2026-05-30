@@ -55,7 +55,7 @@ def build_premium_page_kwargs(*, page_name: PageName, premium_feature, ui_state_
     }
 
 
-def build_support_page_kwargs(*, page_name: PageName) -> dict:
+def build_support_page_kwargs(*, page_name: PageName, external_actions_feature) -> dict:
     _ = page_name
     import about.plans as about_page_plans
 
@@ -63,6 +63,7 @@ def build_support_page_kwargs(*, page_name: PageName) -> dict:
         "open_discussions": about_page_plans.open_support_discussions,
         "open_telegram": lambda: about_page_plans.open_telegram("zaprethelp"),
         "open_discord": lambda: about_page_plans.open_discord("https://discord.gg/kkcBDG2uws"),
+        "create_open_action_worker": external_actions_feature.create_external_action_worker,
     }
 
 
@@ -109,7 +110,7 @@ def build_appearance_page_kwargs(
     }
 
 
-def build_about_page_kwargs(*, page_name: PageName, show_page, ui_state_store) -> dict:
+def build_about_page_kwargs(*, page_name: PageName, external_actions_feature, show_page, ui_state_store) -> dict:
     _ = page_name
     import about.plans as about_page_plans
 
@@ -126,6 +127,7 @@ def build_about_page_kwargs(*, page_name: PageName, show_page, ui_state_store) -
         "open_kvn_bot": lambda: about_page_plans.open_telegram("zapretvpns_bot"),
         "open_kvn_bypass": lambda: about_page_plans.open_telegram("bypassblock"),
         "open_kvn_github": lambda: about_page_plans.open_github("https://github.com/youtubediscord/zapret-kvn"),
+        "create_open_action_worker": external_actions_feature.create_external_action_worker,
         "ui_state_store": ui_state_store,
     }
 
