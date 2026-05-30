@@ -831,6 +831,8 @@ class ProfileSetupPageBase(BasePage):
         self._raw_profile_save_worker = None
         self._enabled_save_request_id = 0
         self._enabled_save_worker = None
+        self._enabled_save_worker_enabled: bool | None = None
+        self._pending_enabled_save: bool | None = None
         self._user_profile_update_request_id = 0
         self._user_profile_update_worker = None
         self._user_profile_delete_request_id = 0
@@ -2385,16 +2387,21 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or not self._profile_key:
             return
         enabled = bool(state == Qt.CheckState.Checked.value or state == 2)
-        item = getattr(self.__dict__.get("_payload"), "item", None)
-        if item is not None and bool(getattr(item, "enabled", False)) == enabled:
-            return
         worker = self._enabled_save_worker
         if worker is not None:
             try:
                 if worker.isRunning():
+                    if self.__dict__.get("_enabled_save_worker_enabled") != enabled:
+                        self._pending_enabled_save = enabled
                     return
             except Exception:
                 return
+        item = getattr(self.__dict__.get("_payload"), "item", None)
+        if item is not None and bool(getattr(item, "enabled", False)) == enabled:
+            return
+        self._start_enabled_save_worker(enabled)
+
+    def _start_enabled_save_worker(self, enabled: bool) -> None:
         self._enabled_save_request_id += 1
         request_id = self._enabled_save_request_id
         if self._enabled_checkbox is not None:
@@ -2408,6 +2415,7 @@ class ProfileSetupPageBase(BasePage):
             parent=self,
         )
         self._enabled_save_worker = worker
+        self._enabled_save_worker_enabled = bool(enabled)
         worker.saved.connect(self._on_enabled_save_finished)
         worker.failed.connect(self._on_enabled_save_failed)
         worker.finished.connect(lambda w=worker: self._on_enabled_save_worker_finished(w))
@@ -2472,7 +2480,18 @@ class ProfileSetupPageBase(BasePage):
     def _on_enabled_save_worker_finished(self, worker) -> None:
         if self._enabled_save_worker is worker:
             self._enabled_save_worker = None
+            self._enabled_save_worker_enabled = None
         worker.deleteLater()
+        pending = self.__dict__.get("_pending_enabled_save")
+        self._pending_enabled_save = None
+        if pending is None:
+            return
+        item = getattr(self.__dict__.get("_payload"), "item", None)
+        if item is not None and bool(getattr(item, "enabled", False)) == bool(pending):
+            if self._enabled_checkbox is not None:
+                set_widget_enabled_if_changed(self._enabled_checkbox, True)
+            return
+        self._start_enabled_save_worker(bool(pending))
 
     def _on_strategy_list_activated(self, strategy_id: str) -> None:
         if self._loading or not self._profile_key:
@@ -2723,6 +2742,7 @@ class ProfileSetupPageBase(BasePage):
         for attr in (
             "_pending_list_file_validation",
             "_pending_settings_save",
+            "_pending_enabled_save",
             "_pending_strategy_apply",
             "_pending_strategy_feedback_save",
         ):
@@ -2763,6 +2783,7 @@ class ProfileSetupPageBase(BasePage):
                 pass
             setattr(self, attr, None)
         self._strategy_apply_worker_strategy_id = ""
+        self._enabled_save_worker_enabled = None
         try:
             super().cleanup()
         except Exception:
