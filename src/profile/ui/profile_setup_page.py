@@ -862,6 +862,9 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_status_label = None
         self._list_file_save_button = None
         self._list_file_kind = ""
+        self._list_file_text_snapshot = ""
+        self._list_file_user_entries_count = 0
+        self._list_file_base_entries_count = 0
         self._list_file_normal_style = ""
         self._list_file_error_style = ""
         self._settings_save_timer = QTimer(self)
@@ -1776,6 +1779,10 @@ class ProfileSetupPageBase(BasePage):
         error_text = str(getattr(state, "error_text", "") or "").strip()
         invalid_lines = tuple(getattr(state, "invalid_lines", ()) or ())
         self._list_file_kind = kind
+        visible_user_text = user_text if editable else text
+        self._list_file_text_snapshot = visible_user_text
+        self._list_file_base_entries_count = _list_file_entries_count(base_text) if editable else 0
+        self._list_file_user_entries_count = _list_file_entries_count(visible_user_text)
 
         title = "Файл списка"
         if display_path:
@@ -1820,8 +1827,8 @@ class ProfileSetupPageBase(BasePage):
             set_widget_enabled_if_changed(self._list_file_save_button, editable and not invalid_lines)
         if self._list_file_status_label is not None:
             if editable:
-                base_count = _list_file_entries_count(base_text)
-                user_count = _list_file_entries_count(user_text)
+                base_count = self._list_file_base_entries_count
+                user_count = self._list_file_user_entries_count
                 set_widget_text_if_changed(
                     self._list_file_status_label,
                     f"Записей всего: {base_count + user_count} • ваших: {user_count}"
@@ -1837,6 +1844,8 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or self._list_file_text is None:
             return
         text = self._list_file_text.toPlainText()
+        self._list_file_text_snapshot = text
+        self._list_file_user_entries_count = _list_file_entries_count(text)
         if self._list_file_status_label is not None:
             set_widget_text_if_changed(self._list_file_status_label, "Проверка списка...")
         self._request_list_file_validation({
@@ -1883,7 +1892,7 @@ class ProfileSetupPageBase(BasePage):
             return
         if str(kind or "").strip() != str(getattr(self, "_list_file_kind", "") or "").strip():
             return
-        current_text = self._list_file_text.toPlainText() if self._list_file_text is not None else ""
+        current_text = str(self.__dict__.get("_list_file_text_snapshot", "") or "")
         if str(text or "") != current_text:
             return
         invalid_lines = tuple(invalid_lines or ())
@@ -1898,12 +1907,8 @@ class ProfileSetupPageBase(BasePage):
                     "Исправьте ошибки перед сохранением.",
                 )
             else:
-                user_count = _list_file_entries_count(self._list_file_text.toPlainText())
-                base_count = _list_file_entries_count(
-                    self._list_file_base_text.toPlainText()
-                    if self._list_file_base_text is not None
-                    else ""
-                )
+                user_count = int(self.__dict__.get("_list_file_user_entries_count", 0) or 0)
+                base_count = int(self.__dict__.get("_list_file_base_entries_count", 0) or 0)
                 set_widget_text_if_changed(
                     self._list_file_status_label,
                     f"Записей всего: {base_count + user_count} • ваших: {user_count} • есть несохранённые изменения",

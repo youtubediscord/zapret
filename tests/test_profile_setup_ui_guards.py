@@ -118,6 +118,7 @@ class _PlainTextWidget(_BoolWidget):
         self._read_only = bool(read_only)
         self._placeholder = str(placeholder)
         self.block_calls: list[bool] = []
+        self.plain_text_read_calls: list[str] = []
         self.plain_text_calls: list[str] = []
         self.read_only_calls: list[bool] = []
         self.placeholder_calls: list[str] = []
@@ -126,6 +127,7 @@ class _PlainTextWidget(_BoolWidget):
         self.block_calls.append(bool(blocked))
 
     def toPlainText(self) -> str:  # noqa: N802
+        self.plain_text_read_calls.append(self._text)
         return self._text
 
     def setPlainText(self, text: str) -> None:  # noqa: N802
@@ -540,6 +542,9 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         page._list_file_status_label = _TextWidget(
             "Записей всего: 2 • ваших: 1 • есть несохранённые изменения"
         )
+        page._list_file_text_snapshot = "user.example"
+        page._list_file_user_entries_count = 1
+        page._list_file_base_entries_count = 1
         page._render_list_file_validation = Mock()
 
         ProfileSetupPageBase._on_list_file_validation_finished(
@@ -553,6 +558,39 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._list_file_save_button.enabled_calls, [])
         self.assertEqual(page._list_file_status_label.calls, [])
         page._render_list_file_validation.assert_called_once_with(())
+
+    def test_list_file_validation_result_uses_cached_text_and_counts(self) -> None:
+        from unittest.mock import Mock
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_validation_request_id = 7
+        page._pending_list_file_validation = None
+        page._list_file_kind = "hostlist"
+        page._list_file_text = _PlainTextWidget("user.example\nsecond.example", read_only=False)
+        page._list_file_base_text = _PlainTextWidget("base.example")
+        page._list_file_save_button = _BoolWidget(enabled=False)
+        page._list_file_status_label = _TextWidget("")
+        page._list_file_text_snapshot = "user.example\nsecond.example"
+        page._list_file_user_entries_count = 2
+        page._list_file_base_entries_count = 1
+        page._render_list_file_validation = Mock()
+
+        ProfileSetupPageBase._on_list_file_validation_finished(
+            page,
+            7,
+            "hostlist",
+            "user.example\nsecond.example",
+            (),
+        )
+
+        self.assertEqual(page._list_file_text.plain_text_read_calls, [])
+        self.assertEqual(page._list_file_base_text.plain_text_read_calls, [])
+        self.assertEqual(
+            page._list_file_status_label.text(),
+            "Записей всего: 3 • ваших: 2 • есть несохранённые изменения",
+        )
 
     def test_list_file_validation_label_skips_duplicate_error_render(self) -> None:
         from unittest.mock import Mock
