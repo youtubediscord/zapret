@@ -240,7 +240,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_load_worker = None
         self._raw_save_request_id = 0
         self._raw_save_worker = None
-        self._pending_raw_preset_save: tuple[str, str, bool] | None = None
+        self._pending_raw_preset_save: tuple[str, str | None, bool] | None = None
         self._after_raw_preset_save = None
         self._raw_save_succeeded = True
         self._raw_activate_request_id = 0
@@ -640,6 +640,17 @@ class PresetRawEditorPage(BasePage):
             return False
         if self._preset_path is None:
             return False
+        worker = self._raw_save_worker
+        if worker is not None:
+            try:
+                if worker.isRunning():
+                    return self._request_raw_preset_save(
+                        file_name=self._preset_file_name,
+                        source_text=None,
+                        publish_content_changed=publish_content_changed,
+                    )
+            except Exception:
+                return False
         return self._request_raw_preset_save(
             file_name=self._preset_file_name,
             source_text=self.editor.toPlainText(),
@@ -650,7 +661,7 @@ class PresetRawEditorPage(BasePage):
         self,
         *,
         file_name: str,
-        source_text: str,
+        source_text: str | None,
         publish_content_changed: bool = False,
     ) -> bool:
         worker = self._raw_save_worker
@@ -660,7 +671,7 @@ class PresetRawEditorPage(BasePage):
                     pending = self._pending_raw_preset_save
                     self._pending_raw_preset_save = (
                         str(file_name or "").strip(),
-                        str(source_text or ""),
+                        None if source_text is None else str(source_text or ""),
                         bool(publish_content_changed or (pending[2] if pending else False)),
                     )
                     return True
@@ -734,6 +745,9 @@ class PresetRawEditorPage(BasePage):
         pending = self._pending_raw_preset_save
         self._pending_raw_preset_save = None
         if pending and not self._cleanup_in_progress:
+            if pending[1] is None:
+                self._save_file(publish_content_changed=pending[2])
+                return
             self._start_raw_preset_save_worker(
                 file_name=pending[0],
                 source_text=pending[1],

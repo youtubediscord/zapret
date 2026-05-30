@@ -8,9 +8,11 @@ from unittest.mock import Mock
 class _PlainTextEditor:
     def __init__(self, text: str = "") -> None:
         self._text = str(text)
+        self.plain_text_read_calls: list[str] = []
         self.plain_text_calls: list[str] = []
 
     def toPlainText(self) -> str:  # noqa: N802
+        self.plain_text_read_calls.append(self._text)
         return self._text
 
     def setPlainText(self, text: str) -> None:  # noqa: N802
@@ -47,6 +49,11 @@ class _Worker:
 
     def start(self) -> None:
         self.start_calls += 1
+
+
+class _RunningWorker:
+    def isRunning(self) -> bool:  # noqa: N802
+        return True
 
 
 class PresetSubpageUiGuardTests(unittest.TestCase):
@@ -96,6 +103,22 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         self.assertEqual(page.activateButton.enabled_calls, [])
         page.create_raw_preset_activate_worker.assert_called_once_with(1, "Default.txt", page)
         self.assertEqual(worker.start_calls, 1)
+
+    def test_raw_preset_save_while_worker_runs_defers_editor_read(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._cleanup_in_progress = False
+        page._preset_path = object()
+        page._preset_file_name = "Default.txt"
+        page._raw_save_worker = _RunningWorker()
+        page._pending_raw_preset_save = None
+        page.editor = _PlainTextEditor("--new\n--filter-tcp=443\n")
+
+        self.assertTrue(PresetRawEditorPage._save_file(page, publish_content_changed=True))
+
+        self.assertEqual(page.editor.plain_text_read_calls, [])
+        self.assertEqual(page._pending_raw_preset_save, ("Default.txt", None, True))
 
     def test_status_message_update_skips_runtime_toggle_render(self) -> None:
         from app.state_store import AppUiState
