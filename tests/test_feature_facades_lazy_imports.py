@@ -1,11 +1,31 @@
 from __future__ import annotations
 
 import importlib
+import ast
+import inspect
 import sys
 import unittest
 
 
 class FeatureFacadesLazyImportTests(unittest.TestCase):
+    def test_feature_assembly_direct_imports_point_to_existing_exports(self) -> None:
+        from app import feature_assembly
+
+        tree = ast.parse(inspect.getsource(feature_assembly.build_app_features))
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            if not node.module or not node.module.startswith("app.feature_facades"):
+                continue
+
+            module = importlib.import_module(node.module)
+            for alias in node.names:
+                self.assertTrue(
+                    hasattr(module, alias.name),
+                    f"{node.module}.{alias.name} is imported by build_app_features but does not exist",
+                )
+
     def test_lazy_feature_facade_modules_are_listed_without_importing_them(self) -> None:
         module_names = (
             "app.feature_facades",
