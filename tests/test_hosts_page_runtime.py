@@ -48,7 +48,9 @@ class HostsPageRuntimeTests(unittest.TestCase):
         self.assertIn("start_qthread_worker", request_source)
         self.assertIn("_selection_save_pending", request_source)
         self.assertIn("_selection_save_pending", finished_source)
-        self.assertIn("hosts_commands.save_user_selection", worker_source)
+        self.assertIn("save_user_selection=self._hosts.save_user_selection", controller_source)
+        self.assertIn("_save_user_selection", worker_source)
+        self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
         self.assertIn("save_user_selection", inspect.getsource(hosts_commands.save_user_selection))
 

@@ -18,27 +18,49 @@ class HostsPageController:
     def create_selection_save_worker(self, request_id: int, selection: dict[str, str], parent=None):
         from hosts.selection_save_worker import HostsSelectionSaveWorker
 
-        return HostsSelectionSaveWorker(request_id, selection, parent)
+        return HostsSelectionSaveWorker(
+            request_id,
+            selection,
+            save_user_selection=self._hosts.save_user_selection,
+            parent=parent,
+        )
 
     def create_selection_load_worker(self, request_id: int, parent=None):
         from hosts.selection_load_worker import HostsSelectionLoadWorker
 
-        return HostsSelectionLoadWorker(request_id, parent)
+        return HostsSelectionLoadWorker(
+            request_id,
+            load_user_selection=self._hosts.load_user_selection,
+            parent=parent,
+        )
 
     def create_state_load_worker(self, request_id: int, hosts_runtime, parent=None):
         from hosts.state_load_worker import HostsStateLoadWorker
 
-        return HostsStateLoadWorker(request_id, hosts_runtime, parent)
+        return HostsStateLoadWorker(
+            request_id,
+            hosts_runtime,
+            get_hosts_state=self._hosts.get_hosts_state,
+            parent=parent,
+        )
 
     def create_open_hosts_file_worker(self, request_id: int, parent=None):
         from hosts.open_file_worker import HostsOpenFileWorker
 
-        return HostsOpenFileWorker(request_id, parent)
+        return HostsOpenFileWorker(
+            request_id,
+            open_hosts_file=self._hosts.open_hosts_file,
+            parent=parent,
+        )
 
     def create_permission_restore_worker(self, request_id: int, parent=None):
         from hosts.permission_restore_worker import HostsPermissionRestoreWorker
 
-        return HostsPermissionRestoreWorker(request_id, parent)
+        return HostsPermissionRestoreWorker(
+            request_id,
+            restore_hosts_permissions=self._hosts.restore_hosts_permissions,
+            parent=parent,
+        )
 
     def create_hosts_runtime(self, *, status_callback=None):
         return self._hosts.create_hosts_runtime(status_callback=status_callback)
@@ -55,7 +77,11 @@ class HostsPageController:
     def create_services_catalog_worker(self, **kwargs):
         from hosts.services_catalog_worker import HostsServicesCatalogWorker
 
-        return HostsServicesCatalogWorker(**kwargs)
+        return HostsServicesCatalogWorker(
+            build_services_catalog_plan=self._hosts.build_services_catalog_plan,
+            get_catalog_signature=self._hosts.get_catalog_signature,
+            **kwargs,
+        )
 
     def get_catalog_signature(self):
         return self._hosts.get_catalog_signature()

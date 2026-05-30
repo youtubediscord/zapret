@@ -3466,7 +3466,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_start_user_selection_load_worker", runtime_source)
         self.assertNotIn("self._controller.load_user_selection()", runtime_source)
         self.assertIn("create_selection_load_worker", controller_source)
-        self.assertIn("hosts_commands.load_user_selection", worker_source)
+        self.assertIn("load_user_selection=self._hosts.load_user_selection", controller_source)
+        self.assertIn("_load_user_selection", worker_source)
+        self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
         self.assertIn("load_user_selection", inspect.getsource(hosts_commands.load_user_selection))
 
@@ -3487,7 +3489,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("_get_hosts_runtime_state()", update_source)
         self.assertNotIn("_get_hosts_runtime_state()", access_source)
         self.assertIn("create_state_load_worker", controller_source)
-        self.assertIn("hosts_commands.get_hosts_state", worker_source)
+        self.assertIn("get_hosts_state=self._hosts.get_hosts_state", controller_source)
+        self.assertIn("_get_hosts_state", worker_source)
+        self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
         self.assertIn("get_hosts_state", inspect.getsource(hosts_commands.get_hosts_state))
 
@@ -3507,7 +3511,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn(".open_hosts_file(", open_source)
         self.assertIn("create_open_hosts_file_worker", page_source)
         self.assertIn("create_open_hosts_file_worker", controller_source)
-        self.assertIn("hosts_commands.open_hosts_file", worker_source)
+        self.assertIn("open_hosts_file=self._hosts.open_hosts_file", controller_source)
+        self.assertIn("_open_hosts_file", worker_source)
+        self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
         self.assertIn("open_hosts_file", inspect.getsource(hosts_commands.open_hosts_file))
 
@@ -3527,7 +3533,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("restore_hosts_permissions_flow(", restore_source)
         self.assertIn("create_permission_restore_worker", request_source)
         self.assertIn("create_permission_restore_worker", controller_source)
-        self.assertIn("hosts_commands.restore_hosts_permissions", worker_source)
+        self.assertIn("restore_hosts_permissions=self._hosts.restore_hosts_permissions", controller_source)
+        self.assertIn("_restore_hosts_permissions", worker_source)
+        self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
         self.assertIn("restore_hosts_permissions", inspect.getsource(hosts_commands.restore_hosts_permissions))
 

@@ -14,6 +14,7 @@ class HostsFeature:
     read_active_domains_map: Callable
     save_user_selection: Callable
     get_catalog_signature: Callable
+    build_services_catalog_plan: Callable
     invalidate_catalog_cache: Callable
     restore_hosts_permissions: Callable
     open_hosts_file: Callable
@@ -41,6 +42,7 @@ def build_hosts_feature() -> HostsFeature:
         read_active_domains_map=lambda *args, **kwargs: _public().read_active_domains_map(*args, **kwargs),
         save_user_selection=lambda *args, **kwargs: _public().save_user_selection(*args, **kwargs),
         get_catalog_signature=lambda *args, **kwargs: _public().get_catalog_signature(*args, **kwargs),
+        build_services_catalog_plan=lambda *args, **kwargs: _public().build_services_catalog_plan(*args, **kwargs),
         invalidate_catalog_cache=lambda *args, **kwargs: _public().invalidate_catalog_cache(*args, **kwargs),
         restore_hosts_permissions=lambda *args, **kwargs: _public().restore_hosts_permissions(*args, **kwargs),
         open_hosts_file=lambda *args, **kwargs: _public().open_hosts_file(*args, **kwargs),

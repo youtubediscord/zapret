@@ -11,16 +11,15 @@ class HostsSelectionSaveWorker(QThread):
     loaded = pyqtSignal(int, bool)
     failed = pyqtSignal(int, str)
 
-    def __init__(self, request_id: int, selection: dict[str, str], parent=None):
+    def __init__(self, request_id: int, selection: dict[str, str], *, save_user_selection, parent=None):
         super().__init__(parent)
         self._request_id = int(request_id)
         self._selection = dict(selection or {})
+        self._save_user_selection = save_user_selection
 
     def run(self) -> None:
-        from hosts import commands as hosts_commands
-
         try:
-            saved = bool(hosts_commands.save_user_selection(self._selection))
+            saved = bool(self._save_user_selection(self._selection))
         except Exception as exc:
             log(f"HostsSelectionSaveWorker: не удалось сохранить выбор hosts: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
