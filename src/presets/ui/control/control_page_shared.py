@@ -109,7 +109,7 @@ class ControlPageActionMixin:
             handler()
 
     def create_external_open_url_worker(self, request_id: int, *, url: str):
-        return self._external_actions.create_open_url_worker(request_id, url=url, parent=self)
+        return self._create_external_open_url_worker(request_id, url=url, parent=self)
 
     def _ensure_external_open_url_runtime(self) -> OneShotWorkerRuntime:
         runtime = self.__dict__.get("_external_open_url_runtime")
@@ -210,7 +210,7 @@ class ControlPageActionMixin:
             pass
 
     def create_program_settings_save_worker(self, request_id: int, *, action: str, enabled: bool):
-        return self._program_settings.create_program_settings_save_worker(
+        return self._create_program_settings_save_worker(
             request_id,
             action=action,
             enabled=bool(enabled),
@@ -218,7 +218,7 @@ class ControlPageActionMixin:
         )
 
     def create_program_settings_load_worker(self, request_id: int):
-        return self._program_settings.create_program_settings_load_worker(
+        return self._create_program_settings_load_worker(
             request_id,
             parent=self,
         )
@@ -247,7 +247,7 @@ class ControlPageActionMixin:
         if request_id != runtime.program_settings_load_request_id or bool(getattr(self, "_cleanup_in_progress", False)):
             return
         try:
-            self._program_settings.publish_program_settings_snapshot(snapshot)
+            self._publish_program_settings_snapshot(snapshot)
         except Exception:
             pass
         apply_snapshot = getattr(self, "_apply_program_settings_snapshot", None)
@@ -326,7 +326,7 @@ class ControlPageActionMixin:
             elif action == "max_block":
                 self._show_windows_feature_action_result(result, self.max_block_toggle)
             elif action == "hide_to_tray":
-                self._program_settings.remember_hide_to_tray_on_minimize_close(bool(result))
+                self._remember_hide_to_tray_on_minimize_close(bool(result))
         finally:
             sync_program_settings = getattr(self, "_sync_program_settings", None)
             if callable(sync_program_settings):

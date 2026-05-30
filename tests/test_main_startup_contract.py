@@ -1624,10 +1624,15 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                     callback(*args)
 
         class FakeTopSummaryWorker:
-            def __init__(self, request_id: int, presets, profile) -> None:
+            def __init__(
+                self,
+                request_id: int,
+                get_selected_source_preset_display,
+                get_enabled_profile_count_snapshot,
+            ) -> None:
                 self._request_id = int(request_id)
-                self._presets = presets
-                self._profile = profile
+                self._get_selected_source_preset_display = get_selected_source_preset_display
+                self._get_enabled_profile_count_snapshot = get_enabled_profile_count_snapshot
                 self.loaded = WorkerSignal()
                 self.failed = WorkerSignal()
                 self.finished = WorkerSignal()
@@ -1636,8 +1641,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 return False
 
             def start(self) -> None:
-                preset_text, preset_tooltip = self._presets.get_selected_source_preset_display("zapret2_mode")
-                profile_count = self._profile.get_enabled_profile_count_snapshot("zapret2_mode")
+                preset_text, preset_tooltip = self._get_selected_source_preset_display("zapret2_mode")
+                profile_count = self._get_enabled_profile_count_snapshot("zapret2_mode")
                 self.loaded.emit(
                     self._request_id,
                     SimpleNamespace(
@@ -1696,10 +1701,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         ), patch.object(
             zapret2_page,
             "create_control_top_summary_worker",
-            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
                 request_id,
-                presets,
-                profile,
+                get_preset_display,
+                get_profile_count,
             ),
         ):
             connected[0]("ui_ready")
@@ -1709,10 +1714,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         with patch.object(
             zapret2_page,
             "create_control_top_summary_worker",
-            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
                 request_id,
-                presets,
-                profile,
+                get_preset_display,
+                get_profile_count,
             ),
         ):
             scheduled[0][1]()
@@ -1743,10 +1748,15 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                     callback(*args)
 
         class FakeTopSummaryWorker:
-            def __init__(self, request_id: int, presets, profile) -> None:
+            def __init__(
+                self,
+                request_id: int,
+                get_selected_source_preset_display,
+                get_enabled_profile_count_snapshot,
+            ) -> None:
                 self._request_id = int(request_id)
-                self._presets = presets
-                self._profile = profile
+                self._get_selected_source_preset_display = get_selected_source_preset_display
+                self._get_enabled_profile_count_snapshot = get_enabled_profile_count_snapshot
                 self.loaded = WorkerSignal()
                 self.failed = WorkerSignal()
                 self.finished = WorkerSignal()
@@ -1755,8 +1765,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 return False
 
             def start(self) -> None:
-                preset_text, preset_tooltip = self._presets.get_selected_source_preset_display("zapret2_mode")
-                current_profile_count = self._profile.get_enabled_profile_count_snapshot("zapret2_mode")
+                preset_text, preset_tooltip = self._get_selected_source_preset_display("zapret2_mode")
+                current_profile_count = self._get_enabled_profile_count_snapshot("zapret2_mode")
                 self.loaded.emit(
                     self._request_id,
                     SimpleNamespace(
@@ -1794,10 +1804,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         ), patch.object(
             zapret2_page,
             "create_control_top_summary_worker",
-            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
                 request_id,
-                presets,
-                profile,
+                get_preset_display,
+                get_profile_count,
             ),
         ):
             Zapret2ModeControlPage._refresh_top_summary(control_page, AppUiState())
@@ -1809,10 +1819,10 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         with patch.object(
             zapret2_page,
             "create_control_top_summary_worker",
-            side_effect=lambda request_id, presets, profile, **_kwargs: FakeTopSummaryWorker(
+            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
                 request_id,
-                presets,
-                profile,
+                get_preset_display,
+                get_profile_count,
             ),
         ):
             scheduled[0][1]()

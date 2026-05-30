@@ -41,7 +41,7 @@ class ControlPageWindowsFeatureMixin:
         self._request_defender_admin_check(bool(disable))
 
     def create_program_settings_admin_check_worker(self, request_id: int):
-        return self._program_settings.create_program_settings_admin_check_worker(
+        return self._create_program_settings_admin_check_worker(
             request_id,
             parent=self,
         )

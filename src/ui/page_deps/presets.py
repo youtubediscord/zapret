@@ -35,7 +35,12 @@ def build_control_page_kwargs(
         "presets_feature": presets_feature,
         "profile_feature": profile_feature,
         "runtime_feature": runtime_feature,
-        "program_settings_feature": program_settings_feature,
+        "create_program_settings_save_worker": program_settings_feature.create_program_settings_save_worker,
+        "create_program_settings_load_worker": program_settings_feature.create_program_settings_load_worker,
+        "create_program_settings_admin_check_worker": program_settings_feature.create_program_settings_admin_check_worker,
+        "attach_program_settings_runtime": program_settings_feature.attach_program_settings_runtime,
+        "publish_program_settings_snapshot": program_settings_feature.publish_program_settings_snapshot,
+        "remember_hide_to_tray_on_minimize_close": program_settings_feature.remember_hide_to_tray_on_minimize_close,
         "set_status": set_status,
         "request_exit": request_exit,
         "open_connection_test": open_connection_test,
@@ -44,7 +49,7 @@ def build_control_page_kwargs(
         "open_preset_setup": lambda page=preset_setup_page: show_page(page, allow_internal=True),
         "open_blobs": lambda: show_page(PageName.BLOBS, allow_internal=True),
         "open_premium": lambda: show_page(PageName.PREMIUM, allow_internal=True),
-        "external_actions_feature": external_actions_feature,
+        "create_external_open_url_worker": external_actions_feature.create_open_url_worker,
         "ui_state_store": ui_state_store,
     }
 

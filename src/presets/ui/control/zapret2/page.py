@@ -102,7 +102,12 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         presets_feature,
         profile_feature,
         runtime_feature,
-        program_settings_feature,
+        create_program_settings_save_worker,
+        create_program_settings_load_worker,
+        create_program_settings_admin_check_worker,
+        attach_program_settings_runtime,
+        publish_program_settings_snapshot,
+        remember_hide_to_tray_on_minimize_close,
         set_status,
         request_exit,
         open_connection_test,
@@ -111,7 +116,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         open_preset_setup,
         open_blobs,
         open_premium,
-        external_actions_feature,
+        create_external_open_url_worker,
         ui_state_store,
     ):
         _t_init = _time.perf_counter()
@@ -129,7 +134,12 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._presets = presets_feature
         self._profile = profile_feature
         self._runtime_feature = runtime_feature
-        self._program_settings = program_settings_feature
+        self._create_program_settings_save_worker = create_program_settings_save_worker
+        self._create_program_settings_load_worker = create_program_settings_load_worker
+        self._create_program_settings_admin_check_worker = create_program_settings_admin_check_worker
+        self._attach_program_settings_runtime_fn = attach_program_settings_runtime
+        self._publish_program_settings_snapshot = publish_program_settings_snapshot
+        self._remember_hide_to_tray_on_minimize_close = remember_hide_to_tray_on_minimize_close
         self._set_status_callback = set_status
         self._request_exit_callback = request_exit
         self._open_connection_test_callback = open_connection_test
@@ -138,7 +148,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._open_preset_setup_callback = open_preset_setup
         self._open_blobs_callback = open_blobs
         self._open_premium_callback = open_premium
-        self._external_actions = external_actions_feature
+        self._create_external_open_url_worker = create_external_open_url_worker
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
         self._program_settings_runtime_unsubscribe = None
@@ -816,7 +826,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._request_program_settings_load()
 
     def _attach_program_settings_runtime(self) -> None:
-        self._program_settings.attach_program_settings_runtime(
+        self._attach_program_settings_runtime_fn(
             self,
             apply_snapshot_fn=self._apply_program_settings_snapshot,
         )
