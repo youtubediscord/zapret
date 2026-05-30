@@ -3241,6 +3241,29 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(page._pending_settings_save, request)
         page._start_settings_save_worker.assert_not_called()
 
+    def test_settings_autosave_while_worker_runs_skips_duplicate_pending_request(self) -> None:
+        class _Worker:
+            def isRunning(self) -> bool:
+                return True
+
+        request = {
+            "profile_key": "profile-1",
+            "filter_kind": "hostlist",
+            "filter_value": "lists/new.txt",
+            "in_range": "x",
+            "out_range": "a",
+        }
+        pending = dict(request)
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._settings_save_worker = _Worker()
+        page._pending_settings_save = pending
+        page._start_settings_save_worker = Mock()
+
+        ProfileSetupPageBase._request_settings_save(page, request)
+
+        self.assertIs(page._pending_settings_save, pending)
+        page._start_settings_save_worker.assert_not_called()
+
     def test_strategy_list_uses_fluent_item_tooltip(self) -> None:
         delegate_init = inspect.getsource(ProfileStrategyListDelegate.__init__)
         help_event = inspect.getsource(ProfileStrategyListDelegate.helpEvent)

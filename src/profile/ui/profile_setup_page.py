@@ -2220,6 +2220,8 @@ class ProfileSetupPageBase(BasePage):
         if worker is not None:
             try:
                 if worker.isRunning():
+                    if self.__dict__.get("_pending_settings_save") == dict(request):
+                        return
                     self._pending_settings_save = dict(request)
                     return
             except Exception:
