@@ -549,6 +549,14 @@ def set_editor_smooth_scroll_enabled(value: bool) -> bool:
     return _set_bool(("appearance", "editor_smooth_scroll_enabled"), value)
 
 
+def get_sidebar_icon_style() -> str:
+    return _get_str(("appearance", "sidebar_icon_style"), "standard")
+
+
+def set_sidebar_icon_style(value: str) -> bool:
+    return _set_str(("appearance", "sidebar_icon_style"), value)
+
+
 def get_accent_color() -> str | None:
     return _get_nullable_str(("appearance", "accent_color"))
 
@@ -1226,6 +1234,7 @@ __all__ = [
     "get_rkn_background",
     "get_selected_theme",
     "get_selected_source_preset_file_name",
+    "get_sidebar_icon_style",
     "get_settings_path",
     "get_smooth_scroll_enabled",
     "get_snowflakes_enabled",
@@ -1312,6 +1321,7 @@ __all__ = [
     "set_rkn_background",
     "set_selected_theme",
     "set_selected_source_preset_file_name",
+    "set_sidebar_icon_style",
     "set_smooth_scroll_enabled",
     "set_snowflakes_enabled",
     "set_strategy_launch_method",

@@ -49,6 +49,7 @@ class AppearanceFeature:
             save_animations_enabled=appearance.save_animations_enabled,
             save_smooth_scroll_enabled=appearance.save_smooth_scroll_enabled,
             save_editor_smooth_scroll_enabled=appearance.save_editor_smooth_scroll_enabled,
+            save_sidebar_icon_style=appearance.save_sidebar_icon_style,
             load_tinted_settings=appearance.load_tinted_settings,
             load_editor_smooth_scroll_enabled=appearance.load_editor_smooth_scroll_enabled,
             parent=parent,

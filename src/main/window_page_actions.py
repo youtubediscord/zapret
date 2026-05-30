@@ -27,6 +27,7 @@ class WindowPageActions:
     on_smooth_scroll_changed: Callable[..., Any]
     on_editor_smooth_scroll_changed: Callable[..., Any]
     on_ui_language_changed: Callable[..., Any]
+    on_sidebar_icon_style_changed: Callable[..., Any]
 
 
 def show_page(window, page_name, *, allow_internal: bool = False) -> bool:
@@ -115,6 +116,12 @@ def on_ui_language_changed(window, language) -> None:
     _on_ui_language_changed(window, language)
 
 
+def on_sidebar_icon_style_changed(window, style) -> None:
+    from ui.navigation.icons import apply_sidebar_icon_style
+
+    apply_sidebar_icon_style(window, style)
+
+
 def build_window_page_actions(*, window, appearance_actions) -> WindowPageActions:
     return WindowPageActions(
         set_status=window.set_status,
@@ -161,6 +168,7 @@ def build_window_page_actions(*, window, appearance_actions) -> WindowPageAction
         on_smooth_scroll_changed=lambda enabled: on_smooth_scroll_changed(window, enabled),
         on_editor_smooth_scroll_changed=lambda enabled: on_editor_smooth_scroll_changed(window, enabled),
         on_ui_language_changed=lambda language: on_ui_language_changed(window, language),
+        on_sidebar_icon_style_changed=lambda style: on_sidebar_icon_style_changed(window, style),
     )
 
 

@@ -24,6 +24,7 @@ VALID_PROFILE_UI_MODES = frozenset({"basic"})
 VALID_DISPLAY_MODES = frozenset({"dark", "light", "system"})
 VALID_UI_LANGUAGES = frozenset({"ru", "en"})
 VALID_BACKGROUND_PRESETS = frozenset({"standard", "amoled", "rkn_chan"})
+VALID_SIDEBAR_ICON_STYLES = frozenset({"standard", "windows11_fluent"})
 VALID_TG_PROXY_MODES = frozenset({"socks5", "transparent", "both"})
 VALID_TG_PROXY_UPSTREAM_MODES = frozenset({"fallback", "always"})
 ORCHESTRA_ASKEYS = (
@@ -81,6 +82,7 @@ def default_appearance() -> dict[str, Any]:
         "animations_enabled": False,
         "smooth_scroll_enabled": False,
         "editor_smooth_scroll_enabled": False,
+        "sidebar_icon_style": "standard",
         "garland_enabled": False,
         "snowflakes_enabled": False,
         "selected_theme": "",

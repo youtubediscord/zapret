@@ -13,6 +13,13 @@ def normalize_language(language: str | None) -> str:
     return schema.default_appearance()["ui_language"]
 
 
+def normalize_sidebar_icon_style(style: str | None) -> str:
+    candidate = str(style or schema.default_appearance()["sidebar_icon_style"]).strip().lower()
+    if candidate in schema.VALID_SIDEBAR_ICON_STYLES:
+        return candidate
+    return str(schema.default_appearance()["sidebar_icon_style"])
+
+
 @dataclass(slots=True)
 class AppearanceDisplayModePlan:
     requested_mode: str
@@ -42,6 +49,11 @@ class AppearanceOpacityPlan:
 @dataclass(slots=True)
 class AppearanceTogglePlan:
     enabled: bool
+
+
+@dataclass(slots=True)
+class AppearanceSidebarIconStylePlan:
+    style: str
 
 
 @dataclass(slots=True)
@@ -91,6 +103,7 @@ class AppearancePageInitialStatePlan:
     animations_enabled: bool
     smooth_scroll_enabled: bool
     editor_smooth_scroll_enabled: bool
+    sidebar_icon_style: str
     garland_enabled: bool
     snowflakes_enabled: bool
 
@@ -117,6 +130,8 @@ _warmed_smooth_scroll_enabled_lock = threading.Lock()
 _warmed_smooth_scroll_enabled_cache: bool | None = None
 _warmed_editor_smooth_scroll_enabled_lock = threading.Lock()
 _warmed_editor_smooth_scroll_enabled_cache: bool | None = None
+_warmed_sidebar_icon_style_lock = threading.Lock()
+_warmed_sidebar_icon_style_cache: str | None = None
 _warmed_premium_effects_lock = threading.Lock()
 _warmed_premium_effects_cache: AppearancePremiumEffectsPlan | None = None
 
@@ -329,6 +344,23 @@ def clear_warmed_editor_smooth_scroll_enabled_cache() -> None:
         _warmed_editor_smooth_scroll_enabled_cache = None
 
 
+def store_warmed_sidebar_icon_style(style: str | None) -> None:
+    global _warmed_sidebar_icon_style_cache
+    with _warmed_sidebar_icon_style_lock:
+        _warmed_sidebar_icon_style_cache = normalize_sidebar_icon_style(style)
+
+
+def peek_warmed_sidebar_icon_style() -> str | None:
+    with _warmed_sidebar_icon_style_lock:
+        return _warmed_sidebar_icon_style_cache
+
+
+def clear_warmed_sidebar_icon_style_cache() -> None:
+    global _warmed_sidebar_icon_style_cache
+    with _warmed_sidebar_icon_style_lock:
+        _warmed_sidebar_icon_style_cache = None
+
+
 def store_warmed_premium_effects(garland_enabled: bool | None, snowflakes_enabled: bool | None) -> None:
     global _warmed_premium_effects_cache
     defaults = schema.default_appearance()
@@ -399,6 +431,7 @@ def build_default_page_initial_state() -> AppearancePageInitialStatePlan:
         animations_enabled=bool(appearance_defaults["animations_enabled"]),
         smooth_scroll_enabled=bool(appearance_defaults["smooth_scroll_enabled"]),
         editor_smooth_scroll_enabled=bool(appearance_defaults["editor_smooth_scroll_enabled"]),
+        sidebar_icon_style=normalize_sidebar_icon_style(str(appearance_defaults["sidebar_icon_style"])),
         garland_enabled=bool(appearance_defaults["garland_enabled"]),
         snowflakes_enabled=bool(appearance_defaults["snowflakes_enabled"]),
     )
@@ -454,6 +487,9 @@ def load_page_initial_state() -> AppearancePageInitialStatePlan:
         animations_enabled=_plan_bool(appearance, "animations_enabled", bool(appearance_defaults["animations_enabled"])),
         smooth_scroll_enabled=_plan_bool(appearance, "smooth_scroll_enabled", bool(appearance_defaults["smooth_scroll_enabled"])),
         editor_smooth_scroll_enabled=_plan_bool(appearance, "editor_smooth_scroll_enabled", bool(appearance_defaults["editor_smooth_scroll_enabled"])),
+        sidebar_icon_style=normalize_sidebar_icon_style(
+            _plan_str(appearance, "sidebar_icon_style", appearance_defaults["sidebar_icon_style"])
+        ),
         garland_enabled=_plan_bool(appearance, "garland_enabled", bool(appearance_defaults["garland_enabled"])),
         snowflakes_enabled=_plan_bool(appearance, "snowflakes_enabled", bool(appearance_defaults["snowflakes_enabled"])),
     )
@@ -622,6 +658,29 @@ def save_editor_smooth_scroll_enabled(enabled: bool) -> AppearanceTogglePlan:
         pass
     store_warmed_editor_smooth_scroll_enabled(bool(enabled))
     return AppearanceTogglePlan(enabled=bool(enabled))
+
+
+def load_sidebar_icon_style() -> AppearanceSidebarIconStylePlan:
+    try:
+        from settings.store import get_sidebar_icon_style
+
+        style = normalize_sidebar_icon_style(get_sidebar_icon_style())
+    except Exception:
+        style = normalize_sidebar_icon_style(None)
+    return AppearanceSidebarIconStylePlan(style=style)
+
+
+def save_sidebar_icon_style(style: str) -> AppearanceSidebarIconStylePlan:
+    normalized = normalize_sidebar_icon_style(style)
+    try:
+        from settings.store import set_sidebar_icon_style
+
+        set_sidebar_icon_style(normalized)
+    except Exception:
+        pass
+    store_warmed_sidebar_icon_style(normalized)
+    return AppearanceSidebarIconStylePlan(style=normalized)
+
 
 def load_accent_color() -> AppearanceAccentColorPlan:
     try:

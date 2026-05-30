@@ -9,32 +9,9 @@ _SIDEBAR_SEARCH_NAV_WIDGET_CLS = None
 
 
 def _get_nav_icons():
-    from app.page_names import PageName
-    from qfluentwidgets import FluentIcon
+    from ui.navigation.icons import build_nav_icons
 
-    return {
-        PageName.ZAPRET2_MODE_CONTROL: FluentIcon.GAME,
-        PageName.AUTOSTART: FluentIcon.POWER_BUTTON,
-        PageName.NETWORK: FluentIcon.WIFI,
-        PageName.HOSTS: FluentIcon.GLOBE,
-        PageName.BLOCKCHECK: FluentIcon.CODE,
-        PageName.APPEARANCE: FluentIcon.PALETTE,
-        PageName.PREMIUM: FluentIcon.HEART,
-        PageName.LOGS: FluentIcon.HISTORY,
-        PageName.ABOUT: FluentIcon.INFO,
-        PageName.DPI_SETTINGS: FluentIcon.SETTING,
-        PageName.BLOBS: FluentIcon.CLOUD,
-        PageName.ZAPRET2_USER_PRESETS: FluentIcon.FOLDER,
-        PageName.SERVERS: FluentIcon.UPDATE,
-        PageName.SUPPORT: FluentIcon.CHAT,
-        PageName.ORCHESTRA: FluentIcon.MUSIC,
-        PageName.ORCHESTRA_SETTINGS: FluentIcon.SETTING,
-        PageName.ZAPRET2_PRESET_SETUP: FluentIcon.PLAY,
-        PageName.ZAPRET1_MODE_CONTROL: FluentIcon.GAME,
-        PageName.ZAPRET1_PRESET_SETUP: FluentIcon.PLAY,
-        PageName.ZAPRET1_USER_PRESETS: FluentIcon.FOLDER,
-        PageName.TELEGRAM_PROXY: FluentIcon.SEND,
-    }
+    return build_nav_icons()
 
 
 def _get_nav_labels():
@@ -66,9 +43,9 @@ def _get_nav_labels():
 
 
 def _default_nav_icon():
-    from qfluentwidgets import FluentIcon
+    from ui.navigation.icons import default_nav_icon
 
-    return FluentIcon.APPLICATION
+    return default_nav_icon()
 
 
 def _nav_scroll_position():

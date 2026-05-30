@@ -91,6 +91,7 @@ def build_appearance_page_kwargs(
     on_smooth_scroll_changed,
     on_editor_smooth_scroll_changed,
     on_ui_language_changed,
+    on_sidebar_icon_style_changed,
     ui_state_store,
 ) -> dict:
     _ = page_name
@@ -105,6 +106,7 @@ def build_appearance_page_kwargs(
         "on_smooth_scroll_changed": on_smooth_scroll_changed,
         "on_editor_smooth_scroll_changed": on_editor_smooth_scroll_changed,
         "on_ui_language_changed": on_ui_language_changed,
+        "on_sidebar_icon_style_changed": on_sidebar_icon_style_changed,
         "appearance_feature": appearance_feature,
         "ui_state_store": ui_state_store,
     }

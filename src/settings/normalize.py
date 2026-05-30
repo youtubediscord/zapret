@@ -173,6 +173,11 @@ def normalize_appearance(data: object) -> dict[str, Any]:
         "animations_enabled": as_bool(raw.get("animations_enabled"), defaults["animations_enabled"]),
         "smooth_scroll_enabled": as_bool(raw.get("smooth_scroll_enabled"), defaults["smooth_scroll_enabled"]),
         "editor_smooth_scroll_enabled": as_bool(raw.get("editor_smooth_scroll_enabled"), defaults["editor_smooth_scroll_enabled"]),
+        "sidebar_icon_style": as_str_in(
+            raw.get("sidebar_icon_style"),
+            schema.VALID_SIDEBAR_ICON_STYLES,
+            defaults["sidebar_icon_style"],
+        ),
         "garland_enabled": as_bool(raw.get("garland_enabled"), defaults["garland_enabled"]),
         "snowflakes_enabled": as_bool(raw.get("snowflakes_enabled"), defaults["snowflakes_enabled"]),
         "selected_theme": as_clean_str(raw.get("selected_theme"), defaults["selected_theme"]),

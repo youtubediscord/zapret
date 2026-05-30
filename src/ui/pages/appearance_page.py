@@ -66,6 +66,7 @@ class AppearancePage(BasePage):
         on_smooth_scroll_changed,
         on_editor_smooth_scroll_changed,
         on_ui_language_changed,
+        on_sidebar_icon_style_changed,
         appearance_feature,
         ui_state_store,
     ):
@@ -86,6 +87,7 @@ class AppearancePage(BasePage):
         self._on_smooth_scroll_changed_callback = on_smooth_scroll_changed
         self._on_editor_smooth_scroll_changed_callback = on_editor_smooth_scroll_changed
         self._on_ui_language_changed_callback = on_ui_language_changed
+        self._on_sidebar_icon_style_changed_callback = on_sidebar_icon_style_changed
         self._appearance = appearance_feature
 
         self._display_mode_seg = None    # SegmentedWidget
@@ -95,6 +97,8 @@ class AppearancePage(BasePage):
         self._language_combo = None      # ComboBox
         self._language_desc_label = None
         self._language_name_label = None
+        self._sidebar_icon_style_seg = None
+        self._sidebar_icon_style_card = None
         self._bg_radio_standard = None   # RadioButton
         self._bg_radio_amoled = None     # RadioButton
         self._bg_radio_rkn_chan = None   # RadioButton
@@ -303,6 +307,50 @@ class AppearancePage(BasePage):
         self._language_combo = language_widgets.combo
         self.add_widget(language_widgets.card)
         self._log_ui_timing("appearance_ui.language_section.build", section_started_at)
+
+        self.add_spacing(16)
+
+        # ═══════════════════════════════════════════════════════════
+        # ИКОНКИ БОКОВОГО МЕНЮ
+        # ═══════════════════════════════════════════════════════════
+        section_started_at = time.perf_counter()
+        self.add_section_title(
+            "Иконки меню",
+            text_key="page.appearance.section.sidebar_icons",
+        )
+        sidebar_icon_card = SettingsCard()
+        sidebar_icon_layout = QVBoxLayout()
+        sidebar_icon_layout.setSpacing(12)
+        sidebar_icon_desc = CaptionLabel(
+            tr_catalog(
+                "page.appearance.sidebar_icons.description",
+                language=self._ui_language,
+                default="Выберите стиль иконок в левом боковом меню.",
+            )
+        )
+        sidebar_icon_desc.setWordWrap(True)
+        sidebar_icon_layout.addWidget(sidebar_icon_desc)
+        sidebar_icon_seg = SegmentedWidget()
+        sidebar_icon_seg.addItem(
+            "standard",
+            tr_catalog("page.appearance.sidebar_icons.option.standard", language=self._ui_language, default="Стандартные"),
+            lambda: self._on_sidebar_icon_style_changed("standard"),
+        )
+        sidebar_icon_seg.addItem(
+            "windows11_fluent",
+            tr_catalog(
+                "page.appearance.sidebar_icons.option.windows11_fluent",
+                language=self._ui_language,
+                default="Windows 11 Fluent",
+            ),
+            lambda: self._on_sidebar_icon_style_changed("windows11_fluent"),
+        )
+        sidebar_icon_layout.addWidget(sidebar_icon_seg)
+        sidebar_icon_card.add_layout(sidebar_icon_layout)
+        self._sidebar_icon_style_card = sidebar_icon_card
+        self._sidebar_icon_style_seg = sidebar_icon_seg
+        self.add_widget(sidebar_icon_card)
+        self._log_ui_timing("appearance_ui.sidebar_icon_section.build", section_started_at)
 
         self.add_spacing(16)
 
@@ -593,6 +641,7 @@ class AppearancePage(BasePage):
 
     def _apply_initial_display_state(self, plan: appearance_settings.AppearancePageInitialStatePlan) -> None:
         self._apply_display_mode_value(plan.display_mode)
+        self._apply_sidebar_icon_style_value(plan.sidebar_icon_style)
         self._apply_bg_preset_ui(plan.background_preset)
         self.set_ui_language(plan.ui_language)
         self.set_mica_state(plan.mica_enabled)
@@ -602,6 +651,17 @@ class AppearancePage(BasePage):
             self._begin_ui_sync()
             try:
                 self._set_current_item_silently(self._display_mode_seg, mode)
+            except Exception:
+                pass
+            finally:
+                self._end_ui_sync()
+
+    def _apply_sidebar_icon_style_value(self, style: str) -> None:
+        if self._sidebar_icon_style_seg is not None:
+            self._begin_ui_sync()
+            try:
+                normalized = appearance_settings.normalize_sidebar_icon_style(style)
+                self._set_current_item_silently(self._sidebar_icon_style_seg, normalized)
             except Exception:
                 pass
             finally:
@@ -745,6 +805,12 @@ class AppearancePage(BasePage):
         elif action == "animations_enabled":
             editor_plan = dict(result or {}).get("editor_smooth_scroll") if isinstance(result, dict) else None
             self._on_editor_smooth_scroll_changed_callback(bool(getattr(editor_plan, "enabled", False)))
+        elif action == "sidebar_icon_style":
+            style = appearance_settings.normalize_sidebar_icon_style(
+                str(getattr(result, "style", context.get("value") or "standard") or "standard")
+            )
+            self._apply_sidebar_icon_style_value(style)
+            self._on_sidebar_icon_style_changed_callback(style)
 
     def _on_appearance_save_failed(self, request_id: int, action: str, error: str, _context) -> None:
         if not self._appearance_save_runtime.is_current(
@@ -784,6 +850,13 @@ class AppearancePage(BasePage):
         lang = appearance_settings.normalize_language(lang)
         self._request_appearance_save("ui_language", lang)
         self._on_ui_language_changed_callback(lang)
+
+    def _on_sidebar_icon_style_changed(self, style: str) -> None:
+        if self._is_ui_syncing():
+            return
+        normalized = appearance_settings.normalize_sidebar_icon_style(style)
+        self._request_appearance_save("sidebar_icon_style", normalized)
+        self._on_sidebar_icon_style_changed_callback(normalized)
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
