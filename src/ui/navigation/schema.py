@@ -48,7 +48,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         is_hidden=False,
         launch_modes=_WINWS2_MODE,
         breadcrumb_parent=PageName.ZAPRET2_MODE_CONTROL,
-        sidebar_group="root",
+        sidebar_group="settings",
     ),
     PageName.ZAPRET2_PRESET_SETUP: PageRouteSpec(
         page_name=PageName.ZAPRET2_PRESET_SETUP,
@@ -59,7 +59,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         is_hidden=False,
         launch_modes=_WINWS2_MODE,
         breadcrumb_parent=PageName.ZAPRET2_MODE_CONTROL,
-        sidebar_group="root",
+        sidebar_group="settings",
     ),
     PageName.ZAPRET2_PROFILE_SETUP: PageRouteSpec(
         page_name=PageName.ZAPRET2_PROFILE_SETUP,
@@ -114,7 +114,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         is_hidden=False,
         launch_modes=_WINWS1_MODE,
         breadcrumb_parent=PageName.ZAPRET1_MODE_CONTROL,
-        sidebar_group="root",
+        sidebar_group="settings",
     ),
     PageName.ZAPRET1_PRESET_SETUP: PageRouteSpec(
         page_name=PageName.ZAPRET1_PRESET_SETUP,
@@ -125,7 +125,7 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         is_hidden=False,
         launch_modes=_WINWS1_MODE,
         breadcrumb_parent=PageName.ZAPRET1_MODE_CONTROL,
-        sidebar_group="root",
+        sidebar_group="settings",
     ),
     PageName.ZAPRET1_PROFILE_SETUP: PageRouteSpec(
         page_name=PageName.ZAPRET1_PROFILE_SETUP,

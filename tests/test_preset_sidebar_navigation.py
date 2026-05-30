@@ -14,19 +14,24 @@ if str(PROJECT_SRC) not in sys.path:
 
 
 class PresetSidebarNavigationTests(unittest.TestCase):
-    def test_winws2_preset_pages_are_visible_in_root_sidebar(self) -> None:
+    def test_winws2_preset_pages_are_visible_under_zapret_settings_header(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET2_MODE
         from ui.navigation.schema import get_page_spec, get_sidebar_pages_for_method
 
         root_pages = get_sidebar_pages_for_method(ZAPRET2_MODE, sidebar_group="root")
+        settings_pages = get_sidebar_pages_for_method(ZAPRET2_MODE, sidebar_group="settings")
 
         self.assertEqual(
-            root_pages[:3],
+            root_pages[:1],
+            (PageName.ZAPRET2_MODE_CONTROL,),
+        )
+        self.assertEqual(
+            settings_pages[:3],
             (
-                PageName.ZAPRET2_MODE_CONTROL,
                 PageName.ZAPRET2_USER_PRESETS,
                 PageName.ZAPRET2_PRESET_SETUP,
+                PageName.DPI_SETTINGS,
             ),
         )
         for page_name in (
@@ -36,21 +41,26 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             spec = get_page_spec(page_name)
             self.assertTrue(spec.is_top_level)
             self.assertFalse(spec.is_hidden)
-            self.assertEqual(spec.sidebar_group, "root")
+            self.assertEqual(spec.sidebar_group, "settings")
 
-    def test_winws1_preset_pages_are_visible_in_root_sidebar(self) -> None:
+    def test_winws1_preset_pages_are_visible_under_zapret_settings_header(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET1_MODE
         from ui.navigation.schema import get_page_spec, get_sidebar_pages_for_method
 
         root_pages = get_sidebar_pages_for_method(ZAPRET1_MODE, sidebar_group="root")
+        settings_pages = get_sidebar_pages_for_method(ZAPRET1_MODE, sidebar_group="settings")
 
         self.assertEqual(
-            root_pages[:3],
+            root_pages[:1],
+            (PageName.ZAPRET1_MODE_CONTROL,),
+        )
+        self.assertEqual(
+            settings_pages[:3],
             (
-                PageName.ZAPRET1_MODE_CONTROL,
                 PageName.ZAPRET1_USER_PRESETS,
                 PageName.ZAPRET1_PRESET_SETUP,
+                PageName.DPI_SETTINGS,
             ),
         )
         for page_name in (
@@ -60,7 +70,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             spec = get_page_spec(page_name)
             self.assertTrue(spec.is_top_level)
             self.assertFalse(spec.is_hidden)
-            self.assertEqual(spec.sidebar_group, "root")
+            self.assertEqual(spec.sidebar_group, "settings")
 
     def test_only_real_nested_preset_pages_stay_internal(self) -> None:
         from app.page_names import PageName
@@ -215,25 +225,32 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             for group_plan in build_sidebar_group_plans(ZAPRET2_MODE)
             if group_plan.group_name == "root"
         )
+        settings_plan = next(
+            group_plan
+            for group_plan in build_sidebar_group_plans(ZAPRET2_MODE)
+            if group_plan.group_name == "settings"
+        )
         visibility = get_nav_visibility(ZAPRET2_MODE)
 
         self.assertEqual(
-            root_plan.page_names[:3],
+            root_plan.page_names[:1],
+            (PageName.ZAPRET2_MODE_CONTROL,),
+        )
+        self.assertEqual(
+            settings_plan.page_names[:3],
             (
-                PageName.ZAPRET2_MODE_CONTROL,
                 PageName.ZAPRET2_USER_PRESETS,
                 PageName.ZAPRET2_PRESET_SETUP,
+                PageName.DPI_SETTINGS,
             ),
         )
-        for page_name in (
-            PageName.ZAPRET1_MODE_CONTROL,
-            PageName.ZAPRET1_USER_PRESETS,
-            PageName.ZAPRET1_PRESET_SETUP,
-        ):
-            self.assertIn(page_name, root_plan.page_names)
+        self.assertIn(PageName.ZAPRET1_MODE_CONTROL, root_plan.page_names)
+        self.assertFalse(visibility[PageName.ZAPRET1_MODE_CONTROL])
+        for page_name in (PageName.ZAPRET1_USER_PRESETS, PageName.ZAPRET1_PRESET_SETUP):
+            self.assertIn(page_name, settings_plan.page_names)
             self.assertFalse(visibility[page_name])
 
-    def test_initial_sidebar_build_skips_hidden_other_mode_items(self) -> None:
+    def test_initial_sidebar_build_skips_secondary_and_hidden_other_mode_items(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET2_MODE
         import ui.navigation.sidebar_builder as sidebar_builder
@@ -289,6 +306,11 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             ),
             patch.object(
                 sidebar_builder,
+                "_schedule_secondary_sidebar_groups_after_interactive",
+                side_effect=lambda current_window: None,
+            ),
+            patch.object(
+                sidebar_builder,
                 "_schedule_hidden_mode_nav_items_after_interactive",
                 side_effect=lambda current_window: None,
             ),
@@ -302,12 +324,15 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             sidebar_builder.init_navigation(window)
 
         self.assertIn(PageName.ZAPRET2_MODE_CONTROL, added_pages)
-        self.assertIn(PageName.ZAPRET2_USER_PRESETS, added_pages)
-        self.assertIn(PageName.ZAPRET2_PRESET_SETUP, added_pages)
-        self.assertNotIn(PageName.ZAPRET1_MODE_CONTROL, added_pages)
-        self.assertNotIn(PageName.ZAPRET1_USER_PRESETS, added_pages)
-        self.assertNotIn(PageName.ZAPRET1_PRESET_SETUP, added_pages)
-        self.assertNotIn(PageName.NETWORK, added_pages)
+        for page_name in (
+            PageName.ZAPRET2_USER_PRESETS,
+            PageName.ZAPRET2_PRESET_SETUP,
+            PageName.ZAPRET1_MODE_CONTROL,
+            PageName.ZAPRET1_USER_PRESETS,
+            PageName.ZAPRET1_PRESET_SETUP,
+            PageName.NETWORK,
+        ):
+            self.assertNotIn(page_name, added_pages)
 
     def test_initial_sidebar_build_defers_secondary_groups_until_after_interactive(self) -> None:
         from app.page_names import PageName
@@ -380,8 +405,8 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             sidebar_builder.init_navigation(window)
 
             self.assertIn(PageName.ZAPRET2_MODE_CONTROL, added_pages)
-            self.assertIn(PageName.ZAPRET2_USER_PRESETS, added_pages)
-            self.assertIn(PageName.ZAPRET2_PRESET_SETUP, added_pages)
+            self.assertNotIn(PageName.ZAPRET2_USER_PRESETS, added_pages)
+            self.assertNotIn(PageName.ZAPRET2_PRESET_SETUP, added_pages)
             self.assertNotIn(PageName.NETWORK, added_pages)
             self.assertEqual(scheduled, [])
 
@@ -395,6 +420,8 @@ class PresetSidebarNavigationTests(unittest.TestCase):
                 scheduled[next_callback_index][1]()
                 next_callback_index += 1
 
+        self.assertIn(PageName.ZAPRET2_USER_PRESETS, added_pages)
+        self.assertIn(PageName.ZAPRET2_PRESET_SETUP, added_pages)
         self.assertIn(PageName.NETWORK, added_pages)
         self.assertIn(PageName.LOGS, added_pages)
 
