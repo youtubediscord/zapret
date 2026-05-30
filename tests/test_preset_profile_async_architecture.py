@@ -151,7 +151,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         request_source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
         finished_source = inspect.getsource(PresetSetupPageBase._on_profile_worker_finished)
 
-        running_branch = request_source.split("worker.isRunning():", 1)[1].split("return", 1)[0]
+        running_branch = request_source.split("runtime.is_running():", 1)[1].split("return", 1)[0]
         self.assertIn("if force:", running_branch)
         self.assertIn("_profile_load_request_id += 1", running_branch)
         self.assertIn("_profile_payload_dirty = True", running_branch)
@@ -166,7 +166,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
     def test_profile_folder_action_updates_visible_list_without_reload(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_folder_action_request_id = 7
-        page._profile_folder_action_worker = SimpleNamespace(_refresh_profile_page_after_action=True)
+        page._profile_folder_action_refresh_by_request = {7: True}
         page._profiles_list = Mock()
         page._profiles_list.apply_profile_folder_state.return_value = True
         page._profile_payload_dirty = False

@@ -162,6 +162,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
                 self.failed = _Signal()
                 self.finished = _Signal()
                 self.start = Mock()
+                self.deleteLater = Mock()
 
             def isRunning(self) -> bool:
                 return False
@@ -172,6 +173,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
                 self.failed = _Signal()
                 self.finished = _Signal()
                 self.start = Mock()
+                self.deleteLater = Mock()
 
             def isRunning(self) -> bool:
                 return False
@@ -182,6 +184,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
                 self.failed = _Signal()
                 self.finished = _Signal()
                 self.start = Mock()
+                self.deleteLater = Mock()
 
             def isRunning(self) -> bool:
                 return False
@@ -192,11 +195,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._profile.update_user_profile.side_effect = AssertionError("update must run in worker")
         page._profile.delete_user_profile.side_effect = AssertionError("delete must run in worker")
         page._user_profile_create_request_id = 0
-        page._user_profile_create_worker = None
         page._user_profile_update_request_id = 0
-        page._user_profile_update_worker = None
         page._user_profile_delete_request_id = 0
-        page._user_profile_delete_worker = None
         page._set_user_profile_actions_enabled = Mock()
         create_worker = _CreateWorker()
         update_worker = _UpdateWorker()
@@ -1671,17 +1671,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         source = inspect.getsource(PresetSetupPageBase.cleanup)
 
         for attr in (
-            "_profile_load_worker",
-            "_profile_context_action_worker",
-            "_profile_move_worker",
-            "_profile_folder_action_worker",
-            "_user_profile_create_worker",
-            "_user_profile_update_worker",
-            "_user_profile_delete_worker",
+            "_profile_load_runtime",
+            "_profile_context_action_runtime",
+            "_profile_move_runtime",
+            "_profile_folder_action_runtime",
+            "_user_profile_create_runtime",
+            "_user_profile_update_runtime",
+            "_user_profile_delete_runtime",
         ):
             self.assertIn(attr, source)
         self.assertIn("_profile_folder_action_pending.clear()", source)
-        self.assertGreaterEqual(source.count(".quit()"), 1)
+        self.assertIn(".stop(", source)
+        self.assertIn(".cancel()", source)
 
     def test_profile_setup_cleanup_stops_all_detail_workers_and_pending_requests(self) -> None:
         class _Worker:
@@ -1754,6 +1755,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
                 self.failed = _Signal()
                 self.finished = _Signal()
                 self.start = Mock()
+                self.deleteLater = Mock()
 
             def isRunning(self) -> bool:
                 return False
@@ -1763,7 +1765,6 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._profile = Mock()
         page._profile.move_profile_before.side_effect = AssertionError("move must run in worker")
         page._profile_move_request_id = 0
-        page._profile_move_worker = None
         page._create_profile_move_worker = Mock(return_value=_Worker())
 
         PresetSetupPageBase._request_profile_move(
@@ -2027,6 +2028,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
                 self.failed = _Signal()
                 self.finished = _Signal()
                 self.start = Mock()
+                self.deleteLater = Mock()
 
             def isRunning(self) -> bool:
                 return False
@@ -2038,7 +2040,6 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._profile.duplicate_profile.side_effect = AssertionError("duplicate must run in worker")
         page._profile.delete_profile.side_effect = AssertionError("delete must run in worker")
         page._profile_context_action_request_id = 0
-        page._profile_context_action_worker = None
         worker = _Worker()
         page._create_profile_context_action_worker = Mock(return_value=worker)
 
@@ -2458,12 +2459,12 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._request_profiles_payload.assert_not_called()
 
     def test_running_profile_payload_worker_coalesces_force_refresh_requests(self) -> None:
-        worker = SimpleNamespace(isRunning=Mock(return_value=True))
+        runtime = SimpleNamespace(is_running=Mock(return_value=True))
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._cleanup_in_progress = False
         page._profile_payload_loaded_once = True
         page._profile_payload_dirty = False
-        page._profile_load_worker = worker
+        page._profile_load_runtime = runtime
         page._profile_load_request_id = 7
         page._profile_load_refresh_pending = False
         page._create_profile_list_load_worker = Mock(
@@ -2479,9 +2480,9 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._create_profile_list_load_worker.assert_not_called()
 
     def test_pending_running_profile_refresh_does_not_schedule_extra_timer(self) -> None:
-        worker = SimpleNamespace(isRunning=Mock(return_value=True))
+        runtime = SimpleNamespace(is_running=Mock(return_value=True))
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
-        page._profile_load_worker = worker
+        page._profile_load_runtime = runtime
         page._profile_load_refresh_pending = True
         page._profile_payload_request_scheduled = False
         page._profile_payload_request_force = False

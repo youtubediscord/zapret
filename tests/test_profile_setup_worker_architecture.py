@@ -233,6 +233,48 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("delete_user_profile", kwargs)
         self.assertNotIn("profile_feature", kwargs)
 
+    def test_preset_setup_page_uses_worker_runtime_instead_of_manual_worker_fields(self) -> None:
+        from profile.ui.preset_setup_page import PresetSetupPageBase
+
+        init_source = inspect.getsource(PresetSetupPageBase.__init__)
+        page_source = inspect.getsource(PresetSetupPageBase)
+        worker_start_sources = (
+            inspect.getsource(PresetSetupPageBase._request_profiles_payload),
+            inspect.getsource(PresetSetupPageBase._request_profile_context_action),
+            inspect.getsource(PresetSetupPageBase._request_user_profile_create),
+            inspect.getsource(PresetSetupPageBase._request_user_profile_update),
+            inspect.getsource(PresetSetupPageBase._request_user_profile_delete),
+            inspect.getsource(PresetSetupPageBase._request_profile_move),
+            inspect.getsource(PresetSetupPageBase._request_profile_folder_action),
+        )
+
+        self.assertIn("OneShotWorkerRuntime", init_source)
+        for attr in (
+            "_profile_load_runtime",
+            "_profile_context_action_runtime",
+            "_profile_move_runtime",
+            "_profile_folder_action_runtime",
+            "_user_profile_create_runtime",
+            "_user_profile_update_runtime",
+            "_user_profile_delete_runtime",
+        ):
+            self.assertIn(attr, init_source)
+
+        for source in worker_start_sources:
+            self.assertIn("start_qthread_worker", source)
+            self.assertNotIn("worker.start()", source)
+
+        for attr in (
+            "_profile_load_worker =",
+            "_profile_context_action_worker =",
+            "_profile_move_worker =",
+            "_profile_folder_action_worker =",
+            "_user_profile_create_worker =",
+            "_user_profile_update_worker =",
+            "_user_profile_delete_worker =",
+        ):
+            self.assertNotIn(attr, page_source)
+
 
 if __name__ == "__main__":
     unittest.main()

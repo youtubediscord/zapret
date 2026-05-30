@@ -25,11 +25,19 @@ class _Worker:
         return self._running
 
 
+class _Runtime:
+    def __init__(self, *, running: bool = False) -> None:
+        self._running = running
+
+    def is_running(self) -> bool:
+        return self._running
+
+
 class ProfileContextActionQueueTests(unittest.TestCase):
     def test_profile_context_action_keeps_latest_pending_action_while_worker_runs(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page.launch_method = "zapret2_mode"
-        page._profile_context_action_worker = _Worker(running=True)
+        page._profile_context_action_runtime = _Runtime(running=True)
         page._pending_profile_context_action = None
 
         PresetSetupPageBase._request_profile_context_action(

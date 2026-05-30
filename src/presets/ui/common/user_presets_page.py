@@ -185,6 +185,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_edit_action_request_id = 0
         self._preset_storage_action_worker = None
         self._preset_storage_action_request_id = 0
+        self._pending_preset_storage_action: dict[str, object] | None = None
         self._preset_folder_action_worker = None
         self._preset_folder_action_request_id = 0
         self._preset_folder_action_pending: list[dict[str, object]] = []
@@ -1215,6 +1216,19 @@ class UserPresetsPageBase(BasePage):
         if worker is not None:
             try:
                 if worker.isRunning():
+                    self._pending_preset_storage_action = {
+                        "action": str(action or ""),
+                        "name": str(name or ""),
+                        "display_name": str(display_name or ""),
+                        "rating": int(rating or 0),
+                        "direction": int(direction or 0),
+                        "cached_metadata": cached_metadata,
+                        "source_kind": str(source_kind or ""),
+                        "source_id": str(source_id or ""),
+                        "destination_kind": str(destination_kind or ""),
+                        "destination_id": str(destination_id or ""),
+                        "destination_folder_key": str(destination_folder_key or ""),
+                    }
                     return
             except Exception:
                 return
@@ -1289,6 +1303,22 @@ class UserPresetsPageBase(BasePage):
         if self.__dict__.get("_preset_storage_action_worker") is worker:
             self._preset_storage_action_worker = None
         worker.deleteLater()
+        pending = self.__dict__.get("_pending_preset_storage_action")
+        self._pending_preset_storage_action = None
+        if pending:
+            self._request_preset_storage_action(
+                str(pending.get("action") or ""),
+                name=str(pending.get("name") or ""),
+                display_name=str(pending.get("display_name") or ""),
+                rating=int(pending.get("rating") or 0),
+                direction=int(pending.get("direction") or 0),
+                cached_metadata=pending.get("cached_metadata"),
+                source_kind=str(pending.get("source_kind") or ""),
+                source_id=str(pending.get("source_id") or ""),
+                destination_kind=str(pending.get("destination_kind") or ""),
+                destination_id=str(pending.get("destination_id") or ""),
+                destination_folder_key=str(pending.get("destination_folder_key") or ""),
+            )
 
     def _on_activate_preset(self, name: str) -> bool:
         preset_file_name = str(name or "").strip()
@@ -1703,6 +1733,7 @@ class UserPresetsPageBase(BasePage):
     def _stop_action_workers_for_cleanup(self) -> None:
         self._pending_preset_activation = None
         self._restore_preset_activation_marker_file_name = ""
+        self._pending_preset_storage_action = None
         self._preset_folder_action_pending.clear()
         self._preset_open_folder_pending = False
         self._preset_link_action_pending = ""
