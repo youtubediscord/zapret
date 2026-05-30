@@ -37,6 +37,7 @@ from blockcheck.ui.strategy_scan_page_runtime_helpers import (
     apply_log_expand_state,
     set_support_status,
 )
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.popup_menu import exec_popup_menu
 from app.ui_texts import tr as tr_catalog
 from qfluentwidgets import (
@@ -101,8 +102,7 @@ class StrategyScanPage(BasePage):
         self._strategy_apply_request_id = 0
         self._support_prepare_worker = None
         self._support_prepare_request_id = 0
-        self._quick_targets_worker = None
-        self._quick_targets_request_id = 0
+        self._quick_targets_runtime = OneShotWorkerRuntime()
         self._strategy_scan_resume_save_worker = None
         self._strategy_scan_resume_save_request_id = 0
         self._strategy_scan_resume_save_pending = None
@@ -363,44 +363,40 @@ class StrategyScanPage(BasePage):
         )
 
     def _request_quick_targets_menu(self, *, scan_protocol: str, current_value: str) -> None:
-        worker = self.__dict__.get("_quick_targets_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except Exception:
-                return
+        if self._quick_targets_runtime.is_running():
+            return
 
-        self._quick_targets_request_id += 1
-        request_id = self._quick_targets_request_id
-        worker = self.create_quick_targets_worker(
-            request_id,
-            scan_protocol=scan_protocol,
-            current_value=current_value,
+        def worker_factory(request_id: int):
+            return self.create_quick_targets_worker(
+                request_id,
+                scan_protocol=scan_protocol,
+                current_value=current_value,
+            )
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_quick_targets_loaded)
+            worker.failed.connect(self._on_quick_targets_failed)
+
+        self._quick_targets_runtime.start_qthread_worker(
+            worker_factory=worker_factory,
+            bind_worker=bind_worker,
         )
-        self._quick_targets_worker = worker
-        worker.completed.connect(self._on_quick_targets_loaded)
-        worker.failed.connect(self._on_quick_targets_failed)
-        worker.finished.connect(lambda w=worker: self._on_quick_targets_worker_finished(w))
-        worker.start()
 
     def _on_quick_targets_loaded(self, request_id: int, menu_plan) -> None:
-        if request_id != self._quick_targets_request_id or self._cleanup_in_progress:
+        if not self._quick_targets_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         self._open_quick_targets_menu(menu_plan)
 
     def _on_quick_targets_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._quick_targets_request_id or self._cleanup_in_progress:
+        if not self._quick_targets_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         logger.warning("Failed to load quick targets: %s", error)
-
-    def _on_quick_targets_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_quick_targets_worker") is worker:
-            self._quick_targets_worker = None
-        try:
-            worker.deleteLater()
-        except Exception:
-            pass
 
     def _open_quick_targets_menu(self, menu_plan) -> None:
         if self._quick_domain_btn is None:
@@ -954,13 +950,11 @@ class StrategyScanPage(BasePage):
             except Exception:
                 pass
             self._support_prepare_worker = None
-        quick_targets_worker = self.__dict__.get("_quick_targets_worker")
-        if quick_targets_worker is not None:
-            try:
-                quick_targets_worker.quit()
-            except Exception:
-                pass
-            self._quick_targets_worker = None
+        self._quick_targets_runtime.stop(
+            blocking=False,
+            warning_prefix="strategy scan quick targets worker",
+        )
+        self._quick_targets_runtime.cancel()
         self._strategy_scan_resume_save_pending = None
         resume_save_worker = self.__dict__.get("_strategy_scan_resume_save_worker")
         if resume_save_worker is not None:
