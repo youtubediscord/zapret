@@ -2180,3 +2180,811 @@ author = community
 blobs = quic2
 --lua-desync=fake:blob=quic2:repeats=7
 --lua-desync=udplen:increment=5:pattern=0xDEADBEEF
+
+# --- missing builtin strategy coverage (generated from presets) ---
+[stock_missing_builtin_tcp_01]
+name = Default (circular) v2 / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Default (circular) v2.txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=3
+--lua-desync=pass:strategy=1
+--lua-desync=multisplit:pos=host:strategy=2
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1:strategy=3
+--lua-desync=multisplit:pos=2,midsld-2:seqovl=1:seqovl_pattern=tls7:strategy=4
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2:strategy=5
+--lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5:strategy=6
+--lua-desync=multidisorder:pos=host+1:strategy=7
+--lua-desync=multisplit:pos=2:seqovl=211:seqovl_pattern=tls5:strategy=8
+--lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google:strategy=9
+--lua-desync=multisplit:pos=10:seqovl=625:seqovl_pattern=tls5:strategy=10
+--lua-desync=multisplit:pos=10:seqovl=700:seqovl_pattern=tls_google:strategy=11
+--lua-desync=multisplit:pos=234:seqovl=700:seqovl_pattern=tls5:strategy=12
+--lua-desync=multisplit:pos=234:seqovl=700:seqovl_pattern=tls1:strategy=13
+--lua-desync=multisplit:pos=234:seqovl=1000:seqovl_pattern=tls_google:strategy=14
+--lua-desync=multisplit:seqovl=500:seqovl_pattern=tls_google:strategy=15
+--lua-desync=multisplit:seqovl=650:seqovl_pattern=tls_google:strategy=16
+--lua-desync=multisplit:seqovl=800:seqovl_pattern=tls_google:strategy=17
+--lua-desync=multisplit:seqovl=211:seqovl_pattern=tls5:strategy=18
+--lua-desync=multisplit:seqovl=625:seqovl_pattern=tls5:strategy=19
+--lua-desync=multisplit:seqovl=625:seqovl_pattern=tls_google:strategy=20
+--lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:strategy=21
+--lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:strategy=22
+
+[stock_missing_builtin_tcp_02]
+name = Default (circular) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Default (circular).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=3:retrans=3:maxseq=8192:inseq=2048:nld=3
+--lua-desync=send:repeats=2:strategy=1 --lua-desync=syndata:blob=stun_pat:strategy=1 --lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2:strategy=1
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2:strategy=2
+--lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google:strategy=3
+--lua-desync=send:repeats=2:strategy=4 --lua-desync=syndata:blob=stun_pat:strategy=4 --lua-desync=tls_multisplit_sni:seqovl=652:seqovl_pattern=tls_google:strategy=4
+--lua-desync=multisplit:pos=1:seqovl=740:seqovl_pattern=stun_pat:strategy=5
+--lua-desync=send:repeats=2:strategy=6 --lua-desync=syndata:blob=stun_pat:strategy=6  --lua-desync=multisplit:pos=1:seqovl=740:seqovl_pattern=stun_pat:strategy=6
+--lua-desync=send:repeats=2:strategy=7 --lua-desync=syndata:blob=tls_google:strategy=7 --lua-desync=pktmod:tcp_flags_unset=ack:strategy=7
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_seq=1000:strategy=8
+--lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8:strategy=9
+--lua-desync=fake:blob=fake_default_tls:tls_mod=rnd,dupsid,sni=www.google.com:repeats=8:tcp_seq=1000:strategy=10 --lua-desync=multisplit:pos=2:seqovl=681:seqovl_pattern=tls_google:repeats=8:strategy=10
+--lua-desync=multisplit:pos=host:strategy=11
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1:strategy=12
+--lua-desync=multisplit:pos=2,midsld-2:seqovl=1:seqovl_pattern=tls7:strategy=13
+--lua-desync=fake:blob=fake_default_http:repeats=4:ip_autottl=2,3-20:ip6_autottl=2,3-20:tcp_md5:strategy=14
+--lua-desync=multidisorder:pos=host+1:strategy=15
+--lua-desync=multisplit:pos=2:seqovl=211:seqovl_pattern=tls5:strategy=16
+--lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google:strategy=17
+--lua-desync=multisplit:pos=10:seqovl=625:seqovl_pattern=tls5:strategy=18
+--lua-desync=multisplit:pos=10:seqovl=700:seqovl_pattern=tls_google:strategy=19
+--lua-desync=multisplit:pos=234:seqovl=700:seqovl_pattern=tls5:strategy=20
+--lua-desync=multisplit:pos=234:seqovl=700:seqovl_pattern=tls1:strategy=21
+--lua-desync=multisplit:pos=234:seqovl=1000:seqovl_pattern=tls_google:strategy=22
+--lua-desync=multisplit:seqovl=500:seqovl_pattern=tls_google:strategy=23
+--lua-desync=multisplit:seqovl=650:seqovl_pattern=tls_google:strategy=24
+--lua-desync=multisplit:seqovl=800:seqovl_pattern=tls_google:strategy=25
+--lua-desync=multisplit:seqovl=211:seqovl_pattern=tls5:strategy=26
+--lua-desync=multisplit:seqovl=625:seqovl_pattern=tls5:strategy=27
+--lua-desync=multisplit:seqovl=625:seqovl_pattern=tls_google:strategy=28
+--lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:strategy=29
+
+[stock_missing_builtin_tcp_03]
+name = Preset X v2 (game filter) / 18+ сайты
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Preset X v2 (game filter).txt (18+ сайты) в basic-режиме.
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=tls_google
+--lua-desync=multisplit:pos=midsld
+
+[stock_missing_builtin_tcp_04]
+name = Syndata + MultiDisorder legacy WoW (game filter) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Syndata + MultiDisorder legacy WoW (game filter).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=fake_tls_7
+--lua-desync=fake:blob=fake_default_tls:repeats=6:tcp_ack=-66000:tcp_ts_up:ip6_hopbyhop2
+--lua-desync=multidisorder_legacy:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20
+
+[stock_missing_builtin_tcp_05]
+name = custom (circular) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета custom (circular).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=3
+--lua-desync=tls_aggressive:strategy=1
+--lua-desync=tls_aggressive:tcp_md5:strategy=2
+--lua-desync=tls_aggressive:tcp_ack=-66000:strategy=3
+--lua-desync=tls_multisplit_sni:strategy=4
+--lua-desync=tls_multisplit_sni:tcp_md5:strategy=5
+--lua-desync=tls_multisplit_sni:seqovl=680:sni=www.google.com:strategy=6
+--lua-desync=tls_fake_flood:strategy=7
+--lua-desync=tls_fake_flood:blob=fake_tls:repeats=6:strategy=8
+--lua-desync=tls_fake_flood:blob=tls_google:repeats=10:strategy=9
+--lua-desync=tls_fake_simple:strategy=10
+--lua-desync=tls_fake_simple:blob=fake_tls:tcp_md5:strategy=11
+--lua-desync=tls_fake_simple:blob=tls_google:tcp_ack=-66000:strategy=12
+--lua-desync=tls_split_gentle:strategy=13
+--lua-desync=tls_split_gentle:tcp_md5:strategy=14
+--lua-desync=tls_fake_split:strategy=15
+--lua-desync=tls_fake_split:blob=fake_tls:strategy=16
+--lua-desync=tls_disorder_gentle:strategy=17
+--lua-desync=tls_disorder_gentle:tcp_md5:strategy=18
+--lua-desync=tls_fake_disorder_gentle:strategy=19
+--lua-desync=tls_fake_disorder_gentle:blob=fake_tls:tcp_md5:strategy=20
+
+[stock_missing_builtin_tcp_06]
+name = fake (circular) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета fake (circular).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=3
+--lua-desync=fake:blob=fake_tls:tcp_md5:strategy=1
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_ack=-66000:tcp_ts_up:strategy=2
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_ack=-2:tcp_ts_up:strategy=3
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_md5:strategy=4
+--lua-desync=fake:blob=fake_tls:repeats=6:strategy=5
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ack=-66000:tcp_ts_up:strategy=6
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_md5:strategy=7
+--lua-desync=fake:blob=tls_google:ip_autottl=2,3-20:ip6_autottl=2,3-20:repeats=6:tcp_ack=-66000:strategy=8
+--lua-desync=fake:blob=tls_google:ip_autottl=2,3-20:ip6_autottl=2,3-20:repeats=6:tcp_md5:strategy=9
+--lua-desync=fake:blob=fake_tls:ip_ttl=3:ip6_ttl=3:tls_mod=rnd,dupsid,sni=www.google.com:strategy=10
+--lua-desync=fake:blob=fake_tls:tcp_flags_unset=ack:tls_mod=rnd,rndsni,padencap:strategy=11
+--lua-desync=fake:blob=fake_tls:tcp_md5:tls_mod=rnd,rndsni,padencap:strategy=12
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_ack=-66000:strategy=13 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:strategy=13
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_ack=-66000:tcp_md5:strategy=14 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:tcp_md5:strategy=14
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_md5:strategy=15 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=15
+--lua-desync=fake:blob=fake_tls:tcp_ack=-66000:repeats=6:tls_mod=rnd,dupsid,sni=www.google.com:strategy=16 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:strategy=16
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_ack=-66000:tcp_ts_up:strategy=17 --lua-desync=multisplit:strategy=17
+--lua-desync=fake:blob=tls_google:repeats=6:tcp_md5:strategy=18 --lua-desync=multisplit:repeats=6:tcp_md5:strategy=18
+--lua-desync=fake:blob=tls_google:ip_ttl=2:ip6_ttl=2:strategy=19 --lua-desync=multisplit:pos=sniext:seqovl=1:strategy=19
+--lua-desync=fake:blob=tls_google:ip_ttl=3:ip6_ttl=3:strategy=20 --lua-desync=multisplit:pos=3:seqovl=2:strategy=20
+--lua-desync=fake:blob=fake_tls:strategy=21 --lua-desync=multisplit:pos=3:seqovl=2:strategy=21
+--lua-desync=fake:blob=fake_tls:strategy=22 --lua-desync=multisplit:pos=3,midsld-1:seqovl=652:seqovl_pattern=tls7:strategy=22
+--lua-desync=fake:blob=fake_tls:tcp_flags_unset=ack:tls_mod=rnd,rndsni,padencap:strategy=23 --lua-desync=fakeddisorder:pos=midsld:tcp_flags_unset=ack:strategy=23
+--lua-desync=fake:blob=fake_tls:ip_ttl=1:ip6_ttl=1:tls_mod=rnd,rndsni,padencap:strategy=24 --lua-desync=multisplit:pos=1,midsld:strategy=24
+--lua-desync=fake:blob=tls_google:tcp_ack=-66000:strategy=25 --lua-desync=multisplit:pos=1,sld+1:seqovl=1:tcp_ack=-66000:strategy=25
+--lua-desync=fakedsplit:pos=3:pattern=0x00:strategy=26
+--lua-desync=fakedsplit:pos=1:tcp_ack=-66000:repeats=10:ip_ttl=4:ip6_ttl=4:strategy=27
+
+[stock_missing_builtin_tcp_07]
+name = general 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:ip_id=zero
+
+[stock_missing_builtin_tcp_08]
+name = general 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=multisplit:pos=1:seqovl=568:seqovl_pattern=tls_4pda
+
+[stock_missing_builtin_tcp_09]
+name = general 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=multisplit:payload=all:pos=1:seqovl=568:seqovl_pattern=tls_4pda
+
+[stock_missing_builtin_tcp_10]
+name = general ALT1 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT1 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:ip_id=zero:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:ip_id=zero:repeats=6
+
+[stock_missing_builtin_tcp_11]
+name = general ALT1 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT1 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_12]
+name = general ALT1 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT1 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_13]
+name = general ALT1 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT1 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=6
+--lua-desync=fakedsplit:pattern=0x00:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_14]
+name = general ALT10 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT10 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:ip_id=zero:repeats=6
+
+[stock_missing_builtin_tcp_15]
+name = general ALT10 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT10 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_16]
+name = general ALT10 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT10 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_4pda:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_17]
+name = general ALT10 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT10 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_4pda:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_18]
+name = general ALT11 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT11 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:ip_id=zero:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:ip_id=zero
+
+[stock_missing_builtin_tcp_19]
+name = general ALT11 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT11 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_20]
+name = general ALT11 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT11 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+
+[stock_missing_builtin_tcp_21]
+name = general ALT11 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT11 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:payload=all:pos=1:seqovl=664:seqovl_pattern=tls_max
+
+[stock_missing_builtin_tcp_22]
+name = general ALT12 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT12 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000:ip_id=zero
+
+[stock_missing_builtin_tcp_23]
+name = general ALT12 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT12 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_stun:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+
+[stock_missing_builtin_tcp_24]
+name = general ALT12 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT12 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_stun:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=664:seqovl_pattern=tls_max
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:payload=all:pos=1:seqovl=664:seqovl_pattern=tls_max
+
+[stock_missing_builtin_tcp_25]
+name = general ALT2 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT2 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google:ip_id=zero
+
+[stock_missing_builtin_tcp_26]
+name = general ALT2 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT2 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=multisplit:payload=all:pos=2:seqovl=652:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_27]
+name = general ALT3 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT3 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:tls_mod=rnd,dupsid,sni=www.google.com:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_ts=-600000:ip_id=zero
+--lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000:ip_id=zero:nofake2
+
+[stock_missing_builtin_tcp_28]
+name = general ALT3 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT3 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_default_http:tcp_ts=-600000
+--lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000:nofake2
+
+[stock_missing_builtin_tcp_29]
+name = general ALT3 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT3 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:tls_mod=rnd,dupsid,sni=ya.ru
+--lua-desync=fake:blob=fake_http_max:tcp_ts=-600000
+--lua-desync=hostfakesplit:host=ya.ru:tcp_ts=-600000:nofake2
+
+[stock_missing_builtin_tcp_30]
+name = general ALT4 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT4 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_seq=1000:repeats=6:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_seq=1000:repeats=6:ip_id=zero
+--lua-desync=multisplit:pos=2:ip_id=zero
+
+[stock_missing_builtin_tcp_31]
+name = general ALT4 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT4 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_seq=1000:repeats=6
+--lua-desync=fake:blob=fake_default_http:tcp_seq=1000:repeats=6
+--lua-desync=multisplit:pos=2
+
+[stock_missing_builtin_tcp_32]
+name = general ALT4 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT4 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_seq=1000:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_seq=1000:repeats=6
+--lua-desync=fake:blob=fake_http_max:tcp_seq=1000:repeats=6
+--lua-desync=multisplit:pos=2
+
+[stock_missing_builtin_tcp_33]
+name = general ALT4 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT4 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_stun_as_tls:tcp_seq=1000:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_seq=1000:repeats=6
+--lua-desync=fake:blob=fake_http_max:tcp_seq=1000:repeats=6
+--lua-desync=fake:blob=zero256:tcp_seq=1000:repeats=6
+--lua-desync=multisplit:payload=all:pos=2
+
+[stock_missing_builtin_tcp_34]
+name = general ALT5 / Мои сайты
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT5.txt (Мои сайты) в basic-режиме.
+--lua-desync=fake:blob=quic_google:repeats=6
+
+[stock_missing_builtin_tcp_35]
+name = general ALT6 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT6 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=multisplit:payload=all:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_36]
+name = general ALT7 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT7 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=multisplit:pos=2,sniext+1:seqovl=679:seqovl_pattern=tls_google:ip_id=zero
+
+[stock_missing_builtin_tcp_37]
+name = general ALT8 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT8 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=6:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_seq=2:repeats=6:ip_id=zero
+
+[stock_missing_builtin_tcp_38]
+name = general ALT8 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT8 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=fake_default_http:tcp_seq=2:repeats=6
+
+[stock_missing_builtin_tcp_39]
+name = general ALT8 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT8 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=fake_http_max:tcp_seq=2:repeats=6
+
+[stock_missing_builtin_tcp_40]
+name = general ALT8 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT8 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=fake_http_max:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=zero256:tcp_seq=2:repeats=6
+
+[stock_missing_builtin_tcp_41]
+name = general ALT9 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT9 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000:repeats=4:ip_id=zero
+
+[stock_missing_builtin_tcp_42]
+name = general ALT9 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT9 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=hostfakesplit:host=www.google.com:tcp_ts=-600000:repeats=4
+
+[stock_missing_builtin_tcp_43]
+name = general ALT9 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT9 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-600000:tcp_md5:repeats=4
+
+[stock_missing_builtin_tcp_44]
+name = general ALT9 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT9 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=hostfakesplit:payload=all:host=ozon.ru:tcp_ts=-600000:repeats=4
+
+[stock_missing_builtin_tcp_45]
+name = general ALT9 1.9.9 (game filter) / Cloudflare TCP
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT9 1.9.9 (game filter).txt (Cloudflare TCP) в basic-режиме.
+--lua-desync=hostfakesplit:host=ozon.ru:tcp_ts=-600000:repeats=4
+
+[stock_missing_builtin_tcp_46]
+name = general FAKE TLS AUTO 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11:ip_id=zero
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_seq=-10000:repeats=11:ip_id=zero
+--lua-desync=multidisorder_legacy:pos=1,midsld:ip_id=zero
+
+[stock_missing_builtin_tcp_47]
+name = general FAKE TLS AUTO 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_default_http:tcp_seq=-10000:repeats=11
+--lua-desync=multidisorder_legacy:pos=1,midsld
+
+[stock_missing_builtin_tcp_48]
+name = general FAKE TLS AUTO 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
+--lua-desync=multidisorder_legacy:pos=1,midsld
+
+[stock_missing_builtin_tcp_49]
+name = general FAKE TLS AUTO 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=tls_zero4:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=-10000:repeats=11:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=-10000:repeats=11
+--lua-desync=fake:blob=zero256:tcp_seq=-10000:repeats=11
+--lua-desync=multidisorder_legacy:payload=all:pos=1,midsld
+
+[stock_missing_builtin_tcp_50]
+name = general FAKE TLS AUTO ALT 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_seq=2:repeats=8:ip_id=zero
+--lua-desync=fakedsplit:pos=1:tcp_seq=2:repeats=8:ip_id=zero
+
+[stock_missing_builtin_tcp_51]
+name = general FAKE TLS AUTO ALT 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_default_http:tcp_seq=2:repeats=8
+--lua-desync=fakedsplit:pos=1:tcp_seq=2:repeats=8
+
+[stock_missing_builtin_tcp_52]
+name = general FAKE TLS AUTO ALT 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=2:repeats=8
+--lua-desync=fakedsplit:pos=1:tcp_seq=2:repeats=8
+
+[stock_missing_builtin_tcp_53]
+name = general FAKE TLS AUTO ALT 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=2:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=2:repeats=8
+--lua-desync=fake:blob=zero256:tcp_seq=2:repeats=8
+--lua-desync=fakedsplit:payload=all:pos=1:tcp_seq=2:repeats=8
+
+[stock_missing_builtin_tcp_54]
+name = general FAKE TLS AUTO ALT2 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT2 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=10000000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_seq=10000000:repeats=8:ip_id=zero
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:ip_id=zero
+
+[stock_missing_builtin_tcp_55]
+name = general FAKE TLS AUTO ALT2 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT2 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=10000000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_default_http:tcp_seq=10000000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_56]
+name = general FAKE TLS AUTO ALT2 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT2 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=10000000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=10000000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_57]
+name = general FAKE TLS AUTO ALT2 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT2 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_seq=10000000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_seq=10000000:repeats=8
+--lua-desync=fake:blob=zero256:tcp_seq=10000000:repeats=8
+--lua-desync=multisplit:payload=all:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_58]
+name = general FAKE TLS AUTO ALT3 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT3 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com:ip_id=zero
+--lua-desync=fake:blob=fake_default_http:tcp_ts=-600000:repeats=8:ip_id=zero
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google:ip_id=zero
+
+[stock_missing_builtin_tcp_59]
+name = general FAKE TLS AUTO ALT3 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT3 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_default_http:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_60]
+name = general FAKE TLS AUTO ALT3 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT3 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_61]
+name = general FAKE TLS AUTO ALT3 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general FAKE TLS AUTO ALT3 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=fake_default_tls:tcp_ts=-600000:repeats=8:tls_mod=rnd,dupsid,sni=www.google.com
+--lua-desync=fake:blob=fake_http_max:tcp_ts=-600000:repeats=8
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=8
+--lua-desync=multisplit:payload=all:pos=1:seqovl=681:seqovl_pattern=tls_google
+
+[stock_missing_builtin_tcp_62]
+name = general SIMPLE FAKE 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=tls_stun:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_63]
+name = general SIMPLE FAKE 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=tls_stun:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_64]
+name = general SIMPLE FAKE ALT 1.9.9 (game filter) / googlevideo.com (CDN сервера)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT 1.9.9 (game filter).txt (googlevideo.com (CDN сервера)) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_seq=2:ip_id=zero:repeats=6
+
+[stock_missing_builtin_tcp_65]
+name = general SIMPLE FAKE ALT 1.9.9 (game filter) / discord.media
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT 1.9.9 (game filter).txt (discord.media) в basic-режиме.
+--lua-desync=fake:blob=tls_google:tcp_seq=2:repeats=6
+
+[stock_missing_builtin_tcp_66]
+name = general SIMPLE FAKE ALT 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=tls_stun:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=http_max:tcp_seq=2:repeats=6
+
+[stock_missing_builtin_tcp_67]
+name = general SIMPLE FAKE ALT 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=tls_stun:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=tls_google:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=http_max:tcp_seq=2:repeats=6
+--lua-desync=fake:blob=zero256:tcp_seq=2:repeats=6
+
+[stock_missing_builtin_tcp_68]
+name = general SIMPLE FAKE ALT2 1.9.9 (game filter) / Telegram
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT2 1.9.9 (game filter).txt (Telegram) в basic-режиме.
+--lua-desync=fake:blob=tls_stun:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_69]
+name = general SIMPLE FAKE ALT2 1.9.9 (game filter) / Steam
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general SIMPLE FAKE ALT2 1.9.9 (game filter).txt (Steam) в basic-режиме.
+--lua-desync=fake:blob=tls_stun:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=tls_max:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=http_max:tcp_ts=-600000:repeats=6
+--lua-desync=fake:blob=zero256:tcp_ts=-600000:repeats=6
+
+[stock_missing_builtin_tcp_70]
+name = multidisorder (circular) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета multidisorder (circular).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=3
+--lua-desync=multidisorder:pos=1,midsld:strategy=1
+--lua-desync=multidisorder:pos=midsld-1:seqovl=1:strategy=2
+--lua-desync=multidisorder:seqovl=211:seqovl_pattern=tls5:strategy=3
+--lua-desync=multidisorder:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=4
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1:strategy=5
+--lua-desync=multidisorder:pos=midsld,midsld+2:seqovl=1:tcp_ack=-66000:repeats=10:strategy=6
+--lua-desync=multidisorder:pos=100,midsld,sniext+1,endhost-2,-10:strategy=7
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_ack=-66000:strategy=8 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:strategy=8
+--lua-desync=fake:blob=fake_tls:repeats=6:tcp_md5:strategy=9 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=9
+--lua-desync=fake:blob=fake_tls:tcp_ack=-66000:repeats=6:tls_mod=rnd,dupsid,sni=www.google.com:strategy=10 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:strategy=10
+--lua-desync=fake:blob=tls_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:tcp_ack=-66000:tcp_ts_up:strategy=11 --lua-desync=multidisorder:pos=method+2,midsld,5:strategy=11
+--lua-desync=fake:blob=fake_tls:repeats=11:tcp_md5:strategy=12 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=12
+--lua-desync=fake:blob=tls_google:repeats=11:tcp_md5:strategy=13 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=13
+--lua-desync=fake:blob=fake_tls:badsum:strategy=14 --lua-desync=multidisorder:pos=1:badsum:strategy=14
+--lua-desync=syndata:strategy=15 --lua-desync=multidisorder:pos=1,midsld:strategy=15
+
+[stock_missing_builtin_tcp_71]
+name = multisplit (circular) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета multisplit (circular).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=3
+--lua-desync=multisplit:pos=host:strategy=1
+--lua-desync=fakedsplit:pos=1:tcp_ack=-66000:repeats=10:ip_ttl=4:ip6_ttl=4:strategy=2
+--lua-desync=multisplit:pos=1:tcp_ack=-66000:repeats=10:ip_ttl=4:ip6_ttl=4:strategy=3
+--lua-desync=multisplit:pos=1:tcp_ack=-66000:repeats=15:ip_ttl=3:ip6_ttl=3:strategy=4
+--lua-desync=multisplit:pos=1,sld+1:seqovl=1:tcp_ack=-66000:strategy=5
+--lua-desync=multisplit:pos=2,midsld-2:seqovl=1:seqovl_pattern=tls7:strategy=6
+--lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1:strategy=7
+--lua-desync=multidisorder:pos=midsld,midsld+2:seqovl=1:tcp_ack=-66000:repeats=10:strategy=8
+--lua-desync=fakeddisorder:pos=2,midsld-2:pattern=tls7:seqovl=1:tcp_ack=-66000:ip_autottl=0,3-20:ip6_autottl=0,3-20:strategy=9
+--lua-desync=fakedsplit:pos=1:tcp_ack=-66000:repeats=8:ip_autottl=0,3-20:ip6_autottl=0,3-20:strategy=10
+--lua-desync=fake:blob=tls_google:tcp_ack=-66000:strategy=11
+--lua-desync=multisplit:pos=2:seqovl=211:seqovl_pattern=tls5:strategy=12
+--lua-desync=multisplit:pos=2:seqovl=652:seqovl_pattern=tls_google:strategy=13
+--lua-desync=multisplit_tls:payload=tls_client_hello:seqovl=680:sni=www.google.com:tls_rnd:tls_dupsid:pos=2:strategy=14
+--lua-desync=multisplit_tls:payload=tls_client_hello:seqovl=680:sni=ya.ru:tls_rnd:tls_dupsid:pos=2:strategy=15
+--lua-desync=multisplit:pos=10:seqovl=625:seqovl_pattern=tls5:strategy=16
+--lua-desync=multisplit:pos=10:seqovl=700:seqovl_pattern=tls_google:strategy=17
+--lua-desync=multisplit_tls:seqovl=700:payload=tls_client_hello:strategy=18
+--lua-desync=multisplit_tls:payload=tls_client_hello:seqovl=652:sni=www.google.com:tls_rnd:tls_dupsid:pos=2:strategy=19
+--lua-desync=multisplit_tls:payload=tls_client_hello:seqovl=680:sni=www.google.com:tls_rnd:tls_dupsid:pos=2:strategy=20
+--lua-desync=multisplit:pos=234:seqovl=700:seqovl_pattern=tls5:strategy=21
+--lua-desync=multisplit:pos=234:seqovl=700:seqovl_pattern=tls1:strategy=22
+--lua-desync=multisplit:pos=234:seqovl=1000:seqovl_pattern=tls_google:strategy=23
+--lua-desync=multisplit:seqovl=500:seqovl_pattern=tls_google:strategy=24
+--lua-desync=multisplit:seqovl=650:seqovl_pattern=tls_google:strategy=25
+--lua-desync=multisplit:seqovl=800:seqovl_pattern=tls_google:strategy=26
+--lua-desync=multisplit:seqovl=211:seqovl_pattern=tls5:strategy=27
+--lua-desync=multisplit:seqovl=625:seqovl_pattern=tls5:strategy=28
+--lua-desync=multisplit:seqovl=625:seqovl_pattern=tls_google:strategy=29
+--lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:strategy=30
+--lua-desync=multisplit:seqovl=700:seqovl_pattern=tls_google:strategy=31
+
+[stock_missing_builtin_tcp_72]
+name = syndata (circular) / Все сайты (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета syndata (circular).txt (Все сайты (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=3
+--lua-desync=syndata:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=1 --lua-desync=multidisorder:pos=1,midsld:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=1
+--lua-desync=syndata:blob=tls_google:strategy=2 --lua-desync=multidisorder:pos=1,midsld:strategy=2
+--lua-desync=syndata:blob=tls_google:tcp_md5:strategy=3 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=3
+--lua-desync=syndata:blob=tls_google:tcp_ack=-66000:strategy=4 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:strategy=4
+--lua-desync=syndata:blob=tls_google:repeats=11:tcp_ack=-66000:tcp_ts_up:strategy=5 --lua-desync=multidisorder:pos=3:strategy=5
+--lua-desync=syndata:blob=tls7:strategy=6 --lua-desync=multidisorder:pos=1,midsld:strategy=6
+--lua-desync=syndata:blob=tls7:tcp_md5:strategy=7 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=7
+--lua-desync=syndata:blob=tls7:strategy=8 --lua-desync=multidisorder:pos=midsld-1:seqovl=1:strategy=8
+--lua-desync=syndata:blob=tls_vk_kyber:tcp_md5:strategy=9 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=9
+--lua-desync=syndata:blob=tls_vk_kyber:tcp_md5:strategy=10 --lua-desync=multidisorder:pos=4:repeats=10:tcp_md5:strategy=10
+--lua-desync=syndata:strategy=11 --lua-desync=multidisorder:pos=1,host+2,sld+2,sld+5,sniext+1,sniext+2,endhost-2:seqovl=1:strategy=11
+--lua-desync=syndata:tcp_md5:strategy=12 --lua-desync=multidisorder:pos=midsld,midsld+2:seqovl=1:tcp_md5:strategy=12
+--lua-desync=syndata:strategy=13 --lua-desync=multidisorder:pos=1,midsld:strategy=13
+--lua-desync=syndata:tcp_md5:strategy=14 --lua-desync=multidisorder:pos=1,midsld:tcp_md5:strategy=14
+--lua-desync=syndata:tcp_ack=-66000:strategy=15 --lua-desync=multidisorder:pos=1,midsld:tcp_ack=-66000:strategy=15
+--lua-desync=syndata:strategy=16
+--lua-desync=send:repeats=2:strategy=17 --lua-desync=syndata:blob=tls7:strategy=17
+--lua-desync=send:repeats=3:strategy=18 --lua-desync=syndata:blob=tls_google:strategy=18
+--lua-desync=send:repeats=2:strategy=19 --lua-desync=syndata:blob=tls_google:strategy=19 --lua-desync=multidisorder:seqovl=700:seqovl_pattern=tls_google:tcp_flags_unset=ack:strategy=19
+--lua-desync=send:repeats=2:strategy=20 --lua-desync=syndata:blob=tls_google:strategy=20 --lua-desync=multisplit:pos=midsld:strategy=20
+--lua-desync=send:repeats=2:strategy=21 --lua-desync=syndata:blob=tls_max:strategy=21 --lua-desync=multisplit:pos=midsld:strategy=21
+--lua-desync=send:repeats=2:strategy=22 --lua-desync=syndata:blob=tls_google:strategy=22 --lua-desync=multidisorder_legacy:pos=1,midsld:strategy=22
+--lua-desync=syndata:ip_ttl=5:ip6_ttl=5:strategy=23
+--lua-desync=syndata:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=24
+--lua-desync=syndata:tcp_md5:strategy=25
+--lua-desync=syndata:tcp_ack=-66000:tcp_ts_up:strategy=26
+--lua-desync=syndata:blob=tls_google:strategy=27
+--lua-desync=syndata:blob=tls_google:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=28
+--lua-desync=syndata:blob=tls_google:tcp_md5:strategy=29
+--lua-desync=syndata:blob=tls4:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=30
+--lua-desync=syndata:blob=tls4:tcp_ack=-66000:tcp_ts_up:strategy=31
+--lua-desync=syndata:blob=tls7:strategy=32
+--lua-desync=syndata:blob=tls7:tcp_md5:strategy=33
+--lua-desync=syndata:blob=syndata3:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:strategy=34
+--lua-desync=syndata:blob=syndata3:ip_ttl=5:ip6_ttl=5:strategy=35
+--lua-desync=syndata:blob=tls_vk_kyber:tcp_md5:strategy=36
+
+# --- end missing builtin strategy coverage ---

@@ -374,3 +374,79 @@ author = community
 blobs = quic6
 --lua-desync=fake:blob=quic6:repeats=2:ip_autottl=-1,3-20:ip6_autottl=-1,3-20:payload=all
 --lua-desync=udplen:increment=8:pattern=0x0F0F0E0F
+
+# --- missing builtin strategy coverage (generated from presets) ---
+[stock_missing_builtin_udp_01]
+name = Dead by Daylight v2 (game filter) / ZapretKVN UDP
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Dead by Daylight v2 (game filter).txt (ZapretKVN UDP) в basic-режиме.
+--lua-desync=send:repeats=2
+--lua-desync=syndata:blob=stun_pat
+--lua-desync=hostfakesplit_multi:hosts=google.com,vimeo.com:tcp_ts=-1000:tcp_md5:repeats=2
+
+[stock_missing_builtin_udp_02]
+name = Default (circular) v2 / Все сайты UDP (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Default (circular) v2.txt (Все сайты UDP (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:time=300:retrans=3:nld=2
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all:strategy=1
+--lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=2
+--lua-desync=fake:repeats=6:blob=fake_default_quic:strategy=3
+--lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2:strategy=4
+--lua-desync=fake:blob=quic_google:repeats=6:strategy=5
+--lua-desync=fake:blob=quic_google:repeats=2:strategy=6
+--lua-desync=fake:blob=quic_google:repeats=9:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=7
+--lua-desync=fake:blob=quic_google:repeats=10:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=8
+--lua-desync=fake:blob=0x00:strategy=9
+--lua-desync=fake:blob=quic6:repeats=2:ip_ttl=7:ip6_ttl=7:payload=all:strategy=10
+--lua-desync=fake:blob=quic_test:repeats=2:payload=all:strategy=11
+--lua-desync=fake:blob=fake_default_quic:repeats=11:payload=all:strategy=12
+--lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all:strategy=13
+
+[stock_missing_builtin_udp_03]
+name = Default (circular) / Все сайты UDP (исключение)
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета Default (circular).txt (Все сайты UDP (исключение)) в basic-режиме.
+--lua-desync=circular:fails=1:udp_out=2:udp_in=0:nld=2
+--lua-desync=fake:blob=quic_google:ip_autottl=-2,3-20:ip6_autottl=-2,3-20:repeats=10:payload=all:strategy=1
+--lua-desync=fake:blob=fake_default_quic:repeats=11:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=2
+--lua-desync=fake:repeats=6:blob=fake_default_quic:strategy=3
+--lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2:strategy=4
+--lua-desync=fake:blob=quic_google:repeats=6:strategy=5
+--lua-desync=fake:blob=quic_google:repeats=2:strategy=6
+--lua-desync=fake:blob=quic_google:repeats=9:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=7
+--lua-desync=fake:blob=quic_google:repeats=10:ip_autottl=2,3-20:ip6_autottl=2,3-20:payload=all:strategy=8
+--lua-desync=fake:blob=0x00:strategy=9
+--lua-desync=fake:blob=quic6:repeats=2:ip_ttl=7:ip6_ttl=7:payload=all:strategy=10
+--lua-desync=fake:blob=quic_test:repeats=2:payload=all:strategy=11
+--lua-desync=fake:blob=fake_default_quic:repeats=11:payload=all:strategy=12
+--lua-desync=fake:blob=quic_google:repeats=15:ip_ttl=0:ip6_ttl=0:badsum:payload=all:strategy=13
+
+[stock_missing_builtin_udp_04]
+name = general 1.9.9 (game filter) / WhatsApp UDP wide
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general 1.9.9 (game filter).txt (WhatsApp UDP wide) в basic-режиме.
+--lua-desync=fake:blob=fake_default_quic:repeats=12
+--lua-desync=fake:blob=zero64:repeats=12
+--lua-desync=fake:blob=zero64:repeats=12
+--lua-desync=fake:blob=zero64:repeats=12
+--lua-desync=fake:blob=zero64:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+
+[stock_missing_builtin_udp_05]
+name = general ALT11 1.9.9 (game filter) / WhatsApp UDP wide
+author = builtin
+label = stock
+description = Автодобавлено для распознавания встроенного пресета general ALT11 1.9.9 (game filter).txt (WhatsApp UDP wide) в basic-режиме.
+--lua-desync=fake:blob=fake_default_quic:repeats=10
+--lua-desync=fake:blob=zero64:repeats=10
+--lua-desync=fake:blob=zero64:repeats=10
+--lua-desync=fake:blob=zero64:repeats=10
+--lua-desync=fake:blob=zero64:repeats=10
+--lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=10
+
+# --- end missing builtin strategy coverage ---
