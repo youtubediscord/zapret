@@ -58,8 +58,11 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self,
         parent=None,
         *,
-        presets_feature,
-        profile_feature,
+        get_selected_source_preset_display,
+        get_enabled_profile_count_snapshot,
+        create_additional_settings_load_worker,
+        set_wssize_enabled,
+        set_debug_log_enabled,
         runtime_feature,
         create_program_settings_save_worker,
         create_program_settings_load_worker,
@@ -86,8 +89,11 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             title_key="page.winws1_control.title",
             subtitle_key="page.winws1_control.subtitle",
         )
-        self._presets = presets_feature
-        self._profile = profile_feature
+        self._get_selected_source_preset_display = get_selected_source_preset_display
+        self._get_enabled_profile_count_snapshot = get_enabled_profile_count_snapshot
+        self._create_additional_settings_load_worker = create_additional_settings_load_worker
+        self._set_wssize_enabled = set_wssize_enabled
+        self._set_debug_log_enabled = set_debug_log_enabled
         self._runtime_feature = runtime_feature
         self._create_program_settings_save_worker = create_program_settings_save_worker
         self._create_program_settings_load_worker = create_program_settings_load_worker
@@ -442,7 +448,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         request_id = runtime.next_additional_settings_request_id()
         worker = winws1_page_runtime.create_additional_settings_worker(
             request_id,
-            self._profile.create_additional_settings_load_worker,
+            self._create_additional_settings_load_worker,
             launch_method=ZAPRET1_MODE,
             parent=self,
         )
@@ -492,8 +498,8 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         request_id = runtime.next_top_summary_request_id()
         worker = winws1_page_runtime.create_top_summary_worker(
             request_id,
-            self._presets.get_selected_source_preset_display,
-            self._profile.get_enabled_profile_count_snapshot,
+            self._get_selected_source_preset_display,
+            self._get_enabled_profile_count_snapshot,
             launch_method=ZAPRET1_MODE,
             parent=self,
         )
@@ -579,8 +585,8 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         worker = winws1_page_runtime.create_additional_settings_save_worker(
             request_id,
             set_discord_restart_setting,
-            self._profile.set_wssize_enabled,
-            self._profile.set_debug_log_enabled,
+            self._set_wssize_enabled,
+            self._set_debug_log_enabled,
             launch_method=launch_method,
             setting=setting,
             enabled=bool(enabled),

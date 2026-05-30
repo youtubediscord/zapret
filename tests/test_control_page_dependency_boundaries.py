@@ -18,12 +18,23 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
             init_source = inspect.getsource(page_cls.__init__)
             page_source = inspect.getsource(page_cls)
 
+            self.assertNotIn("presets_feature", init_source)
+            self.assertNotIn("profile_feature", init_source)
             self.assertNotIn("program_settings_feature", init_source)
             self.assertNotIn("external_actions_feature", init_source)
+            self.assertNotIn("self._presets =", page_source)
+            self.assertNotIn("self._presets.", page_source)
+            self.assertNotIn("self._profile =", page_source)
+            self.assertNotIn("self._profile.", page_source)
             self.assertNotIn("self._program_settings =", page_source)
             self.assertNotIn("self._program_settings.", page_source)
             self.assertNotIn("self._external_actions =", page_source)
             self.assertNotIn("self._external_actions.", page_source)
+            self.assertIn("get_selected_source_preset_display", init_source)
+            self.assertIn("get_enabled_profile_count_snapshot", init_source)
+            self.assertIn("create_additional_settings_load_worker", init_source)
+            self.assertIn("set_wssize_enabled", init_source)
+            self.assertIn("set_debug_log_enabled", init_source)
             self.assertIn("create_program_settings_save_worker", init_source)
             self.assertIn("create_program_settings_load_worker", init_source)
             self.assertIn("create_program_settings_admin_check_worker", init_source)
@@ -38,10 +49,12 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
 
         program_settings = Mock()
         external_actions = Mock()
+        presets = Mock()
+        profile = Mock()
         kwargs = build_control_page_kwargs(
             page_name=PageName.ZAPRET2_MODE_CONTROL,
-            presets_feature=Mock(),
-            profile_feature=Mock(),
+            presets_feature=presets,
+            profile_feature=profile,
             runtime_feature=Mock(),
             program_settings_feature=program_settings,
             external_actions_feature=external_actions,
@@ -53,6 +66,14 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
             ui_state_store=Mock(),
         )
 
+        self.assertIs(kwargs["get_selected_source_preset_display"], presets.get_selected_source_preset_display)
+        self.assertIs(kwargs["get_enabled_profile_count_snapshot"], profile.get_enabled_profile_count_snapshot)
+        self.assertIs(
+            kwargs["create_additional_settings_load_worker"],
+            profile.create_additional_settings_load_worker,
+        )
+        self.assertIs(kwargs["set_wssize_enabled"], profile.set_wssize_enabled)
+        self.assertIs(kwargs["set_debug_log_enabled"], profile.set_debug_log_enabled)
         self.assertIs(kwargs["create_external_open_url_worker"], external_actions.create_open_url_worker)
         self.assertIs(
             kwargs["create_program_settings_save_worker"],
@@ -78,6 +99,8 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
             kwargs["remember_hide_to_tray_on_minimize_close"],
             program_settings.remember_hide_to_tray_on_minimize_close,
         )
+        self.assertNotIn("presets_feature", kwargs)
+        self.assertNotIn("profile_feature", kwargs)
         self.assertNotIn("program_settings_feature", kwargs)
         self.assertNotIn("external_actions_feature", kwargs)
 

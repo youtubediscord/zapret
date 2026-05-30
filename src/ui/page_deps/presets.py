@@ -32,8 +32,11 @@ def build_control_page_kwargs(
         user_presets_page = PageName.ZAPRET1_USER_PRESETS
         preset_setup_page = PageName.ZAPRET1_PRESET_SETUP
     return {
-        "presets_feature": presets_feature,
-        "profile_feature": profile_feature,
+        "get_selected_source_preset_display": presets_feature.get_selected_source_preset_display,
+        "get_enabled_profile_count_snapshot": profile_feature.get_enabled_profile_count_snapshot,
+        "create_additional_settings_load_worker": profile_feature.create_additional_settings_load_worker,
+        "set_wssize_enabled": profile_feature.set_wssize_enabled,
+        "set_debug_log_enabled": profile_feature.set_debug_log_enabled,
         "runtime_feature": runtime_feature,
         "create_program_settings_save_worker": program_settings_feature.create_program_settings_save_worker,
         "create_program_settings_load_worker": program_settings_feature.create_program_settings_load_worker,

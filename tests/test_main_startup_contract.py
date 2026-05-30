@@ -1675,10 +1675,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             set_profile_count=Mock(),
             set_premium=Mock(),
         )
-        control_page._presets = SimpleNamespace(
-            get_selected_source_preset_display=Mock(return_value=("Preset", "Preset"))
-        )
-        control_page._profile = SimpleNamespace(get_enabled_profile_count_snapshot=Mock(return_value=2))
+        control_page._get_selected_source_preset_display = Mock(return_value=("Preset", "Preset"))
+        control_page._get_enabled_profile_count_snapshot = Mock(return_value=2)
         control_page.window = Mock(
             return_value=SimpleNamespace(
                 startup_state=SimpleNamespace(interactive_logged=False),
@@ -1693,8 +1691,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         Zapret2ModeControlPage._on_ui_state_changed(control_page, AppUiState(), frozenset())
 
-        control_page._presets.get_selected_source_preset_display.assert_not_called()
-        control_page._profile.get_enabled_profile_count_snapshot.assert_not_called()
+        control_page._get_selected_source_preset_display.assert_not_called()
+        control_page._get_enabled_profile_count_snapshot.assert_not_called()
         self.assertEqual(len(connected), 1)
 
         control_page.window.return_value.startup_state.interactive_logged = True
@@ -1727,8 +1725,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         ):
             scheduled[0][1]()
 
-        control_page._presets.get_selected_source_preset_display.assert_called_once()
-        control_page._profile.get_enabled_profile_count_snapshot.assert_called_once()
+        control_page._get_selected_source_preset_display.assert_called_once()
+        control_page._get_enabled_profile_count_snapshot.assert_called_once()
         control_page.top_summary.set_preset.assert_called_with("Preset")
         control_page.top_summary.set_profile_count.assert_called_with(2)
 
@@ -1797,10 +1795,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             set_profile_count=Mock(),
             set_premium=Mock(),
         )
-        control_page._presets = SimpleNamespace(
-            get_selected_source_preset_display=Mock(return_value=("Preset", "Preset"))
-        )
-        control_page._profile = SimpleNamespace(get_enabled_profile_count_snapshot=profile_count)
+        control_page._get_selected_source_preset_display = Mock(return_value=("Preset", "Preset"))
+        control_page._get_enabled_profile_count_snapshot = profile_count
 
         with patch.object(
             zapret2_page.QTimer,
