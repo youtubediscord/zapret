@@ -59,6 +59,7 @@ from .editable_settings import (
 
 
 PROFILE_LIST_PAYLOAD_CACHE_LIMIT = 24
+PROFILE_SETUP_PAYLOAD_CACHE_LIMIT = 128
 
 
 @dataclass(slots=True)
@@ -82,6 +83,10 @@ class ProfilePresetService:
         self._profile_list_snapshots_by_revision: OrderedDict[
             tuple[object, ...],
             ProfileListPayload,
+        ] = OrderedDict()
+        self._profile_setup_payload_cache: OrderedDict[
+            tuple[object, ...],
+            ProfileSetupPayload | None,
         ] = OrderedDict()
         self._profile_list_lock = threading.RLock()
 
@@ -352,7 +357,25 @@ class ProfilePresetService:
         }
 
     def get_profile_setup(self, profile_key: str) -> ProfileSetupPayload | None:
-        preset, _manifest = self.load_selected_preset()
+        with self._profile_list_lock:
+            return self._get_profile_setup_locked(profile_key)
+
+    def warm_profile_setups(self, profile_keys: tuple[str, ...]) -> None:
+        for index, profile_key in enumerate(tuple(profile_keys or ())):
+            self._yield_profile_payload_worker(index)
+            self.get_profile_setup(profile_key)
+
+    def _get_profile_setup_locked(self, profile_key: str) -> ProfileSetupPayload | None:
+        cache_key = self._profile_setup_cache_key(profile_key)
+        if cache_key is None:
+            return None
+        cached = self._profile_setup_payload_cache.get(cache_key)
+        if cache_key in self._profile_setup_payload_cache:
+            self._profile_setup_payload_cache.move_to_end(cache_key)
+            return cached
+
+        preset_revision, manifest, source_text = self._selected_preset_revision()
+        preset, _manifest = self._load_selected_preset_for_revision(preset_revision, manifest, source_text)
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)
         templates = self._load_profile_templates()
         source = _find_profile_list_source(
@@ -360,6 +383,7 @@ class ProfilePresetService:
             profile_key,
         )
         if source is None:
+            self._remember_profile_setup_payload(cache_key, None)
             return None
         profile = source.profile
         item = self._item_for_profile(
@@ -376,7 +400,7 @@ class ProfilePresetService:
             profile.persistent_key,
             tuple(strategy_entries),
         )
-        return ProfileSetupPayload(
+        payload = ProfileSetupPayload(
             item=item,
             strategy_entries=strategy_entries,
             strategy_states=strategy_states,
@@ -392,6 +416,26 @@ class ProfilePresetService:
             out_range=editable.out_range,
             current_strategy_state=strategy_states.get(item.strategy_id, ProfileStrategyState()),
         )
+        self._remember_profile_setup_payload(cache_key, payload)
+        return payload
+
+    def _profile_setup_cache_key(self, profile_key: str) -> tuple[object, ...] | None:
+        key = str(profile_key or "").strip()
+        if not key:
+            return None
+        preset_revision, _manifest, _source_text = self._selected_preset_revision()
+        return (*preset_revision, ("profile_setup", key))
+
+    def _remember_profile_setup_payload(
+        self,
+        cache_key: tuple[object, ...],
+        payload: ProfileSetupPayload | None,
+    ) -> None:
+        self._profile_setup_payload_cache[cache_key] = payload
+        self._profile_setup_payload_cache.move_to_end(cache_key)
+        limit = max(1, int(PROFILE_SETUP_PAYLOAD_CACHE_LIMIT))
+        while len(self._profile_setup_payload_cache) > limit:
+            self._profile_setup_payload_cache.popitem(last=False)
 
     def set_profile_enabled(
         self,
@@ -1009,6 +1053,7 @@ class ProfilePresetService:
         self._profile_list_snapshot = None
         self._profile_list_snapshot_revision = None
         self._profile_list_snapshots_by_revision.clear()
+        self._profile_setup_payload_cache.clear()
 
     def _current_selected_preset_file_name(self) -> str:
         file_name_getter = getattr(self._presets, "get_selected_source_preset_file_name", None)

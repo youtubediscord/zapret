@@ -58,6 +58,7 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
     def test_profile_setup_load_worker_comes_from_profile_feature(self) -> None:
         from app.feature_facades.profile import ProfileFeature
         from profile.ui.profile_setup_page import ProfileSetupPageBase
+        from profile.service import ProfilePresetService
         from ui.navigation_pages import PageName
         from ui.page_deps.presets import build_profile_setup_page_kwargs
 
@@ -65,6 +66,9 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         request_source = inspect.getsource(ProfileSetupPageBase._request_profile_setup_payload)
         create_source = inspect.getsource(ProfileSetupPageBase.create_profile_setup_load_worker)
         feature_source = inspect.getsource(ProfileFeature)
+        service_init_source = inspect.getsource(ProfilePresetService.__init__)
+        setup_source = inspect.getsource(ProfilePresetService.get_profile_setup)
+        setup_locked_source = inspect.getsource(ProfilePresetService._get_profile_setup_locked)
 
         self.assertIn("create_profile_setup_load_worker", init_source)
         self.assertIn("_create_profile_setup_load_worker_fn", init_source)
@@ -72,6 +76,10 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("_controller.create_load_worker", request_source)
         self.assertIn("_create_profile_setup_load_worker_fn", create_source)
         self.assertIn("create_profile_setup_load_worker", feature_source)
+        self.assertIn("_profile_setup_payload_cache", service_init_source)
+        self.assertIn("_profile_list_lock", setup_source)
+        self.assertIn("_profile_setup_cache_key", setup_locked_source)
+        self.assertIn("_remember_profile_setup_payload", setup_locked_source)
 
         profile_feature = Mock()
         kwargs = build_profile_setup_page_kwargs(
@@ -86,6 +94,18 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
             profile_feature.create_profile_setup_load_worker,
         )
         self.assertNotIn("profile_feature", kwargs)
+
+    def test_profile_list_warmup_prepares_profile_setup_payloads(self) -> None:
+        from app.feature_facades.profile import ProfileFeature
+        from profile.service import ProfilePresetService
+
+        warm_source = inspect.getsource(ProfileFeature.warm_profile_list)
+        service_source = inspect.getsource(ProfilePresetService.warm_profile_setups)
+
+        self.assertIn("service.warm_profile_setups", warm_source)
+        self.assertIn('getattr(payload, "items"', warm_source)
+        self.assertIn("get_profile_setup", service_source)
+        self.assertIn("_yield_profile_payload_worker", service_source)
 
     def test_context_action_worker_receives_action_functions(self) -> None:
         from profile.profile_setup_loader import ProfilePresetProfileActionWorker

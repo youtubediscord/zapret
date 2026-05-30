@@ -51,6 +51,13 @@ class ProfileFeature:
             payload=payload,
             view_state=build_profile_list_view_state(tuple(getattr(payload, "items", ()) or ())),
         )
+        service.warm_profile_setups(
+            tuple(
+                str(getattr(item, "key", "") or "").strip()
+                for item in tuple(getattr(payload, "items", ()) or ())
+                if str(getattr(item, "key", "") or "").strip()
+            )
+        )
         with self._profile_list_load_result_lock:
             self._profile_list_load_result_cache[method] = result
         return result
