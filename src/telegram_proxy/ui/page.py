@@ -127,8 +127,7 @@ class TelegramProxyPage(BasePage):
         self._settings_save_worker = None
         self._open_log_file_worker = None
         self._external_link_worker = None
-        self._log_line_worker = None
-        self._log_line_request_id = 0
+        self._log_line_runtime = OneShotWorkerRuntime()
         self._log_line_pending: list[str] = []
         self._auto_deeplink_runtime = OneShotWorkerRuntime()
         self._settings_save_request_id = 0
@@ -660,45 +659,41 @@ class TelegramProxyPage(BasePage):
     def _request_log_line_append(self, message: str) -> None:
         if not message:
             return
-        worker = self.__dict__.get("_log_line_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._log_line_pending.append(message)
-                    return
-            except RuntimeError:
-                self._log_line_worker = None
+        if self._log_line_runtime.is_running():
+            self._log_line_pending.append(message)
+            return
 
         self._start_log_line_worker(message)
 
     def _start_log_line_worker(self, message: str) -> None:
         if self._cleanup_in_progress:
             return
-        self._log_line_request_id += 1
-        request_id = self._log_line_request_id
-        worker = self.create_log_line_worker(request_id, message=message)
-        self._log_line_worker = worker
-        worker.completed.connect(self._on_log_line_worker_completed)
-        worker.failed.connect(self._on_log_line_worker_failed)
-        worker.finished.connect(lambda w=worker: self._on_log_line_worker_finished(w))
-        worker.start()
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_log_line_worker_completed)
+            worker.failed.connect(self._on_log_line_worker_failed)
+
+        self._log_line_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_log_line_worker(
+                request_id,
+                message=message,
+            ),
+            bind_worker=bind_worker,
+            on_finished=self._on_log_line_worker_finished,
+        )
 
     def _on_log_line_worker_completed(self, _request_id: int) -> None:
         return
 
     def _on_log_line_worker_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._log_line_request_id or self._cleanup_in_progress:
+        if not self._log_line_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         log(f"Telegram Proxy log append failed: {error}", "WARNING")
 
-    def _on_log_line_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_log_line_worker") is worker:
-            self._log_line_worker = None
-        try:
-            worker.deleteLater()
-        except RuntimeError:
-            pass
-
+    def _on_log_line_worker_finished(self, _worker) -> None:
         if self._log_line_pending and not self._cleanup_in_progress:
             pending = self._log_line_pending.pop(0)
             self._start_log_line_worker(pending)
@@ -1339,6 +1334,12 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy auto deeplink worker",
         )
         self._auto_deeplink_runtime.cancel()
+        self._log_line_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="telegram proxy log line worker",
+        )
+        self._log_line_runtime.cancel()
         if self._upstream_restart_timer is not None:
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
@@ -1381,12 +1382,5 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
             self._external_link_worker = None
-        log_line_worker = self.__dict__.get("_log_line_worker")
-        if log_line_worker is not None:
-            try:
-                log_line_worker.quit()
-            except Exception:
-                pass
-            self._log_line_worker = None
         mgr = self._proxy_manager()
         mgr.cleanup()
