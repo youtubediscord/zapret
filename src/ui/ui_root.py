@@ -65,10 +65,7 @@ class WindowUiRoot:
             session.page_host.mark_stack_bootstrap_pending()
             _metric("StartupWindowUiRootRuntimeCoordinator", started_at)
 
-        try:
-            launch_method = self._window.get_launch_method()
-        except Exception:
-            launch_method = ""
+        launch_method = self._initial_launch_method()
 
         if session is not None:
             started_at = time.perf_counter()
@@ -85,6 +82,13 @@ class WindowUiRoot:
 
     def finish_bootstrap(self) -> None:
         finish_ui_bootstrap(self._window, self._runtime_bootstrap_deps)
+
+    def _initial_launch_method(self) -> str:
+        try:
+            snapshot = self._runtime_bootstrap_deps.ui_state_store.snapshot()
+            return str(getattr(snapshot, "launch_method", "") or "").strip().lower()
+        except Exception:
+            return ""
 
     def get_loaded_page(self, page_name: PageName):
         session = get_window_ui_session(self._window)
