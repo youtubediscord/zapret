@@ -75,7 +75,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -109,7 +109,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -170,7 +170,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -217,7 +217,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -228,7 +228,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -239,7 +239,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -258,7 +258,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -325,7 +325,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -336,7 +336,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -347,7 +347,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -358,7 +358,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -369,7 +369,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -380,7 +380,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -391,7 +391,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -458,7 +458,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -565,7 +565,7 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
 
 --new
 
@@ -576,4 +576,4 @@
 --payload=all
 --lua-desync=fake:blob=fake_default_quic:repeats=12
 --lua-desync=fake:blob=zero64:repeats=12
---lua-desync=fake:blob=fake_dbankcloud:payload=all:repeats=12
+--lua-desync=fake:blob=fake_dbankcloud:repeats=12
