@@ -50,9 +50,15 @@ class _Worker:
     def start(self) -> None:
         self.start_calls += 1
 
+    def deleteLater(self) -> None:  # noqa: N802
+        pass
 
-class _RunningWorker:
+
+class _RunningRuntime:
     def isRunning(self) -> bool:  # noqa: N802
+        return True
+
+    def is_running(self) -> bool:
         return True
 
 
@@ -92,7 +98,6 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
 
         worker = _Worker()
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
-        page._raw_activate_worker = None
         page._raw_activate_request_id = 0
         page._preset_file_name = "Default.txt"
         page.activateButton = _Button(enabled=False)
@@ -111,7 +116,7 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         page._cleanup_in_progress = False
         page._preset_path = object()
         page._preset_file_name = "Default.txt"
-        page._raw_save_worker = _RunningWorker()
+        page._raw_save_runtime = _RunningRuntime()
         page._pending_raw_preset_save = None
         page.editor = _PlainTextEditor("--new\n--filter-tcp=443\n")
 

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QHBoxLayout, QVBoxLayout, QWidget, QFi
 
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import set_tooltip, style_semantic_caption_label
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.popup_menu import exec_popup_menu
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from presets.ui.common.preset_status_bar import (
@@ -236,17 +237,17 @@ class PresetRawEditorPage(BasePage):
         self._preset_path: Path | None = None
         self._preset_origin = "user"
         self._is_loading = False
+        self._raw_load_runtime = OneShotWorkerRuntime()
         self._raw_load_request_id = 0
-        self._raw_load_worker = None
+        self._raw_save_runtime = OneShotWorkerRuntime()
         self._raw_save_request_id = 0
-        self._raw_save_worker = None
         self._pending_raw_preset_save: tuple[str, str | None, bool] | None = None
         self._after_raw_preset_save = None
         self._raw_save_succeeded = True
+        self._raw_activate_runtime = OneShotWorkerRuntime()
         self._raw_activate_request_id = 0
-        self._raw_activate_worker = None
+        self._raw_action_runtime = OneShotWorkerRuntime()
         self._raw_action_request_id = 0
-        self._raw_action_worker = None
         self._cleanup_in_progress = False
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -279,6 +280,19 @@ class PresetRawEditorPage(BasePage):
             app.installEventFilter(self)
             self._app_event_filter_installed = True
         self.bind_ui_state_store(ui_state_store)
+
+    def _raw_worker_runtime(self, attr: str) -> OneShotWorkerRuntime:
+        runtime = self.__dict__.get(attr)
+        if runtime is None:
+            runtime = OneShotWorkerRuntime()
+            setattr(self, attr, runtime)
+        return runtime
+
+    def _raw_worker_runtime_is_running(self, attr: str) -> bool:
+        runtime = self.__dict__.get(attr)
+        if runtime is None:
+            return False
+        return bool(runtime.is_running())
 
     def _default_title(self) -> str:
         return self._title
@@ -480,14 +494,9 @@ class PresetRawEditorPage(BasePage):
     def _run_after_raw_preset_save(self, callback) -> bool:
         if self._cleanup_in_progress:
             return False
-        worker = self._raw_save_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._after_raw_preset_save = callback
-                    return False
-            except Exception:
-                return False
+        if self._raw_worker_runtime_is_running("_raw_save_runtime"):
+            self._after_raw_preset_save = callback
+            return False
         if self._pending_raw_preset_save is not None:
             self._after_raw_preset_save = callback
             return False
@@ -573,16 +582,21 @@ class PresetRawEditorPage(BasePage):
         )
 
     def _request_raw_preset_text(self) -> None:
+        runtime = self._raw_worker_runtime("_raw_load_runtime")
         self._raw_load_request_id += 1
         request_id = self._raw_load_request_id
         self._is_loading = True
         self._set_footer("Загрузка...")
-        worker = self.create_raw_preset_load_worker(request_id, self._preset_file_name, self)
-        self._raw_load_worker = worker
-        worker.loaded.connect(self._on_raw_preset_text_loaded)
-        worker.failed.connect(self._on_raw_preset_text_failed)
-        worker.finished.connect(lambda w=worker: self._on_raw_preset_worker_finished(w))
-        worker.start()
+        runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: self.create_raw_preset_load_worker(
+                request_id,
+                self._preset_file_name,
+                self,
+            ),
+            on_loaded=self._on_raw_preset_text_loaded,
+            on_failed=self._on_raw_preset_text_failed,
+            on_finished=self._on_raw_preset_worker_finished,
+        )
 
     def _on_raw_preset_text_loaded(self, request_id: int, result) -> None:
         if request_id != self._raw_load_request_id:
@@ -604,10 +618,8 @@ class PresetRawEditorPage(BasePage):
         self._set_footer(f"Ошибка загрузки: {error}")
         self._is_loading = False
 
-    def _on_raw_preset_worker_finished(self, worker) -> None:
-        if self._raw_load_worker is worker:
-            self._raw_load_worker = None
-        worker.deleteLater()
+    def _on_raw_preset_worker_finished(self, _worker) -> None:
+        pass
 
     def _search_preset_text(self, text: str) -> None:
         editor = getattr(self, "editor", None)
@@ -640,17 +652,12 @@ class PresetRawEditorPage(BasePage):
             return False
         if self._preset_path is None:
             return False
-        worker = self._raw_save_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return self._request_raw_preset_save(
-                        file_name=self._preset_file_name,
-                        source_text=None,
-                        publish_content_changed=publish_content_changed,
-                    )
-            except Exception:
-                return False
+        if self._raw_worker_runtime_is_running("_raw_save_runtime"):
+            return self._request_raw_preset_save(
+                file_name=self._preset_file_name,
+                source_text=None,
+                publish_content_changed=publish_content_changed,
+            )
         return self._request_raw_preset_save(
             file_name=self._preset_file_name,
             source_text=self.editor.toPlainText(),
@@ -664,19 +671,15 @@ class PresetRawEditorPage(BasePage):
         source_text: str | None,
         publish_content_changed: bool = False,
     ) -> bool:
-        worker = self._raw_save_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    pending = self._pending_raw_preset_save
-                    self._pending_raw_preset_save = (
-                        str(file_name or "").strip(),
-                        None if source_text is None else str(source_text or ""),
-                        bool(publish_content_changed or (pending[2] if pending else False)),
-                    )
-                    return True
-            except Exception:
-                return False
+        runtime = self._raw_worker_runtime("_raw_save_runtime")
+        if runtime.is_running():
+            pending = self._pending_raw_preset_save
+            self._pending_raw_preset_save = (
+                str(file_name or "").strip(),
+                None if source_text is None else str(source_text or ""),
+                bool(publish_content_changed or (pending[2] if pending else False)),
+            )
+            return True
         self._start_raw_preset_save_worker(
             file_name=file_name,
             source_text=source_text,
@@ -691,22 +694,24 @@ class PresetRawEditorPage(BasePage):
         source_text: str,
         publish_content_changed: bool,
     ) -> None:
+        runtime = self._raw_worker_runtime("_raw_save_runtime")
         self._raw_save_request_id += 1
         request_id = self._raw_save_request_id
         self._raw_save_succeeded = False
         self._set_footer("Сохранение...")
-        worker = self.create_raw_preset_save_worker(
-            request_id,
-            file_name=str(file_name or "").strip(),
-            source_text=str(source_text or ""),
-            publish_content_changed=bool(publish_content_changed),
-            parent=self,
+        runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: self.create_raw_preset_save_worker(
+                request_id,
+                file_name=str(file_name or "").strip(),
+                source_text=str(source_text or ""),
+                publish_content_changed=bool(publish_content_changed),
+                parent=self,
+            ),
+            on_loaded=self._on_raw_preset_save_finished,
+            on_failed=self._on_raw_preset_save_failed,
+            on_finished=self._on_raw_preset_save_worker_finished,
+            loaded_signal_name="saved",
         )
-        self._raw_save_worker = worker
-        worker.saved.connect(self._on_raw_preset_save_finished)
-        worker.failed.connect(self._on_raw_preset_save_failed)
-        worker.finished.connect(lambda w=worker: self._on_raw_preset_save_worker_finished(w))
-        worker.start()
 
     def _on_raw_preset_save_finished(
         self,
@@ -738,10 +743,7 @@ class PresetRawEditorPage(BasePage):
         self._set_footer(f"Ошибка сохранения: {error}")
         self._show_error(str(error))
 
-    def _on_raw_preset_save_worker_finished(self, worker) -> None:
-        if self._raw_save_worker is worker:
-            self._raw_save_worker = None
-        worker.deleteLater()
+    def _on_raw_preset_save_worker_finished(self, _worker) -> None:
         pending = self._pending_raw_preset_save
         self._pending_raw_preset_save = None
         if pending and not self._cleanup_in_progress:
@@ -978,23 +980,24 @@ class PresetRawEditorPage(BasePage):
         self._request_preset_activation()
 
     def _request_preset_activation(self) -> None:
-        worker = self._raw_activate_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except Exception:
-                return
+        runtime = self._raw_worker_runtime("_raw_activate_runtime")
+        if runtime.is_running():
+            return
         self._raw_activate_request_id += 1
         request_id = self._raw_activate_request_id
         if self.activateButton is not None:
             set_enabled_if_changed(self.activateButton, False)
-        worker = self.create_raw_preset_activate_worker(request_id, self._preset_file_name, self)
-        self._raw_activate_worker = worker
-        worker.activated.connect(self._on_preset_activation_finished)
-        worker.failed.connect(self._on_preset_activation_failed)
-        worker.finished.connect(lambda w=worker: self._on_preset_activation_worker_finished(w))
-        worker.start()
+        runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: self.create_raw_preset_activate_worker(
+                request_id,
+                self._preset_file_name,
+                self,
+            ),
+            on_loaded=self._on_preset_activation_finished,
+            on_failed=self._on_preset_activation_failed,
+            on_finished=self._on_preset_activation_worker_finished,
+            loaded_signal_name="activated",
+        )
 
     def _on_preset_activation_finished(self, request_id: int, activated: bool) -> None:
         if request_id != self._raw_activate_request_id:
@@ -1011,34 +1014,28 @@ class PresetRawEditorPage(BasePage):
             return
         self._show_error(str(error))
 
-    def _on_preset_activation_worker_finished(self, worker) -> None:
-        if self._raw_activate_worker is worker:
-            self._raw_activate_worker = None
-        worker.deleteLater()
+    def _on_preset_activation_worker_finished(self, _worker) -> None:
         if self.activateButton is not None:
             set_enabled_if_changed(self.activateButton, True)
 
     def _request_raw_preset_action(self, action: str, **payload) -> None:
-        worker = self._raw_action_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except Exception:
-                return
+        runtime = self._raw_worker_runtime("_raw_action_runtime")
+        if runtime.is_running():
+            return
         self._raw_action_request_id += 1
         request_id = self._raw_action_request_id
-        worker = self.create_raw_preset_action_worker(
-            request_id,
-            action=action,
-            payload=payload,
-            parent=self,
+        runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: self.create_raw_preset_action_worker(
+                request_id,
+                action=action,
+                payload=payload,
+                parent=self,
+            ),
+            on_loaded=self._on_raw_preset_action_finished,
+            on_failed=self._on_raw_preset_action_failed,
+            on_finished=self._on_raw_preset_action_worker_finished,
+            loaded_signal_name="completed",
         )
-        self._raw_action_worker = worker
-        worker.completed.connect(self._on_raw_preset_action_finished)
-        worker.failed.connect(self._on_raw_preset_action_failed)
-        worker.finished.connect(lambda w=worker: self._on_raw_preset_action_worker_finished(w))
-        worker.start()
 
     def _on_raw_preset_action_finished(self, request_id: int, action: str, result, payload) -> None:
         if request_id != self._raw_action_request_id:
@@ -1085,10 +1082,8 @@ class PresetRawEditorPage(BasePage):
             return
         self._show_error(str(error))
 
-    def _on_raw_preset_action_worker_finished(self, worker) -> None:
-        if self._raw_action_worker is worker:
-            self._raw_action_worker = None
-        worker.deleteLater()
+    def _on_raw_preset_action_worker_finished(self, _worker) -> None:
+        pass
 
     def _activation_footer_text(self) -> str:
         try:
@@ -1251,12 +1246,26 @@ class PresetRawEditorPage(BasePage):
         except Exception:
             pass
 
+    def _stop_raw_worker_runtimes(self) -> None:
+        for attr, warning_prefix in (
+            ("_raw_load_runtime", "raw preset load worker"),
+            ("_raw_save_runtime", "raw preset save worker"),
+            ("_raw_activate_runtime", "raw preset activate worker"),
+            ("_raw_action_runtime", "raw preset action worker"),
+        ):
+            runtime = self.__dict__.get(attr)
+            if runtime is None:
+                continue
+            runtime.stop(blocking=True, warning_prefix=warning_prefix)
+            runtime.cancel()
+
     def cleanup(self) -> None:
         try:
             self._commit_pending_content_change()
         except Exception:
             pass
         self._cleanup_in_progress = True
+        self._stop_raw_worker_runtimes()
         unsubscribe = self._ui_state_unsubscribe
         if callable(unsubscribe):
             try:

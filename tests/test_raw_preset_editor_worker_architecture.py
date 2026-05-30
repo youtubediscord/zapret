@@ -6,6 +6,30 @@ from unittest.mock import Mock
 
 
 class RawPresetEditorWorkerArchitectureTests(unittest.TestCase):
+    def test_raw_preset_editor_starts_workers_through_runtime(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        request_methods = (
+            PresetRawEditorPage._request_raw_preset_text,
+            PresetRawEditorPage._start_raw_preset_save_worker,
+            PresetRawEditorPage._request_preset_activation,
+            PresetRawEditorPage._request_raw_preset_action,
+        )
+        page_source = inspect.getsource(PresetRawEditorPage)
+
+        for method in request_methods:
+            source = inspect.getsource(method)
+            self.assertIn("start_qthread_worker", source)
+            self.assertNotIn("worker.start()", source)
+
+        for old_field in (
+            "_raw_load_worker",
+            "_raw_save_worker",
+            "_raw_activate_worker",
+            "_raw_action_worker",
+        ):
+            self.assertNotIn(old_field, page_source)
+
     def test_raw_preset_editor_receives_worker_factories_instead_of_controller(self) -> None:
         from app.feature_facades.presets import PresetsFeature
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
