@@ -88,6 +88,25 @@ class UserPresetActivationGuardTests(unittest.TestCase):
         page._runtime_service.apply_active_preset_marker.assert_not_called()
         page._runtime_service.apply_active_preset_marker_for_file.assert_called_once_with("Before.txt")
 
+    def test_activation_success_does_not_repaint_already_started_marker(self) -> None:
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_activate_request_id = 9
+        page._pending_preset_activation = None
+        page._runtime_service = Mock()
+        page._runtime_service.apply_active_preset_marker_for_file = Mock(
+            side_effect=AssertionError("success must not repaint marker already set when worker started")
+        )
+        result = SimpleNamespace(
+            ok=True,
+            log_message="Активирован",
+            log_level="SUCCESS",
+            activated_file_name="Next.txt",
+        )
+
+        UserPresetsPageBase._on_preset_activation_finished(page, 9, result)
+
+        page._runtime_service.apply_active_preset_marker_for_file.assert_not_called()
+
     def test_clicking_active_raw_preset_without_changes_does_not_start_activation_worker(self) -> None:
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._run_after_raw_preset_save = Mock(return_value=True)

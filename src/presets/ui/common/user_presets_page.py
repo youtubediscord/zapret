@@ -1355,7 +1355,6 @@ class UserPresetsPageBase(BasePage):
             return
         log(str(getattr(result, "log_message", "") or ""), str(getattr(result, "log_level", "") or "INFO"))
         if bool(getattr(result, "ok", False)) and getattr(result, "activated_file_name", None):
-            self._runtime_service.apply_active_preset_marker_for_file(str(result.activated_file_name))
             return
         if str(getattr(result, "infobar_level", "") or "") == "error":
             InfoBar.error(
