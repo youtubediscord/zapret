@@ -3637,6 +3637,33 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         page._request_strategy_feedback_save.assert_not_called()
 
+    def test_strategy_feedback_finish_skips_duplicate_state(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._strategy_feedback_save_request_id = 1
+        page._pending_strategy_feedback_save = None
+        page._payload = SimpleNamespace(
+            item=SimpleNamespace(strategy_id="tls_fake", rating="work", favorite=False),
+            current_strategy_state=ProfileStrategyState(rating="work", favorite=False),
+        )
+        page._apply_strategy_feedback_locally = Mock(
+            side_effect=AssertionError("duplicate feedback state must not repaint strategy list")
+        )
+        page.reload_current_profile = Mock()
+        page._on_profile_changed_callback = Mock()
+
+        ProfileSetupPageBase._on_strategy_feedback_save_finished(
+            page,
+            1,
+            "profile-1",
+            "tls_fake",
+            ProfileStrategyState(rating="work", favorite=False),
+        )
+
+        page._apply_strategy_feedback_locally.assert_not_called()
+        page.reload_current_profile.assert_not_called()
+        page._on_profile_changed_callback.assert_not_called()
+
     def test_strategy_feedback_finish_for_previous_strategy_is_ignored(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._profile_key = "profile-1"

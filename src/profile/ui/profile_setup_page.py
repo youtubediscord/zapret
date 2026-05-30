@@ -2617,6 +2617,14 @@ class ProfileSetupPageBase(BasePage):
         current_strategy_id = str(getattr(item, "strategy_id", "") or "").strip()
         if str(strategy_id or "").strip() != current_strategy_id:
             return
+        next_state = state if isinstance(state, ProfileStrategyState) else ProfileStrategyState()
+        current_state = getattr(getattr(self, "_payload", None), "current_strategy_state", None)
+        if (
+            current_state == next_state
+            and str(getattr(item, "rating", "") or "") == str(getattr(next_state, "rating", "") or "")
+            and bool(getattr(item, "favorite", False)) == bool(getattr(next_state, "favorite", False))
+        ):
+            return
         if not self._apply_strategy_feedback_locally(state):
             self.reload_current_profile()
             self._on_profile_changed_callback(self._profile_key, "feedback")
