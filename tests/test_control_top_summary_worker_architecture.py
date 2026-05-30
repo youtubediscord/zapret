@@ -45,6 +45,21 @@ class ControlTopSummaryWorkerArchitectureTests(unittest.TestCase):
             self.assertNotIn("_set_wssize_enabled", request_source)
             self.assertNotIn("_set_debug_log_enabled", request_source)
 
+    def test_control_pages_start_refresh_workers_through_runtime(self) -> None:
+        for page_cls in (Zapret1ModeControlPage, Zapret2ModeControlPage):
+            top_summary_source = inspect.getsource(page_cls._request_top_summary_worker)
+            load_source = inspect.getsource(page_cls._schedule_additional_settings_reload)
+            save_source = inspect.getsource(page_cls._request_additional_settings_save)
+            page_source = inspect.getsource(page_cls)
+
+            for source in (top_summary_source, load_source, save_source):
+                self.assertIn("start_qthread_worker", source)
+                self.assertNotIn("worker.start()", source)
+
+            self.assertNotIn("runtime.top_summary_worker", page_source)
+            self.assertNotIn("runtime.additional_settings_worker", page_source)
+            self.assertNotIn("runtime.additional_settings_save_worker", page_source)
+
     def test_page_deps_wraps_additional_settings_setters_inside_worker_factory(self) -> None:
         source = inspect.getsource(preset_page_deps.build_control_page_kwargs)
 

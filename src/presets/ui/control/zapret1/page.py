@@ -340,25 +340,20 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             runtime.additional_settings_dirty = True
             self.run_when_page_ready(self._apply_pending_additional_settings_refresh)
             return
-        worker = runtime.additional_settings_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except Exception:
-                pass
+        if runtime.additional_settings_load_runtime.is_running():
+            return
 
         request_id = runtime.next_additional_settings_request_id()
-        worker = winws1_page_runtime.create_additional_settings_worker(
-            request_id,
-            self._create_additional_settings_load_worker,
-            launch_method=ZAPRET1_MODE,
-            parent=self,
+        runtime.additional_settings_load_runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: winws1_page_runtime.create_additional_settings_worker(
+                request_id,
+                self._create_additional_settings_load_worker,
+                launch_method=ZAPRET1_MODE,
+                parent=self,
+            ),
+            on_loaded=self._on_additional_settings_loaded,
+            loaded_signal_name="loaded",
         )
-        runtime.additional_settings_worker = worker
-        worker.loaded.connect(self._on_additional_settings_loaded)
-        worker.finished.connect(worker.deleteLater)
-        worker.start()
 
     def _on_additional_settings_loaded(self, request_id: int, state: dict) -> None:
         if not self._refresh_runtime.accept_additional_settings_result(request_id):
@@ -389,25 +384,20 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _request_top_summary_worker(self) -> None:
         runtime = self._refresh_runtime
-        worker = runtime.top_summary_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    runtime.top_summary_pending = True
-                    return
-            except Exception:
-                runtime.top_summary_worker = None
+        if runtime.top_summary_runtime.is_running():
+            runtime.top_summary_pending = True
+            return
 
         request_id = runtime.next_top_summary_request_id()
-        worker = self._create_top_summary_worker(
-            request_id,
-            parent=self,
+        runtime.top_summary_runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: self._create_top_summary_worker(
+                request_id,
+                parent=self,
+            ),
+            on_loaded=self._on_top_summary_loaded,
+            on_failed=self._on_top_summary_failed,
+            on_finished=self._on_top_summary_worker_finished,
         )
-        runtime.top_summary_worker = worker
-        worker.loaded.connect(self._on_top_summary_loaded)
-        worker.failed.connect(self._on_top_summary_failed)
-        worker.finished.connect(lambda w=worker: self._on_top_summary_worker_finished(w))
-        worker.start()
 
     def _on_top_summary_loaded(self, request_id: int, state) -> None:
         runtime = self._refresh_runtime
@@ -436,9 +426,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_top_summary_worker_finished(self, worker) -> None:
         runtime = self._refresh_runtime
-        if runtime.top_summary_worker is worker:
-            runtime.top_summary_worker = None
-        worker.deleteLater()
         if runtime.top_summary_pending and not self._cleanup_in_progress:
             runtime.top_summary_pending = False
             self._request_top_summary_worker()
@@ -477,26 +464,22 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _request_additional_settings_save(self, setting: str, enabled: bool, *, launch_method: str) -> None:
         runtime = self._refresh_runtime
         runtime.mark_additional_settings_written()
-        worker = runtime.additional_settings_save_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    runtime.additional_settings_save_pending = (setting, bool(enabled), launch_method)
-                    return
-            except Exception:
-                return
+        if runtime.additional_settings_save_runtime.is_running():
+            runtime.additional_settings_save_pending = (setting, bool(enabled), launch_method)
+            return
         request_id = runtime.next_additional_settings_save_request_id()
-        worker = self._create_additional_settings_save_worker(
-            request_id,
-            setting=setting,
-            enabled=bool(enabled),
-            parent=self,
+        runtime.additional_settings_save_runtime.start_qthread_worker(
+            worker_factory=lambda _runtime_request_id: self._create_additional_settings_save_worker(
+                request_id,
+                setting=setting,
+                enabled=bool(enabled),
+                parent=self,
+            ),
+            on_loaded=self._on_additional_settings_save_finished,
+            on_failed=self._on_additional_settings_save_failed,
+            on_finished=self._on_additional_settings_save_worker_finished,
+            loaded_signal_name="saved",
         )
-        runtime.additional_settings_save_worker = worker
-        worker.saved.connect(self._on_additional_settings_save_finished)
-        worker.failed.connect(self._on_additional_settings_save_failed)
-        worker.finished.connect(lambda w=worker: self._on_additional_settings_save_worker_finished(w))
-        worker.start()
 
     def _on_additional_settings_save_finished(self, request_id: int, _setting: str, _enabled: bool) -> None:
         if request_id != self._refresh_runtime.additional_settings_save_request_id:
@@ -509,9 +492,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_additional_settings_save_worker_finished(self, worker) -> None:
         runtime = self._refresh_runtime
-        if runtime.additional_settings_save_worker is worker:
-            runtime.additional_settings_save_worker = None
-        worker.deleteLater()
         pending = runtime.additional_settings_save_pending
         runtime.additional_settings_save_pending = None
         if pending is not None and not self._cleanup_in_progress:
@@ -705,6 +685,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
+        self._refresh_runtime.stop_workers(log_fn=log)
         self._stop_defender_admin_check_worker()
         self._stop_external_open_url_worker()
         cleanup_control_page_subscriptions(self)

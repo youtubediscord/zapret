@@ -32,7 +32,7 @@ class ControlPageImmediateStartupTests(unittest.TestCase):
 
         self.assertNotIn("create_additional_settings_worker as create_control_additional_settings_worker", import_block)
         self.assertIn("create_additional_settings_worker as create_control_additional_settings_worker", reload_source)
-        self.assertIn("create_additional_settings_save_worker as create_control_additional_settings_save_worker", save_source)
+        self.assertIn("_create_additional_settings_save_worker", save_source)
 
     def test_zapret2_page_runtime_is_not_imported_on_page_module_import(self) -> None:
         import presets.ui.control.zapret2.page as zapret2_page
