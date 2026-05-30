@@ -64,7 +64,6 @@ class PresetSetupPageBase(BasePage):
         self,
         parent=None,
         *,
-        get_cached_profile_list,
         create_profile_list_load_worker,
         create_profile_context_action_worker,
         create_profile_move_worker,
@@ -81,7 +80,6 @@ class PresetSetupPageBase(BasePage):
             parent=parent,
             title_key=self.title_key,
         )
-        self._get_cached_profile_list = get_cached_profile_list
         self._create_profile_list_load_worker_fn = create_profile_list_load_worker
         self._create_profile_context_action_worker_fn = create_profile_context_action_worker
         self._create_profile_move_worker_fn = create_profile_move_worker
@@ -214,10 +212,6 @@ class PresetSetupPageBase(BasePage):
         if not force and self._profile_payload_loaded_once and not self._profile_payload_dirty:
             return
         self._profile_payload_dirty = True
-        cached_payload = self._get_cached_profile_list(self.launch_method)
-        if cached_payload is not None:
-            self._apply_cached_profile_payload(cached_payload)
-            return
         worker = self._profile_load_worker
         if worker is not None:
             try:
@@ -247,12 +241,6 @@ class PresetSetupPageBase(BasePage):
         self._profile_payload_loaded_once = True
         self._profile_payload_dirty = False
         self._apply_payload(payload, view_state=view_state)
-
-    def _apply_cached_profile_payload(self, payload) -> None:
-        self._profile_payload_loaded_once = True
-        self._profile_payload_dirty = False
-        self._profile_load_request_id += 1
-        self._apply_payload(payload)
 
     def _on_profile_payload_failed(self, request_id: int, error: str) -> None:
         if request_id != self._profile_load_request_id or self._cleanup_in_progress:

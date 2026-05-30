@@ -87,6 +87,17 @@ class ControlPageImmediateStartupTests(unittest.TestCase):
         self.assertIn("ControlTopSummaryWidget", build_ui_source)
         self.assertIn("initial_icon_delay_ms=250", build_ui_source)
 
+    def test_zapret2_startup_does_not_build_hidden_profile_mode_card(self) -> None:
+        import inspect
+
+        import presets.ui.control.zapret2.sections_build as sections_build
+
+        source = inspect.getsource(sections_build.build_winws2_pages_settings_sections)
+
+        self.assertNotIn("profile_ui_mode_card = build_push_setting_card_common", source)
+        self.assertNotIn("get_cached_qta_pixmap", source)
+        self.assertIn("profile_ui_mode_btn=None", source)
+
 
 if __name__ == "__main__":
     unittest.main()

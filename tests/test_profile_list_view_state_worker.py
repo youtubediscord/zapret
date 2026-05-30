@@ -24,6 +24,20 @@ class ProfileListViewStateWorkerTests(unittest.TestCase):
         self.assertIn("apply_view_state", apply_source)
         self.assertNotIn("profiles_list.build_profiles(tuple(payload.items))", apply_source)
 
+    def test_preset_setup_page_does_not_read_cached_profile_payload_in_gui(self) -> None:
+        from profile.ui.preset_setup_page import PresetSetupPageBase
+        from ui.page_deps.presets import build_preset_setup_page_kwargs
+
+        init_source = inspect.getsource(PresetSetupPageBase.__init__)
+        request_source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
+        page_source = inspect.getsource(PresetSetupPageBase)
+        deps_source = inspect.getsource(build_preset_setup_page_kwargs)
+
+        self.assertNotIn("get_cached_profile_list", init_source)
+        self.assertNotIn("get_cached_profile_list", request_source)
+        self.assertNotIn("_apply_cached_profile_payload", page_source)
+        self.assertNotIn("get_cached_profile_list", deps_source)
+
 
 if __name__ == "__main__":
     unittest.main()

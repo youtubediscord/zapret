@@ -147,7 +147,6 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         update_user_source = inspect.getsource(PresetSetupPageBase._create_user_profile_update_worker)
         delete_user_source = inspect.getsource(PresetSetupPageBase._create_user_profile_delete_worker)
 
-        self.assertIn("get_cached_profile_list", init_source)
         self.assertIn("create_profile_list_load_worker", init_source)
         self.assertIn("create_profile_context_action_worker", init_source)
         self.assertIn("create_profile_move_worker", init_source)
@@ -186,7 +185,6 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
             ui_state_store=Mock(),
         )
 
-        self.assertIs(kwargs["get_cached_profile_list"], profile_feature.get_cached_profile_list)
         self.assertIs(kwargs["create_profile_list_load_worker"], profile_feature.create_profile_list_load_worker)
         self.assertIs(
             kwargs["create_profile_context_action_worker"],

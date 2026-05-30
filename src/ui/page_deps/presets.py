@@ -68,7 +68,6 @@ def build_control_page_kwargs(
 def build_preset_setup_page_kwargs(*, page_name: PageName, profile_feature, open_profile_setup, show_page, ui_state_store) -> dict:
     method = ZAPRET2_MODE if page_name == PageName.ZAPRET2_PRESET_SETUP else ZAPRET1_MODE
     return {
-        "get_cached_profile_list": profile_feature.get_cached_profile_list,
         "create_profile_list_load_worker": profile_feature.create_profile_list_load_worker,
         "create_profile_context_action_worker": profile_feature.create_profile_context_action_worker,
         "create_profile_move_worker": profile_feature.create_profile_move_worker,

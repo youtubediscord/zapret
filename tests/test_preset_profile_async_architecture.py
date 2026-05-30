@@ -1467,23 +1467,22 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("load_profile_folder_state", revision_source)
         self.assertIn("get_cached_profile_list", command_source)
 
-    def test_preset_setup_page_uses_cached_profile_payload_before_worker(self) -> None:
+    def test_preset_setup_page_always_uses_worker_for_profile_payload(self) -> None:
         source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
 
-        self.assertIn("get_cached_profile_list", source)
-        self.assertIn("_apply_cached_profile_payload", source)
-        self.assertLess(source.index("get_cached_profile_list"), source.index("worker.isRunning()"))
-        self.assertLess(source.index("get_cached_profile_list"), source.index("create_profile_list_load_worker"))
+        self.assertNotIn("get_cached_profile_list", source)
+        self.assertNotIn("_apply_cached_profile_payload", source)
+        self.assertIn("create_profile_list_load_worker", source)
         self.assertNotIn("_show_loading_skeleton", source)
 
-    def test_preset_setup_force_refresh_uses_profile_cache_before_worker(self) -> None:
+    def test_preset_setup_force_refresh_still_uses_worker_path(self) -> None:
         source = inspect.getsource(PresetSetupPageBase._request_profiles_payload)
 
         before_worker = source.split("worker =", 1)[0]
 
-        self.assertIn("get_cached_profile_list", before_worker)
+        self.assertNotIn("get_cached_profile_list", before_worker)
         self.assertNotIn("if not force:", before_worker)
-        self.assertLess(before_worker.index("get_cached_profile_list"), before_worker.index("_apply_cached_profile_payload"))
+        self.assertNotIn("_apply_cached_profile_payload", before_worker)
 
     def test_profile_service_has_selected_preset_snapshot(self) -> None:
         source = inspect.getsource(ProfilePresetService.load_selected_preset)

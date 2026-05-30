@@ -9,14 +9,14 @@ from presets.ui.control.shared_builders import (
 )
 from presets.ui.control.windows_features.build import build_windows_feature_toggles
 from ui.fluent_widgets import build_additional_settings_section, enable_setting_card_group_auto_height
-from ui.theme import get_cached_qta_pixmap, get_theme_tokens, get_themed_qta_icon
+from ui.theme import get_theme_tokens, get_themed_qta_icon
 
 
 @dataclass(slots=True)
 class Zapret2SettingsBuildWidgets:
-    profile_ui_mode_btn: object
-    profile_ui_mode_label: object
-    profile_ui_mode_caption: object
+    profile_ui_mode_btn: object | None
+    profile_ui_mode_label: object | None
+    profile_ui_mode_caption: object | None
     program_settings_section_label: object | None
     program_settings_card: object
     auto_dpi_toggle: object
@@ -58,20 +58,7 @@ def build_winws2_pages_settings_sections(
     on_open_folder,
     on_open_docs,
 ) -> Zapret2SettingsBuildWidgets:
-    profile_ui_mode_card = build_push_setting_card_common(
-        push_setting_card_cls=push_setting_card_cls,
-        button_text=tr_fn("page.winws2_control.button.change_mode", "Изменить режим"),
-        icon=get_cached_qta_pixmap("fa5s.sliders-h", color="#8ab4f8", size=20),
-        title_text=tr_fn("page.winws2_control.mode.basic", "Basic"),
-        content_text=tr_fn("page.winws2_control.profile_ui_mode.caption", "Режим отображения профилей"),
-        on_click=on_open_profile_ui_mode_dialog,
-        parent=content_parent,
-    )
-    try:
-        profile_ui_mode_card.setVisible(False)
-        profile_ui_mode_card.button.setEnabled(False)
-    except Exception:
-        pass
+    _ = on_open_profile_ui_mode_dialog
 
     program_settings_title = tr_fn("page.winws2_control.section.program_settings", "Настройки программы")
     program_settings_section_label = None
@@ -198,9 +185,9 @@ def build_winws2_pages_settings_sections(
     enable_setting_card_group_auto_height(extra_card)
 
     return Zapret2SettingsBuildWidgets(
-        profile_ui_mode_btn=profile_ui_mode_card.button,
-        profile_ui_mode_label=profile_ui_mode_card.titleLabel,
-        profile_ui_mode_caption=profile_ui_mode_card.contentLabel,
+        profile_ui_mode_btn=None,
+        profile_ui_mode_label=None,
+        profile_ui_mode_caption=None,
         program_settings_section_label=program_settings_section_label,
         program_settings_card=program_settings_card,
         auto_dpi_toggle=auto_dpi_toggle,
