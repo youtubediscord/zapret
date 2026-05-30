@@ -65,6 +65,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         )
         scheduled: list[tuple[int, object]] = []
         timer_delays: list[int] = []
+        background_targets: list[object] = []
 
         with (
             patch.object(startup_coordinator, "run_queued", side_effect=lambda callback: scheduled.append((0, callback))),
@@ -76,10 +77,20 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                     scheduled.append((int(delay_ms), callback)),
                 ),
             ),
+            patch.object(
+                startup_coordinator,
+                "start_daemon_thread",
+                side_effect=lambda _name, target: background_targets.append(target),
+            ),
             patch("settings.dpi.strategy_settings.get_strategy_launch_method", return_value="zapret2_mode"),
         ):
             coordinator.run_async_init()
             self.assertEqual(runtime.calls, [])
+            while scheduled:
+                _delay_ms, callback = scheduled.pop(0)
+                callback()
+            self.assertEqual(len(background_targets), 1)
+            background_targets[0]()
             while scheduled:
                 _delay_ms, callback = scheduled.pop(0)
                 callback()
@@ -109,6 +120,93 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 "autostart",
             ],
         )
+
+    def test_core_startup_runs_in_background_before_deferred_autostart(self) -> None:
+        from main import startup_coordinator
+        from main.startup_coordinator import StartupCoordinator
+
+        class Runtime:
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            def init_launch_runtime_api(self) -> None:
+                self.calls.append("runtime_api")
+
+            def init_launch_runtime(self) -> None:
+                self.calls.append("runtime")
+
+            def init_process_monitor(self) -> None:
+                self.calls.append("process_monitor")
+
+            def init_core_startup(self) -> None:
+                self.calls.append("core_startup")
+
+            def start_autostart(self, launch_method: str | None = None) -> None:
+                self.calls.append(f"autostart:{launch_method}")
+
+        runtime = Runtime()
+        window_shell = SimpleNamespace(
+            start_in_tray=False,
+            set_status=Mock(),
+            mark_startup_interactive=Mock(),
+            mark_startup_core_ready=Mock(),
+            mark_startup_post_init_done=Mock(),
+            init_theme_manager=Mock(side_effect=lambda: runtime.calls.append("theme")),
+        )
+        tray = SimpleNamespace(
+            init=Mock(),
+            is_initialized=Mock(return_value=False),
+        )
+        coordinator = StartupCoordinator(
+            runtime_feature=runtime,
+            tray_feature=tray,
+            window_shell=window_shell,
+            log_startup_metric=Mock(),
+        )
+        scheduled: list[tuple[int, object]] = []
+        background_targets: list[object] = []
+
+        with (
+            patch.object(startup_coordinator, "run_queued", side_effect=lambda callback: scheduled.append((0, callback))),
+            patch.object(
+                startup_coordinator.QTimer,
+                "singleShot",
+                side_effect=lambda delay_ms, callback: scheduled.append((int(delay_ms), callback)),
+            ),
+            patch.object(
+                startup_coordinator,
+                "start_daemon_thread",
+                side_effect=lambda _name, target: background_targets.append(target),
+                create=True,
+            ),
+            patch("settings.dpi.strategy_settings.get_strategy_launch_method", return_value="zapret2_mode"),
+        ):
+            coordinator.run_async_init()
+            while scheduled:
+                _delay_ms, callback = scheduled.pop(0)
+                callback()
+
+            self.assertEqual(runtime.calls, ["runtime_api", "runtime", "process_monitor"])
+            self.assertEqual(len(background_targets), 1)
+            window_shell.mark_startup_post_init_done.assert_not_called()
+
+            background_targets[0]()
+            while scheduled:
+                _delay_ms, callback = scheduled.pop(0)
+                callback()
+
+        self.assertEqual(
+            runtime.calls,
+            [
+                "runtime_api",
+                "runtime",
+                "process_monitor",
+                "core_startup",
+                "theme",
+                "autostart:zapret2_mode",
+            ],
+        )
+        window_shell.mark_startup_post_init_done.assert_called_once()
 
     def test_page_actions_are_built_after_notifications_are_attached(self) -> None:
         from main import window_runtime_setup

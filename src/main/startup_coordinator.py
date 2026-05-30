@@ -2,9 +2,10 @@ import time as _time
 from dataclasses import dataclass
 from typing import Callable
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from log.log import log
+from main.post_startup_threading import start_daemon_thread
 from main.qt_dispatch import run_queued
 from settings.mode import normalize_launch_method
 
@@ -44,6 +45,10 @@ class StartupWindowShell:
     init_theme_manager: Callable[[], None]
 
 
+class _StartupStepBridge(QObject):
+    finished = pyqtSignal(object)
+
+
 class StartupCoordinator:
     """
     Координатор запуска приложения.
@@ -78,6 +83,8 @@ class StartupCoordinator:
 
         self._phase_two_started = False
         self._post_init_dispatch_started = False
+        self._step_bridge = _StartupStepBridge()
+        self._step_bridge.finished.connect(self._on_background_step_finished)
 
     def _log_startup_step(self, marker: str, details: str = "") -> None:
         try:
@@ -206,6 +213,20 @@ class StartupCoordinator:
 
         def _run_current_step() -> None:
             log(f"🟡 Выполняем {task_name} после готовности UI", "DEBUG")
+            if task_name == TASK_CORE_STARTUP:
+                self._run_step_in_background(
+                    task_name,
+                    label,
+                    task,
+                    error_status=error_status,
+                    after_finished=lambda: self._run_startup_steps_queued(
+                        steps,
+                        index=index + 1,
+                        after_complete=after_complete,
+                    ),
+                )
+                return
+
             self._run_step(task_name, label, task, error_status=error_status)
             self._run_startup_steps_queued(
                 steps,
@@ -244,6 +265,69 @@ class StartupCoordinator:
                 except Exception:
                     pass
             return False
+
+    def _run_step_in_background(self, task_name: str, label: str, func, *, error_status=None, after_finished=None) -> None:
+        """Выполняет тяжёлый startup-шаг вне главного потока и возвращает итог в UI."""
+        metric_marker = _startup_step_metric_marker(task_name)
+
+        def _worker() -> None:
+            started_at = _time.perf_counter()
+            try:
+                func()
+                self._step_bridge.finished.emit(
+                    {
+                        "task_name": task_name,
+                        "label": label,
+                        "metric_marker": metric_marker,
+                        "error_status": error_status,
+                        "after_finished": after_finished,
+                        "elapsed_ms": (_time.perf_counter() - started_at) * 1000.0,
+                        "error": None,
+                    }
+                )
+            except Exception as exc:
+                self._step_bridge.finished.emit(
+                    {
+                        "task_name": task_name,
+                        "label": label,
+                        "metric_marker": metric_marker,
+                        "error_status": error_status,
+                        "after_finished": after_finished,
+                        "elapsed_ms": (_time.perf_counter() - started_at) * 1000.0,
+                        "error": exc,
+                    }
+                )
+
+        start_daemon_thread(f"StartupStep-{task_name}", _worker)
+
+    def _on_background_step_finished(self, payload: object) -> None:
+        data = payload if isinstance(payload, dict) else {}
+        task_name = str(data.get("task_name") or "")
+        label = str(data.get("label") or task_name or "step")
+        metric_marker = str(data.get("metric_marker") or _startup_step_metric_marker(task_name))
+        elapsed_ms = float(data.get("elapsed_ms") or 0.0)
+        error = data.get("error")
+        after_finished = data.get("after_finished")
+        error_status = data.get("error_status")
+
+        if error is None:
+            self._log_startup_step(metric_marker, f"{label} {elapsed_ms:.0f}ms")
+            self.startup_tasks_completed.add(task_name)
+            self._check_and_complete_initialization()
+        else:
+            self._log_startup_step(
+                metric_marker,
+                f"{label} error:{type(error).__name__} {elapsed_ms:.0f}ms",
+            )
+            log(f"Ошибка startup-шага {label}: {error}", "❌ ERROR")
+            if error_status is not None:
+                try:
+                    self.window_shell.set_status(error_status(error))
+                except Exception:
+                    pass
+
+        if callable(after_finished):
+            after_finished()
 
     def _finalize_startup_core(self):
         """Фиксирует готовность основного startup-контура."""
