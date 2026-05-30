@@ -103,7 +103,8 @@ def build_profile_order_page_kwargs(
         else PageName.ZAPRET1_MODE_CONTROL
     )
     return {
-        "profile_feature": profile_feature,
+        "create_profile_order_load_worker": profile_feature.create_profile_order_load_worker,
+        "create_preset_profile_order_move_worker": profile_feature.create_preset_profile_order_move_worker,
         "open_profiles": lambda page=profiles_page: show_page(page, allow_internal=True),
         "open_root": lambda page=control_page: show_page(page, allow_internal=True),
     }

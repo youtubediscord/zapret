@@ -15,13 +15,22 @@ class ProfileOrderPageBase(BasePage):
     profiles_key = "page.winws2_pages.title"
     profiles_default = "Настройка пресета"
 
-    def __init__(self, parent=None, *, profile_feature, open_profiles, open_root):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        create_profile_order_load_worker,
+        create_preset_profile_order_move_worker,
+        open_profiles,
+        open_root,
+    ):
         super().__init__(
             title="Порядок в preset",
             parent=parent,
             title_key=self.title_key,
         )
-        self._profile = profile_feature
+        self._create_profile_order_load_worker_fn = create_profile_order_load_worker
+        self._create_preset_profile_order_move_worker_fn = create_preset_profile_order_move_worker
         self._open_profiles = open_profiles
         self._open_root = open_root
         self._payload = None
@@ -86,7 +95,7 @@ class ProfileOrderPageBase(BasePage):
         worker.start()
 
     def _create_profile_order_load_worker(self, request_id: int, launch_method: str, parent=None):
-        return self._profile.create_profile_order_load_worker(request_id, launch_method, parent)
+        return self._create_profile_order_load_worker_fn(request_id, launch_method, parent)
 
     def _on_order_profiles_loaded(self, request_id: int, payload) -> None:
         if bool(self.__dict__.get("_cleanup_in_progress", False)) or request_id != int(getattr(self, "_order_load_request_id", 0) or 0):
@@ -174,7 +183,7 @@ class ProfileOrderPageBase(BasePage):
         destination_profile_key: str = "",
         parent=None,
     ):
-        return self._profile.create_preset_profile_order_move_worker(
+        return self._create_preset_profile_order_move_worker_fn(
             request_id,
             launch_method,
             action=action,

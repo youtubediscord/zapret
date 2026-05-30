@@ -189,11 +189,6 @@ class ProfileOrderPageTests(unittest.TestCase):
 
         page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
         page.launch_method = "zapret2_mode"
-        page._profile = Mock()
-        page._profile.list_preset_order_profiles.side_effect = AssertionError("order list must load in worker")
-        page._profile.move_preset_profile_before.side_effect = AssertionError("move must run in worker")
-        page._profile.move_preset_profile_after.side_effect = AssertionError("move must run in worker")
-        page._profile.move_preset_profile_to_end.side_effect = AssertionError("move must run in worker")
         page._order_load_worker = None
         page._order_load_request_id = 0
         page._order_move_worker = None
@@ -206,10 +201,6 @@ class ProfileOrderPageTests(unittest.TestCase):
         ProfileOrderPageBase._reload_order_profiles(page)
         ProfileOrderPageBase._on_profile_move_requested(page, "profile-1", "profile-2")
 
-        page._profile.list_preset_order_profiles.assert_not_called()
-        page._profile.move_preset_profile_before.assert_not_called()
-        page._profile.move_preset_profile_after.assert_not_called()
-        page._profile.move_preset_profile_to_end.assert_not_called()
         page._create_profile_order_load_worker.assert_called_once_with(1, "zapret2_mode", page)
         page._create_profile_order_move_worker.assert_called_once_with(
             1,
@@ -221,6 +212,33 @@ class ProfileOrderPageTests(unittest.TestCase):
         )
         load_worker.start.assert_called_once()
         move_worker.start.assert_called_once()
+
+    def test_order_page_receives_worker_factories_instead_of_profile_feature(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.page_deps.presets import build_profile_order_page_kwargs
+        from ui.navigation_pages import PageName
+
+        init_source = inspect.getsource(ProfileOrderPageBase.__init__)
+        page_source = inspect.getsource(ProfileOrderPageBase)
+
+        self.assertIn("create_profile_order_load_worker", init_source)
+        self.assertIn("create_preset_profile_order_move_worker", init_source)
+        self.assertNotIn("profile_feature", init_source)
+        self.assertNotIn("self._profile", page_source)
+
+        profile_feature = Mock()
+        kwargs = build_profile_order_page_kwargs(
+            page_name=PageName.ZAPRET2_PROFILE_ORDER,
+            profile_feature=profile_feature,
+            show_page=Mock(),
+        )
+
+        self.assertIs(kwargs["create_profile_order_load_worker"], profile_feature.create_profile_order_load_worker)
+        self.assertIs(
+            kwargs["create_preset_profile_order_move_worker"],
+            profile_feature.create_preset_profile_order_move_worker,
+        )
+        self.assertNotIn("profile_feature", kwargs)
 
     def test_order_page_invalidates_running_load_before_refresh_after_move(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
