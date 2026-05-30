@@ -119,6 +119,7 @@ class PresetSetupPageBase(BasePage):
         self._profile_context_action_worker = None
         self._profile_move_request_id = 0
         self._profile_move_worker = None
+        self._pending_profile_move: dict[str, str] | None = None
         self._profile_folder_action_request_id = 0
         self._profile_folder_action_worker = None
         self._profile_folder_action_pending: list[dict[str, object]] = []
@@ -928,6 +929,12 @@ class PresetSetupPageBase(BasePage):
         if worker is not None:
             try:
                 if worker.isRunning():
+                    self._pending_profile_move = {
+                        "action": str(action or ""),
+                        "source_profile_key": source_profile_key,
+                        "destination_profile_key": str(destination_profile_key or ""),
+                        "destination_group_key": str(destination_group_key or ""),
+                    }
                     return
             except Exception:
                 return
@@ -978,6 +985,15 @@ class PresetSetupPageBase(BasePage):
         if self.__dict__.get("_profile_move_worker") is worker:
             self._profile_move_worker = None
         worker.deleteLater()
+        pending = self.__dict__.get("_pending_profile_move")
+        self._pending_profile_move = None
+        if pending:
+            self._request_profile_move(
+                str(pending.get("action") or ""),
+                str(pending.get("source_profile_key") or ""),
+                destination_profile_key=str(pending.get("destination_profile_key") or ""),
+                destination_group_key=str(pending.get("destination_group_key") or ""),
+            )
 
     def _apply_profile_move_locally(
         self,
@@ -1218,6 +1234,7 @@ class PresetSetupPageBase(BasePage):
                 pass
         self._ui_state_unsubscribe = None
         self._ui_state_store = None
+        self._pending_profile_move = None
         self._profile_folder_action_pending.clear()
         self.__dict__.setdefault("_profile_context_action_enabled_by_request", {}).clear()
         for attr in (
