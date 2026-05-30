@@ -413,7 +413,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             signal.emit()
 
             self.assertEqual(len(scheduled), 1)
-            self.assertGreaterEqual(scheduled[0][0], 4_000)
+            self.assertLessEqual(scheduled[0][0], 1_000)
 
             next_callback_index = 0
             while next_callback_index < len(scheduled):
