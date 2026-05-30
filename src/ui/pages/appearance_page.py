@@ -161,8 +161,12 @@ class AppearancePage(BasePage):
             emit_initial=True,
         )
 
-    def _on_ui_state_changed(self, state: AppUiState, _changed_fields: frozenset[str]) -> None:
+    def _on_ui_state_changed(self, state: AppUiState, changed_fields: frozenset[str]) -> None:
         if self._cleanup_in_progress:
+            return
+        changed = set(changed_fields or ())
+        if changed == {"window_opacity"}:
+            self.set_opacity_value(state.window_opacity)
             return
         premium_effects = appearance_settings.AppearancePremiumEffectsPlan(
             garland_enabled=bool(state.garland_enabled),
