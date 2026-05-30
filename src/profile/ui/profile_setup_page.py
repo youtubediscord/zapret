@@ -834,6 +834,7 @@ class ProfileSetupPageBase(BasePage):
         self._pending_settings_save = None
         self._raw_profile_save_request_id = 0
         self._raw_profile_save_worker = None
+        self._pending_raw_profile_save: tuple[str, str] | None = None
         self._enabled_save_request_id = 0
         self._enabled_save_worker = None
         self._enabled_save_worker_enabled: bool | None = None
@@ -2340,21 +2341,31 @@ class ProfileSetupPageBase(BasePage):
     def _on_raw_profile_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._raw_profile_text is None:
             return
+        self._request_raw_profile_save(self._profile_key, self._raw_profile_text.toPlainText())
+
+    def _request_raw_profile_save(self, profile_key: str, raw_text: str) -> None:
+        profile_key = str(profile_key or "").strip()
+        if not profile_key:
+            return
         worker = self._raw_profile_save_worker
         if worker is not None:
             try:
                 if worker.isRunning():
+                    self._pending_raw_profile_save = (profile_key, str(raw_text or ""))
                     return
             except Exception:
                 return
+        self._start_raw_profile_save_worker(profile_key, raw_text)
+
+    def _start_raw_profile_save_worker(self, profile_key: str, raw_text: str) -> None:
         self._raw_profile_save_request_id += 1
         request_id = self._raw_profile_save_request_id
         if self._raw_profile_save_button is not None:
             set_widget_enabled_if_changed(self._raw_profile_save_button, False)
         worker = self.create_profile_raw_text_save_worker(
             request_id,
-            self._profile_key,
-            self._raw_profile_text.toPlainText(),
+            profile_key,
+            str(raw_text or ""),
             parent=self,
         )
         self._raw_profile_save_worker = worker
@@ -2388,7 +2399,7 @@ class ProfileSetupPageBase(BasePage):
     def _on_raw_profile_save_failed(self, request_id: int, error: str) -> None:
         if request_id != self._raw_profile_save_request_id:
             return
-        if self._raw_profile_save_button is not None:
+        if self._raw_profile_save_button is not None and not self.__dict__.get("_pending_raw_profile_save"):
             set_widget_enabled_if_changed(self._raw_profile_save_button, True)
         log(f"{self.__class__.__name__}: не удалось сохранить сырой текст profile: {error}", "ERROR")
         InfoBar.error(
@@ -2401,6 +2412,11 @@ class ProfileSetupPageBase(BasePage):
         if self._raw_profile_save_worker is worker:
             self._raw_profile_save_worker = None
         worker.deleteLater()
+        pending = self.__dict__.get("_pending_raw_profile_save")
+        self._pending_raw_profile_save = None
+        if pending:
+            profile_key, raw_text = pending
+            self._start_raw_profile_save_worker(profile_key, raw_text)
 
     def _on_enabled_changed(self, state: int) -> None:
         if self._loading or not self._profile_key:
@@ -2762,6 +2778,7 @@ class ProfileSetupPageBase(BasePage):
             "_pending_list_file_load",
             "_pending_list_file_validation",
             "_pending_settings_save",
+            "_pending_raw_profile_save",
             "_pending_enabled_save",
             "_pending_strategy_apply",
             "_pending_strategy_feedback_save",

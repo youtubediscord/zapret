@@ -2913,13 +2913,15 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         ensure_match = inspect.getsource(ProfileSetupPageBase._ensure_match_tab_built)
         apply_match = inspect.getsource(ProfileSetupPageBase._apply_match_tab_payload)
         handler = inspect.getsource(ProfileSetupPageBase._on_raw_profile_save_clicked)
+        start_handler = inspect.getsource(ProfileSetupPageBase._start_raw_profile_save_worker)
         saved_handler = inspect.getsource(ProfileSetupPageBase._on_raw_profile_save_finished)
 
         self.assertNotIn("self._raw_profile_text = PlainTextEdit()", build)
         self.assertIn("_raw_profile_text", ensure_match)
         self.assertIn("Сохранить текст profile", ensure_match)
         self.assertIn("in_preset", apply_match)
-        self.assertIn("create_profile_raw_text_save_worker", handler)
+        self.assertIn("_request_raw_profile_save", handler)
+        self.assertIn("create_profile_raw_text_save_worker", start_handler)
         self.assertNotIn("save_raw_profile_text", handler)
         self.assertIn("Текст profile обновлён только в текущем preset", saved_handler)
 
@@ -2961,6 +2963,54 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         page._raw_profile_save_button.setEnabled.assert_called_once_with(False)
         worker.start.assert_called_once()
+
+    def test_raw_profile_save_keeps_latest_pending_click_while_worker_runs(self) -> None:
+        class _Signal:
+            def __init__(self) -> None:
+                self.callbacks = []
+
+            def connect(self, callback) -> None:
+                self.callbacks.append(callback)
+
+        class _Worker:
+            def __init__(self, *, running: bool) -> None:
+                self._running = running
+                self.saved = _Signal()
+                self.failed = _Signal()
+                self.finished = _Signal()
+                self.start = Mock()
+                self.deleteLater = Mock()
+
+            def isRunning(self) -> bool:
+                return self._running
+
+        running_worker = _Worker(running=True)
+        next_worker = _Worker(running=False)
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._raw_profile_text = SimpleNamespace(toPlainText=lambda: "--new\n--lua-desync=split")
+        page._raw_profile_save_request_id = 1
+        page._raw_profile_save_worker = running_worker
+        page._pending_raw_profile_save = None
+        page._raw_profile_save_button = Mock()
+        page.create_profile_raw_text_save_worker = Mock(return_value=next_worker)
+
+        ProfileSetupPageBase._on_raw_profile_save_clicked(page)
+
+        page.create_profile_raw_text_save_worker.assert_not_called()
+        self.assertEqual(page._pending_raw_profile_save, ("profile-1", "--new\n--lua-desync=split"))
+
+        ProfileSetupPageBase._on_raw_profile_save_worker_finished(page, running_worker)
+
+        page.create_profile_raw_text_save_worker.assert_called_once_with(
+            2,
+            "profile-1",
+            "--new\n--lua-desync=split",
+            parent=page,
+        )
+        next_worker.start.assert_called_once()
+        self.assertIsNone(page._pending_raw_profile_save)
 
     def test_raw_profile_save_worker_emits_new_profile_key_and_payload(self) -> None:
         save_raw_text = Mock()
