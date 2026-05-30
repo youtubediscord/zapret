@@ -99,8 +99,7 @@ class StrategyScanPage(BasePage):
         self._support_status_label = None
         self._cleanup_in_progress = False
         self._strategy_apply_runtime = OneShotWorkerRuntime()
-        self._support_prepare_worker = None
-        self._support_prepare_request_id = 0
+        self._support_prepare_runtime = OneShotWorkerRuntime()
         self._quick_targets_runtime = OneShotWorkerRuntime()
         self._strategy_scan_resume_save_runtime = OneShotWorkerRuntime()
         self._strategy_scan_resume_save_pending = None
@@ -838,37 +837,39 @@ class StrategyScanPage(BasePage):
         mode_label: str,
         scan_protocol: str,
     ) -> None:
-        worker = self.__dict__.get("_support_prepare_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._set_support_status("Подготовка уже идёт...")
-                    return
-            except Exception:
-                return
+        if self._support_prepare_runtime.is_running():
+            self._set_support_status("Подготовка уже идёт...")
+            return
 
-        self._support_prepare_request_id += 1
-        request_id = self._support_prepare_request_id
         self._set_support_status("Подготовка обращения...")
         if self._prepare_support_btn is not None:
             self._prepare_support_btn.setEnabled(False)
 
-        worker = self.create_support_prepare_worker(
-            request_id,
-            run_log_file=run_log_file,
-            target=target,
-            protocol_label=protocol_label,
-            mode_label=mode_label,
-            scan_protocol=scan_protocol,
+        def worker_factory(request_id: int):
+            return self.create_support_prepare_worker(
+                request_id,
+                run_log_file=run_log_file,
+                target=target,
+                protocol_label=protocol_label,
+                mode_label=mode_label,
+                scan_protocol=scan_protocol,
+            )
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_support_prepare_finished)
+            worker.failed.connect(self._on_support_prepare_failed)
+
+        self._support_prepare_runtime.start_qthread_worker(
+            worker_factory=worker_factory,
+            bind_worker=bind_worker,
+            on_finished=self._on_support_prepare_runtime_finished,
         )
-        self._support_prepare_worker = worker
-        worker.completed.connect(self._on_support_prepare_finished)
-        worker.failed.connect(self._on_support_prepare_failed)
-        worker.finished.connect(lambda w=worker: self._on_support_prepare_worker_finished(w))
-        worker.start()
 
     def _on_support_prepare_finished(self, request_id: int, feedback) -> None:
-        if request_id != self._support_prepare_request_id or self._cleanup_in_progress:
+        if not self._support_prepare_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         result = feedback.result
         if result.zip_path:
@@ -887,7 +888,10 @@ class StrategyScanPage(BasePage):
             pass
 
     def _on_support_prepare_failed(self, request_id: int, error: str) -> None:
-        if request_id != self._support_prepare_request_id or self._cleanup_in_progress:
+        if not self._support_prepare_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
             return
         logger.warning("Failed to prepare strategy-scan support bundle: %s", error)
         message_plan = self._blockcheck.build_support_error_plan(str(error))
@@ -901,13 +905,7 @@ class StrategyScanPage(BasePage):
         except Exception:
             pass
 
-    def _on_support_prepare_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_support_prepare_worker") is worker:
-            self._support_prepare_worker = None
-        try:
-            worker.deleteLater()
-        except Exception:
-            pass
+    def _on_support_prepare_runtime_finished(self, _worker) -> None:
         if not self._cleanup_in_progress and self._prepare_support_btn is not None:
             self._prepare_support_btn.setEnabled(True)
 
@@ -930,13 +928,11 @@ class StrategyScanPage(BasePage):
             warning_prefix="strategy scan apply worker",
         )
         self._strategy_apply_runtime.cancel()
-        support_worker = self.__dict__.get("_support_prepare_worker")
-        if support_worker is not None:
-            try:
-                support_worker.quit()
-            except Exception:
-                pass
-            self._support_prepare_worker = None
+        self._support_prepare_runtime.stop(
+            blocking=False,
+            warning_prefix="strategy scan support prepare worker",
+        )
+        self._support_prepare_runtime.cancel()
         self._quick_targets_runtime.stop(
             blocking=False,
             warning_prefix="strategy scan quick targets worker",
