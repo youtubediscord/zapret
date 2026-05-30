@@ -62,6 +62,16 @@ class HostsPageController:
             parent=parent,
         )
 
+    def create_operation_worker(self, *, hosts_runtime, operation: str, payload=None):
+        from hosts.operation_worker import HostsOperationWorker
+
+        return HostsOperationWorker(
+            hosts_runtime,
+            operation,
+            payload,
+            execute_hosts_operation_fn=self._hosts.execute_hosts_operation,
+        )
+
     def create_hosts_runtime(self, *, status_callback=None):
         return self._hosts.create_hosts_runtime(status_callback=status_callback)
 
@@ -104,6 +114,3 @@ class HostsPageController:
 
     def open_hosts_file(self):
         return self._hosts.open_hosts_file()
-
-    def execute_hosts_operation(self, hosts_runtime, operation: str, payload):
-        return self._hosts.execute_hosts_operation(hosts_runtime, operation, payload)

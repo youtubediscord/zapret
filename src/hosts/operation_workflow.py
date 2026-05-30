@@ -4,7 +4,6 @@ from collections.abc import Callable
 
 from PyQt6.QtCore import QThread
 
-from hosts.operation_worker import HostsOperationWorker
 import hosts.page_plans as hosts_page_plans
 
 
@@ -14,7 +13,7 @@ def start_hosts_operation(
     applying: bool,
     operation: str,
     payload,
-    execute_hosts_operation_fn,
+    create_operation_worker_fn,
     on_operation_complete: Callable[[bool, str], None],
     on_thread_finished: Callable[[], None],
     parent,
@@ -22,11 +21,10 @@ def start_hosts_operation(
     if not hosts_runtime or applying:
         return None
 
-    worker = HostsOperationWorker(
-        hosts_runtime,
-        operation,
-        payload,
-        execute_hosts_operation_fn=execute_hosts_operation_fn,
+    worker = create_operation_worker_fn(
+        hosts_runtime=hosts_runtime,
+        operation=operation,
+        payload=payload,
     )
     thread = QThread(parent)
 

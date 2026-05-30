@@ -86,6 +86,22 @@ class HostsPageRuntimeTests(unittest.TestCase):
         self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
 
+    def test_hosts_operation_worker_is_created_by_controller(self) -> None:
+        from hosts.page_controller import HostsPageController
+        from hosts.ui.page import HostsPage
+        import hosts.operation_workflow as operation_workflow
+
+        controller_source = inspect.getsource(HostsPageController)
+        workflow_source = inspect.getsource(operation_workflow.start_hosts_operation)
+        run_source = inspect.getsource(HostsPage._run_operation)
+
+        self.assertIn("create_operation_worker", controller_source)
+        self.assertIn("execute_hosts_operation_fn=self._hosts.execute_hosts_operation", controller_source)
+        self.assertIn("create_operation_worker_fn", workflow_source)
+        self.assertIn("create_operation_worker_fn(", workflow_source)
+        self.assertIn("create_operation_worker_fn=self._controller.create_operation_worker", run_source)
+        self.assertNotIn("execute_hosts_operation_fn=self._controller.execute_hosts_operation", run_source)
+
 
 if __name__ == "__main__":
     unittest.main()

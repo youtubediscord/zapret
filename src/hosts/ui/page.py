@@ -947,7 +947,7 @@ class HostsPage(BasePage):
             applying=self._applying,
             operation=operation,
             payload=payload,
-            execute_hosts_operation_fn=self._controller.execute_hosts_operation,
+            create_operation_worker_fn=self._controller.create_operation_worker,
             on_operation_complete=self._on_operation_complete,
             on_thread_finished=self._on_hosts_thread_finished,
             parent=self,
