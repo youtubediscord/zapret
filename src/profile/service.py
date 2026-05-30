@@ -562,16 +562,26 @@ class ProfilePresetService:
         index = _profile_index_for_key(preset, profile_key)
         if index is None:
             return None
+        current = read_editable_profile_settings(preset.profiles[index])
+        next_settings = EditableProfileSettings(
+            filter_kind=filter_kind,
+            filter_value=filter_value,
+            filter_role=current.filter_role,
+            in_range=in_range,
+            out_range=out_range,
+        )
+        if (
+            current.filter_kind == next_settings.filter_kind
+            and current.filter_value == next_settings.filter_value
+            and current.filter_role == next_settings.filter_role
+            and current.in_range == next_settings.in_range
+            and current.out_range == next_settings.out_range
+        ):
+            return preset.profiles[index].key
         preset = with_editable_profile_settings(
             preset,
             index,
-            EditableProfileSettings(
-                filter_kind=filter_kind,
-                filter_value=filter_value,
-                filter_role=read_editable_profile_settings(preset.profiles[index]).filter_role,
-                in_range=in_range,
-                out_range=out_range,
-            ),
+            next_settings,
         )
         self.save_selected_preset(preset)
         return preset.profiles[index].key if 0 <= index < len(preset.profiles) else None

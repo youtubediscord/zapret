@@ -49,6 +49,39 @@ class ProfileServiceApplyStrategyGuardTests(unittest.TestCase):
         self.assertEqual(result, "profile:0")
         self.assertEqual(store.save_count, 0)
 
+    def test_update_editable_settings_skips_save_when_settings_are_unchanged(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=Speedtest",
+                        "--filter-tcp=443,8080",
+                        "--hostlist=lists/speedtest.txt",
+                        "--in-range=x",
+                        "--out-range=a",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            service = ProfilePresetService(feature, "zapret2_mode")
+            result = service.update_winws2_editable_settings(
+                "profile:0",
+                filter_kind="hostlist",
+                filter_value="lists/speedtest.txt",
+                in_range="x",
+                out_range="a",
+            )
+
+        self.assertEqual(result, "profile:0")
+        self.assertEqual(store.save_count, 0)
+
     def test_apply_strategy_skips_save_when_profile_already_uses_strategy(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
