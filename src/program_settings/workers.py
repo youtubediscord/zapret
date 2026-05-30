@@ -92,3 +92,29 @@ class ProgramSettingsSaveWorker(QThread):
             self.failed.emit(self._request_id, self._action, str(exc))
             return
         self.saved.emit(self._request_id, self._action, result)
+
+
+class SidebarExpandedStateSaveWorker(QThread):
+    saved = pyqtSignal(bool)
+    failed = pyqtSignal(str)
+
+    def __init__(
+        self,
+        *,
+        expanded: bool,
+        state_key: str,
+        save_ui_state_settings: Callable[[dict], Any],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._expanded = bool(expanded)
+        self._state_key = str(state_key or "sidebar_expanded")
+        self._save_ui_state_settings = save_ui_state_settings
+
+    def run(self) -> None:
+        try:
+            self._save_ui_state_settings({self._state_key: self._expanded})
+        except Exception as exc:
+            self.failed.emit(str(exc))
+            return
+        self.saved.emit(self._expanded)

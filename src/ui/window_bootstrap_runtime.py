@@ -24,6 +24,7 @@ class WindowRuntimeBootstrapDeps:
     ui_state_store: Any
     notify: Any
     set_status: Any
+    sidebar_expanded_save_worker_factory: Any
 
 
 def initialize_build_ui_state(
@@ -58,6 +59,7 @@ def initialize_build_ui_state(
             load_sidebar_search_preset_manifests,
             runtime_deps.presets_feature,
         ),
+        sidebar_expanded_save_worker_factory=runtime_deps.sidebar_expanded_save_worker_factory,
     )
     window.ui_session.runtime_ui_bridge = RuntimeUiBridge(
         notify=runtime_deps.notify,

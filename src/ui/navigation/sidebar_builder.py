@@ -21,7 +21,6 @@ from ui.startup_ui_metrics import pump_startup_ui
 from app.ui_texts import tr as tr_catalog
 from ui.window_ui_session import get_window_ui_session
 from ui.navigation.sidebar_state import peek_warmed_sidebar_expanded
-from ui.navigation.sidebar_state_worker import create_sidebar_expanded_save_worker
 
 
 SIDEBAR_SEARCH_AFTER_INTERACTIVE_MS = 2_500
@@ -91,7 +90,11 @@ def _start_sidebar_expanded_save_worker(window, expanded: bool) -> None:
         except Exception:
             session.sidebar_expanded_save_worker = None
 
-    worker = create_sidebar_expanded_save_worker(
+    create_worker = getattr(session, "sidebar_expanded_save_worker_factory", None)
+    if create_worker is None:
+        return
+
+    worker = create_worker(
         expanded=bool(expanded),
         state_key=SIDEBAR_EXPANDED_UI_STATE_KEY,
         parent=window,

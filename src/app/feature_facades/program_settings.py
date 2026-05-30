@@ -72,6 +72,19 @@ class ProgramSettingsFeature:
     def set_hide_to_tray_on_minimize_close(self, enabled: bool) -> bool:
         return bool(self._commands().set_hide_to_tray_on_minimize_close(enabled))
 
+    def save_ui_state_settings(self, values: dict) -> dict:
+        return self._commands().save_ui_state_settings(dict(values or {}))
+
+    def create_sidebar_expanded_save_worker(self, *, expanded: bool, state_key: str, parent=None):
+        from program_settings.workers import SidebarExpandedStateSaveWorker
+
+        return SidebarExpandedStateSaveWorker(
+            expanded=bool(expanded),
+            state_key=state_key,
+            save_ui_state_settings=self.save_ui_state_settings,
+            parent=parent,
+        )
+
     def _program_settings_save_action(self, action: str):
         normalized_action = str(action or "").strip()
 

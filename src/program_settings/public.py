@@ -9,6 +9,7 @@ from program_settings.commands import (
     set_defender_disabled,
     set_hide_to_tray_on_minimize_close,
     set_max_block_enabled,
+    save_ui_state_settings,
 )
 from program_settings.runtime import (
     attach_program_settings_runtime,
@@ -34,4 +35,5 @@ __all__ = [
     "set_defender_disabled",
     "set_hide_to_tray_on_minimize_close",
     "set_max_block_enabled",
+    "save_ui_state_settings",
 ]

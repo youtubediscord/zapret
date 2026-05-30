@@ -64,6 +64,12 @@ def set_hide_to_tray_on_minimize_close(enabled: bool) -> bool:
     return bool(set_hide_to_tray_on_minimize_close(bool(enabled)))
 
 
+def save_ui_state_settings(values: dict) -> dict:
+    from settings.store import set_ui_state_settings
+
+    return set_ui_state_settings(dict(values or {}))
+
+
 def set_defender_disabled(
     disable: bool,
     *,

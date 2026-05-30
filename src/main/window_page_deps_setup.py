@@ -63,6 +63,7 @@ def attach_window_ui_root(window, *, features, state, page_actions) -> None:
         ui_state_store=state.ui,
         notify=page_actions.notify,
         set_status=page_actions.set_status,
+        sidebar_expanded_save_worker_factory=features.program_settings.create_sidebar_expanded_save_worker,
     )
     window._ui_root = WindowUiRoot(
         window,
