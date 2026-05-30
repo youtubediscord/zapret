@@ -343,6 +343,50 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         self.assertEqual(installed, ["deps"])
 
+    def test_qt_scroll_style_is_installed_after_interactive_ready(self) -> None:
+        from main import entry
+
+        class Signal:
+            def __init__(self) -> None:
+                self._callbacks: list[object] = []
+
+            def connect(self, callback) -> None:
+                self._callbacks.append(callback)
+
+            def emit(self, value: str = "") -> None:
+                for callback in list(self._callbacks):
+                    callback(value)
+
+        signal = Signal()
+        window = SimpleNamespace(
+            startup_state=SimpleNamespace(interactive_logged=False),
+            startup_interactive_ready=signal,
+        )
+        app = object()
+        installed: list[object] = []
+        scheduled: list[tuple[int, object]] = []
+
+        with (
+            patch.object(
+                entry.QTimer,
+                "singleShot",
+                side_effect=lambda delay, callback: scheduled.append((int(delay), callback)),
+            ),
+            patch.object(entry, "_install_qt_scroll_style", side_effect=lambda value: installed.append(value)),
+        ):
+            entry._install_qt_scroll_style_after_interactive(window, app)
+            self.assertEqual(installed, [])
+            self.assertEqual(scheduled, [])
+
+            window.startup_state.interactive_logged = True
+            signal.emit("ui_ready")
+            self.assertEqual(installed, [])
+            self.assertEqual(scheduled[0][0], 0)
+
+            scheduled.pop(0)[1]()
+
+        self.assertEqual(installed, [app])
+
     def test_entry_keeps_post_startup_imports_out_of_top_level(self) -> None:
         import inspect
         from main import entry

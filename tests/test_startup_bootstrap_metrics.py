@@ -34,6 +34,13 @@ class StartupBootstrapMetricsTests(unittest.TestCase):
         self.assertNotIn("from ui.theme import connect_qfluent_accent_signal", source)
         self.assertIn("from ui.theme import invalidate_theme_tokens_cache", lazy_source)
 
+    def test_qt_scroll_style_is_not_installed_in_early_application_bootstrap(self) -> None:
+        from main import qt_runtime
+
+        source = inspect.getsource(qt_runtime.application_bootstrap)
+
+        self.assertNotIn("_install_non_transient_scrollbars_style", source)
+
     def test_entry_logs_pre_window_bootstrap_substeps(self) -> None:
         from main import entry
 

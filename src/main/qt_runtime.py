@@ -161,16 +161,6 @@ def application_bootstrap() -> QApplication:
         f"{(_time.perf_counter() - t_runtime) * 1000:.0f}ms",
     )
     try:
-        try:
-            t_style = _time.perf_counter()
-            _install_non_transient_scrollbars_style(app)
-            emit_startup_metric(
-                "StartupQtScrollStyle",
-                f"{(_time.perf_counter() - t_style) * 1000:.0f}ms",
-            )
-        except Exception:
-            pass
-
         app.setQuitOnLastWindowClosed(False)
 
         from log.crash_handler import install_qt_crash_handler

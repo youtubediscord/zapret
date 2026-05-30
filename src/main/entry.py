@@ -36,6 +36,44 @@ def _install_post_startup_tasks(deps) -> None:
     install_post_startup_tasks(deps)
 
 
+def _install_qt_scroll_style(app) -> None:
+    try:
+        from main.qt_runtime import _install_non_transient_scrollbars_style
+
+        t_style = _time.perf_counter()
+        _install_non_transient_scrollbars_style(app)
+        emit_startup_metric(
+            "StartupQtScrollStyle",
+            f"{(_time.perf_counter() - t_style) * 1000:.0f}ms",
+        )
+    except Exception:
+        pass
+
+
+def _install_qt_scroll_style_after_interactive(window, app) -> None:
+    installed = False
+
+    def _install_once(*_args) -> None:
+        nonlocal installed
+        if installed:
+            return
+        installed = True
+        QTimer.singleShot(0, lambda: _install_qt_scroll_style(app))
+
+    try:
+        if bool(window.startup_state.interactive_logged):
+            _install_once()
+            return
+    except Exception:
+        _install_once()
+        return
+
+    try:
+        window.startup_interactive_ready.connect(_install_once)
+    except Exception:
+        _install_once()
+
+
 def _install_post_startup_tasks_after_interactive(window, deps_or_factory) -> None:
     installed = False
 
@@ -102,6 +140,7 @@ def _finish_event_loop_bootstrap(*, app, window, application_controller, start_i
     if start_in_tray:
         log("Запуск приложения скрыто в трее", "TRAY")
 
+    _install_qt_scroll_style_after_interactive(window, app)
     _install_post_startup_tasks_after_interactive(
         window,
         lambda: _build_application_post_startup_deps(
