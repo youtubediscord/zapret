@@ -346,6 +346,31 @@ class ProfileListPayloadTests(unittest.TestCase):
         self.assertEqual(store.read_count_by_file, {"first.txt": 1, "second.txt": 1})
         self.assertEqual(catalogs_loader.call_count, 2)
 
+    def test_empty_profile_payload_cache_returns_without_touching_preset_file(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            store = _FileBackedPresetStore(
+                root / "selected.txt",
+                "\n".join(("--filter-tcp=443", "--lua-desync=pass", "")),
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with (
+                patch("settings.store.MAIN_DIRECTORY", str(root)),
+                patch("profile.service.path_cache_signature", return_value=(1, 2, "digest")) as signature_reader,
+                patch("profile.service.load_profile_folder_state", return_value={}) as folder_reader,
+            ):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                cached_payload = service.get_cached_profile_list()
+
+        self.assertIsNone(cached_payload)
+        self.assertEqual(store.read_count, 0)
+        signature_reader.assert_not_called()
+        folder_reader.assert_not_called()
+
     def test_profile_payload_cache_drops_oldest_revision_after_limit(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

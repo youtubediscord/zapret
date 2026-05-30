@@ -134,6 +134,8 @@ class ProfilePresetService:
             return None
         try:
             snapshot = self._profile_list_snapshot
+            if snapshot is None and not self._profile_list_snapshots_by_revision:
+                return None
             try:
                 list_revision = self._current_profile_list_revision()
             except Exception as exc:
