@@ -133,17 +133,17 @@ def apply_status_plan(
     if getattr(status_dot, "_last_control_status_plan_key", None) == plan_key:
         return plan.phase == "running"
     setattr(status_dot, "_last_control_status_plan_key", plan_key)
-    status_title.setText(plan.title)
-    status_desc.setText(plan.description)
+    set_text_if_changed(status_title, plan.title)
+    set_text_if_changed(status_desc, plan.description)
     status_dot.set_color(plan.dot_color)
     if plan.pulsing:
         status_dot.start_pulse()
     else:
         status_dot.stop_pulse()
-    start_btn.setVisible(plan.show_start)
+    set_visible_if_changed(start_btn, plan.show_start)
     update_stop_button_text()
-    stop_winws_btn.setVisible(plan.show_stop_only)
-    stop_and_exit_btn.setVisible(plan.show_stop_and_exit)
+    set_visible_if_changed(stop_winws_btn, plan.show_stop_only)
+    set_visible_if_changed(stop_and_exit_btn, plan.show_stop_and_exit)
     return plan.phase == "running"
 
 

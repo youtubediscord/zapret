@@ -192,6 +192,70 @@ class ControlStatusDotPulseTests(unittest.TestCase):
         stop_winws_btn.setVisible.assert_not_called()
         stop_and_exit_btn.setVisible.assert_not_called()
 
+    def test_apply_status_plan_skips_unchanged_text_and_visibility_when_dot_changes(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import apply_status_plan
+
+        first_plan = SimpleNamespace(
+            phase="running",
+            title="Zapret работает",
+            description="Обход блокировок активен",
+            dot_color="#6ccb5f",
+            pulsing=True,
+            show_start=False,
+            show_stop_only=True,
+            show_stop_and_exit=True,
+        )
+        second_plan = SimpleNamespace(
+            phase="running",
+            title="Zapret работает",
+            description="Обход блокировок активен",
+            dot_color="#7aa7ff",
+            pulsing=True,
+            show_start=False,
+            show_stop_only=True,
+            show_stop_and_exit=True,
+        )
+        status_title = _WidgetStateTarget(text="Zapret работает")
+        status_desc = _WidgetStateTarget(text="Обход блокировок активен")
+        status_dot = _StatusDot()
+        start_btn = _WidgetStateTarget(visible=False)
+        stop_winws_btn = _WidgetStateTarget(visible=True)
+        stop_and_exit_btn = _WidgetStateTarget(visible=True)
+
+        apply_status_plan(
+            first_plan,
+            status_title=status_title,
+            status_desc=status_desc,
+            status_dot=status_dot,
+            start_btn=start_btn,
+            stop_winws_btn=stop_winws_btn,
+            stop_and_exit_btn=stop_and_exit_btn,
+            update_stop_button_text=lambda: None,
+        )
+        status_title.text_calls.clear()
+        status_desc.text_calls.clear()
+        start_btn.visible_calls.clear()
+        stop_winws_btn.visible_calls.clear()
+        stop_and_exit_btn.visible_calls.clear()
+
+        apply_status_plan(
+            second_plan,
+            status_title=status_title,
+            status_desc=status_desc,
+            status_dot=status_dot,
+            start_btn=start_btn,
+            stop_winws_btn=stop_winws_btn,
+            stop_and_exit_btn=stop_and_exit_btn,
+            update_stop_button_text=lambda: None,
+        )
+
+        self.assertEqual(status_dot.color, "#7aa7ff")
+        self.assertEqual(status_title.text_calls, [])
+        self.assertEqual(status_desc.text_calls, [])
+        self.assertEqual(start_btn.visible_calls, [])
+        self.assertEqual(stop_winws_btn.visible_calls, [])
+        self.assertEqual(stop_and_exit_btn.visible_calls, [])
+
     def test_last_status_message_skips_duplicate_render(self) -> None:
         from presets.ui.control.control_page_runtime_shared import apply_last_status_message
 
