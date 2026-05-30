@@ -126,7 +126,7 @@ class TelegramProxyPage(BasePage):
         self._ensure_hosts_runtime = OneShotWorkerRuntime()
         self._settings_save_worker = None
         self._open_log_file_runtime = OneShotWorkerRuntime()
-        self._external_link_worker = None
+        self._external_link_runtime = OneShotWorkerRuntime()
         self._log_line_runtime = OneShotWorkerRuntime()
         self._log_line_pending: list[str] = []
         self._auto_deeplink_runtime = OneShotWorkerRuntime()
@@ -1167,24 +1167,21 @@ class TelegramProxyPage(BasePage):
         )
 
     def _start_external_link_worker(self, url: str, *, success_log: str, error_prefix: str) -> None:
-        worker = self.__dict__.get("_external_link_worker")
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    return
-            except RuntimeError:
-                self._external_link_worker = None
+        if self._external_link_runtime.is_running():
+            return
 
-        worker = self.create_external_link_worker(
-            url=url,
-            success_log=success_log,
-            error_prefix=error_prefix,
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_external_link_finished)
+            worker.failed.connect(self._on_external_link_failed)
+
+        self._external_link_runtime.start_qthread_worker(
+            worker_factory=lambda _request_id: self.create_external_link_worker(
+                url=url,
+                success_log=success_log,
+                error_prefix=error_prefix,
+            ),
+            bind_worker=bind_worker,
         )
-        self._external_link_worker = worker
-        worker.completed.connect(self._on_external_link_finished)
-        worker.failed.connect(self._on_external_link_failed)
-        worker.finished.connect(lambda w=worker: self._on_external_link_worker_finished(w))
-        worker.start()
 
     def _on_external_link_finished(self, plan) -> None:
         if self._cleanup_in_progress:
@@ -1199,14 +1196,6 @@ class TelegramProxyPage(BasePage):
         message = str(error or "").strip()
         if message:
             self._append_log_line(f"Failed to open link: {message}")
-
-    def _on_external_link_worker_finished(self, worker) -> None:
-        if self.__dict__.get("_external_link_worker") is worker:
-            self._external_link_worker = None
-        try:
-            worker.deleteLater()
-        except RuntimeError:
-            pass
 
     def _on_copy_link(self):
         """Copy proxy deep link to clipboard."""
@@ -1335,6 +1324,12 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy open log file worker",
         )
         self._open_log_file_runtime.cancel()
+        self._external_link_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="telegram proxy external link worker",
+        )
+        self._external_link_runtime.cancel()
         if self._upstream_restart_timer is not None:
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
@@ -1363,12 +1358,5 @@ class TelegramProxyPage(BasePage):
             except Exception:
                 pass
             self._restart_stop_worker = None
-        external_link_worker = self.__dict__.get("_external_link_worker")
-        if external_link_worker is not None:
-            try:
-                external_link_worker.quit()
-            except Exception:
-                pass
-            self._external_link_worker = None
         mgr = self._proxy_manager()
         mgr.cleanup()

@@ -2433,6 +2433,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         page_source = inspect.getsource(TelegramProxyPage)
         mtproxy_source = inspect.getsource(TelegramProxyPage._on_open_mtproxy)
         telegram_source = inspect.getsource(TelegramProxyPage._on_open_in_telegram)
+        start_source = inspect.getsource(TelegramProxyPage._start_external_link_worker)
+        cleanup_source = inspect.getsource(TelegramProxyPage.cleanup)
         feature_source = inspect.getsource(TelegramProxyFeature)
 
         self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxyExternalLinkWorker"))
@@ -2443,7 +2445,15 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             self.assertNotIn(".open_external_link(", source)
 
         self.assertIn("create_external_link_worker", page_source)
-        self.assertIn("_external_link_worker", page_source)
+        self.assertIn("_external_link_runtime", page_source)
+        self.assertIn("start_qthread_worker", start_source)
+        self.assertIn("bind_worker", start_source)
+        self.assertIn("worker.completed.connect(self._on_external_link_finished)", start_source)
+        self.assertIn("worker.failed.connect(self._on_external_link_failed)", start_source)
+        self.assertIn("_external_link_runtime.is_running()", start_source)
+        self.assertIn("_external_link_runtime.stop", cleanup_source)
+        self.assertNotIn("_external_link_worker =", page_source)
+        self.assertNotIn("worker.start()", start_source)
         self.assertIn("create_external_link_worker", feature_source)
         self.assertIn("open_external_link", worker_source)
 
