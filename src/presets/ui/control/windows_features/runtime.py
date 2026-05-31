@@ -56,11 +56,12 @@ class ControlPageWindowsFeatureMixin:
             runtime = OneShotWorkerRuntime()
             self._defender_admin_check_runtime = runtime
             self._defender_admin_check_pending = None
+            self._defender_admin_check_start_scheduled = False
         return runtime
 
     def _request_defender_admin_check(self, disable: bool) -> None:
         runtime = self._ensure_defender_admin_check_runtime()
-        if runtime.is_running():
+        if runtime.is_running() or bool(self.__dict__.get("_defender_admin_check_start_scheduled", False)):
             self._defender_admin_check_pending = bool(disable)
             return
         self._defender_admin_check_pending = None
@@ -97,20 +98,30 @@ class ControlPageWindowsFeatureMixin:
 
     def _on_defender_admin_check_worker_finished(self, _worker) -> None:
         pending = self.__dict__.get("_defender_admin_check_pending")
-        self._defender_admin_check_pending = None
         if pending is not None and not bool(getattr(self, "_cleanup_in_progress", False)):
             self._schedule_defender_admin_check_worker_start(bool(pending))
 
     def _schedule_defender_admin_check_worker_start(self, disable: bool) -> None:
-        try:
-            QTimer.singleShot(0, lambda: self._run_scheduled_defender_admin_check_worker_start(bool(disable)))
-        except Exception:
-            self._run_scheduled_defender_admin_check_worker_start(bool(disable))
-
-    def _run_scheduled_defender_admin_check_worker_start(self, disable: bool) -> None:
         if bool(getattr(self, "_cleanup_in_progress", False)):
             return
-        self._start_defender_admin_check_worker(bool(disable))
+        self._defender_admin_check_pending = bool(disable)
+        if bool(self.__dict__.get("_defender_admin_check_start_scheduled", False)):
+            return
+        self._defender_admin_check_start_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_defender_admin_check_worker_start)
+        except Exception:
+            self._run_scheduled_defender_admin_check_worker_start()
+
+    def _run_scheduled_defender_admin_check_worker_start(self) -> None:
+        self._defender_admin_check_start_scheduled = False
+        if bool(getattr(self, "_cleanup_in_progress", False)):
+            return
+        pending = self.__dict__.get("_defender_admin_check_pending")
+        self._defender_admin_check_pending = None
+        if pending is None:
+            return
+        self._start_defender_admin_check_worker(bool(pending))
 
     def _continue_defender_toggle(self, disable: bool, *, is_admin: bool) -> None:
         from qfluentwidgets import InfoBar
@@ -143,6 +154,7 @@ class ControlPageWindowsFeatureMixin:
 
     def _stop_defender_admin_check_worker(self) -> None:
         self._defender_admin_check_pending = None
+        self._defender_admin_check_start_scheduled = False
         runtime = self.__dict__.get("_defender_admin_check_runtime")
         if runtime is not None:
             runtime.stop(blocking=True, warning_prefix="Defender admin check worker")

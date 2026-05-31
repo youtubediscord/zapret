@@ -61,6 +61,18 @@ class ControlDefenderAdminCheckQueueTests(unittest.TestCase):
         page.create_program_settings_admin_check_worker.assert_called_once_with(0)
         self.assertEqual(page._defender_admin_check_runtime.started, [worker])
 
+    def test_defender_admin_check_keeps_latest_request_while_restart_is_scheduled(self) -> None:
+        page = _Page()
+        page._defender_admin_check_runtime = _Runtime(running=False)
+        page._defender_admin_check_pending = True
+        page._defender_admin_check_start_scheduled = True
+        page.create_program_settings_admin_check_worker = Mock()
+
+        page._request_defender_admin_check(False)
+
+        page.create_program_settings_admin_check_worker.assert_not_called()
+        self.assertFalse(page._defender_admin_check_pending)
+
 
 if __name__ == "__main__":
     unittest.main()
