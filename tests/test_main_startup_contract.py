@@ -57,7 +57,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             mark_startup_interactive=Mock(),
             mark_startup_core_ready=Mock(),
             mark_startup_post_init_done=Mock(),
-            init_theme_manager=Mock(),
+            init_theme_manager=Mock(side_effect=lambda: runtime.calls.append("theme")),
         )
         tray = SimpleNamespace(
             init=Mock(),
@@ -122,12 +122,13 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 "runtime_api",
                 "runtime",
                 "autostart",
+                "theme",
                 "process_monitor",
                 "core_startup",
             ],
         )
 
-    def test_background_startup_steps_run_after_deferred_autostart(self) -> None:
+    def test_visual_and_background_startup_steps_run_after_deferred_autostart(self) -> None:
         from main import startup_coordinator
         from main.startup_coordinator import StartupCoordinator
 
@@ -194,7 +195,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
             self.assertEqual(
                 runtime.calls,
-                ["runtime_api", "runtime", "theme", "autostart:zapret2_mode", "process_monitor"],
+                ["runtime_api", "runtime", "autostart:zapret2_mode", "theme", "process_monitor"],
             )
             self.assertEqual(len(background_targets), 1)
             window_shell.mark_startup_post_init_done.assert_called_once()
@@ -209,8 +210,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             [
                 "runtime_api",
                 "runtime",
-                "theme",
                 "autostart:zapret2_mode",
+                "theme",
                 "process_monitor",
                 "core_startup",
             ],
@@ -284,8 +285,8 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             [
                 "runtime_api",
                 "runtime",
-                "theme",
                 "autostart:zapret2_mode",
+                "theme",
                 "process_monitor",
             ],
         )
@@ -1085,7 +1086,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             inspect.getsource(application_lifecycle_port.ApplicationLifecycleWindowPort.persist_geometry),
         )
         self.assertIn(
-            "from main.window_lifecycle_cleanup import cleanup_threaded_pages_for_close",
+            "cleanup_threaded_pages_for_close",
             inspect.getsource(application_lifecycle_port.ApplicationLifecycleWindowPort.cleanup_threaded_pages),
         )
 
@@ -1901,6 +1902,13 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         )
         control_page._get_selected_source_preset_display = Mock(return_value=("Preset", "Preset"))
         control_page._get_enabled_profile_count_snapshot = Mock(return_value=2)
+        control_page._create_top_summary_worker = (
+            lambda request_id, **_kwargs: FakeTopSummaryWorker(
+                request_id,
+                control_page._get_selected_source_preset_display,
+                control_page._get_enabled_profile_count_snapshot,
+            )
+        )
         control_page.window = Mock(return_value=SimpleNamespace(startup_state=SimpleNamespace(interactive_logged=False)))
         control_page.set_loading = Mock()
         control_page.update_status = Mock()
@@ -1908,16 +1916,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         control_page._refresh_last_status_message = Mock()
         control_page._sync_profile_ui_mode_from_settings = Mock()
 
-        with patch.object(
-            zapret2_page,
-            "create_control_top_summary_worker",
-            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
-                request_id,
-                get_preset_display,
-                get_profile_count,
-            ),
-        ):
-            Zapret2ModeControlPage._on_ui_state_changed(control_page, AppUiState(), frozenset())
+        Zapret2ModeControlPage._on_ui_state_changed(control_page, AppUiState(), frozenset())
 
         control_page._get_selected_source_preset_display.assert_called_once()
         control_page._get_enabled_profile_count_snapshot.assert_called_once()
@@ -1991,19 +1990,18 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         )
         control_page._get_selected_source_preset_display = Mock(return_value=("Preset", "Preset"))
         control_page._get_enabled_profile_count_snapshot = profile_count
+        control_page._create_top_summary_worker = (
+            lambda request_id, **_kwargs: FakeTopSummaryWorker(
+                request_id,
+                control_page._get_selected_source_preset_display,
+                control_page._get_enabled_profile_count_snapshot,
+            )
+        )
 
         with patch.object(
             zapret2_page.QTimer,
             "singleShot",
             side_effect=lambda delay_ms, callback: scheduled.append((delay_ms, callback)),
-        ), patch.object(
-            zapret2_page,
-            "create_control_top_summary_worker",
-            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
-                request_id,
-                get_preset_display,
-                get_profile_count,
-            ),
         ):
             Zapret2ModeControlPage._refresh_top_summary(control_page, AppUiState())
 
@@ -2011,16 +2009,7 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         self.assertEqual(len(scheduled), 1)
         self.assertGreaterEqual(scheduled[0][0], zapret2_page.TOP_SUMMARY_PROFILE_RETRY_MS)
 
-        with patch.object(
-            zapret2_page,
-            "create_control_top_summary_worker",
-            side_effect=lambda request_id, get_preset_display, get_profile_count, **_kwargs: FakeTopSummaryWorker(
-                request_id,
-                get_preset_display,
-                get_profile_count,
-            ),
-        ):
-            scheduled[0][1]()
+        scheduled[0][1]()
 
         control_page.top_summary.set_profile_count.assert_called_with(4)
         self.assertEqual(control_page._top_summary_profile_retry_count, 0)
