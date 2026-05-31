@@ -2,9 +2,36 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from unittest.mock import Mock
 
 
 class OrchestraWorkerArchitectureTests(unittest.TestCase):
+    def test_orchestra_controller_receives_runtime_state_callable(self) -> None:
+        from app.page_names import PageName
+        from orchestra.page_controller import OrchestraPageController
+        from ui.page_deps.system import build_orchestra_page_kwargs
+
+        init_source = inspect.getsource(OrchestraPageController.__init__)
+        controller_source = inspect.getsource(OrchestraPageController)
+        running_source = inspect.getsource(OrchestraPageController.is_runtime_running)
+
+        self.assertNotIn("runtime_feature", init_source)
+        self.assertNotIn("self._runtime", controller_source)
+        self.assertIn("is_runtime_running", init_source)
+        self.assertIn("self._is_runtime_running", running_source)
+
+        runtime_feature = Mock()
+        runtime_feature.is_any_running.return_value = True
+        kwargs = build_orchestra_page_kwargs(
+            page_name=PageName.ORCHESTRA,
+            orchestra_feature=Mock(),
+            runtime_feature=runtime_feature,
+        )
+
+        controller = kwargs["controller"]
+        self.assertTrue(controller.is_runtime_running())
+        runtime_feature.is_any_running.assert_called_once_with(silent=True)
+
     def test_page_workers_receive_action_functions(self) -> None:
         from orchestra.page_workers import (
             OrchestraClearLearnedWorker,

@@ -207,10 +207,13 @@ def build_orchestra_page_kwargs(*, page_name: PageName, orchestra_feature, runti
     _ = page_name
     from orchestra.page_controller import OrchestraPageController
 
+    def _is_runtime_running() -> bool:
+        return bool(runtime_feature.is_any_running(silent=True))
+
     return {
         "controller": OrchestraPageController(
             orchestra_feature=orchestra_feature,
-            runtime_feature=runtime_feature,
+            is_runtime_running=_is_runtime_running,
         ),
     }
 

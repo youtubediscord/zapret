@@ -4,21 +4,20 @@ from __future__ import annotations
 
 import orchestra.log_history_workflow as orchestra_log_history_workflow
 import orchestra.log_context_actions as orchestra_log_context_actions
-import orchestra.page_runtime as orchestra_page_runtime
 
 
 class OrchestraPageController:
     """Действия страницы логов orchestra без привязки к QWidget."""
 
-    def __init__(self, *, orchestra_feature, runtime_feature) -> None:
+    def __init__(self, *, orchestra_feature, is_runtime_running) -> None:
         self._orchestra = orchestra_feature
-        self._runtime = runtime_feature
+        self._is_runtime_running = is_runtime_running
 
     def runner(self):
         return self._orchestra.runner
 
     def is_runtime_running(self) -> bool:
-        return orchestra_page_runtime.is_direct_runtime_running(self._runtime)
+        return bool(self._is_runtime_running())
 
     def clear_learned_data(self) -> bool:
         if self.runner() is None:
