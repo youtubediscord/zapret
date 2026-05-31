@@ -29,7 +29,12 @@ def apply_profile_to_selected_preset(
     blob_lines: list[str],
 ) -> tuple[str, str]:
     from profile.parser import parse_preset_text
-    from profile.serializer import serialize_preset, with_profile_enabled, with_profile_strategy_lines
+    from profile.serializer import (
+        append_profile_from_template,
+        serialize_preset,
+        with_profile_enabled,
+        with_profile_strategy_lines,
+    )
     from settings.mode import ENGINE_WINWS2, ZAPRET2_MODE
 
     manifest = presets_feature.get_selected_source_preset_manifest(ZAPRET2_MODE)
@@ -75,11 +80,10 @@ def apply_profile_to_selected_preset(
             list(getattr(new_profile.strategy, "strategy_lines", ()) or ()),
         )
         source = with_profile_enabled(source, existing_profile.index, True)
+        operation = "updated"
     else:
-        raise RuntimeError(
-            "В выбранном preset нет profile с такими условиями проверки. "
-            "Сначала создайте нужный profile, затем примените найденную стратегию повторно."
-        )
+        source = append_profile_from_template(source, new_profile, enabled=True, position="top")
+        operation = "created"
 
     updated_text = serialize_preset(source)
     presets_feature.save_preset_source_by_file_name(
@@ -87,7 +91,7 @@ def apply_profile_to_selected_preset(
         selected_file_name,
         updated_text,
     )
-    return selected_file_name, "updated"
+    return selected_file_name, operation
 
 
 def apply_strategy(
