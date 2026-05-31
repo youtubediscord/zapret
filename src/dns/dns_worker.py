@@ -4,6 +4,7 @@
 """
 from PyQt6.QtCore import QThread, pyqtSignal, QTimer
 from log.log import log
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 import time
 
@@ -106,20 +107,16 @@ class SafeDNSWorker(QThread):
 # ══════════════════════════════════════════════════════════════════════
 
 _dns_disabled_on_startup = False
-_startup_worker = None
+_startup_runtime = OneShotWorkerRuntime()
 
 
 def _cleanup_startup_worker():
-    global _startup_worker
-    worker = _startup_worker
-    if worker is None:
-        return
-    try:
-        worker.stop()
-        worker.deleteLater()
-    except Exception:
-        pass
-    _startup_worker = None
+    _startup_runtime.stop(
+        blocking=False,
+        log_fn=log,
+        warning_prefix="DNS startup worker",
+    )
+    _startup_runtime.cancel()
 
 
 def apply_dns_on_startup_async(status_callback=None):
@@ -142,21 +139,22 @@ def apply_dns_on_startup_async(status_callback=None):
         log("Планирование применения DNS при запуске", "INFO")
 
         def delayed_apply():
-            global _startup_worker
             try:
-                existing_worker = _startup_worker
-                if existing_worker is not None and existing_worker.isRunning():
+                if _startup_runtime.is_running():
                     log("DNS startup worker уже запущен", "DEBUG")
                     return
 
-                worker = SafeDNSWorker(skip_on_startup=False, startup_mode=True)
-                _startup_worker = worker
-
-                if status_callback:
-                    worker.status_update.connect(status_callback)
-
-                worker.finished.connect(_cleanup_startup_worker)
-                worker.start()
+                _startup_runtime.start_qthread_worker(
+                    worker_factory=lambda _request_id: SafeDNSWorker(
+                        skip_on_startup=False,
+                        startup_mode=True,
+                    ),
+                    bind_worker=(
+                        (lambda worker: worker.status_update.connect(status_callback))
+                        if status_callback
+                        else None
+                    ),
+                )
                 log("DNS worker при старте приложения запущен в фоне", "DEBUG")
             except Exception as e:
                 error_msg = f"Ошибка запуска DNS worker при старте: {e}"

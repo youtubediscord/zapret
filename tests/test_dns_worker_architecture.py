@@ -4,7 +4,7 @@ import inspect
 import unittest
 
 from app.feature_facades.dns import build_dns_feature
-from dns import dns_check_worker, page_workers
+from dns import dns_check_worker, dns_worker, page_workers
 from dns.ui.dns_check_page import DNSCheckPage
 from dns.ui.page import NetworkPage
 
@@ -158,6 +158,21 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         for source in (start_source, quick_source, save_source):
             self.assertNotIn("worker.start()", source)
         self.assertNotIn("self.thread = QThread", start_source)
+
+    def test_startup_dns_apply_uses_one_shot_runtime(self) -> None:
+        module_source = inspect.getsource(dns_worker)
+        async_source = inspect.getsource(dns_worker.apply_dns_on_startup_async)
+        cleanup_source = inspect.getsource(dns_worker._cleanup_startup_worker)
+
+        self.assertIn("_startup_runtime = OneShotWorkerRuntime()", module_source)
+        self.assertIn("_startup_runtime.is_running()", async_source)
+        self.assertIn("_startup_runtime.start_qthread_worker", async_source)
+        self.assertIn("_startup_runtime.stop", cleanup_source)
+        self.assertIn("_startup_runtime.cancel", cleanup_source)
+        self.assertNotIn("_startup_worker = None", module_source)
+        self.assertNotIn("global _startup_worker", async_source)
+        self.assertNotIn("worker.start()", async_source)
+        self.assertNotIn("worker.deleteLater()", cleanup_source)
 
 
 if __name__ == "__main__":
