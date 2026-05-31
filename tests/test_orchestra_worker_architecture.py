@@ -310,6 +310,48 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
 
         page._start_snapshot_worker.assert_called_once_with(refresh=True)
 
+    def test_whitelist_action_queues_while_worker_runs(self) -> None:
+        from orchestra.ui.whitelist_page import OrchestraWhitelistPage
+
+        page = OrchestraWhitelistPage.__new__(OrchestraWhitelistPage)
+        page._action_runtime = SimpleNamespace(is_running=Mock(return_value=True), start_qthread_worker=Mock())
+        page._whitelist_action_pending = []
+
+        OrchestraWhitelistPage._request_whitelist_action(page, "remove", domain="example.org")
+
+        page._action_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(
+            page._whitelist_action_pending,
+            [{"action": "remove", "domain": "example.org", "user_domains": None}],
+        )
+
+    def test_whitelist_action_pending_restarts_after_event_loop_turn(self) -> None:
+        import orchestra.ui.whitelist_page as whitelist_page
+        from orchestra.ui.whitelist_page import OrchestraWhitelistPage
+
+        worker = object()
+        page = OrchestraWhitelistPage.__new__(OrchestraWhitelistPage)
+        page._cleanup_in_progress = False
+        page._action_runtime = SimpleNamespace(worker=worker)
+        page._whitelist_action_pending = [{"action": "remove", "domain": "example.org", "user_domains": None}]
+        page._request_whitelist_action = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(whitelist_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraWhitelistPage._on_whitelist_action_finished(page, worker)
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._request_whitelist_action.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._request_whitelist_action.assert_called_once_with(
+            "remove",
+            domain="example.org",
+            user_domains=None,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
