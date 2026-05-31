@@ -91,7 +91,10 @@ class FolderLibraryStore:
         folder = self._state["folders"].get(key)
         if not isinstance(folder, dict) or bool(folder.get("system", False)):
             return False
-        folder["name"] = _clean_folder_name(name)
+        clean_name = _clean_folder_name(name)
+        if str(folder.get("name") or "") == clean_name:
+            return False
+        folder["name"] = clean_name
         return True
 
     def delete_folder(self, folder_key: str) -> bool:
@@ -109,7 +112,10 @@ class FolderLibraryStore:
         key = str(folder_key or "").strip()
         if key not in self._state["folders"]:
             return False
-        self._state["folders"][key]["order"] = max(0, int(order))
+        next_order = max(0, int(order))
+        if int(self._state["folders"][key].get("order", 0) or 0) == next_order:
+            return False
+        self._state["folders"][key]["order"] = next_order
         return True
 
     def move_folder_by_step(self, folder_key: str, direction: int) -> bool:

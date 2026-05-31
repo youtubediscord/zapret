@@ -67,6 +67,16 @@ class PresetFolderActionTests(unittest.TestCase):
         self.assertEqual(ordered_names[:2], ["ALL TCP & UDP", "1.9.9"])
         self.assertIn("Общие", ordered_names)
 
+    def test_duplicate_preset_folder_rename_skips_folder_state_save(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                folder_key = create_preset_folder(PRESETS_SCOPE_WINWS2, "Моя папка")
+                with patch(
+                    "presets.folders.save_preset_folder_state",
+                    side_effect=AssertionError("unchanged preset folder name must not be saved"),
+                ):
+                    self.assertFalse(rename_preset_folder(PRESETS_SCOPE_WINWS2, folder_key, "Моя   папка"))
+
     def test_rating_and_pin_are_stored_in_folders_items(self) -> None:
         with TemporaryDirectory() as temp_dir:
             with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):

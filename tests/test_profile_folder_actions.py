@@ -64,6 +64,16 @@ class ProfileFolderActionTests(unittest.TestCase):
         self.assertIn("Общие", ordered_names)
         self.assertLess(ordered_names.index("Общие"), ordered_names.index("ZapretKVN"))
 
+    def test_duplicate_profile_folder_rename_skips_folder_state_save(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                folder_key = create_profile_folder("Моя папка")
+                with patch(
+                    "profile.folders.save_profile_folder_state",
+                    side_effect=AssertionError("unchanged profile folder name must not be saved"),
+                ):
+                    self.assertFalse(rename_profile_folder(folder_key, "Моя   папка"))
+
     def test_profile_folder_collapsed_and_reset_are_saved_in_settings(self) -> None:
         with TemporaryDirectory() as temp_dir:
             with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):

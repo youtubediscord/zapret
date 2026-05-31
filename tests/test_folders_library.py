@@ -154,6 +154,14 @@ class FolderOrderingTests(unittest.TestCase):
 
 
 class FolderStoreTests(unittest.TestCase):
+    def test_folder_rename_and_move_skip_unchanged_values(self) -> None:
+        store = FolderLibraryStore(build_default_preset_folders())
+        folder_key = store.create_folder_after("Моя папка", COMMON_FOLDER_KEY)
+        current_order = store.to_dict()["folders"][folder_key]["order"]
+
+        self.assertFalse(store.rename_folder(folder_key, "Моя   папка"))
+        self.assertFalse(store.move_folder(folder_key, current_order))
+
     def test_item_metadata_setters_skip_unchanged_values(self) -> None:
         state = build_default_preset_folders()
         state["items"] = {
