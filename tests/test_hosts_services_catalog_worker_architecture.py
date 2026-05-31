@@ -18,8 +18,7 @@ class HostsServicesCatalogWorkerArchitectureTests(unittest.TestCase):
 
         self.assertNotIn("controller=self", controller_source)
         self.assertNotIn("self._controller", worker_source)
-        self.assertIn("build_services_catalog_plan=self._hosts.build_services_catalog_plan", controller_source)
-        self.assertIn("get_catalog_signature=self._hosts.get_catalog_signature", controller_source)
+        self.assertIn("self._hosts.create_services_catalog_worker", controller_source)
         self.assertIn("_build_services_catalog_plan", worker_source)
         self.assertIn("_get_catalog_signature", worker_source)
         self.assertNotIn("hosts.commands", worker_source)

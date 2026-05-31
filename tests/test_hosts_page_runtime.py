@@ -12,6 +12,27 @@ if str(PROJECT_SRC) not in sys.path:
 
 
 class HostsPageRuntimeTests(unittest.TestCase):
+    def test_hosts_feature_does_not_expose_heavy_direct_actions(self) -> None:
+        from app.feature_facades.hosts import build_hosts_feature
+        from hosts.page_controller import HostsPageController
+
+        feature = build_hosts_feature()
+        controller = HostsPageController(feature)
+
+        for attr_name in (
+            "load_user_selection",
+            "save_user_selection",
+            "get_hosts_state",
+            "read_active_domains_map",
+            "get_catalog_signature",
+            "build_services_catalog_plan",
+            "restore_hosts_permissions",
+            "open_hosts_file",
+            "execute_hosts_operation",
+        ):
+            self.assertFalse(hasattr(feature, attr_name), attr_name)
+            self.assertFalse(hasattr(controller, attr_name), attr_name)
+
     def test_page_controller_passes_status_callback_to_hosts_runtime(self) -> None:
         from hosts.page_controller import HostsPageController
         from hosts.ui.page_runtime import create_page_hosts_runtime
@@ -48,7 +69,7 @@ class HostsPageRuntimeTests(unittest.TestCase):
         self.assertIn("start_qthread_worker", request_source)
         self.assertIn("_selection_save_pending", request_source)
         self.assertIn("_selection_save_pending", finished_source)
-        self.assertIn("save_user_selection=self._hosts.save_user_selection", controller_source)
+        self.assertIn("self._hosts.create_selection_save_worker", controller_source)
         self.assertIn("_save_user_selection", worker_source)
         self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
@@ -81,7 +102,7 @@ class HostsPageRuntimeTests(unittest.TestCase):
         self.assertIn("start_qthread_worker", refresh_source)
         self.assertIn("create_catalog_refresh_worker", refresh_source)
         self.assertNotIn("get_catalog_signature_fn=self._controller.get_catalog_signature", refresh_source)
-        self.assertIn("get_catalog_signature=self._hosts.get_catalog_signature", controller_source)
+        self.assertIn("self._hosts.create_catalog_refresh_worker", controller_source)
         self.assertIn("_get_catalog_signature", worker_source)
         self.assertNotIn("hosts.commands", worker_source)
         self.assertNotIn("self._controller", worker_source)
@@ -98,7 +119,7 @@ class HostsPageRuntimeTests(unittest.TestCase):
         cleanup_source = inspect.getsource(HostsPage.cleanup)
 
         self.assertIn("create_operation_worker", controller_source)
-        self.assertIn("execute_hosts_operation_fn=self._hosts.execute_hosts_operation", controller_source)
+        self.assertIn("self._hosts.create_operation_worker", controller_source)
         self.assertIn("_operation_runtime = OneShotWorkerRuntime()", page_init_source)
         self.assertIn("operation_runtime=self._operation_runtime", run_source)
         self.assertIn("start_qobject_worker", workflow_source)
