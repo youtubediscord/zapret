@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from PyQt6.QtCore import QTimer
+
 from log.log import log
 
 
@@ -37,7 +39,7 @@ class WindowActionsMixin:
     def open_folder(self) -> None:
         """Opens the DPI folder."""
         runtime = self._open_folder_runtime()
-        if runtime.is_running():
+        if runtime.is_running() or getattr(self, "_open_folder_start_scheduled", False):
             self._open_folder_pending = True
             return
         self._start_open_folder_worker()
@@ -74,7 +76,22 @@ class WindowActionsMixin:
 
     def _on_open_folder_worker_finished(self, _worker) -> None:
         if getattr(self, "_open_folder_pending", False):
-            self._start_open_folder_worker()
+            self._schedule_open_folder_worker_start()
+
+    def _schedule_open_folder_worker_start(self) -> None:
+        if getattr(self, "_open_folder_start_scheduled", False):
+            return
+        self._open_folder_start_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_open_folder_worker_start)
+        except Exception:
+            self._run_scheduled_open_folder_worker_start()
+
+    def _run_scheduled_open_folder_worker_start(self) -> None:
+        self._open_folder_start_scheduled = False
+        if not getattr(self, "_open_folder_pending", False):
+            return
+        self._start_open_folder_worker()
 
     def open_connection_test(self) -> None:
         """Переключает на вкладку диагностики соединений."""

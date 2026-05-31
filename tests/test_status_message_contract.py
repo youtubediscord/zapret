@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import sys
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT_SRC = Path(__file__).resolve().parents[1] / "src"
@@ -74,6 +75,29 @@ class StatusMessageContractTests(unittest.TestCase):
         self.assertIn("self._open_program_folder", worker_source)
         self.assertNotIn("run_hidden", worker_source)
         self.assertNotIn("explorer.exe", worker_source)
+
+    def test_window_open_folder_pending_restarts_after_event_loop_turn(self) -> None:
+        import main.window_actions as window_actions
+
+        from main.window_actions import WindowActionsMixin
+
+        class Window(WindowActionsMixin):
+            pass
+
+        window = Window()
+        window._open_folder_pending = True
+        window._open_folder_start_scheduled = False
+        window._start_open_folder_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(window_actions, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            window._on_open_folder_worker_finished(object())
+
+        window._start_open_folder_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        window._start_open_folder_worker.assert_called_once_with()
 
 
 if __name__ == "__main__":
