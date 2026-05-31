@@ -541,12 +541,14 @@ class ProfilePresetService:
             rating=str(rating or "").strip().lower() if rating is not None else current_state.rating,
             favorite=bool(favorite) if favorite is not None else current_state.favorite,
         )
-        if not clear and next_state == current_state:
-            return current_state
         if clear:
+            if current_state == ProfileStrategyState():
+                return current_state
             self._state_store.clear_strategy_state(persistent_key, strategy_id)
             self._invalidate_profile_list_snapshot()
             return ProfileStrategyState()
+        if next_state == current_state:
+            return current_state
         state = self._state_store.set_strategy_state(
             persistent_key,
             strategy_id,

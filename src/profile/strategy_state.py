@@ -118,6 +118,8 @@ class ProfileStrategyStateStore:
         strategies = profile_row.get("strategies")
         if not isinstance(strategies, dict):
             return
+        if clean_strategy_id not in strategies:
+            return
 
         strategies.pop(clean_strategy_id, None)
         if not strategies:
