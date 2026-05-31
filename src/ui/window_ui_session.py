@@ -51,6 +51,7 @@ class WindowUiSession:
     sidebar_expanded_save_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
     sidebar_search_runtime_cache: dict[str, tuple[float, tuple[object, ...]]] = field(default_factory=dict)
     sidebar_expanded_save_pending: bool | None = None
+    sidebar_expanded_save_start_scheduled: bool = False
 
 
 def get_window_ui_session(window) -> WindowUiSession | None:

@@ -748,6 +748,30 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertFalse(session.sidebar_expanded_save_pending)
         session.sidebar_expanded_save_worker_factory.assert_not_called()
 
+    def test_sidebar_pending_save_restarts_after_event_loop_turn(self) -> None:
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        session = SimpleNamespace(
+            sidebar_expanded_save_pending=False,
+            sidebar_expanded_save_start_scheduled=False,
+        )
+        window = SimpleNamespace(ui_session=session)
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with (
+            patch.object(sidebar_builder, "QTimer", SimpleNamespace(singleShot=single_shot), create=True),
+            patch.object(sidebar_builder, "_start_sidebar_expanded_save_worker") as start_worker,
+        ):
+            sidebar_builder._on_sidebar_expanded_save_worker_finished(window)
+
+            single_shot.assert_called_once()
+            self.assertEqual(single_shot.call_args.args[0], 0)
+            start_worker.assert_not_called()
+
+            single_shot.call_args.args[1]()
+
+            start_worker.assert_called_once_with(window, False)
+
     def test_mode_switch_reuses_hidden_other_mode_items(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE

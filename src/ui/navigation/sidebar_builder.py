@@ -99,7 +99,7 @@ def _start_sidebar_expanded_save_worker(window, expanded: bool) -> None:
         return
 
     runtime = _ensure_sidebar_expanded_save_runtime(session)
-    if runtime.is_running():
+    if runtime.is_running() or bool(getattr(session, "sidebar_expanded_save_start_scheduled", False)):
         session.sidebar_expanded_save_pending = bool(expanded)
         return
 
@@ -137,6 +137,29 @@ def _on_sidebar_expanded_save_worker_finished(window) -> None:
     if pending is None:
         return
     session.sidebar_expanded_save_pending = None
+    _schedule_sidebar_expanded_save_worker_start(window, bool(pending))
+
+
+def _schedule_sidebar_expanded_save_worker_start(window, expanded: bool) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    session.sidebar_expanded_save_pending = bool(expanded)
+    if bool(getattr(session, "sidebar_expanded_save_start_scheduled", False)):
+        return
+    session.sidebar_expanded_save_start_scheduled = True
+    QTimer.singleShot(0, lambda current_window=window: _run_scheduled_sidebar_expanded_save_worker_start(current_window))
+
+
+def _run_scheduled_sidebar_expanded_save_worker_start(window) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    session.sidebar_expanded_save_start_scheduled = False
+    pending = getattr(session, "sidebar_expanded_save_pending", None)
+    session.sidebar_expanded_save_pending = None
+    if pending is None:
+        return
     _start_sidebar_expanded_save_worker(window, bool(pending))
 
 
