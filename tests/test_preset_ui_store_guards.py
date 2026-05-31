@@ -125,6 +125,44 @@ class PresetUiStoreGuardTests(unittest.TestCase):
 
         self.assertEqual(emitted, ["changed"])
 
+    def test_notify_presets_changed_skips_signal_when_metadata_is_unchanged(self) -> None:
+        manifests = [
+            PresetManifest(
+                file_name="Default v5.txt",
+                name="Default v5",
+                updated_at="1",
+                kind="builtin",
+            )
+        ]
+
+        class _PresetFileStore:
+            def list_manifests(self, _engine):
+                return list(manifests)
+
+        class _SelectionService:
+            def get_selected_file_name(self, _engine):
+                return "Default v5.txt"
+
+        store = PresetUiStore(
+            ENGINE_WINWS2,
+            _PresetFileStore(),
+            selection_service=_SelectionService(),
+        )
+        emitted: list[str] = []
+        store.presets_changed.connect(lambda: emitted.append("changed"))
+
+        store.list_manifests()
+        store.notify_presets_changed()
+        manifests[0] = PresetManifest(
+            file_name="Default v5.txt",
+            name="Default v5 renamed",
+            updated_at="2",
+            kind="builtin",
+        )
+        store.notify_presets_changed()
+
+        self.assertEqual(emitted, ["changed"])
+
 
 if __name__ == "__main__":
     unittest.main()

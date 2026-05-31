@@ -78,9 +78,16 @@ class PresetUiStore(QObject):
         self.preset_content_changed.emit(str(file_name or "").strip())
 
     def notify_presets_changed(self) -> None:
+        was_loaded = bool(self._loaded)
+        previous_key = self._metadata_cache_key()
         self._last_content_change_key = None
         self._last_identity_change_key = None
-        self._invalidate_metadata_cache()
+        if was_loaded:
+            self._reload_metadata()
+            if previous_key == self._metadata_cache_key():
+                return
+        else:
+            self._invalidate_metadata_cache()
         self.presets_changed.emit()
 
     def notify_preset_switched(self, file_name: str) -> None:
