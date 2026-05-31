@@ -7,6 +7,9 @@ class WindowActionsMixin:
     def bind_status_message_sink(self, sink) -> None:
         self._status_message_sink = sink if callable(sink) else None
 
+    def bind_open_folder_worker_factory(self, factory) -> None:
+        self._open_folder_worker_factory = factory if callable(factory) else None
+
     def set_status(self, text: str) -> None:
         """Пишет пользовательский статус в лог.
 
@@ -49,10 +52,10 @@ class WindowActionsMixin:
         return runtime
 
     def create_open_folder_worker(self):
-        from main.commands import open_program_folder
-        from main.window_action_workers import WindowOpenFolderWorker
-
-        return WindowOpenFolderWorker(open_program_folder=open_program_folder)
+        factory = getattr(self, "_open_folder_worker_factory", None)
+        if not callable(factory):
+            raise RuntimeError("Фабрика worker'а для открытия папки не подключена")
+        return factory(parent=self)
 
     def _start_open_folder_worker(self) -> None:
         try:

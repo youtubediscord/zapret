@@ -1117,6 +1117,18 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             inspect.getsource(window_actions.WindowActionsMixin.open_connection_test),
         )
 
+    def test_window_runtime_setup_binds_open_folder_worker_factory(self) -> None:
+        import inspect
+        import main.window_runtime_setup as window_runtime_setup
+
+        attach_source = inspect.getsource(window_runtime_setup.attach_app_runtime_to_window)
+        factory_source = inspect.getsource(window_runtime_setup.create_open_folder_worker)
+
+        self.assertIn("bind_open_folder_worker_factory", attach_source)
+        self.assertIn("create_open_folder_worker", attach_source)
+        self.assertIn("WindowOpenFolderWorker", factory_source)
+        self.assertIn("open_program_folder", factory_source)
+
     def test_window_feature_deps_defers_appearance_bindings(self) -> None:
         import inspect
         import main.window_feature_deps as window_feature_deps

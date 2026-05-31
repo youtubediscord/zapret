@@ -50,7 +50,9 @@ class StatusMessageContractTests(unittest.TestCase):
 
         open_source = "\n".join(
             (
+                inspect.getsource(WindowActionsMixin.bind_open_folder_worker_factory),
                 inspect.getsource(WindowActionsMixin.open_folder),
+                inspect.getsource(WindowActionsMixin.create_open_folder_worker),
                 inspect.getsource(WindowActionsMixin._start_open_folder_worker),
             )
         )
@@ -60,8 +62,11 @@ class StatusMessageContractTests(unittest.TestCase):
         ).parameters
 
         self.assertIn("create_open_folder_worker", open_source)
+        self.assertIn("_open_folder_worker_factory", open_source)
         self.assertIn("OneShotWorkerRuntime", inspect.getsource(WindowActionsMixin._open_folder_runtime))
         self.assertIn("start_qthread_worker", open_source)
+        self.assertNotIn("from main.commands import open_program_folder", open_source)
+        self.assertNotIn("from main.window_action_workers import WindowOpenFolderWorker", open_source)
         self.assertNotIn("worker.start()", open_source)
         self.assertNotIn("worker.deleteLater()", open_source)
         self.assertNotIn("run_hidden(", open_source)
