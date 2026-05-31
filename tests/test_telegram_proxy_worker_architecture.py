@@ -1,6 +1,7 @@
 import inspect
 import unittest
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from telegram_proxy import commands as telegram_proxy_commands
 from telegram_proxy import workers as telegram_proxy_workers
@@ -227,7 +228,8 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         )
         page.create_external_link_worker.assert_not_called()
 
-    def test_external_link_worker_finished_starts_next_queued_link(self) -> None:
+    def test_external_link_worker_finished_schedules_next_queued_link(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
         from telegram_proxy.ui.page import TelegramProxyPage
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
@@ -237,8 +239,16 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             {"url": "tg://proxy-two", "success_log": "two", "error_prefix": "bad two"},
         ]
         page._start_external_link_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
-        TelegramProxyPage._on_external_link_worker_finished(page, object())
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._on_external_link_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_external_link_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
 
         page._start_external_link_worker.assert_called_once_with(
             "tg://proxy-one",
@@ -268,18 +278,70 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         self.assertEqual(page._open_log_file_pending, ["first.log", "second.log"])
         page.create_open_log_file_worker.assert_not_called()
 
-    def test_open_log_file_worker_finished_starts_next_queued_path(self) -> None:
+    def test_open_log_file_worker_finished_schedules_next_queued_path(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
         from telegram_proxy.ui.page import TelegramProxyPage
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
         page._open_log_file_pending = ["first.log", "second.log"]
         page._start_open_log_file_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
-        TelegramProxyPage._on_open_log_file_worker_finished(page, object())
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._on_open_log_file_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_open_log_file_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
 
         page._start_open_log_file_worker.assert_called_once_with("first.log")
         self.assertEqual(page._open_log_file_pending, ["second.log"])
+
+    def test_log_line_worker_finished_schedules_next_queued_line(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._log_line_pending = ["first", "second"]
+        page._start_log_line_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._on_log_line_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_log_line_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_log_line_worker.assert_called_once_with("first")
+        self.assertEqual(page._log_line_pending, ["second"])
+
+    def test_settings_save_worker_finished_schedules_next_queued_save(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._settings_save_pending = [{"action": "port", "port": 8080}]
+        page._start_settings_save_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._on_settings_save_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_settings_save_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_settings_save_worker.assert_called_once_with({"action": "port", "port": 8080})
 
 
 if __name__ == "__main__":

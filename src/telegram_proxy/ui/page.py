@@ -127,12 +127,16 @@ class TelegramProxyPage(BasePage):
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._open_log_file_runtime = OneShotWorkerRuntime()
         self._open_log_file_pending: list[str] = []
+        self._open_log_file_start_scheduled = False
         self._external_link_runtime = OneShotWorkerRuntime()
         self._external_link_pending: list[dict[str, str]] = []
+        self._external_link_start_scheduled = False
         self._log_line_runtime = OneShotWorkerRuntime()
         self._log_line_pending: list[str] = []
+        self._log_line_start_scheduled = False
         self._auto_deeplink_runtime = OneShotWorkerRuntime()
         self._settings_save_pending: list[dict[str, object]] = []
+        self._settings_save_start_scheduled = False
         self._settings_save_restart_pending = ""
         self._initial_state_runtime = OneShotWorkerRuntime()
         self._initial_state_load_started_at = 0.0
@@ -660,7 +664,7 @@ class TelegramProxyPage(BasePage):
     def _request_log_line_append(self, message: str) -> None:
         if not message:
             return
-        if self._log_line_runtime.is_running():
+        if self._log_line_runtime.is_running() or self.__dict__.get("_log_line_start_scheduled", False):
             self._log_line_pending.append(message)
             return
 
@@ -697,7 +701,20 @@ class TelegramProxyPage(BasePage):
     def _on_log_line_worker_finished(self, _worker) -> None:
         if self._log_line_pending and not self._cleanup_in_progress:
             pending = self._log_line_pending.pop(0)
-            self._start_log_line_worker(pending)
+            self._schedule_log_line_worker_start(pending)
+
+    def _schedule_log_line_worker_start(self, message: str) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        queued = str(message or "")
+        self._log_line_start_scheduled = True
+        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_log_line_worker_start(value))
+
+    def _run_scheduled_log_line_worker_start(self, message: str) -> None:
+        self._log_line_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_log_line_worker(message)
 
     # -- Log tab buttons --
 
@@ -731,7 +748,10 @@ class TelegramProxyPage(BasePage):
         return self._telegram_proxy.create_open_log_file_worker(path=path, parent=self)
 
     def _start_open_log_file_worker(self, path: str) -> None:
-        if self._open_log_file_runtime.is_running():
+        if (
+            self._open_log_file_runtime.is_running()
+            or self.__dict__.get("_open_log_file_start_scheduled", False)
+        ):
             self.__dict__.setdefault("_open_log_file_pending", []).append(str(path or ""))
             return
 
@@ -763,7 +783,20 @@ class TelegramProxyPage(BasePage):
         pending_paths = self.__dict__.setdefault("_open_log_file_pending", [])
         pending = pending_paths.pop(0) if pending_paths else ""
         if pending and not self._cleanup_in_progress:
-            self._start_open_log_file_worker(pending)
+            self._schedule_open_log_file_worker_start(pending)
+
+    def _schedule_open_log_file_worker_start(self, path: str) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        queued = str(path or "")
+        self._open_log_file_start_scheduled = True
+        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_open_log_file_worker_start(value))
+
+    def _run_scheduled_open_log_file_worker_start(self, path: str) -> None:
+        self._open_log_file_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_open_log_file_worker(path)
 
     def _on_clear_logs(self):
         if self._log_edit is not None:
@@ -848,7 +881,10 @@ class TelegramProxyPage(BasePage):
                 "update_manual": bool(update_manual),
             },
         }
-        if self._settings_save_runtime.is_running():
+        if (
+            self._settings_save_runtime.is_running()
+            or self.__dict__.get("_settings_save_start_scheduled", False)
+        ):
             self._settings_save_pending.append(payload)
             return
         self._start_settings_save_worker(payload)
@@ -908,7 +944,20 @@ class TelegramProxyPage(BasePage):
     def _on_settings_save_worker_finished(self, _worker) -> None:
         if self._settings_save_pending and not self._cleanup_in_progress:
             pending = self._settings_save_pending.pop(0)
-            self._start_settings_save_worker(dict(pending or {}))
+            self._schedule_settings_save_worker_start(dict(pending or {}))
+
+    def _schedule_settings_save_worker_start(self, payload: dict) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        queued = dict(payload or {})
+        self._settings_save_start_scheduled = True
+        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_settings_save_worker_start(value))
+
+    def _run_scheduled_settings_save_worker_start(self, payload: dict) -> None:
+        self._settings_save_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_settings_save_worker(payload)
 
     @pyqtSlot()
     def _start_proxy(self):
@@ -1174,7 +1223,10 @@ class TelegramProxyPage(BasePage):
         )
 
     def _start_external_link_worker(self, url: str, *, success_log: str, error_prefix: str) -> None:
-        if self._external_link_runtime.is_running():
+        if (
+            self._external_link_runtime.is_running()
+            or self.__dict__.get("_external_link_start_scheduled", False)
+        ):
             self.__dict__.setdefault("_external_link_pending", []).append(
                 {
                     "url": str(url or ""),
@@ -1216,11 +1268,28 @@ class TelegramProxyPage(BasePage):
         pending_links = self.__dict__.setdefault("_external_link_pending", [])
         pending = pending_links.pop(0) if pending_links else None
         if pending and not self._cleanup_in_progress:
-            self._start_external_link_worker(
-                str(pending.get("url") or ""),
-                success_log=str(pending.get("success_log") or ""),
-                error_prefix=str(pending.get("error_prefix") or ""),
-            )
+            self._schedule_external_link_worker_start(pending)
+
+    def _schedule_external_link_worker_start(self, payload: dict) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        queued = {
+            "url": str((payload or {}).get("url") or ""),
+            "success_log": str((payload or {}).get("success_log") or ""),
+            "error_prefix": str((payload or {}).get("error_prefix") or ""),
+        }
+        self._external_link_start_scheduled = True
+        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_external_link_worker_start(value))
+
+    def _run_scheduled_external_link_worker_start(self, payload: dict) -> None:
+        self._external_link_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_external_link_worker(
+            str((payload or {}).get("url") or ""),
+            success_log=str((payload or {}).get("success_log") or ""),
+            error_prefix=str((payload or {}).get("error_prefix") or ""),
+        )
 
     def _on_copy_link(self):
         """Copy proxy deep link to clipboard."""
