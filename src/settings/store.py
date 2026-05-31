@@ -166,6 +166,8 @@ def _update_settings(mutator) -> dict[str, Any]:
         working = copy.deepcopy(current)
         mutator(working)
         normalized = _normalize_settings(working)
+        if normalized == current:
+            return copy.deepcopy(current)
         _write_settings_file_locked(normalized)
         return copy.deepcopy(normalized)
 

@@ -46,6 +46,23 @@ class StartupSettingsCacheTests(unittest.TestCase):
 
                 self.assertEqual(read_file.call_count, 0)
 
+    def test_same_settings_value_does_not_rewrite_file(self) -> None:
+        from settings import store as settings_store
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                settings_store.reset_settings()
+
+                with patch.object(
+                    settings_store,
+                    "atomic_write_text",
+                    side_effect=AssertionError("same settings value must not rewrite settings.json"),
+                ):
+                    self.assertTrue(settings_store.set_display_mode("dark"))
+
+                self.assertEqual(settings_store.get_display_mode(), "dark")
+
 
 if __name__ == "__main__":
     unittest.main()
