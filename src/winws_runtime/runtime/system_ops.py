@@ -432,7 +432,11 @@ def wait_for_windivert_spawn_ready_runtime(
         if int(last_probe.error_code or 0) == 1058 and not restored_service_start_type:
             restored_service_start_type = True
             log("WinDivert service disabled during readiness probe; restoring manual start", "WARNING")
-            restore_known_windivert_services_demand_start_runtime()
+            if not restore_known_windivert_services_demand_start_runtime():
+                log(
+                    "WinDivert service start type restore failed; administrator rights may be required",
+                    "WARNING",
+                )
         time.sleep(interval)
 
     log(

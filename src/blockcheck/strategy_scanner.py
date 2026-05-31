@@ -1577,6 +1577,12 @@ class StrategyScanner:
         error_code = getattr(probe, "error_code", None)
         stage = getattr(probe, "stage", "")
         self._cb.on_log(f"  WinDivert всё ещё не готов (error={error_code}, stage={stage})")
+        if int(error_code or 0) == 1058:
+            self._cb.on_log(
+                "  Сканирование остановлено: служба WinDivert/Monkey отключена или не может быть "
+                "восстановлена. Запустите Zapret от имени администратора и повторите подбор."
+            )
+            self._cancelled = True
         return False
 
     def _kill_current_process(self) -> None:

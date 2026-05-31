@@ -138,6 +138,37 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         self.assertTrue(result.ready)
         restore_start.assert_called_once_with()
 
+    def test_spawn_readiness_logs_when_disabled_service_restore_fails(self) -> None:
+        from winws_runtime.runtime import system_ops
+
+        disabled_probe = system_ops.WinDivertRuntimeProbeResult(
+            installed=False,
+            ready=False,
+            error_code=1058,
+            stage="network_open",
+        )
+
+        with (
+            patch.object(system_ops, "probe_windivert_state_runtime", return_value=disabled_probe),
+            patch.object(
+                system_ops,
+                "restore_known_windivert_services_demand_start_runtime",
+                return_value=False,
+            ) as restore_start,
+            patch.object(system_ops.time, "sleep"),
+            patch.object(system_ops, "log") as log,
+        ):
+            result = system_ops.wait_for_windivert_spawn_ready_runtime(
+                max_wait_seconds=0.01,
+                poll_interval=0.001,
+            )
+
+        self.assertFalse(result.ready)
+        restore_start.assert_called_once_with()
+        self.assertTrue(
+            any("administrator rights" in call.args[0] for call in log.call_args_list)
+        )
+
     def test_runtime_cleanup_keeps_windivert_service_running(self) -> None:
         from winws_runtime.runtime import runtime_api
 
