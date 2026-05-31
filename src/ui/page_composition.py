@@ -158,7 +158,7 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
     ),
     PageName.LOGS: PageDepsSpec(
         build_logs_page_kwargs,
-        features=("logs", "orchestra", "runtime"),
+        features=("logs", "orchestra"),
     ),
     PageName.TELEGRAM_PROXY: PageDepsSpec(
         build_telegram_proxy_page_kwargs,

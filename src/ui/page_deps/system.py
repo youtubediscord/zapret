@@ -196,8 +196,8 @@ def build_blockcheck_page_kwargs(
     }
 
 
-def build_logs_page_kwargs(*, page_name: PageName, logs_feature, orchestra_feature, runtime_feature) -> dict:
-    _ = (page_name, runtime_feature)
+def build_logs_page_kwargs(*, page_name: PageName, logs_feature, orchestra_feature) -> dict:
+    _ = page_name
     return {
         "logs_feature": logs_feature,
         "orchestra_feature": orchestra_feature,
