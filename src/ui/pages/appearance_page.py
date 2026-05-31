@@ -824,20 +824,24 @@ class AppearancePage(BasePage):
 
     def _on_appearance_save_worker_finished(self, _worker) -> None:
         if self._appearance_save_pending and not self._cleanup_in_progress:
-            pending = self._appearance_save_pending.pop(0)
-            self._schedule_appearance_save_worker_start(dict(pending or {}))
+            self._schedule_appearance_save_worker_start()
 
-    def _schedule_appearance_save_worker_start(self, payload: dict[str, object]) -> None:
+    def _schedule_appearance_save_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        queued = dict(payload or {})
+        if self.__dict__.get("_appearance_save_start_scheduled", False):
+            return
         self._appearance_save_start_scheduled = True
-        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_appearance_save_worker_start(value))
+        QTimer.singleShot(0, self._run_scheduled_appearance_save_worker_start)
 
-    def _run_scheduled_appearance_save_worker_start(self, payload: dict[str, object]) -> None:
+    def _run_scheduled_appearance_save_worker_start(self) -> None:
         self._appearance_save_start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
+        self._coalesce_appearance_save_pending()
+        if not self._appearance_save_pending:
+            return
+        payload = self._appearance_save_pending.pop(0)
         self._start_appearance_save_worker(dict(payload or {}))
 
     def _on_display_mode_changed(self, mode: str):
