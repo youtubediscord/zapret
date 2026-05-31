@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class _Runtime:
@@ -65,7 +65,17 @@ class UserPresetBulkActionQueueTests(unittest.TestCase):
         page._bulk_reset_running = False
         page.create_preset_bulk_action_worker = Mock(return_value=worker)
 
-        UserPresetsPageBase._on_preset_bulk_action_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "presets.ui.common.user_presets_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            UserPresetsPageBase._on_preset_bulk_action_worker_finished(page, object())
+
+        page.create_preset_bulk_action_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page.create_preset_bulk_action_worker.assert_called_once_with(
             2,

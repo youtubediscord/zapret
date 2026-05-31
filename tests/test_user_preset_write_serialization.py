@@ -79,6 +79,28 @@ class UserPresetWriteSerializationTests(unittest.TestCase):
             ],
         )
 
+    def test_storage_action_waits_while_next_write_start_is_scheduled(self) -> None:
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_write_action_start_scheduled = True
+        page._preset_item_action_runtime = _Runtime(running=False)
+        page._preset_storage_action_runtime = _Runtime(running=False)
+        page._pending_preset_write_actions = []
+        page._pending_preset_storage_actions = []
+        page._preset_storage_action_request_id = 0
+        page.create_preset_storage_action_worker = Mock(return_value=_Worker())
+
+        UserPresetsPageBase._request_preset_storage_action(
+            page,
+            "rating",
+            name="Preset.txt",
+            display_name="Preset",
+            rating=7,
+        )
+
+        page.create_preset_storage_action_worker.assert_not_called()
+        self.assertEqual(page._pending_preset_write_actions[0]["kind"], "storage")
+        self.assertEqual(page._pending_preset_storage_actions[0]["action"], "rating")
+
     def test_item_action_waits_while_storage_action_worker_runs(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         page._preset_item_action_runtime = _Runtime(running=False)

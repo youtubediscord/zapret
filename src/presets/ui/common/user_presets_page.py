@@ -186,6 +186,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_storage_action_request_id = 0
         self._pending_preset_storage_actions: list[dict[str, object]] = []
         self._pending_preset_write_actions: list[dict[str, object]] = []
+        self._preset_write_action_start_scheduled = False
         self._preset_folder_action_runtime = OneShotWorkerRuntime()
         self._preset_folder_action_request_id = 0
         self._preset_folder_action_pending: list[dict[str, object]] = []
@@ -1332,6 +1333,8 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _preset_write_action_running(self) -> bool:
+        if self.__dict__.get("_preset_write_action_start_scheduled", False):
+            return True
         for attr in (
             "_preset_activate_runtime",
             "_preset_item_action_runtime",
@@ -1561,12 +1564,17 @@ class UserPresetsPageBase(BasePage):
 
     def _schedule_preset_write_action_start(self, operation: dict[str, object]) -> None:
         queued = dict(operation or {})
+        if self.__dict__.get("_preset_write_action_start_scheduled", False):
+            self.__dict__.setdefault("_pending_preset_write_actions", []).insert(0, queued)
+            return
+        self._preset_write_action_start_scheduled = True
         try:
             QTimer.singleShot(0, lambda: self._run_preset_write_action(queued))
         except Exception:
             self._run_preset_write_action(queued)
 
     def _run_preset_write_action(self, pending: dict[str, object]) -> bool:
+        self._preset_write_action_start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress"):
             return False
         if self._preset_write_action_running():
@@ -2174,6 +2182,7 @@ class UserPresetsPageBase(BasePage):
         self.__dict__.setdefault("_preset_edit_action_pending", []).clear()
         self.__dict__.setdefault("_pending_preset_storage_actions", []).clear()
         self.__dict__.setdefault("_pending_preset_write_actions", []).clear()
+        self._preset_write_action_start_scheduled = False
         self._preset_folder_action_pending.clear()
         self._preset_folder_action_start_scheduled = False
         self._preset_open_folder_pending = False
