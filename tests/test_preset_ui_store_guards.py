@@ -125,7 +125,7 @@ class PresetUiStoreGuardTests(unittest.TestCase):
 
         self.assertEqual(emitted, ["changed"])
 
-    def test_notify_presets_changed_skips_signal_when_metadata_is_unchanged(self) -> None:
+    def test_notify_presets_changed_invalidates_metadata_cache_and_emits(self) -> None:
         manifests = [
             PresetManifest(
                 file_name="Default v5.txt",
@@ -153,15 +153,47 @@ class PresetUiStoreGuardTests(unittest.TestCase):
 
         store.list_manifests()
         store.notify_presets_changed()
-        manifests[0] = PresetManifest(
-            file_name="Default v5.txt",
-            name="Default v5 renamed",
-            updated_at="2",
-            kind="builtin",
+
+        self.assertEqual(emitted, ["changed"])
+        self.assertFalse(store._loaded)
+
+    def test_notify_presets_changed_does_not_reload_metadata_synchronously(self) -> None:
+        manifests = [
+            PresetManifest(
+                file_name="Default v5.txt",
+                name="Default v5",
+                updated_at="1",
+                kind="builtin",
+            )
+        ]
+
+        class _PresetFileStore:
+            fail_next_list = False
+
+            def list_manifests(self, _engine):
+                if self.fail_next_list:
+                    raise AssertionError("notify must not list preset manifests in GUI signal path")
+                return list(manifests)
+
+        class _SelectionService:
+            def get_selected_file_name(self, _engine):
+                return "Default v5.txt"
+
+        preset_file_store = _PresetFileStore()
+        store = PresetUiStore(
+            ENGINE_WINWS2,
+            preset_file_store,
+            selection_service=_SelectionService(),
         )
+        emitted: list[str] = []
+        store.presets_changed.connect(lambda: emitted.append("changed"))
+
+        store.list_manifests()
+        preset_file_store.fail_next_list = True
         store.notify_presets_changed()
 
         self.assertEqual(emitted, ["changed"])
+        self.assertFalse(store._loaded)
 
 
 if __name__ == "__main__":
