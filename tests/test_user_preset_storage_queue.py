@@ -34,10 +34,10 @@ class _Runtime:
 
 
 class UserPresetStorageQueueTests(unittest.TestCase):
-    def test_storage_action_keeps_latest_pending_action_while_worker_runs(self) -> None:
+    def test_storage_action_queues_pending_actions_while_worker_runs(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         page._preset_storage_action_runtime = _Runtime(running=True)
-        page._pending_preset_storage_action = None
+        page._pending_preset_storage_actions = []
 
         UserPresetsPageBase._request_preset_storage_action(
             page,
@@ -46,22 +46,44 @@ class UserPresetStorageQueueTests(unittest.TestCase):
             display_name="Preset",
             rating=8,
         )
+        UserPresetsPageBase._request_preset_storage_action(
+            page,
+            "move_step",
+            name="Second.txt",
+            display_name="Second",
+            direction=1,
+        )
 
         self.assertEqual(
-            page._pending_preset_storage_action,
-            {
-                "action": "rating",
-                "name": "Preset.txt",
-                "display_name": "Preset",
-                "rating": 8,
-                "direction": 0,
-                "cached_metadata": None,
-                "source_kind": "",
-                "source_id": "",
-                "destination_kind": "",
-                "destination_id": "",
-                "destination_folder_key": "",
-            },
+            page._pending_preset_storage_actions,
+            [
+                {
+                    "action": "rating",
+                    "name": "Preset.txt",
+                    "display_name": "Preset",
+                    "rating": 8,
+                    "direction": 0,
+                    "cached_metadata": None,
+                    "source_kind": "",
+                    "source_id": "",
+                    "destination_kind": "",
+                    "destination_id": "",
+                    "destination_folder_key": "",
+                },
+                {
+                    "action": "move_step",
+                    "name": "Second.txt",
+                    "display_name": "Second",
+                    "rating": 0,
+                    "direction": 1,
+                    "cached_metadata": None,
+                    "source_kind": "",
+                    "source_id": "",
+                    "destination_kind": "",
+                    "destination_id": "",
+                    "destination_folder_key": "",
+                },
+            ],
         )
 
     def test_storage_action_worker_finished_starts_pending_action(self) -> None:
@@ -70,19 +92,21 @@ class UserPresetStorageQueueTests(unittest.TestCase):
         next_worker = _Worker(running=False)
         page._preset_storage_action_request_id = 0
         page.create_preset_storage_action_worker = Mock(return_value=next_worker)
-        page._pending_preset_storage_action = {
-            "action": "move_step",
-            "name": "Preset.txt",
-            "display_name": "Preset",
-            "rating": 0,
-            "direction": 1,
-            "cached_metadata": {"Preset.txt": {"display_name": "Preset"}},
-            "source_kind": "",
-            "source_id": "",
-            "destination_kind": "",
-            "destination_id": "",
-            "destination_folder_key": "",
-        }
+        page._pending_preset_storage_actions = [
+            {
+                "action": "move_step",
+                "name": "Preset.txt",
+                "display_name": "Preset",
+                "rating": 0,
+                "direction": 1,
+                "cached_metadata": {"Preset.txt": {"display_name": "Preset"}},
+                "source_kind": "",
+                "source_id": "",
+                "destination_kind": "",
+                "destination_id": "",
+                "destination_folder_key": "",
+            }
+        ]
 
         UserPresetsPageBase._on_preset_storage_action_worker_finished(page, old_worker)
 
@@ -101,7 +125,7 @@ class UserPresetStorageQueueTests(unittest.TestCase):
             destination_folder_key="",
         )
         next_worker.start.assert_called_once_with()
-        self.assertIsNone(page._pending_preset_storage_action)
+        self.assertEqual(page._pending_preset_storage_actions, [])
 
 
 if __name__ == "__main__":

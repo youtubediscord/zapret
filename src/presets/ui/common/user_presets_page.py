@@ -188,7 +188,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_edit_action_pending: list[dict[str, object]] = []
         self._preset_storage_action_runtime = OneShotWorkerRuntime()
         self._preset_storage_action_request_id = 0
-        self._pending_preset_storage_action: dict[str, object] | None = None
+        self._pending_preset_storage_actions: list[dict[str, object]] = []
         self._preset_folder_action_runtime = OneShotWorkerRuntime()
         self._preset_folder_action_request_id = 0
         self._preset_folder_action_pending: list[dict[str, object]] = []
@@ -1256,19 +1256,21 @@ class UserPresetsPageBase(BasePage):
     ) -> None:
         runtime = self._worker_runtime("_preset_storage_action_runtime")
         if runtime.is_running():
-            self._pending_preset_storage_action = {
-                "action": str(action or ""),
-                "name": str(name or ""),
-                "display_name": str(display_name or ""),
-                "rating": int(rating or 0),
-                "direction": int(direction or 0),
-                "cached_metadata": cached_metadata,
-                "source_kind": str(source_kind or ""),
-                "source_id": str(source_id or ""),
-                "destination_kind": str(destination_kind or ""),
-                "destination_id": str(destination_id or ""),
-                "destination_folder_key": str(destination_folder_key or ""),
-            }
+            self._pending_preset_storage_actions.append(
+                {
+                    "action": str(action or ""),
+                    "name": str(name or ""),
+                    "display_name": str(display_name or ""),
+                    "rating": int(rating or 0),
+                    "direction": int(direction or 0),
+                    "cached_metadata": cached_metadata,
+                    "source_kind": str(source_kind or ""),
+                    "source_id": str(source_id or ""),
+                    "destination_kind": str(destination_kind or ""),
+                    "destination_id": str(destination_id or ""),
+                    "destination_folder_key": str(destination_folder_key or ""),
+                }
+            )
             return
         self._preset_storage_action_request_id = int(
             self.__dict__.get("_preset_storage_action_request_id", 0) or 0
@@ -1344,8 +1346,8 @@ class UserPresetsPageBase(BasePage):
             log(f"Ошибка перетаскивания элемента: {error}", "ERROR")
 
     def _on_preset_storage_action_worker_finished(self, worker) -> None:
-        pending = self.__dict__.get("_pending_preset_storage_action")
-        self._pending_preset_storage_action = None
+        pending_actions = self.__dict__.get("_pending_preset_storage_actions") or []
+        pending = pending_actions.pop(0) if pending_actions else None
         if pending:
             self._request_preset_storage_action(
                 str(pending.get("action") or ""),
@@ -1777,7 +1779,7 @@ class UserPresetsPageBase(BasePage):
         self._pending_preset_activation = None
         self._restore_preset_activation_marker_file_name = ""
         self.__dict__.setdefault("_preset_edit_action_pending", []).clear()
-        self._pending_preset_storage_action = None
+        self.__dict__.setdefault("_pending_preset_storage_actions", []).clear()
         self._preset_folder_action_pending.clear()
         self._preset_open_folder_pending = False
         self.__dict__.setdefault("_preset_item_action_pending", []).clear()
