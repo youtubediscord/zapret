@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Dict, Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -36,6 +37,7 @@ class PresetUiStore(QObject):
         self._manifests_by_file_name: Dict[str, PresetManifest] = {}
         self._selected_source_file_name: Optional[str] = None
         self._loaded = False
+        self._last_content_change_key: tuple[object, ...] | None = None
 
     def list_manifests(self) -> list[PresetManifest]:
         self._ensure_loaded()
@@ -57,14 +59,20 @@ class PresetUiStore(QObject):
         return self._selected_source_file_name
 
     def refresh(self) -> None:
+        self._last_content_change_key = None
         self._reload_metadata()
         self.presets_changed.emit()
 
     def notify_preset_content_changed(self, file_name: str) -> None:
+        change_key = self._content_change_key(file_name)
+        if change_key is not None and change_key == self._last_content_change_key:
+            return
+        self._last_content_change_key = change_key
         self._invalidate_metadata_cache()
         self.preset_content_changed.emit(str(file_name or "").strip())
 
     def notify_presets_changed(self) -> None:
+        self._last_content_change_key = None
         self._invalidate_metadata_cache()
         self.presets_changed.emit()
 
@@ -74,9 +82,27 @@ class PresetUiStore(QObject):
 
     def notify_preset_identity_changed(self, file_name: str) -> None:
         selected = str(file_name or "").strip() or None
+        self._last_content_change_key = None
         self._invalidate_metadata_cache()
         self._selected_source_file_name = selected
         self.preset_identity_changed.emit(self._selected_source_file_name or "")
+
+    def _content_change_key(self, file_name: str) -> tuple[object, ...] | None:
+        candidate = str(file_name or "").strip()
+        if not candidate:
+            return None
+        normalized_name = candidate.lower()
+        try:
+            path = self._preset_file_store.get_source_path(self._engine, candidate)
+            stat = path.stat()
+            return (
+                normalized_name,
+                os.path.abspath(str(path)).replace("\\", "/").lower(),
+                int(getattr(stat, "st_size", 0) or 0),
+                int(getattr(stat, "st_mtime_ns", 0) or 0),
+            )
+        except Exception:
+            return ("missing", normalized_name)
 
     def _ensure_loaded(self) -> None:
         if not self._loaded:
