@@ -169,6 +169,44 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
             any("administrator rights" in call.args[0] for call in log.call_args_list)
         )
 
+    def test_runner_treats_access_denied_readiness_as_transient_cleanup_case(self) -> None:
+        from winws_runtime.runners import runner_base
+        from winws_runtime.runtime.system_ops import WinDivertRuntimeProbeResult
+
+        class DummyRunner(runner_base.StrategyRunnerBase):
+            def start_from_preset_file(self, preset_path: str, strategy_name: str = "Preset") -> bool:
+                return True
+
+            def switch_preset_file_fast(self, preset_path: str, strategy_name: str = "Preset") -> bool:
+                return True
+
+        blocked_probe = WinDivertRuntimeProbeResult(
+            installed=True,
+            ready=False,
+            error_code=5,
+            stage="network_open",
+        )
+        ready_probe = WinDivertRuntimeProbeResult(
+            installed=True,
+            ready=True,
+            error_code=None,
+            stage="network_open",
+        )
+
+        with (
+            patch.object(runner_base.os.path, "exists", return_value=True),
+            patch.object(runner_base, "wait_for_windivert_spawn_ready_runtime", return_value=ready_probe)
+            as wait_ready,
+            patch.object(DummyRunner, "_aggressive_windivert_cleanup") as cleanup,
+            patch.object(DummyRunner, "_wait_after_aggressive_windivert_cleanup"),
+        ):
+            runner = DummyRunner(r"C:\Zapret\Dev\exe\winws2.exe")
+            result = runner._retry_windivert_spawn_readiness_after_recovery(blocked_probe)
+
+        self.assertTrue(result.ready)
+        cleanup.assert_called_once_with()
+        wait_ready.assert_called_once()
+
     def test_runtime_cleanup_keeps_windivert_service_running(self) -> None:
         from winws_runtime.runtime import runtime_api
 

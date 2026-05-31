@@ -318,7 +318,7 @@ class StrategyRunnerBase(ABC):
         WinDivert ещё не готов открыть NETWORK layer. Не бесконечный retry:
         делаем один контролируемый цикл и возвращаем итоговый probe.
         """
-        transient_codes = {1058, 1060, 1753}
+        transient_codes = {5, 1058, 1060, 1753}
         if probe.ready or int(probe.error_code or 0) not in transient_codes:
             return probe
 
