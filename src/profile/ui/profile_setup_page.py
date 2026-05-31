@@ -2371,7 +2371,16 @@ class ProfileSetupPageBase(BasePage):
         pending = self.__dict__.get("_pending_list_file_validation")
         self._pending_list_file_validation = None
         if pending:
-            self._start_list_file_validation_worker(pending)
+            self._schedule_pending_list_file_validation_start(pending)
+
+    def _schedule_pending_list_file_validation_start(self, request: dict) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda: self._start_list_file_validation_worker(dict(request or {})),
+            )
+        except Exception:
+            self._start_list_file_validation_worker(dict(request or {}))
 
     def _on_list_file_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._list_file_text is None:

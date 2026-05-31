@@ -722,6 +722,31 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             "Записей всего: 3 • ваших: 2 • есть несохранённые изменения",
         )
 
+    def test_pending_list_file_validation_restarts_after_worker_signal(self) -> None:
+        from unittest.mock import Mock, patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        pending = {"kind": "hostlist", "text": "next.example"}
+        page._pending_list_file_validation = pending
+        page._start_list_file_validation_worker = Mock()
+        callbacks = []
+
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_list_file_validation_worker_finished(page, object())
+
+        page._start_list_file_validation_worker.assert_not_called()
+        self.assertIsNone(page._pending_list_file_validation)
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._start_list_file_validation_worker.assert_called_once_with(pending)
+
     def test_list_file_save_uses_cached_text_snapshot(self) -> None:
         from unittest.mock import Mock
 
