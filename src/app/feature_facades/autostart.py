@@ -10,7 +10,6 @@ class AutostartFeature:
     save_gui_autostart_enabled: Callable
     disable_gui_autostart: Callable
     enable_gui_autostart: Callable
-    set_autostart_enabled: Callable
     set_autostart_runtime_state: Callable
     create_autostart_action_worker: Callable
     create_autostart_mode_load_worker: Callable
@@ -21,12 +20,6 @@ def build_autostart_feature(*, runtime_state=None) -> AutostartFeature:
         from autostart import public as autostart_public
 
         return autostart_public
-
-    def _set_autostart_enabled(enabled: bool) -> bool:
-        saved = bool(_public().save_gui_autostart_enabled(bool(enabled)))
-        if runtime_state is not None:
-            runtime_state.set_autostart(bool(enabled))
-        return saved
 
     def _set_autostart_runtime_state(enabled: bool) -> bool:
         if runtime_state is not None:
@@ -61,7 +54,6 @@ def build_autostart_feature(*, runtime_state=None) -> AutostartFeature:
         save_gui_autostart_enabled=lambda *args, **kwargs: _public().save_gui_autostart_enabled(*args, **kwargs),
         disable_gui_autostart=lambda *args, **kwargs: _public().disable_gui_autostart(*args, **kwargs),
         enable_gui_autostart=lambda *args, **kwargs: _public().enable_gui_autostart(*args, **kwargs),
-        set_autostart_enabled=_set_autostart_enabled,
         set_autostart_runtime_state=_set_autostart_runtime_state,
         create_autostart_action_worker=_create_autostart_action_worker,
         create_autostart_mode_load_worker=_create_autostart_mode_load_worker,

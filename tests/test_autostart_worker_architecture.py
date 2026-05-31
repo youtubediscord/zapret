@@ -11,6 +11,7 @@ from autostart.ui.page import AutostartPage
 class AutostartWorkerArchitectureTests(unittest.TestCase):
     def test_autostart_workers_use_public_commands_not_feature_object(self) -> None:
         feature_source = inspect.getsource(build_autostart_feature)
+        feature_cls_source = inspect.getsource(__import__("app.feature_facades.autostart", fromlist=["AutostartFeature"]).AutostartFeature)
         worker_source = "\n".join(
             (
                 inspect.getsource(autostart_workers.AutostartActionWorker),
@@ -29,6 +30,8 @@ class AutostartWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("self._save_gui_autostart_enabled", worker_source)
         self.assertIn("self._get_current_launch_method", worker_source)
         self.assertNotIn("import autostart.public", worker_source)
+        self.assertNotIn("set_autostart_enabled", feature_cls_source)
+        self.assertNotIn("_set_autostart_enabled", feature_source)
 
     def test_autostart_page_uses_one_shot_runtime_for_workers(self) -> None:
         page_source = inspect.getsource(AutostartPage)
