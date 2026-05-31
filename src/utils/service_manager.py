@@ -24,10 +24,13 @@ SERVICE_ALL_ACCESS = 0xF01FF
 SERVICE_QUERY_STATUS = 0x0004
 SERVICE_STOP = 0x0020
 SERVICE_DELETE = 0x00010000
+SERVICE_CHANGE_CONFIG = 0x0002
 
 SERVICE_STOPPED = 0x00000001
 SERVICE_STOP_PENDING = 0x00000003
 SERVICE_RUNNING = 0x00000004
+SERVICE_NO_CHANGE = 0xFFFFFFFF
+SERVICE_DEMAND_START = 0x00000003
 
 ERROR_SERVICE_DOES_NOT_EXIST = 1060
 ERROR_SERVICE_NOT_ACTIVE = 1062
@@ -61,6 +64,22 @@ if hasattr(ctypes, "windll"):
     DeleteService = advapi32.DeleteService
     DeleteService.argtypes = [wintypes.HANDLE]
     DeleteService.restype = wintypes.BOOL
+
+    ChangeServiceConfig = advapi32.ChangeServiceConfigW
+    ChangeServiceConfig.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        ctypes.POINTER(wintypes.DWORD),
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+    ]
+    ChangeServiceConfig.restype = wintypes.BOOL
 else:  # pragma: no cover - import safety for non-Windows environments
     advapi32 = None
     OpenSCManager = None
@@ -69,6 +88,7 @@ else:  # pragma: no cover - import safety for non-Windows environments
     ControlService = None
     QueryServiceStatus = None
     DeleteService = None
+    ChangeServiceConfig = None
 
 
 def stop_service(service_name: str) -> bool:
@@ -245,6 +265,66 @@ def stop_and_delete_service(service_name: str, retry_count: int = 3) -> bool:
     except Exception as e:
         log(f"Ошибка при остановке и удалении {service_name}: {e}", "DEBUG")
         return False
+
+
+def set_service_start_type(service_name: str, start_type: int) -> bool:
+    """Меняет тип запуска существующей службы.
+
+    Для WinDivert это нужно после неудачной аварийной очистки: если старая
+    запись `Monkey` осталась в состоянии Disabled, новый WinDivertOpen
+    получает 1058 и не может сам поднять драйвер.
+    """
+    if advapi32 is None or OpenSCManager is None or OpenService is None or ChangeServiceConfig is None:
+        return False
+    try:
+        sc_manager = OpenSCManager(None, None, SC_MANAGER_ALL_ACCESS)
+        if not sc_manager:
+            log(f"Не удалось открыть SCManager для настройки {service_name}", "DEBUG")
+            return False
+
+        try:
+            service = OpenService(
+                sc_manager,
+                service_name,
+                SERVICE_CHANGE_CONFIG | SERVICE_QUERY_STATUS,
+            )
+            if not service:
+                log(f"Служба {service_name} не найдена для настройки запуска", "DEBUG")
+                return True
+
+            try:
+                result = ChangeServiceConfig(
+                    service,
+                    SERVICE_NO_CHANGE,
+                    int(start_type),
+                    SERVICE_NO_CHANGE,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                if result:
+                    log(f"Служба {service_name} переведена в ручной запуск", "DEBUG")
+                    return True
+
+                error_code = ctypes.get_last_error()
+                log(f"Не удалось изменить тип запуска {service_name}, код: {error_code}", "DEBUG")
+                return False
+            finally:
+                CloseServiceHandle(service)
+        finally:
+            CloseServiceHandle(sc_manager)
+    except Exception as e:
+        log(f"Ошибка настройки типа запуска {service_name}: {e}", "DEBUG")
+        return False
+
+
+def set_service_demand_start(service_name: str) -> bool:
+    """Переводит службу в ручной запуск, если она существует."""
+    return set_service_start_type(service_name, SERVICE_DEMAND_START)
 
 
 def cleanup_windivert_services() -> bool:

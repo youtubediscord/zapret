@@ -261,6 +261,29 @@ def stop_and_delete_runtime_services(*, retry_count: int = 3) -> bool:
     return ok
 
 
+def restore_known_windivert_services_demand_start_runtime() -> bool:
+    """Возвращает оставшиеся WinDivert-службы из Disabled в ручной запуск.
+
+    Иногда Windows не удаляет старую driver-service запись сразу. Если такая
+    запись осталась отключённой, следующий WinDivertOpen получает 1058.
+    Ручной запуск не стартует драйвер сам по себе, но разрешает WinDivert
+    поднять его при следующем открытии фильтра.
+    """
+    ok = True
+    try:
+        from utils.service_manager import set_service_demand_start
+
+        for service_name in _KNOWN_WINDIVERT_SERVICES:
+            try:
+                ok = bool(set_service_demand_start(service_name)) and ok
+            except Exception:
+                ok = False
+    except Exception as e:
+        log(f"Ошибка восстановления типа запуска WinDivert services: {e}", "DEBUG")
+        return False
+    return ok
+
+
 def stop_and_delete_named_service(service_name: str, *, retry_count: int = 3) -> bool:
     try:
         from utils.service_manager import stop_and_delete_service
@@ -301,13 +324,17 @@ def aggressive_windivert_cleanup_runtime() -> bool:
     time.sleep(0.3)
     ok = unload_known_windivert_drivers_runtime() and ok
     time.sleep(0.2)
-    ok = stop_and_delete_runtime_services(retry_count=3) and ok
+    services_removed = stop_and_delete_runtime_services(retry_count=3)
+    if services_removed:
+        ok = services_removed and ok
+    else:
+        ok = restore_known_windivert_services_demand_start_runtime() and ok
     time.sleep(0.3)
     ok = force_kill_all_winws_processes() and ok
     ok = wait_for_windivert_cleanup_settle_runtime(
         max_wait_seconds=5.0,
         poll_interval=0.25,
-        retry_cleanup=True,
+        retry_cleanup=services_removed,
     ) and ok
     log("Aggressive cleanup completed", "INFO")
     return ok

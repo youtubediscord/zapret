@@ -87,6 +87,22 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         self.assertFalse(settled)
         stop_and_delete.assert_called()
 
+    def test_aggressive_cleanup_restores_leftover_windivert_services_to_manual_start(self) -> None:
+        from winws_runtime.runtime import system_ops
+
+        with (
+            patch.object(system_ops, "force_kill_all_winws_processes", return_value=True),
+            patch.object(system_ops, "unload_known_windivert_drivers_runtime", return_value=True),
+            patch.object(system_ops, "stop_and_delete_runtime_services", return_value=False),
+            patch.object(system_ops, "restore_known_windivert_services_demand_start_runtime") as restore_start,
+            patch.object(system_ops, "wait_for_windivert_cleanup_settle_runtime", return_value=True),
+            patch.object(system_ops.time, "sleep"),
+            patch.object(system_ops, "log"),
+        ):
+            system_ops.aggressive_windivert_cleanup_runtime()
+
+        restore_start.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()
