@@ -49,9 +49,10 @@ class WindowActionsMixin:
         return runtime
 
     def create_open_folder_worker(self):
+        from main.commands import open_program_folder
         from main.window_action_workers import WindowOpenFolderWorker
 
-        return WindowOpenFolderWorker()
+        return WindowOpenFolderWorker(open_program_folder=open_program_folder)
 
     def _start_open_folder_worker(self) -> None:
         try:

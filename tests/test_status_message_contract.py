@@ -55,6 +55,9 @@ class StatusMessageContractTests(unittest.TestCase):
             )
         )
         worker_source = inspect.getsource(window_action_workers.WindowOpenFolderWorker.run)
+        worker_init_params = inspect.signature(
+            window_action_workers.WindowOpenFolderWorker.__init__
+        ).parameters
 
         self.assertIn("create_open_folder_worker", open_source)
         self.assertIn("OneShotWorkerRuntime", inspect.getsource(WindowActionsMixin._open_folder_runtime))
@@ -62,7 +65,10 @@ class StatusMessageContractTests(unittest.TestCase):
         self.assertNotIn("worker.start()", open_source)
         self.assertNotIn("worker.deleteLater()", open_source)
         self.assertNotIn("run_hidden(", open_source)
-        self.assertIn("run_hidden", worker_source)
+        self.assertIn("open_program_folder", worker_init_params)
+        self.assertIn("self._open_program_folder", worker_source)
+        self.assertNotIn("run_hidden", worker_source)
+        self.assertNotIn("explorer.exe", worker_source)
 
 
 if __name__ == "__main__":
