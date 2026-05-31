@@ -111,6 +111,7 @@ class StrategyScanPage(BasePage):
         self._quick_targets_runtime = OneShotWorkerRuntime()
         self._strategy_scan_resume_save_runtime = OneShotWorkerRuntime()
         self._strategy_scan_resume_save_pending = None
+        self._strategy_scan_resume_save_start_scheduled = False
         self._strategy_scan_finalize_runtime = OneShotWorkerRuntime()
 
         self._build_ui()
@@ -598,7 +599,10 @@ class StrategyScanPage(BasePage):
             "udp_games_scope": udp_games_scope,
             "next_index": int(next_index),
         }
-        if self._strategy_scan_resume_save_runtime.is_running():
+        if (
+            self._strategy_scan_resume_save_runtime.is_running()
+            or bool(self.__dict__.get("_strategy_scan_resume_save_start_scheduled", False))
+        ):
             self._strategy_scan_resume_save_pending = payload
             return
 
@@ -641,7 +645,24 @@ class StrategyScanPage(BasePage):
         pending = self.__dict__.get("_strategy_scan_resume_save_pending")
         if pending is not None and not self._cleanup_in_progress:
             self._strategy_scan_resume_save_pending = None
-            self._start_strategy_scan_resume_save_worker(pending)
+            self._schedule_strategy_scan_resume_save_worker_start(pending)
+
+    def _schedule_strategy_scan_resume_save_worker_start(self, payload: dict) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._strategy_scan_resume_save_pending = dict(payload or {})
+        if bool(self.__dict__.get("_strategy_scan_resume_save_start_scheduled", False)):
+            return
+        self._strategy_scan_resume_save_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_strategy_scan_resume_save_worker_start)
+
+    def _run_scheduled_strategy_scan_resume_save_worker_start(self) -> None:
+        self._strategy_scan_resume_save_start_scheduled = False
+        pending = self.__dict__.get("_strategy_scan_resume_save_pending")
+        self._strategy_scan_resume_save_pending = None
+        if pending is None or self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_strategy_scan_resume_save_worker(pending)
 
     def _on_log(self, message: str):
         if self._cleanup_in_progress:
@@ -950,6 +971,7 @@ class StrategyScanPage(BasePage):
         )
         self._quick_targets_runtime.cancel()
         self._strategy_scan_resume_save_pending = None
+        self._strategy_scan_resume_save_start_scheduled = False
         self._strategy_scan_resume_save_runtime.stop(
             blocking=False,
             warning_prefix="strategy scan resume save worker",
