@@ -9,6 +9,14 @@ from presets.ui.common.user_presets_page import UserPresetsPageBase
 from presets.ui.common.preset_subpage_base import PresetRawEditorPage
 
 
+class _Runtime:
+    def __init__(self, *, running: bool) -> None:
+        self._running = bool(running)
+
+    def is_running(self) -> bool:
+        return self._running
+
+
 class UserPresetActivationGuardTests(unittest.TestCase):
     def test_clicking_active_preset_does_not_start_activation_worker(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
@@ -25,10 +33,13 @@ class UserPresetActivationGuardTests(unittest.TestCase):
         page._request_preset_activation.assert_not_called()
 
     def test_clicking_preset_while_activation_runs_does_not_repaint_marker_immediately(self) -> None:
-        running_worker = Mock()
-        running_worker.isRunning.return_value = True
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
-        page._preset_activate_worker = running_worker
+        page._preset_activate_runtime = _Runtime(running=True)
+        page._preset_item_action_runtime = _Runtime(running=False)
+        page._preset_bulk_action_runtime = _Runtime(running=False)
+        page._preset_edit_action_runtime = _Runtime(running=False)
+        page._preset_storage_action_runtime = _Runtime(running=False)
+        page._pending_preset_write_actions = []
         page._pending_preset_activation = None
         page._runtime_service = Mock()
         page._runtime_service.active_preset_file_name.return_value = "Before.txt"

@@ -729,18 +729,34 @@ class UserPresetsPageBase(BasePage):
         new_name: str = "",
         from_current: bool = False,
     ) -> None:
-        runtime = self._worker_runtime("_preset_edit_action_runtime")
-        if runtime.is_running():
-            self._preset_edit_action_pending.append(
-                {
-                    "action": str(action or ""),
-                    "name": str(name or ""),
-                    "current_name": str(current_name or ""),
-                    "new_name": str(new_name or ""),
-                    "from_current": bool(from_current),
-                }
+        if self._preset_write_action_running():
+            self._queue_preset_write_action(
+                "edit",
+                action=action,
+                name=name,
+                current_name=current_name,
+                new_name=new_name,
+                from_current=from_current,
             )
             return
+        self._start_preset_edit_action_worker(
+            action,
+            name=name,
+            current_name=current_name,
+            new_name=new_name,
+            from_current=from_current,
+        )
+
+    def _start_preset_edit_action_worker(
+        self,
+        action: str,
+        *,
+        name: str = "",
+        current_name: str = "",
+        new_name: str = "",
+        from_current: bool = False,
+    ) -> None:
+        runtime = self._worker_runtime("_preset_edit_action_runtime")
         self._preset_edit_action_request_id = int(self.__dict__.get("_preset_edit_action_request_id", 0) or 0) + 1
         request_id = self._preset_edit_action_request_id
 
@@ -798,10 +814,12 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _on_preset_edit_action_worker_finished(self, worker) -> None:
+        if self._start_next_preset_write_action():
+            return
         pending = self.__dict__.get("_preset_edit_action_pending") or []
         if pending and not bool(self.__dict__.get("_cleanup_in_progress", False)):
             next_action = pending.pop(0)
-            self._request_preset_edit_action(
+            self._start_preset_edit_action_worker(
                 str(next_action.get("action") or ""),
                 name=str(next_action.get("name") or ""),
                 current_name=str(next_action.get("current_name") or ""),
@@ -841,13 +859,11 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _request_preset_bulk_action(self, action: str, *, file_path: str = "") -> bool:
-        runtime = self._worker_runtime("_preset_bulk_action_runtime")
-        if runtime.is_running():
-            self._preset_bulk_action_pending.append(
-                {
-                    "action": str(action or ""),
-                    "file_path": str(file_path or ""),
-                }
+        if self._preset_write_action_running():
+            self._queue_preset_write_action(
+                "bulk",
+                action=action,
+                file_path=file_path,
             )
             return True
         self._start_preset_bulk_action_worker(action, file_path=file_path)
@@ -921,6 +937,8 @@ class UserPresetsPageBase(BasePage):
             if self._runtime_service.is_ui_dirty() and self.isVisible():
                 self.refresh_presets_view_if_possible()
         pending = self.__dict__.get("_preset_bulk_action_pending") or []
+        if self._start_next_preset_write_action():
+            return
         if pending and not self._cleanup_in_progress:
             next_action = pending.pop(0)
             self._start_preset_bulk_action_worker(
@@ -1286,15 +1304,22 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _preset_write_action_running(self) -> bool:
-        return self._worker_runtime("_preset_item_action_runtime").is_running() or self._worker_runtime(
-            "_preset_storage_action_runtime"
-        ).is_running()
+        for attr in (
+            "_preset_activate_runtime",
+            "_preset_item_action_runtime",
+            "_preset_bulk_action_runtime",
+            "_preset_edit_action_runtime",
+            "_preset_storage_action_runtime",
+        ):
+            if self._worker_runtime(attr).is_running():
+                return True
+        return False
 
     def _queue_preset_write_action(
         self,
         kind: str,
         *,
-        action: str,
+        action: str = "",
         name: str = "",
         display_name: str = "",
         rating: int = 0,
@@ -1307,6 +1332,9 @@ class UserPresetsPageBase(BasePage):
         destination_folder_key: str = "",
         file_name: str = "",
         file_path: str = "",
+        current_name: str = "",
+        new_name: str = "",
+        from_current: bool = False,
     ) -> None:
         operation = {
             "kind": str(kind or ""),
@@ -1324,6 +1352,10 @@ class UserPresetsPageBase(BasePage):
             "file_name": str(file_name or ""),
             "file_path": str(file_path or ""),
         }
+        if operation["kind"] == "edit":
+            operation["current_name"] = str(current_name or "")
+            operation["new_name"] = str(new_name or "")
+            operation["from_current"] = bool(from_current)
         self.__dict__.setdefault("_pending_preset_write_actions", []).append(operation)
         if operation["kind"] == "storage":
             self.__dict__.setdefault("_pending_preset_storage_actions", []).append(
@@ -1339,6 +1371,25 @@ class UserPresetsPageBase(BasePage):
                     "destination_kind": operation["destination_kind"],
                     "destination_id": operation["destination_id"],
                     "destination_folder_key": operation["destination_folder_key"],
+                }
+            )
+        elif operation["kind"] == "activate":
+            self._pending_preset_activation = (operation["file_name"], operation["display_name"])
+        elif operation["kind"] == "bulk":
+            self.__dict__.setdefault("_preset_bulk_action_pending", []).append(
+                {
+                    "action": operation["action"],
+                    "file_path": operation["file_path"],
+                }
+            )
+        elif operation["kind"] == "edit":
+            self.__dict__.setdefault("_preset_edit_action_pending", []).append(
+                {
+                    "action": operation["action"],
+                    "name": operation["name"],
+                    "current_name": operation["current_name"],
+                    "new_name": operation["new_name"],
+                    "from_current": operation["from_current"],
                 }
             )
         elif operation["kind"] == "item":
@@ -1363,6 +1414,16 @@ class UserPresetsPageBase(BasePage):
                 pending_item = self.__dict__.setdefault("_preset_item_action_pending", [])
                 if pending_item:
                     pending_item.pop(0)
+            elif operation.get("kind") == "activate":
+                self._pending_preset_activation = None
+            elif operation.get("kind") == "bulk":
+                pending_bulk = self.__dict__.setdefault("_preset_bulk_action_pending", [])
+                if pending_bulk:
+                    pending_bulk.pop(0)
+            elif operation.get("kind") == "edit":
+                pending_edit = self.__dict__.setdefault("_preset_edit_action_pending", [])
+                if pending_edit:
+                    pending_edit.pop(0)
             return operation
         pending_storage = self.__dict__.setdefault("_pending_preset_storage_actions", [])
         if pending_storage:
@@ -1389,6 +1450,75 @@ class UserPresetsPageBase(BasePage):
                 "destination_folder_key": "",
                 "file_name": str(pending.get("file_name") or ""),
                 "file_path": str(pending.get("file_path") or ""),
+                "current_name": "",
+                "new_name": "",
+                "from_current": False,
+            }
+        pending_activation = self.__dict__.get("_pending_preset_activation")
+        if pending_activation:
+            self._pending_preset_activation = None
+            return {
+                "kind": "activate",
+                "action": "",
+                "name": "",
+                "display_name": str(pending_activation[1] or ""),
+                "rating": 0,
+                "direction": 0,
+                "cached_metadata": None,
+                "source_kind": "",
+                "source_id": "",
+                "destination_kind": "",
+                "destination_id": "",
+                "destination_folder_key": "",
+                "file_name": str(pending_activation[0] or ""),
+                "file_path": "",
+                "current_name": "",
+                "new_name": "",
+                "from_current": False,
+            }
+        pending_bulk = self.__dict__.setdefault("_preset_bulk_action_pending", [])
+        if pending_bulk:
+            pending = dict(pending_bulk.pop(0))
+            return {
+                "kind": "bulk",
+                "action": str(pending.get("action") or ""),
+                "name": "",
+                "display_name": "",
+                "rating": 0,
+                "direction": 0,
+                "cached_metadata": None,
+                "source_kind": "",
+                "source_id": "",
+                "destination_kind": "",
+                "destination_id": "",
+                "destination_folder_key": "",
+                "file_name": "",
+                "file_path": str(pending.get("file_path") or ""),
+                "current_name": "",
+                "new_name": "",
+                "from_current": False,
+            }
+        pending_edit = self.__dict__.setdefault("_preset_edit_action_pending", [])
+        if pending_edit:
+            pending = dict(pending_edit.pop(0))
+            return {
+                "kind": "edit",
+                "action": str(pending.get("action") or ""),
+                "name": str(pending.get("name") or ""),
+                "display_name": "",
+                "rating": 0,
+                "direction": 0,
+                "cached_metadata": None,
+                "source_kind": "",
+                "source_id": "",
+                "destination_kind": "",
+                "destination_id": "",
+                "destination_folder_key": "",
+                "file_name": "",
+                "file_path": "",
+                "current_name": str(pending.get("current_name") or ""),
+                "new_name": str(pending.get("new_name") or ""),
+                "from_current": bool(pending.get("from_current")),
             }
         return None
 
@@ -1419,6 +1549,27 @@ class UserPresetsPageBase(BasePage):
                 file_name=str(pending.get("file_name") or ""),
                 display_name=str(pending.get("display_name") or ""),
                 file_path=str(pending.get("file_path") or ""),
+            )
+            return True
+        if pending.get("kind") == "activate":
+            self._start_preset_activation_worker(
+                str(pending.get("file_name") or ""),
+                str(pending.get("display_name") or ""),
+            )
+            return True
+        if pending.get("kind") == "bulk":
+            self._start_preset_bulk_action_worker(
+                str(pending.get("action") or ""),
+                file_path=str(pending.get("file_path") or ""),
+            )
+            return True
+        if pending.get("kind") == "edit":
+            self._start_preset_edit_action_worker(
+                str(pending.get("action") or ""),
+                name=str(pending.get("name") or ""),
+                current_name=str(pending.get("current_name") or ""),
+                new_name=str(pending.get("new_name") or ""),
+                from_current=bool(pending.get("from_current")),
             )
             return True
         return self._start_next_preset_write_action()
@@ -1543,10 +1694,19 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _request_preset_activation(self, file_name: str, display_name: str) -> None:
-        runtime = self._worker_runtime("_preset_activate_runtime")
-        if runtime.is_running():
-            self._pending_preset_activation = (str(file_name or "").strip(), str(display_name or "").strip())
+        file_name = str(file_name or "").strip()
+        display_name = str(display_name or "").strip()
+        if self._preset_write_action_running():
+            self._queue_preset_write_action(
+                "activate",
+                file_name=file_name,
+                display_name=display_name,
+            )
             return
+        self._start_preset_activation_worker(file_name, display_name)
+
+    def _start_preset_activation_worker(self, file_name: str, display_name: str) -> None:
+        runtime = self._worker_runtime("_preset_activate_runtime")
         self._preset_activate_request_id = int(self.__dict__.get("_preset_activate_request_id", 0) or 0) + 1
         request_id = self._preset_activate_request_id
         self._runtime_service.apply_active_preset_marker_for_file(str(file_name or "").strip())
@@ -1604,10 +1764,12 @@ class UserPresetsPageBase(BasePage):
         self._runtime_service.apply_active_preset_marker_for_file("")
 
     def _on_preset_activate_worker_finished(self, worker) -> None:
+        if self._start_next_preset_write_action():
+            return
         pending = self.__dict__.get("_pending_preset_activation")
         self._pending_preset_activation = None
         if pending:
-            self._request_preset_activation(pending[0], pending[1])
+            self._start_preset_activation_worker(pending[0], pending[1])
 
     def _on_edit_preset(self, name: str, global_pos: QPoint | None = None):
         open_edit_preset_menu_action(

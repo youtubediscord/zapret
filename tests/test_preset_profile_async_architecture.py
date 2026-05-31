@@ -462,13 +462,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
     def test_user_presets_activation_runs_through_worker(self) -> None:
         handler_source = inspect.getsource(UserPresetsPageBase._on_activate_preset)
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_activation)
+        start_source = inspect.getsource(UserPresetsPageBase._start_preset_activation_worker)
         worker_source = inspect.getsource(UserPresetActivateWorker.run)
 
         self.assertNotIn("activate_preset_action", handler_source)
         self.assertNotIn(".activate_preset(", handler_source)
         self.assertIn("_request_preset_activation", handler_source)
-        self.assertIn("apply_active_preset_marker_for_file", request_source)
-        self.assertIn("create_preset_activate_worker", request_source)
+        self.assertIn("apply_active_preset_marker_for_file", request_source + start_source)
+        self.assertIn("create_preset_activate_worker", request_source + start_source)
         self.assertIn("self._activate_preset", worker_source)
         self.assertNotIn("actions_api.activate_preset", worker_source)
 
@@ -1158,9 +1159,11 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_user_preset_activation_worker_is_created_through_feature(self) -> None:
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_activation)
+        start_source = inspect.getsource(UserPresetsPageBase._start_preset_activation_worker)
         create_worker_source = inspect.getsource(UserPresetsPageBase.create_preset_activate_worker)
 
-        self.assertIn("create_preset_activate_worker", request_source)
+        self.assertIn("_start_preset_activation_worker", request_source)
+        self.assertIn("create_preset_activate_worker", start_source)
         self.assertNotIn("UserPresetActivateWorker", create_worker_source)
         self.assertIn("_create_preset_activate_worker_fn", create_worker_source)
 
@@ -1249,6 +1252,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertTrue(hasattr(user_presets_action_workers, "UserPresetEditActionWorker"))
         worker_source = inspect.getsource(user_presets_action_workers.UserPresetEditActionWorker.run)
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_edit_action)
+        start_source = inspect.getsource(UserPresetsPageBase._start_preset_edit_action_worker)
         create_worker_source = inspect.getsource(UserPresetsPageBase.create_preset_edit_action_worker)
 
         for source in (create_source, rename_source):
@@ -1259,7 +1263,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
             self.assertNotIn(".create_preset(", source)
             self.assertNotIn(".rename_preset(", source)
 
-        self.assertIn("create_preset_edit_action_worker", request_source)
+        self.assertIn("_start_preset_edit_action_worker", request_source)
+        self.assertIn("create_preset_edit_action_worker", start_source)
         self.assertNotIn("UserPresetEditActionWorker", create_worker_source)
         self.assertIn("_create_preset_edit_action_worker_fn", create_worker_source)
         self.assertIn("self._create_preset", worker_source)
