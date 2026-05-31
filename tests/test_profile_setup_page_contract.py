@@ -3502,6 +3502,26 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._apply_payload.assert_not_called()
         page._on_profile_changed_callback.assert_not_called()
 
+    def test_enabled_save_scheduled_restart_uses_latest_pending_value(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(enabled=False))
+        page._enabled_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+        page._enabled_save_runtime_enabled = None
+        page._enabled_save_start_scheduled = True
+        page._pending_enabled_save = False
+        page._start_enabled_save_worker = Mock()
+
+        ProfileSetupPageBase._on_enabled_changed(page, 2)
+
+        page._start_enabled_save_worker.assert_not_called()
+        self.assertTrue(page._pending_enabled_save)
+
+        ProfileSetupPageBase._run_scheduled_enabled_save_worker_start(page)
+
+        page._start_enabled_save_worker.assert_called_once_with(True)
+
     def test_profile_setup_page_has_list_file_editor_as_second_tab(self) -> None:
         build = inspect.getsource(ProfileSetupPageBase._build_content)
         ensure_editor = inspect.getsource(ProfileSetupPageBase._ensure_editor_tab_built)

@@ -941,6 +941,7 @@ class ProfileSetupPageBase(BasePage):
         self._enabled_save_request_id = 0
         self._enabled_save_runtime_enabled: bool | None = None
         self._pending_enabled_save: bool | None = None
+        self._enabled_save_start_scheduled = False
         self._user_profile_update_runtime = OneShotWorkerRuntime()
         self._user_profile_update_request_id = 0
         self._pending_user_profile_updates: list[dict[str, str]] = []
@@ -1029,6 +1030,8 @@ class ProfileSetupPageBase(BasePage):
             runtime = self.__dict__.get(attr)
             if runtime is not None and runtime.is_running():
                 return True
+        if self.__dict__.get("_enabled_save_start_scheduled", False):
+            return True
         return False
 
     def _queue_profile_setup_write_operation(self, operation: dict[str, object]) -> None:
@@ -2924,6 +2927,10 @@ class ProfileSetupPageBase(BasePage):
         item = getattr(self.__dict__.get("_payload"), "item", None)
         if not runtime.is_running() and item is not None and bool(getattr(item, "enabled", False)) == enabled:
             return
+        if runtime.is_running() or self.__dict__.get("_enabled_save_start_scheduled", False):
+            if self.__dict__.get("_enabled_save_runtime_enabled") != enabled:
+                self._pending_enabled_save = enabled
+            return
         if self._profile_setup_write_is_running():
             if self.__dict__.get("_enabled_save_runtime_enabled") != enabled:
                 self._pending_enabled_save = enabled
@@ -3022,17 +3029,32 @@ class ProfileSetupPageBase(BasePage):
             if self._enabled_checkbox is not None:
                 set_widget_enabled_if_changed(self._enabled_checkbox, True)
             return
-        self._schedule_enabled_save_worker_start(bool(pending))
+        self._pending_enabled_save = bool(pending)
+        self._schedule_enabled_save_worker_start()
 
-    def _schedule_enabled_save_worker_start(self, enabled: bool) -> None:
+    def _schedule_enabled_save_worker_start(self) -> None:
+        if self.__dict__.get("_enabled_save_start_scheduled", False):
+            return
+        self._enabled_save_start_scheduled = True
         try:
-            QTimer.singleShot(0, lambda value=bool(enabled): self._run_scheduled_enabled_save_worker_start(value))
+            QTimer.singleShot(0, self._run_scheduled_enabled_save_worker_start)
         except Exception:
-            self._run_scheduled_enabled_save_worker_start(bool(enabled))
+            self._run_scheduled_enabled_save_worker_start()
 
-    def _run_scheduled_enabled_save_worker_start(self, enabled: bool) -> None:
+    def _run_scheduled_enabled_save_worker_start(self) -> None:
+        self._enabled_save_start_scheduled = False
+        pending = self.__dict__.get("_pending_enabled_save")
+        self._pending_enabled_save = None
         if self.__dict__.get("_cleanup_in_progress", False):
             return
+        if pending is None:
+            return
+        item = getattr(self.__dict__.get("_payload"), "item", None)
+        if item is not None and bool(getattr(item, "enabled", False)) == bool(pending):
+            if self._enabled_checkbox is not None:
+                set_widget_enabled_if_changed(self._enabled_checkbox, True)
+            return
+        enabled = bool(pending)
         self._start_enabled_save_worker(bool(enabled))
 
     def _on_strategy_list_activated(self, strategy_id: str) -> None:
@@ -3395,6 +3417,7 @@ class ProfileSetupPageBase(BasePage):
             setattr(self, attr, None)
         self._list_file_state_apply_scheduled = False
         self._list_file_validation_start_scheduled = False
+        self._enabled_save_start_scheduled = False
         self._strategy_feedback_save_start_scheduled = False
         self._profile_setup_payload_apply_scheduled = False
         self._profile_setup_write_operation_start_scheduled = False
