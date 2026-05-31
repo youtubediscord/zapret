@@ -1,4 +1,5 @@
 import unittest
+import inspect
 from unittest.mock import Mock, patch
 
 
@@ -137,7 +138,7 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         self.assertTrue(result.ready)
         restore_start.assert_called_once_with()
 
-    def test_runtime_cleanup_restores_windivert_start_type_before_stop(self) -> None:
+    def test_runtime_cleanup_keeps_windivert_service_running(self) -> None:
         from winws_runtime.runtime import runtime_api
 
         api = runtime_api.PresetLaunchRuntimeApi(r"C:\Zapret\Dev\exe\winws2.exe")
@@ -149,26 +150,31 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
                 "restore_known_windivert_services_demand_start_runtime",
                 side_effect=lambda: calls.append("restore") or True,
             ),
-            patch.object(
-                runtime_api,
-                "stop_known_windivert_services_runtime",
-                side_effect=lambda: calls.append("stop") or True,
-            ),
-            patch.object(
-                runtime_api,
-                "unload_known_windivert_drivers_runtime",
-                side_effect=lambda: calls.append("unload") or True,
-            ),
-            patch.object(
-                runtime_api,
-                "wait_for_windivert_cleanup_settle_runtime",
-                side_effect=lambda **_kwargs: calls.append("settle") or True,
-            ),
         ):
             cleaned = api.cleanup_windivert_service()
 
         self.assertTrue(cleaned)
-        self.assertEqual(calls, ["restore", "stop", "unload", "settle"])
+        self.assertEqual(calls, ["restore"])
+        cleanup_source = inspect.getsource(runtime_api.PresetLaunchRuntimeApi.cleanup_windivert_service)
+        self.assertNotIn("stop_known_windivert_services_runtime", cleanup_source)
+        self.assertNotIn("unload_known_windivert_drivers_runtime", cleanup_source)
+
+    def test_standard_cleanup_keeps_windivert_service_running(self) -> None:
+        from winws_runtime.runtime import system_ops
+
+        with (
+            patch.object(system_ops, "force_kill_all_winws_processes", return_value=True),
+            patch.object(system_ops, "restore_known_windivert_services_demand_start_runtime") as restore_start,
+            patch.object(system_ops, "unload_known_windivert_drivers_runtime") as unload_driver,
+            patch.object(system_ops, "wait_for_windivert_cleanup_settle_runtime") as wait_cleanup,
+            patch.object(system_ops.time, "sleep"),
+        ):
+            cleaned = system_ops.standard_windivert_cleanup_runtime(sleep_seconds=0.01)
+
+        self.assertTrue(cleaned)
+        restore_start.assert_called_once_with()
+        unload_driver.assert_not_called()
+        wait_cleanup.assert_not_called()
 
 
 if __name__ == "__main__":

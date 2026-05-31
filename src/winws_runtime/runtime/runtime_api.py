@@ -13,10 +13,7 @@ from .system_ops import (
     cleanup_windivert_services_runtime,
     has_any_winws_process,
     restore_known_windivert_services_demand_start_runtime,
-    stop_known_windivert_services_runtime,
     stop_all_winws_processes,
-    wait_for_windivert_cleanup_settle_runtime,
-    unload_known_windivert_drivers_runtime,
 )
 
 
@@ -121,19 +118,13 @@ class PresetLaunchRuntimeApi:
         Здесь нельзя деинсталлировать WinDivert из SCM на каждом обычном stop.
         Иначе следующий старт зависит от повторной авто-установки драйвера и
         начинает сам себе создавать плавающие 1060/1058 гонки.
+
+        Также нельзя останавливать уже запущенную driver-service запись: на
+        некоторых системах `Monkey` остаётся Running/Disabled, и после stop
+        следующий WinDivertOpen получает 1058.
         """
         try:
-            restored = bool(restore_known_windivert_services_demand_start_runtime())
-            stopped = bool(stop_known_windivert_services_runtime())
-            unloaded = bool(unload_known_windivert_drivers_runtime())
-            settled = bool(
-                wait_for_windivert_cleanup_settle_runtime(
-                    max_wait_seconds=5.0,
-                    poll_interval=0.25,
-                    retry_cleanup=False,
-                )
-            )
-            return bool(restored and stopped and unloaded and settled)
+            return bool(restore_known_windivert_services_demand_start_runtime())
         except Exception as e:
             log(f"Ошибка очистки службы: {e}", "⚠ WARNING")
             return False

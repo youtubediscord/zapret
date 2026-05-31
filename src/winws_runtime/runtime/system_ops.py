@@ -297,23 +297,21 @@ def stop_and_delete_named_service(service_name: str, *, retry_count: int = 3) ->
 def standard_windivert_cleanup_runtime(*, sleep_seconds: float = 0.8) -> bool:
     """Обычная cleanup-стадия перед новым стартом.
 
-    Здесь нельзя агрессивно удалять WinDivert service из SCM на каждом
-    обычном запуске. Для обычного restart/start достаточно:
+    Здесь нельзя останавливать или удалять WinDivert service из SCM на каждом
+    обычном запуске. Если service уже запущен, но его тип запуска в Windows
+    остался Disabled, остановка ломает следующий временный запуск с 1058.
+    Для обычного restart/start достаточно:
+    - вернуть service в ручной запуск, если это возможно;
     - добить старые winws-процессы;
-    - попытаться выгрузить драйвер;
-    - дать Windows время освободить filter handle.
+    - дать Windows короткую паузу на закрытие process-owned filter handle.
 
     Удаление service-объектов оставляем только для аварийной aggressive cleanup.
     """
     log("Cleaning up previous winws processes...", "DEBUG")
     ok = True
+    ok = restore_known_windivert_services_demand_start_runtime() and ok
     ok = force_kill_all_winws_processes() and ok
-    ok = unload_known_windivert_drivers_runtime() and ok
-    ok = wait_for_windivert_cleanup_settle_runtime(
-        max_wait_seconds=max(float(sleep_seconds), 0.8),
-        poll_interval=0.2,
-        retry_cleanup=False,
-    ) and ok
+    time.sleep(max(0.0, float(sleep_seconds)))
     return ok
 
 
