@@ -283,6 +283,50 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertEqual(ui_state.active_revision, 1)
         self.assertEqual(refresh_calls, ["refresh"])
 
+    def test_selecting_same_preset_file_does_not_emit_switch_signal(self) -> None:
+        from presets.file_service import PresetFileService
+        from presets.models import PresetManifest
+        from settings.mode import ENGINE_WINWS2, ZAPRET2_MODE
+
+        manifest = PresetManifest(
+            file_name="Default v5.txt",
+            name="Default v5",
+            updated_at="",
+            kind="user",
+        )
+        notified: list[str] = []
+
+        class _PresetModeCoordinator:
+            def get_selected_source_manifest(self, _launch_method):
+                return manifest
+
+            def select_preset_file_name(self, _launch_method, _file_name):
+                return SimpleNamespace(preset_file_name=manifest.file_name)
+
+        class _PresetFileStore:
+            def resolve_file_name(self, _engine, file_name):
+                return file_name
+
+        class _PresetUiStore:
+            def notify_preset_switched(self, file_name):
+                notified.append(file_name)
+
+        store = _PresetUiStore()
+        service = PresetFileService(
+            engine=ENGINE_WINWS2,
+            launch_method=ZAPRET2_MODE,
+            app_paths=object(),
+            preset_mode_coordinator=_PresetModeCoordinator(),
+            preset_file_store=_PresetFileStore(),
+            preset_selection_service=object(),
+            preset_store_winws2=store,
+            preset_store_winws1=store,
+        )
+
+        service.select_file_name("Default v5.txt")
+
+        self.assertEqual(notified, [])
+
     def test_raw_editor_can_save_active_preset_without_publishing_until_commit(self) -> None:
         from presets.raw_preset_editor_workflow import RawPresetEditorController
         from settings.mode import ZAPRET2_MODE

@@ -149,7 +149,11 @@ class PresetFileService:
         return self.select_file_name(file_name)
 
     def select_file_name(self, file_name: str):
+        previous_file_name = str(self.get_selected_file_name() or "").strip()
         profile = self.preset_mode_coordinator.select_preset_file_name(self.launch_method, file_name)
+        next_file_name = str(getattr(profile, "preset_file_name", "") or "").strip()
+        if previous_file_name and next_file_name and previous_file_name.lower() == next_file_name.lower():
+            return profile
         self.notify_preset_switched(profile.preset_file_name)
         return profile
 
