@@ -188,6 +188,65 @@ def remember_cache_entry(cache: dict, key, value, max_entries: int = 128) -> Non
         pass
 
 
+AT_CONFIG_MAX_FILES = 64
+
+
+def prune_at_config_cache(
+    config_dir: str,
+    keep_path: str,
+    *,
+    filename_prefix: str,
+    max_files: int = AT_CONFIG_MAX_FILES,
+) -> None:
+    try:
+        limit = max(1, int(max_files))
+    except Exception:
+        limit = AT_CONFIG_MAX_FILES
+
+    keep_norm = os.path.normcase(os.path.abspath(str(keep_path or "")))
+    entries: list[tuple[bool, int, str, str]] = []
+
+    try:
+        with os.scandir(config_dir) as scan:
+            for entry in scan:
+                if not entry.is_file():
+                    continue
+                if not entry.name.startswith(filename_prefix) or not entry.name.endswith(".txt"):
+                    continue
+                try:
+                    stat = entry.stat()
+                except OSError:
+                    continue
+                path = os.path.abspath(entry.path)
+                norm = os.path.normcase(path)
+                entries.append((norm == keep_norm, int(stat.st_mtime_ns), entry.name, path))
+    except OSError:
+        return
+
+    if len(entries) <= limit:
+        return
+
+    has_keep = any(is_keep for is_keep, _mtime, _name, _path in entries)
+    keep_count = limit - 1 if has_keep else limit
+    newest = sorted(
+        (item for item in entries if not item[0]),
+        key=lambda item: (item[1], item[2]),
+        reverse=True,
+    )[:keep_count]
+    allowed = {os.path.normcase(os.path.abspath(path)) for _is_keep, _mtime, _name, path in newest}
+    if has_keep:
+        allowed.add(keep_norm)
+
+    for _is_keep, _mtime, _name, path in entries:
+        norm = os.path.normcase(os.path.abspath(path))
+        if norm in allowed:
+            continue
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 def wait_for_process_exit(process: subprocess.Popen, timeout: float = 3.0, probe_interval: float = 0.02) -> bool:
     deadline = time.perf_counter() + max(0.05, float(timeout))
     while time.perf_counter() < deadline:

@@ -26,6 +26,7 @@ from .preset_runner_support import (
     is_process_alive_with_expected_name,
     launch_args_from_preset_text,
     preset_cache_key,
+    prune_at_config_cache,
     remember_cache_entry,
     wait_for_process_exit,
     wait_for_process_stable_start,
@@ -360,6 +361,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
         try:
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 if f.read() == config_text:
+                    prune_at_config_cache(config_dir, config_path, filename_prefix="winws2_at_")
                     return config_path
         except FileNotFoundError:
             pass
@@ -368,6 +370,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
 
         with open(config_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(config_text)
+        prune_at_config_cache(config_dir, config_path, filename_prefix="winws2_at_")
         return config_path
 
     @staticmethod

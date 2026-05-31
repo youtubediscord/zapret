@@ -26,6 +26,7 @@ from .preset_runner_support import (
     launch_args_from_preset_text,
     is_process_alive_with_expected_name,
     preset_cache_key,
+    prune_at_config_cache,
     remember_cache_entry,
     wait_for_process_exit,
     wait_for_process_stable_start,
@@ -249,6 +250,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         try:
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 if f.read() == config_text:
+                    prune_at_config_cache(config_dir, config_path, filename_prefix="winws1_")
                     return config_path
         except FileNotFoundError:
             pass
@@ -257,6 +259,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
         with open(config_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(config_text)
+        prune_at_config_cache(config_dir, config_path, filename_prefix="winws1_")
         return config_path
 
     def _write_winws1_dry_run_at_config(self, artifact: PreparedPresetArtifact) -> str:
@@ -282,6 +285,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
         try:
             with open(config_path, "r", encoding="utf-8", errors="replace") as f:
                 if f.read() == config_text:
+                    prune_at_config_cache(config_dir, config_path, filename_prefix="winws1_")
                     return config_path
         except FileNotFoundError:
             pass
@@ -290,6 +294,7 @@ class Winws1StrategyRunner(StrategyRunnerBase):
 
         with open(config_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(config_text)
+        prune_at_config_cache(config_dir, config_path, filename_prefix="winws1_")
         return config_path
 
     def _run_preset_dry_run_locked(

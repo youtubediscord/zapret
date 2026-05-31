@@ -58,6 +58,62 @@ class Winws2PresetSwitchTests(unittest.TestCase):
             self.assertNotEqual(first_artifact.cache_key, second_artifact.cache_key)
             self.assertNotEqual(first_config, second_config)
 
+    def test_winws2_at_config_prunes_old_cached_files(self) -> None:
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            preset_path = root / "selected.txt"
+            preset_path.write_text("--wf-tcp-out=443\n", encoding="utf-8")
+            config_dir = root / "tmp" / "winws2_at_config"
+            config_dir.mkdir(parents=True)
+            for index in range(70):
+                stale = config_dir / f"winws2_at_stale_{index:02d}.txt"
+                stale.write_text("--old\n", encoding="utf-8")
+                os.utime(stale, (index, index))
+
+            runner = object.__new__(Winws2StrategyRunner)
+            runner.work_dir = str(root)
+            runner.lists_dir = str(root / "lists")
+            runner.bin_dir = str(root / "bin")
+            runner._state_lock = threading.RLock()
+            runner._prepared_preset_cache = {}
+
+            artifact = runner._compile_preset_artifact(str(preset_path))
+            active_config = Path(artifact.launch_args[0][1:])
+
+            self.assertTrue(active_config.exists())
+            self.assertLessEqual(len(list(config_dir.glob("winws2_at_*.txt"))), 64)
+            self.assertFalse((config_dir / "winws2_at_stale_00.txt").exists())
+
+    def test_winws1_at_config_prunes_old_cached_files(self) -> None:
+        from winws_runtime.runners.zapret1_runner import Winws1StrategyRunner
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            preset_path = root / "selected.txt"
+            preset_path.write_text("--wf-tcp=443\n", encoding="utf-8")
+            config_dir = root / "tmp" / "winws1_at_config"
+            config_dir.mkdir(parents=True)
+            for index in range(70):
+                stale = config_dir / f"winws1_at_stale_{index:02d}.txt"
+                stale.write_text("--old\n", encoding="utf-8")
+                os.utime(stale, (index, index))
+
+            runner = object.__new__(Winws1StrategyRunner)
+            runner.work_dir = str(root)
+            runner.lists_dir = str(root / "lists")
+            runner.bin_dir = str(root / "bin")
+            runner._state_lock = threading.RLock()
+            runner._prepared_preset_cache = {}
+
+            artifact = runner._compile_preset_artifact(str(preset_path))
+            active_config = Path(artifact.launch_args[0][1:])
+
+            self.assertTrue(active_config.exists())
+            self.assertLessEqual(len(list(config_dir.glob("winws1_at_*.txt"))), 64)
+            self.assertFalse((config_dir / "winws1_at_stale_00.txt").exists())
+
     def test_same_filter_exit_message_is_retryable_conflict(self) -> None:
         from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
 
