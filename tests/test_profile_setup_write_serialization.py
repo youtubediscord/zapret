@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from profile.ui.profile_setup_page import ProfileSetupPageBase
 
@@ -63,7 +63,17 @@ class ProfileSetupWriteSerializationTests(unittest.TestCase):
         )
 
         page._settings_save_runtime.running = False
-        ProfileSetupPageBase._on_settings_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_settings_save_worker_finished(page, object())
+
+        page.create_profile_raw_text_save_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page.create_profile_raw_text_save_worker.assert_called_once_with(
             1,
@@ -119,7 +129,17 @@ class ProfileSetupWriteSerializationTests(unittest.TestCase):
         )
 
         page._raw_profile_save_runtime.running = False
-        ProfileSetupPageBase._on_raw_profile_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_raw_profile_save_worker_finished(page, object())
+
+        page.create_profile_strategy_apply_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page.create_profile_strategy_apply_worker.assert_called_once_with(
             1,

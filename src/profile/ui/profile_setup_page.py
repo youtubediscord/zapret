@@ -2995,7 +2995,18 @@ class ProfileSetupPageBase(BasePage):
             if self._enabled_checkbox is not None:
                 set_widget_enabled_if_changed(self._enabled_checkbox, True)
             return
-        self._start_enabled_save_worker(bool(pending))
+        self._schedule_enabled_save_worker_start(bool(pending))
+
+    def _schedule_enabled_save_worker_start(self, enabled: bool) -> None:
+        try:
+            QTimer.singleShot(0, lambda value=bool(enabled): self._run_scheduled_enabled_save_worker_start(value))
+        except Exception:
+            self._run_scheduled_enabled_save_worker_start(bool(enabled))
+
+    def _run_scheduled_enabled_save_worker_start(self, enabled: bool) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_enabled_save_worker(bool(enabled))
 
     def _on_strategy_list_activated(self, strategy_id: str) -> None:
         if self._loading or not self._profile_key:

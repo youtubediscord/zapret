@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from profile.ui.profile_setup_page import ProfileSetupPageBase
 
@@ -62,8 +62,19 @@ class ProfileEnabledSaveQueueTests(unittest.TestCase):
         page._current_filter_kind = Mock(return_value="hostlist")
         page._current_filter_value = Mock(return_value="example.com")
         page.create_profile_enabled_save_worker = Mock(return_value=next_worker)
+        callbacks = []
 
-        ProfileSetupPageBase._on_enabled_save_worker_finished(page, old_worker)
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_enabled_save_worker_finished(page, old_worker)
+
+        page.create_profile_enabled_save_worker.assert_not_called()
+        next_worker.start.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page.create_profile_enabled_save_worker.assert_called_once_with(
             1,
