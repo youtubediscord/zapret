@@ -193,6 +193,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_open_folder_runtime = OneShotWorkerRuntime()
         self._preset_open_folder_request_id = 0
         self._preset_open_folder_pending = False
+        self._preset_item_action_pending: list[dict[str, str]] = []
         self._preset_link_action_runtime = OneShotWorkerRuntime()
         self._preset_link_action_request_id = 0
         self._preset_link_action_pending = ""
@@ -1593,6 +1594,14 @@ class UserPresetsPageBase(BasePage):
     ) -> None:
         runtime = self._worker_runtime("_preset_item_action_runtime")
         if runtime.is_running():
+            self._preset_item_action_pending.append(
+                {
+                    "action": str(action or ""),
+                    "file_name": str(file_name or ""),
+                    "display_name": str(display_name or ""),
+                    "file_path": str(file_path or ""),
+                }
+            )
             return
         self._preset_item_action_request_id = int(self.__dict__.get("_preset_item_action_request_id", 0) or 0) + 1
         request_id = self._preset_item_action_request_id
@@ -1655,7 +1664,15 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _on_preset_item_action_worker_finished(self, worker) -> None:
-        return
+        pending = self.__dict__.get("_preset_item_action_pending") or []
+        if pending and not bool(self.__dict__.get("_cleanup_in_progress", False)):
+            next_action = pending.pop(0)
+            self._request_preset_item_action(
+                str(next_action.get("action") or ""),
+                file_name=str(next_action.get("file_name") or ""),
+                display_name=str(next_action.get("display_name") or ""),
+                file_path=str(next_action.get("file_path") or ""),
+            )
 
     def create_preset_link_action_worker(self, request_id: int, *, action: str):
         return self._create_preset_link_action_worker_fn(
@@ -1725,6 +1742,7 @@ class UserPresetsPageBase(BasePage):
         self._pending_preset_storage_action = None
         self._preset_folder_action_pending.clear()
         self._preset_open_folder_pending = False
+        self.__dict__.setdefault("_preset_item_action_pending", []).clear()
         self._preset_link_action_pending = ""
         self._preset_bulk_action_kind = ""
         self._bulk_reset_running = False
