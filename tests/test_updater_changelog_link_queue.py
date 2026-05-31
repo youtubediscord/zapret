@@ -49,6 +49,27 @@ class UpdaterChangelogLinkQueueTests(unittest.TestCase):
         page._start_changelog_link_open_worker.assert_not_called()
         self.assertEqual(page._changelog_link_open_pending, "https://example.org")
 
+    def test_changelog_link_scheduled_start_uses_latest_pending_url(self) -> None:
+        import updater.ui.page as updater_page
+        from updater.ui.page import ServersPage
+
+        runtime = SimpleNamespace(is_running=Mock(return_value=False))
+        page = ServersPage.__new__(ServersPage)
+        page._cleanup_in_progress = False
+        page._changelog_link_open_runtime = runtime
+        page._changelog_link_open_pending = "https://old.example.org"
+        page._changelog_link_open_start_scheduled = False
+        page._start_changelog_link_open_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(updater_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            ServersPage._on_changelog_link_open_worker_finished(page, object())
+            ServersPage._request_changelog_link_open(page, "https://new.example.org")
+
+        single_shot.call_args.args[1]()
+
+        page._start_changelog_link_open_worker.assert_called_once_with("https://new.example.org")
+
 
 if __name__ == "__main__":
     unittest.main()

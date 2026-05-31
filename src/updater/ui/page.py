@@ -397,22 +397,26 @@ class ServersPage(BasePage):
 
     def _on_changelog_link_open_worker_finished(self, _worker) -> None:
         pending = self._changelog_link_open_pending
-        self._changelog_link_open_pending = None
         if pending is not None and not self._cleanup_in_progress:
-            self._schedule_changelog_link_open_worker_start(pending)
+            self._schedule_changelog_link_open_worker_start()
 
-    def _schedule_changelog_link_open_worker_start(self, url: str) -> None:
+    def _schedule_changelog_link_open_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        target = str(url or "").strip()
+        if self.__dict__.get("_changelog_link_open_start_scheduled", False):
+            return
         self._changelog_link_open_start_scheduled = True
-        QTimer.singleShot(0, lambda value=target: self._run_scheduled_changelog_link_open_worker_start(value))
+        QTimer.singleShot(0, self._run_scheduled_changelog_link_open_worker_start)
 
-    def _run_scheduled_changelog_link_open_worker_start(self, url: str) -> None:
+    def _run_scheduled_changelog_link_open_worker_start(self) -> None:
         self._changelog_link_open_start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        self._start_changelog_link_open_worker(str(url or "").strip())
+        pending = self.__dict__.get("_changelog_link_open_pending")
+        self._changelog_link_open_pending = None
+        if pending is None:
+            return
+        self._start_changelog_link_open_worker(str(pending or "").strip())
 
     def _show_changelog_link_open_error(self, error: str) -> None:
         InfoBar.warning(
