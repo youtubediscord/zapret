@@ -1939,6 +1939,7 @@ class UserPresetsPageBase(BasePage):
         self._restore_preset_activation_marker_file_name = ""
         self.__dict__.setdefault("_preset_edit_action_pending", []).clear()
         self.__dict__.setdefault("_pending_preset_storage_actions", []).clear()
+        self.__dict__.setdefault("_pending_preset_write_actions", []).clear()
         self._preset_folder_action_pending.clear()
         self._preset_open_folder_pending = False
         self.__dict__.setdefault("_preset_item_action_pending", []).clear()

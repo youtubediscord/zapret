@@ -114,6 +114,35 @@ class UserPresetWriteSerializationTests(unittest.TestCase):
             ],
         )
 
+    def test_cleanup_clears_pending_write_actions(self) -> None:
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._pending_preset_activation = ("Preset.txt", "Preset")
+        page._restore_preset_activation_marker_file_name = "Old.txt"
+        page._pending_preset_write_actions = [{"kind": "item", "action": "delete"}]
+        page._pending_preset_storage_actions = [{"action": "rating"}]
+        page._preset_item_action_pending = [{"action": "delete"}]
+        page._preset_folder_action_pending = []
+        page._preset_open_folder_pending = True
+        page._preset_bulk_action_kind = "reset_all"
+        page._bulk_reset_running = True
+        for attr in (
+            "_preset_activate_request_id",
+            "_preset_item_action_request_id",
+            "_preset_bulk_action_request_id",
+            "_preset_edit_action_request_id",
+            "_preset_storage_action_request_id",
+            "_preset_folder_action_request_id",
+            "_preset_open_folder_request_id",
+            "_preset_link_action_request_id",
+        ):
+            setattr(page, attr, 0)
+
+        UserPresetsPageBase._stop_action_workers_for_cleanup(page)
+
+        self.assertEqual(page._pending_preset_write_actions, [])
+        self.assertEqual(page._pending_preset_storage_actions, [])
+        self.assertEqual(page._preset_item_action_pending, [])
+
 
 if __name__ == "__main__":
     unittest.main()
