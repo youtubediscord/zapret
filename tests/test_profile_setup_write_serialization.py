@@ -107,6 +107,32 @@ class ProfileSetupWriteSerializationTests(unittest.TestCase):
             ],
         )
 
+    def test_raw_profile_save_waits_while_next_write_start_is_scheduled(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_setup_write_operation_start_scheduled = True
+        page._raw_profile_save_runtime = _Runtime(running=False)
+        page._raw_profile_save_request_id = 0
+        page._pending_raw_profile_save = None
+        page._pending_profile_setup_write_operations = []
+        page._profile_key = "profile-1"
+        page._raw_profile_save_button = None
+        page.create_profile_raw_text_save_worker = Mock(return_value=_Worker())
+
+        ProfileSetupPageBase._request_raw_profile_save(page, "profile-1", "--lua-desync=fake")
+
+        page.create_profile_raw_text_save_worker.assert_not_called()
+        self.assertEqual(page._pending_raw_profile_save, ("profile-1", "--lua-desync=fake"))
+        self.assertEqual(
+            page._pending_profile_setup_write_operations,
+            [
+                {
+                    "kind": "raw_profile_save",
+                    "profile_key": "profile-1",
+                    "text": "--lua-desync=fake",
+                }
+            ],
+        )
+
     def test_strategy_apply_waits_while_raw_profile_save_runs(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._raw_profile_save_runtime = _Runtime(running=True)

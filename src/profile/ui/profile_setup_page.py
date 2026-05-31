@@ -954,6 +954,7 @@ class ProfileSetupPageBase(BasePage):
         self._strategy_apply_runtime_branch_id = ""
         self._pending_strategy_apply = None
         self._pending_profile_setup_write_operations: list[dict[str, object]] = []
+        self._profile_setup_write_operation_start_scheduled = False
         self._strategy_feedback_save_runtime = OneShotWorkerRuntime()
         self._strategy_feedback_save_request_id = 0
         self._pending_strategy_feedback_save = None
@@ -1014,6 +1015,8 @@ class ProfileSetupPageBase(BasePage):
         return runtime
 
     def _profile_setup_write_is_running(self) -> bool:
+        if self.__dict__.get("_profile_setup_write_operation_start_scheduled", False):
+            return True
         for attr in (
             "_list_file_save_runtime",
             "_settings_save_runtime",
@@ -1050,12 +1053,19 @@ class ProfileSetupPageBase(BasePage):
 
     def _schedule_profile_setup_write_operation_start(self, operation: dict[str, object]) -> None:
         queued = dict(operation or {})
+        if self.__dict__.get("_cleanup_in_progress"):
+            return
+        if self.__dict__.get("_profile_setup_write_operation_start_scheduled", False):
+            self._queue_profile_setup_write_operation(queued)
+            return
+        self._profile_setup_write_operation_start_scheduled = True
         try:
             QTimer.singleShot(0, lambda: self._run_profile_setup_write_operation(queued))
         except Exception:
             self._run_profile_setup_write_operation(queued)
 
     def _run_profile_setup_write_operation(self, operation: dict[str, object]) -> bool:
+        self._profile_setup_write_operation_start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress"):
             return False
         if self._profile_setup_write_is_running():
@@ -3367,6 +3377,7 @@ class ProfileSetupPageBase(BasePage):
             setattr(self, attr, None)
         self._list_file_state_apply_scheduled = False
         self._profile_setup_payload_apply_scheduled = False
+        self._profile_setup_write_operation_start_scheduled = False
         self._user_profile_write_operation_start_scheduled = False
         self.__dict__.setdefault("_pending_profile_setup_write_operations", []).clear()
         self.__dict__.setdefault("_pending_user_profile_updates", []).clear()
