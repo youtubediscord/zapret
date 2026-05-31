@@ -80,6 +80,10 @@ class ProfileOrderPageBase(BasePage):
         if bool(self.__dict__.get("_cleanup_in_progress", False)):
             return
         runtime = self._order_load_runtime
+        if self.__dict__.get("_order_load_restart_scheduled", False):
+            if force:
+                self._order_load_dirty = True
+            return
         if runtime.is_running():
             if force:
                 runtime.next_request_id()

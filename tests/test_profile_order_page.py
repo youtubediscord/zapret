@@ -295,6 +295,22 @@ class ProfileOrderPageTests(unittest.TestCase):
 
         page._create_profile_order_load_worker.assert_called_once_with(9, "zapret2_mode", page)
 
+    def test_order_page_reload_waits_while_restart_is_scheduled(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._cleanup_in_progress = False
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_load_dirty = True
+        page._order_load_restart_scheduled = True
+        page._create_profile_order_load_worker = Mock()
+
+        ProfileOrderPageBase._reload_order_profiles(page, force=True)
+
+        page._create_profile_order_load_worker.assert_not_called()
+        self.assertTrue(page._order_load_dirty)
+
     def test_order_page_defers_list_apply_after_load_worker_signal(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
         from ui.one_shot_worker_runtime import OneShotWorkerRuntime
