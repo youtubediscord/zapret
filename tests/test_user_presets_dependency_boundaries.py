@@ -120,9 +120,11 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
             inspect.getsource(UserPresetsPageBase._request_preset_edit_action),
             inspect.getsource(UserPresetsPageBase._start_preset_bulk_action_worker),
             inspect.getsource(UserPresetsPageBase._request_preset_folder_action),
-            inspect.getsource(UserPresetsPageBase._request_preset_storage_action),
+            inspect.getsource(UserPresetsPageBase._request_preset_storage_action)
+            + inspect.getsource(UserPresetsPageBase._start_preset_storage_action_worker),
             inspect.getsource(UserPresetsPageBase._request_preset_activation),
-            inspect.getsource(UserPresetsPageBase._request_preset_item_action),
+            inspect.getsource(UserPresetsPageBase._request_preset_item_action)
+            + inspect.getsource(UserPresetsPageBase._start_preset_item_action_worker),
             inspect.getsource(UserPresetsPageBase._request_preset_link_action),
         )
 

@@ -189,6 +189,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_storage_action_runtime = OneShotWorkerRuntime()
         self._preset_storage_action_request_id = 0
         self._pending_preset_storage_actions: list[dict[str, object]] = []
+        self._pending_preset_write_actions: list[dict[str, object]] = []
         self._preset_folder_action_runtime = OneShotWorkerRuntime()
         self._preset_folder_action_request_id = 0
         self._preset_folder_action_pending: list[dict[str, object]] = []
@@ -1254,24 +1255,190 @@ class UserPresetsPageBase(BasePage):
         destination_id: str = "",
         destination_folder_key: str = "",
     ) -> None:
-        runtime = self._worker_runtime("_preset_storage_action_runtime")
-        if runtime.is_running():
-            self._pending_preset_storage_actions.append(
-                {
-                    "action": str(action or ""),
-                    "name": str(name or ""),
-                    "display_name": str(display_name or ""),
-                    "rating": int(rating or 0),
-                    "direction": int(direction or 0),
-                    "cached_metadata": cached_metadata,
-                    "source_kind": str(source_kind or ""),
-                    "source_id": str(source_id or ""),
-                    "destination_kind": str(destination_kind or ""),
-                    "destination_id": str(destination_id or ""),
-                    "destination_folder_key": str(destination_folder_key or ""),
-                }
+        if self._preset_write_action_running():
+            self._queue_preset_write_action(
+                "storage",
+                action=action,
+                name=name,
+                display_name=display_name,
+                rating=rating,
+                direction=direction,
+                cached_metadata=cached_metadata,
+                source_kind=source_kind,
+                source_id=source_id,
+                destination_kind=destination_kind,
+                destination_id=destination_id,
+                destination_folder_key=destination_folder_key,
             )
             return
+        self._start_preset_storage_action_worker(
+            action,
+            name=name,
+            display_name=display_name,
+            rating=rating,
+            direction=direction,
+            cached_metadata=cached_metadata,
+            source_kind=source_kind,
+            source_id=source_id,
+            destination_kind=destination_kind,
+            destination_id=destination_id,
+            destination_folder_key=destination_folder_key,
+        )
+
+    def _preset_write_action_running(self) -> bool:
+        return self._worker_runtime("_preset_item_action_runtime").is_running() or self._worker_runtime(
+            "_preset_storage_action_runtime"
+        ).is_running()
+
+    def _queue_preset_write_action(
+        self,
+        kind: str,
+        *,
+        action: str,
+        name: str = "",
+        display_name: str = "",
+        rating: int = 0,
+        direction: int = 0,
+        cached_metadata=None,
+        source_kind: str = "",
+        source_id: str = "",
+        destination_kind: str = "",
+        destination_id: str = "",
+        destination_folder_key: str = "",
+        file_name: str = "",
+        file_path: str = "",
+    ) -> None:
+        operation = {
+            "kind": str(kind or ""),
+            "action": str(action or ""),
+            "name": str(name or ""),
+            "display_name": str(display_name or ""),
+            "rating": int(rating or 0),
+            "direction": int(direction or 0),
+            "cached_metadata": cached_metadata,
+            "source_kind": str(source_kind or ""),
+            "source_id": str(source_id or ""),
+            "destination_kind": str(destination_kind or ""),
+            "destination_id": str(destination_id or ""),
+            "destination_folder_key": str(destination_folder_key or ""),
+            "file_name": str(file_name or ""),
+            "file_path": str(file_path or ""),
+        }
+        self.__dict__.setdefault("_pending_preset_write_actions", []).append(operation)
+        if operation["kind"] == "storage":
+            self.__dict__.setdefault("_pending_preset_storage_actions", []).append(
+                {
+                    "action": operation["action"],
+                    "name": operation["name"],
+                    "display_name": operation["display_name"],
+                    "rating": operation["rating"],
+                    "direction": operation["direction"],
+                    "cached_metadata": operation["cached_metadata"],
+                    "source_kind": operation["source_kind"],
+                    "source_id": operation["source_id"],
+                    "destination_kind": operation["destination_kind"],
+                    "destination_id": operation["destination_id"],
+                    "destination_folder_key": operation["destination_folder_key"],
+                }
+            )
+        elif operation["kind"] == "item":
+            self.__dict__.setdefault("_preset_item_action_pending", []).append(
+                {
+                    "action": operation["action"],
+                    "file_name": operation["file_name"],
+                    "display_name": operation["display_name"],
+                    "file_path": operation["file_path"],
+                }
+            )
+
+    def _pop_next_preset_write_action(self) -> dict[str, object] | None:
+        pending_operations = self.__dict__.setdefault("_pending_preset_write_actions", [])
+        if pending_operations:
+            operation = dict(pending_operations.pop(0))
+            if operation.get("kind") == "storage":
+                pending_storage = self.__dict__.setdefault("_pending_preset_storage_actions", [])
+                if pending_storage:
+                    pending_storage.pop(0)
+            elif operation.get("kind") == "item":
+                pending_item = self.__dict__.setdefault("_preset_item_action_pending", [])
+                if pending_item:
+                    pending_item.pop(0)
+            return operation
+        pending_storage = self.__dict__.setdefault("_pending_preset_storage_actions", [])
+        if pending_storage:
+            pending = dict(pending_storage.pop(0))
+            pending["kind"] = "storage"
+            pending["file_name"] = ""
+            pending["file_path"] = ""
+            return pending
+        pending_item = self.__dict__.setdefault("_preset_item_action_pending", [])
+        if pending_item:
+            pending = dict(pending_item.pop(0))
+            return {
+                "kind": "item",
+                "action": str(pending.get("action") or ""),
+                "name": "",
+                "display_name": str(pending.get("display_name") or ""),
+                "rating": 0,
+                "direction": 0,
+                "cached_metadata": None,
+                "source_kind": "",
+                "source_id": "",
+                "destination_kind": "",
+                "destination_id": "",
+                "destination_folder_key": "",
+                "file_name": str(pending.get("file_name") or ""),
+                "file_path": str(pending.get("file_path") or ""),
+            }
+        return None
+
+    def _start_next_preset_write_action(self) -> bool:
+        if self._preset_write_action_running():
+            return True
+        pending = self._pop_next_preset_write_action()
+        if not pending:
+            return False
+        if pending.get("kind") == "storage":
+            self._start_preset_storage_action_worker(
+                str(pending.get("action") or ""),
+                name=str(pending.get("name") or ""),
+                display_name=str(pending.get("display_name") or ""),
+                rating=int(pending.get("rating") or 0),
+                direction=int(pending.get("direction") or 0),
+                cached_metadata=pending.get("cached_metadata"),
+                source_kind=str(pending.get("source_kind") or ""),
+                source_id=str(pending.get("source_id") or ""),
+                destination_kind=str(pending.get("destination_kind") or ""),
+                destination_id=str(pending.get("destination_id") or ""),
+                destination_folder_key=str(pending.get("destination_folder_key") or ""),
+            )
+            return True
+        if pending.get("kind") == "item":
+            self._start_preset_item_action_worker(
+                str(pending.get("action") or ""),
+                file_name=str(pending.get("file_name") or ""),
+                display_name=str(pending.get("display_name") or ""),
+                file_path=str(pending.get("file_path") or ""),
+            )
+            return True
+        return self._start_next_preset_write_action()
+
+    def _start_preset_storage_action_worker(
+        self,
+        action: str,
+        *,
+        name: str = "",
+        display_name: str = "",
+        rating: int = 0,
+        direction: int = 0,
+        cached_metadata=None,
+        source_kind: str = "",
+        source_id: str = "",
+        destination_kind: str = "",
+        destination_id: str = "",
+        destination_folder_key: str = "",
+    ) -> None:
+        runtime = self._worker_runtime("_preset_storage_action_runtime")
         self._preset_storage_action_request_id = int(
             self.__dict__.get("_preset_storage_action_request_id", 0) or 0
         ) + 1
@@ -1346,22 +1513,7 @@ class UserPresetsPageBase(BasePage):
             log(f"Ошибка перетаскивания элемента: {error}", "ERROR")
 
     def _on_preset_storage_action_worker_finished(self, worker) -> None:
-        pending_actions = self.__dict__.get("_pending_preset_storage_actions") or []
-        pending = pending_actions.pop(0) if pending_actions else None
-        if pending:
-            self._request_preset_storage_action(
-                str(pending.get("action") or ""),
-                name=str(pending.get("name") or ""),
-                display_name=str(pending.get("display_name") or ""),
-                rating=int(pending.get("rating") or 0),
-                direction=int(pending.get("direction") or 0),
-                cached_metadata=pending.get("cached_metadata"),
-                source_kind=str(pending.get("source_kind") or ""),
-                source_id=str(pending.get("source_id") or ""),
-                destination_kind=str(pending.get("destination_kind") or ""),
-                destination_id=str(pending.get("destination_id") or ""),
-                destination_folder_key=str(pending.get("destination_folder_key") or ""),
-            )
+        self._start_next_preset_write_action()
 
     def _on_activate_preset(self, name: str) -> bool:
         preset_file_name = str(name or "").strip()
@@ -1631,17 +1783,31 @@ class UserPresetsPageBase(BasePage):
         display_name: str,
         file_path: str = "",
     ) -> None:
-        runtime = self._worker_runtime("_preset_item_action_runtime")
-        if runtime.is_running():
-            self._preset_item_action_pending.append(
-                {
-                    "action": str(action or ""),
-                    "file_name": str(file_name or ""),
-                    "display_name": str(display_name or ""),
-                    "file_path": str(file_path or ""),
-                }
+        if self._preset_write_action_running():
+            self._queue_preset_write_action(
+                "item",
+                action=action,
+                file_name=file_name,
+                display_name=display_name,
+                file_path=file_path,
             )
             return
+        self._start_preset_item_action_worker(
+            action,
+            file_name=file_name,
+            display_name=display_name,
+            file_path=file_path,
+        )
+
+    def _start_preset_item_action_worker(
+        self,
+        action: str,
+        *,
+        file_name: str,
+        display_name: str,
+        file_path: str = "",
+    ) -> None:
+        runtime = self._worker_runtime("_preset_item_action_runtime")
         self._preset_item_action_request_id = int(self.__dict__.get("_preset_item_action_request_id", 0) or 0) + 1
         request_id = self._preset_item_action_request_id
 
@@ -1703,15 +1869,8 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _on_preset_item_action_worker_finished(self, worker) -> None:
-        pending = self.__dict__.get("_preset_item_action_pending") or []
-        if pending and not bool(self.__dict__.get("_cleanup_in_progress", False)):
-            next_action = pending.pop(0)
-            self._request_preset_item_action(
-                str(next_action.get("action") or ""),
-                file_name=str(next_action.get("file_name") or ""),
-                display_name=str(next_action.get("display_name") or ""),
-                file_path=str(next_action.get("file_path") or ""),
-            )
+        if not bool(self.__dict__.get("_cleanup_in_progress", False)):
+            self._start_next_preset_write_action()
 
     def create_preset_link_action_worker(self, request_id: int, *, action: str):
         return self._create_preset_link_action_worker_fn(
