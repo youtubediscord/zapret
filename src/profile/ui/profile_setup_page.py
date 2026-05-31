@@ -930,6 +930,7 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_validation_runtime = OneShotWorkerRuntime()
         self._list_file_validation_request_id = 0
         self._pending_list_file_validation = None
+        self._list_file_validation_start_scheduled = False
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._settings_save_request_id = 0
         self._pending_settings_save = None
@@ -2345,7 +2346,7 @@ class ProfileSetupPageBase(BasePage):
 
     def _request_list_file_validation(self, request: dict) -> None:
         runtime = self._worker_runtime("_list_file_validation_runtime")
-        if runtime.is_running():
+        if runtime.is_running() or self.__dict__.get("_list_file_validation_start_scheduled", False):
             self._pending_list_file_validation = dict(request)
             return
         self._start_list_file_validation_worker(request)
@@ -2424,18 +2425,25 @@ class ProfileSetupPageBase(BasePage):
 
     def _on_list_file_validation_worker_finished(self, _worker) -> None:
         pending = self.__dict__.get("_pending_list_file_validation")
-        self._pending_list_file_validation = None
         if pending:
-            self._schedule_pending_list_file_validation_start(pending)
+            self._schedule_pending_list_file_validation_start()
 
-    def _schedule_pending_list_file_validation_start(self, request: dict) -> None:
+    def _schedule_pending_list_file_validation_start(self) -> None:
+        if self.__dict__.get("_list_file_validation_start_scheduled", False):
+            return
+        self._list_file_validation_start_scheduled = True
         try:
-            QTimer.singleShot(
-                0,
-                lambda: self._start_list_file_validation_worker(dict(request or {})),
-            )
+            QTimer.singleShot(0, self._run_scheduled_list_file_validation_start)
         except Exception:
-            self._start_list_file_validation_worker(dict(request or {}))
+            self._run_scheduled_list_file_validation_start()
+
+    def _run_scheduled_list_file_validation_start(self) -> None:
+        self._list_file_validation_start_scheduled = False
+        pending = self.__dict__.get("_pending_list_file_validation")
+        self._pending_list_file_validation = None
+        if not pending or self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_list_file_validation_worker(dict(pending or {}))
 
     def _on_list_file_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._list_file_text is None:
@@ -3376,6 +3384,7 @@ class ProfileSetupPageBase(BasePage):
         ):
             setattr(self, attr, None)
         self._list_file_state_apply_scheduled = False
+        self._list_file_validation_start_scheduled = False
         self._profile_setup_payload_apply_scheduled = False
         self._profile_setup_write_operation_start_scheduled = False
         self._user_profile_write_operation_start_scheduled = False

@@ -3809,6 +3809,30 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._list_file_save_button.setEnabled.assert_not_called()
         page._list_file_status_label.setText.assert_not_called()
 
+    def test_list_file_validation_scheduled_restart_uses_latest_pending_text(self) -> None:
+        import profile.ui.profile_setup_page as profile_setup_page
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._pending_list_file_validation = {"kind": "hostlist", "text": "old.example"}
+        page._list_file_validation_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+        page._start_list_file_validation_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(profile_setup_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            ProfileSetupPageBase._on_list_file_validation_worker_finished(page, object())
+            ProfileSetupPageBase._request_list_file_validation(
+                page,
+                {"kind": "hostlist", "text": "latest.example"},
+            )
+
+        page._start_list_file_validation_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_list_file_validation_worker.assert_called_once_with(
+            {"kind": "hostlist", "text": "latest.example"}
+        )
+
     def test_list_file_validation_worker_emits_invalid_lines(self) -> None:
         validate_text = Mock(return_value=((2, "bad domain"),))
         worker = ProfileListFileValidationWorker(
