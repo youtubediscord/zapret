@@ -159,6 +159,7 @@ def start_relay_check(
     get_zapret_running,
     log_warning,
     create_relay_check_worker,
+    on_finished=None,
 ) -> None:
     runtime = _page_runtime(page, "_relay_check_runtime")
     if runtime.is_running():
@@ -192,6 +193,7 @@ def start_relay_check(
             parent=page,
         ),
         bind_worker=_bind_worker,
+        on_finished=on_finished,
     )
 
 

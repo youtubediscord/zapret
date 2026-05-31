@@ -123,6 +123,8 @@ class TelegramProxyPage(BasePage):
         self._proxy_stop_runtime = OneShotWorkerRuntime()
         self._restart_stop_runtime = OneShotWorkerRuntime()
         self._relay_check_runtime = OneShotWorkerRuntime()
+        self._relay_check_pending = False
+        self._relay_check_start_scheduled = False
         self._ensure_hosts_runtime = OneShotWorkerRuntime()
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._open_log_file_runtime = OneShotWorkerRuntime()
@@ -993,6 +995,18 @@ class TelegramProxyPage(BasePage):
         )
 
     def _check_relay_after_start(self):
+        if self._cleanup_in_progress:
+            return
+        if (
+            self._relay_check_runtime.is_running()
+            or self.__dict__.get("_relay_check_start_scheduled", False)
+        ):
+            self._relay_check_pending = True
+            return
+        self._start_relay_check_worker()
+
+    def _start_relay_check_worker(self) -> None:
+        self._relay_check_pending = False
         mgr = self._proxy_manager()
         start_relay_check(
             page=self,
@@ -1004,7 +1018,29 @@ class TelegramProxyPage(BasePage):
             get_zapret_running=self._get_zapret_running,
             log_warning=lambda text: log(text, "WARNING"),
             create_relay_check_worker=self._telegram_proxy.create_relay_check_worker,
+            on_finished=self._on_relay_check_worker_finished,
         )
+
+    def _on_relay_check_worker_finished(self, _worker) -> None:
+        if self.__dict__.get("_relay_check_pending", False):
+            self._schedule_relay_check_worker_start()
+
+    def _schedule_relay_check_worker_start(self) -> None:
+        if self.__dict__.get("_relay_check_start_scheduled", False):
+            return
+        self._relay_check_start_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_relay_check_worker_start)
+        except Exception:
+            self._run_scheduled_relay_check_worker_start()
+
+    def _run_scheduled_relay_check_worker_start(self) -> None:
+        self._relay_check_start_scheduled = False
+        pending = bool(self.__dict__.get("_relay_check_pending", False))
+        self._relay_check_pending = False
+        if self.__dict__.get("_cleanup_in_progress", False) or not pending:
+            return
+        self._start_relay_check_worker()
 
     @pyqtSlot()
     def _apply_relay_result(self):
@@ -1456,6 +1492,8 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy relay check worker",
         )
         self._relay_check_runtime.cancel()
+        self._relay_check_pending = False
+        self._relay_check_start_scheduled = False
         if self._upstream_restart_timer is not None:
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
