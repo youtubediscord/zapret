@@ -92,7 +92,11 @@ def set_preset_folder_collapsed(scope_key: str, folder_key: str, collapsed: bool
 
 def reset_preset_folders(scope_key: str) -> dict[str, Any]:
     scope = _normalize_scope(scope_key)
-    return save_preset_folder_state(scope, build_default_preset_folders(scope))
+    default_state = build_default_preset_folders(scope)
+    current_state = load_preset_folder_state(scope)
+    if current_state == normalize_folder_state(default_state, default_state):
+        return current_state
+    return save_preset_folder_state(scope, default_state)
 
 
 def move_preset_to_folder(scope_key: str, file_name: str, folder_key: str) -> bool:

@@ -20,6 +20,7 @@ from presets.folders import (
     move_preset_to_end,
     rename_preset_folder,
     rename_preset_item_meta,
+    reset_preset_folders,
     set_preset_folder_collapsed,
     set_preset_rating,
     toggle_preset_pin,
@@ -112,6 +113,19 @@ class PresetFolderActionTests(unittest.TestCase):
                     side_effect=AssertionError("unchanged pinned folder collapsed state must not be saved"),
                 ):
                     self.assertFalse(set_preset_folder_collapsed(PRESETS_SCOPE_WINWS2, PINNED_FOLDER_KEY, True))
+
+    def test_duplicate_preset_folder_reset_skips_folder_state_save(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                load_preset_folder_state(PRESETS_SCOPE_WINWS2)
+                with patch(
+                    "presets.folders.save_preset_folder_state",
+                    side_effect=AssertionError("unchanged preset folder reset must not be saved"),
+                ):
+                    self.assertEqual(
+                        reset_preset_folders(PRESETS_SCOPE_WINWS2),
+                        load_preset_folder_state(PRESETS_SCOPE_WINWS2),
+                    )
 
     def test_rating_action_preserves_display_default_folder(self) -> None:
         with TemporaryDirectory() as temp_dir:

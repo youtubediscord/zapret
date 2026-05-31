@@ -88,6 +88,16 @@ class ProfileFolderActionTests(unittest.TestCase):
 
         self.assertFalse(state["folders"]["youtube"]["collapsed"])
 
+    def test_duplicate_profile_folder_reset_skips_folder_state_save(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                load_profile_folder_state()
+                with patch(
+                    "profile.folders.save_profile_folder_state",
+                    side_effect=AssertionError("unchanged profile folder reset must not be saved"),
+                ):
+                    self.assertEqual(reset_profile_folders(), load_profile_folder_state())
+
     def test_profile_folder_collapsed_skips_save_when_state_is_unchanged(self) -> None:
         with TemporaryDirectory() as temp_dir:
             with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
