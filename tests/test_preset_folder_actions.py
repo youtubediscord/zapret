@@ -133,10 +133,7 @@ class PresetFolderActionTests(unittest.TestCase):
                     "presets.folders.save_preset_folder_state",
                     side_effect=AssertionError("unchanged preset folder reset must not be saved"),
                 ):
-                    self.assertEqual(
-                        reset_preset_folders(PRESETS_SCOPE_WINWS2),
-                        load_preset_folder_state(PRESETS_SCOPE_WINWS2),
-                    )
+                    self.assertFalse(reset_preset_folders(PRESETS_SCOPE_WINWS2))
 
     def test_save_preset_folder_state_skips_settings_write_when_state_is_unchanged(self) -> None:
         with TemporaryDirectory() as temp_dir:

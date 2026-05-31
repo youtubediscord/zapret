@@ -71,11 +71,11 @@ def set_profile_folder_collapsed(folder_key: str, collapsed: bool) -> bool:
     return True
 
 
-def reset_profile_folders() -> dict[str, Any]:
+def reset_profile_folders() -> dict[str, Any] | bool:
     default_state = build_default_profile_folders()
     current_state = load_profile_folder_state()
     if current_state == normalize_folder_state(default_state, default_state):
-        return current_state
+        return False
     return save_profile_folder_state(default_state)
 
 

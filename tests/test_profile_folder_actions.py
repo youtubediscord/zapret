@@ -96,7 +96,7 @@ class ProfileFolderActionTests(unittest.TestCase):
                     "profile.folders.save_profile_folder_state",
                     side_effect=AssertionError("unchanged profile folder reset must not be saved"),
                 ):
-                    self.assertEqual(reset_profile_folders(), load_profile_folder_state())
+                    self.assertFalse(reset_profile_folders())
 
     def test_save_profile_folder_state_skips_settings_write_when_state_is_unchanged(self) -> None:
         with TemporaryDirectory() as temp_dir:
