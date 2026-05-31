@@ -3192,7 +3192,16 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(page._pending_raw_profile_save, ("profile-1", "--new\n--lua-desync=split"))
 
         runtime.running = False
-        ProfileSetupPageBase._on_raw_profile_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_raw_profile_save_worker_finished(page, object())
+
+        page.create_profile_raw_text_save_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+        callbacks[0]()
 
         page.create_profile_raw_text_save_worker.assert_called_once_with(
             2,
@@ -3586,7 +3595,16 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(page._pending_list_file_save, ("profile-1", "latest.example"))
 
         runtime.running = False
-        ProfileSetupPageBase._on_list_file_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_list_file_save_worker_finished(page, object())
+
+        page.create_profile_list_file_save_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+        callbacks[0]()
 
         page.create_profile_list_file_save_worker.assert_called_once_with(
             2,

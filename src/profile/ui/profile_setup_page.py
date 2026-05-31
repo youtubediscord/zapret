@@ -1044,6 +1044,22 @@ class ProfileSetupPageBase(BasePage):
         if not pending:
             return False
         operation = dict(pending.pop(0))
+        self._schedule_profile_setup_write_operation_start(operation)
+        return True
+
+    def _schedule_profile_setup_write_operation_start(self, operation: dict[str, object]) -> None:
+        queued = dict(operation or {})
+        try:
+            QTimer.singleShot(0, lambda: self._run_profile_setup_write_operation(queued))
+        except Exception:
+            self._run_profile_setup_write_operation(queued)
+
+    def _run_profile_setup_write_operation(self, operation: dict[str, object]) -> bool:
+        if self.__dict__.get("_cleanup_in_progress"):
+            return False
+        if self._profile_setup_write_is_running():
+            self._queue_profile_setup_write_operation(operation)
+            return False
         kind = str(operation.get("kind") or "")
         if kind == "list_file_save":
             self._pending_list_file_save = None
@@ -1075,7 +1091,7 @@ class ProfileSetupPageBase(BasePage):
                 strategy_branch_id=str(operation.get("branch_id") or ""),
             )
             return True
-        return bool(self._start_next_profile_setup_write_operation())
+        return False
 
     def _build_content(self) -> None:
         if self.title_label is not None:
@@ -2462,7 +2478,19 @@ class ProfileSetupPageBase(BasePage):
         self._pending_list_file_save = None
         if pending:
             profile_key, text = pending
-            self._start_list_file_save_worker(profile_key, text)
+            self._schedule_pending_list_file_save_start(profile_key, text)
+
+    def _schedule_pending_list_file_save_start(self, profile_key: str, text: str) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda: self._start_list_file_save_worker(
+                    str(profile_key or ""),
+                    str(text or ""),
+                ),
+            )
+        except Exception:
+            self._start_list_file_save_worker(str(profile_key or ""), str(text or ""))
 
     def _render_list_file_validation(
         self,
