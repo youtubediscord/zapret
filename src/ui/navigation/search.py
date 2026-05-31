@@ -165,13 +165,32 @@ def update_titlebar_search_width(window) -> None:
     title_bar_width = int(title_bar.width())
     if title_bar_width <= 0:
         title_bar_width = max(0, int(window.width()) - 46)
-    available_width = max(220, title_bar_width - 340)
-    target_width = int(title_bar_width * 0.42)
-    target_width = max(280, min(560, target_width, available_width))
-    widget.setFixedWidth(target_width)
     layout = getattr(title_bar, "hBoxLayout", None)
     if layout is not None:
         _ensure_titlebar_search_right_stretch(layout, widget)
+        widget_index = layout.indexOf(widget)
+        available_width = title_bar_width
+        if widget_index >= 0:
+            left_spacer_index = widget_index - 1
+            right_spacer_index = widget_index + 1
+            left_fixed_width = sum(
+                _layout_item_width_hint(layout.itemAt(index))
+                for index in range(0, left_spacer_index)
+            )
+            right_fixed_width = sum(
+                _layout_item_width_hint(layout.itemAt(index))
+                for index in range(right_spacer_index + 1, layout.count())
+            )
+            available_width = title_bar_width - left_fixed_width - right_fixed_width
+    else:
+        available_width = title_bar_width - 340
+
+    available_width = max(0, int(available_width))
+    target_width = max(280, min(560, int(title_bar_width * 0.42)))
+    target_width = min(target_width, available_width)
+    widget.setVisible(target_width >= 120)
+    widget.setFixedWidth(target_width)
+    if layout is not None:
         _sync_titlebar_search_stretches(window, layout, widget)
 
 

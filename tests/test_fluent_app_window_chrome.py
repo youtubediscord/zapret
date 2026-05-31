@@ -63,6 +63,31 @@ class FluentAppWindowChromeTests(unittest.TestCase):
 
         self.assertAlmostEqual(search_center, window_center, delta=4)
 
+    def test_titlebar_search_does_not_overlap_window_buttons_on_narrow_window(self) -> None:
+        window = ZapretFluentWindow()
+        search_widget = _SidebarSearchNavWidget()
+        window.ui_session = SimpleNamespace(
+            sidebar_search_nav_widget=search_widget,
+            sidebar_search_titlebar_attached=False,
+        )
+        window.resize(520, 700)
+        window.show()
+        self._app.processEvents()
+
+        attach_sidebar_search_to_titlebar(window)
+        update_titlebar_search_width(window)
+        window.titleBar.hBoxLayout.activate()
+        self._app.processEvents()
+
+        layout = window.titleBar.hBoxLayout
+        search_index = layout.indexOf(search_widget)
+        right_controls = layout.itemAt(search_index + 2)
+
+        search_right = search_widget.geometry().right()
+        controls_left = right_controls.geometry().left()
+
+        self.assertLess(search_right, controls_left)
+
 
 if __name__ == "__main__":
     unittest.main()
