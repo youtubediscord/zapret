@@ -359,7 +359,21 @@ class ControlPageActionMixin:
         pending = runtime.program_settings_save_pending
         if pending and not bool(getattr(self, "_cleanup_in_progress", False)):
             next_save = pending.pop(0)
-            self._request_program_settings_save(str(next_save[0]), bool(next_save[1]))
+            self._schedule_program_settings_save_start(str(next_save[0]), bool(next_save[1]))
+
+    def _schedule_program_settings_save_start(self, action: str, enabled: bool) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda: self._run_scheduled_program_settings_save_start(str(action or ""), bool(enabled)),
+            )
+        except Exception:
+            self._run_scheduled_program_settings_save_start(str(action or ""), bool(enabled))
+
+    def _run_scheduled_program_settings_save_start(self, action: str, enabled: bool) -> None:
+        if bool(getattr(self, "_cleanup_in_progress", False)):
+            return
+        self._request_program_settings_save(str(action or ""), bool(enabled))
 
 
 def bind_control_ui_state_store(

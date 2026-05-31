@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class _SaveRuntime:
@@ -24,6 +24,8 @@ class _Page:
 
     _request_program_settings_save = ControlPageActionMixin._request_program_settings_save
     _on_program_settings_save_worker_finished = ControlPageActionMixin._on_program_settings_save_worker_finished
+    _schedule_program_settings_save_start = ControlPageActionMixin._schedule_program_settings_save_start
+    _run_scheduled_program_settings_save_start = ControlPageActionMixin._run_scheduled_program_settings_save_start
     create_program_settings_save_worker = Mock()
     _on_program_settings_save_finished = Mock()
     _on_program_settings_save_failed = Mock()
@@ -66,7 +68,18 @@ class ControlProgramSettingsSaveQueueTests(unittest.TestCase):
         page.create_program_settings_save_worker = Mock(return_value=worker)
         page._refresh_runtime.program_settings_save_pending = [("hide_to_tray", True)]
 
-        _Page._on_program_settings_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "presets.ui.control.control_page_shared.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            _Page._on_program_settings_save_worker_finished(page, object())
+
+        page.create_program_settings_save_worker.assert_not_called()
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page.create_program_settings_save_worker.assert_called_once_with(
             0,

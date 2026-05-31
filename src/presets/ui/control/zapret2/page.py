@@ -545,11 +545,43 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         pending = runtime.additional_settings_save_pending
         if pending and not self._cleanup_in_progress:
             next_save = pending.pop(0)
-            self._start_additional_settings_save_worker(
+            self._schedule_additional_settings_save_start(
                 str(next_save[0]),
                 bool(next_save[1]),
                 launch_method=str(next_save[2]),
             )
+
+    def _schedule_additional_settings_save_start(self, setting: str, enabled: bool, *, launch_method: str) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda: self._run_scheduled_additional_settings_save_start(
+                    str(setting or ""),
+                    bool(enabled),
+                    launch_method=str(launch_method or ""),
+                ),
+            )
+        except Exception:
+            self._run_scheduled_additional_settings_save_start(
+                str(setting or ""),
+                bool(enabled),
+                launch_method=str(launch_method or ""),
+            )
+
+    def _run_scheduled_additional_settings_save_start(
+        self,
+        setting: str,
+        enabled: bool,
+        *,
+        launch_method: str,
+    ) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_additional_settings_save_worker(
+            str(setting or ""),
+            bool(enabled),
+            launch_method=str(launch_method or ""),
+        )
 
     # ==================== Profile UI mode: Basic/Advanced ====================
 

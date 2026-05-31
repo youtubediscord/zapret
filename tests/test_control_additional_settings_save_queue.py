@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class _SaveRuntime:
@@ -108,7 +108,18 @@ class ControlAdditionalSettingsSaveQueueTests(unittest.TestCase):
         page = _make_page(Zapret1ModeControlPage, runtime)
         page._create_additional_settings_save_worker = Mock(return_value=worker)
 
-        Zapret1ModeControlPage._on_additional_settings_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "presets.ui.control.zapret1.page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            Zapret1ModeControlPage._on_additional_settings_save_worker_finished(page, object())
+
+        page._create_additional_settings_save_worker.assert_not_called()
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page._create_additional_settings_save_worker.assert_called_once_with(
             2,
@@ -128,7 +139,18 @@ class ControlAdditionalSettingsSaveQueueTests(unittest.TestCase):
         page = _make_page(Zapret2ModeControlPage, runtime)
         page._create_additional_settings_save_worker = Mock(return_value=worker)
 
-        Zapret2ModeControlPage._on_additional_settings_save_worker_finished(page, object())
+        callbacks = []
+        with patch(
+            "presets.ui.control.zapret2.page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            Zapret2ModeControlPage._on_additional_settings_save_worker_finished(page, object())
+
+        page._create_additional_settings_save_worker.assert_not_called()
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page._create_additional_settings_save_worker.assert_called_once_with(
             2,
