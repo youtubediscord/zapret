@@ -145,6 +145,7 @@ class UserPresetsRuntimeService:
         self._rows_plan_request_id = 0
         self._rows_plan_worker: UserPresetsRowsPlanWorker | None = None
         self._rows_plan_pending: tuple[dict[str, dict[str, object]], dict[str, Any] | None, float | None, object] | None = None
+        self._rows_plan_start_scheduled = False
         self._rows_plan_apply_scheduled = False
         self._pending_rows_plan_apply: tuple[object, float | None, object] | None = None
         self._watched_preset_files_sync_scheduled = False
@@ -582,6 +583,7 @@ class UserPresetsRuntimeService:
         self._single_metadata_pending.clear()
         self._single_metadata_start_scheduled = False
         self._rows_plan_pending = None
+        self._rows_plan_start_scheduled = False
         self._rows_plan_apply_scheduled = False
         self._pending_rows_plan_apply = None
         self._watched_preset_files_sync_scheduled = False
@@ -823,9 +825,9 @@ class UserPresetsRuntimeService:
         build_rows_plan = adapter.build_rows_plan
 
         worker = self._rows_plan_worker
-        if worker is not None:
+        if worker is not None or self.__dict__.get("_rows_plan_start_scheduled", False):
             try:
-                if worker.isRunning():
+                if worker is None or worker.isRunning():
                     self._rows_plan_pending = (dict(all_presets or {}), dict(folder_state or {}), started_at, page)
                     return
             except Exception:
@@ -889,30 +891,26 @@ class UserPresetsRuntimeService:
             self._rows_plan_worker = None
         worker.deleteLater()
         pending = self._rows_plan_pending
-        self._rows_plan_pending = None
         if pending is not None:
-            all_presets, folder_state, started_at, page = pending
-            self._schedule_rows_plan_refresh(all_presets, folder_state, started_at, page)
+            self._schedule_rows_plan_refresh()
 
-    def _schedule_rows_plan_refresh(
-        self,
-        all_presets: dict[str, dict[str, object]],
-        folder_state: dict[str, Any] | None,
-        started_at: float | None,
-        page=None,
-    ) -> None:
+    def _schedule_rows_plan_refresh(self) -> None:
+        if self.__dict__.get("_rows_plan_start_scheduled", False):
+            return
+        self._rows_plan_start_scheduled = True
         try:
-            QTimer.singleShot(
-                0,
-                lambda p=page, presets=all_presets, state=folder_state, started=started_at: self._request_rows_plan_refresh(
-                    presets,
-                    state,
-                    started,
-                    p,
-                ),
-            )
+            QTimer.singleShot(0, self._run_scheduled_rows_plan_refresh)
         except Exception:
-            self._request_rows_plan_refresh(all_presets, folder_state, started_at, page)
+            self._run_scheduled_rows_plan_refresh()
+
+    def _run_scheduled_rows_plan_refresh(self) -> None:
+        self._rows_plan_start_scheduled = False
+        pending = self.__dict__.get("_rows_plan_pending")
+        self._rows_plan_pending = None
+        if pending is None:
+            return
+        all_presets, folder_state, started_at, page = pending
+        self._request_rows_plan_refresh(all_presets, folder_state, started_at, page)
 
     def remove_deleted_preset_locally(self, name: str, page=None) -> bool:
         page = self._resolve_page(page)

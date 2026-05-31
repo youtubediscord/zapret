@@ -66,6 +66,46 @@ class _SingleMetadataWorker:
         self._running = True
 
 
+class _RowsPlanWorker:
+    instances = []
+
+    def __init__(
+        self,
+        request_id,
+        build_rows_plan,
+        *,
+        all_presets,
+        query,
+        selected_source_file_name,
+        language,
+        folder_state,
+        started_at,
+        parent,
+    ) -> None:
+        self.request_id = request_id
+        self.build_rows_plan = build_rows_plan
+        self.all_presets = all_presets
+        self.query = query
+        self.selected_source_file_name = selected_source_file_name
+        self.language = language
+        self.folder_state = folder_state
+        self.started_at = started_at
+        self.parent = parent
+        self.loaded = _Signal()
+        self.failed = _Signal()
+        self.finished = _Signal()
+        self.start_calls = 0
+        self._running = False
+        self.__class__.instances.append(self)
+
+    def isRunning(self) -> bool:  # noqa: N802
+        return self._running
+
+    def start(self) -> None:
+        self.start_calls += 1
+        self._running = True
+
+
 class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -74,6 +114,7 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
     def setUp(self) -> None:
         _MetadataWorker.instances.clear()
         _SingleMetadataWorker.instances.clear()
+        _RowsPlanWorker.instances.clear()
 
     def test_full_metadata_load_replays_latest_request_after_running_worker_finishes(self) -> None:
         from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
@@ -333,6 +374,47 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         scheduled_callbacks[0]()
 
         service._request_rows_plan_refresh.assert_called_once_with({"Default.txt": {}}, {"items": {}}, 1.5, page)
+
+    def test_rows_plan_scheduled_restart_uses_latest_pending_request(self) -> None:
+        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+
+        page = SimpleNamespace(isVisible=lambda: True)
+        adapter = UserPresetsRuntimeAdapter(
+            bulk_reset_running=lambda: False,
+            read_single_metadata=lambda _name: None,
+            selected_source_file_name=lambda: "",
+            presets_dir=lambda: None,
+            cached_metadata=lambda: {},
+            load_all_metadata=lambda: {},
+            load_folder_state=lambda: {},
+            build_rows_plan=lambda _metadata, _folder_state: object(),
+            apply_rows_plan=lambda _plan, _started_at: None,
+        )
+        service = UserPresetsRuntimeService()
+        service.attach_page(page, adapter)
+        worker = SimpleNamespace(deleteLater=Mock())
+        service._rows_plan_worker = worker
+        service._rows_plan_pending = ({"Old.txt": {}}, {"items": {}}, 1.5, page)
+        scheduled_callbacks = []
+
+        with patch(
+            "presets.user_presets_runtime_service.UserPresetsRowsPlanWorker",
+            _RowsPlanWorker,
+        ), patch(
+            "presets.user_presets_runtime_service.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled_callbacks.append(callback),
+        ):
+            service._on_rows_plan_worker_finished(worker)
+            service._request_rows_plan_refresh({"Latest.txt": {}}, {"items": {"Latest.txt": {}}}, 2.5, page)
+
+            self.assertEqual(_RowsPlanWorker.instances, [])
+            self.assertEqual(len(scheduled_callbacks), 1)
+
+            scheduled_callbacks[0]()
+
+        self.assertEqual(len(_RowsPlanWorker.instances), 1)
+        self.assertEqual(_RowsPlanWorker.instances[0].all_presets, {"Latest.txt": {}})
+        self.assertEqual(_RowsPlanWorker.instances[0].started_at, 2.5)
 
     def test_remove_deleted_preset_locally_does_not_write_folder_meta_from_gui_path(self) -> None:
         from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
