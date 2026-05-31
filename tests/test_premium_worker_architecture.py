@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from app.feature_facades.premium import PremiumFeature
 import donater.commands as premium_commands
@@ -52,6 +54,46 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("failed_signal_name=\"error_occurred\"", start_source)
         self.assertNotIn("start_premium_worker_task", page_source)
         self.assertFalse(hasattr(premium_page_tasks, "start_premium_worker_task"))
+
+    def test_device_info_pending_restarts_after_event_loop_turn(self) -> None:
+        import donater.ui.page as premium_page
+
+        page = PremiumPage.__new__(PremiumPage)
+        page._device_info_pending = True
+        page._cleanup_in_progress = False
+        page._start_device_info_load_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(premium_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            PremiumPage._on_device_info_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_device_info_load_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_device_info_load_worker.assert_called_once_with()
+
+    def test_open_bot_pending_restarts_after_event_loop_turn(self) -> None:
+        import donater.ui.page as premium_page
+
+        page = PremiumPage.__new__(PremiumPage)
+        page._open_bot_pending = True
+        page._cleanup_in_progress = False
+        page._request_open_extend_bot = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(premium_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            PremiumPage._on_open_extend_bot_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._request_open_extend_bot.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._request_open_extend_bot.assert_called_once_with()
 
 
 if __name__ == "__main__":

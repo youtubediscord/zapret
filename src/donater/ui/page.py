@@ -113,8 +113,10 @@ class PremiumPage(BasePage):
         }
         self._open_bot_runtime = OneShotWorkerRuntime()
         self._open_bot_pending = False
+        self._open_bot_start_scheduled = False
         self._device_info_runtime = OneShotWorkerRuntime()
         self._device_info_pending = False
+        self._device_info_start_scheduled = False
         self._reset_storage_runtime = OneShotWorkerRuntime()
         self._premium_action_runtime = OneShotWorkerRuntime()
 
@@ -551,7 +553,7 @@ class PremiumPage(BasePage):
     def _request_device_info_load(self) -> None:
         if not self._premium.is_checker_ready():
             return
-        if self._device_info_runtime.is_running():
+        if self._device_info_runtime.is_running() or self.__dict__.get("_device_info_start_scheduled", False):
             self._device_info_pending = True
             return
         self._device_info_pending = False
@@ -600,7 +602,21 @@ class PremiumPage(BasePage):
         pending = self._device_info_pending
         self._device_info_pending = False
         if pending and not self._cleanup_in_progress:
-            self._start_device_info_load_worker()
+            self._schedule_device_info_load_worker_start()
+
+    def _schedule_device_info_load_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._device_info_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_device_info_load_worker_start)
+
+    def _run_scheduled_device_info_load_worker_start(self) -> None:
+        self._device_info_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self._device_info_pending:
+            self._device_info_pending = False
+        self._start_device_info_load_worker()
 
     def _open_extend_bot(self) -> None:
         self._request_open_extend_bot()
@@ -609,7 +625,7 @@ class PremiumPage(BasePage):
         return self._premium.create_open_extend_bot_worker(request_id, parent=self)
 
     def _request_open_extend_bot(self) -> None:
-        if self._open_bot_runtime.is_running():
+        if self._open_bot_runtime.is_running() or self.__dict__.get("_open_bot_start_scheduled", False):
             self._open_bot_pending = True
             return
         self._open_bot_pending = False
@@ -635,7 +651,21 @@ class PremiumPage(BasePage):
     def _on_open_extend_bot_worker_finished(self, _worker) -> None:
         if self._open_bot_pending and not self._cleanup_in_progress:
             self._open_bot_pending = False
-            self._request_open_extend_bot()
+            self._schedule_open_extend_bot_worker_start()
+
+    def _schedule_open_extend_bot_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._open_bot_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_open_extend_bot_worker_start)
+
+    def _run_scheduled_open_extend_bot_worker_start(self) -> None:
+        self._open_bot_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self._open_bot_pending:
+            self._open_bot_pending = False
+        self._request_open_extend_bot()
 
     def _show_open_extend_bot_error(self, error: str) -> None:
         if InfoBar:
