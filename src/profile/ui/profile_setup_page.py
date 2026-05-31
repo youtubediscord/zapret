@@ -2903,7 +2903,14 @@ class ProfileSetupPageBase(BasePage):
     def _request_strategy_feedback_save(self, request: dict) -> None:
         runtime = self._worker_runtime("_strategy_feedback_save_runtime")
         if runtime.is_running():
-            self._pending_strategy_feedback_save = dict(request)
+            pending = dict(self.__dict__.get("_pending_strategy_feedback_save") or {})
+            next_request = dict(request or {})
+            for key in ("rating", "favorite"):
+                if key in next_request and next_request.get(key) is not None:
+                    pending[key] = next_request.get(key)
+                elif key not in pending:
+                    pending[key] = next_request.get(key)
+            self._pending_strategy_feedback_save = pending
             return
         self._start_strategy_feedback_save_worker(request)
 

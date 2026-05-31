@@ -4391,6 +4391,31 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         page._request_strategy_feedback_save.assert_not_called()
 
+    def test_strategy_feedback_pending_save_merges_rating_and_favorite_while_worker_runs(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._strategy_feedback_save_runtime = _Runtime()
+        page._pending_strategy_feedback_save = None
+        page._start_strategy_feedback_save_worker = Mock()
+
+        ProfileSetupPageBase._request_strategy_feedback_save(
+            page,
+            {"rating": "work", "favorite": None},
+        )
+        ProfileSetupPageBase._request_strategy_feedback_save(
+            page,
+            {"rating": None, "favorite": True},
+        )
+
+        self.assertEqual(
+            page._pending_strategy_feedback_save,
+            {"rating": "work", "favorite": True},
+        )
+        page._start_strategy_feedback_save_worker.assert_not_called()
+
     def test_strategy_feedback_finish_skips_duplicate_state(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._profile_key = "profile-1"
