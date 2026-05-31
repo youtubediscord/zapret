@@ -8,6 +8,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
     def test_page_workers_receive_action_functions(self) -> None:
         from orchestra.page_workers import (
             OrchestraClearLearnedWorker,
+            OrchestraLogContextActionWorker,
             OrchestraLogHistoryActionWorker,
             OrchestraLogHistoryLoadWorker,
         )
@@ -18,6 +19,8 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         history_run = inspect.getsource(OrchestraLogHistoryLoadWorker.run)
         history_action_init = inspect.getsource(OrchestraLogHistoryActionWorker.__init__)
         history_action_run = inspect.getsource(OrchestraLogHistoryActionWorker.run)
+        context_action_init = inspect.getsource(OrchestraLogContextActionWorker.__init__)
+        context_action_run = inspect.getsource(OrchestraLogContextActionWorker.run)
 
         self.assertIn("clear_learned_data", clear_init)
         self.assertIn("self._clear_learned_data", clear_init)
@@ -36,6 +39,13 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._controller", history_action_init)
         self.assertIn("self._run_action(action=self._action, log_id=self._log_id)", history_action_run)
         self.assertNotIn("self._controller.", history_action_run)
+
+        self.assertIn("run_action", context_action_init)
+        self.assertIn("self._run_action", context_action_init)
+        self.assertNotIn("self._controller", context_action_init)
+        self.assertIn("self._run_action(", context_action_run)
+        self.assertIn("domain=self._domain", context_action_run)
+        self.assertNotIn("self._controller.", context_action_run)
 
     def test_orchestra_log_history_actions_run_through_worker(self) -> None:
         from orchestra.page_controller import OrchestraPageController
@@ -60,6 +70,35 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("_log_history_action_pending", request_source)
         self.assertIn("create_log_history_action_worker", controller_source)
         self.assertIn("run_log_history_action", controller_source)
+
+    def test_orchestra_log_context_actions_run_through_worker(self) -> None:
+        import orchestra.ui.page_log_context_workflow as log_context_workflow
+        from orchestra.page_controller import OrchestraPageController
+        from orchestra.ui.page import OrchestraPage
+
+        lock_source = inspect.getsource(OrchestraPage._lock_strategy_from_log)
+        block_source = inspect.getsource(OrchestraPage._block_strategy_from_log)
+        unblock_source = inspect.getsource(OrchestraPage._unblock_strategy_from_log)
+        whitelist_source = inspect.getsource(OrchestraPage._add_to_whitelist_from_log)
+        request_source = inspect.getsource(OrchestraPage._request_log_context_action)
+        start_source = inspect.getsource(OrchestraPage._start_log_context_action_worker)
+        menu_source = inspect.getsource(log_context_workflow.show_log_context_menu)
+        page_source = inspect.getsource(OrchestraPage)
+        controller_source = inspect.getsource(OrchestraPageController)
+
+        for source in (lock_source, block_source, unblock_source, whitelist_source):
+            self.assertIn("_request_log_context_action", source)
+            self.assertNotIn("runner=", source)
+            self.assertNotIn("log_context_actions", source)
+
+        self.assertNotIn("runner=", menu_source)
+        self.assertIn("is_strategy_blocked_fn", menu_source)
+        self.assertIn("_log_context_action_runtime", page_source)
+        self.assertIn("create_log_context_action_worker", page_source)
+        self.assertIn("start_qthread_worker", start_source)
+        self.assertIn("_log_context_action_pending", request_source)
+        self.assertIn("create_log_context_action_worker", controller_source)
+        self.assertIn("run_log_context_action", controller_source)
 
     def test_ratings_worker_receives_loader_function(self) -> None:
         from orchestra.ratings_worker import OrchestraRatingsStateLoadWorker

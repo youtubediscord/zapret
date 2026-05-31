@@ -6,8 +6,6 @@ from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import Action, RoundMenu
 
 import orchestra.page_runtime as orchestra_page_runtime
-import orchestra.log_context_actions as orchestra_log_context_actions
-from log.log import log
 from ui.popup_menu import exec_popup_menu
 
 
@@ -23,7 +21,7 @@ def show_log_context_menu(
     owner,
     log_text,
     pos,
-    runner,
+    is_strategy_blocked_fn,
     tr_fn,
     copy_line_fn,
     lock_strategy_fn,
@@ -44,11 +42,7 @@ def show_log_context_menu(
         domain, strategy, protocol = parsed
         is_blocked = False
         try:
-            is_blocked = orchestra_log_context_actions.is_strategy_blocked(
-                runner=runner,
-                domain=domain,
-                strategy=strategy,
-            )
+            is_blocked = bool(is_strategy_blocked_fn(domain, strategy))
         except Exception:
             pass
 
@@ -124,62 +118,3 @@ def copy_line_to_clipboard(*, text: str, append_log, tr_fn) -> None:
         return
     clipboard.setText(text)
     append_log(tr_fn("page.orchestra.log.clipboard_copied", "[INFO] Строка скопирована в буфер обмена"))
-
-
-def lock_strategy_from_log(*, runner, domain: str, strategy: int, protocol: str, append_log, refresh_learned, tr_fn) -> None:
-    try:
-        plan = orchestra_log_context_actions.lock_strategy_from_log(
-            runner=runner,
-            domain=domain,
-            strategy=strategy,
-            protocol=protocol,
-        )
-        _apply_runner_action_plan(plan, append_log=append_log, refresh_learned=refresh_learned)
-    except Exception as exc:
-        log(f"Ошибка залочивания из контекстного меню: {exc}", "ERROR")
-        append_log(tr_fn("page.orchestra.log.error", "[ERROR] Ошибка: {error}", error=exc))
-
-
-def block_strategy_from_log(*, runner, domain: str, strategy: int, protocol: str, append_log, refresh_learned, tr_fn) -> None:
-    try:
-        plan = orchestra_log_context_actions.block_strategy_from_log(
-            runner=runner,
-            domain=domain,
-            strategy=strategy,
-            protocol=protocol,
-        )
-        _apply_runner_action_plan(plan, append_log=append_log, refresh_learned=refresh_learned)
-    except Exception as exc:
-        log(f"Ошибка блокировки из контекстного меню: {exc}", "ERROR")
-        append_log(tr_fn("page.orchestra.log.error", "[ERROR] Ошибка: {error}", error=exc))
-
-
-def unblock_strategy_from_log(*, runner, domain: str, strategy: int, protocol: str, append_log, refresh_learned, tr_fn) -> None:
-    try:
-        plan = orchestra_log_context_actions.unblock_strategy_from_log(
-            runner=runner,
-            domain=domain,
-            strategy=strategy,
-            protocol=protocol,
-        )
-        _apply_runner_action_plan(plan, append_log=append_log, refresh_learned=refresh_learned)
-    except Exception as exc:
-        log(f"Ошибка разблокировки из контекстного меню: {exc}", "ERROR")
-        append_log(tr_fn("page.orchestra.log.error", "[ERROR] Ошибка: {error}", error=exc))
-
-
-def add_to_whitelist_from_log(*, runner, domain: str, append_log, tr_fn) -> None:
-    try:
-        plan = orchestra_log_context_actions.add_to_whitelist_from_log(runner=runner, domain=domain)
-        for message in plan.messages:
-            append_log(message)
-    except Exception as exc:
-        log(f"Ошибка добавления в whitelist из контекстного меню: {exc}", "ERROR")
-        append_log(tr_fn("page.orchestra.log.error", "[ERROR] Ошибка: {error}", error=exc))
-
-
-def _apply_runner_action_plan(plan, *, append_log, refresh_learned) -> None:
-    for message in plan.messages:
-        append_log(message)
-    if plan.refresh_learned:
-        refresh_learned()

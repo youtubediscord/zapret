@@ -34,13 +34,9 @@ from orchestra.monitoring_workflow import (
     stop_monitoring as stop_orchestra_monitoring,
 )
 from orchestra.ui.page_log_context_workflow import (
-    add_to_whitelist_from_log,
-    block_strategy_from_log,
     copy_line_to_clipboard,
-    lock_strategy_from_log,
     parse_log_line_for_strategy,
     show_log_context_menu,
-    unblock_strategy_from_log,
 )
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
@@ -101,6 +97,8 @@ class OrchestraPage(BasePage):
         self._log_history_pending = False
         self._log_history_action_runtime = OneShotWorkerRuntime()
         self._log_history_action_pending = []
+        self._log_context_action_runtime = OneShotWorkerRuntime()
+        self._log_context_action_pending = []
         self._clear_learned_reset_timer = QTimer(self)
         self._clear_learned_reset_timer.setSingleShot(True)
         self._clear_learned_reset_timer.timeout.connect(self._reset_clear_learned_button)
@@ -771,6 +769,12 @@ class OrchestraPage(BasePage):
             log_fn=log,
             warning_prefix="Orchestra log history action worker",
         )
+        self._log_context_action_pending.clear()
+        self._log_context_action_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="Orchestra log context action worker",
+        )
 
         try:
             while not self._log_queue.empty():
@@ -802,7 +806,7 @@ class OrchestraPage(BasePage):
             owner=self,
             log_text=self.log_text,
             pos=pos,
-            runner=self._get_runner(),
+            is_strategy_blocked_fn=self._is_strategy_blocked_from_log,
             tr_fn=self._tr,
             copy_line_fn=self._copy_line_to_clipboard,
             lock_strategy_fn=self._lock_strategy_from_log,
@@ -828,47 +832,97 @@ class OrchestraPage(BasePage):
         """Копирует текст в буфер обмена"""
         copy_line_to_clipboard(text=text, append_log=self.append_log, tr_fn=self._tr)
 
+    def _is_strategy_blocked_from_log(self, domain: str, strategy: int) -> bool:
+        return self._controller.is_strategy_blocked(domain=domain, strategy=int(strategy or 0))
+
+    def create_log_context_action_worker(
+        self,
+        request_id: int,
+        *,
+        action: str,
+        domain: str,
+        strategy: int,
+        protocol: str,
+    ):
+        return self._controller.create_log_context_action_worker(
+            request_id,
+            action=action,
+            domain=domain,
+            strategy=int(strategy or 0),
+            protocol=protocol,
+            parent=self,
+        )
+
+    def _request_log_context_action(self, action: str, domain: str, strategy: int = 0, protocol: str = "") -> None:
+        if self._cleanup_in_progress:
+            return
+        if self._get_runner() is None:
+            return
+        payload = (
+            str(action or "").strip(),
+            str(domain or "").strip(),
+            int(strategy or 0),
+            str(protocol or "").strip(),
+        )
+        if not payload[0] or not payload[1]:
+            return
+        if self._log_context_action_runtime.is_running():
+            self._log_context_action_pending.append(payload)
+            return
+        self._start_log_context_action_worker(payload)
+
+    def _start_log_context_action_worker(self, payload) -> None:
+        action, domain, strategy, protocol = payload
+        self._log_context_action_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_log_context_action_worker(
+                request_id,
+                action=str(action),
+                domain=str(domain),
+                strategy=int(strategy or 0),
+                protocol=str(protocol),
+            ),
+            on_loaded=self._on_log_context_action_finished,
+            on_failed=self._on_log_context_action_failed,
+            on_finished=self._on_log_context_action_worker_finished,
+        )
+
+    def _on_log_context_action_finished(self, request_id: int, _action: str, plan) -> None:
+        if not self._log_context_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        for message in getattr(plan, "messages", ()) or ():
+            self.append_log(str(message))
+        if bool(getattr(plan, "refresh_learned", False)):
+            self._update_learned_domains()
+
+    def _on_log_context_action_failed(self, request_id: int, _action: str, error: str) -> None:
+        if not self._log_context_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        log(f"Ошибка действия контекстного меню лога: {error}", "ERROR")
+        self.append_log(self._tr("page.orchestra.log.error", "[ERROR] Ошибка: {error}", error=error))
+
+    def _on_log_context_action_worker_finished(self, _worker) -> None:
+        if self._log_context_action_pending and not self._cleanup_in_progress:
+            pending = self._log_context_action_pending.pop(0)
+            self._start_log_context_action_worker(pending)
+
     def _lock_strategy_from_log(self, domain: str, strategy: int, protocol: str):
         """Залочивает стратегию из контекстного меню лога"""
-        lock_strategy_from_log(
-            runner=self._get_runner(),
-            domain=domain,
-            strategy=strategy,
-            protocol=protocol,
-            append_log=self.append_log,
-            refresh_learned=self._update_learned_domains,
-            tr_fn=self._tr,
-        )
+        self._request_log_context_action("lock", domain, strategy, protocol)
 
     def _block_strategy_from_log(self, domain: str, strategy: int, protocol: str):
         """Блокирует стратегию из контекстного меню лога"""
-        block_strategy_from_log(
-            runner=self._get_runner(),
-            domain=domain,
-            strategy=strategy,
-            protocol=protocol,
-            append_log=self.append_log,
-            refresh_learned=self._update_learned_domains,
-            tr_fn=self._tr,
-        )
+        self._request_log_context_action("block", domain, strategy, protocol)
 
     def _unblock_strategy_from_log(self, domain: str, strategy: int, protocol: str):
         """Разблокирует стратегию из контекстного меню лога"""
-        unblock_strategy_from_log(
-            runner=self._get_runner(),
-            domain=domain,
-            strategy=strategy,
-            protocol=protocol,
-            append_log=self.append_log,
-            refresh_learned=self._update_learned_domains,
-            tr_fn=self._tr,
-        )
+        self._request_log_context_action("unblock", domain, strategy, protocol)
 
     def _add_to_whitelist_from_log(self, domain: str):
         """Добавляет домен в whitelist из контекстного меню лога"""
-        add_to_whitelist_from_log(
-            runner=self._get_runner(),
-            domain=domain,
-            append_log=self.append_log,
-            tr_fn=self._tr,
-        )
+        self._request_log_context_action("whitelist", domain)
