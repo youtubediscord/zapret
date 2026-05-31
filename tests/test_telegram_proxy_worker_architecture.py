@@ -84,6 +84,60 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("_build_upstream_config", worker_source)
         self.assertNotIn("telegram_proxy.commands", worker_source)
 
+    def test_tray_toggle_stops_proxy_through_worker_runtime(self) -> None:
+        feature_source = inspect.getsource(TelegramProxyFeature)
+        toggle_source = inspect.getsource(TelegramProxyFeature.toggle_async)
+
+        self.assertIn("_tray_stop_runtime", feature_source)
+        self.assertIn("create_stop_runtime_worker", toggle_source)
+        self.assertIn("_tray_stop_runtime.start_qthread_worker", toggle_source)
+        self.assertNotIn("manager.stop_proxy()", toggle_source)
+
+    def test_tray_toggle_running_proxy_starts_stop_runtime(self) -> None:
+        class _Runtime:
+            def __init__(self) -> None:
+                self.started = None
+
+            def is_running(self) -> bool:
+                return False
+
+            def start_qthread_worker(self, **kwargs) -> None:
+                self.started = kwargs
+
+        manager = Mock()
+        manager.is_running = True
+        stop_runtime = _Runtime()
+        enabled_values = []
+        feature = TelegramProxyFeature(
+            start_proxy_if_enabled_async=Mock(),
+            get_proxy_manager=Mock(return_value=manager),
+            get_start_config=Mock(),
+            set_enabled=lambda value: enabled_values.append(bool(value)),
+            build_upstream_config=Mock(),
+            load_page_initial_state=Mock(),
+            save_settings_action=Mock(),
+            check_relay_reachable=Mock(),
+            check_relay_http=Mock(),
+            build_diagnostics_start_plan=Mock(),
+            build_diagnostics_poll_plan=Mock(),
+            build_diagnostics_finish_plan=Mock(),
+            copy_text=Mock(),
+            open_log_file=Mock(),
+            open_external_link=Mock(),
+            ensure_telegram_hosts=Mock(),
+            run_diagnostics=Mock(),
+            append_log_line=Mock(),
+            consume_auto_deeplink_request=Mock(),
+            _tray_stop_runtime=stop_runtime,
+        )
+
+        feature.toggle_async()
+
+        manager.stop_proxy.assert_not_called()
+        self.assertEqual(enabled_values, [False])
+        self.assertIsNotNone(stop_runtime.started)
+        self.assertEqual(stop_runtime.started.get("loaded_signal_name"), "stopped")
+
     def test_start_worker_passes_command_loaded_upstream_config_to_manager(self) -> None:
         manager = Mock()
         manager.start_proxy.return_value = True

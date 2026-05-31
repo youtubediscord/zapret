@@ -28,6 +28,7 @@ class TelegramProxyFeature:
     append_log_line: Callable
     consume_auto_deeplink_request: Callable
     _tray_start_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
+    _tray_stop_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
 
     def is_running(self) -> bool:
         try:
@@ -51,6 +52,8 @@ class TelegramProxyFeature:
             pass
 
     def cleanup(self) -> None:
+        self._tray_start_runtime.stop(blocking=True, warning_prefix="Telegram Proxy tray start worker")
+        self._tray_stop_runtime.stop(blocking=True, warning_prefix="Telegram Proxy tray stop worker")
         try:
             self.get_proxy_manager().cleanup()
         except Exception:
@@ -168,7 +171,16 @@ class TelegramProxyFeature:
         try:
             manager = self.get_proxy_manager()
             if manager.is_running:
-                manager.stop_proxy()
+                if self._tray_stop_runtime.is_running():
+                    return
+                self._tray_stop_runtime.start_qthread_worker(
+                    worker_factory=lambda _request_id: self.create_stop_runtime_worker(
+                        manager=manager,
+                        emit_status=True,
+                    ),
+                    signal_includes_request_id=False,
+                    loaded_signal_name="stopped",
+                )
                 self.set_enabled(False)
                 return
             if self._tray_start_runtime.is_running():
