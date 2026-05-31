@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from app.feature_facades.dns import build_dns_feature
 from dns import dns_check_worker, dns_worker, page_workers
+import dns.ui.page as network_page
 from dns.ui.dns_check_page import DNSCheckPage
 from dns.ui.page import NetworkPage
 
@@ -111,6 +114,60 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
             "_isp_warning_runtime.stop",
         ):
             self.assertIn(name, cleanup_source)
+
+    def test_dns_apply_pending_restarts_after_event_loop_turn(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_apply_pending = [{"action": "auto", "adapters": ["Ethernet"]}]
+        page._start_dns_apply_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            NetworkPage._on_dns_apply_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_dns_apply_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_dns_apply_worker.assert_called_once_with({"action": "auto", "adapters": ["Ethernet"]})
+
+    def test_force_dns_pending_restarts_after_event_loop_turn(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._force_dns_action_pending = [{"action": "toggle", "enabled": True}]
+        page._start_force_dns_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            NetworkPage._on_force_dns_action_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_force_dns_action_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_force_dns_action_worker.assert_called_once_with({"action": "toggle", "enabled": True})
+
+    def test_dns_flush_cache_pending_restarts_after_event_loop_turn(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_flush_cache_pending = True
+        page._start_dns_flush_cache_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            NetworkPage._on_dns_flush_cache_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_dns_flush_cache_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_dns_flush_cache_worker.assert_called_once_with()
 
     def test_network_page_load_and_connectivity_use_feature_worker_runtime(self) -> None:
         feature_source = inspect.getsource(build_dns_feature)
