@@ -161,6 +161,13 @@ class PresetFileStore:
         current = manifests[idx]
         storage_scope = "user"
         destination_path = self._engine_paths(engine).user_presets_dir / current.file_name
+        normalized_source_text = self._normalize_source_for_write(source_text)
+        try:
+            current_text = _read_text(self._manifest_path(engine, current))
+        except Exception:
+            current_text = ""
+        if normalized_source_text == self._normalize_source_for_write(current_text):
+            return current
 
         updated = PresetManifest(
             file_name=current.file_name,
@@ -378,11 +385,16 @@ class PresetFileStore:
         return datetime.fromtimestamp(value, tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     @staticmethod
-    def _write_source(path: Path, source_text: str) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def _normalize_source_for_write(source_text: str) -> str:
         text = (source_text or "").replace("\r\n", "\n").replace("\r", "\n")
         if not text.endswith("\n"):
             text += "\n"
+        return text
+
+    @staticmethod
+    def _write_source(path: Path, source_text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = PresetFileStore._normalize_source_for_write(source_text)
         path.write_text(text, encoding="utf-8", newline="\n")
 
     def _manifest_path(self, engine: str, manifest: PresetManifest) -> Path:
