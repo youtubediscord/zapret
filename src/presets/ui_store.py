@@ -60,9 +60,13 @@ class PresetUiStore(QObject):
         return self._selected_source_file_name
 
     def refresh(self) -> None:
+        was_loaded = bool(self._loaded)
+        previous_key = self._metadata_cache_key()
         self._last_content_change_key = None
         self._last_identity_change_key = None
         self._reload_metadata()
+        if was_loaded and previous_key == self._metadata_cache_key():
+            return
         self.presets_changed.emit()
 
     def notify_preset_content_changed(self, file_name: str) -> None:
@@ -123,6 +127,21 @@ class PresetUiStore(QObject):
         self._manifests_by_file_name = {}
         self._selected_source_file_name = None
         self._loaded = False
+
+    def _metadata_cache_key(self) -> tuple[object, ...]:
+        manifests_key = tuple(
+            sorted(
+                (
+                    str(getattr(manifest, "file_name", "") or "").casefold(),
+                    str(getattr(manifest, "name", "") or ""),
+                    str(getattr(manifest, "updated_at", "") or ""),
+                    str(getattr(manifest, "kind", "") or ""),
+                    str(getattr(manifest, "storage_scope", "") or ""),
+                )
+                for manifest in self._manifests_by_file_name.values()
+            )
+        )
+        return (manifests_key, str(self._selected_source_file_name or "").casefold())
 
     def _reload_metadata(self) -> None:
         manifests_by_file_name: Dict[str, PresetManifest] = {}

@@ -6,6 +6,7 @@ import unittest
 
 from PyQt6.QtWidgets import QApplication
 
+from presets.models import PresetManifest
 from presets.ui_store import PresetUiStore
 from settings.mode import ENGINE_WINWS2
 
@@ -83,6 +84,46 @@ class PresetUiStoreGuardTests(unittest.TestCase):
             store.notify_preset_identity_changed("Default v5.txt")
 
         self.assertEqual(emitted, ["Default v5.txt", "Default v5.txt"])
+
+    def test_refresh_does_not_emit_presets_changed_when_metadata_is_unchanged(self) -> None:
+        manifests = [
+            PresetManifest(
+                file_name="Default v5.txt",
+                name="Default v5",
+                updated_at="1",
+                kind="builtin",
+            )
+        ]
+
+        class _PresetFileStore:
+            def list_manifests(self, _engine):
+                return list(manifests)
+
+        class _SelectionService:
+            def get_selected_file_name(self, _engine):
+                return "Default v5.txt"
+
+        store = PresetUiStore(
+            ENGINE_WINWS2,
+            _PresetFileStore(),
+            selection_service=_SelectionService(),
+        )
+        emitted: list[str] = []
+        store.presets_changed.connect(lambda: emitted.append("changed"))
+
+        store.list_manifests()
+        store.refresh()
+        manifests.append(
+            PresetManifest(
+                file_name="Other.txt",
+                name="Other",
+                updated_at="1",
+                kind="user",
+            )
+        )
+        store.refresh()
+
+        self.assertEqual(emitted, ["changed"])
 
 
 if __name__ == "__main__":
