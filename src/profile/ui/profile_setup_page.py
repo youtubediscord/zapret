@@ -955,6 +955,7 @@ class ProfileSetupPageBase(BasePage):
         self._strategy_apply_runtime_strategy_id = ""
         self._strategy_apply_runtime_branch_id = ""
         self._pending_strategy_apply = None
+        self._scheduled_profile_setup_write_operation = None
         self._pending_profile_setup_write_operations: list[dict[str, object]] = []
         self._profile_setup_write_operation_start_scheduled = False
         self._strategy_feedback_save_runtime = OneShotWorkerRuntime()
@@ -1035,8 +1036,16 @@ class ProfileSetupPageBase(BasePage):
         return False
 
     def _queue_profile_setup_write_operation(self, operation: dict[str, object]) -> None:
-        pending = self.__dict__.setdefault("_pending_profile_setup_write_operations", [])
         queued = dict(operation)
+        scheduled = self.__dict__.get("_scheduled_profile_setup_write_operation")
+        if (
+            self.__dict__.get("_profile_setup_write_operation_start_scheduled", False)
+            and isinstance(scheduled, dict)
+            and scheduled.get("kind") == queued.get("kind")
+        ):
+            self._scheduled_profile_setup_write_operation = queued
+            return
+        pending = self.__dict__.setdefault("_pending_profile_setup_write_operations", [])
         if pending and pending[-1] == queued:
             return
         if pending and pending[-1].get("kind") == queued.get("kind"):
@@ -1063,14 +1072,19 @@ class ProfileSetupPageBase(BasePage):
         if self.__dict__.get("_profile_setup_write_operation_start_scheduled", False):
             self._queue_profile_setup_write_operation(queued)
             return
+        self._scheduled_profile_setup_write_operation = queued
         self._profile_setup_write_operation_start_scheduled = True
         try:
-            QTimer.singleShot(0, lambda: self._run_profile_setup_write_operation(queued))
+            QTimer.singleShot(0, self._run_profile_setup_write_operation)
         except Exception:
-            self._run_profile_setup_write_operation(queued)
+            self._run_profile_setup_write_operation()
 
-    def _run_profile_setup_write_operation(self, operation: dict[str, object]) -> bool:
+    def _run_profile_setup_write_operation(self, operation: dict[str, object] | None = None) -> bool:
         self._profile_setup_write_operation_start_scheduled = False
+        if operation is None:
+            operation = self.__dict__.get("_scheduled_profile_setup_write_operation")
+        self._scheduled_profile_setup_write_operation = None
+        operation = dict(operation or {})
         if self.__dict__.get("_cleanup_in_progress"):
             return False
         if self._profile_setup_write_is_running():
@@ -3412,6 +3426,7 @@ class ProfileSetupPageBase(BasePage):
             "_pending_enabled_save",
             "_pending_strategy_apply",
             "_pending_strategy_feedback_save",
+            "_scheduled_profile_setup_write_operation",
             "_pending_profile_setup_payload_apply",
         ):
             setattr(self, attr, None)
