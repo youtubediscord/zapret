@@ -138,6 +138,52 @@ class ProfileServiceApplyStrategyGuardTests(unittest.TestCase):
         self.assertIsNotNone(state)
         self.assertEqual(state.user_text, "speedtest.net\n")
 
+    def test_move_profile_to_end_skips_folder_write_when_profile_is_already_last(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=YouTube",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/youtube.txt",
+                        "",
+                        "--new",
+                        "",
+                        "--name=Googlevideo",
+                        "--filter-tcp=80,443",
+                        "--hostlist=lists/googlevideo.txt",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                payload = service.list_profiles()
+                googlevideo = next(item for item in payload.items if "googlevideo" in " ".join(item.match_lines).lower())
+                with (
+                    patch(
+                        "profile.service.move_profile_to_end_in_folder_state",
+                        side_effect=AssertionError("already-last profile must not rewrite folder state"),
+                    ),
+                    patch.object(
+                        service,
+                        "_invalidate_profile_list_snapshot",
+                        side_effect=AssertionError("already-last profile must not invalidate list cache"),
+                    ),
+                ):
+                    moved = service.move_profile_to_end(googlevideo.key)
+
+        self.assertEqual(moved, googlevideo.key)
+
     def test_apply_strategy_skips_save_when_profile_already_uses_strategy(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

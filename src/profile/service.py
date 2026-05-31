@@ -755,15 +755,16 @@ class ProfilePresetService:
             return None
         folder_state = load_profile_folder_state()
         source_folder_key, _folder_name, _order = profile_folder_for_profile(source.profile, folder_state)
-        ordered_keys = _profile_order_keys_for_folder(
+        current_ordered_keys = _profile_order_keys_for_folder(
             sources,
             folder_state,
             source_folder_key,
-            source_key=source.profile.persistent_key,
         )
+        if current_ordered_keys and current_ordered_keys[-1] == source.profile.persistent_key:
+            return source.key
         move_profile_to_end_in_folder_state(
             source.profile.persistent_key,
-            ordered_keys,
+            current_ordered_keys,
             source_folder_key=source_folder_key,
         )
         self._invalidate_profile_list_snapshot()
