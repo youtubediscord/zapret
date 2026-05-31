@@ -330,7 +330,13 @@ class UserPresetsRuntimeService:
         worker.deleteLater()
         if self._single_metadata_pending:
             pending_file_name = self._single_metadata_pending.pop(0)
-            self._request_single_metadata_refresh(pending_file_name, page)
+            self._schedule_single_metadata_refresh(pending_file_name, page)
+
+    def _schedule_single_metadata_refresh(self, file_name: str, page=None) -> None:
+        try:
+            QTimer.singleShot(0, lambda p=page, n=file_name: self._request_single_metadata_refresh(n, p))
+        except Exception:
+            self._request_single_metadata_refresh(file_name, page)
 
     def current_search_query(self, page=None) -> str:
         page = self._resolve_page(page)
@@ -743,7 +749,13 @@ class UserPresetsRuntimeService:
         pending_page = self._metadata_load_pending_page
         self._metadata_load_pending_page = None
         if pending_page is not None:
-            self.load_presets(pending_page)
+            self._schedule_metadata_load(pending_page)
+
+    def _schedule_metadata_load(self, page=None) -> None:
+        try:
+            QTimer.singleShot(0, lambda p=page: self.load_presets(p))
+        except Exception:
+            self.load_presets(page)
 
     def refresh_presets_view_if_possible(self, page=None) -> None:
         page = self._resolve_page(page)
@@ -854,6 +866,26 @@ class UserPresetsRuntimeService:
         self._rows_plan_pending = None
         if pending is not None:
             all_presets, folder_state, started_at, page = pending
+            self._schedule_rows_plan_refresh(all_presets, folder_state, started_at, page)
+
+    def _schedule_rows_plan_refresh(
+        self,
+        all_presets: dict[str, dict[str, object]],
+        folder_state: dict[str, Any] | None,
+        started_at: float | None,
+        page=None,
+    ) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda p=page, presets=all_presets, state=folder_state, started=started_at: self._request_rows_plan_refresh(
+                    presets,
+                    state,
+                    started,
+                    p,
+                ),
+            )
+        except Exception:
             self._request_rows_plan_refresh(all_presets, folder_state, started_at, page)
 
     def remove_deleted_preset_locally(self, name: str, page=None) -> bool:

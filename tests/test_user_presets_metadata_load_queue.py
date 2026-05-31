@@ -69,9 +69,14 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         service = UserPresetsRuntimeService()
         service.attach_page(page, adapter)
 
+        scheduled_callbacks = []
+
         with patch(
             "presets.user_presets_runtime_service.UserPresetsMetadataLoadWorker",
             _MetadataWorker,
+        ), patch(
+            "presets.user_presets_runtime_service.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled_callbacks.append(callback),
         ):
             service.load_presets(page)
             service.load_presets(page)
@@ -79,6 +84,10 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
             self.assertEqual(len(_MetadataWorker.instances), 1)
 
             service._on_metadata_worker_finished(_MetadataWorker.instances[0])
+
+            self.assertEqual(len(_MetadataWorker.instances), 1)
+            self.assertEqual(len(scheduled_callbacks), 1)
+            scheduled_callbacks[0]()
 
         self.assertEqual(len(_MetadataWorker.instances), 2)
         self.assertEqual(_MetadataWorker.instances[1].request_id, 2)
@@ -149,6 +158,78 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         self.assertEqual(calls, ["rows"])
         self._app.processEvents()
         self.assertEqual(calls, ["rows", "watcher"])
+
+    def test_single_metadata_pending_refresh_restarts_after_worker_signal_returns(self) -> None:
+        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+
+        page = SimpleNamespace(isVisible=lambda: True)
+        adapter = UserPresetsRuntimeAdapter(
+            bulk_reset_running=lambda: False,
+            read_single_metadata=lambda _name: None,
+            selected_source_file_name=lambda: "",
+            presets_dir=lambda: None,
+            cached_metadata=lambda: {},
+            load_all_metadata=lambda: {},
+            load_folder_state=lambda: {},
+            build_rows_plan=lambda _metadata, _folder_state: object(),
+            apply_rows_plan=lambda _plan, _started_at: None,
+        )
+        service = UserPresetsRuntimeService()
+        service.attach_page(page, adapter)
+        worker = SimpleNamespace(deleteLater=Mock())
+        service._single_metadata_worker = worker
+        service._single_metadata_pending = ["Default.txt"]
+        service._request_single_metadata_refresh = Mock()
+        scheduled_callbacks = []
+
+        with patch(
+            "presets.user_presets_runtime_service.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled_callbacks.append(callback),
+        ):
+            service._on_single_metadata_worker_finished(worker, page)
+
+        service._request_single_metadata_refresh.assert_not_called()
+        self.assertEqual(len(scheduled_callbacks), 1)
+
+        scheduled_callbacks[0]()
+
+        service._request_single_metadata_refresh.assert_called_once_with("Default.txt", page)
+
+    def test_rows_plan_pending_refresh_restarts_after_worker_signal_returns(self) -> None:
+        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+
+        page = SimpleNamespace(isVisible=lambda: True)
+        adapter = UserPresetsRuntimeAdapter(
+            bulk_reset_running=lambda: False,
+            read_single_metadata=lambda _name: None,
+            selected_source_file_name=lambda: "",
+            presets_dir=lambda: None,
+            cached_metadata=lambda: {},
+            load_all_metadata=lambda: {},
+            load_folder_state=lambda: {},
+            build_rows_plan=lambda _metadata, _folder_state: object(),
+            apply_rows_plan=lambda _plan, _started_at: None,
+        )
+        service = UserPresetsRuntimeService()
+        service.attach_page(page, adapter)
+        worker = SimpleNamespace(deleteLater=Mock())
+        service._rows_plan_worker = worker
+        service._rows_plan_pending = ({"Default.txt": {}}, {"items": {}}, 1.5, page)
+        service._request_rows_plan_refresh = Mock()
+        scheduled_callbacks = []
+
+        with patch(
+            "presets.user_presets_runtime_service.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled_callbacks.append(callback),
+        ):
+            service._on_rows_plan_worker_finished(worker)
+
+        service._request_rows_plan_refresh.assert_not_called()
+        self.assertEqual(len(scheduled_callbacks), 1)
+
+        scheduled_callbacks[0]()
+
+        service._request_rows_plan_refresh.assert_called_once_with({"Default.txt": {}}, {"items": {}}, 1.5, page)
 
     def test_remove_deleted_preset_locally_does_not_write_folder_meta_from_gui_path(self) -> None:
         from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
