@@ -429,6 +429,53 @@ class ProfileOrderPageTests(unittest.TestCase):
             ],
         )
 
+    def test_profile_order_move_waits_while_restart_is_scheduled(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+        class _Worker:
+            def __init__(self) -> None:
+                self.moved = Mock(connect=Mock())
+                self.failed = Mock(connect=Mock())
+                self.finished = Mock(connect=Mock())
+                self.start = Mock()
+                self.deleteLater = Mock()
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page.launch_method = "zapret2_mode"
+        page._cleanup_in_progress = False
+        page._order_move_runtime = OneShotWorkerRuntime()
+        page._pending_profile_order_moves = [
+            {
+                "action": "after",
+                "source_profile_key": "profile-a",
+                "destination_profile_key": "profile-b",
+            }
+        ]
+        page._order_move_start_scheduled = True
+        next_worker = _Worker()
+        page._create_profile_order_move_worker = Mock(return_value=next_worker)
+
+        ProfileOrderPageBase._request_profile_order_move(page, "end", "profile-c")
+
+        page._create_profile_order_move_worker.assert_not_called()
+        next_worker.start.assert_not_called()
+        self.assertEqual(
+            page._pending_profile_order_moves,
+            [
+                {
+                    "action": "after",
+                    "source_profile_key": "profile-a",
+                    "destination_profile_key": "profile-b",
+                },
+                {
+                    "action": "end",
+                    "source_profile_key": "profile-c",
+                    "destination_profile_key": "",
+                },
+            ],
+        )
+
     def test_order_page_cleanup_stops_order_workers(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
         from ui.one_shot_worker_runtime import OneShotWorkerRuntime

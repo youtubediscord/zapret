@@ -188,7 +188,7 @@ class ProfileOrderPageBase(BasePage):
         source_profile_key = str(source_profile_key or "").strip()
         if not source_profile_key:
             return
-        if self._order_move_runtime.is_running():
+        if self._order_move_runtime.is_running() or self.__dict__.get("_order_move_start_scheduled", False):
             self.__dict__.setdefault("_pending_profile_order_moves", []).append(
                 {
                     "action": str(action or ""),
