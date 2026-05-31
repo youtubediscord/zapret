@@ -117,6 +117,45 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         self.assertEqual(_MetadataWorker.instances[1].request_id, 2)
         self.assertEqual(_MetadataWorker.instances[1].start_calls, 1)
 
+    def test_full_metadata_scheduled_restart_waits_for_event_loop_callback(self) -> None:
+        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+
+        page = SimpleNamespace(isVisible=lambda: True)
+        adapter = UserPresetsRuntimeAdapter(
+            bulk_reset_running=lambda: False,
+            read_single_metadata=lambda _name: None,
+            selected_source_file_name=lambda: "",
+            presets_dir=lambda: None,
+            cached_metadata=lambda: {},
+            load_all_metadata=lambda: {},
+            load_folder_state=lambda: {},
+            build_rows_plan=lambda _metadata, _folder_state: object(),
+            apply_rows_plan=lambda _plan, _started_at: None,
+        )
+        service = UserPresetsRuntimeService()
+        service.attach_page(page, adapter)
+        scheduled_callbacks = []
+
+        with patch(
+            "presets.user_presets_runtime_service.UserPresetsMetadataLoadWorker",
+            _MetadataWorker,
+        ), patch(
+            "presets.user_presets_runtime_service.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled_callbacks.append(callback),
+        ):
+            service.load_presets(page)
+            service.load_presets(page)
+            service._on_metadata_worker_finished(_MetadataWorker.instances[0])
+            service.load_presets(page)
+
+            self.assertEqual(len(_MetadataWorker.instances), 1)
+            self.assertEqual(len(scheduled_callbacks), 1)
+
+            scheduled_callbacks[0]()
+
+        self.assertEqual(len(_MetadataWorker.instances), 2)
+        self.assertEqual(_MetadataWorker.instances[1].start_calls, 1)
+
     def test_duplicate_single_metadata_update_skips_visible_refresh(self) -> None:
         from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
 

@@ -137,6 +137,7 @@ class UserPresetsRuntimeService:
         self._metadata_load_request_id = 0
         self._metadata_load_worker: UserPresetsMetadataLoadWorker | None = None
         self._metadata_load_pending_page = None
+        self._metadata_load_start_scheduled = False
         self._single_metadata_request_id = 0
         self._single_metadata_worker: UserPresetsSingleMetadataWorker | None = None
         self._single_metadata_pending: list[str] = []
@@ -577,6 +578,7 @@ class UserPresetsRuntimeService:
         self._single_metadata_request_id += 1
         self._rows_plan_request_id += 1
         self._metadata_load_pending_page = None
+        self._metadata_load_start_scheduled = False
         self._single_metadata_pending.clear()
         self._single_metadata_start_scheduled = False
         self._rows_plan_pending = None
@@ -702,7 +704,10 @@ class UserPresetsRuntimeService:
         page = self._resolve_page(page)
         adapter = self._resolve_adapter()
         worker = self._metadata_load_worker
-        if worker is not None and worker.isRunning():
+        if (
+            (worker is not None and worker.isRunning())
+            or self.__dict__.get("_metadata_load_start_scheduled", False)
+        ):
             self._metadata_load_pending_page = page
             self._ui_dirty = True
             return
@@ -758,15 +763,25 @@ class UserPresetsRuntimeService:
             self._metadata_load_worker = None
         worker.deleteLater()
         pending_page = self._metadata_load_pending_page
-        self._metadata_load_pending_page = None
         if pending_page is not None:
-            self._schedule_metadata_load(pending_page)
+            self._schedule_metadata_load()
 
-    def _schedule_metadata_load(self, page=None) -> None:
+    def _schedule_metadata_load(self) -> None:
+        if self.__dict__.get("_metadata_load_start_scheduled", False):
+            return
+        self._metadata_load_start_scheduled = True
         try:
-            QTimer.singleShot(0, lambda p=page: self.load_presets(p))
+            QTimer.singleShot(0, self._run_scheduled_metadata_load)
         except Exception:
-            self.load_presets(page)
+            self._run_scheduled_metadata_load()
+
+    def _run_scheduled_metadata_load(self) -> None:
+        self._metadata_load_start_scheduled = False
+        pending_page = self.__dict__.get("_metadata_load_pending_page")
+        self._metadata_load_pending_page = None
+        if pending_page is None:
+            return
+        self.load_presets(pending_page)
 
     def refresh_presets_view_if_possible(self, page=None) -> None:
         page = self._resolve_page(page)
