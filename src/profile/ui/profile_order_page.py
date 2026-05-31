@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from log.log import log
 from profile.ui.profile_order_list import ProfileOrderList
+from PyQt6.QtCore import QTimer
 from qfluentwidgets import BodyLabel, BreadcrumbBar, InfoBar
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
@@ -38,6 +39,8 @@ class ProfileOrderPageBase(BasePage):
         self._order_list: ProfileOrderList | None = None
         self._order_load_runtime = OneShotWorkerRuntime()
         self._order_load_dirty = False
+        self._order_payload_apply_scheduled = False
+        self._pending_order_payload_apply = None
         self._order_move_runtime = OneShotWorkerRuntime()
         self._pending_profile_order_moves: list[dict[str, str]] = []
         self._breadcrumb = None
@@ -103,6 +106,24 @@ class ProfileOrderPageBase(BasePage):
         ):
             return
         self._payload = payload
+        self._schedule_order_payload_apply(payload)
+
+    def _schedule_order_payload_apply(self, payload) -> None:
+        self._pending_order_payload_apply = payload
+        if self.__dict__.get("_order_payload_apply_scheduled", False):
+            return
+        self._order_payload_apply_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_order_payload_apply)
+        except Exception:
+            self._run_scheduled_order_payload_apply()
+
+    def _run_scheduled_order_payload_apply(self) -> None:
+        payload = self.__dict__.get("_pending_order_payload_apply")
+        self._pending_order_payload_apply = None
+        self._order_payload_apply_scheduled = False
+        if payload is None or bool(self.__dict__.get("_cleanup_in_progress", False)):
+            return
         if self._order_list is not None:
             self._order_list.set_profiles(tuple(getattr(payload, "items", ()) or ()))
         self._rebuild_breadcrumb()
@@ -266,6 +287,8 @@ class ProfileOrderPageBase(BasePage):
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
         self._order_load_dirty = False
+        self._pending_order_payload_apply = None
+        self._order_payload_apply_scheduled = False
         self.__dict__.setdefault("_pending_profile_order_moves", []).clear()
         self._order_load_runtime.stop(warning_prefix="Profile order load worker")
         self._order_load_runtime.cancel()

@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from profile.state import ProfileListItem
 
@@ -279,6 +279,37 @@ class ProfileOrderPageTests(unittest.TestCase):
         self.assertTrue(page._order_load_dirty)
         page._create_profile_order_load_worker.assert_not_called()
         self.assertEqual(page._payload, "current")
+
+    def test_order_page_defers_list_apply_after_load_worker_signal(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+        payload = SimpleNamespace(items=(_item("A", key="profile:a"),))
+        callbacks = []
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_load_runtime.request_id = 3
+        page._cleanup_in_progress = False
+        page._payload = None
+        page._order_list = Mock()
+        page._rebuild_breadcrumb = Mock()
+
+        with patch(
+            "profile.ui.profile_order_page.QTimer",
+            SimpleNamespace(singleShot=lambda _delay, callback: callbacks.append(callback)),
+            create=True,
+        ):
+            ProfileOrderPageBase._on_order_profiles_loaded(page, 3, payload)
+
+        page._order_list.set_profiles.assert_not_called()
+        page._rebuild_breadcrumb.assert_not_called()
+        self.assertIs(page._payload, payload)
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._order_list.set_profiles.assert_called_once_with(payload.items)
+        page._rebuild_breadcrumb.assert_called_once_with()
 
     def test_order_page_replays_queued_moves_after_running_move_worker_finishes(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
