@@ -35,13 +35,62 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         feature_source = inspect.getsource(UpdaterFeature)
         worker_source = inspect.getsource(settings_workers.UpdaterChannelOpenWorker)
         worker_signature = inspect.signature(settings_workers.UpdaterChannelOpenWorker.__init__)
+        runtime_source = inspect.getsource(update_page_runtime.UpdatePageRuntime)
 
         self.assertNotIn("updater_feature=self", feature_source)
         self.assertNotIn("self._updater", worker_source)
         self.assertIn("open_update_channel=self.open_update_channel", feature_source)
         self.assertIn("open_update_channel", worker_signature.parameters)
+        self.assertIn("_update_channel_open_pending", runtime_source)
         self.assertNotIn("updater_commands.open_update_channel", worker_source)
         self.assertNotIn("import updater.commands", worker_source)
+
+    def test_update_channel_open_queues_while_worker_runs(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._update_channel_open_runtime = SimpleNamespace(is_running=Mock(return_value=True), start_qthread_worker=Mock())
+        runtime._update_channel_open_pending = ""
+        runtime._update_channel_open_start_scheduled = False
+
+        update_page_runtime.UpdatePageRuntime.request_open_update_channel(runtime, "dev")
+
+        runtime._update_channel_open_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(runtime._update_channel_open_pending, "dev")
+
+    def test_update_channel_open_pending_restarts_after_event_loop_turn(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._update_channel_open_pending = "dev"
+        runtime._request_update_channel_open = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(update_page_runtime, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            update_page_runtime.UpdatePageRuntime._on_update_channel_open_worker_finished(runtime, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        runtime._request_update_channel_open.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        runtime._request_update_channel_open.assert_called_once_with("dev")
+
+    def test_update_channel_open_scheduled_start_uses_latest_pending_channel(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._update_channel_open_pending = "stable"
+        runtime._update_channel_open_start_scheduled = False
+        runtime._update_channel_open_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+        runtime._request_update_channel_open = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(update_page_runtime, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            update_page_runtime.UpdatePageRuntime._on_update_channel_open_worker_finished(runtime, object())
+            runtime._update_channel_open_pending = "dev"
+
+        single_shot.call_args.args[1]()
+
+        runtime._request_update_channel_open.assert_called_once_with("dev")
 
     def test_cache_invalidate_worker_receives_feature_action_callable(self) -> None:
         feature_source = inspect.getsource(UpdaterFeature)

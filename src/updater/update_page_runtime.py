@@ -133,8 +133,10 @@ class UpdatePageRuntime:
         self._cleanup_in_progress = False
         self._auto_check_save_pending: bool | None = None
         self._cache_invalidate_pending_context: str | None = None
+        self._update_channel_open_pending = ""
         self._auto_check_save_start_scheduled = False
         self._cache_invalidate_start_scheduled = False
+        self._update_channel_open_start_scheduled = False
         self._auto_check_user_changed = False
         self._dpi_restart_after = ""
 
@@ -560,16 +562,26 @@ class UpdatePageRuntime:
         self._start_auto_check_save_worker(bool(enabled))
 
     def request_open_update_channel(self, channel: str) -> None:
-        if self._update_channel_open_runtime.is_running():
+        self._request_update_channel_open(channel)
+
+    def _request_update_channel_open(self, channel: str) -> None:
+        target = str(channel or "")
+        if (
+            self._update_channel_open_runtime.is_running()
+            or self.__dict__.get("_update_channel_open_start_scheduled", False)
+        ):
+            self._update_channel_open_pending = target
             return
+        self._update_channel_open_pending = ""
         self._update_channel_open_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._updater_feature.create_update_channel_open_worker(
                 request_id,
-                channel=channel,
+                channel=target,
                 parent=self._view.window(),
             ),
             on_loaded=self._on_update_channel_open_finished,
             on_failed=self._on_update_channel_open_failed,
+            on_finished=self._on_update_channel_open_worker_finished,
         )
 
     def _on_update_channel_open_finished(self, request_id: int, result) -> None:
@@ -589,6 +601,31 @@ class UpdatePageRuntime:
         ):
             return
         self._view.show_update_channel_open_error(str(error or ""))
+
+    def _on_update_channel_open_worker_finished(self, _worker) -> None:
+        if self._cleanup_in_progress:
+            return
+        pending = str(self.__dict__.get("_update_channel_open_pending") or "")
+        if pending:
+            self._schedule_update_channel_open_start()
+
+    def _schedule_update_channel_open_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_update_channel_open_start_scheduled", False):
+            return
+        self._update_channel_open_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_update_channel_open_start)
+
+    def _run_scheduled_update_channel_open_start(self) -> None:
+        self._update_channel_open_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        pending = str(self.__dict__.get("_update_channel_open_pending") or "")
+        self._update_channel_open_pending = ""
+        if not pending:
+            return
+        self._request_update_channel_open(pending)
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
@@ -825,6 +862,8 @@ class UpdatePageRuntime:
         self._auto_check_load_runtime.cancel()
 
     def _teardown_update_channel_open_worker(self) -> None:
+        self._update_channel_open_pending = ""
+        self._update_channel_open_start_scheduled = False
         self._update_channel_open_runtime.stop(
             blocking=True,
             log_fn=log,
