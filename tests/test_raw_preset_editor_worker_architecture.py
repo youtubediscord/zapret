@@ -12,7 +12,7 @@ class RawPresetEditorWorkerArchitectureTests(unittest.TestCase):
         request_methods = (
             PresetRawEditorPage._request_raw_preset_text,
             PresetRawEditorPage._start_raw_preset_save_worker,
-            PresetRawEditorPage._request_preset_activation,
+            PresetRawEditorPage._start_preset_activation_worker,
             PresetRawEditorPage._request_raw_preset_action,
         )
         page_source = inspect.getsource(PresetRawEditorPage)

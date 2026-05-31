@@ -246,6 +246,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_save_succeeded = True
         self._raw_activate_runtime = OneShotWorkerRuntime()
         self._raw_activate_request_id = 0
+        self._pending_raw_preset_activation = ""
         self._raw_action_runtime = OneShotWorkerRuntime()
         self._raw_action_request_id = 0
         self._pending_raw_preset_actions: list[dict[str, object]] = []
@@ -981,9 +982,17 @@ class PresetRawEditorPage(BasePage):
         self._request_preset_activation()
 
     def _request_preset_activation(self) -> None:
+        file_name = str(self._preset_file_name or "").strip()
+        if not file_name:
+            return
         runtime = self._raw_worker_runtime("_raw_activate_runtime")
         if runtime.is_running():
+            self._pending_raw_preset_activation = file_name
             return
+        self._start_preset_activation_worker(file_name)
+
+    def _start_preset_activation_worker(self, file_name: str) -> None:
+        runtime = self._raw_worker_runtime("_raw_activate_runtime")
         self._raw_activate_request_id += 1
         request_id = self._raw_activate_request_id
         if self.activateButton is not None:
@@ -991,7 +1000,7 @@ class PresetRawEditorPage(BasePage):
         runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_raw_preset_activate_worker(
                 request_id,
-                self._preset_file_name,
+                str(file_name or "").strip(),
                 self,
             ),
             on_loaded=self._on_preset_activation_finished,
@@ -1016,6 +1025,11 @@ class PresetRawEditorPage(BasePage):
         self._show_error(str(error))
 
     def _on_preset_activation_worker_finished(self, _worker) -> None:
+        pending = str(self.__dict__.get("_pending_raw_preset_activation") or "").strip()
+        self._pending_raw_preset_activation = ""
+        if pending and not bool(self.__dict__.get("_cleanup_in_progress", False)):
+            self._start_preset_activation_worker(pending)
+            return
         if self.activateButton is not None:
             set_enabled_if_changed(self.activateButton, True)
 
