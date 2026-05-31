@@ -70,12 +70,17 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         runtime_source = inspect.getsource(proxy_runtime_workflow.start_proxy_runtime)
         feature_source = inspect.getsource(TelegramProxyFeature)
+        toggle_source = inspect.getsource(TelegramProxyFeature.toggle_async)
         worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxyStartWorker.run)
 
         self.assertTrue(hasattr(telegram_proxy_commands, "build_upstream_config"))
         self.assertNotIn("telegram_proxy.settings", runtime_source)
         self.assertNotIn("build_upstream_config", runtime_source)
         self.assertIn("build_upstream_config=self.build_upstream_config", feature_source)
+        self.assertIn("_tray_start_runtime", feature_source)
+        self.assertIn("start_qthread_worker", toggle_source)
+        self.assertNotIn("worker.start()", toggle_source)
+        self.assertNotIn("_tray_start_worker", toggle_source)
         self.assertIn("_build_upstream_config", worker_source)
         self.assertNotIn("telegram_proxy.commands", worker_source)
 

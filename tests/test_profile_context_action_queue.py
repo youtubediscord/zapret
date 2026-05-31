@@ -34,11 +34,11 @@ class _Runtime:
 
 
 class ProfileContextActionQueueTests(unittest.TestCase):
-    def test_profile_context_action_keeps_latest_pending_action_while_worker_runs(self) -> None:
+    def test_profile_context_action_queues_pending_actions_while_worker_runs(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page.launch_method = "zapret2_mode"
         page._profile_context_action_runtime = _Runtime(running=True)
-        page._pending_profile_context_action = None
+        page._pending_profile_context_actions = []
 
         PresetSetupPageBase._request_profile_context_action(
             page,
@@ -46,17 +46,29 @@ class ProfileContextActionQueueTests(unittest.TestCase):
             "profile-a",
             enabled=False,
         )
-
-        self.assertEqual(
-            page._pending_profile_context_action,
-            {
-                "action": "set_enabled",
-                "profile_key": "profile-a",
-                "enabled": False,
-            },
+        PresetSetupPageBase._request_profile_context_action(
+            page,
+            "duplicate",
+            "profile-b",
         )
 
-    def test_profile_context_action_worker_finished_starts_pending_action(self) -> None:
+        self.assertEqual(
+            page._pending_profile_context_actions,
+            [
+                {
+                    "action": "set_enabled",
+                    "profile_key": "profile-a",
+                    "enabled": False,
+                },
+                {
+                    "action": "duplicate",
+                    "profile_key": "profile-b",
+                    "enabled": None,
+                },
+            ],
+        )
+
+    def test_profile_context_action_worker_finished_starts_next_pending_action(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page.launch_method = "zapret2_mode"
         old_worker = _Worker(running=False)
@@ -65,11 +77,18 @@ class ProfileContextActionQueueTests(unittest.TestCase):
         page._profile_context_action_request_id = 0
         page._create_profile_context_action_worker = Mock(return_value=next_worker)
         page._profile_context_action_enabled_by_request = {}
-        page._pending_profile_context_action = {
-            "action": "duplicate",
-            "profile_key": "profile-a",
-            "enabled": None,
-        }
+        page._pending_profile_context_actions = [
+            {
+                "action": "duplicate",
+                "profile_key": "profile-a",
+                "enabled": None,
+            },
+            {
+                "action": "delete",
+                "profile_key": "profile-b",
+                "enabled": None,
+            },
+        ]
 
         PresetSetupPageBase._on_profile_context_action_worker_finished(page, old_worker)
 
@@ -82,7 +101,16 @@ class ProfileContextActionQueueTests(unittest.TestCase):
             parent=page,
         )
         next_worker.start.assert_called_once_with()
-        self.assertIsNone(page._pending_profile_context_action)
+        self.assertEqual(
+            page._pending_profile_context_actions,
+            [
+                {
+                    "action": "delete",
+                    "profile_key": "profile-b",
+                    "enabled": None,
+                }
+            ],
+        )
 
 
 if __name__ == "__main__":

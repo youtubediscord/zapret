@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
+
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +27,7 @@ class TelegramProxyFeature:
     run_diagnostics: Callable
     append_log_line: Callable
     consume_auto_deeplink_request: Callable
+    _tray_start_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
 
     def is_running(self) -> bool:
         try:
@@ -168,19 +171,21 @@ class TelegramProxyFeature:
                 manager.stop_proxy()
                 self.set_enabled(False)
                 return
+            if self._tray_start_runtime.is_running():
+                return
 
             config = self.get_start_config()
-            worker = self.create_start_worker(
-                manager=manager,
-                port=config.port,
-                mode=config.mode,
-                host=config.host,
-                upstream_config=config.upstream_config,
+            self._tray_start_runtime.start_qthread_worker(
+                worker_factory=lambda _request_id: self.create_start_worker(
+                    manager=manager,
+                    port=config.port,
+                    mode=config.mode,
+                    host=config.host,
+                    upstream_config=config.upstream_config,
+                ),
+                signal_includes_request_id=False,
+                loaded_signal_name="completed",
             )
-            setattr(manager, "_tray_start_worker", worker)
-            worker.finished.connect(lambda: setattr(manager, "_tray_start_worker", None))
-            worker.finished.connect(worker.deleteLater)
-            worker.start()
         except Exception as exc:
             from log.log import log
 
