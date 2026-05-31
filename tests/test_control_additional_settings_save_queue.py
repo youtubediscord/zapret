@@ -99,6 +99,40 @@ class ControlAdditionalSettingsSaveQueueTests(unittest.TestCase):
             ],
         )
 
+    def test_zapret1_additional_settings_save_queues_while_restart_is_scheduled(self) -> None:
+        from presets.ui.control.zapret1.page import Zapret1ModeControlPage
+
+        runtime, save_runtime = _make_refresh_runtime(running=False)
+        runtime.additional_settings_save_start_scheduled = True
+        page = _make_page(Zapret1ModeControlPage, runtime)
+
+        Zapret1ModeControlPage._request_additional_settings_save(
+            page,
+            "debug_log",
+            True,
+            launch_method="zapret1",
+        )
+
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(runtime.additional_settings_save_pending, [("debug_log", True, "zapret1")])
+
+    def test_zapret2_additional_settings_save_queues_while_restart_is_scheduled(self) -> None:
+        from presets.ui.control.zapret2.page import Zapret2ModeControlPage
+
+        runtime, save_runtime = _make_refresh_runtime(running=False)
+        runtime.additional_settings_save_start_scheduled = True
+        page = _make_page(Zapret2ModeControlPage, runtime)
+
+        Zapret2ModeControlPage._request_additional_settings_save(
+            page,
+            "debug_log",
+            True,
+            launch_method="zapret2",
+        )
+
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(runtime.additional_settings_save_pending, [("debug_log", True, "zapret2")])
+
     def test_zapret1_additional_settings_finished_starts_next_pending_save(self) -> None:
         from presets.ui.control.zapret1.page import Zapret1ModeControlPage
 
