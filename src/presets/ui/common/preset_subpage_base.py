@@ -248,6 +248,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_activate_request_id = 0
         self._raw_action_runtime = OneShotWorkerRuntime()
         self._raw_action_request_id = 0
+        self._pending_raw_preset_actions: list[dict[str, object]] = []
         self._cleanup_in_progress = False
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -1021,6 +1022,12 @@ class PresetRawEditorPage(BasePage):
     def _request_raw_preset_action(self, action: str, **payload) -> None:
         runtime = self._raw_worker_runtime("_raw_action_runtime")
         if runtime.is_running():
+            self._pending_raw_preset_actions.append(
+                {
+                    "action": str(action or ""),
+                    "payload": dict(payload or {}),
+                }
+            )
             return
         self._raw_action_request_id += 1
         request_id = self._raw_action_request_id
@@ -1083,7 +1090,14 @@ class PresetRawEditorPage(BasePage):
         self._show_error(str(error))
 
     def _on_raw_preset_action_worker_finished(self, _worker) -> None:
-        pass
+        pending = self.__dict__.get("_pending_raw_preset_actions") or []
+        if pending and not self._cleanup_in_progress:
+            next_action = pending.pop(0)
+            payload = next_action.get("payload")
+            self._request_raw_preset_action(
+                str(next_action.get("action") or ""),
+                **(dict(payload) if isinstance(payload, dict) else {}),
+            )
 
     def _activation_footer_text(self) -> str:
         try:
