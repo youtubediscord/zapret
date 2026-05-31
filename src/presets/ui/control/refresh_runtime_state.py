@@ -6,6 +6,7 @@ from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 class ModeControlRefreshRuntime:
     def __init__(self) -> None:
         self.additional_settings_load_runtime = OneShotWorkerRuntime()
+        self.additional_settings_load_pending = False
         self.additional_settings_save_runtime = OneShotWorkerRuntime()
         self.additional_settings_save_pending = None
         self.additional_settings_request_id = 0

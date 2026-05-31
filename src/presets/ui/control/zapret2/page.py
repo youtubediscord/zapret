@@ -465,6 +465,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
             return
         if runtime.additional_settings_load_runtime.is_running():
+            runtime.additional_settings_load_pending = True
+            runtime.additional_settings_dirty = True
             return
 
         request_id = runtime.next_additional_settings_request_id()
@@ -476,6 +478,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
                 parent=self,
             ),
             on_loaded=self._on_additional_settings_loaded,
+            on_finished=self._on_additional_settings_load_worker_finished,
             loaded_signal_name="loaded",
         )
 
@@ -484,6 +487,14 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             return
         plan = _zapret2_page_runtime().build_additional_settings_state(state if isinstance(state, dict) else {})
         self._apply_additional_settings_state(plan)
+
+    def _on_additional_settings_load_worker_finished(self, worker) -> None:
+        runtime = self._refresh_runtime
+        if runtime.additional_settings_load_pending and not self._cleanup_in_progress:
+            runtime.additional_settings_load_pending = False
+            self._schedule_additional_settings_reload(force=True)
+            return
+        runtime.additional_settings_load_pending = False
 
     def _on_discord_restart_changed(self, enabled: bool) -> None:
         self._request_additional_settings_save("discord_restart", bool(enabled), launch_method=ZAPRET2_MODE)
