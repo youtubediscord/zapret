@@ -40,6 +40,7 @@ class ControlProgramSettingsSaveQueueTests(unittest.TestCase):
         page._refresh_runtime = SimpleNamespace(
             program_settings_save_runtime=save_runtime,
             program_settings_save_pending=[],
+            program_settings_save_start_scheduled=False,
         )
         page.create_program_settings_save_worker = Mock(return_value=object())
         page._on_program_settings_save_finished = Mock()
@@ -61,6 +62,15 @@ class ControlProgramSettingsSaveQueueTests(unittest.TestCase):
                 ("hide_to_tray", False),
             ],
         )
+
+    def test_program_settings_save_queues_while_restart_is_scheduled(self) -> None:
+        page, save_runtime = self._make_page(running=False)
+        page._refresh_runtime.program_settings_save_start_scheduled = True
+
+        _Page._request_program_settings_save(page, "hide_to_tray", True)
+
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(page._refresh_runtime.program_settings_save_pending, [("hide_to_tray", True)])
 
     def test_program_settings_finished_starts_next_pending_save(self) -> None:
         page, save_runtime = self._make_page(running=False)

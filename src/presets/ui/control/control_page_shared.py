@@ -304,7 +304,10 @@ class ControlPageActionMixin:
 
     def _request_program_settings_save(self, action: str, enabled: bool) -> None:
         runtime = self._refresh_runtime
-        if runtime.program_settings_save_runtime.is_running():
+        if (
+            runtime.program_settings_save_runtime.is_running()
+            or bool(getattr(runtime, "program_settings_save_start_scheduled", False))
+        ):
             runtime.program_settings_save_pending.append((action, bool(enabled)))
             return
 
@@ -385,6 +388,11 @@ class ControlPageActionMixin:
             self._schedule_program_settings_save_start(str(next_save[0]), bool(next_save[1]))
 
     def _schedule_program_settings_save_start(self, action: str, enabled: bool) -> None:
+        runtime = self._refresh_runtime
+        if bool(getattr(runtime, "program_settings_save_start_scheduled", False)):
+            runtime.program_settings_save_pending.insert(0, (action, bool(enabled)))
+            return
+        runtime.program_settings_save_start_scheduled = True
         try:
             QTimer.singleShot(
                 0,
@@ -394,6 +402,7 @@ class ControlPageActionMixin:
             self._run_scheduled_program_settings_save_start(str(action or ""), bool(enabled))
 
     def _run_scheduled_program_settings_save_start(self, action: str, enabled: bool) -> None:
+        self._refresh_runtime.program_settings_save_start_scheduled = False
         if bool(getattr(self, "_cleanup_in_progress", False)):
             return
         self._request_program_settings_save(str(action or ""), bool(enabled))
@@ -459,5 +468,6 @@ def cleanup_control_page_subscriptions(owner) -> None:
         runtime.program_settings_load_runtime.cancel()
 
         runtime.program_settings_save_pending.clear()
+        runtime.program_settings_save_start_scheduled = False
         runtime.program_settings_save_runtime.stop(warning_prefix="Program settings save worker")
         runtime.program_settings_save_runtime.cancel()
