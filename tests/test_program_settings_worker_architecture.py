@@ -42,6 +42,15 @@ class ProgramSettingsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("import program_settings.commands", worker_source)
         self.assertNotIn("program_settings_commands.set_auto_dpi_enabled", worker_source)
 
+    def test_feature_does_not_expose_direct_program_setting_setters(self) -> None:
+        for method_name in (
+            "set_auto_dpi_enabled",
+            "set_hide_to_tray_on_minimize_close",
+            "set_defender_disabled",
+            "set_max_block_enabled",
+        ):
+            self.assertFalse(hasattr(ProgramSettingsFeature, method_name), method_name)
+
 
 if __name__ == "__main__":
     unittest.main()

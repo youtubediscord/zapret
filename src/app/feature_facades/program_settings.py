@@ -66,12 +66,6 @@ class ProgramSettingsFeature:
             apply_snapshot_fn=apply_snapshot_fn,
         )
 
-    def set_auto_dpi_enabled(self, enabled: bool):
-        return self._commands().set_auto_dpi_enabled(enabled)
-
-    def set_hide_to_tray_on_minimize_close(self, enabled: bool) -> bool:
-        return bool(self._commands().set_hide_to_tray_on_minimize_close(enabled))
-
     def save_ui_state_settings(self, values: dict) -> dict:
         return self._commands().save_ui_state_settings(dict(values or {}))
 
@@ -87,24 +81,16 @@ class ProgramSettingsFeature:
 
     def _program_settings_save_action(self, action: str):
         normalized_action = str(action or "").strip()
-
-        def save_auto_dpi(enabled: bool, *, status_callback=None):
-            return self.set_auto_dpi_enabled(enabled)
+        commands = self._commands()
 
         def save_hide_to_tray(enabled: bool, *, status_callback=None):
-            return self.set_hide_to_tray_on_minimize_close(enabled)
-
-        def save_defender_disabled(enabled: bool, *, status_callback=None):
-            return self.set_defender_disabled(enabled, status_callback=status_callback)
-
-        def save_max_block(enabled: bool, *, status_callback=None):
-            return self.set_max_block_enabled(enabled, status_callback=status_callback)
+            return bool(commands.set_hide_to_tray_on_minimize_close(enabled))
 
         actions = {
-            "auto_dpi": save_auto_dpi,
+            "auto_dpi": commands.set_auto_dpi_enabled,
             "hide_to_tray": save_hide_to_tray,
-            "defender_disabled": save_defender_disabled,
-            "max_block": save_max_block,
+            "defender_disabled": commands.set_defender_disabled,
+            "max_block": commands.set_max_block_enabled,
         }
         save_action = actions.get(normalized_action)
         if save_action is not None:
@@ -143,12 +129,6 @@ class ProgramSettingsFeature:
             is_user_admin=self.is_user_admin,
             parent=parent,
         )
-
-    def set_defender_disabled(self, disable: bool, *, status_callback=None):
-        return self._commands().set_defender_disabled(disable, status_callback=status_callback)
-
-    def set_max_block_enabled(self, enable: bool, *, status_callback=None):
-        return self._commands().set_max_block_enabled(enable, status_callback=status_callback)
 
 
 def build_program_settings_feature() -> ProgramSettingsFeature:
