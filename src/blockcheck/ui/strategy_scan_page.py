@@ -98,6 +98,7 @@ class StrategyScanPage(BasePage):
         self._prepare_support_btn = None
         self._support_status_label = None
         self._cleanup_in_progress = False
+        self._strategy_scan_run_runtime = OneShotWorkerRuntime()
         self._strategy_apply_runtime = OneShotWorkerRuntime()
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._quick_targets_runtime = OneShotWorkerRuntime()
@@ -506,7 +507,10 @@ class StrategyScanPage(BasePage):
         self._progress_bar.setVisible(True)
         self._progress_bar.setValue(self._scan_cursor)
         self._status_label.setText(run_result.status_text)
-        start_strategy_scan_worker(self._worker)
+        start_strategy_scan_worker(
+            self._worker,
+            run_runtime=self._strategy_scan_run_runtime,
+        )
 
     def _on_stop(self):
         request_strategy_scan_stop(
@@ -949,4 +953,9 @@ class StrategyScanPage(BasePage):
             warning_prefix="strategy scan finalize worker",
         )
         self._strategy_scan_finalize_runtime.cancel()
+        self._strategy_scan_run_runtime.stop(
+            blocking=False,
+            warning_prefix="strategy scan run worker",
+        )
+        self._strategy_scan_run_runtime.cancel()
         self._worker = cleanup_strategy_scan_worker(self._worker)

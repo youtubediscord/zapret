@@ -87,9 +87,12 @@ def start_strategy_scan_run(
     )
 
 
-def start_strategy_scan_worker(worker) -> None:
+def start_strategy_scan_worker(worker, *, run_runtime) -> None:
     """Запускает уже подготовленный worker подбора стратегии."""
-    worker.start()
+    run_runtime.start_qthread_worker(
+        worker_factory=lambda _request_id: worker,
+        signal_includes_request_id=False,
+    )
 
 
 def record_strategy_scan_result(
