@@ -20,7 +20,6 @@ class UserPresetsRuntimeAdapter:
     cached_metadata: Callable[[], dict[str, dict[str, object]] | None]
     load_all_metadata: Callable[[], dict[str, dict[str, object]]]
     load_folder_state: Callable[[], dict[str, Any]]
-    delete_preset_item_meta: Callable[[str], None]
     build_rows_plan: Callable[..., object]
     apply_rows_plan: Callable[[object, float | None], None]
 
@@ -863,10 +862,6 @@ class UserPresetsRuntimeService:
         normalized_name = str(name or "").strip()
         if not normalized_name:
             return False
-        try:
-            adapter.delete_preset_item_meta(normalized_name)
-        except Exception:
-            pass
 
         removed_metadata = False
         for key in _preset_metadata_keys(normalized_name):
@@ -978,11 +973,6 @@ class UserPresetsRuntimeService:
 
     def recover_missing_deleted_preset(self, name: str, page=None) -> None:
         page = self._resolve_page(page)
-        adapter = self._resolve_adapter()
-        try:
-            adapter.delete_preset_item_meta(name)
-        except Exception:
-            pass
 
         normalized_name = str(name or "").strip()
         if normalized_name:

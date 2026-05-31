@@ -117,7 +117,6 @@ class UserPresetsPageBase(BasePage):
         create_preset_folder_action_worker,
         create_preset_storage_action_worker,
         load_preset_folder_state,
-        delete_preset_item_meta,
         open_preset_raw_editor,
         ui_state_store,
     ):
@@ -139,7 +138,6 @@ class UserPresetsPageBase(BasePage):
         self._create_preset_folder_action_worker_fn = create_preset_folder_action_worker
         self._create_preset_storage_action_worker_fn = create_preset_storage_action_worker
         self._load_preset_folder_state_fn = load_preset_folder_state
-        self._delete_preset_item_meta_fn = delete_preset_item_meta
         self._open_preset_raw_editor_callback = open_preset_raw_editor
         self._page_api = self._build_page_runtime().build_page_api()
         self._runtime_service = self._build_runtime_service()
@@ -246,7 +244,6 @@ class UserPresetsPageBase(BasePage):
             load_folder_state=self._load_preset_folder_state_light,
             build_rows_plan=self._build_preset_rows_plan,
             apply_rows_plan=self._apply_presets_rows_plan,
-            delete_preset_item_meta=lambda name: self._delete_preset_item_meta_fn(self._folder_scope_key(), name),
         )
 
     def _apply_mode_labels(self) -> None:

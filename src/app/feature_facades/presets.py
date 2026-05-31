@@ -744,11 +744,6 @@ class PresetsFeature:
 
         return load_preset_folder_state(scope_key)
 
-    def delete_preset_item_meta(self, scope_key: str, file_name: str):
-        from presets.folders import delete_preset_item_meta
-
-        return delete_preset_item_meta(scope_key, file_name)
-
     def create_preset_folder_action_worker(
         self,
         request_id: int,

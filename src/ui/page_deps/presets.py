@@ -209,7 +209,6 @@ def build_user_presets_page_kwargs(
         "create_preset_folder_action_worker": presets_feature.create_preset_folder_action_worker,
         "create_preset_storage_action_worker": presets_feature.create_preset_storage_action_worker,
         "load_preset_folder_state": presets_feature.load_preset_folder_state,
-        "delete_preset_item_meta": presets_feature.delete_preset_item_meta,
         "open_preset_raw_editor": lambda preset_name, m=method: open_preset_raw_editor(
             m,
             preset_name,

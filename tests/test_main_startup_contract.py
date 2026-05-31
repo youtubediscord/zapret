@@ -2388,7 +2388,6 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             cached_metadata=Mock(return_value={"a.txt": {"display_name": "A"}}),
             load_all_metadata=Mock(return_value={}),
             load_folder_state=Mock(return_value={}),
-            delete_preset_item_meta=Mock(),
             build_rows_plan=Mock(),
             apply_rows_plan=Mock(),
         )

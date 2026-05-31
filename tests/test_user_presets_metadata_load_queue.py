@@ -65,7 +65,6 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
             load_folder_state=lambda: {},
             build_rows_plan=lambda _metadata, _folder_state: object(),
             apply_rows_plan=lambda _plan, _started_at: None,
-            delete_preset_item_meta=lambda _name: None,
         )
         service = UserPresetsRuntimeService()
         service.attach_page(page, adapter)
@@ -99,7 +98,6 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
             load_folder_state=lambda: {},
             build_rows_plan=lambda _metadata, _folder_state: object(),
             apply_rows_plan=lambda _plan, _started_at: None,
-            delete_preset_item_meta=lambda _name: None,
         )
         service = UserPresetsRuntimeService()
         service.attach_page(page, adapter)
@@ -138,7 +136,6 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
             load_folder_state=lambda: {},
             build_rows_plan=lambda _metadata, _folder_state: object(),
             apply_rows_plan=lambda _plan, _started_at: None,
-            delete_preset_item_meta=lambda _name: None,
         )
         service = UserPresetsRuntimeService()
         service.attach_page(page, adapter)
@@ -152,6 +149,32 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         self.assertEqual(calls, ["rows"])
         self._app.processEvents()
         self.assertEqual(calls, ["rows", "watcher"])
+
+    def test_remove_deleted_preset_locally_does_not_write_folder_meta_from_gui_path(self) -> None:
+        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+
+        model = Mock()
+        model.remove_preset.return_value = True
+        page = SimpleNamespace(isVisible=lambda: True, _presets_model=model)
+        adapter = UserPresetsRuntimeAdapter(
+            bulk_reset_running=lambda: False,
+            read_single_metadata=lambda _name: None,
+            selected_source_file_name=lambda: "",
+            presets_dir=lambda: None,
+            cached_metadata=lambda: {},
+            load_all_metadata=lambda: {},
+            load_folder_state=lambda: {},
+            build_rows_plan=lambda _metadata, _folder_state: object(),
+            apply_rows_plan=lambda _plan, _started_at: None,
+        )
+        service = UserPresetsRuntimeService()
+        service.attach_page(page, adapter)
+        service._cached_presets_metadata = {"Deleted.txt": {}}
+        service.sync_watched_preset_files = Mock()
+
+        self.assertTrue(service.remove_deleted_preset_locally("Deleted.txt", page))
+
+        self.assertFalse(hasattr(adapter, "delete_preset_item_meta"))
 
 
 if __name__ == "__main__":

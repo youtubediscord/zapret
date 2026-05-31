@@ -72,7 +72,7 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
         self.assertIn("create_preset_folder_action_worker", init_source)
         self.assertIn("create_preset_storage_action_worker", init_source)
         self.assertIn("load_preset_folder_state", init_source)
-        self.assertIn("delete_preset_item_meta", init_source)
+        self.assertNotIn("delete_preset_item_meta", init_source)
         self.assertNotIn("from presets.folders import", page_source)
 
         presets = Mock()
@@ -119,7 +119,7 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
             presets.create_preset_storage_action_worker,
         )
         self.assertIs(kwargs["load_preset_folder_state"], presets.load_preset_folder_state)
-        self.assertIs(kwargs["delete_preset_item_meta"], presets.delete_preset_item_meta)
+        self.assertNotIn("delete_preset_item_meta", kwargs)
 
     def test_user_presets_page_uses_worker_runtime_instead_of_manual_worker_fields(self) -> None:
         from presets.ui.common.user_presets_page import UserPresetsPageBase
