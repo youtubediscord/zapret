@@ -19,6 +19,7 @@ def start_blockcheck_page_run(
     extra_domains: list[str],
     skip_preflight_failed: bool,
     parent,
+    run_runtime,
     table,
     tcp_table,
     tcp_section_label,
@@ -75,7 +76,10 @@ def start_blockcheck_page_run(
     worker.log_message.connect(on_log)
     worker.run_log_started.connect(on_run_log_started)
     worker.finished.connect(on_finished)
-    worker.start()
+    run_runtime.start_qthread_worker(
+        worker_factory=lambda _request_id: worker,
+        signal_includes_request_id=False,
+    )
 
     return BlockcheckRunStartResult(
         worker=worker,

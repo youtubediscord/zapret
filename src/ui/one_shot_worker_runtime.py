@@ -29,8 +29,11 @@ class OneShotWorkerRuntime:
         if target is None:
             return False
         try:
+            if hasattr(target, "is_running"):
+                running_state = getattr(target, "is_running")
+                return bool(running_state() if callable(running_state) else running_state)
             return bool(target.isRunning())
-        except RuntimeError:
+        except (AttributeError, RuntimeError):
             self.worker = None
             self.thread = None
             return False
@@ -96,7 +99,7 @@ class OneShotWorkerRuntime:
                 failed_signal.connect(on_failed)
             else:
                 failed_signal.connect(lambda *args, req=request_id: on_failed(req, *args))
-        worker.finished.connect(lambda w=worker: self._finish_qthread_worker(w, on_finished))
+        worker.finished.connect(lambda *_args, w=worker: self._finish_qthread_worker(w, on_finished))
         worker.finished.connect(worker.deleteLater)
         if bind_worker is not None:
             bind_worker(worker)
@@ -134,8 +137,12 @@ class OneShotWorkerRuntime:
         if target is None:
             return
         try:
-            running = bool(target.isRunning())
-        except RuntimeError:
+            if hasattr(target, "is_running"):
+                running_state = getattr(target, "is_running")
+                running = bool(running_state() if callable(running_state) else running_state)
+            else:
+                running = bool(target.isRunning())
+        except (AttributeError, RuntimeError):
             self.worker = None
             self.thread = None
             return

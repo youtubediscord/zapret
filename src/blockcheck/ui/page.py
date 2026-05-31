@@ -118,6 +118,7 @@ class BlockcheckPage(BasePage):
         self._initial_state = blockcheck_page_runtime.BlockcheckPageInitialStatePlan(user_domains=())
         self._initial_state_runtime = OneShotWorkerRuntime()
         self._initial_state_load_started_at = 0.0
+        self._run_runtime = OneShotWorkerRuntime()
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._user_domain_action_runtime = OneShotWorkerRuntime()
         self._user_domain_action_pending: list[dict[str, str]] = []
@@ -595,6 +596,7 @@ class BlockcheckPage(BasePage):
             extra_domains=extra,
             skip_preflight_failed=self._skip_failed_cb.isChecked(),
             parent=self,
+            run_runtime=self._run_runtime,
             table=self._table,
             tcp_table=self._tcp_table,
             tcp_section_label=self._tcp_section_label,
@@ -1068,6 +1070,12 @@ class BlockcheckPage(BasePage):
             warning_prefix="blockcheck user domain action worker",
         )
         self._user_domain_action_runtime.cancel()
+        self._run_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="blockcheck run worker",
+        )
+        self._run_runtime.cancel()
         self._worker = cleanup_blockcheck_worker(self._worker)
 
         for page in (self._strategy_tab_page, self._diagnostics_tab_page, self._dns_spoofing_tab_page):
