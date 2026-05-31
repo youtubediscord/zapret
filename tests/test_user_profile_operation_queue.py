@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from profile.ui.preset_setup_page import PresetSetupPageBase
 
@@ -74,6 +74,7 @@ class UserProfileOperationQueueTests(unittest.TestCase):
 
     def test_user_profile_worker_finished_starts_next_pending_operation(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._cleanup_in_progress = False
         page._user_profile_update_request_id = 0
         page._set_user_profile_actions_enabled = Mock()
         next_worker = _Worker(running=False)
@@ -94,8 +95,20 @@ class UserProfileOperationQueueTests(unittest.TestCase):
                 "ports": "",
             },
         ]
+        callbacks = []
 
-        PresetSetupPageBase._on_user_profile_create_worker_finished(page, _Worker())
+        with patch(
+            "profile.ui.preset_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetSetupPageBase._on_user_profile_create_worker_finished(page, _Worker())
+
+        page._create_user_profile_update_worker.assert_not_called()
+        next_worker.start.assert_not_called()
+        page._set_user_profile_actions_enabled.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page._create_user_profile_update_worker.assert_called_once_with(
             1,

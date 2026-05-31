@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from profile.ui.preset_setup_page import PresetSetupPageBase
 
@@ -71,6 +71,7 @@ class ProfileContextActionQueueTests(unittest.TestCase):
     def test_profile_context_action_worker_finished_starts_next_pending_action(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page.launch_method = "zapret2_mode"
+        page._cleanup_in_progress = False
         old_worker = _Worker(running=False)
         next_worker = _Worker(running=False)
         page._profile_context_action_worker = old_worker
@@ -89,8 +90,19 @@ class ProfileContextActionQueueTests(unittest.TestCase):
                 "enabled": None,
             },
         ]
+        callbacks = []
 
-        PresetSetupPageBase._on_profile_context_action_worker_finished(page, old_worker)
+        with patch(
+            "profile.ui.preset_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetSetupPageBase._on_profile_context_action_worker_finished(page, old_worker)
+
+        page._create_profile_context_action_worker.assert_not_called()
+        next_worker.start.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
 
         page._create_profile_context_action_worker.assert_called_once_with(
             1,

@@ -1536,6 +1536,35 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("ProfileFolderActionWorker", create_source)
         self.assertIn("_create_profile_folder_action_worker_fn", create_source)
 
+    def test_profile_preset_write_queue_restarts_after_worker_signal_returns(self) -> None:
+        context_finished = inspect.getsource(PresetSetupPageBase._on_profile_context_action_worker_finished)
+        move_finished = inspect.getsource(PresetSetupPageBase._on_profile_move_worker_finished)
+        create_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_create_worker_finished)
+        update_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_update_worker_finished)
+        delete_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_delete_worker_finished)
+        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_start)
+        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profile_preset_write_operation_start)
+
+        for source in (context_finished, move_finished, create_finished, update_finished, delete_finished):
+            self.assertIn("_schedule_next_profile_preset_write_operation_start", source)
+            self.assertNotIn("_start_next_profile_preset_write_operation()", source)
+
+        self.assertIn("QTimer.singleShot", schedule_source)
+        self.assertIn("_run_scheduled_profile_preset_write_operation_start", schedule_source)
+        self.assertIn("_start_next_profile_preset_write_operation", run_source)
+
+    def test_profile_folder_action_queue_restarts_after_worker_signal_returns(self) -> None:
+        finished_source = inspect.getsource(PresetSetupPageBase._on_profile_folder_action_worker_finished)
+        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_profile_folder_action_start)
+        run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profile_folder_action_start)
+
+        self.assertIn("_profile_folder_action_pending.pop(0)", finished_source)
+        self.assertIn("_schedule_profile_folder_action_start", finished_source)
+        self.assertNotIn("_request_profile_folder_action(", finished_source)
+        self.assertIn("QTimer.singleShot", schedule_source)
+        self.assertIn("_run_scheduled_profile_folder_action_start", schedule_source)
+        self.assertIn("_request_profile_folder_action", run_source)
+
     def test_profile_move_updates_visible_list_locally_after_worker(self) -> None:
         finished_source = inspect.getsource(PresetSetupPageBase._on_profile_move_finished)
         local_source = inspect.getsource(PresetSetupPageBase._apply_profile_move_locally)

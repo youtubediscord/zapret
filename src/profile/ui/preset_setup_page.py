@@ -656,6 +656,37 @@ class PresetSetupPageBase(BasePage):
             }
         return None
 
+    def _has_pending_profile_preset_write_operation(self) -> bool:
+        return any(
+            self.__dict__.get(attr)
+            for attr in (
+                "_pending_profile_preset_write_operations",
+                "_pending_profile_context_actions",
+                "_pending_profile_moves",
+                "_pending_user_profile_operations",
+            )
+        )
+
+    def _schedule_next_profile_preset_write_operation_start(self) -> bool:
+        if self._profile_preset_write_operation_running():
+            return True
+        if not self._has_pending_profile_preset_write_operation():
+            return False
+        if self.__dict__.get("_profile_preset_write_operation_start_scheduled", False):
+            return True
+        self._profile_preset_write_operation_start_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_profile_preset_write_operation_start)
+        except Exception:
+            self._run_scheduled_profile_preset_write_operation_start()
+        return True
+
+    def _run_scheduled_profile_preset_write_operation_start(self) -> None:
+        self._profile_preset_write_operation_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_next_profile_preset_write_operation()
+
     def _start_next_profile_preset_write_operation(self) -> bool:
         if self._profile_preset_write_operation_running():
             return True
@@ -766,7 +797,7 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_profile_context_action_worker_finished(self, worker) -> None:
-        self._start_next_profile_preset_write_operation()
+        self._schedule_next_profile_preset_write_operation_start()
 
     def _create_profile_context_action_worker(
         self,
@@ -1003,7 +1034,7 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_user_profile_create_worker_finished(self, worker) -> None:
-        if self._start_next_profile_preset_write_operation():
+        if self._schedule_next_profile_preset_write_operation_start():
             return
         if not self._user_profile_operation_running():
             self._set_user_profile_actions_enabled(True)
@@ -1077,7 +1108,7 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_user_profile_update_worker_finished(self, worker) -> None:
-        if self._start_next_profile_preset_write_operation():
+        if self._schedule_next_profile_preset_write_operation_start():
             return
         if not self._user_profile_operation_running():
             self._set_user_profile_actions_enabled(True)
@@ -1139,7 +1170,7 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_user_profile_delete_worker_finished(self, worker) -> None:
-        if self._start_next_profile_preset_write_operation():
+        if self._schedule_next_profile_preset_write_operation_start():
             return
         if not self._user_profile_operation_running():
             self._set_user_profile_actions_enabled(True)
@@ -1260,7 +1291,7 @@ class PresetSetupPageBase(BasePage):
         self.refresh_from_preset_switch()
 
     def _on_profile_move_worker_finished(self, worker) -> None:
-        self._start_next_profile_preset_write_operation()
+        self._schedule_next_profile_preset_write_operation_start()
 
     def _apply_profile_move_locally(
         self,
@@ -1451,15 +1482,26 @@ class PresetSetupPageBase(BasePage):
     def _on_profile_folder_action_worker_finished(self, worker) -> None:
         if self._profile_folder_action_pending and not self._cleanup_in_progress:
             pending = self._profile_folder_action_pending.pop(0)
-            self._request_profile_folder_action(
-                str(pending.get("action") or ""),
-                folder_key=str(pending.get("folder_key") or ""),
-                name=str(pending.get("name") or ""),
-                direction=int(pending.get("direction") or 0),
-                collapsed=bool(pending.get("collapsed")),
-                refresh=bool(pending.get("refresh", True)),
-                context_extra=dict(pending.get("context_extra") or {}),
-            )
+            self._schedule_profile_folder_action_start(pending)
+
+    def _schedule_profile_folder_action_start(self, pending: dict[str, object]) -> None:
+        try:
+            QTimer.singleShot(0, lambda p=dict(pending or {}): self._run_scheduled_profile_folder_action_start(p))
+        except Exception:
+            self._run_scheduled_profile_folder_action_start(dict(pending or {}))
+
+    def _run_scheduled_profile_folder_action_start(self, pending: dict[str, object]) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._request_profile_folder_action(
+            str(pending.get("action") or ""),
+            folder_key=str(pending.get("folder_key") or ""),
+            name=str(pending.get("name") or ""),
+            direction=int(pending.get("direction") or 0),
+            collapsed=bool(pending.get("collapsed")),
+            refresh=bool(pending.get("refresh", True)),
+            context_extra=dict(pending.get("context_extra") or {}),
+        )
 
     def apply_profile_setup_change(self, profile_key: str, change_kind: str, profile_item=None) -> None:
         clean_profile_key = str(profile_key or "").strip()
