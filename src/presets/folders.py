@@ -134,6 +134,8 @@ def move_preset_before(
     items = state.setdefault("items", {})
     if not source or not destination or source == destination:
         return False
+    scope = _normalize_scope(scope_key)
+    before_state = normalize_folder_state(state, build_default_preset_folders(scope))
     destination_meta = items.setdefault(destination, {"folder_key": "common", "order": None, "rating": 0})
     folder_key = str(destination_folder_key or destination_meta.get("folder_key") or "common")
     destination_meta["folder_key"] = folder_key
@@ -149,6 +151,8 @@ def move_preset_before(
     ordered.insert(ordered.index(destination), source)
     for index, key in enumerate(ordered):
         items.setdefault(key, {"folder_key": folder_key, "order": None, "rating": 0})["order"] = index
+    if normalize_folder_state(state, build_default_preset_folders(scope)) == before_state:
+        return False
     save_preset_folder_state(scope_key, state)
     return True
 
@@ -166,6 +170,8 @@ def move_preset_after(
     items = state.setdefault("items", {})
     if not source or not destination or source == destination:
         return False
+    scope = _normalize_scope(scope_key)
+    before_state = normalize_folder_state(state, build_default_preset_folders(scope))
     destination_meta = items.setdefault(destination, {"folder_key": "common", "order": None, "rating": 0})
     folder_key = str(destination_folder_key or destination_meta.get("folder_key") or "common")
     destination_meta["folder_key"] = folder_key
@@ -181,6 +187,8 @@ def move_preset_after(
     ordered.insert(ordered.index(destination) + 1, source)
     for index, key in enumerate(ordered):
         items.setdefault(key, {"folder_key": folder_key, "order": None, "rating": 0})["order"] = index
+    if normalize_folder_state(state, build_default_preset_folders(scope)) == before_state:
+        return False
     save_preset_folder_state(scope_key, state)
     return True
 

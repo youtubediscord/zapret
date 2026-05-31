@@ -151,13 +151,14 @@ def move_profile_before_in_folder_state(
     ordered_profile_keys: list[str],
     *,
     destination_folder_key: str = "",
-) -> None:
+) -> bool:
     source = str(source_profile_key or "").strip()
     destination = str(destination_profile_key or "").strip()
     keys = [str(key or "").strip() for key in ordered_profile_keys if str(key or "").strip()]
     if not source or not destination or source == destination or source not in keys or destination not in keys:
-        return
+        return False
     state = load_profile_folder_state()
+    before_state = normalize_folder_state(state, build_default_profile_folders())
     items = state.setdefault("items", {})
     destination_meta = items.setdefault(destination, {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0})
     folder_key = str(destination_folder_key or destination_meta.get("folder_key") or COMMON_FOLDER_KEY)
@@ -170,7 +171,10 @@ def move_profile_before_in_folder_state(
         meta = items.setdefault(key, {"folder_key": folder_key, "order": None, "rating": 0})
         if str(meta.get("folder_key") or COMMON_FOLDER_KEY) == folder_key:
             meta["order"] = index
+    if normalize_folder_state(state, build_default_profile_folders()) == before_state:
+        return False
     save_profile_folder_state(state)
+    return True
 
 
 def move_profile_after_in_folder_state(
@@ -179,13 +183,14 @@ def move_profile_after_in_folder_state(
     ordered_profile_keys: list[str],
     *,
     destination_folder_key: str = "",
-) -> None:
+) -> bool:
     source = str(source_profile_key or "").strip()
     destination = str(destination_profile_key or "").strip()
     keys = [str(key or "").strip() for key in ordered_profile_keys if str(key or "").strip()]
     if not source or not destination or source == destination or source not in keys or destination not in keys:
-        return
+        return False
     state = load_profile_folder_state()
+    before_state = normalize_folder_state(state, build_default_profile_folders())
     items = state.setdefault("items", {})
     destination_meta = items.setdefault(destination, {"folder_key": COMMON_FOLDER_KEY, "order": None, "rating": 0})
     folder_key = str(destination_folder_key or destination_meta.get("folder_key") or COMMON_FOLDER_KEY)
@@ -198,7 +203,10 @@ def move_profile_after_in_folder_state(
         meta = items.setdefault(key, {"folder_key": folder_key, "order": None, "rating": 0})
         if str(meta.get("folder_key") or COMMON_FOLDER_KEY) == folder_key:
             meta["order"] = index
+    if normalize_folder_state(state, build_default_profile_folders()) == before_state:
+        return False
     save_profile_folder_state(state)
+    return True
 
 
 def move_profile_to_end_in_folder_state(profile_key: str, ordered_profile_keys: list[str], *, source_folder_key: str = "") -> None:

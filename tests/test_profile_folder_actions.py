@@ -144,6 +144,21 @@ class ProfileFolderActionTests(unittest.TestCase):
         self.assertEqual(state["items"]["a"]["order"], 1)
         self.assertEqual(state["items"]["c"]["order"], 2)
 
+    def test_duplicate_profile_move_after_skips_folder_state_save(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                state = load_profile_folder_state()
+                for index, key in enumerate(("a", "b", "c")):
+                    state["items"][key] = {"folder_key": COMMON_FOLDER_KEY, "order": index, "rating": 0}
+                save_profile_folder_state(state)
+
+                move_profile_after_in_folder_state("a", "b", ["a", "b", "c"])
+                with patch(
+                    "profile.folders.save_profile_folder_state",
+                    side_effect=AssertionError("unchanged profile folder order must not be saved"),
+                ):
+                    self.assertFalse(move_profile_after_in_folder_state("a", "b", ["b", "a", "c"]))
+
 
 if __name__ == "__main__":
     unittest.main()
