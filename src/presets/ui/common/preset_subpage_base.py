@@ -833,7 +833,7 @@ class PresetRawEditorPage(BasePage):
         self._pending_raw_preset_save = None
         if pending and not self._cleanup_in_progress:
             if pending[1] is None:
-                self._save_file(publish_content_changed=pending[2])
+                self._schedule_pending_raw_preset_save(bool(pending[2]))
                 return
             self._start_raw_preset_save_worker(
                 file_name=pending[0],
@@ -848,6 +848,15 @@ class PresetRawEditorPage(BasePage):
             if self._raw_preset_write_is_running():
                 return
         self._start_next_raw_preset_write_operation()
+
+    def _schedule_pending_raw_preset_save(self, publish_content_changed: bool) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda: self._save_file(publish_content_changed=bool(publish_content_changed)),
+            )
+        except Exception:
+            self._save_file(publish_content_changed=bool(publish_content_changed))
 
     def _commit_pending_content_change(self) -> None:
         if self._cleanup_in_progress or not self._content_publish_pending:

@@ -182,6 +182,29 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         self.assertEqual(page.editor.plain_text_read_calls, [])
         self.assertEqual(page._pending_raw_preset_save, ("Default.txt", None, True))
 
+    def test_pending_raw_preset_save_restarts_after_worker_signal(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._cleanup_in_progress = False
+        page._pending_raw_preset_save = ("Default.txt", None, True)
+        page._after_raw_preset_save = None
+        page._save_file = Mock(return_value=True)
+        callbacks = []
+
+        with patch(
+            "presets.ui.common.preset_subpage_base.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetRawEditorPage._on_raw_preset_save_worker_finished(page, object())
+
+        page._save_file.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._save_file.assert_called_once_with(publish_content_changed=True)
+
     def test_status_message_update_skips_runtime_toggle_render(self) -> None:
         from app.state_store import AppUiState
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
