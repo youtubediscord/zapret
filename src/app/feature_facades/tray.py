@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 
 @dataclass(slots=True)
@@ -12,9 +14,9 @@ class TrayFeature:
     _notify: Any = None
     _log_startup_metric: Any = None
     _tray_manager: Any = None
-    _opacity_save_worker: Any = None
+    _opacity_save_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
     _opacity_save_pending: int | None = None
-    _github_api_removal_toggle_worker: Any = None
+    _github_api_removal_toggle_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
 
     @staticmethod
     def _commands():
@@ -124,35 +126,25 @@ class TrayFeature:
         self._telegram_proxy_feature.toggle_async()
 
     def toggle_github_api_removal(self, *, status_callback=None) -> bool:
-        worker = self._github_api_removal_toggle_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    if status_callback:
-                        status_callback("Переключение удаления GitHub API уже выполняется")
-                    return False
-            except RuntimeError:
-                self._github_api_removal_toggle_worker = None
+        if self._github_api_removal_toggle_runtime.is_running():
+            if status_callback:
+                status_callback("Переключение удаления GitHub API уже выполняется")
+            return False
 
-        worker = self.create_github_api_removal_toggle_worker(parent=None)
-        self._github_api_removal_toggle_worker = worker
-        worker.completed.connect(
-            lambda ok, message, cb=status_callback, w=worker: self._on_github_api_removal_toggle_finished(
-                w,
+        self._github_api_removal_toggle_runtime.start_qthread_worker(
+            worker_factory=lambda _request_id: self.create_github_api_removal_toggle_worker(parent=None),
+            on_loaded=lambda _request_id, ok, message: self._on_github_api_removal_toggle_finished(
                 bool(ok),
                 str(message or ""),
-                cb,
-            )
-        )
-        worker.failed.connect(
-            lambda error, cb=status_callback, w=worker: self._on_github_api_removal_toggle_failed(
-                w,
+                status_callback,
+            ),
+            on_failed=lambda _request_id, error: self._on_github_api_removal_toggle_failed(
                 str(error or ""),
-                cb,
-            )
+                status_callback,
+            ),
+            signal_includes_request_id=False,
+            loaded_signal_name="completed",
         )
-        worker.finished.connect(lambda w=worker: self._cleanup_github_api_removal_toggle_worker(w))
-        worker.start()
         return True
 
     def toggle_discord_restart(self, *, status_callback=None) -> None:
@@ -183,56 +175,29 @@ class TrayFeature:
             parent=parent,
         )
 
-    def _on_github_api_removal_toggle_finished(self, worker, ok: bool, message: str, status_callback) -> None:
-        self._clear_github_api_removal_toggle_worker(worker)
+    def _on_github_api_removal_toggle_finished(self, ok: bool, message: str, status_callback) -> None:
         if status_callback and message:
             status_callback(message)
 
-    def _on_github_api_removal_toggle_failed(self, worker, error: str, status_callback) -> None:
-        self._clear_github_api_removal_toggle_worker(worker)
+    def _on_github_api_removal_toggle_failed(self, error: str, status_callback) -> None:
         message = error or "Ошибка при переключении удаления GitHub API"
         if status_callback:
             status_callback(message)
 
-    def _clear_github_api_removal_toggle_worker(self, worker) -> None:
-        if self._github_api_removal_toggle_worker is worker:
-            self._github_api_removal_toggle_worker = None
-
-    def _cleanup_github_api_removal_toggle_worker(self, worker) -> None:
-        self._clear_github_api_removal_toggle_worker(worker)
-        try:
-            worker.deleteLater()
-        except (AttributeError, RuntimeError):
-            pass
-
     def _request_window_opacity_save(self, value: int) -> None:
         normalized = max(0, min(100, int(value)))
-        worker = self._opacity_save_worker
-        if worker is not None:
-            try:
-                if worker.isRunning():
-                    self._opacity_save_pending = normalized
-                    return
-            except RuntimeError:
-                self._opacity_save_worker = None
+        if self._opacity_save_runtime.is_running():
+            self._opacity_save_pending = normalized
+            return
         self._start_window_opacity_save_worker(normalized)
 
     def _start_window_opacity_save_worker(self, value: int) -> None:
-        worker = self.create_opacity_save_worker(int(value))
-        self._opacity_save_worker = worker
-        finished = getattr(worker, "finished", None)
-        connect = getattr(finished, "connect", None)
-        if callable(connect):
-            connect(lambda w=worker: self._on_window_opacity_save_worker_finished(w))
-        worker.start()
+        self._opacity_save_runtime.start_qthread_worker(
+            worker_factory=lambda _request_id: self.create_opacity_save_worker(int(value)),
+            on_finished=self._on_window_opacity_save_worker_finished,
+        )
 
-    def _on_window_opacity_save_worker_finished(self, worker) -> None:
-        if self._opacity_save_worker is worker:
-            self._opacity_save_worker = None
-        try:
-            worker.deleteLater()
-        except (AttributeError, RuntimeError):
-            pass
+    def _on_window_opacity_save_worker_finished(self, _worker) -> None:
         pending = self._opacity_save_pending
         self._opacity_save_pending = None
         if pending is not None:

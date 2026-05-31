@@ -21,11 +21,15 @@ class TrayOpacityWorkerTests(unittest.TestCase):
         command_source = inspect.getsource(tray_commands.apply_window_opacity)
         feature_source = inspect.getsource(TrayFeature.apply_window_opacity)
         request_source = inspect.getsource(TrayFeature._request_window_opacity_save)
+        start_source = inspect.getsource(TrayFeature._start_window_opacity_save_worker)
 
         self.assertNotIn("settings.store", command_source)
         self.assertNotIn("set_window_opacity as save_window_opacity", command_source)
         self.assertIn("_request_window_opacity_save", feature_source)
+        self.assertIn("_opacity_save_runtime", request_source)
         self.assertIn("_opacity_save_pending", request_source)
+        self.assertIn("start_qthread_worker", start_source)
+        self.assertNotIn("worker.start()", start_source)
 
     def test_tray_opacity_applies_window_immediately_and_starts_save_worker(self) -> None:
         from app.feature_facades.tray import TrayFeature
@@ -33,6 +37,7 @@ class TrayOpacityWorkerTests(unittest.TestCase):
         class FakeWorker:
             def __init__(self) -> None:
                 self.finished = SimpleNamespace(connect=Mock())
+                self.deleteLater = Mock()
                 self.started = False
 
             def isRunning(self) -> bool:
@@ -72,6 +77,7 @@ class TrayOpacityWorkerTests(unittest.TestCase):
                 self.completed = SimpleNamespace(connect=Mock())
                 self.failed = SimpleNamespace(connect=Mock())
                 self.finished = SimpleNamespace(connect=Mock())
+                self.deleteLater = Mock()
                 self.started = False
 
             def isRunning(self) -> bool:
@@ -105,10 +111,14 @@ class TrayOpacityWorkerTests(unittest.TestCase):
         create_worker.assert_called_once_with(parent=None)
         self.assertTrue(worker.started)
 
+        toggle_source = inspect.getsource(TrayFeature.toggle_github_api_removal)
         feature_source = inspect.getsource(TrayFeature.create_github_api_removal_toggle_worker)
         worker_init_signature = inspect.signature(TrayGithubApiRemovalToggleWorker.__init__)
         worker_source = inspect.getsource(TrayGithubApiRemovalToggleWorker.run)
 
+        self.assertIn("_github_api_removal_toggle_runtime", toggle_source)
+        self.assertIn("start_qthread_worker", toggle_source)
+        self.assertNotIn("worker.start()", toggle_source)
         self.assertIn("toggle_github_api_removal=self._commands().toggle_github_api_removal", feature_source)
         self.assertIn("toggle_github_api_removal", worker_init_signature.parameters)
         self.assertIn("self._toggle_github_api_removal", worker_source)
