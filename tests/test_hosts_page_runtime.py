@@ -110,6 +110,19 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._request_user_selection_save.assert_called_once_with({"service": "profile"})
 
+    def test_user_selection_save_request_waits_while_restart_is_scheduled(self) -> None:
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._selection_save_start_scheduled = True
+        page._selection_save_pending = None
+        page._selection_save_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        HostsPage._request_user_selection_save(page, {"service": "latest"})
+
+        page._selection_save_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(page._selection_save_pending, {"service": "latest"})
+
     def test_catalog_refresh_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page
         from hosts.ui.page import HostsPage
@@ -131,6 +144,19 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._refresh_catalog_if_needed.assert_called_once_with("watcher")
 
+    def test_catalog_refresh_request_waits_while_restart_is_scheduled(self) -> None:
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._catalog_refresh_start_scheduled = True
+        page._catalog_refresh_pending_trigger = ""
+        page._catalog_refresh_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        HostsPage._refresh_catalog_if_needed(page, "watcher")
+
+        page._catalog_refresh_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(page._catalog_refresh_pending_trigger, "watcher")
+
     def test_open_hosts_file_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page
         from hosts.ui.page import HostsPage
@@ -151,6 +177,19 @@ class HostsPageRuntimeTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._request_open_hosts_file.assert_called_once_with()
+
+    def test_open_hosts_file_request_waits_while_restart_is_scheduled(self) -> None:
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._open_file_start_scheduled = True
+        page._open_file_pending = False
+        page._open_file_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        HostsPage._request_open_hosts_file(page)
+
+        page._open_file_runtime.start_qthread_worker.assert_not_called()
+        self.assertTrue(page._open_file_pending)
 
     def test_hosts_state_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page
@@ -175,6 +214,24 @@ class HostsPageRuntimeTests(unittest.TestCase):
             show_access_errors=True,
             update_status=True,
         )
+
+    def test_hosts_state_request_waits_while_restart_is_scheduled(self) -> None:
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._state_load_start_scheduled = True
+        page._state_load_pending = {"show_access_errors": False, "update_status": False}
+        page._state_load_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        HostsPage._request_hosts_state_load(
+            page,
+            show_access_errors=True,
+            update_status=False,
+        )
+
+        page._state_load_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(page._state_load_pending, {"show_access_errors": True, "update_status": False})
 
     def test_catalog_refresh_signature_runs_through_worker(self) -> None:
         from hosts.page_controller import HostsPageController
