@@ -133,7 +133,10 @@ class FolderLibraryStore:
         key = str(folder_key or "").strip()
         if key not in self._state["folders"]:
             return False
-        self._state["folders"][key]["collapsed"] = bool(collapsed)
+        next_collapsed = bool(collapsed)
+        if bool(self._state["folders"][key].get("collapsed", False)) == next_collapsed:
+            return False
+        self._state["folders"][key]["collapsed"] = next_collapsed
         return True
 
     def set_item_folder(self, item_key: str, folder_key: str) -> bool:

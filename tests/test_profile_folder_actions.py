@@ -74,6 +74,16 @@ class ProfileFolderActionTests(unittest.TestCase):
 
         self.assertFalse(state["folders"]["youtube"]["collapsed"])
 
+    def test_profile_folder_collapsed_skips_save_when_state_is_unchanged(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
+                self.assertTrue(set_profile_folder_collapsed("youtube", True))
+                with patch(
+                    "profile.folders.save_profile_folder_state",
+                    side_effect=AssertionError("unchanged folder collapsed state must not be saved"),
+                ):
+                    self.assertFalse(set_profile_folder_collapsed("youtube", True))
+
     def test_profile_reorder_saves_folder_state_once(self) -> None:
         with TemporaryDirectory() as temp_dir:
             with patch("settings.store.MAIN_DIRECTORY", str(Path(temp_dir))):
