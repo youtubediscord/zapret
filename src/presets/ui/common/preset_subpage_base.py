@@ -301,6 +301,8 @@ class PresetRawEditorPage(BasePage):
         return bool(runtime.is_running())
 
     def _raw_preset_write_is_running(self) -> bool:
+        if self.__dict__.get("_raw_preset_write_operation_start_scheduled", False):
+            return True
         for attr in ("_raw_save_runtime", "_raw_activate_runtime", "_raw_action_runtime"):
             runtime = self.__dict__.get(attr)
             if runtime is not None and runtime.is_running():

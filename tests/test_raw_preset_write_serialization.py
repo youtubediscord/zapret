@@ -230,6 +230,38 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             ],
         )
 
+    def test_raw_preset_action_waits_while_next_write_start_is_scheduled(self) -> None:
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_preset_write_operation_start_scheduled = True
+        page._raw_save_runtime = _Runtime(running=False)
+        page._raw_action_runtime = _Runtime(running=False)
+        page._raw_activate_runtime = _Runtime(running=False)
+        page._pending_raw_preset_write_operations = []
+        page._raw_action_request_id = 0
+        page.create_raw_preset_action_worker = Mock()
+
+        PresetRawEditorPage._request_raw_preset_action(
+            page,
+            "rename",
+            file_name="Default.txt",
+            new_name="Default copy.txt",
+        )
+
+        page.create_raw_preset_action_worker.assert_not_called()
+        self.assertEqual(
+            page._pending_raw_preset_write_operations,
+            [
+                {
+                    "kind": "action",
+                    "action": "rename",
+                    "payload": {
+                        "file_name": "Default.txt",
+                        "new_name": "Default copy.txt",
+                    },
+                }
+            ],
+        )
+
     def test_raw_preset_save_waits_while_action_runs(self) -> None:
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._raw_save_runtime = _Runtime(running=False)
