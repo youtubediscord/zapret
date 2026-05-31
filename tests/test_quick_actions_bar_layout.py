@@ -90,6 +90,25 @@ class QuickActionsBarLayoutTests(unittest.TestCase):
         self.assertIn(second, first_row_widgets)
         self.assertIn(search, second_row_widgets)
 
+    def test_presets_toolbar_reserves_height_when_search_moves_to_next_row(self) -> None:
+        parent = QWidget()
+        toolbar = PresetsToolbarLayout(parent, row_count=3, button_spacing=8)
+        first = PushButton("Импорт")
+        second = PushButton("Папка")
+        first.setFixedWidth(80)
+        second.setFixedWidth(80)
+        search = LineEdit()
+
+        toolbar.set_buttons([first, second])
+        toolbar.set_trailing_widget(search, minimum_width=180)
+        toolbar.refresh_layout(230)
+
+        needed_height = toolbar.container.layout().sizeHint().height()
+
+        self.assertGreater(needed_height, toolbar._rows[0][0].sizeHint().height())
+        self.assertGreaterEqual(toolbar.container.minimumHeight(), needed_height)
+        self.assertGreaterEqual(toolbar.container.maximumHeight(), needed_height)
+
     def test_presets_toolbar_uses_visible_container_width_for_wrapping(self) -> None:
         parent = QWidget()
         toolbar = PresetsToolbarLayout(parent, row_count=3, button_spacing=8)

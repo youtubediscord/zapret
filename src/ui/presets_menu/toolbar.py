@@ -107,6 +107,7 @@ class PresetsToolbarLayout:
                 row_widget.setVisible(True)
             else:
                 row_widget.setVisible(False)
+        self._sync_container_height()
         self.container.updateGeometry()
 
     def _effective_available_width(self, available_width: int) -> int:
@@ -201,6 +202,15 @@ class PresetsToolbarLayout:
     def _clear_row(row_layout: QHBoxLayout) -> None:
         while row_layout.count():
             row_layout.takeAt(0)
+
+    def _sync_container_height(self) -> None:
+        try:
+            self._layout.activate()
+        except Exception:
+            pass
+        height = max(0, int(self._layout.sizeHint().height()))
+        self.container.setMinimumHeight(height)
+        self.container.setMaximumHeight(height)
 
 
 __all__ = ["PresetsToolbarLayout"]
