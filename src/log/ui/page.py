@@ -1,7 +1,7 @@
 # log/ui/page.py
 """Страница просмотра логов в реальном времени"""
 
-from PyQt6.QtCore import Qt, QThread, QTimer
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QApplication,
@@ -91,8 +91,6 @@ class LogsPage(BasePage):
         # Отключаем горизонтальную прокрутку страницы
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         
-        self._thread = None
-        self._worker = None
         self._cleanup_in_progress = False
         self._logs = logs_feature
         self._orchestra = orchestra_feature
@@ -118,6 +116,7 @@ class LogsPage(BasePage):
 
         self._logs_overview_runtime = OneShotWorkerRuntime()
         self._logs_overview_pending_cleanup = False
+        self._tail_runtime = OneShotWorkerRuntime()
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._open_folder_runtime = OneShotWorkerRuntime()
         self._open_folder_pending = False
@@ -878,7 +877,7 @@ class LogsPage(BasePage):
             
     def _start_tail_worker(self):
         """Запускает worker для чтения лога"""
-        self._thread, self._worker = self._logs.start_tail_worker(
+        self._logs.start_tail_worker(
             current_log_file=self.current_log_file,
             previous_signature=self._tail_file_signature,
             set_tail_signature_fn=lambda value: setattr(self, "_tail_file_signature", value),
@@ -886,25 +885,17 @@ class LogsPage(BasePage):
             build_tail_start_plan_fn=self._logs.build_tail_start_plan,
             set_info_text_fn=self.info_label.setText,
             clear_log_view_fn=self.log_text.clear,
-            thread_cls=QThread,
+            tail_runtime=self._tail_runtime,
             parent=self,
             create_worker_fn=self._logs.create_log_tail_worker,
             on_new_lines=self._append_text,
-            on_thread_finished=self._on_tail_thread_finished,
             log_fn=log,
         )
-
-    def _on_tail_thread_finished(self):
-        """Очищает ссылки на thread/worker после завершения, чтобы не дергать удалённые Qt-объекты."""
-        self._thread = None
-        self._worker = None
             
     def _stop_tail_worker(self, blocking: bool = False):
         """Останавливает worker (неблокирующий по умолчанию)"""
-        self._worker, self._thread = self._logs.handle_thread_stop(
-            worker=getattr(self, "_worker", None),
-            thread=getattr(self, "_thread", None),
-            build_stop_plan_fn=self._logs.build_thread_stop_plan,
+        self._logs.stop_tail_worker(
+            tail_runtime=self._tail_runtime,
             blocking=blocking,
             log_fn=log,
             warning_prefix="Log tail worker",

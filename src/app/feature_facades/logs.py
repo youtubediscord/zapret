@@ -77,13 +77,6 @@ class LogsFeature:
             parent=parent,
         )
 
-    def build_thread_stop_plan(self, *, has_worker: bool, thread_running: bool, blocking: bool):
-        return self._commands().build_thread_stop_plan(
-            has_worker=has_worker,
-            thread_running=thread_running,
-            blocking=blocking,
-        )
-
     def build_tail_start_plan(self, *, current_log_file: str, previous_signature=None):
         return self._commands().build_tail_start_plan(
             current_log_file=current_log_file,
@@ -105,8 +98,8 @@ class LogsFeature:
     def start_tail_worker(self, **kwargs):
         return self._runtime().start_tail_worker(**kwargs)
 
-    def handle_thread_stop(self, **kwargs):
-        return self._runtime().handle_thread_stop(**kwargs)
+    def stop_tail_worker(self, **kwargs):
+        return self._runtime().stop_tail_worker(**kwargs)
 
 
 def build_logs_feature() -> LogsFeature:

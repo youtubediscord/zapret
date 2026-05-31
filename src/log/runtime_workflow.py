@@ -36,11 +36,10 @@ def start_tail_worker(
     build_tail_start_plan_fn,
     set_info_text_fn,
     clear_log_view_fn,
-    thread_cls,
+    tail_runtime,
     parent,
     create_worker_fn,
     on_new_lines,
-    on_thread_finished,
     log_fn,
 ):
     stop_worker_fn()
@@ -56,58 +55,27 @@ def start_tail_worker(
     set_info_text_fn(plan.info_text)
 
     try:
-        thread = thread_cls(parent)
-        worker = create_worker_fn(plan.file_path, initial_max_bytes=plan.initial_max_bytes)
-        worker.moveToThread(thread)
+        def create_tail_worker(_request_id):
+            return create_worker_fn(plan.file_path, initial_max_bytes=plan.initial_max_bytes)
 
-        thread.started.connect(worker.run)
-        worker.new_lines.connect(on_new_lines)
-        worker.finished.connect(thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(on_thread_finished)
-        thread.finished.connect(thread.deleteLater)
-        thread.start()
+        def bind_tail_worker(worker):
+            worker.new_lines.connect(on_new_lines)
+
+        tail_runtime.start_qobject_worker(
+            parent=parent,
+            worker_factory=create_tail_worker,
+            bind_worker=bind_tail_worker,
+        )
         set_tail_signature_fn(plan.file_signature)
-        return thread, worker
+        return True
     except Exception as e:
         log_fn(f"Ошибка запуска log tail worker: {e}", "ERROR")
-        return None, None
+        return False
 
 
-def handle_thread_stop(*, worker, thread, build_stop_plan_fn, blocking: bool, log_fn, warning_prefix: str):
-    stop_plan = build_stop_plan_fn(
-        has_worker=worker is not None,
-        thread_running=bool(thread and thread.isRunning()) if thread is not None else False,
+def stop_tail_worker(*, tail_runtime, blocking: bool, log_fn, warning_prefix: str):
+    tail_runtime.stop(
         blocking=blocking,
+        log_fn=log_fn,
+        warning_prefix=warning_prefix,
     )
-
-    if stop_plan.should_stop_worker and worker:
-        try:
-            worker.stop()
-        except RuntimeError:
-            worker = None
-
-    if not thread:
-        return worker, thread
-
-    try:
-        running = bool(thread.isRunning())
-    except RuntimeError:
-        return worker, None
-
-    if not stop_plan.should_quit_thread or not running:
-        return worker, thread
-
-    thread.quit()
-    if not stop_plan.should_wait:
-        return worker, thread
-
-    if not thread.wait(stop_plan.wait_timeout_ms):
-        log_fn(f"⚠ {warning_prefix} не завершился, принудительно завершаем", "WARNING")
-        if stop_plan.should_terminate:
-            try:
-                thread.terminate()
-                thread.wait(stop_plan.terminate_wait_ms)
-            except Exception:
-                pass
-    return worker, thread

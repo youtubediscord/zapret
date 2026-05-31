@@ -38,16 +38,6 @@ class LogsPageDataState:
 
 
 @dataclass(slots=True)
-class LogsThreadStopPlan:
-    should_stop_worker: bool
-    should_quit_thread: bool
-    should_wait: bool
-    wait_timeout_ms: int
-    should_terminate: bool
-    terminate_wait_ms: int
-
-
-@dataclass(slots=True)
 class LogsTailStartPlan:
     should_start: bool
     info_text: str
@@ -249,16 +239,6 @@ def create_logs_overview_worker(*, run_cleanup: bool):
         list_logs_fn=list_logs,
         build_stats_fn=build_stats,
         run_cleanup=run_cleanup,
-    )
-
-def build_thread_stop_plan(*, has_worker: bool, thread_running: bool, blocking: bool) -> LogsThreadStopPlan:
-    return LogsThreadStopPlan(
-        should_stop_worker=bool(has_worker),
-        should_quit_thread=bool(thread_running),
-        should_wait=bool(blocking and thread_running),
-        wait_timeout_ms=2000,
-        should_terminate=bool(blocking and thread_running),
-        terminate_wait_ms=500,
     )
 
 def _log_file_signature(file_path: str) -> tuple[str, int, int] | None:
