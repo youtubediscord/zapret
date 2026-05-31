@@ -166,6 +166,7 @@ class OrchestraLockedPage(BasePage):
         self._snapshot_load_runtime = OneShotWorkerRuntime()
         self._managed_action_runtime = OneShotWorkerRuntime()
         self._managed_action_pending: list[tuple[str, dict]] = []
+        self._managed_action_start_scheduled = False
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -468,7 +469,7 @@ class OrchestraLockedPage(BasePage):
         if self._cleanup_in_progress:
             return
         payload = (str(action or "").strip(), dict(kwargs))
-        if self._managed_action_runtime.is_running():
+        if self._managed_action_runtime.is_running() or self.__dict__.get("_managed_action_start_scheduled", False):
             self._managed_action_pending.append(payload)
             return
         self._start_managed_action(payload)
@@ -555,7 +556,21 @@ class OrchestraLockedPage(BasePage):
             self._managed_action_runtime.worker = None
         if self._managed_action_pending and not self._cleanup_in_progress:
             pending = self._managed_action_pending.pop(0)
-            self._start_managed_action(pending)
+            self._schedule_managed_action_start(pending)
+
+    def _schedule_managed_action_start(self, payload: tuple[str, dict]) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        action, kwargs = payload
+        queued = (str(action or "").strip(), dict(kwargs or {}))
+        self._managed_action_start_scheduled = True
+        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_managed_action_start(value))
+
+    def _run_scheduled_managed_action_start(self, payload: tuple[str, dict]) -> None:
+        self._managed_action_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_managed_action(payload)
 
     def _restore_locked_strategy_spin(self, domain: str, askey: str, strategy: int) -> None:
         key = f"{domain}:{askey}"
@@ -708,6 +723,7 @@ class OrchestraLockedPage(BasePage):
         self._snapshot_load_runtime.cancel()
         self._managed_action_runtime.cancel()
         self._managed_action_pending.clear()
+        self._managed_action_start_scheduled = False
         try:
             self.notification_banner.auto_hide_timer.stop()
             self.notification_banner.hide()
