@@ -95,6 +95,34 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
 
         page._request_open_extend_bot.assert_called_once_with()
 
+    def test_device_info_pending_restart_is_coalesced_while_scheduled(self) -> None:
+        import donater.ui.page as premium_page
+
+        page = PremiumPage.__new__(PremiumPage)
+        page._device_info_start_scheduled = False
+        page._cleanup_in_progress = False
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(premium_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            PremiumPage._schedule_device_info_load_worker_start(page)
+            PremiumPage._schedule_device_info_load_worker_start(page)
+
+        single_shot.assert_called_once()
+
+    def test_open_bot_pending_restart_is_coalesced_while_scheduled(self) -> None:
+        import donater.ui.page as premium_page
+
+        page = PremiumPage.__new__(PremiumPage)
+        page._open_bot_start_scheduled = False
+        page._cleanup_in_progress = False
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(premium_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            PremiumPage._schedule_open_extend_bot_worker_start(page)
+            PremiumPage._schedule_open_extend_bot_worker_start(page)
+
+        single_shot.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

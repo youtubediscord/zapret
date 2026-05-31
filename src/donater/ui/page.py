@@ -607,6 +607,8 @@ class PremiumPage(BasePage):
     def _schedule_device_info_load_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
+        if self.__dict__.get("_device_info_start_scheduled", False):
+            return
         self._device_info_start_scheduled = True
         QTimer.singleShot(0, self._run_scheduled_device_info_load_worker_start)
 
@@ -655,6 +657,8 @@ class PremiumPage(BasePage):
 
     def _schedule_open_extend_bot_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_open_bot_start_scheduled", False):
             return
         self._open_bot_start_scheduled = True
         QTimer.singleShot(0, self._run_scheduled_open_extend_bot_worker_start)
