@@ -388,6 +388,9 @@ class AutostartPage(BasePage):
     def _schedule_autostart_action_worker_start(self, payload: tuple[str, bool | None, str | None]) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
+        if self.__dict__.get("_autostart_action_start_scheduled", False):
+            self._autostart_action_pending.append(payload)
+            return
         self._autostart_action_start_scheduled = True
         QTimer.singleShot(0, lambda queued=payload: self._run_scheduled_autostart_action_worker_start(queued))
 
@@ -590,6 +593,9 @@ class AutostartPage(BasePage):
 
     def _schedule_mode_load_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_mode_load_start_scheduled", False):
+            self._mode_load_pending = True
             return
         self._mode_load_start_scheduled = True
         QTimer.singleShot(0, self._run_scheduled_mode_load_worker_start)

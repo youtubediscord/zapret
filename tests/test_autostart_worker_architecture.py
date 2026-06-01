@@ -70,6 +70,28 @@ class AutostartWorkerArchitectureTests(unittest.TestCase):
 
         page._start_autostart_action_worker.assert_called_once_with(("enable", True, "Strategy"))
 
+    def test_autostart_action_scheduled_start_queues_next_action(self) -> None:
+        page = AutostartPage.__new__(AutostartPage)
+        page._cleanup_in_progress = False
+        page._autostart_action_start_scheduled = False
+        page._autostart_action_pending = []
+        page._start_autostart_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        old_payload = ("enable", True, "Old")
+        new_payload = ("enable", True, "New")
+        with patch.object(autostart_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            AutostartPage._schedule_autostart_action_worker_start(page, old_payload)
+            AutostartPage._schedule_autostart_action_worker_start(page, new_payload)
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._autostart_action_pending, [new_payload])
+
+        single_shot.call_args.args[1]()
+
+        page._start_autostart_action_worker.assert_called_once_with(old_payload)
+        self.assertEqual(page._autostart_action_pending, [new_payload])
+
     def test_mode_load_pending_restarts_after_event_loop_turn(self) -> None:
         page = AutostartPage.__new__(AutostartPage)
         page._cleanup_in_progress = False
@@ -87,6 +109,26 @@ class AutostartWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_mode_load_worker.assert_called_once_with()
+
+    def test_mode_load_scheduled_start_queues_next_refresh(self) -> None:
+        page = AutostartPage.__new__(AutostartPage)
+        page._cleanup_in_progress = False
+        page._mode_load_start_scheduled = False
+        page._mode_load_pending = False
+        page._start_mode_load_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(autostart_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            AutostartPage._schedule_mode_load_worker_start(page)
+            AutostartPage._schedule_mode_load_worker_start(page)
+
+        single_shot.assert_called_once()
+        self.assertTrue(page._mode_load_pending)
+
+        single_shot.call_args.args[1]()
+
+        page._start_mode_load_worker.assert_called_once_with()
+        self.assertTrue(page._mode_load_pending)
 
 
 if __name__ == "__main__":
