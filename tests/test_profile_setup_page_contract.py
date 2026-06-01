@@ -2865,6 +2865,31 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._on_profile_changed_callback.assert_not_called()
         success.assert_not_called()
 
+    def test_user_profile_delete_result_ignored_when_new_operation_is_pending(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._user_profile_delete_request_id = 2
+        page._profile_key = "profile-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(key="profile-1", user_profile_id="user-1"))
+        page._pending_user_profile_operations = [
+            {
+                "action": "update",
+                "profile_id": "user-1",
+                "name": "Latest",
+                "protocol": "TCP",
+                "ports": "443",
+            }
+        ]
+        page._on_profile_changed_callback = Mock()
+        page._open_profiles = Mock()
+        page.window = Mock(return_value=None)
+
+        with patch("profile.ui.profile_setup_page.InfoBar.success") as success:
+            ProfileSetupPageBase._on_user_profile_delete_finished(page, 2, "user-1", 3)
+
+        page._on_profile_changed_callback.assert_not_called()
+        page._open_profiles.assert_not_called()
+        success.assert_not_called()
+
     def test_user_profile_update_result_updates_detail_without_reload(self) -> None:
         current_item = ProfileListItem(
             key="profile-1",
