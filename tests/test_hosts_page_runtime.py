@@ -185,6 +185,24 @@ class HostsPageRuntimeTests(unittest.TestCase):
         page._start_user_selection_load_worker.assert_called_once_with(show_access_errors=True)
         self.assertFalse(page._selection_load_pending)
 
+    def test_user_selection_load_result_ignored_when_new_load_is_pending(self) -> None:
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._selection_load_runtime = Mock()
+        page._selection_load_runtime.is_current.return_value = True
+        page._selection_load_pending = True
+        page._selection_load_show_access_errors = True
+        page._service_dns_selection = {"service": "old"}
+        page._finish_runtime_init_after_selection = Mock()
+
+        HostsPage._on_user_selection_load_finished(page, 8, {"service": "stale"})
+
+        self.assertEqual(page._service_dns_selection, {"service": "old"})
+        self.assertTrue(page._selection_load_show_access_errors)
+        page._finish_runtime_init_after_selection.assert_not_called()
+
     def test_catalog_refresh_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page
         from hosts.ui.page import HostsPage

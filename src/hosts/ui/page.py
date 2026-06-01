@@ -271,6 +271,8 @@ class HostsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_selection_load_pending", False):
+            return
         self._service_dns_selection = dict(selection or {})
         show_access_errors = bool(self._selection_load_show_access_errors)
         self._selection_load_show_access_errors = False
