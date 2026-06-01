@@ -661,6 +661,9 @@ class AboutPage(BasePage):
     def _schedule_about_open_action_worker_start(self, request) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
+        if self.__dict__.get("_about_open_start_scheduled", False):
+            self.__dict__.setdefault("_about_open_pending", []).append(request)
+            return
         self._about_open_start_scheduled = True
         QTimer.singleShot(0, lambda value=request: self._run_scheduled_about_open_action_worker_start(value))
 

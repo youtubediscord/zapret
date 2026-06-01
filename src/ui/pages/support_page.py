@@ -278,6 +278,9 @@ class SupportPage(BasePage):
             self._schedule_support_open_action_worker_start(pending)
 
     def _schedule_support_open_action_worker_start(self, request) -> None:
+        if self.__dict__.get("_support_open_start_scheduled", False):
+            self.__dict__.setdefault("_support_open_pending", []).append(request)
+            return
         self._support_open_start_scheduled = True
         QTimer.singleShot(0, lambda value=request: self._run_scheduled_support_open_action_worker_start(value))
 
