@@ -126,6 +126,28 @@ class BlobsWorkerArchitectureTests(unittest.TestCase):
 
         page._start_blob_action_worker.assert_called_once_with({"action": "delete", "name": "a.bin"})
 
+    def test_blob_action_scheduled_start_queues_next_payload(self) -> None:
+        page = BlobsPage.__new__(BlobsPage)
+        page._cleanup_in_progress = False
+        page._blob_action_start_scheduled = False
+        page._blob_action_pending = []
+        page._start_blob_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        old_payload = {"action": "delete", "name": "old.bin"}
+        new_payload = {"action": "delete", "name": "new.bin"}
+        with patch.object(blobs_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            BlobsPage._schedule_blob_action_worker_start(page, old_payload)
+            BlobsPage._schedule_blob_action_worker_start(page, new_payload)
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._blob_action_pending, [new_payload])
+
+        single_shot.call_args.args[1]()
+
+        page._start_blob_action_worker.assert_called_once_with(old_payload)
+        self.assertEqual(page._blob_action_pending, [new_payload])
+
     def test_blob_open_action_pending_restarts_after_event_loop_turn(self) -> None:
         page = BlobsPage.__new__(BlobsPage)
         page._cleanup_in_progress = False
@@ -143,6 +165,26 @@ class BlobsWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_blob_open_action_worker.assert_called_once_with("blobs_json")
+
+    def test_blob_open_action_scheduled_start_queues_next_action(self) -> None:
+        page = BlobsPage.__new__(BlobsPage)
+        page._cleanup_in_progress = False
+        page._blob_open_action_start_scheduled = False
+        page._blob_open_action_pending = []
+        page._start_blob_open_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(blobs_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            BlobsPage._schedule_blob_open_action_worker_start(page, "bin_folder")
+            BlobsPage._schedule_blob_open_action_worker_start(page, "blobs_json")
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._blob_open_action_pending, ["blobs_json"])
+
+        single_shot.call_args.args[1]()
+
+        page._start_blob_open_action_worker.assert_called_once_with("bin_folder")
+        self.assertEqual(page._blob_open_action_pending, ["blobs_json"])
 
 
 if __name__ == "__main__":

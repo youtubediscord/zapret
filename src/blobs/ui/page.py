@@ -409,6 +409,9 @@ class BlobsPage(BasePage):
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         queued = dict(payload or {})
+        if self.__dict__.get("_blob_action_start_scheduled", False):
+            self._blob_action_pending.append(queued)
+            return
         self._blob_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_blob_action_worker_start(value))
 
@@ -479,6 +482,9 @@ class BlobsPage(BasePage):
     def _schedule_blob_open_action_worker_start(self, action: str) -> None:
         clean_action = str(action or "").strip()
         if not clean_action or self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_blob_open_action_start_scheduled", False):
+            self._blob_open_action_pending.append(clean_action)
             return
         self._blob_open_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=clean_action: self._run_scheduled_blob_open_action_worker_start(value))
