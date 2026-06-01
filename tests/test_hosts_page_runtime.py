@@ -257,6 +257,31 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._refresh_catalog_if_needed.assert_called_once_with("watcher")
 
+    def test_catalog_refresh_result_ignored_when_new_refresh_is_pending(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._catalog_refresh_runtime = Mock()
+        page._catalog_refresh_runtime.is_current.return_value = True
+        page._catalog_refresh_pending_trigger = "watcher"
+        page._catalog_sig = "old-signature"
+        page._catalog_dirty = False
+        page._services_layout = object()
+        page._hosts = SimpleNamespace(invalidate_catalog_cache=Mock())
+        page._rebuild_services_selectors = Mock()
+        page.isVisible = Mock(return_value=True)
+
+        with patch.object(hosts_page, "apply_catalog_refresh_signature") as apply_refresh:
+            HostsPage._on_catalog_refresh_loaded(page, 4, "timer", "new-signature")
+
+        apply_refresh.assert_not_called()
+        self.assertEqual(page._catalog_sig, "old-signature")
+        self.assertFalse(page._catalog_dirty)
+        page._hosts.invalidate_catalog_cache.assert_not_called()
+        page._rebuild_services_selectors.assert_not_called()
+
     def test_open_hosts_file_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page
         from hosts.ui.page import HostsPage

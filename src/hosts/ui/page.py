@@ -492,6 +492,8 @@ class HostsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_catalog_refresh_pending_trigger"):
+            return
         result = apply_catalog_refresh_signature(
             current_signature=self._catalog_sig,
             new_signature=catalog_sig,
