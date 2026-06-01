@@ -139,6 +139,22 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
 
         runtime._request_update_channel_open.assert_called_once_with("dev")
 
+    def test_update_channel_open_result_ignored_when_new_channel_is_pending(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._update_channel_open_pending = "dev"
+        runtime._update_channel_open_runtime = Mock()
+        runtime._update_channel_open_runtime.is_current.return_value = True
+        runtime._view = Mock()
+
+        update_page_runtime.UpdatePageRuntime._on_update_channel_open_finished(
+            runtime,
+            8,
+            SimpleNamespace(ok=False, message="old channel failed"),
+        )
+
+        runtime._view.show_update_channel_open_error.assert_not_called()
+
     def test_cache_invalidate_worker_receives_feature_action_callable(self) -> None:
         feature_source = inspect.getsource(UpdaterFeature)
         worker_source = inspect.getsource(settings_workers.UpdaterCacheInvalidateWorker)

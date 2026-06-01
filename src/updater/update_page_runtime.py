@@ -623,6 +623,8 @@ class UpdatePageRuntime:
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_update_channel_open_pending"):
+            return
         if bool(getattr(result, "ok", False)):
             return
         self._view.show_update_channel_open_error(str(getattr(result, "message", "") or ""))
