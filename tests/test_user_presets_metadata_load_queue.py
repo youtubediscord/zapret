@@ -442,6 +442,29 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
 
         self.assertFalse(hasattr(adapter, "delete_preset_item_meta"))
 
+    def test_watched_preset_files_sync_merges_pending_file_sets(self) -> None:
+        from presets.user_presets_runtime_service import UserPresetsRuntimeService
+
+        import presets.user_presets_runtime_service as runtime_service
+
+        page = SimpleNamespace()
+        service = UserPresetsRuntimeService()
+        service.sync_watched_preset_files = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(runtime_service, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            service._schedule_watched_preset_files_sync(page, {"Alpha.txt", "Beta.txt"})
+            service._schedule_watched_preset_files_sync(page, {"Beta.txt", "Gamma.txt"})
+
+        single_shot.assert_called_once()
+
+        single_shot.call_args.args[1]()
+
+        service.sync_watched_preset_files.assert_called_once_with(
+            page,
+            {"Alpha.txt", "Beta.txt", "Gamma.txt"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

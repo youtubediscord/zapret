@@ -684,6 +684,13 @@ class UserPresetsRuntimeService:
             if file_names is not None
             else None
         )
+        pending = self.__dict__.get("_watched_preset_files_sync_pending")
+        if pending is not None:
+            _pending_page, pending_file_names = pending
+            if pending_file_names is None or normalized_file_names is None:
+                normalized_file_names = None
+            else:
+                normalized_file_names = set(pending_file_names) | set(normalized_file_names)
         self._watched_preset_files_sync_pending = (page, normalized_file_names)
         if self._watched_preset_files_sync_scheduled:
             return
