@@ -688,14 +688,20 @@ class OrchestraWhitelistPage(BasePage):
         action: str,
         domain: str = "",
         user_domains: list[str] | None = None,
+        prepend: bool = False,
     ) -> None:
-        self.__dict__.setdefault("_whitelist_action_pending", []).append(
-            {
-                "action": str(action or ""),
-                "domain": str(domain or ""),
-                "user_domains": list(user_domains) if user_domains is not None else None,
-            }
-        )
+        queued = {
+            "action": str(action or ""),
+            "domain": str(domain or ""),
+            "user_domains": list(user_domains) if user_domains is not None else None,
+        }
+        pending = self.__dict__.setdefault("_whitelist_action_pending", [])
+        if queued in pending:
+            return
+        if prepend:
+            pending.insert(0, queued)
+        else:
+            pending.append(queued)
 
     def _on_whitelist_action_loaded(self, request_id: int, action: str, payload, context) -> None:
         if not self._action_runtime.is_current(request_id):
@@ -743,7 +749,12 @@ class OrchestraWhitelistPage(BasePage):
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_whitelist_action_start_scheduled", False):
-            self.__dict__.setdefault("_whitelist_action_pending", []).insert(0, dict(pending or {}))
+            self._queue_whitelist_action(
+                action=str((pending or {}).get("action") or ""),
+                domain=str((pending or {}).get("domain") or ""),
+                user_domains=(pending or {}).get("user_domains"),
+                prepend=True,
+            )
             return
         self._whitelist_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=dict(pending or {}): self._run_scheduled_whitelist_action_start(value))

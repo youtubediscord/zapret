@@ -744,6 +744,23 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
             [{"action": "remove", "domain": "example.org", "user_domains": None}],
         )
 
+    def test_duplicate_whitelist_action_is_queued_once(self) -> None:
+        from orchestra.ui.whitelist_page import OrchestraWhitelistPage
+
+        page = OrchestraWhitelistPage.__new__(OrchestraWhitelistPage)
+        page._action_runtime = SimpleNamespace(is_running=Mock(return_value=True), start_qthread_worker=Mock())
+        page._whitelist_action_start_scheduled = False
+        page._whitelist_action_pending = []
+
+        OrchestraWhitelistPage._request_whitelist_action(page, "remove", domain="same.org")
+        OrchestraWhitelistPage._request_whitelist_action(page, "remove", domain="same.org")
+
+        page._action_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(
+            page._whitelist_action_pending,
+            [{"action": "remove", "domain": "same.org", "user_domains": None}],
+        )
+
     def test_whitelist_action_pending_restarts_after_event_loop_turn(self) -> None:
         import orchestra.ui.whitelist_page as whitelist_page
         from orchestra.ui.whitelist_page import OrchestraWhitelistPage
