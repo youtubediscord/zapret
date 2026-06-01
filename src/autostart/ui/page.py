@@ -344,6 +344,8 @@ class AutostartPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_autostart_action_pending"):
+            return
         context = context if isinstance(context, dict) else {}
         if action == "save_state":
             enabled = bool(context.get("enabled"))
