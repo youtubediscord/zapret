@@ -718,9 +718,13 @@ class NetworkPage(BasePage):
             self._scheduled_dns_apply_request = dict(request)
             return
         if self._dns_apply_runtime.is_running() or self.__dict__.get("_dns_apply_start_scheduled", False):
-            self._dns_apply_pending.append(request)
+            self._queue_dns_apply_request(request)
             return
         self._start_dns_apply_worker(request)
+
+    def _queue_dns_apply_request(self, payload: dict[str, object]) -> None:
+        pending = self.__dict__.setdefault("_dns_apply_pending", [])
+        pending[:] = [dict(payload or {})]
 
     def _start_dns_apply_worker(self, payload: dict[str, object]) -> None:
         self._dns_apply_runtime.start_qthread_worker(
@@ -937,12 +941,19 @@ class NetworkPage(BasePage):
             if isinstance(scheduled, dict) and scheduled.get("action") == payload.get("action"):
                 self._scheduled_force_dns_action_request = dict(payload)
             else:
-                self._force_dns_action_pending.append(payload)
+                self._queue_force_dns_action(payload)
             return
         if self._force_dns_action_runtime.is_running():
-            self._force_dns_action_pending.append(payload)
+            self._queue_force_dns_action(payload)
             return
         self._start_force_dns_action_worker(payload)
+
+    def _queue_force_dns_action(self, payload: dict[str, object]) -> None:
+        action = str(payload.get("action") or "")
+        pending = self.__dict__.setdefault("_force_dns_action_pending", [])
+        if action == "toggle":
+            pending[:] = [item for item in pending if str(item.get("action") or "") != "toggle"]
+        pending.append(dict(payload or {}))
 
     def _start_force_dns_action_worker(self, payload: dict[str, object]) -> None:
         self._force_dns_action_runtime.start_qthread_worker(

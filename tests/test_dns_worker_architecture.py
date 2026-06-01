@@ -170,6 +170,39 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         )
         self.assertEqual(page._dns_apply_pending, [])
 
+    def test_dns_apply_running_worker_keeps_latest_pending_request(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._dns_apply_runtime = _Runtime()
+        page._dns_apply_start_scheduled = False
+        page._dns_apply_pending = []
+        page._start_dns_apply_worker = Mock()
+
+        NetworkPage._request_dns_apply(page, "auto", adapters=["Ethernet"])
+        NetworkPage._request_dns_apply(
+            page,
+            "custom",
+            adapters=["Ethernet"],
+            primary="9.9.9.9",
+            secondary="149.112.112.112",
+        )
+
+        page._start_dns_apply_worker.assert_not_called()
+        self.assertEqual(
+            page._dns_apply_pending,
+            [
+                {
+                    "action": "custom",
+                    "adapters": ["Ethernet"],
+                    "primary": "9.9.9.9",
+                    "secondary": "149.112.112.112",
+                }
+            ],
+        )
+
     def test_force_dns_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
@@ -213,6 +246,24 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
             {"action": "toggle", "enabled": False}
         )
         self.assertEqual(page._force_dns_action_pending, [])
+
+    def test_force_dns_running_toggle_keeps_latest_pending_value(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._force_dns_action_runtime = _Runtime()
+        page._force_dns_action_pending = []
+        page._force_dns_action_start_scheduled = False
+        page._start_force_dns_action_worker = Mock()
+
+        NetworkPage._request_force_dns_action(page, "toggle", enabled=True)
+        NetworkPage._request_force_dns_action(page, "toggle", enabled=False)
+
+        page._start_force_dns_action_worker.assert_not_called()
+        self.assertEqual(page._force_dns_action_pending, [{"action": "toggle", "enabled": False}])
 
     def test_dns_flush_cache_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
