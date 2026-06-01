@@ -208,9 +208,15 @@ class SupportPage(BasePage):
     ) -> None:
         request = (str(action_name or "").strip(), action_fn, str(error_key), str(error_default))
         if self._support_open_runtime.is_running() or self.__dict__.get("_support_open_start_scheduled", False):
-            self.__dict__.setdefault("_support_open_pending", []).append(request)
+            self._queue_support_open_action(request)
             return
         self._start_support_open_action_worker(*request)
+
+    def _queue_support_open_action(self, request) -> None:
+        pending = self.__dict__.setdefault("_support_open_pending", [])
+        if request in pending:
+            return
+        pending.append(request)
 
     def _start_support_open_action_worker(
         self,
@@ -279,7 +285,7 @@ class SupportPage(BasePage):
 
     def _schedule_support_open_action_worker_start(self, request) -> None:
         if self.__dict__.get("_support_open_start_scheduled", False):
-            self.__dict__.setdefault("_support_open_pending", []).append(request)
+            self._queue_support_open_action(request)
             return
         self._support_open_start_scheduled = True
         QTimer.singleShot(0, lambda value=request: self._run_scheduled_support_open_action_worker_start(value))

@@ -590,9 +590,15 @@ class AboutPage(BasePage):
             str(raw_error_message or ""),
         )
         if self._about_open_runtime.is_running() or self.__dict__.get("_about_open_start_scheduled", False):
-            self.__dict__.setdefault("_about_open_pending", []).append(request)
+            self._queue_about_open_action(request)
             return
         self._start_about_open_action_worker(*request)
+
+    def _queue_about_open_action(self, request) -> None:
+        pending = self.__dict__.setdefault("_about_open_pending", [])
+        if request in pending:
+            return
+        pending.append(request)
 
     def _start_about_open_action_worker(
         self,
@@ -662,7 +668,7 @@ class AboutPage(BasePage):
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_about_open_start_scheduled", False):
-            self.__dict__.setdefault("_about_open_pending", []).append(request)
+            self._queue_about_open_action(request)
             return
         self._about_open_start_scheduled = True
         QTimer.singleShot(0, lambda value=request: self._run_scheduled_about_open_action_worker_start(value))

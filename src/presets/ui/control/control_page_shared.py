@@ -178,9 +178,16 @@ class ControlPageActionMixin:
         runtime = self._ensure_external_open_url_runtime()
         request = (str(url or "").strip(), str(error_title), str(error_default))
         if runtime.is_running() or self.__dict__.get("_external_open_url_start_scheduled", False):
-            self._external_open_url_pending.append(request)
+            self._queue_external_open_url_request(request)
             return
         self._start_external_open_url_worker(*request)
+
+    def _queue_external_open_url_request(self, request: tuple[str, str, str]) -> None:
+        pending = self.__dict__.setdefault("_external_open_url_pending", [])
+        queued = tuple(request)
+        if queued in pending:
+            return
+        pending.append(queued)
 
     def _start_external_open_url_worker(self, url: str, error_title: str, error_default: str) -> None:
         runtime = self._ensure_external_open_url_runtime()
@@ -241,7 +248,7 @@ class ControlPageActionMixin:
     def _schedule_external_open_url_worker_start(self, request: tuple[str, str, str]) -> None:
         pending = tuple(request)
         if self.__dict__.get("_external_open_url_start_scheduled", False):
-            self.__dict__.setdefault("_external_open_url_pending", []).append(pending)
+            self._queue_external_open_url_request(pending)
             return
         self._external_open_url_start_scheduled = True
         try:

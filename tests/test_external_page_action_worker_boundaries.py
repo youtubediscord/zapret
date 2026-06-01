@@ -69,6 +69,38 @@ class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
         )
         page._start_support_open_action_worker.assert_not_called()
 
+    def test_duplicate_support_open_action_is_queued_once(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = SupportPage.__new__(SupportPage)
+        page._support_open_runtime = _Runtime()
+        page._support_open_pending = []
+        page._start_support_open_action_worker = Mock()
+        action = Mock()
+
+        SupportPage._request_support_open_action(
+            page,
+            "telegram",
+            action,
+            error_key="telegram.error",
+            error_default="telegram {error}",
+        )
+        SupportPage._request_support_open_action(
+            page,
+            "telegram",
+            action,
+            error_key="telegram.error",
+            error_default="telegram {error}",
+        )
+
+        self.assertEqual(
+            page._support_open_pending,
+            [("telegram", action, "telegram.error", "telegram {error}")],
+        )
+        page._start_support_open_action_worker.assert_not_called()
+
     def test_support_open_worker_finished_schedules_next_queued_action(self) -> None:
         import ui.pages.support_page as support_page
 
@@ -165,6 +197,33 @@ class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
                 ("github", second_action, "github {error}", "raw"),
             ],
         )
+        page._start_about_open_action_worker.assert_not_called()
+
+    def test_duplicate_about_open_action_is_queued_once(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = AboutPage.__new__(AboutPage)
+        page._about_open_runtime = _Runtime()
+        page._about_open_pending = []
+        page._start_about_open_action_worker = Mock()
+        action = Mock()
+
+        AboutPage._request_about_open_action(
+            page,
+            "telegram",
+            action,
+            error_default="telegram {error}",
+        )
+        AboutPage._request_about_open_action(
+            page,
+            "telegram",
+            action,
+            error_default="telegram {error}",
+        )
+
+        self.assertEqual(page._about_open_pending, [("telegram", action, "telegram {error}", "")])
         page._start_about_open_action_worker.assert_not_called()
 
     def test_about_open_worker_finished_schedules_next_queued_action(self) -> None:

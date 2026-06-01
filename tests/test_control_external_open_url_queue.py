@@ -56,6 +56,31 @@ class ControlExternalOpenUrlQueueTests(unittest.TestCase):
             ],
         )
 
+    def test_duplicate_external_open_url_request_is_queued_once(self) -> None:
+        page = _Page()
+        page._external_open_url_runtime = _Runtime(running=True)
+        page._external_open_url_pending = []
+        page.create_external_open_url_worker = Mock()
+
+        _Page._request_external_open_url(
+            page,
+            "https://example.org/help",
+            error_title="Ошибка",
+            error_default="Не удалось открыть: {error}",
+        )
+        _Page._request_external_open_url(
+            page,
+            "https://example.org/help",
+            error_title="Ошибка",
+            error_default="Не удалось открыть: {error}",
+        )
+
+        page.create_external_open_url_worker.assert_not_called()
+        self.assertEqual(
+            page._external_open_url_pending,
+            [("https://example.org/help", "Ошибка", "Не удалось открыть: {error}")],
+        )
+
     def test_external_open_url_finished_starts_next_pending_request(self) -> None:
         worker = object()
         page = _Page()
