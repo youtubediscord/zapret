@@ -277,6 +277,67 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("start_background_loading(", loading_source)
         self.assertNotIn("start_connectivity_test(", test_source)
 
+    def test_network_page_load_queues_while_worker_runs(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._page_load_runtime = SimpleNamespace(is_running=Mock(return_value=True), start_qthread_worker=Mock())
+        page._page_load_pending = False
+
+        NetworkPage._start_loading(page)
+
+        page._page_load_runtime.start_qthread_worker.assert_not_called()
+        self.assertTrue(page._page_load_pending)
+
+    def test_pending_network_page_load_restarts_after_event_loop_turn(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._page_load_pending = True
+        page._page_load_start_scheduled = False
+        page._start_loading = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            NetworkPage._on_page_load_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_loading.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        self.assertFalse(page._page_load_pending)
+        page._start_loading.assert_called_once_with()
+
+    def test_isp_warning_plan_queues_while_worker_runs(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._isp_warning_runtime = SimpleNamespace(is_running=Mock(return_value=True), start_qthread_worker=Mock())
+        page._isp_warning_pending = False
+
+        NetworkPage._request_isp_dns_warning_plan(page)
+
+        page._isp_warning_runtime.start_qthread_worker.assert_not_called()
+        self.assertTrue(page._isp_warning_pending)
+
+    def test_pending_isp_warning_plan_restarts_after_event_loop_turn(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._isp_warning_pending = True
+        page._isp_warning_start_scheduled = False
+        page._request_isp_dns_warning_plan = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            NetworkPage._on_isp_dns_warning_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._request_isp_dns_warning_plan.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        self.assertFalse(page._isp_warning_pending)
+        page._request_isp_dns_warning_plan.assert_called_once_with()
+
     def test_connectivity_test_queues_while_worker_runs(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._connectivity_test_runtime = SimpleNamespace(is_running=Mock(return_value=True))

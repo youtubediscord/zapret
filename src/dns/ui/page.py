@@ -119,6 +119,8 @@ class NetworkPage(BasePage):
         self._cleanup_in_progress = False
         self._dns_selection_sync_queued = False
         self._page_load_runtime = OneShotWorkerRuntime()
+        self._page_load_pending = False
+        self._page_load_start_scheduled = False
         self._connectivity_test_runtime = OneShotWorkerRuntime()
         self._connectivity_test_pending = False
         self._connectivity_test_start_scheduled = False
@@ -134,6 +136,8 @@ class NetworkPage(BasePage):
         self._scheduled_dns_apply_request = None
         self._dns_apply_start_scheduled = False
         self._isp_warning_runtime = OneShotWorkerRuntime()
+        self._isp_warning_pending = False
+        self._isp_warning_start_scheduled = False
         
         self.dns_cards = {}
         self.adapter_cards = []
@@ -455,8 +459,13 @@ class NetworkPage(BasePage):
         """Запускает асинхронную загрузку данных"""
         if self._cleanup_in_progress:
             return
-        if self._page_load_runtime.is_running():
+        if (
+            self._page_load_runtime.is_running()
+            or self.__dict__.get("_page_load_start_scheduled", False)
+        ):
+            self._page_load_pending = True
             return
+        self._page_load_pending = False
         try:
             cached_state = self._dns_feature().consume_warmed_page_data()
         except Exception:
@@ -482,7 +491,25 @@ class NetworkPage(BasePage):
         self._on_page_state_loaded(state)
 
     def _on_page_load_worker_finished(self, _worker) -> None:
-        pass
+        if self.__dict__.get("_page_load_pending", False):
+            self._schedule_page_load_worker_start()
+
+    def _schedule_page_load_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_page_load_start_scheduled", False):
+            self._page_load_pending = True
+            return
+        self._page_load_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_page_load_worker_start)
+
+    def _run_scheduled_page_load_worker_start(self) -> None:
+        self._page_load_start_scheduled = False
+        pending = bool(self.__dict__.get("_page_load_pending", False))
+        self._page_load_pending = False
+        if self.__dict__.get("_cleanup_in_progress", False) or not pending:
+            return
+        self._start_loading()
     
     def _on_page_state_loaded(self, state):
         """Применяет готовое состояние DNS страницы в UI-потоке."""
@@ -1297,8 +1324,13 @@ class NetworkPage(BasePage):
         self._request_isp_dns_warning_plan()
 
     def _request_isp_dns_warning_plan(self) -> None:
-        if self._isp_warning_runtime.is_running():
+        if (
+            self._isp_warning_runtime.is_running()
+            or self.__dict__.get("_isp_warning_start_scheduled", False)
+        ):
+            self._isp_warning_pending = True
             return
+        self._isp_warning_pending = False
         self._isp_warning_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._dns.create_isp_dns_warning_worker(
                 request_id,
@@ -1360,7 +1392,25 @@ class NetworkPage(BasePage):
         log(f"Ошибка подготовки ISP DNS предупреждения: {error}", "DEBUG")
 
     def _on_isp_dns_warning_worker_finished(self, _worker) -> None:
-        pass
+        if self.__dict__.get("_isp_warning_pending", False):
+            self._schedule_isp_warning_worker_start()
+
+    def _schedule_isp_warning_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_isp_warning_start_scheduled", False):
+            self._isp_warning_pending = True
+            return
+        self._isp_warning_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_isp_warning_worker_start)
+
+    def _run_scheduled_isp_warning_worker_start(self) -> None:
+        self._isp_warning_start_scheduled = False
+        pending = bool(self.__dict__.get("_isp_warning_pending", False))
+        self._isp_warning_pending = False
+        if self.__dict__.get("_cleanup_in_progress", False) or not pending:
+            return
+        self._request_isp_dns_warning_plan()
 
     def _render_isp_warning_styles(self, tokens=None) -> None:
         render_isp_warning_theme(
@@ -1402,6 +1452,8 @@ class NetworkPage(BasePage):
             self.loading_bar.stop()
         except Exception:
             pass
+        self._page_load_pending = False
+        self._page_load_start_scheduled = False
         self._connectivity_test_pending = False
         self._connectivity_test_start_scheduled = False
         self._force_dns_action_pending.clear()
@@ -1442,6 +1494,8 @@ class NetworkPage(BasePage):
             warning_prefix="dns_apply_worker",
         )
         self._dns_apply_runtime.cancel()
+        self._isp_warning_pending = False
+        self._isp_warning_start_scheduled = False
         self._isp_warning_runtime.stop(
             blocking=False,
             log_fn=log,
