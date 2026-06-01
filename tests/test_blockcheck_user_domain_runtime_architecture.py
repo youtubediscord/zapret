@@ -72,6 +72,31 @@ class BlockcheckUserDomainRuntimeArchitectureTests(unittest.TestCase):
         page._start_user_domain_action_worker.assert_called_once_with(old_payload)
         self.assertEqual(page._user_domain_action_pending, [new_payload])
 
+    def test_running_user_domain_action_keeps_latest_payload_per_domain(self) -> None:
+        page = BlockcheckPage.__new__(BlockcheckPage)
+        page._cleanup_in_progress = False
+        page._user_domain_action_start_scheduled = False
+        page._user_domain_action_pending = []
+        page._user_domain_action_runtime = SimpleNamespace(
+            is_running=Mock(return_value=True),
+            start_qthread_worker=Mock(),
+        )
+        page._start_user_domain_action_worker = Mock()
+
+        BlockcheckPage._request_user_domain_action(page, "add", "one.example")
+        BlockcheckPage._request_user_domain_action(page, "add", "two.example")
+        BlockcheckPage._request_user_domain_action(page, "remove", "one.example")
+
+        page._start_user_domain_action_worker.assert_not_called()
+        page._user_domain_action_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(
+            page._user_domain_action_pending,
+            [
+                {"action": "add", "domain": "two.example"},
+                {"action": "remove", "domain": "one.example"},
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

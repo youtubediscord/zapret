@@ -1027,9 +1027,24 @@ class BlockcheckPage(BasePage):
             self._user_domain_action_runtime.is_running()
             or self.__dict__.get("_user_domain_action_start_scheduled", False)
         ):
-            self._user_domain_action_pending.append(payload)
+            self._queue_user_domain_action(payload)
             return
         self._start_user_domain_action_worker(payload)
+
+    def _queue_user_domain_action(self, payload: dict[str, str]) -> None:
+        queued = {
+            "action": str((payload or {}).get("action") or "").strip().lower(),
+            "domain": str((payload or {}).get("domain") or "").strip(),
+        }
+        domain = queued["domain"]
+        pending = self.__dict__.setdefault("_user_domain_action_pending", [])
+        if domain:
+            pending[:] = [
+                item
+                for item in pending
+                if str(item.get("domain") or "").strip() != domain
+            ]
+        pending.append(queued)
 
     def _start_user_domain_action_worker(self, payload: dict[str, str]) -> None:
         def worker_factory(request_id: int):
@@ -1100,7 +1115,7 @@ class BlockcheckPage(BasePage):
             "domain": str((payload or {}).get("domain") or "").strip(),
         }
         if self.__dict__.get("_user_domain_action_start_scheduled", False):
-            self._user_domain_action_pending.append(queued)
+            self._queue_user_domain_action(queued)
             return
         self._user_domain_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_user_domain_action_worker_start(value))
