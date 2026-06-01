@@ -137,17 +137,14 @@ class UserPresetsRuntimeService:
         self._attached_adapter: UserPresetsRuntimeAdapter | None = None
         self._metadata_load_request_id = 0
         self._metadata_load_runtime = OneShotWorkerRuntime()
-        self._metadata_load_worker: UserPresetsMetadataLoadWorker | None = None
         self._metadata_load_pending_page = None
         self._metadata_load_start_scheduled = False
         self._single_metadata_request_id = 0
         self._single_metadata_runtime = OneShotWorkerRuntime()
-        self._single_metadata_worker: UserPresetsSingleMetadataWorker | None = None
         self._single_metadata_pending: list[str] = []
         self._single_metadata_start_scheduled = False
         self._rows_plan_request_id = 0
         self._rows_plan_runtime = OneShotWorkerRuntime()
-        self._rows_plan_worker: UserPresetsRowsPlanWorker | None = None
         self._rows_plan_pending: tuple[dict[str, dict[str, object]], dict[str, Any] | None, float | None, object] | None = None
         self._rows_plan_start_scheduled = False
         self._rows_plan_apply_scheduled = False
@@ -197,22 +194,6 @@ class UserPresetsRuntimeService:
         if attached is not None:
             return attached
         raise RuntimeError("user presets runtime adapter is not attached")
-
-    def _worker_runtime_is_running(self, runtime_attr: str, worker_attr: str) -> bool:
-        runtime = getattr(self, runtime_attr, None)
-        if runtime is not None:
-            try:
-                if runtime.is_running():
-                    return True
-            except Exception:
-                pass
-        worker = getattr(self, worker_attr, None)
-        if worker is None:
-            return False
-        try:
-            return bool(worker.isRunning())
-        except Exception:
-            return False
 
     def attach_page(self, page, adapter: UserPresetsRuntimeAdapter) -> None:
         current_page = None
@@ -270,7 +251,7 @@ class UserPresetsRuntimeService:
             return
 
         if (
-            self._worker_runtime_is_running("_single_metadata_runtime", "_single_metadata_worker")
+            self._single_metadata_runtime.is_running()
             or self.__dict__.get("_single_metadata_start_scheduled", False)
         ):
             if normalized_file_name not in self._single_metadata_pending:
@@ -295,7 +276,7 @@ class UserPresetsRuntimeService:
                 )
             )
 
-        request_id, worker = self._single_metadata_runtime.start_qthread_worker(
+        request_id, _worker = self._single_metadata_runtime.start_qthread_worker(
             worker_factory=lambda request_id: UserPresetsSingleMetadataWorker(
                 request_id,
                 normalized_file_name,
@@ -306,7 +287,6 @@ class UserPresetsRuntimeService:
             on_finished=lambda worker, p=page: self._on_single_metadata_worker_finished(worker, p),
         )
         self._single_metadata_request_id = request_id
-        self._single_metadata_worker = worker
 
     def _on_single_metadata_loaded(self, request_id: int, file_name: str, refreshed, page=None) -> None:
         if request_id != self._single_metadata_request_id:
@@ -349,8 +329,7 @@ class UserPresetsRuntimeService:
             self.schedule_presets_reload(page, 0)
 
     def _on_single_metadata_worker_finished(self, worker: UserPresetsSingleMetadataWorker, page=None) -> None:
-        if self._single_metadata_worker is worker:
-            self._single_metadata_worker = None
+        _ = worker
         if self._single_metadata_pending:
             self._schedule_single_metadata_refresh(page)
 
@@ -608,18 +587,14 @@ class UserPresetsRuntimeService:
         self._pending_rows_plan_apply = None
         self._watched_preset_files_sync_scheduled = False
         self._watched_preset_files_sync_pending = None
-        for attr in ("_metadata_load_worker", "_single_metadata_worker", "_rows_plan_worker"):
-            worker = getattr(self, attr, None)
-            if worker is None:
-                continue
-            try:
-                worker.quit()
-            except Exception:
-                pass
-            setattr(self, attr, None)
-        for attr in ("_metadata_load_runtime", "_single_metadata_runtime", "_rows_plan_runtime"):
+        for attr, warning_prefix in (
+            ("_metadata_load_runtime", "user presets metadata load worker"),
+            ("_single_metadata_runtime", "user presets single metadata worker"),
+            ("_rows_plan_runtime", "user presets rows plan worker"),
+        ):
             runtime = getattr(self, attr, None)
             if runtime is not None:
+                runtime.stop(blocking=False, warning_prefix=warning_prefix)
                 runtime.cancel()
 
     def on_presets_dir_changed(self, path: str, page=None) -> None:
@@ -737,7 +712,7 @@ class UserPresetsRuntimeService:
         page = self._resolve_page(page)
         adapter = self._resolve_adapter()
         if (
-            self._worker_runtime_is_running("_metadata_load_runtime", "_metadata_load_worker")
+            self._metadata_load_runtime.is_running()
             or self.__dict__.get("_metadata_load_start_scheduled", False)
         ):
             self._metadata_load_pending_page = page
@@ -758,7 +733,7 @@ class UserPresetsRuntimeService:
             )
             worker.failed.connect(lambda rid, error, p=page: self._on_metadata_failed(rid, error, p))
 
-        request_id, worker = self._metadata_load_runtime.start_qthread_worker(
+        request_id, _worker = self._metadata_load_runtime.start_qthread_worker(
             worker_factory=lambda request_id: UserPresetsMetadataLoadWorker(
                 request_id,
                 adapter.load_all_metadata,
@@ -769,7 +744,6 @@ class UserPresetsRuntimeService:
             on_finished=self._on_metadata_worker_finished,
         )
         self._metadata_load_request_id = request_id
-        self._metadata_load_worker = worker
 
     def _on_metadata_loaded(
         self,
@@ -800,8 +774,7 @@ class UserPresetsRuntimeService:
         log(f"Ошибка загрузки пресетов: {error}", "ERROR")
 
     def _on_metadata_worker_finished(self, worker: UserPresetsMetadataLoadWorker) -> None:
-        if self._metadata_load_worker is worker:
-            self._metadata_load_worker = None
+        _ = worker
         pending_page = self._metadata_load_pending_page
         if pending_page is not None:
             self._schedule_metadata_load()
@@ -863,7 +836,7 @@ class UserPresetsRuntimeService:
         build_rows_plan = adapter.build_rows_plan
 
         if (
-            self._worker_runtime_is_running("_rows_plan_runtime", "_rows_plan_worker")
+            self._rows_plan_runtime.is_running()
             or self.__dict__.get("_rows_plan_start_scheduled", False)
         ):
             self._rows_plan_pending = (dict(all_presets or {}), dict(folder_state or {}), started_at, page)
@@ -873,7 +846,7 @@ class UserPresetsRuntimeService:
             worker.loaded.connect(lambda rid, plan, started, p=page: self._on_rows_plan_loaded(rid, plan, started, p))
             worker.failed.connect(lambda rid, error, p=page: self._on_rows_plan_failed(rid, error, p))
 
-        request_id, worker = self._rows_plan_runtime.start_qthread_worker(
+        request_id, _worker = self._rows_plan_runtime.start_qthread_worker(
             worker_factory=lambda request_id: UserPresetsRowsPlanWorker(
                 request_id,
                 build_rows_plan,
@@ -889,7 +862,6 @@ class UserPresetsRuntimeService:
             on_finished=self._on_rows_plan_worker_finished,
         )
         self._rows_plan_request_id = request_id
-        self._rows_plan_worker = worker
 
     def _on_rows_plan_loaded(self, request_id: int, plan, started_at: float | None, page=None) -> None:
         if request_id != self._rows_plan_request_id:
@@ -926,8 +898,7 @@ class UserPresetsRuntimeService:
         log(f"Ошибка подготовки списка пресетов: {error}", "ERROR")
 
     def _on_rows_plan_worker_finished(self, worker: UserPresetsRowsPlanWorker) -> None:
-        if self._rows_plan_worker is worker:
-            self._rows_plan_worker = None
+        _ = worker
         pending = self._rows_plan_pending
         if pending is not None:
             self._schedule_rows_plan_refresh()

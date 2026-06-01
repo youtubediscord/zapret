@@ -21,6 +21,16 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("start_qthread_worker", start_sources)
         self.assertNotIn("worker.start()", start_sources)
 
+    def test_runtime_service_keeps_worker_identity_only_in_shared_runtime(self) -> None:
+        import presets.user_presets_runtime_service as runtime_service
+
+        service_source = inspect.getsource(runtime_service.UserPresetsRuntimeService)
+
+        self.assertNotIn("self._metadata_load_worker", service_source)
+        self.assertNotIn("self._single_metadata_worker", service_source)
+        self.assertNotIn("self._rows_plan_worker", service_source)
+        self.assertNotIn("def _worker_runtime_is_running", service_source)
+
     def test_runtime_finished_handlers_leave_worker_deletion_to_shared_runtime(self) -> None:
         import presets.user_presets_runtime_service as runtime_service
 
