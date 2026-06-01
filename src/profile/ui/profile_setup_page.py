@@ -1656,6 +1656,8 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _user_profile_write_operation_running(self) -> bool:
+        if self.__dict__.get("_user_profile_write_operation_start_scheduled", False):
+            return True
         return self._worker_runtime("_user_profile_update_runtime").is_running() or self._worker_runtime(
             "_user_profile_delete_runtime"
         ).is_running()
