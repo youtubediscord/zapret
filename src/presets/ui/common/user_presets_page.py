@@ -1135,17 +1135,16 @@ class UserPresetsPageBase(BasePage):
         context_extra: dict | None = None,
     ) -> None:
         runtime = self._worker_runtime("_preset_folder_action_runtime")
+        payload = {
+            "action": str(action or ""),
+            "folder_key": str(folder_key or ""),
+            "name": str(name or ""),
+            "direction": int(direction or 0),
+            "collapsed": bool(collapsed),
+            "context_extra": dict(context_extra or {}),
+        }
         if runtime.is_running() or self.__dict__.get("_preset_folder_action_start_scheduled", False):
-            self._preset_folder_action_pending.append(
-                {
-                    "action": str(action or ""),
-                    "folder_key": str(folder_key or ""),
-                    "name": str(name or ""),
-                    "direction": int(direction or 0),
-                    "collapsed": bool(collapsed),
-                    "context_extra": dict(context_extra or {}),
-                }
-            )
+            self._queue_preset_folder_action(payload)
             return
         self._preset_folder_action_request_id = int(
             self.__dict__.get("_preset_folder_action_request_id", 0) or 0
@@ -1169,6 +1168,21 @@ class UserPresetsPageBase(BasePage):
             bind_worker=_bind_worker,
             on_finished=self._on_preset_folder_action_worker_finished,
         )
+
+    def _queue_preset_folder_action(self, payload: dict[str, object]) -> None:
+        action = str(payload.get("action") or "")
+        folder_key = str(payload.get("folder_key") or "")
+        pending = self.__dict__.setdefault("_preset_folder_action_pending", [])
+        if action == "toggle_collapsed" and folder_key:
+            pending[:] = [
+                item
+                for item in pending
+                if not (
+                    str(item.get("action") or "") == "toggle_collapsed"
+                    and str(item.get("folder_key") or "") == folder_key
+                )
+            ]
+        pending.append(dict(payload or {}))
 
     def _on_preset_folder_action_finished(self, request_id: int, action: str, result, context) -> None:
         if request_id != int(getattr(self, "_preset_folder_action_request_id", 0) or 0):
@@ -1203,7 +1217,7 @@ class UserPresetsPageBase(BasePage):
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_preset_folder_action_start_scheduled", False):
-            self.__dict__.setdefault("_preset_folder_action_pending", []).append(queued)
+            self._queue_preset_folder_action(queued)
             return
         self._preset_folder_action_start_scheduled = True
         try:

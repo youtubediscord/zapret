@@ -429,6 +429,42 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
             ],
         )
 
+    def test_user_presets_folder_toggle_keeps_latest_pending_state(self) -> None:
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_folder_action_start_scheduled = True
+        page._preset_folder_action_pending = []
+        page._preset_folder_action_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        UserPresetsPageBase._request_preset_folder_action(
+            page,
+            "toggle_collapsed",
+            folder_key="games",
+            collapsed=True,
+        )
+        UserPresetsPageBase._request_preset_folder_action(
+            page,
+            "toggle_collapsed",
+            folder_key="games",
+            collapsed=False,
+        )
+
+        page._preset_folder_action_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(
+            page._preset_folder_action_pending,
+            [
+                {
+                    "action": "toggle_collapsed",
+                    "folder_key": "games",
+                    "name": "",
+                    "direction": 0,
+                    "collapsed": False,
+                    "context_extra": {},
+                }
+            ],
+        )
+
     def test_user_presets_runtime_actions_do_not_expose_mutating_preset_commands(self) -> None:
         from dataclasses import fields
 

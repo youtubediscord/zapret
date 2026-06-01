@@ -1482,7 +1482,11 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("from presets.folders", worker_source)
         self.assertNotIn("from presets.folders import", inspect.getsource(UserPresetsPageBase))
         self.assertIn('context["folder_state"]', worker_source)
-        self.assertIn("_preset_folder_action_pending.append", request_source)
+        self.assertIn("_queue_preset_folder_action", request_source)
+        self.assertIn(
+            "_preset_folder_action_pending",
+            inspect.getsource(UserPresetsPageBase._queue_preset_folder_action),
+        )
         self.assertIn("_preset_folder_action_pending.pop(0)", finished_source)
         self.assertIn("update_cached_folder_state", action_finished_source)
         self.assertIn("show_menu", action_finished_source)
