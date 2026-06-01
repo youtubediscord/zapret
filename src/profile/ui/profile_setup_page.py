@@ -919,6 +919,8 @@ class ProfileSetupPageBase(BasePage):
         self._loading = False
         self._setup_load_runtime = OneShotWorkerRuntime()
         self._setup_load_request_id = 0
+        self._setup_load_dirty = False
+        self._setup_load_start_scheduled = False
         self._list_file_load_runtime = OneShotWorkerRuntime()
         self._list_file_load_request_id = 0
         self._pending_list_file_load = False
@@ -2121,6 +2123,17 @@ class ProfileSetupPageBase(BasePage):
     def _request_profile_setup_payload(self) -> None:
         if not self._profile_key:
             return
+        runtime = self._worker_runtime("_setup_load_runtime")
+        if runtime.is_running() or self.__dict__.get("_setup_load_start_scheduled", False):
+            self._setup_load_request_id += 1
+            self._setup_load_dirty = True
+            return
+
+        self._start_profile_setup_load_worker()
+
+    def _start_profile_setup_load_worker(self) -> None:
+        if not self._profile_key:
+            return
         self._setup_load_request_id += 1
         request_id = self._setup_load_request_id
         set_widget_text_if_changed(self._summary, "Загрузка profile...")
@@ -2182,7 +2195,26 @@ class ProfileSetupPageBase(BasePage):
         set_widget_enabled_if_changed(self._enabled_checkbox, False)
 
     def _on_profile_setup_worker_finished(self, _worker) -> None:
-        pass
+        if self.__dict__.get("_setup_load_dirty") and not self.__dict__.get("_cleanup_in_progress", False):
+            self._schedule_profile_setup_load_start()
+
+    def _schedule_profile_setup_load_start(self) -> None:
+        if self.__dict__.get("_setup_load_start_scheduled", False):
+            return
+        self._setup_load_start_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_profile_setup_load_start)
+        except Exception:
+            self._run_scheduled_profile_setup_load_start()
+
+    def _run_scheduled_profile_setup_load_start(self) -> None:
+        self._setup_load_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if not self.__dict__.get("_setup_load_dirty"):
+            return
+        self._setup_load_dirty = False
+        self._request_profile_setup_payload()
 
     def _restore_loaded_payload_header(self, payload) -> None:
         item = getattr(payload, "item", None)
@@ -3490,6 +3522,8 @@ class ProfileSetupPageBase(BasePage):
         ):
             setattr(self, attr, None)
         self._list_file_state_apply_scheduled = False
+        self._setup_load_dirty = False
+        self._setup_load_start_scheduled = False
         self._list_file_load_start_scheduled = False
         self._list_file_save_start_scheduled = False
         self._list_file_validation_start_scheduled = False

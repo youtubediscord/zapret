@@ -1735,6 +1735,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._pending_settings_save = {"setting": "filter"}
         page._pending_strategy_apply = "strategy-id"
         page._pending_strategy_feedback_save = {"rating": "work"}
+        page._setup_load_dirty = True
+        page._setup_load_start_scheduled = True
         page._settings_save_timer = SimpleNamespace(stop=Mock())
 
         ProfileSetupPageBase.cleanup(page)
@@ -1752,6 +1754,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIsNone(page._pending_settings_save)
         self.assertIsNone(page._pending_strategy_apply)
         self.assertIsNone(page._pending_strategy_feedback_save)
+        self.assertFalse(page._setup_load_dirty)
+        self.assertFalse(page._setup_load_start_scheduled)
         page._settings_save_timer.stop.assert_called_once()
 
     def test_profile_move_starts_worker_without_direct_profile_call(self) -> None:

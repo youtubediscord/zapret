@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
@@ -65,6 +65,7 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
 
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
         request_source = inspect.getsource(ProfileSetupPageBase._request_profile_setup_payload)
+        start_source = inspect.getsource(ProfileSetupPageBase._start_profile_setup_load_worker)
         create_source = inspect.getsource(ProfileSetupPageBase.create_profile_setup_load_worker)
         feature_source = inspect.getsource(ProfileFeature)
         service_init_source = inspect.getsource(ProfilePresetService.__init__)
@@ -73,8 +74,10 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
 
         self.assertIn("create_profile_setup_load_worker", init_source)
         self.assertIn("_create_profile_setup_load_worker_fn", init_source)
-        self.assertIn("create_profile_setup_load_worker", request_source)
+        self.assertIn("_start_profile_setup_load_worker", request_source)
+        self.assertIn("create_profile_setup_load_worker", start_source)
         self.assertNotIn("_controller.create_load_worker", request_source)
+        self.assertNotIn("_controller.create_load_worker", start_source)
         self.assertIn("_create_profile_setup_load_worker_fn", create_source)
         self.assertIn("create_profile_setup_load_worker", feature_source)
         self.assertIn("_profile_setup_payload_cache", service_init_source)
@@ -107,6 +110,63 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         self.assertIn('getattr(payload, "items"', warm_source)
         self.assertIn("get_profile_setup", service_source)
         self.assertIn("_yield_profile_payload_worker", service_source)
+
+    def test_profile_setup_reload_waits_while_load_worker_runs(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        runtime = SimpleNamespace(
+            is_running=Mock(return_value=True),
+            start_qthread_worker=Mock(),
+        )
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._setup_load_runtime = runtime
+        page._setup_load_request_id = 4
+        page._setup_load_dirty = False
+        page._setup_load_start_scheduled = False
+        page._summary = Mock()
+        page._enabled_checkbox = Mock()
+
+        ProfileSetupPageBase.reload_current_profile(page)
+
+        runtime.start_qthread_worker.assert_not_called()
+        self.assertTrue(page._setup_load_dirty)
+        self.assertEqual(page._setup_load_request_id, 5)
+
+    def test_profile_setup_pending_reload_starts_after_worker_signal(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        runtime = SimpleNamespace(
+            is_running=Mock(return_value=False),
+            start_qthread_worker=Mock(),
+        )
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "profile-1"
+        page._setup_load_runtime = runtime
+        page._setup_load_request_id = 0
+        page._setup_load_dirty = True
+        page._setup_load_start_scheduled = False
+        page._cleanup_in_progress = False
+        page._summary = Mock()
+        page._enabled_checkbox = Mock()
+        page.create_profile_setup_load_worker = Mock()
+        callbacks = []
+
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_profile_setup_worker_finished(page, object())
+
+        runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+        self.assertTrue(page._setup_load_start_scheduled)
+
+        callbacks[0]()
+
+        runtime.start_qthread_worker.assert_called_once()
+        self.assertFalse(page._setup_load_dirty)
+        self.assertFalse(page._setup_load_start_scheduled)
 
     def test_context_action_worker_receives_action_functions(self) -> None:
         from profile.profile_setup_loader import ProfilePresetProfileActionWorker
