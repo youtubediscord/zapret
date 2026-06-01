@@ -736,9 +736,17 @@ class OrchestraPage(BasePage):
             self._log_history_action_runtime.is_running()
             or self.__dict__.get("_log_history_action_start_scheduled", False)
         ):
-            self._log_history_action_pending.append(payload)
+            self._queue_log_history_action(payload)
             return
         self._start_log_history_action_worker(payload)
+
+    def _queue_log_history_action(self, payload) -> None:
+        action, log_id = payload
+        queued = (str(action or "").strip(), str(log_id or "").strip())
+        pending = self.__dict__.setdefault("_log_history_action_pending", [])
+        if queued in pending:
+            return
+        pending.append(queued)
 
     def _start_log_history_action_worker(self, payload) -> None:
         action, log_id = payload
@@ -794,7 +802,7 @@ class OrchestraPage(BasePage):
         action, log_id = payload
         queued = (str(action or "").strip(), str(log_id or "").strip())
         if self.__dict__.get("_log_history_action_start_scheduled", False):
-            self._log_history_action_pending.append(queued)
+            self._queue_log_history_action(queued)
             return
         self._log_history_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_log_history_action_worker_start(value))
@@ -946,9 +954,22 @@ class OrchestraPage(BasePage):
             self._log_context_action_runtime.is_running()
             or self.__dict__.get("_log_context_action_start_scheduled", False)
         ):
-            self._log_context_action_pending.append(payload)
+            self._queue_log_context_action(payload)
             return
         self._start_log_context_action_worker(payload)
+
+    def _queue_log_context_action(self, payload) -> None:
+        action, domain, strategy, protocol = payload
+        queued = (
+            str(action or "").strip(),
+            str(domain or "").strip(),
+            int(strategy or 0),
+            str(protocol or "").strip(),
+        )
+        pending = self.__dict__.setdefault("_log_context_action_pending", [])
+        if queued in pending:
+            return
+        pending.append(queued)
 
     def _start_log_context_action_worker(self, payload) -> None:
         action, domain, strategy, protocol = payload
@@ -1001,7 +1022,7 @@ class OrchestraPage(BasePage):
             str(protocol or "").strip(),
         )
         if self.__dict__.get("_log_context_action_start_scheduled", False):
-            self._log_context_action_pending.append(queued)
+            self._queue_log_context_action(queued)
             return
         self._log_context_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_log_context_action_worker_start(value))

@@ -110,6 +110,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         delete_source = inspect.getsource(OrchestraPage._delete_log_history)
         clear_source = inspect.getsource(OrchestraPage._clear_all_log_history)
         request_source = inspect.getsource(OrchestraPage._request_log_history_action)
+        queue_source = inspect.getsource(OrchestraPage._queue_log_history_action)
         start_source = inspect.getsource(OrchestraPage._start_log_history_action_worker)
         page_source = inspect.getsource(OrchestraPage)
         feature_source = inspect.getsource(OrchestraFeature)
@@ -122,7 +123,8 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("_log_history_action_runtime", page_source)
         self.assertIn("create_log_history_action_worker", page_source)
         self.assertIn("start_qthread_worker", start_source)
-        self.assertIn("_log_history_action_pending", request_source)
+        self.assertIn("_queue_log_history_action", request_source)
+        self.assertIn("_log_history_action_pending", queue_source)
         self.assertIn("create_log_history_action_worker", feature_source)
         self.assertIn("run_log_history_action", feature_source)
 
@@ -170,6 +172,23 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         page._start_log_history_action_worker.assert_called_once_with(("delete", "old-log"))
         self.assertEqual(page._log_history_action_pending, [("delete", "new-log")])
 
+    def test_duplicate_log_history_action_is_queued_once(self) -> None:
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_history_action_runtime = SimpleNamespace(is_running=Mock(return_value=True))
+        page._log_history_action_start_scheduled = False
+        page._log_history_action_pending = []
+        page._start_log_history_action_worker = Mock()
+        page._get_runner = Mock(return_value=object())
+
+        OrchestraPage._request_log_history_action(page, "delete", "same-log")
+        OrchestraPage._request_log_history_action(page, "delete", "same-log")
+
+        self.assertEqual(page._log_history_action_pending, [("delete", "same-log")])
+        page._start_log_history_action_worker.assert_not_called()
+
     def test_orchestra_log_context_actions_run_through_worker(self) -> None:
         import orchestra.ui.page_log_context_workflow as log_context_workflow
         from app.feature_facades.orchestra import OrchestraFeature
@@ -180,6 +199,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         unblock_source = inspect.getsource(OrchestraPage._unblock_strategy_from_log)
         whitelist_source = inspect.getsource(OrchestraPage._add_to_whitelist_from_log)
         request_source = inspect.getsource(OrchestraPage._request_log_context_action)
+        queue_source = inspect.getsource(OrchestraPage._queue_log_context_action)
         start_source = inspect.getsource(OrchestraPage._start_log_context_action_worker)
         menu_source = inspect.getsource(log_context_workflow.show_log_context_menu)
         page_source = inspect.getsource(OrchestraPage)
@@ -195,7 +215,8 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("_log_context_action_runtime", page_source)
         self.assertIn("create_log_context_action_worker", page_source)
         self.assertIn("start_qthread_worker", start_source)
-        self.assertIn("_log_context_action_pending", request_source)
+        self.assertIn("_queue_log_context_action", request_source)
+        self.assertIn("_log_context_action_pending", queue_source)
         self.assertIn("create_log_context_action_worker", feature_source)
         self.assertIn("run_log_context_action", feature_source)
 
@@ -242,6 +263,23 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
 
         page._start_log_context_action_worker.assert_called_once_with(("lock", "old.com", 7, "tcp"))
         self.assertEqual(page._log_context_action_pending, [("lock", "new.com", 8, "udp")])
+
+    def test_duplicate_log_context_action_is_queued_once(self) -> None:
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_context_action_runtime = SimpleNamespace(is_running=Mock(return_value=True))
+        page._log_context_action_start_scheduled = False
+        page._log_context_action_pending = []
+        page._start_log_context_action_worker = Mock()
+        page._get_runner = Mock(return_value=object())
+
+        OrchestraPage._request_log_context_action(page, "lock", "same.com", 7, "tcp")
+        OrchestraPage._request_log_context_action(page, "lock", "same.com", 7, "tcp")
+
+        self.assertEqual(page._log_context_action_pending, [("lock", "same.com", 7, "tcp")])
+        page._start_log_context_action_worker.assert_not_called()
 
     def test_orchestra_clear_learned_request_queues_while_worker_runs(self) -> None:
         from orchestra.ui.page import OrchestraPage
