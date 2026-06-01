@@ -1309,10 +1309,13 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("actions_api.", worker_source)
 
     def test_user_presets_info_links_open_through_worker(self) -> None:
+        from presets.ui.common import user_presets_item_actions_workflow
+
         info_source = inspect.getsource(UserPresetsPageBase._open_presets_info)
         post_source = inspect.getsource(UserPresetsPageBase._open_new_configs_post)
         request_source = inspect.getsource(UserPresetsPageBase._request_preset_link_action)
         cleanup_source = inspect.getsource(UserPresetsPageBase._stop_action_workers_for_cleanup)
+        item_actions_source = inspect.getsource(user_presets_item_actions_workflow)
 
         self.assertTrue(hasattr(user_presets_action_workers, "UserPresetLinkActionWorker"))
         worker_source = inspect.getsource(user_presets_action_workers.UserPresetLinkActionWorker.run)
@@ -1329,6 +1332,10 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("self._open_presets_info", worker_source)
         self.assertIn("self._open_new_configs_post", worker_source)
         self.assertNotIn("actions_api.", worker_source)
+        self.assertNotIn("open_presets_info_action", item_actions_source)
+        self.assertNotIn("open_new_configs_post_action", item_actions_source)
+        self.assertNotIn("actions_api.open_presets_info", item_actions_source)
+        self.assertNotIn("actions_api.open_new_configs_post", item_actions_source)
         self.assertIn("_preset_link_action_runtime", cleanup_source)
         self.assertIn(".stop(", cleanup_source)
         self.assertIn(".cancel()", cleanup_source)

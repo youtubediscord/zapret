@@ -43,25 +43,3 @@ def rename_preset_action(*, name: str, is_builtin_preset_file_fn, show_inline_ac
         )
         return
     show_inline_action_rename_fn(name)
-
-
-def open_presets_info_action(*, actions_api, info_bar_cls, tr_fn, parent_window, log_fn) -> None:
-    result = actions_api.open_presets_info()
-    log_fn(result.log_message, result.log_level)
-    if (not result.ok) and result.infobar_level == "warning":
-        info_bar_cls.warning(
-            title=result.infobar_title or tr_fn("common.error.title", "Ошибка"),
-            content=result.infobar_content,
-            parent=parent_window,
-        )
-
-
-def open_new_configs_post_action(*, actions_api, info_bar_cls, tr_fn, parent_window, log_fn) -> None:
-    result = actions_api.open_new_configs_post()
-    log_fn(result.log_message, result.log_level)
-    if (not result.ok) and result.infobar_level == "warning":
-        info_bar_cls.warning(
-            title=result.infobar_title or tr_fn("common.error.title", "Ошибка"),
-            content=result.infobar_content,
-            parent=parent_window,
-        )
