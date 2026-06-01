@@ -351,7 +351,6 @@ class UserPresetsRuntimeService:
     def _on_single_metadata_worker_finished(self, worker: UserPresetsSingleMetadataWorker, page=None) -> None:
         if self._single_metadata_worker is worker:
             self._single_metadata_worker = None
-        worker.deleteLater()
         if self._single_metadata_pending:
             self._schedule_single_metadata_refresh(page)
 
@@ -803,7 +802,6 @@ class UserPresetsRuntimeService:
     def _on_metadata_worker_finished(self, worker: UserPresetsMetadataLoadWorker) -> None:
         if self._metadata_load_worker is worker:
             self._metadata_load_worker = None
-        worker.deleteLater()
         pending_page = self._metadata_load_pending_page
         if pending_page is not None:
             self._schedule_metadata_load()
@@ -930,7 +928,6 @@ class UserPresetsRuntimeService:
     def _on_rows_plan_worker_finished(self, worker: UserPresetsRowsPlanWorker) -> None:
         if self._rows_plan_worker is worker:
             self._rows_plan_worker = None
-        worker.deleteLater()
         pending = self._rows_plan_pending
         if pending is not None:
             self._schedule_rows_plan_refresh()

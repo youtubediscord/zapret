@@ -21,6 +21,19 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("start_qthread_worker", start_sources)
         self.assertNotIn("worker.start()", start_sources)
 
+    def test_runtime_finished_handlers_leave_worker_deletion_to_shared_runtime(self) -> None:
+        import presets.user_presets_runtime_service as runtime_service
+
+        finish_sources = "\n".join(
+            (
+                inspect.getsource(runtime_service.UserPresetsRuntimeService._on_single_metadata_worker_finished),
+                inspect.getsource(runtime_service.UserPresetsRuntimeService._on_metadata_worker_finished),
+                inspect.getsource(runtime_service.UserPresetsRuntimeService._on_rows_plan_worker_finished),
+            )
+        )
+
+        self.assertNotIn("worker.deleteLater()", finish_sources)
+
     def test_runtime_refresh_requests_rows_plan_worker_instead_of_building_rows_in_gui(self) -> None:
         from presets.user_presets_runtime_service import UserPresetsRuntimeService
 

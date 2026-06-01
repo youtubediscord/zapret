@@ -154,6 +154,7 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
 
             self.assertEqual(len(_MetadataWorker.instances), 1)
 
+            service._metadata_load_runtime.worker = None
             service._on_metadata_worker_finished(_MetadataWorker.instances[0])
 
             self.assertEqual(len(_MetadataWorker.instances), 1)
@@ -192,6 +193,7 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         ):
             service.load_presets(page)
             service.load_presets(page)
+            service._metadata_load_runtime.worker = None
             service._on_metadata_worker_finished(_MetadataWorker.instances[0])
             service.load_presets(page)
 
