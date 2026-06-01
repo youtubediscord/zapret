@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from app.feature_facades.blobs import build_blobs_feature
+import blobs.ui.runtime_helpers as blobs_runtime_helpers
 import blobs.ui.page as blobs_page
 from blobs.ui.page import BlobsPage
 import blobs.workers as blobs_workers
@@ -50,6 +51,12 @@ class BlobsWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("self._delete_user_blob", worker_source)
         self.assertIn("self._open_bin_folder", worker_source)
         self.assertIn("self._open_blobs_json", worker_source)
+
+    def test_blobs_runtime_helpers_do_not_keep_direct_open_actions(self) -> None:
+        helper_names = set(vars(blobs_runtime_helpers))
+
+        self.assertNotIn("open_bin_folder_action", helper_names)
+        self.assertNotIn("open_json_action", helper_names)
 
     def test_blobs_page_uses_one_shot_runtime_for_workers(self) -> None:
         page_source = inspect.getsource(BlobsPage)

@@ -158,30 +158,6 @@ def reload_blobs_data(
         reload_btn.set_loading(False)
 
 
-def open_bin_folder_action(*, tr_fn, info_bar_cls, window, open_bin_folder_fn, log_error) -> None:
-    try:
-        open_bin_folder_fn()
-    except Exception as exc:
-        log_error(f"Ошибка открытия папки: {exc}")
-        info_bar_cls.warning(
-            title=tr_fn("common.error.title", "Ошибка"),
-            content=tr_fn("page.blobs.error.open_folder", "Не удалось открыть папку: {error}", error=exc),
-            parent=window,
-        )
-
-
-def open_json_action(*, tr_fn, info_bar_cls, window, open_blobs_json_fn, log_error) -> None:
-    try:
-        open_blobs_json_fn()
-    except Exception as exc:
-        log_error(f"Ошибка открытия JSON: {exc}")
-        info_bar_cls.warning(
-            title=tr_fn("common.error.title", "Ошибка"),
-            content=tr_fn("page.blobs.error.open_file", "Не удалось открыть файл: {error}", error=exc),
-            parent=window,
-        )
-
-
 def apply_blobs_language(
     *,
     tr_fn,
