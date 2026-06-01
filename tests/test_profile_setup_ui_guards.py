@@ -827,6 +827,38 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
 
         page._start_list_file_save_worker.assert_called_once_with("profile-1", "latest.example")
 
+    def test_list_file_save_waits_while_scheduled_save_start_is_pending(self) -> None:
+        from unittest.mock import Mock, patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        first_pending = ("profile-1", "first.example")
+        page._pending_list_file_save = first_pending
+        page._pending_profile_setup_write_operations = []
+        page._start_next_profile_setup_write_operation = Mock(return_value=False)
+        page._start_list_file_save_worker = Mock()
+        callbacks = []
+
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_list_file_save_worker_finished(page, object())
+            ProfileSetupPageBase._request_list_file_save(page, "profile-1", "second.example")
+
+        page._start_list_file_save_worker.assert_not_called()
+        self.assertEqual(page._pending_list_file_save, ("profile-1", "second.example"))
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._start_list_file_save_worker.assert_called_once_with("profile-1", "first.example")
+        self.assertEqual(
+            page._pending_profile_setup_write_operations,
+            [{"kind": "list_file_save", "profile_key": "profile-1", "text": "second.example"}],
+        )
+
     def test_list_file_validation_label_skips_duplicate_error_render(self) -> None:
         from unittest.mock import Mock
 
