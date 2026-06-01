@@ -121,6 +121,29 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
 
         page._start_log_history_action_worker.assert_called_once_with(("delete", "log-1"))
 
+    def test_orchestra_log_history_scheduled_action_queues_next_payload(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_history_action_start_scheduled = False
+        page._log_history_action_pending = []
+        page._start_log_history_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._schedule_log_history_action_worker_start(page, ("delete", "old-log"))
+            OrchestraPage._schedule_log_history_action_worker_start(page, ("delete", "new-log"))
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._log_history_action_pending, [("delete", "new-log")])
+
+        single_shot.call_args.args[1]()
+
+        page._start_log_history_action_worker.assert_called_once_with(("delete", "old-log"))
+        self.assertEqual(page._log_history_action_pending, [("delete", "new-log")])
+
     def test_orchestra_log_context_actions_run_through_worker(self) -> None:
         import orchestra.ui.page_log_context_workflow as log_context_workflow
         from orchestra.page_controller import OrchestraPageController
@@ -170,6 +193,29 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_log_context_action_worker.assert_called_once_with(("lock", "example.com", 7, "tcp"))
+
+    def test_orchestra_log_context_scheduled_action_queues_next_payload(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_context_action_start_scheduled = False
+        page._log_context_action_pending = []
+        page._start_log_context_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._schedule_log_context_action_worker_start(page, ("lock", "old.com", 7, "tcp"))
+            OrchestraPage._schedule_log_context_action_worker_start(page, ("lock", "new.com", 8, "udp"))
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._log_context_action_pending, [("lock", "new.com", 8, "udp")])
+
+        single_shot.call_args.args[1]()
+
+        page._start_log_context_action_worker.assert_called_once_with(("lock", "old.com", 7, "tcp"))
+        self.assertEqual(page._log_context_action_pending, [("lock", "new.com", 8, "udp")])
 
     def test_orchestra_main_page_does_not_read_learned_data_in_ui_thread(self) -> None:
         from orchestra.ui.page import OrchestraPage
@@ -245,6 +291,29 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
 
         page._start_managed_action.assert_called_once_with(("locked_remove", {"domain": "example.org"}))
 
+    def test_locked_managed_action_scheduled_start_queues_next_payload(self) -> None:
+        import orchestra.ui.locked_page as locked_page
+        from orchestra.ui.locked_page import OrchestraLockedPage
+
+        page = OrchestraLockedPage.__new__(OrchestraLockedPage)
+        page._cleanup_in_progress = False
+        page._managed_action_start_scheduled = False
+        page._managed_action_pending = []
+        page._start_managed_action = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(locked_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            OrchestraLockedPage._schedule_managed_action_start(page, ("locked_remove", {"domain": "old.org"}))
+            OrchestraLockedPage._schedule_managed_action_start(page, ("locked_remove", {"domain": "new.org"}))
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._managed_action_pending, [("locked_remove", {"domain": "new.org"})])
+
+        single_shot.call_args.args[1]()
+
+        page._start_managed_action.assert_called_once_with(("locked_remove", {"domain": "old.org"}))
+        self.assertEqual(page._managed_action_pending, [("locked_remove", {"domain": "new.org"})])
+
     def test_blocked_managed_action_pending_restarts_after_event_loop_turn(self) -> None:
         import orchestra.ui.blocked_page as blocked_page
         from orchestra.ui.blocked_page import OrchestraBlockedPage
@@ -266,6 +335,29 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_managed_action.assert_called_once_with(("blocked_remove", {"domain": "example.org"}))
+
+    def test_blocked_managed_action_scheduled_start_queues_next_payload(self) -> None:
+        import orchestra.ui.blocked_page as blocked_page
+        from orchestra.ui.blocked_page import OrchestraBlockedPage
+
+        page = OrchestraBlockedPage.__new__(OrchestraBlockedPage)
+        page._cleanup_in_progress = False
+        page._managed_action_start_scheduled = False
+        page._managed_action_pending = []
+        page._start_managed_action = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(blocked_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            OrchestraBlockedPage._schedule_managed_action_start(page, ("blocked_remove", {"domain": "old.org"}))
+            OrchestraBlockedPage._schedule_managed_action_start(page, ("blocked_remove", {"domain": "new.org"}))
+
+        single_shot.assert_called_once()
+        self.assertEqual(page._managed_action_pending, [("blocked_remove", {"domain": "new.org"})])
+
+        single_shot.call_args.args[1]()
+
+        page._start_managed_action.assert_called_once_with(("blocked_remove", {"domain": "old.org"}))
+        self.assertEqual(page._managed_action_pending, [("blocked_remove", {"domain": "new.org"})])
 
     def test_whitelist_workers_receive_action_functions(self) -> None:
         from orchestra.managed_lists_workers import (

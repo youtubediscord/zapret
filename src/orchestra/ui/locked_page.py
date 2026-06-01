@@ -563,6 +563,9 @@ class OrchestraLockedPage(BasePage):
             return
         action, kwargs = payload
         queued = (str(action or "").strip(), dict(kwargs or {}))
+        if self.__dict__.get("_managed_action_start_scheduled", False):
+            self._managed_action_pending.append(queued)
+            return
         self._managed_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_managed_action_start(value))
 

@@ -735,6 +735,9 @@ class OrchestraPage(BasePage):
             return
         action, log_id = payload
         queued = (str(action or "").strip(), str(log_id or "").strip())
+        if self.__dict__.get("_log_history_action_start_scheduled", False):
+            self._log_history_action_pending.append(queued)
+            return
         self._log_history_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_log_history_action_worker_start(value))
 
@@ -936,6 +939,9 @@ class OrchestraPage(BasePage):
             int(strategy or 0),
             str(protocol or "").strip(),
         )
+        if self.__dict__.get("_log_context_action_start_scheduled", False):
+            self._log_context_action_pending.append(queued)
+            return
         self._log_context_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_log_context_action_worker_start(value))
 
