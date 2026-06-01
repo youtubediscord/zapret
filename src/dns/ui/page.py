@@ -135,6 +135,7 @@ class NetworkPage(BasePage):
         self._dns_apply_pending: list[dict[str, object]] = []
         self._scheduled_dns_apply_request = None
         self._dns_apply_start_scheduled = False
+        self._dns_mutation_pending_order: list[str] = []
         self._isp_warning_runtime = OneShotWorkerRuntime()
         self._isp_warning_pending = False
         self._isp_warning_start_scheduled = False
@@ -717,7 +718,7 @@ class NetworkPage(BasePage):
         if self.__dict__.get("_dns_apply_start_scheduled", False):
             self._scheduled_dns_apply_request = dict(request)
             return
-        if self._dns_apply_runtime.is_running() or self.__dict__.get("_dns_apply_start_scheduled", False):
+        if self._dns_mutation_action_running():
             self._queue_dns_apply_request(request)
             return
         self._start_dns_apply_worker(request)
@@ -725,6 +726,7 @@ class NetworkPage(BasePage):
     def _queue_dns_apply_request(self, payload: dict[str, object]) -> None:
         pending = self.__dict__.setdefault("_dns_apply_pending", [])
         pending[:] = [dict(payload or {})]
+        self._mark_dns_mutation_pending("dns_apply")
 
     def _start_dns_apply_worker(self, payload: dict[str, object]) -> None:
         self._dns_apply_runtime.start_qthread_worker(
@@ -769,9 +771,55 @@ class NetworkPage(BasePage):
         log(f"Ошибка применения DNS: {error}", "ERROR")
 
     def _on_dns_apply_worker_finished(self, _worker) -> None:
-        if self._dns_apply_pending and not self._cleanup_in_progress:
-            pending = self._dns_apply_pending.pop(0)
+        self._start_next_dns_mutation_action()
+
+    def _dns_mutation_action_running(self) -> bool:
+        if self.__dict__.get("_dns_apply_start_scheduled", False):
+            return True
+        if self.__dict__.get("_force_dns_action_start_scheduled", False):
+            return True
+        dns_apply_runtime = self.__dict__.get("_dns_apply_runtime")
+        force_dns_runtime = self.__dict__.get("_force_dns_action_runtime")
+        return bool(
+            (dns_apply_runtime is not None and dns_apply_runtime.is_running())
+            or (force_dns_runtime is not None and force_dns_runtime.is_running())
+        )
+
+    def _start_next_dns_mutation_action(self) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        if self._dns_mutation_action_running():
+            return True
+        dns_apply_pending = self.__dict__.setdefault("_dns_apply_pending", [])
+        force_dns_pending = self.__dict__.setdefault("_force_dns_action_pending", [])
+        pending_order = self.__dict__.setdefault("_dns_mutation_pending_order", [])
+        while pending_order:
+            kind = str(pending_order.pop(0) or "")
+            if kind == "dns_apply" and dns_apply_pending:
+                pending = dns_apply_pending.pop(0)
+                self._schedule_dns_apply_worker_start(dict(pending or {}))
+                return True
+            if kind == "force_dns" and force_dns_pending:
+                pending = force_dns_pending.pop(0)
+                self._schedule_force_dns_action_worker_start(dict(pending or {}))
+                return True
+        if dns_apply_pending:
+            pending = dns_apply_pending.pop(0)
             self._schedule_dns_apply_worker_start(dict(pending or {}))
+            return True
+        if force_dns_pending:
+            pending = force_dns_pending.pop(0)
+            self._schedule_force_dns_action_worker_start(dict(pending or {}))
+            return True
+        return False
+
+    def _mark_dns_mutation_pending(self, kind: str) -> None:
+        normalized = str(kind or "").strip()
+        if not normalized:
+            return
+        pending_order = self.__dict__.setdefault("_dns_mutation_pending_order", [])
+        pending_order[:] = [item for item in pending_order if str(item or "") != normalized]
+        pending_order.append(normalized)
 
     def _schedule_dns_apply_worker_start(self, payload: dict[str, object]) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
@@ -943,7 +991,7 @@ class NetworkPage(BasePage):
             else:
                 self._queue_force_dns_action(payload)
             return
-        if self._force_dns_action_runtime.is_running():
+        if self._dns_mutation_action_running():
             self._queue_force_dns_action(payload)
             return
         self._start_force_dns_action_worker(payload)
@@ -957,6 +1005,7 @@ class NetworkPage(BasePage):
         elif queued in pending:
             return
         pending.append(queued)
+        self._mark_dns_mutation_pending("force_dns")
 
     def _start_force_dns_action_worker(self, payload: dict[str, object]) -> None:
         self._force_dns_action_runtime.start_qthread_worker(
@@ -1079,9 +1128,7 @@ class NetworkPage(BasePage):
         )
 
     def _on_force_dns_action_worker_finished(self, _worker) -> None:
-        if self._force_dns_action_pending and not self._cleanup_in_progress:
-            pending = self._force_dns_action_pending.pop(0)
-            self._schedule_force_dns_action_worker_start(dict(pending or {}))
+        self._start_next_dns_mutation_action()
 
     def _schedule_force_dns_action_worker_start(self, payload: dict[str, object]) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
@@ -1478,6 +1525,7 @@ class NetworkPage(BasePage):
         self._dns_apply_pending.clear()
         self._scheduled_dns_apply_request = None
         self._dns_apply_start_scheduled = False
+        self._dns_mutation_pending_order.clear()
         self._page_load_runtime.stop(
             blocking=False,
             log_fn=log,

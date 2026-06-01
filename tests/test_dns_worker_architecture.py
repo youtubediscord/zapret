@@ -203,6 +203,135 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
             ],
         )
 
+    def test_dns_apply_waits_while_force_dns_worker_runs(self) -> None:
+        class _Runtime:
+            def __init__(self, running: bool) -> None:
+                self._running = running
+
+            def is_running(self) -> bool:
+                return self._running
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._dns_apply_runtime = _Runtime(False)
+        page._force_dns_action_runtime = _Runtime(True)
+        page._dns_apply_start_scheduled = False
+        page._force_dns_action_start_scheduled = False
+        page._dns_apply_pending = []
+        page._start_dns_apply_worker = Mock()
+
+        NetworkPage._request_dns_apply(page, "auto", adapters=["Ethernet"])
+
+        page._start_dns_apply_worker.assert_not_called()
+        self.assertEqual(page._dns_apply_pending, [{"action": "auto", "adapters": ["Ethernet"]}])
+
+    def test_force_dns_waits_while_dns_apply_worker_runs(self) -> None:
+        class _Runtime:
+            def __init__(self, running: bool) -> None:
+                self._running = running
+
+            def is_running(self) -> bool:
+                return self._running
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._dns_apply_runtime = _Runtime(True)
+        page._force_dns_action_runtime = _Runtime(False)
+        page._dns_apply_start_scheduled = False
+        page._force_dns_action_start_scheduled = False
+        page._force_dns_action_pending = []
+        page._start_force_dns_action_worker = Mock()
+
+        NetworkPage._request_force_dns_action(page, "toggle", enabled=True)
+
+        page._start_force_dns_action_worker.assert_not_called()
+        self.assertEqual(page._force_dns_action_pending, [{"action": "toggle", "enabled": True}])
+
+    def test_force_dns_restarts_after_dns_apply_worker_finished(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return False
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_apply_runtime = _Runtime()
+        page._force_dns_action_runtime = _Runtime()
+        page._dns_apply_start_scheduled = False
+        page._force_dns_action_start_scheduled = False
+        page._dns_apply_pending = []
+        page._force_dns_action_pending = [{"action": "toggle", "enabled": True}]
+        page._start_force_dns_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            NetworkPage._on_dns_apply_worker_finished(page, object())
+
+        page._start_force_dns_action_worker.assert_not_called()
+        single_shot.assert_called_once()
+
+        single_shot.call_args.args[1]()
+
+        page._start_force_dns_action_worker.assert_called_once_with({"action": "toggle", "enabled": True})
+
+    def test_dns_apply_restarts_after_force_dns_worker_finished(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return False
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_apply_runtime = _Runtime()
+        page._force_dns_action_runtime = _Runtime()
+        page._dns_apply_start_scheduled = False
+        page._force_dns_action_start_scheduled = False
+        page._dns_apply_pending = [{"action": "auto", "adapters": ["Ethernet"]}]
+        page._force_dns_action_pending = []
+        page._start_dns_apply_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            NetworkPage._on_force_dns_action_worker_finished(page, object())
+
+        page._start_dns_apply_worker.assert_not_called()
+        single_shot.assert_called_once()
+
+        single_shot.call_args.args[1]()
+
+        page._start_dns_apply_worker.assert_called_once_with({"action": "auto", "adapters": ["Ethernet"]})
+
+    def test_dns_mutation_queue_preserves_cross_action_order(self) -> None:
+        class _Runtime:
+            def __init__(self, running: bool) -> None:
+                self._running = running
+
+            def is_running(self) -> bool:
+                return self._running
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_apply_runtime = _Runtime(True)
+        page._force_dns_action_runtime = _Runtime(False)
+        page._dns_apply_start_scheduled = False
+        page._force_dns_action_start_scheduled = False
+        page._dns_apply_pending = []
+        page._force_dns_action_pending = []
+        page._dns_mutation_pending_order = []
+        page._start_dns_apply_worker = Mock()
+        page._start_force_dns_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        NetworkPage._request_force_dns_action(page, "toggle", enabled=True)
+        NetworkPage._request_dns_apply(page, "auto", adapters=["Ethernet"])
+        page._dns_apply_runtime._running = False
+
+        with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            NetworkPage._on_dns_apply_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        single_shot.call_args.args[1]()
+
+        page._start_force_dns_action_worker.assert_called_once_with({"action": "toggle", "enabled": True})
+        page._start_dns_apply_worker.assert_not_called()
+        self.assertEqual(page._dns_apply_pending, [{"action": "auto", "adapters": ["Ethernet"]}])
+
     def test_force_dns_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
