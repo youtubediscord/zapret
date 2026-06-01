@@ -785,6 +785,11 @@ class AppearancePage(BasePage):
             latest_by_action[action] = payload
         self._appearance_save_pending = [latest_by_action[action] for action in order]
 
+    def _has_pending_appearance_save_action(self, action: str) -> bool:
+        action = str(action or "")
+        pending_payloads = self.__dict__.get("_appearance_save_pending", [])
+        return any(str(payload.get("action") or "") == action for payload in pending_payloads)
+
     def _start_appearance_save_worker(self, payload: dict[str, object]) -> None:
         self._appearance_save_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self.create_appearance_save_worker(
@@ -825,6 +830,8 @@ class AppearancePage(BasePage):
         ):
             return
         context = dict(context or {})
+        if self._has_pending_appearance_save_action(action):
+            return
         if action == "display_mode":
             effective_mode = str(getattr(result, "effective_mode", context.get("value") or "dark") or "dark")
             requested_mode = str(context.get("value") or "").strip()
