@@ -128,6 +128,8 @@ class BlockcheckPage(BasePage):
         self._initial_state_load_started_at = 0.0
         self._run_runtime = OneShotWorkerRuntime()
         self._support_prepare_runtime = OneShotWorkerRuntime()
+        self._support_prepare_pending: dict[str, object] | None = None
+        self._support_prepare_start_scheduled = False
         self._user_domain_action_runtime = OneShotWorkerRuntime()
         self._user_domain_action_pending: list[dict[str, str]] = []
         self._user_domain_action_start_scheduled = False
@@ -840,20 +842,31 @@ class BlockcheckPage(BasePage):
         mode_label: str,
         extra_domains: list[str],
     ) -> None:
-        if self._support_prepare_runtime.is_running():
+        payload = {
+            "run_log_file": run_log_file,
+            "mode_label": str(mode_label or ""),
+            "extra_domains": list(extra_domains or []),
+        }
+        if (
+            self._support_prepare_runtime.is_running()
+            or self.__dict__.get("_support_prepare_start_scheduled", False)
+        ):
+            self._support_prepare_pending = dict(payload)
             self._set_support_status("Подготовка уже идёт...")
             return
 
         self._set_support_status("Подготовка обращения...")
         if self._prepare_support_btn is not None:
             self._prepare_support_btn.setEnabled(False)
+        self._start_support_prepare_worker(payload)
 
+    def _start_support_prepare_worker(self, payload: dict) -> None:
         def worker_factory(request_id: int):
             return self.create_support_prepare_worker(
                 request_id,
-                run_log_file=run_log_file,
-                mode_label=mode_label,
-                extra_domains=extra_domains,
+                run_log_file=payload.get("run_log_file"),
+                mode_label=str(payload.get("mode_label") or ""),
+                extra_domains=list(payload.get("extra_domains") or []),
             )
 
         def bind_worker(worker) -> None:
@@ -908,8 +921,32 @@ class BlockcheckPage(BasePage):
             pass
 
     def _on_support_prepare_runtime_finished(self, _worker) -> None:
+        pending = self.__dict__.get("_support_prepare_pending")
+        if pending is not None and not self._cleanup_in_progress:
+            self._schedule_support_prepare_worker_start(dict(pending or {}))
+            return
         if self._prepare_support_btn is not None and not self._cleanup_in_progress:
             self._prepare_support_btn.setEnabled(True)
+
+    def _schedule_support_prepare_worker_start(self, payload: dict) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._support_prepare_pending = dict(payload or {})
+        if self.__dict__.get("_support_prepare_start_scheduled", False):
+            return
+        self._support_prepare_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_support_prepare_worker_start)
+
+    def _run_scheduled_support_prepare_worker_start(self) -> None:
+        self._support_prepare_start_scheduled = False
+        pending = self.__dict__.get("_support_prepare_pending")
+        self._support_prepare_pending = None
+        if pending is None or self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._set_support_status("Подготовка обращения...")
+        if self._prepare_support_btn is not None:
+            self._prepare_support_btn.setEnabled(False)
+        self._start_support_prepare_worker(dict(pending or {}))
 
     def _toggle_log_expand(self):
         """Развернуть/свернуть лог на всю страницу."""
@@ -1115,6 +1152,8 @@ class BlockcheckPage(BasePage):
             warning_prefix="blockcheck support prepare worker",
         )
         self._support_prepare_runtime.cancel()
+        self._support_prepare_pending = None
+        self._support_prepare_start_scheduled = False
         self._user_domain_action_pending.clear()
         self._user_domain_action_runtime.stop(
             blocking=False,
