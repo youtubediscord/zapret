@@ -1801,6 +1801,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         request_source = inspect.getsource(AppearancePage._request_appearance_save)
         start_source = inspect.getsource(AppearancePage._start_appearance_save_worker)
         finished_source = inspect.getsource(AppearancePage._on_appearance_save_worker_finished)
+        run_scheduled_source = inspect.getsource(AppearancePage._run_scheduled_appearance_save_worker_start)
 
         for method_name in (
             "_on_display_mode_changed",
@@ -1833,7 +1834,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("worker.start()", start_source)
         self.assertIn("_coalesce_appearance_save_pending", request_source)
         self.assertIn("_appearance_save_pending.append", page_source)
-        self.assertIn("_appearance_save_pending.pop(0)", finished_source)
+        self.assertIn("_schedule_appearance_save_worker_start", finished_source)
+        self.assertIn("_coalesce_appearance_save_pending", run_scheduled_source)
+        self.assertIn("_appearance_save_pending.pop(0)", run_scheduled_source)
         self.assertIn("save_display_mode", worker_init_source)
         self.assertIn("save_ui_language", worker_init_source)
         self.assertIn("save_background_preset", worker_init_source)
