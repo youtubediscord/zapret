@@ -95,6 +95,7 @@ class OrchestraPage(BasePage):
         self._clear_learned_runtime = OneShotWorkerRuntime()
         self._log_history_runtime = OneShotWorkerRuntime()
         self._log_history_pending = False
+        self._log_history_start_scheduled = False
         self._log_history_action_runtime = OneShotWorkerRuntime()
         self._log_history_action_pending = []
         self._log_history_action_start_scheduled = False
@@ -609,7 +610,10 @@ class OrchestraPage(BasePage):
         return self._orchestra.create_log_history_load_worker(request_id, self)
 
     def _request_log_history_load(self) -> None:
-        if self._log_history_runtime.is_running():
+        if (
+            self._log_history_runtime.is_running()
+            or self.__dict__.get("_log_history_start_scheduled", False)
+        ):
             self._log_history_pending = True
             return
         self._log_history_pending = False
@@ -647,7 +651,22 @@ class OrchestraPage(BasePage):
         pending = bool(self._log_history_pending)
         self._log_history_pending = False
         if pending and not self._cleanup_in_progress:
-            self._start_log_history_load_worker()
+            self._schedule_log_history_load_worker_start()
+
+    def _schedule_log_history_load_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_log_history_start_scheduled", False):
+            self._log_history_pending = True
+            return
+        self._log_history_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_log_history_load_worker_start)
+
+    def _run_scheduled_log_history_load_worker_start(self) -> None:
+        self._log_history_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_log_history_load_worker()
 
     def create_log_history_action_worker(self, request_id: int, *, action: str, log_id: str):
         return self._orchestra.create_log_history_action_worker(
@@ -773,6 +792,7 @@ class OrchestraPage(BasePage):
             warning_prefix="Orchestra clear learned worker",
         )
         self._log_history_pending = False
+        self._log_history_start_scheduled = False
         self._log_history_runtime.stop(
             blocking=False,
             log_fn=log,

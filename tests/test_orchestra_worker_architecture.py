@@ -252,6 +252,41 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("get_learned_data", learned_source)
         self.assertNotIn("_get_runner", learned_source)
 
+    def test_orchestra_log_history_pending_load_restarts_after_event_loop_turn(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_history_pending = True
+        page._start_log_history_load_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._on_log_history_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_log_history_load_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_log_history_load_worker.assert_called_once_with()
+
+    def test_orchestra_log_history_scheduled_load_keeps_pending_refresh(self) -> None:
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._log_history_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+        page._log_history_start_scheduled = True
+        page._log_history_pending = False
+        page._start_log_history_load_worker = Mock()
+
+        OrchestraPage._request_log_history_load(page)
+
+        page._start_log_history_load_worker.assert_not_called()
+        self.assertTrue(page._log_history_pending)
+
     def test_ratings_worker_receives_loader_function(self) -> None:
         from orchestra.ratings_worker import OrchestraRatingsStateLoadWorker
 
