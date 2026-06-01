@@ -393,16 +393,21 @@ class PremiumPage(BasePage):
     def _on_premium_init_error(self, error) -> None:
         if self._cleanup_in_progress:
             return
+        self._pending_premium_action = ""
+        self._pending_premium_action_start_scheduled = False
         from log.log import log
 
         log(f"Ошибка фоновой инициализации PremiumPage checker: {error}", "ERROR")
 
+    def _remember_pending_premium_action(self, action: str) -> None:
+        normalized = str(action or "").strip()
+        if normalized:
+            self._pending_premium_action = normalized
+
     def _request_checker_init(self, *, pending_action: str = "") -> bool:
         if self._premium.is_checker_ready():
             return True
-        action = str(pending_action or "").strip()
-        if action:
-            self._pending_premium_action = action
+        self._remember_pending_premium_action(pending_action)
         self._start_premium_init_worker()
         return False
 
@@ -722,6 +727,7 @@ class PremiumPage(BasePage):
             thread_running=is_premium_task_running(self.current_thread),
         )
         if not gate_plan.can_start:
+            self._remember_pending_premium_action("pair_code")
             return
         if not self._request_checker_init(pending_action="pair_code"):
             self._set_activation_status(
@@ -782,6 +788,7 @@ class PremiumPage(BasePage):
             thread_running=is_premium_task_running(self.current_thread),
         )
         if not gate_plan.can_start:
+            self._remember_pending_premium_action("check_status")
             return
         if not self._request_checker_init(pending_action="check_status"):
             self._set_status_badge(
@@ -851,6 +858,7 @@ class PremiumPage(BasePage):
             thread_running=is_premium_task_running(self.current_thread),
         )
         if not gate_plan.can_start:
+            self._remember_pending_premium_action("test_connection")
             return
         if not self._request_checker_init(pending_action="test_connection"):
             plan = premium_page_plans.build_connection_test_start_plan(
@@ -921,6 +929,11 @@ class PremiumPage(BasePage):
 
     def _on_worker_thread_finished(self) -> None:
         self.current_thread = None
+        if self.__dict__.get("_pending_premium_action") and not self.__dict__.get(
+            "_cleanup_in_progress",
+            False,
+        ):
+            self._schedule_pending_premium_action_start()
 
     # ── reset activation ──────────────────────────────────────────────────────
 

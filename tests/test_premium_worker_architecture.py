@@ -91,6 +91,54 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
         page._check_status.assert_called_once_with()
         self.assertEqual(page._pending_premium_action, "")
 
+    def test_status_check_is_remembered_while_premium_worker_runs(self) -> None:
+        running_worker = SimpleNamespace(isRunning=Mock(return_value=True))
+        page = PremiumPage.__new__(PremiumPage)
+        page.current_thread = running_worker
+        page._pending_premium_action = ""
+        page._pending_premium_action_start_scheduled = False
+        page._premium = SimpleNamespace(is_checker_ready=Mock(return_value=True))
+        page._set_status_badge = Mock()
+
+        PremiumPage._check_status(page)
+
+        self.assertEqual(page._pending_premium_action, "check_status")
+        page._set_status_badge.assert_not_called()
+
+    def test_premium_worker_finished_replays_pending_action_later(self) -> None:
+        import donater.ui.page as premium_page
+
+        page = PremiumPage.__new__(PremiumPage)
+        page.current_thread = object()
+        page._cleanup_in_progress = False
+        page._pending_premium_action = "test_connection"
+        page._pending_premium_action_start_scheduled = False
+        page._test_connection = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(premium_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            PremiumPage._on_worker_thread_finished(page)
+
+        self.assertIsNone(page.current_thread)
+        single_shot.assert_called_once()
+        page._test_connection.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._test_connection.assert_called_once_with()
+        self.assertEqual(page._pending_premium_action, "")
+
+    def test_pending_premium_action_is_cleared_when_init_fails(self) -> None:
+        page = PremiumPage.__new__(PremiumPage)
+        page._cleanup_in_progress = False
+        page._pending_premium_action = "pair_code"
+        page._pending_premium_action_start_scheduled = True
+
+        PremiumPage._on_premium_init_error(page, "boom")
+
+        self.assertEqual(page._pending_premium_action, "")
+        self.assertFalse(page._pending_premium_action_start_scheduled)
+
     def test_device_info_pending_restarts_after_event_loop_turn(self) -> None:
         import donater.ui.page as premium_page
 
