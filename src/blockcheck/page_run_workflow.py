@@ -8,7 +8,6 @@ from PyQt6.QtCore import QTimer
 
 @dataclass(frozen=True)
 class BlockcheckRunStartResult:
-    worker: object
     run_log_file: str | None
 
 
@@ -82,7 +81,6 @@ def start_blockcheck_page_run(
     )
 
     return BlockcheckRunStartResult(
-        worker=worker,
         run_log_file=None,
     )
 
@@ -124,21 +122,3 @@ def reset_blockcheck_running_ui(
     progress_bar.setVisible(False)
     if hasattr(progress_bar, "stop"):
         progress_bar.stop()
-
-
-def cleanup_blockcheck_worker(worker):
-    """Останавливает или удаляет worker при закрытии страницы."""
-    if worker is None:
-        return None
-    if getattr(worker, "is_running", False):
-        try:
-            worker.stop()
-        except Exception:
-            pass
-        return worker
-
-    try:
-        worker.deleteLater()
-    except Exception:
-        pass
-    return None

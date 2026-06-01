@@ -138,20 +138,3 @@ def request_strategy_scan_stop(
         worker.stop()
         expected_worker = worker
     schedule_stop_check(expected_worker)
-
-
-def cleanup_strategy_scan_worker(worker):
-    """Останавливает или удаляет worker при закрытии страницы."""
-    if worker is None:
-        return None
-    try:
-        worker.stop()
-    except Exception:
-        pass
-    if not getattr(worker, "is_running", False):
-        try:
-            worker.deleteLater()
-        except Exception:
-            pass
-        return None
-    return worker

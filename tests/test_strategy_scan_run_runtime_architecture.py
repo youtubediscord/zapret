@@ -17,6 +17,7 @@ class StrategyScanRunRuntimeArchitectureTest(unittest.TestCase):
         self.assertIn("run_runtime=self._strategy_scan_run_runtime", start_source)
         self.assertIn("_strategy_scan_run_runtime.stop", cleanup_source)
         self.assertIn("run_runtime.start_qobject_worker", workflow_source)
+        self.assertNotIn("self._worker", page_source)
         self.assertNotIn("worker.start()", workflow_source)
 
     def test_strategy_scan_page_leaves_run_worker_deletion_to_shared_runtime(self) -> None:
@@ -27,7 +28,8 @@ class StrategyScanRunRuntimeArchitectureTest(unittest.TestCase):
 
     def test_runtime_conflicting_stop_uses_strategy_scan_stop_path(self) -> None:
         page = StrategyScanPage.__new__(StrategyScanPage)
-        page._worker = Mock(is_running=True)
+        page._strategy_scan_run_runtime = Mock()
+        page._strategy_scan_run_runtime.is_running.return_value = True
         page._on_stop = Mock()
 
         stopped = StrategyScanPage.request_runtime_conflicting_stop(page)

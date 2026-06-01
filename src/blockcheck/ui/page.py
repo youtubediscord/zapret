@@ -29,7 +29,6 @@ from blockcheck.ui.page_results_workflow import (
     update_target_result_table,
 )
 from blockcheck.page_run_workflow import (
-    cleanup_blockcheck_worker,
     request_blockcheck_stop,
     reset_blockcheck_running_ui,
     start_blockcheck_page_run,
@@ -103,7 +102,6 @@ class BlockcheckPage(BasePage):
         self._diagnostics = diagnostics_feature
         self._dns = dns_feature
         self._create_strategy_scan_worker = create_strategy_scan_worker
-        self._worker = None
         self._last_report = None
         self._run_log_file: str | None = None
         self._tab_widgets: list[QWidget] = []
@@ -544,7 +542,7 @@ class BlockcheckPage(BasePage):
     def request_runtime_conflicting_stop(self) -> bool:
         """Останавливает проверки BlockCheck перед ручным запуском основного DPI."""
         stopped = False
-        if self._worker and self._worker.is_running:
+        if self._run_runtime.is_running():
             self._on_stop()
             stopped = True
 
@@ -612,7 +610,7 @@ class BlockcheckPage(BasePage):
     # ------------------------------------------------------------------
 
     def _on_start(self):
-        if self._worker and self._worker.is_running:
+        if self._run_runtime.is_running():
             return
         self._cleanup_in_progress = False
 
@@ -650,7 +648,6 @@ class BlockcheckPage(BasePage):
             on_run_log_started=self._on_run_log_started,
             on_finished=self._on_finished,
         )
-        self._worker = run_state.worker
         self._run_log_file = run_state.run_log_file
 
     def _on_run_log_started(self, run_log_file) -> None:
@@ -660,7 +657,7 @@ class BlockcheckPage(BasePage):
 
     def _on_stop(self):
         request_blockcheck_stop(
-            worker=self._worker,
+            worker=self._run_runtime.worker,
             stop_button=self._stop_btn,
             status_label=self._status_label,
             force_stop=self._force_stop,
@@ -670,7 +667,8 @@ class BlockcheckPage(BasePage):
     def _force_stop(self, expected_worker=None):
         if expected_worker is None:
             return
-        if self._worker is expected_worker and self._worker.is_running:
+        current_worker = self._run_runtime.worker
+        if current_worker is expected_worker and current_worker.is_running:
             warning_text = tr_catalog(
                 "page.blockcheck.stopping_slow",
                 default="Остановка занимает больше времени, ждём завершения фоновой проверки...",
@@ -732,7 +730,6 @@ class BlockcheckPage(BasePage):
         """Handle test completion."""
         if self._cleanup_in_progress:
             return
-        self._worker = None
         self._last_report = report
         self._reset_ui()
         was_cancelled = bool(report is not None and getattr(report, "cancelled", False))
@@ -1176,7 +1173,6 @@ class BlockcheckPage(BasePage):
             warning_prefix="blockcheck run worker",
         )
         self._run_runtime.cancel()
-        self._worker = cleanup_blockcheck_worker(self._worker)
 
         for page in (self._strategy_tab_page, self._diagnostics_tab_page, self._dns_spoofing_tab_page):
             if page is None:

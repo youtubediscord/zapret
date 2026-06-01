@@ -26,7 +26,6 @@ from blockcheck.ui.strategy_scan_page_results_workflow import (
     apply_strategy_started_progress,
 )
 from blockcheck.strategy_scan_run_workflow import (
-    cleanup_strategy_scan_worker,
     request_strategy_scan_stop,
     start_strategy_scan_run,
     start_strategy_scan_worker,
@@ -86,7 +85,6 @@ class StrategyScanPage(BasePage):
 
         self._blockcheck = blockcheck_feature
         self._create_strategy_scan_worker = create_strategy_scan_worker
-        self._worker = None
         self._result_rows: list[dict] = []
         self._scan_target: str = ""
         self._scan_protocol: str = "tcp_https"
@@ -514,7 +512,7 @@ class StrategyScanPage(BasePage):
     # ------------------------------------------------------------------
 
     def _on_start(self):
-        if self._worker and self._worker.is_running:
+        if self._strategy_scan_run_runtime.is_running():
             return
         self._cleanup_in_progress = False
 
@@ -553,21 +551,20 @@ class StrategyScanPage(BasePage):
         self._scan_mode = run_result.mode
         self._scan_cursor = run_result.scan_cursor
         self._run_log_file = None
-        self._worker = run_result.worker
 
         self._apply_interaction_plan(self._blockcheck.build_running_interaction_plan())
         self._progress_bar.setVisible(True)
         self._progress_bar.setValue(self._scan_cursor)
         self._status_label.setText(run_result.status_text)
         start_strategy_scan_worker(
-            self._worker,
+            run_result.worker,
             parent=self,
             run_runtime=self._strategy_scan_run_runtime,
         )
 
     def _on_stop(self):
         request_strategy_scan_stop(
-            worker=self._worker,
+            worker=self._strategy_scan_run_runtime.worker,
             schedule_stop_check=lambda expected_worker:
             QTimer.singleShot(5000, lambda worker=expected_worker: self._force_stop(worker)),
         )
@@ -578,14 +575,14 @@ class StrategyScanPage(BasePage):
 
     def request_runtime_conflicting_stop(self) -> bool:
         """Останавливает подбор перед ручным запуском основного DPI."""
-        if not (self._worker and self._worker.is_running):
+        if not self._strategy_scan_run_runtime.is_running():
             return False
         self._on_stop()
         return True
 
     def _force_stop(self, expected_worker=None):
         apply_force_stop_status(
-            worker=self._worker,
+            worker=self._strategy_scan_run_runtime.worker,
             expected_worker=expected_worker,
             status_label=self._status_label,
             set_support_status=self._set_support_status,
@@ -736,7 +733,6 @@ class StrategyScanPage(BasePage):
         """Handle scan completion."""
         if self._cleanup_in_progress:
             return
-        self._worker = None
         self._request_strategy_scan_finalize(report)
 
     def _request_strategy_scan_finalize(self, report) -> None:
@@ -1145,4 +1141,3 @@ class StrategyScanPage(BasePage):
             warning_prefix="strategy scan run worker",
         )
         self._strategy_scan_run_runtime.cancel()
-        self._worker = cleanup_strategy_scan_worker(self._worker)

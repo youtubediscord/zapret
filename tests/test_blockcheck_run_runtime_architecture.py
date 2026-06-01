@@ -18,6 +18,7 @@ class BlockcheckRunRuntimeArchitectureTest(unittest.TestCase):
         self.assertIn("run_runtime=self._run_runtime", start_source)
         self.assertIn("_run_runtime.stop", cleanup_source)
         self.assertIn("run_runtime.start_qobject_worker", workflow_source)
+        self.assertNotIn("self._worker", page_source)
         self.assertNotIn("worker.start()", workflow_source)
 
     def test_blockcheck_page_leaves_run_worker_deletion_to_shared_runtime(self) -> None:
@@ -39,7 +40,8 @@ class BlockcheckRunRuntimeArchitectureTest(unittest.TestCase):
 
     def test_runtime_conflicting_command_stops_strategy_scan_tab(self) -> None:
         page = BlockcheckPage.__new__(BlockcheckPage)
-        page._worker = None
+        page._run_runtime = Mock()
+        page._run_runtime.is_running.return_value = False
         page._strategy_tab_page = Mock()
         page._strategy_tab_page.request_runtime_conflicting_stop.return_value = True
 
