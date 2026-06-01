@@ -7,6 +7,9 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from log.log import log
 
 
+PROFILE_TIMING_LOG_LEVEL = "⏱ PROFILE"
+
+
 class ProfileListLoadResult:
     def __init__(self, *, payload, view_state=None) -> None:
         self.payload = payload
@@ -33,7 +36,7 @@ class ProfileListLoadWorker(QThread):
             return
         if isinstance(payload, ProfileListLoadResult):
             elapsed_ms = (time.perf_counter() - started_at) * 1000.0
-            log(f"profile_feature.worker.list_profiles.total: {elapsed_ms:.1f}ms", "DEBUG")
+            log(f"profile_feature.worker.list_profiles.total: {elapsed_ms:.1f}ms", PROFILE_TIMING_LOG_LEVEL)
             self.loaded.emit(self._request_id, payload)
             return
         view_state = None
@@ -45,5 +48,5 @@ class ProfileListLoadWorker(QThread):
                 self.failed.emit(self._request_id, str(exc))
                 return
         elapsed_ms = (time.perf_counter() - started_at) * 1000.0
-        log(f"profile_feature.worker.list_profiles.total: {elapsed_ms:.1f}ms", "DEBUG")
+        log(f"profile_feature.worker.list_profiles.total: {elapsed_ms:.1f}ms", PROFILE_TIMING_LOG_LEVEL)
         self.loaded.emit(self._request_id, ProfileListLoadResult(payload=payload, view_state=view_state))

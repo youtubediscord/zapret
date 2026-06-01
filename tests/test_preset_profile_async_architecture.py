@@ -1627,9 +1627,11 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_profile_list_worker_logs_full_profile_payload_duration(self) -> None:
         source = inspect.getsource(ProfileListLoadWorker.run)
+        module_source = inspect.getsource(importlib.import_module("profile.profile_list_loader"))
 
         self.assertIn("time.perf_counter", source)
         self.assertIn("profile_feature.worker.list_profiles.total", source)
+        self.assertIn('PROFILE_TIMING_LOG_LEVEL = "⏱ PROFILE"', module_source)
 
     def test_profile_list_worker_accepts_warmed_load_result(self) -> None:
         source = inspect.getsource(ProfileListLoadWorker.run)
@@ -1668,12 +1670,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_profile_service_logs_profile_payload_stages(self) -> None:
         source = inspect.getsource(ProfilePresetService._list_profiles_locked)
+        timing_source = inspect.getsource(ProfilePresetService._log_timing)
 
         self.assertIn("profile_feature.strategy_catalogs.load", source)
         self.assertIn("profile_feature.templates.load", source)
         self.assertIn("profile_feature.folder_state.load", source)
         self.assertIn("profile_feature.sources.build", source)
         self.assertIn("profile_feature.profile_list_item.build", source)
+        self.assertIn("PROFILE_VISIBLE_TIMING_LABELS", timing_source)
 
     def test_profile_worker_yields_during_large_payload_builds(self) -> None:
         source = inspect.getsource(ProfilePresetService._list_profiles_locked)
@@ -1690,11 +1694,13 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_preset_setup_page_logs_profile_list_ui_apply_stages(self) -> None:
         source = inspect.getsource(PresetSetupPageBase._apply_payload)
+        timing_source = inspect.getsource(PresetSetupPageBase._log_ui_timing)
 
         self.assertIn("profile_ui.apply_payload.total", source)
         self.assertIn("profile_ui.profile_list.create", source)
         self.assertIn("profile_ui.profile_list.build", source)
         self.assertIn("profile_ui.profile_list.attach", source)
+        self.assertIn("PROFILE_UI_VISIBLE_TIMING_LABELS", timing_source)
 
     def test_slow_navigation_pages_log_local_timing_stages(self) -> None:
         appearance_source = inspect.getsource(AppearancePage._build_ui)

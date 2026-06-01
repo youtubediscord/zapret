@@ -61,6 +61,8 @@ from .editable_settings import (
 
 PROFILE_LIST_PAYLOAD_CACHE_LIMIT = 24
 PROFILE_SETUP_PAYLOAD_CACHE_LIMIT = 128
+PROFILE_TIMING_LOG_LEVEL = "⏱ PROFILE"
+PROFILE_VISIBLE_TIMING_LABELS = frozenset({"profile_feature.list_profiles.total"})
 
 
 @dataclass(slots=True)
@@ -1197,7 +1199,8 @@ class ProfilePresetService:
     def _log_timing(self, label: str, started_at: float) -> None:
         try:
             elapsed_ms = (time.perf_counter() - started_at) * 1000.0
-            log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
+            level = PROFILE_TIMING_LOG_LEVEL if label in PROFILE_VISIBLE_TIMING_LABELS else "DEBUG"
+            log(f"{label}: {elapsed_ms:.1f}ms", level)
         except Exception:
             pass
 

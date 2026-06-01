@@ -18,6 +18,15 @@ from app.ui_texts import tr as tr_catalog
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 
+PROFILE_UI_TIMING_LOG_LEVEL = "⏱ PROFILE"
+PROFILE_UI_VISIBLE_TIMING_LABELS = frozenset(
+    {
+        "profile_ui.apply_payload.total",
+        "profile_ui.profile_list.build",
+    }
+)
+
+
 def preset_setup_title_for_payload(payload, default_title: str = "Настройка пресета") -> str:
     preset_name = str(getattr(payload, "selected_preset_name", "") or "").strip()
     if not preset_name:
@@ -425,7 +434,8 @@ class PresetSetupPageBase(BasePage):
         try:
             elapsed_ms = (time.perf_counter() - started_at) * 1000.0
             extra_text = f" | {extra}" if extra else ""
-            log(f"{self.__class__.__name__}: {label}: {elapsed_ms:.1f}ms{extra_text}", "DEBUG")
+            level = PROFILE_UI_TIMING_LOG_LEVEL if label in PROFILE_UI_VISIBLE_TIMING_LABELS else "DEBUG"
+            log(f"{self.__class__.__name__}: {label}: {elapsed_ms:.1f}ms{extra_text}", level)
         except Exception:
             pass
 
