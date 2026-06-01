@@ -97,6 +97,26 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
         )
         self.assertEqual(page._external_link_pending, [new_payload])
 
+    def test_scheduled_ensure_hosts_start_coalesces_duplicate_request(self) -> None:
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._ensure_hosts_start_scheduled = False
+        page._ensure_hosts_pending = False
+        page._start_ensure_hosts_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._schedule_ensure_hosts_worker_start(page)
+            TelegramProxyPage._schedule_ensure_hosts_worker_start(page)
+
+        single_shot.assert_called_once()
+        self.assertTrue(page._ensure_hosts_pending)
+
+        single_shot.call_args.args[1]()
+
+        page._start_ensure_hosts_worker.assert_called_once_with()
+        self.assertFalse(page._ensure_hosts_pending)
+
 
 if __name__ == "__main__":
     unittest.main()

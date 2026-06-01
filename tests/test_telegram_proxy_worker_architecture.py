@@ -371,6 +371,29 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         page._start_relay_check_worker.assert_called_once_with()
         self.assertFalse(page._relay_check_pending)
 
+    def test_ensure_hosts_pending_restarts_after_event_loop_turn(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._ensure_hosts_pending = True
+        page._ensure_hosts_start_scheduled = False
+        page._start_ensure_hosts_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._on_ensure_hosts_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_ensure_hosts_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_ensure_hosts_worker.assert_called_once_with()
+        self.assertFalse(page._ensure_hosts_pending)
+
 
 if __name__ == "__main__":
     unittest.main()

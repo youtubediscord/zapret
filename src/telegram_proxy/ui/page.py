@@ -126,6 +126,8 @@ class TelegramProxyPage(BasePage):
         self._relay_check_pending = False
         self._relay_check_start_scheduled = False
         self._ensure_hosts_runtime = OneShotWorkerRuntime()
+        self._ensure_hosts_pending = False
+        self._ensure_hosts_start_scheduled = False
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._open_log_file_runtime = OneShotWorkerRuntime()
         self._open_log_file_pending: list[str] = []
@@ -1367,9 +1369,16 @@ class TelegramProxyPage(BasePage):
 
     def _ensure_telegram_hosts(self):
         """Проверяет и добавляет Telegram-записи в hosts через worker."""
-        if self._ensure_hosts_runtime.is_running():
+        if (
+            self._ensure_hosts_runtime.is_running()
+            or self.__dict__.get("_ensure_hosts_start_scheduled", False)
+        ):
+            self._ensure_hosts_pending = True
             return
+        self._start_ensure_hosts_worker()
 
+    def _start_ensure_hosts_worker(self) -> None:
+        self._ensure_hosts_pending = False
         def bind_worker(worker) -> None:
             worker.completed.connect(self._on_telegram_hosts_ensured)
 
@@ -1379,6 +1388,7 @@ class TelegramProxyPage(BasePage):
                 parent=self,
             ),
             bind_worker=bind_worker,
+            on_finished=self._on_ensure_hosts_worker_finished,
         )
 
     def _on_telegram_hosts_ensured(self, request_id: int, plan):
@@ -1391,6 +1401,27 @@ class TelegramProxyPage(BasePage):
             return
         if not plan.ok and plan.log_line:
             log(plan.log_line, "WARNING")
+
+    def _on_ensure_hosts_worker_finished(self, _worker) -> None:
+        if self.__dict__.get("_ensure_hosts_pending", False) and not self.__dict__.get("_cleanup_in_progress", False):
+            self._schedule_ensure_hosts_worker_start()
+
+    def _schedule_ensure_hosts_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_ensure_hosts_start_scheduled", False):
+            self._ensure_hosts_pending = True
+            return
+        self._ensure_hosts_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_ensure_hosts_worker_start)
+
+    def _run_scheduled_ensure_hosts_worker_start(self) -> None:
+        self._ensure_hosts_start_scheduled = False
+        pending = bool(self.__dict__.get("_ensure_hosts_pending", False))
+        self._ensure_hosts_pending = False
+        if not pending or self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_ensure_hosts_worker()
 
     def showEvent(self, event):
         started_at = time.perf_counter()
@@ -1442,6 +1473,8 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy hosts worker",
         )
         self._ensure_hosts_runtime.cancel()
+        self._ensure_hosts_pending = False
+        self._ensure_hosts_start_scheduled = False
         self._initial_state_runtime.stop(
             blocking=False,
             log_fn=log,
