@@ -92,6 +92,24 @@ class AutostartWorkerArchitectureTests(unittest.TestCase):
         page._start_autostart_action_worker.assert_called_once_with(old_payload)
         self.assertEqual(page._autostart_action_pending, [new_payload])
 
+    def test_autostart_running_enable_disable_keeps_latest_pending_action(self) -> None:
+        class _Runtime:
+            def is_running(self) -> bool:
+                return True
+
+        page = AutostartPage.__new__(AutostartPage)
+        page._cleanup_in_progress = False
+        page._autostart_action_runtime = _Runtime()
+        page._autostart_action_start_scheduled = False
+        page._autostart_action_pending = []
+        page._start_autostart_action_worker = Mock()
+
+        AutostartPage._request_autostart_action(page, "enable", enabled=True, strategy_name="Old")
+        AutostartPage._request_autostart_action(page, "disable", enabled=False, strategy_name="New")
+
+        page._start_autostart_action_worker.assert_not_called()
+        self.assertEqual(page._autostart_action_pending, [("disable", False, "New")])
+
     def test_mode_load_pending_restarts_after_event_loop_turn(self) -> None:
         page = AutostartPage.__new__(AutostartPage)
         page._cleanup_in_progress = False

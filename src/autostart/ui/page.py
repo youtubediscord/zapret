@@ -297,9 +297,20 @@ class AutostartPage(BasePage):
     ) -> None:
         payload = (str(action or "").strip(), enabled, strategy_name)
         if self._autostart_action_runtime.is_running() or self.__dict__.get("_autostart_action_start_scheduled", False):
-            self._autostart_action_pending.append(payload)
+            self._queue_autostart_action(payload)
             return
         self._start_autostart_action_worker(payload)
+
+    def _queue_autostart_action(self, payload: tuple[str, bool | None, str | None]) -> None:
+        action = str(payload[0] if payload else "").strip()
+        pending = self.__dict__.setdefault("_autostart_action_pending", [])
+        if action in {"enable", "disable"}:
+            pending[:] = [
+                item for item in pending if str(item[0] if item else "").strip() not in {"enable", "disable"}
+            ]
+        elif action == "save_state":
+            pending[:] = [item for item in pending if str(item[0] if item else "").strip() != "save_state"]
+        pending.append(payload)
 
     def _start_autostart_action_worker(self, payload: tuple[str, bool | None, str | None]) -> None:
         self._autostart_action_runtime.start_qthread_worker(
@@ -389,7 +400,7 @@ class AutostartPage(BasePage):
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_autostart_action_start_scheduled", False):
-            self._autostart_action_pending.append(payload)
+            self._queue_autostart_action(payload)
             return
         self._autostart_action_start_scheduled = True
         QTimer.singleShot(0, lambda queued=payload: self._run_scheduled_autostart_action_worker_start(queued))
