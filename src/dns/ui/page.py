@@ -754,6 +754,8 @@ class NetworkPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self._has_pending_dns_mutation_action():
+            return
         data = result if isinstance(result, dict) else {}
         plan = data.get("plan")
         if plan is not None and getattr(plan, "log_message", ""):
@@ -772,6 +774,16 @@ class NetworkPage(BasePage):
 
     def _on_dns_apply_worker_finished(self, _worker) -> None:
         self._start_next_dns_mutation_action()
+
+    def _has_pending_dns_mutation_action(self) -> bool:
+        return any(
+            self.__dict__.get(attr)
+            for attr in (
+                "_dns_apply_pending",
+                "_force_dns_action_pending",
+                "_dns_mutation_pending_order",
+            )
+        )
 
     def _dns_mutation_action_running(self) -> bool:
         if self.__dict__.get("_dns_apply_start_scheduled", False):
@@ -1028,6 +1040,8 @@ class NetworkPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self._has_pending_dns_mutation_action():
             return
         data = result if isinstance(result, dict) else {}
         message = str(data.get("message") or "")

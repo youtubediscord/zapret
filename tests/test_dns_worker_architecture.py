@@ -332,6 +332,46 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         page._start_dns_apply_worker.assert_not_called()
         self.assertEqual(page._dns_apply_pending, [{"action": "auto", "adapters": ["Ethernet"]}])
 
+    def test_dns_apply_result_ignored_when_new_dns_mutation_is_pending(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_apply_runtime = Mock()
+        page._dns_apply_runtime.is_current.return_value = True
+        page._dns_apply_pending = []
+        page._force_dns_action_pending = [{"action": "toggle", "enabled": True}]
+        page._dns_mutation_pending_order = ["force_dns"]
+        page._apply_refreshed_adapter_dns_info = Mock()
+
+        NetworkPage._on_dns_apply_finished(
+            page,
+            7,
+            {"dns_info": {"Ethernet": {"dns": ["1.1.1.1"]}}},
+        )
+
+        page._apply_refreshed_adapter_dns_info.assert_not_called()
+
+    def test_force_dns_result_ignored_when_new_dns_mutation_is_pending(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._force_dns_action_runtime = Mock()
+        page._force_dns_action_runtime.is_current.return_value = True
+        page._dns_apply_pending = [{"action": "auto", "adapters": ["Ethernet"]}]
+        page._force_dns_action_pending = []
+        page._dns_mutation_pending_order = ["dns_apply"]
+        page._apply_force_dns_toggle_worker_result = Mock()
+        page._apply_force_dns_reset_worker_result = Mock()
+
+        NetworkPage._on_force_dns_action_finished(
+            page,
+            9,
+            "toggle",
+            {"message": "", "changed": True},
+            {},
+        )
+
+        page._apply_force_dns_toggle_worker_result.assert_not_called()
+        page._apply_force_dns_reset_worker_result.assert_not_called()
+
     def test_force_dns_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
