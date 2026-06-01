@@ -115,6 +115,7 @@ class LogsPage(BasePage):
 
         self._logs_overview_runtime = OneShotWorkerRuntime()
         self._logs_overview_pending_cleanup = False
+        self._logs_overview_restart_scheduled = False
         self._tail_runtime = OneShotWorkerRuntime()
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._open_folder_runtime = OneShotWorkerRuntime()
@@ -749,7 +750,7 @@ class LogsPage(BasePage):
         )
 
     def _start_logs_overview_worker(self, *, run_cleanup: bool, source_label: str, started_at: float) -> None:
-        if self._logs_overview_runtime.is_running():
+        if self._logs_overview_runtime.is_running() or self.__dict__.get("_logs_overview_restart_scheduled", False):
             self._logs_overview_pending_cleanup = self._logs_overview_pending_cleanup or bool(run_cleanup)
             self._log_ui_timing(source_label, started_at)
             return
@@ -796,7 +797,21 @@ class LogsPage(BasePage):
             and self._logs_overview_pending_cleanup
         ):
             self._logs_overview_pending_cleanup = False
-            self._refresh_logs_list(run_cleanup=True)
+            self._schedule_logs_overview_restart()
+
+    def _schedule_logs_overview_restart(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_logs_overview_restart_scheduled", False):
+            return
+        self._logs_overview_restart_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_logs_overview_restart)
+
+    def _run_scheduled_logs_overview_restart(self) -> None:
+        self._logs_overview_restart_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._refresh_logs_list(run_cleanup=True)
 
     def _apply_logs_list_state(self, state, *, run_cleanup: bool) -> None:
         self.log_combo.blockSignals(True)
@@ -1085,6 +1100,7 @@ class LogsPage(BasePage):
     def cleanup(self):
         """Очистка при закрытии - блокирующий режим"""
         self._cleanup_in_progress = True
+        self._logs_overview_restart_scheduled = False
         self._spin_timer.stop()
         self._stop_logs_overview_worker(blocking=True)
         self._stop_support_prepare_worker(blocking=True)

@@ -50,6 +50,27 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
 
         page._request_open_logs_folder.assert_called_once_with()
 
+    def test_logs_overview_pending_cleanup_restarts_after_event_loop_turn(self) -> None:
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._cleanup_in_progress = False
+        page._logs_overview_pending_cleanup = True
+        page._logs_overview_runtime = SimpleNamespace(is_current=Mock(return_value=True))
+        page._refresh_logs_list = Mock()
+        page._stop_refresh_animation = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(logs_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            logs_page.LogsPage._on_logs_overview_finished(page, 7, object())
+
+        self.assertEqual(single_shot.call_count, 2)
+        self.assertEqual(single_shot.call_args_list[0].args[0], 500)
+        self.assertEqual(single_shot.call_args_list[1].args[0], 0)
+        page._refresh_logs_list.assert_not_called()
+
+        single_shot.call_args_list[1].args[1]()
+
+        page._refresh_logs_list.assert_called_once_with(run_cleanup=True)
+
 
 if __name__ == "__main__":
     unittest.main()
