@@ -48,6 +48,25 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
 
         center._start_external_open_url_worker.assert_called_once_with("https://example.org")
 
+    def test_notification_open_url_scheduled_start_keeps_latest_request(self) -> None:
+        import ui.window_notification_center as notification_center
+
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        center._external_open_url_pending = None
+        center._external_open_url_start_scheduled = False
+        center._start_external_open_url_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(notification_center, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            WindowNotificationCenter._schedule_external_open_url_worker_start(center, "https://example.org/old")
+            WindowNotificationCenter._schedule_external_open_url_worker_start(center, "https://example.org/new")
+
+        single_shot.assert_called_once()
+
+        single_shot.call_args.args[1]()
+
+        center._start_external_open_url_worker.assert_called_once_with("https://example.org/new")
+
     def test_notification_system_actions_run_through_worker(self) -> None:
         from app.feature_facades.external import ExternalActionsFeature
         import app.external_workers as external_workers
@@ -102,6 +121,40 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
             action_fn,
             bar,
             {"reason": "test"},
+        )
+
+    def test_notification_action_scheduled_start_keeps_latest_request(self) -> None:
+        import ui.window_notification_center as notification_center
+
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        old_action_fn = Mock()
+        new_action_fn = Mock()
+        old_bar = object()
+        new_bar = object()
+        center._notification_action_pending = None
+        center._notification_action_start_scheduled = False
+        center._run_notification_action_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(notification_center, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            WindowNotificationCenter._schedule_notification_action_worker_start(
+                center,
+                ("disable_proxy", old_action_fn, old_bar, {"reason": "old"}),
+            )
+            WindowNotificationCenter._schedule_notification_action_worker_start(
+                center,
+                ("disable_proxy", new_action_fn, new_bar, {"reason": "new"}),
+            )
+
+        single_shot.assert_called_once()
+
+        single_shot.call_args.args[1]()
+
+        center._run_notification_action_worker.assert_called_once_with(
+            "disable_proxy",
+            new_action_fn,
+            new_bar,
+            {"reason": "new"},
         )
 
     def test_launch_conflict_notification_action_runs_heavy_part_through_worker(self) -> None:

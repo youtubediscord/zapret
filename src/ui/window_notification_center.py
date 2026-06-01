@@ -156,6 +156,9 @@ class WindowNotificationCenter(QObject):
         target = str(url or "").strip()
         if not target:
             return
+        if self.__dict__.get("_external_open_url_start_scheduled", False):
+            self._external_open_url_pending = target
+            return
         self._external_open_url_start_scheduled = True
         QTimer.singleShot(0, lambda value=target: self._run_scheduled_external_open_url_worker_start(value))
 
@@ -367,6 +370,9 @@ class WindowNotificationCenter(QObject):
 
     def _schedule_notification_action_worker_start(self, request) -> None:
         if request is None:
+            return
+        if self.__dict__.get("_notification_action_start_scheduled", False):
+            self._notification_action_pending = request
             return
         self._notification_action_start_scheduled = True
         QTimer.singleShot(0, lambda value=request: self._run_scheduled_notification_action_worker_start(value))
