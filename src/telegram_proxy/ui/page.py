@@ -968,9 +968,20 @@ class TelegramProxyPage(BasePage):
             self._settings_save_runtime.is_running()
             or self.__dict__.get("_settings_save_start_scheduled", False)
         ):
-            self._settings_save_pending.append(payload)
+            self._queue_settings_save_payload(payload)
             return
         self._start_settings_save_worker(payload)
+
+    def _queue_settings_save_payload(self, payload: dict) -> None:
+        queued = dict(payload or {})
+        action = str(queued.get("action") or "")
+        pending_payloads = self.__dict__.setdefault("_settings_save_pending", [])
+        pending_payloads[:] = [
+            pending
+            for pending in pending_payloads
+            if str(pending.get("action") or "") != action
+        ]
+        pending_payloads.append(queued)
 
     def _start_settings_save_worker(self, payload: dict) -> None:
         def bind_worker(worker) -> None:
@@ -1034,7 +1045,7 @@ class TelegramProxyPage(BasePage):
             return
         queued = dict(payload or {})
         if self.__dict__.get("_settings_save_start_scheduled", False):
-            self._settings_save_pending.append(queued)
+            self._queue_settings_save_payload(queued)
             return
         self._settings_save_start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_settings_save_worker_start(value))

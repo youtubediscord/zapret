@@ -71,6 +71,50 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
         page._start_settings_save_worker.assert_called_once_with(old_payload)
         self.assertEqual(page._settings_save_pending, [new_payload])
 
+    def test_settings_save_queue_replaces_pending_payload_for_same_action(self) -> None:
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._settings_save_runtime = SimpleNamespace(is_running=Mock(return_value=True))
+        page._settings_save_start_scheduled = False
+        page._settings_save_pending = []
+        page._start_settings_save_worker = Mock()
+
+        TelegramProxyPage._request_settings_save(page, "host", host="old.local")
+        TelegramProxyPage._request_settings_save(page, "host", host="new.local")
+
+        page._start_settings_save_worker.assert_not_called()
+        self.assertEqual(
+            page._settings_save_pending,
+            [
+                {
+                    "action": "host",
+                    "host": "new.local",
+                    "port": 0,
+                    "user": "",
+                    "password": "",
+                    "enabled": False,
+                    "context_extra": {
+                        "restart": "",
+                        "update_manual": False,
+                    },
+                }
+            ],
+        )
+
+    def test_settings_save_queue_keeps_payloads_for_different_actions(self) -> None:
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._settings_save_runtime = SimpleNamespace(is_running=Mock(return_value=True))
+        page._settings_save_start_scheduled = False
+        page._settings_save_pending = []
+        page._start_settings_save_worker = Mock()
+
+        TelegramProxyPage._request_settings_save(page, "host", host="proxy.local")
+        TelegramProxyPage._request_settings_save(page, "port", port=9090)
+
+        self.assertEqual(
+            [(payload["action"], payload["host"], payload["port"]) for payload in page._settings_save_pending],
+            [("host", "proxy.local", 0), ("port", "", 9090)],
+        )
+
     def test_scheduled_external_link_start_queues_next_link(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
