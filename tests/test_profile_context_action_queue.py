@@ -68,6 +68,44 @@ class ProfileContextActionQueueTests(unittest.TestCase):
             ],
         )
 
+    def test_profile_enabled_context_queue_keeps_latest_state_for_same_profile(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page.launch_method = "zapret2_mode"
+        page._profile_context_action_runtime = _Runtime(running=True)
+        page._pending_profile_preset_write_operations = []
+        page._pending_profile_context_actions = []
+
+        PresetSetupPageBase._request_profile_context_action(
+            page,
+            "set_enabled",
+            "profile-a",
+            enabled=False,
+        )
+        PresetSetupPageBase._request_profile_context_action(
+            page,
+            "set_enabled",
+            "profile-a",
+            enabled=True,
+        )
+
+        self.assertEqual(
+            page._pending_profile_context_actions,
+            [
+                {
+                    "action": "set_enabled",
+                    "profile_key": "profile-a",
+                    "enabled": True,
+                }
+            ],
+        )
+        self.assertEqual(
+            [
+                (operation["kind"], operation["action"], operation["profile_key"], operation["enabled"])
+                for operation in page._pending_profile_preset_write_operations
+            ],
+            [("context", "set_enabled", "profile-a", True)],
+        )
+
     def test_profile_context_action_worker_finished_starts_next_pending_action(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page.launch_method = "zapret2_mode"

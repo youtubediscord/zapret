@@ -581,6 +581,27 @@ class PresetSetupPageBase(BasePage):
                     "ports": str(ports or ""),
                 }
             )
+        if operation["kind"] == "context" and operation["action"] == "set_enabled":
+            profile_key_to_replace = str(operation["profile_key"] or "")
+            pending_operations = self.__dict__.setdefault("_pending_profile_preset_write_operations", [])
+            pending_operations[:] = [
+                pending
+                for pending in pending_operations
+                if not (
+                    str(pending.get("kind") or "") == "context"
+                    and str(pending.get("action") or "") == "set_enabled"
+                    and str(pending.get("profile_key") or "") == profile_key_to_replace
+                )
+            ]
+            pending_context = self.__dict__.setdefault("_pending_profile_context_actions", [])
+            pending_context[:] = [
+                pending
+                for pending in pending_context
+                if not (
+                    str(pending.get("action") or "") == "set_enabled"
+                    and str(pending.get("profile_key") or "") == profile_key_to_replace
+                )
+            ]
         self.__dict__.setdefault("_pending_profile_preset_write_operations", []).append(operation)
         if operation["kind"] == "context":
             self.__dict__.setdefault("_pending_profile_context_actions", []).append(
