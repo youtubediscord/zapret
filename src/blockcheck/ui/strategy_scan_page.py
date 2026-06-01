@@ -27,7 +27,6 @@ from blockcheck.ui.strategy_scan_page_results_workflow import (
 )
 from blockcheck.strategy_scan_run_workflow import (
     cleanup_strategy_scan_worker,
-    delete_strategy_scan_worker_later,
     request_strategy_scan_stop,
     start_strategy_scan_run,
     start_strategy_scan_worker,
@@ -562,6 +561,7 @@ class StrategyScanPage(BasePage):
         self._status_label.setText(run_result.status_text)
         start_strategy_scan_worker(
             self._worker,
+            parent=self,
             run_runtime=self._strategy_scan_run_runtime,
         )
 
@@ -736,9 +736,7 @@ class StrategyScanPage(BasePage):
         """Handle scan completion."""
         if self._cleanup_in_progress:
             return
-        worker = self._worker
         self._worker = None
-        delete_strategy_scan_worker_later(worker)
         self._request_strategy_scan_finalize(report)
 
     def _request_strategy_scan_finalize(self, report) -> None:

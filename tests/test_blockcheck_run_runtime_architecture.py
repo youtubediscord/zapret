@@ -17,8 +17,13 @@ class BlockcheckRunRuntimeArchitectureTest(unittest.TestCase):
         self.assertIn("_run_runtime = OneShotWorkerRuntime()", page_source)
         self.assertIn("run_runtime=self._run_runtime", start_source)
         self.assertIn("_run_runtime.stop", cleanup_source)
-        self.assertIn("run_runtime.start_qthread_worker", workflow_source)
+        self.assertIn("run_runtime.start_qobject_worker", workflow_source)
         self.assertNotIn("worker.start()", workflow_source)
+
+    def test_blockcheck_page_leaves_run_worker_deletion_to_shared_runtime(self) -> None:
+        finished_source = inspect.getsource(BlockcheckPage._on_finished)
+
+        self.assertNotIn("deleteLater", finished_source)
 
     def test_shared_runtime_supports_workers_with_is_running_property(self) -> None:
         runtime_source = inspect.getsource(OneShotWorkerRuntime)

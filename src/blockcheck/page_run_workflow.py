@@ -68,7 +68,7 @@ def start_blockcheck_page_run(
         mode=mode,
         extra_domains=extra_domains or None,
         skip_preflight_failed=skip_preflight_failed,
-        parent=parent,
+        parent=None,
     )
     worker.phase_changed.connect(on_phase_changed)
     worker.test_result.connect(on_test_result)
@@ -76,9 +76,9 @@ def start_blockcheck_page_run(
     worker.log_message.connect(on_log)
     worker.run_log_started.connect(on_run_log_started)
     worker.finished.connect(on_finished)
-    run_runtime.start_qthread_worker(
+    run_runtime.start_qobject_worker(
+        parent=parent,
         worker_factory=lambda _request_id: worker,
-        signal_includes_request_id=False,
     )
 
     return BlockcheckRunStartResult(

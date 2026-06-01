@@ -1,6 +1,5 @@
 import logging
 import queue
-import threading
 from collections.abc import Callable
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -46,20 +45,13 @@ class StrategyScanWorker(QObject):
             self._start_index = 0
         self._scanner = None
         self._cancelled = False
-        self._bg_thread: threading.Thread | None = None
         self._run_log_file = None
         self._pending_log_messages: queue.Queue[str] = queue.Queue()
+        self._running = False
 
-    def start(self):
+    def run(self):
         self._cancelled = False
-        self._bg_thread = threading.Thread(
-            target=self._run_in_thread,
-            daemon=True,
-            name="strategy-scan-worker",
-        )
-        self._bg_thread.start()
-
-    def _run_in_thread(self):
+        self._running = True
         try:
             self._start_run_log()
             from blockcheck.strategy_scanner import StrategyScanner
@@ -83,6 +75,8 @@ class StrategyScanWorker(QObject):
             self.scan_log.emit(f"ERROR: {e}")
             self.scan_finished.emit(None)
             self.finished.emit(None)
+        finally:
+            self._running = False
 
     def stop(self):
         self._cancelled = True
@@ -91,7 +85,7 @@ class StrategyScanWorker(QObject):
 
     @property
     def is_running(self) -> bool:
-        return self._bg_thread is not None and self._bg_thread.is_alive()
+        return bool(self._running)
 
     def on_strategy_started(self, name, index, total):
         self.strategy_started.emit(name, index, total)

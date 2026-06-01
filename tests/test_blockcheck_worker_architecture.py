@@ -81,6 +81,19 @@ class BlockcheckWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("self.finished.emit(report)", worker_source)
         self.assertIn("self.finished.emit(None)", worker_source)
 
+    def test_blockcheck_run_workers_leave_thread_ownership_to_shared_runtime(self) -> None:
+        worker_sources = "\n".join(
+            (
+                inspect.getsource(blockcheck_worker.BlockcheckWorker),
+                inspect.getsource(strategy_scan_worker.StrategyScanWorker),
+            )
+        )
+
+        self.assertIn("def run(self)", worker_sources)
+        self.assertNotIn("threading.Thread", worker_sources)
+        self.assertNotIn("_bg_thread", worker_sources)
+        self.assertNotIn("def start(self)", worker_sources)
+
     def test_strategy_scan_worker_receives_runtime_shutdown_callable_not_full_runtime_feature(self) -> None:
         from blockcheck.strategy_scanner import StrategyScanner
 

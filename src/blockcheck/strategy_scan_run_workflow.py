@@ -65,7 +65,7 @@ def start_strategy_scan_run(
         start_index=start_plan.scan_cursor,
         scan_protocol=start_plan.scan_protocol,
         udp_games_scope=start_plan.udp_games_scope,
-        parent=parent,
+        parent=None,
     )
     worker.run_log_started.connect(on_run_log_started)
     worker.strategy_started.connect(on_strategy_started)
@@ -86,11 +86,11 @@ def start_strategy_scan_run(
     )
 
 
-def start_strategy_scan_worker(worker, *, run_runtime) -> None:
+def start_strategy_scan_worker(worker, *, parent, run_runtime) -> None:
     """Запускает уже подготовленный worker подбора стратегии."""
-    run_runtime.start_qthread_worker(
+    run_runtime.start_qobject_worker(
+        parent=parent,
         worker_factory=lambda _request_id: worker,
-        signal_includes_request_id=False,
     )
 
 
@@ -123,16 +123,6 @@ def record_strategy_scan_force_stop_warning(
         return
     try:
         worker.record_run_log_message(f"WARNING: {warning_text}")
-    except Exception:
-        pass
-
-
-def delete_strategy_scan_worker_later(worker) -> None:
-    """Планирует удаление worker-а после завершения сканирования."""
-    if worker is None:
-        return
-    try:
-        worker.deleteLater()
     except Exception:
         pass
 

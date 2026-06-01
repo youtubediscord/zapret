@@ -732,13 +732,7 @@ class BlockcheckPage(BasePage):
         """Handle test completion."""
         if self._cleanup_in_progress:
             return
-        worker = self._worker
         self._worker = None
-        if worker is not None:
-            try:
-                worker.deleteLater()
-            except Exception:
-                pass
         self._last_report = report
         self._reset_ui()
         was_cancelled = bool(report is not None and getattr(report, "cancelled", False))
