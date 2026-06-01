@@ -185,6 +185,41 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         page.refresh_from_preset_switch.assert_not_called()
         self.assertTrue(page._profile_payload_dirty)
 
+    def test_profile_folder_action_result_ignored_when_new_action_is_pending(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_folder_action_request_id = 8
+        page._profile_folder_action_refresh_by_request = {8: True}
+        page._profile_folder_action_pending = [
+            {
+                "action": "rename",
+                "folder_key": "games",
+                "name": "Games",
+                "direction": 0,
+                "collapsed": False,
+                "refresh": True,
+                "context_extra": {},
+            }
+        ]
+        page._profiles_list = Mock()
+        page._profiles_list.apply_profile_folder_state.return_value = True
+        page._show_folder_menu_with_state = Mock()
+        page.refresh_from_preset_switch = Mock()
+        page._profile_payload_dirty = False
+
+        PresetSetupPageBase._on_profile_folder_action_finished(
+            page,
+            8,
+            "rename",
+            True,
+            {"folder_state": {"folders": {}, "items": {}}},
+        )
+
+        page._profiles_list.apply_profile_folder_state.assert_not_called()
+        page._show_folder_menu_with_state.assert_not_called()
+        page.refresh_from_preset_switch.assert_not_called()
+        self.assertFalse(page._profile_payload_dirty)
+        self.assertNotIn(8, page._profile_folder_action_refresh_by_request)
+
     def test_profile_model_applies_folder_state_without_loading_profiles_again(self) -> None:
         model = ProfileSetupListModel()
         model.set_profiles((

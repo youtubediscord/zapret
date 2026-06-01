@@ -1521,6 +1521,9 @@ class PresetSetupPageBase(BasePage):
     def _on_profile_folder_action_finished(self, request_id: int, action: str, result, context) -> None:
         if request_id != int(getattr(self, "_profile_folder_action_request_id", 0) or 0):
             return
+        if self.__dict__.get("_profile_folder_action_pending"):
+            self.__dict__.setdefault("_profile_folder_action_refresh_by_request", {}).pop(request_id, None)
+            return
         context = dict(context or {})
         folder_state = result if isinstance(result, dict) else context.get("folder_state")
         should_refresh = bool(
