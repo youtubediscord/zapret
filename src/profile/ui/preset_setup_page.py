@@ -1496,9 +1496,12 @@ class PresetSetupPageBase(BasePage):
         )
 
     def _queue_profile_folder_action(self, payload: dict[str, object]) -> None:
-        action = str(payload.get("action") or "")
-        folder_key = str(payload.get("folder_key") or "")
+        queued = dict(payload or {})
+        action = str(queued.get("action") or "")
+        folder_key = str(queued.get("folder_key") or "")
         pending = self.__dict__.setdefault("_profile_folder_action_pending", [])
+        if action == "move" and queued in pending:
+            return
         if action == "set_collapsed" and folder_key:
             pending[:] = [
                 item
@@ -1508,7 +1511,7 @@ class PresetSetupPageBase(BasePage):
                     and str(item.get("folder_key") or "") == folder_key
                 )
             ]
-        pending.append(dict(payload or {}))
+        pending.append(queued)
 
     def _on_profile_folder_action_finished(self, request_id: int, action: str, result, context) -> None:
         if request_id != int(getattr(self, "_profile_folder_action_request_id", 0) or 0):

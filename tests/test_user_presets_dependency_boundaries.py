@@ -448,6 +448,40 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
             ],
         )
 
+    def test_duplicate_user_presets_folder_action_is_queued_once(self) -> None:
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_folder_action_start_scheduled = True
+        page._preset_folder_action_pending = []
+        page._preset_folder_action_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        for _ in range(2):
+            UserPresetsPageBase._request_preset_folder_action(
+                page,
+                "move",
+                folder_key="favorites",
+                name="Preset.txt",
+                direction=1,
+                collapsed=False,
+                context_extra={"source": "menu"},
+            )
+
+        page._preset_folder_action_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(
+            page._preset_folder_action_pending,
+            [
+                {
+                    "action": "move",
+                    "folder_key": "favorites",
+                    "name": "Preset.txt",
+                    "direction": 1,
+                    "collapsed": False,
+                    "context_extra": {"source": "menu"},
+                }
+            ],
+        )
+
     def test_user_presets_folder_set_collapsed_keeps_latest_pending_state(self) -> None:
         from presets.ui.common.user_presets_page import UserPresetsPageBase
 

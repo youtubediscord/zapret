@@ -313,6 +313,42 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
             ],
         )
 
+    def test_duplicate_profile_folder_action_is_queued_once(self) -> None:
+        from profile.ui.preset_setup_page import PresetSetupPageBase
+
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_folder_action_start_scheduled = True
+        page._profile_folder_action_pending = []
+        page._profile_folder_action_runtime = SimpleNamespace(is_running=Mock(return_value=False), start_qthread_worker=Mock())
+
+        for _ in range(2):
+            PresetSetupPageBase._request_profile_folder_action(
+                page,
+                "move",
+                folder_key="favorites",
+                name="Profile",
+                direction=1,
+                collapsed=False,
+                refresh=True,
+                context_extra={"source": "menu"},
+            )
+
+        page._profile_folder_action_runtime.start_qthread_worker.assert_not_called()
+        self.assertEqual(
+            page._profile_folder_action_pending,
+            [
+                {
+                    "action": "move",
+                    "folder_key": "favorites",
+                    "name": "Profile",
+                    "direction": 1,
+                    "collapsed": False,
+                    "refresh": True,
+                    "context_extra": {"source": "menu"},
+                }
+            ],
+        )
+
     def test_profile_folder_set_collapsed_keeps_latest_pending_state(self) -> None:
         from profile.ui.preset_setup_page import PresetSetupPageBase
 
