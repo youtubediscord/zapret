@@ -960,7 +960,6 @@ class AppearancePage(BasePage):
         self._start_rkn_background_options_load_worker()
 
     def _start_rkn_background_options_load_worker(self) -> None:
-        self._rkn_background_options_pending = False
         self._rkn_background_options_runtime.start_qthread_worker(
             worker_factory=self.create_rkn_background_options_load_worker,
             on_loaded=self._on_rkn_background_options_loaded,
@@ -991,6 +990,7 @@ class AppearancePage(BasePage):
 
     def _on_rkn_background_options_worker_finished(self, _worker) -> None:
         if self._rkn_background_options_pending and not self._cleanup_in_progress:
+            self._rkn_background_options_pending = False
             self._schedule_rkn_background_options_load_worker_start()
 
     def _schedule_rkn_background_options_load_worker_start(self) -> None:
@@ -1240,7 +1240,6 @@ class AppearancePage(BasePage):
         self._start_windows_accent_load_worker()
 
     def _start_windows_accent_load_worker(self) -> None:
-        self._windows_accent_load_pending = False
         self._windows_accent_load_runtime.start_qthread_worker(
             worker_factory=self.create_windows_accent_load_worker,
             on_loaded=self._on_windows_accent_loaded,
@@ -1266,6 +1265,7 @@ class AppearancePage(BasePage):
 
     def _on_windows_accent_worker_finished(self, _worker) -> None:
         if self._windows_accent_load_pending and not self._cleanup_in_progress:
+            self._windows_accent_load_pending = False
             self._schedule_windows_accent_load_worker_start()
 
     def _schedule_windows_accent_load_worker_start(self) -> None:

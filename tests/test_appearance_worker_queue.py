@@ -85,7 +85,11 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
         page._cleanup_in_progress = False
         page._rkn_background_options_start_scheduled = False
         page._rkn_background_options_pending = False
-        page._start_rkn_background_options_load_worker = Mock()
+        page._rkn_background_options_runtime = SimpleNamespace(start_qthread_worker=Mock())
+        page.create_rkn_background_options_load_worker = Mock(return_value=object())
+        page._on_rkn_background_options_loaded = Mock()
+        page._on_rkn_background_options_failed = Mock()
+        page._on_rkn_background_options_worker_finished = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(appearance_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
@@ -97,7 +101,7 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
         single_shot.call_args.args[1]()
 
-        page._start_rkn_background_options_load_worker.assert_called_once_with()
+        page._rkn_background_options_runtime.start_qthread_worker.assert_called_once()
         self.assertTrue(page._rkn_background_options_pending)
 
     def test_windows_accent_pending_restarts_after_event_loop_turn(self) -> None:
@@ -129,7 +133,11 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
         page._cleanup_in_progress = False
         page._windows_accent_load_start_scheduled = False
         page._windows_accent_load_pending = False
-        page._start_windows_accent_load_worker = Mock()
+        page._windows_accent_load_runtime = SimpleNamespace(start_qthread_worker=Mock())
+        page.create_windows_accent_load_worker = Mock(return_value=object())
+        page._on_windows_accent_loaded = Mock()
+        page._on_windows_accent_failed = Mock()
+        page._on_windows_accent_worker_finished = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(appearance_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
@@ -141,7 +149,7 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
         single_shot.call_args.args[1]()
 
-        page._start_windows_accent_load_worker.assert_called_once_with()
+        page._windows_accent_load_runtime.start_qthread_worker.assert_called_once()
         self.assertTrue(page._windows_accent_load_pending)
 
 
