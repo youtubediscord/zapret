@@ -295,6 +295,48 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             ],
         )
 
+    def test_scheduled_raw_preset_save_uses_latest_text_before_worker_starts(self) -> None:
+        worker = object()
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_save_runtime = _Runtime(running=False)
+        page._raw_action_runtime = _Runtime(running=False)
+        page._raw_activate_runtime = _Runtime(running=False)
+        page._raw_save_request_id = 0
+        page._pending_raw_preset_save = ("Default.txt", "--new\nold", False)
+        page._pending_raw_preset_write_operations = []
+        page._after_raw_preset_save = None
+        page._cleanup_in_progress = False
+        page._set_footer = Mock()
+        page.create_raw_preset_save_worker = Mock(return_value=worker)
+        callbacks = []
+
+        with patch(
+            "presets.ui.common.preset_subpage_base.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetRawEditorPage._on_raw_preset_save_worker_finished(page, object())
+            PresetRawEditorPage._request_raw_preset_save(
+                page,
+                file_name="Default.txt",
+                source_text="--new\nlatest",
+                publish_content_changed=True,
+            )
+
+        page.create_raw_preset_save_worker.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page.create_raw_preset_save_worker.assert_called_once_with(
+            1,
+            file_name="Default.txt",
+            source_text="--new\nlatest",
+            publish_content_changed=True,
+            parent=page,
+        )
+        self.assertEqual(page._pending_raw_preset_save, None)
+        self.assertEqual(page._pending_raw_preset_write_operations, [])
+
 
 if __name__ == "__main__":
     unittest.main()

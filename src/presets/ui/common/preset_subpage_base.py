@@ -244,6 +244,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_save_runtime = OneShotWorkerRuntime()
         self._raw_save_request_id = 0
         self._pending_raw_preset_save: tuple[str, str | None, bool] | None = None
+        self._raw_preset_save_start_scheduled = False
         self._after_raw_preset_save = None
         self._raw_save_succeeded = True
         self._raw_activate_runtime = OneShotWorkerRuntime()
@@ -303,6 +304,8 @@ class PresetRawEditorPage(BasePage):
 
     def _raw_preset_write_is_running(self) -> bool:
         if self.__dict__.get("_raw_preset_write_operation_start_scheduled", False):
+            return True
+        if self.__dict__.get("_raw_preset_save_start_scheduled", False):
             return True
         if self.__dict__.get("_raw_preset_activation_start_scheduled", False):
             return True
@@ -773,7 +776,7 @@ class PresetRawEditorPage(BasePage):
         publish_content_changed: bool = False,
     ) -> bool:
         runtime = self._raw_worker_runtime("_raw_save_runtime")
-        if runtime.is_running():
+        if runtime.is_running() or self.__dict__.get("_raw_preset_save_start_scheduled", False):
             pending = self._pending_raw_preset_save
             self._pending_raw_preset_save = (
                 str(file_name or "").strip(),
@@ -858,12 +861,9 @@ class PresetRawEditorPage(BasePage):
         pending = self._pending_raw_preset_save
         self._pending_raw_preset_save = None
         if pending and not self._cleanup_in_progress:
-            if pending[1] is None:
-                self._schedule_pending_raw_preset_save(bool(pending[2]))
-                return
             self._schedule_raw_preset_save_worker_start(
                 str(pending[0] or ""),
-                str(pending[1] or ""),
+                None if pending[1] is None else str(pending[1] or ""),
                 bool(pending[2]),
             )
             return
@@ -878,33 +878,38 @@ class PresetRawEditorPage(BasePage):
     def _schedule_raw_preset_save_worker_start(
         self,
         file_name: str,
-        source_text: str,
+        source_text: str | None,
         publish_content_changed: bool,
     ) -> None:
+        pending = self.__dict__.get("_pending_raw_preset_save")
+        self._pending_raw_preset_save = (
+            str(file_name or "").strip(),
+            None if source_text is None else str(source_text or ""),
+            bool(publish_content_changed or (pending[2] if pending else False)),
+        )
+        if self.__dict__.get("_raw_preset_save_start_scheduled", False):
+            return
+        self._raw_preset_save_start_scheduled = True
         try:
-            QTimer.singleShot(
-                0,
-                lambda: self._start_raw_preset_save_worker(
-                    file_name=str(file_name or ""),
-                    source_text=str(source_text or ""),
-                    publish_content_changed=bool(publish_content_changed),
-                ),
-            )
+            QTimer.singleShot(0, self._run_scheduled_raw_preset_save_worker_start)
         except Exception:
-            self._start_raw_preset_save_worker(
-                file_name=str(file_name or ""),
-                source_text=str(source_text or ""),
-                publish_content_changed=bool(publish_content_changed),
-            )
+            self._run_scheduled_raw_preset_save_worker_start()
 
-    def _schedule_pending_raw_preset_save(self, publish_content_changed: bool) -> None:
-        try:
-            QTimer.singleShot(
-                0,
-                lambda: self._save_file(publish_content_changed=bool(publish_content_changed)),
-            )
-        except Exception:
+    def _run_scheduled_raw_preset_save_worker_start(self) -> None:
+        self._raw_preset_save_start_scheduled = False
+        pending = self.__dict__.get("_pending_raw_preset_save")
+        self._pending_raw_preset_save = None
+        if pending is None or self.__dict__.get("_cleanup_in_progress", False):
+            return
+        file_name, source_text, publish_content_changed = pending
+        if source_text is None:
             self._save_file(publish_content_changed=bool(publish_content_changed))
+            return
+        self._start_raw_preset_save_worker(
+            file_name=str(file_name or ""),
+            source_text=str(source_text or ""),
+            publish_content_changed=bool(publish_content_changed),
+        )
 
     def _commit_pending_content_change(self) -> None:
         if self._cleanup_in_progress or not self._content_publish_pending:
@@ -1462,6 +1467,7 @@ class PresetRawEditorPage(BasePage):
         self.__dict__.setdefault("_pending_raw_preset_write_operations", []).clear()
         self.__dict__.setdefault("_pending_raw_preset_actions", []).clear()
         self._raw_preset_write_operation_start_scheduled = False
+        self._raw_preset_save_start_scheduled = False
         self._raw_preset_activation_start_scheduled = False
         self._pending_raw_preset_activation = ""
         self._stop_raw_worker_runtimes()
