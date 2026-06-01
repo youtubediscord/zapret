@@ -277,6 +277,39 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("start_background_loading(", loading_source)
         self.assertNotIn("start_connectivity_test(", test_source)
 
+    def test_connectivity_test_queues_while_worker_runs(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._connectivity_test_runtime = SimpleNamespace(is_running=Mock(return_value=True))
+        page._connectivity_test_pending = False
+        page._update_test_action_text = Mock()
+
+        NetworkPage._test_connection(page)
+
+        self.assertTrue(page._connectivity_test_pending)
+        page._update_test_action_text.assert_not_called()
+
+    def test_pending_connectivity_test_restarts_after_event_loop_turn(self) -> None:
+        import dns.ui.page as network_page_module
+
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._connectivity_test_pending = True
+        page._connectivity_test_start_scheduled = False
+        page._test_connection = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(network_page_module, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            NetworkPage._on_connectivity_test_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._test_connection.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        self.assertFalse(page._connectivity_test_pending)
+        page._test_connection.assert_called_once_with()
+
     def test_dns_check_page_uses_one_shot_runtime_for_check_save_and_quick(self) -> None:
         page_source = inspect.getsource(DNSCheckPage)
         start_source = inspect.getsource(DNSCheckPage.start_check)

@@ -120,6 +120,8 @@ class NetworkPage(BasePage):
         self._dns_selection_sync_queued = False
         self._page_load_runtime = OneShotWorkerRuntime()
         self._connectivity_test_runtime = OneShotWorkerRuntime()
+        self._connectivity_test_pending = False
+        self._connectivity_test_start_scheduled = False
         self._force_dns_action_runtime = OneShotWorkerRuntime()
         self._force_dns_action_pending: list[dict[str, object]] = []
         self._scheduled_force_dns_action_request = None
@@ -1209,8 +1211,13 @@ class NetworkPage(BasePage):
 
     def _test_connection(self):
         """Тестирует соединение с интернетом"""
-        if self._connectivity_test_runtime.is_running():
+        if (
+            self._connectivity_test_runtime.is_running()
+            or self.__dict__.get("_connectivity_test_start_scheduled", False)
+        ):
+            self._connectivity_test_pending = True
             return
+        self._connectivity_test_pending = False
         test_plan = prepare_connectivity_test(
             cleanup_in_progress=self._cleanup_in_progress,
             set_test_in_progress_fn=lambda value: setattr(self, "_test_in_progress", value),
@@ -1242,7 +1249,27 @@ class NetworkPage(BasePage):
         self._on_test_complete(results)
 
     def _on_connectivity_test_worker_finished(self, _worker) -> None:
-        pass
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_connectivity_test_pending", False):
+            self._schedule_connectivity_test_start()
+
+    def _schedule_connectivity_test_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_connectivity_test_start_scheduled", False):
+            return
+        self._connectivity_test_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_connectivity_test_start)
+
+    def _run_scheduled_connectivity_test_start(self) -> None:
+        self._connectivity_test_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if not self.__dict__.get("_connectivity_test_pending", False):
+            return
+        self._connectivity_test_pending = False
+        self._test_connection()
 
     def _on_test_complete(self, results: list):
         """Вызывается из главного потока после завершения теста"""
@@ -1375,6 +1402,8 @@ class NetworkPage(BasePage):
             self.loading_bar.stop()
         except Exception:
             pass
+        self._connectivity_test_pending = False
+        self._connectivity_test_start_scheduled = False
         self._force_dns_action_pending.clear()
         self._scheduled_force_dns_action_request = None
         self._force_dns_action_start_scheduled = False
