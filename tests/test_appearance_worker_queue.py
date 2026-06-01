@@ -100,6 +100,50 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
         page._start_rkn_background_options_load_worker.assert_called_once_with()
         self.assertTrue(page._rkn_background_options_pending)
 
+    def test_windows_accent_pending_restarts_after_event_loop_turn(self) -> None:
+        import ui.pages.appearance_page as appearance_page
+        from ui.pages.appearance_page import AppearancePage
+
+        page = AppearancePage.__new__(AppearancePage)
+        page._cleanup_in_progress = False
+        page._windows_accent_load_pending = True
+        page._start_windows_accent_load_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(appearance_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            AppearancePage._on_windows_accent_worker_finished(page, object())
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        page._start_windows_accent_load_worker.assert_not_called()
+
+        single_shot.call_args.args[1]()
+
+        page._start_windows_accent_load_worker.assert_called_once_with()
+
+    def test_windows_accent_scheduled_start_queues_next_load(self) -> None:
+        import ui.pages.appearance_page as appearance_page
+        from ui.pages.appearance_page import AppearancePage
+
+        page = AppearancePage.__new__(AppearancePage)
+        page._cleanup_in_progress = False
+        page._windows_accent_load_start_scheduled = False
+        page._windows_accent_load_pending = False
+        page._start_windows_accent_load_worker = Mock()
+        single_shot = Mock(side_effect=lambda _delay, _callback: None)
+
+        with patch.object(appearance_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            AppearancePage._schedule_windows_accent_load_worker_start(page)
+            AppearancePage._schedule_windows_accent_load_worker_start(page)
+
+        single_shot.assert_called_once()
+        self.assertTrue(page._windows_accent_load_pending)
+
+        single_shot.call_args.args[1]()
+
+        page._start_windows_accent_load_worker.assert_called_once_with()
+        self.assertTrue(page._windows_accent_load_pending)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -143,6 +143,8 @@ class AppearancePage(BasePage):
         self._rkn_background_options_pending = False
         self._rkn_background_options_start_scheduled = False
         self._windows_accent_load_runtime = OneShotWorkerRuntime()
+        self._windows_accent_load_pending = False
+        self._windows_accent_load_start_scheduled = False
         self._build_ui()
         self.bind_ui_state_store(ui_state_store)
 
@@ -1229,11 +1231,16 @@ class AppearancePage(BasePage):
     def _request_windows_accent_load(self) -> None:
         if self._cleanup_in_progress:
             return
-        if self._windows_accent_load_runtime.is_running():
+        if (
+            self._windows_accent_load_runtime.is_running()
+            or self.__dict__.get("_windows_accent_load_start_scheduled", False)
+        ):
+            self._windows_accent_load_pending = True
             return
         self._start_windows_accent_load_worker()
 
     def _start_windows_accent_load_worker(self) -> None:
+        self._windows_accent_load_pending = False
         self._windows_accent_load_runtime.start_qthread_worker(
             worker_factory=self.create_windows_accent_load_worker,
             on_loaded=self._on_windows_accent_loaded,
@@ -1258,7 +1265,23 @@ class AppearancePage(BasePage):
         log(f"Ошибка загрузки системного акцента Windows: {error}", "WARNING")
 
     def _on_windows_accent_worker_finished(self, _worker) -> None:
-        return
+        if self._windows_accent_load_pending and not self._cleanup_in_progress:
+            self._schedule_windows_accent_load_worker_start()
+
+    def _schedule_windows_accent_load_worker_start(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_windows_accent_load_start_scheduled", False):
+            self._windows_accent_load_pending = True
+            return
+        self._windows_accent_load_start_scheduled = True
+        QTimer.singleShot(0, self._run_scheduled_windows_accent_load_worker_start)
+
+    def _run_scheduled_windows_accent_load_worker_start(self) -> None:
+        self._windows_accent_load_start_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        self._start_windows_accent_load_worker()
 
     def _apply_windows_accent(self, plan):
         """Применяет уже загруженный системный акцент Windows."""
@@ -1432,6 +1455,8 @@ class AppearancePage(BasePage):
 
         self._appearance_save_pending.clear()
         self._appearance_save_start_scheduled = False
+        self._windows_accent_load_pending = False
+        self._windows_accent_load_start_scheduled = False
         self._rkn_background_options_start_scheduled = False
         for runtime, name in (
             (self._initial_state_load_runtime, "загрузка оформления"),
