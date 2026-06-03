@@ -676,6 +676,8 @@ class HostsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_permission_restore_pending", False):
+            return
         apply_restore_hosts_permissions_result_flow(
             result=result,
             info_bar_cls=InfoBar,
@@ -691,6 +693,8 @@ class HostsPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_permission_restore_pending", False):
             return
         self._dismiss_hosts_error_bar()
         self._show_error(str(error or ""))
@@ -1081,6 +1085,8 @@ class HostsPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_selection_save_pending") is not None:
             return
         if not saved:
             log("Hosts: выбор профилей не был сохранён", "WARNING")

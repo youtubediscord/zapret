@@ -147,6 +147,21 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._request_user_selection_save.assert_called_once_with({"service": "latest"})
 
+    def test_user_selection_save_result_ignored_when_new_save_is_pending(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._selection_save_runtime = Mock()
+        page._selection_save_runtime.is_current.return_value = True
+        page._selection_save_pending = {"service": "latest"}
+
+        with patch.object(hosts_page, "log") as log_mock:
+            HostsPage._on_user_selection_save_finished(page, 7, False)
+
+        log_mock.assert_not_called()
+
     def test_user_selection_load_request_waits_while_worker_runs(self) -> None:
         from hosts.ui.page import HostsPage
 
@@ -419,6 +434,46 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._permission_restore_runtime.start_qthread_worker.assert_not_called()
         self.assertTrue(page._permission_restore_pending)
+
+    def test_restore_permissions_result_ignored_when_new_restore_is_pending(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._permission_restore_pending = True
+        page._permission_restore_runtime = Mock()
+        page._permission_restore_runtime.is_current.return_value = True
+        page._dismiss_hosts_error_bar = Mock()
+        page._invalidate_cache = Mock()
+        page._update_ui = Mock()
+        page._show_error = Mock()
+        page.window = Mock(return_value=object())
+
+        with patch.object(hosts_page, "apply_restore_hosts_permissions_result_flow") as apply_result:
+            HostsPage._on_restore_hosts_permissions_finished(page, 6, object())
+
+        apply_result.assert_not_called()
+        page._dismiss_hosts_error_bar.assert_not_called()
+        page._invalidate_cache.assert_not_called()
+        page._update_ui.assert_not_called()
+        page._show_error.assert_not_called()
+
+    def test_restore_permissions_failure_ignored_when_new_restore_is_pending(self) -> None:
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._permission_restore_pending = True
+        page._permission_restore_runtime = Mock()
+        page._permission_restore_runtime.is_current.return_value = True
+        page._dismiss_hosts_error_bar = Mock()
+        page._show_error = Mock()
+
+        HostsPage._on_restore_hosts_permissions_failed(page, 6, "stale error")
+
+        page._dismiss_hosts_error_bar.assert_not_called()
+        page._show_error.assert_not_called()
 
     def test_hosts_state_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page
