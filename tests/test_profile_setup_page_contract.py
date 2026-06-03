@@ -4644,6 +4644,22 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(page._pending_settings_save, {"filter_kind": "hostlist"})
         page._schedule_profile_setup_write_operation_start.assert_not_called()
 
+    def test_cleared_settings_save_worker_finished_does_not_drive_write_queue(self) -> None:
+        old_worker = object()
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._settings_save_runtime_worker = None
+        page._pending_settings_save = {"filter_kind": "hostlist"}
+        page._start_next_profile_setup_write_operation = Mock(
+            side_effect=AssertionError("cleared settings worker must not drive write queue")
+        )
+        page._schedule_profile_setup_write_operation_start = Mock()
+
+        ProfileSetupPageBase._on_settings_save_worker_finished(page, old_worker)
+
+        self.assertIsNone(page._settings_save_runtime_worker)
+        self.assertEqual(page._pending_settings_save, {"filter_kind": "hostlist"})
+        page._schedule_profile_setup_write_operation_start.assert_not_called()
+
     def test_stale_raw_profile_save_worker_finished_does_not_drive_write_queue(self) -> None:
         old_worker = object()
         current_worker = object()
