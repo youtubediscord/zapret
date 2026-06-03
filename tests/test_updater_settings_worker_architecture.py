@@ -61,6 +61,20 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         runtime._request_auto_check_load.assert_called_once_with()
         self.assertFalse(runtime._auto_check_load_pending)
 
+    def test_stale_auto_check_load_finish_does_not_restart_pending_load(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._auto_check_load_runtime = SimpleNamespace(request_id=3)
+        runtime._auto_check_load_pending = True
+        runtime._schedule_auto_check_load_start = Mock()
+
+        update_page_runtime.UpdatePageRuntime._on_auto_check_load_worker_finished(
+            runtime,
+            SimpleNamespace(_request_id=2),
+        )
+
+        runtime._schedule_auto_check_load_start.assert_not_called()
+
     def test_auto_check_load_result_ignored_when_new_load_is_pending(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
@@ -121,6 +135,20 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         runtime._request_update_channel_open.assert_called_once_with("dev")
+
+    def test_stale_update_channel_open_finish_does_not_restart_pending_open(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._update_channel_open_runtime = SimpleNamespace(request_id=5)
+        runtime._update_channel_open_pending = "dev"
+        runtime._schedule_update_channel_open_start = Mock()
+
+        update_page_runtime.UpdatePageRuntime._on_update_channel_open_worker_finished(
+            runtime,
+            SimpleNamespace(_request_id=4),
+        )
+
+        runtime._schedule_update_channel_open_start.assert_not_called()
 
     def test_update_channel_open_scheduled_start_uses_latest_pending_channel(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
@@ -199,6 +227,20 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
 
         runtime._request_update_cache_invalidate.assert_called_once_with("manual_check")
 
+    def test_stale_cache_invalidate_finish_does_not_restart_pending_invalidate(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._cache_invalidate_runtime = SimpleNamespace(request_id=7)
+        runtime._cache_invalidate_pending_context = "manual_check"
+        runtime._schedule_update_cache_invalidate_start = Mock()
+
+        update_page_runtime.UpdatePageRuntime._on_update_cache_invalidate_worker_finished(
+            runtime,
+            SimpleNamespace(_request_id=6),
+        )
+
+        runtime._schedule_update_cache_invalidate_start.assert_not_called()
+
     def test_cache_invalidate_scheduled_start_uses_latest_pending_context(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
@@ -234,6 +276,21 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         runtime._start_auto_check_save_worker.assert_called_once_with(True)
+
+    def test_stale_auto_check_save_finish_does_not_restart_pending_save(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._auto_check_save_runtime = SimpleNamespace(request_id=9)
+        runtime._auto_check_enabled = True
+        runtime._auto_check_save_pending = True
+        runtime._schedule_auto_check_save_start = Mock()
+
+        update_page_runtime.UpdatePageRuntime._on_auto_check_save_finished(
+            runtime,
+            SimpleNamespace(_request_id=8),
+        )
+
+        runtime._schedule_auto_check_save_start.assert_not_called()
 
     def test_auto_check_save_scheduled_start_uses_latest_pending_value(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)

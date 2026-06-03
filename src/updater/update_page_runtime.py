@@ -351,6 +351,8 @@ class UpdatePageRuntime:
         log(f"Не удалось загрузить автопроверку обновлений: {error}", "WARNING")
 
     def _on_auto_check_load_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_auto_check_load_runtime"), _worker):
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_auto_check_load_pending", False):
@@ -496,6 +498,8 @@ class UpdatePageRuntime:
             self._start_update_download()
 
     def _on_update_cache_invalidate_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_cache_invalidate_runtime"), _worker):
+            return
         if self._cleanup_in_progress:
             return
         pending = self._cache_invalidate_pending_context
@@ -554,7 +558,7 @@ class UpdatePageRuntime:
                 parent=self._view.window(),
             ),
             on_failed=self._on_auto_check_save_failed,
-            on_finished=lambda _worker: self._on_auto_check_save_finished(),
+            on_finished=self._on_auto_check_save_finished,
         )
 
     def _on_auto_check_save_failed(self, request_id: int, error: str) -> None:
@@ -562,7 +566,9 @@ class UpdatePageRuntime:
             return
         log(f"Не удалось сохранить автопроверку обновлений: {error}", "WARNING")
 
-    def _on_auto_check_save_finished(self) -> None:
+    def _on_auto_check_save_finished(self, _worker=None) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_auto_check_save_runtime"), _worker):
+            return
         if self._cleanup_in_progress:
             return
         pending = self._auto_check_save_pending
@@ -638,6 +644,8 @@ class UpdatePageRuntime:
         self._view.show_update_channel_open_error(str(error or ""))
 
     def _on_update_channel_open_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_update_channel_open_runtime"), _worker):
+            return
         if self._cleanup_in_progress:
             return
         pending = str(self.__dict__.get("_update_channel_open_pending") or "")
@@ -661,6 +669,17 @@ class UpdatePageRuntime:
         if not pending:
             return
         self._request_update_channel_open(pending)
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
