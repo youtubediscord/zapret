@@ -4576,6 +4576,27 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page.reload_current_profile.assert_not_called()
         page._on_profile_changed_callback.assert_not_called()
 
+    def test_stale_strategy_apply_worker_finished_does_not_flush_pending_choice(self) -> None:
+        old_worker = object()
+        current_worker = object()
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._strategy_apply_runtime_worker = current_worker
+        page._strategy_apply_runtime_strategy_id = "current"
+        page._strategy_apply_runtime_branch_id = "branch:1"
+        page._pending_strategy_apply = "second"
+        page._start_next_profile_setup_write_operation = Mock(
+            side_effect=AssertionError("stale worker must not drive write queue")
+        )
+        page._schedule_profile_setup_write_operation_start = Mock()
+
+        ProfileSetupPageBase._on_strategy_apply_worker_finished(page, old_worker)
+
+        self.assertIs(page._strategy_apply_runtime_worker, current_worker)
+        self.assertEqual(page._strategy_apply_runtime_strategy_id, "current")
+        self.assertEqual(page._strategy_apply_runtime_branch_id, "branch:1")
+        self.assertEqual(page._pending_strategy_apply, "second")
+        page._schedule_profile_setup_write_operation_start.assert_not_called()
+
     def test_strategy_apply_finish_from_previous_profile_is_ignored(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._profile_key = "profile-2"

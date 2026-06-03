@@ -957,6 +957,7 @@ class ProfileSetupPageBase(BasePage):
         self._user_profile_write_operation_start_scheduled = False
         self._strategy_apply_runtime = OneShotWorkerRuntime()
         self._strategy_apply_request_id = 0
+        self._strategy_apply_runtime_worker = None
         self._strategy_apply_runtime_strategy_id = ""
         self._strategy_apply_runtime_branch_id = ""
         self._pending_strategy_apply = None
@@ -3222,7 +3223,7 @@ class ProfileSetupPageBase(BasePage):
         }
         if strategy_branch_id:
             worker_kwargs["strategy_branch_id"] = strategy_branch_id
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_profile_strategy_apply_worker(
                 request_id,
                 **worker_kwargs,
@@ -3232,6 +3233,7 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_strategy_apply_worker_finished,
             loaded_signal_name="applied",
         )
+        self._strategy_apply_runtime_worker = worker
 
     def _on_strategy_apply_finished(
         self,
@@ -3287,7 +3289,11 @@ class ProfileSetupPageBase(BasePage):
         log(f"{self.__class__.__name__}: не удалось применить стратегию: {error}", "ERROR")
         self.reload_current_profile()
 
-    def _on_strategy_apply_worker_finished(self, _worker) -> None:
+    def _on_strategy_apply_worker_finished(self, worker) -> None:
+        current_worker = self.__dict__.get("_strategy_apply_runtime_worker")
+        if current_worker is not None and worker is not current_worker:
+            return
+        self._strategy_apply_runtime_worker = None
         self._strategy_apply_runtime_strategy_id = ""
         self._strategy_apply_runtime_branch_id = ""
         if self._start_next_profile_setup_write_operation():
@@ -3579,6 +3585,7 @@ class ProfileSetupPageBase(BasePage):
             runtime.cancel()
         self._strategy_apply_runtime_strategy_id = ""
         self._enabled_save_runtime_enabled = None
+        self._strategy_apply_runtime_worker = None
         self.__dict__.setdefault("_pending_user_profile_operations", []).clear()
         self.__dict__.setdefault("_pending_user_profile_updates", []).clear()
         self.__dict__.setdefault("_pending_user_profile_deletes", []).clear()
