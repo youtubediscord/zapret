@@ -929,6 +929,7 @@ class ProfileSetupPageBase(BasePage):
         self._pending_list_file_state_apply = None
         self._list_file_save_runtime = OneShotWorkerRuntime()
         self._list_file_save_request_id = 0
+        self._list_file_save_runtime_worker = None
         self._pending_list_file_save: tuple[str, str] | None = None
         self._scheduled_list_file_save: tuple[str, str] | None = None
         self._list_file_save_start_scheduled = False
@@ -938,12 +939,15 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_validation_start_scheduled = False
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._settings_save_request_id = 0
+        self._settings_save_runtime_worker = None
         self._pending_settings_save = None
         self._raw_profile_save_runtime = OneShotWorkerRuntime()
         self._raw_profile_save_request_id = 0
+        self._raw_profile_save_runtime_worker = None
         self._pending_raw_profile_save: tuple[str, str] | None = None
         self._enabled_save_runtime = OneShotWorkerRuntime()
         self._enabled_save_request_id = 0
+        self._enabled_save_runtime_worker = None
         self._enabled_save_runtime_enabled: bool | None = None
         self._pending_enabled_save: bool | None = None
         self._enabled_save_start_scheduled = False
@@ -966,6 +970,7 @@ class ProfileSetupPageBase(BasePage):
         self._profile_setup_write_operation_start_scheduled = False
         self._strategy_feedback_save_runtime = OneShotWorkerRuntime()
         self._strategy_feedback_save_request_id = 0
+        self._strategy_feedback_save_runtime_worker = None
         self._pending_strategy_feedback_save = None
         self._strategy_feedback_save_start_scheduled = False
         self._payload = None
@@ -1023,6 +1028,13 @@ class ProfileSetupPageBase(BasePage):
             runtime = OneShotWorkerRuntime()
             setattr(self, attr, runtime)
         return runtime
+
+    def _accept_current_profile_setup_worker_finished(self, attr: str, worker) -> bool:
+        current_worker = self.__dict__.get(attr)
+        if current_worker is not None and worker is not current_worker:
+            return False
+        setattr(self, attr, None)
+        return True
 
     def _profile_setup_write_is_running(self) -> bool:
         if self.__dict__.get("_profile_setup_write_operation_start_scheduled", False):
@@ -2571,7 +2583,7 @@ class ProfileSetupPageBase(BasePage):
             set_widget_text_if_changed(self._list_file_status_label, "Сохранение списка...")
         if self._list_file_save_button is not None:
             set_widget_enabled_if_changed(self._list_file_save_button, False)
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_profile_list_file_save_worker(
                 request_id,
                 profile_key,
@@ -2583,6 +2595,7 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_list_file_save_worker_finished,
             loaded_signal_name="saved",
         )
+        self._list_file_save_runtime_worker = worker
 
     def _on_list_file_save_finished(self, request_id: int, state, payload=None) -> None:
         if request_id != self._list_file_save_request_id:
@@ -2617,7 +2630,9 @@ class ProfileSetupPageBase(BasePage):
             set_widget_enabled_if_changed(self._list_file_save_button, True)
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
-    def _on_list_file_save_worker_finished(self, _worker) -> None:
+    def _on_list_file_save_worker_finished(self, worker) -> None:
+        if not self._accept_current_profile_setup_worker_finished("_list_file_save_runtime_worker", worker):
+            return
         if self._start_next_profile_setup_write_operation():
             return
         pending = self.__dict__.get("_pending_list_file_save")
@@ -2895,7 +2910,7 @@ class ProfileSetupPageBase(BasePage):
         runtime = self._worker_runtime("_settings_save_runtime")
         self._settings_save_request_id += 1
         request_id = self._settings_save_request_id
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_profile_settings_save_worker(
                 request_id,
                 profile_key=str(request.get("profile_key") or ""),
@@ -2910,6 +2925,7 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_settings_save_worker_finished,
             loaded_signal_name="saved",
         )
+        self._settings_save_runtime_worker = worker
 
     def _on_settings_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
         if request_id != self._settings_save_request_id:
@@ -2935,7 +2951,9 @@ class ProfileSetupPageBase(BasePage):
             return
         log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {error}", "ERROR")
 
-    def _on_settings_save_worker_finished(self, _worker) -> None:
+    def _on_settings_save_worker_finished(self, worker) -> None:
+        if not self._accept_current_profile_setup_worker_finished("_settings_save_runtime_worker", worker):
+            return
         if self._start_next_profile_setup_write_operation():
             return
         pending = self._pending_settings_save
@@ -2969,7 +2987,7 @@ class ProfileSetupPageBase(BasePage):
         request_id = self._raw_profile_save_request_id
         if self._raw_profile_save_button is not None:
             set_widget_enabled_if_changed(self._raw_profile_save_button, False)
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_profile_raw_text_save_worker(
                 request_id,
                 profile_key,
@@ -2981,6 +2999,7 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_raw_profile_save_worker_finished,
             loaded_signal_name="saved",
         )
+        self._raw_profile_save_runtime_worker = worker
 
     def _on_raw_profile_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
         if request_id != self._raw_profile_save_request_id:
@@ -3018,7 +3037,9 @@ class ProfileSetupPageBase(BasePage):
             parent=self.window(),
         )
 
-    def _on_raw_profile_save_worker_finished(self, _worker) -> None:
+    def _on_raw_profile_save_worker_finished(self, worker) -> None:
+        if not self._accept_current_profile_setup_worker_finished("_raw_profile_save_runtime_worker", worker):
+            return
         if self._start_next_profile_setup_write_operation():
             return
         pending = self.__dict__.get("_pending_raw_profile_save")
@@ -3059,7 +3080,7 @@ class ProfileSetupPageBase(BasePage):
         if self._enabled_checkbox is not None:
             set_widget_enabled_if_changed(self._enabled_checkbox, False)
         self._enabled_save_runtime_enabled = bool(enabled)
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_profile_enabled_save_worker(
                 request_id,
                 profile_key=self._profile_key,
@@ -3073,6 +3094,7 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_enabled_save_worker_finished,
             loaded_signal_name="saved",
         )
+        self._enabled_save_runtime_worker = worker
 
     def _on_enabled_save_finished(self, request_id: int, profile_key: str, enabled: bool, payload=None) -> None:
         if request_id != self._enabled_save_request_id:
@@ -3132,7 +3154,9 @@ class ProfileSetupPageBase(BasePage):
             set_widget_enabled_if_changed(self._enabled_checkbox, True)
         log(f"{self.__class__.__name__}: не удалось изменить состояние профиля: {error}", "ERROR")
 
-    def _on_enabled_save_worker_finished(self, _worker) -> None:
+    def _on_enabled_save_worker_finished(self, worker) -> None:
+        if not self._accept_current_profile_setup_worker_finished("_enabled_save_runtime_worker", worker):
+            return
         self._enabled_save_runtime_enabled = None
         if self._start_next_profile_setup_write_operation():
             return
@@ -3431,7 +3455,7 @@ class ProfileSetupPageBase(BasePage):
         runtime = self._worker_runtime("_strategy_feedback_save_runtime")
         self._strategy_feedback_save_request_id = int(getattr(self, "_strategy_feedback_save_request_id", 0) or 0) + 1
         request_id = self._strategy_feedback_save_request_id
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_profile_strategy_feedback_save_worker(
                 request_id,
                 profile_key=self._profile_key,
@@ -3445,6 +3469,7 @@ class ProfileSetupPageBase(BasePage):
             on_finished=self._on_strategy_feedback_save_worker_finished,
             loaded_signal_name="saved",
         )
+        self._strategy_feedback_save_runtime_worker = worker
 
     def _on_strategy_feedback_save_finished(
         self,
@@ -3485,7 +3510,9 @@ class ProfileSetupPageBase(BasePage):
         if not self.__dict__.get("_pending_strategy_feedback_save"):
             self.reload_current_profile()
 
-    def _on_strategy_feedback_save_worker_finished(self, _worker) -> None:
+    def _on_strategy_feedback_save_worker_finished(self, worker) -> None:
+        if not self._accept_current_profile_setup_worker_finished("_strategy_feedback_save_runtime_worker", worker):
+            return
         pending = self.__dict__.get("_pending_strategy_feedback_save")
         if pending:
             self._schedule_strategy_feedback_save_worker_start()
@@ -3585,7 +3612,12 @@ class ProfileSetupPageBase(BasePage):
             runtime.cancel()
         self._strategy_apply_runtime_strategy_id = ""
         self._enabled_save_runtime_enabled = None
+        self._list_file_save_runtime_worker = None
+        self._settings_save_runtime_worker = None
+        self._raw_profile_save_runtime_worker = None
+        self._enabled_save_runtime_worker = None
         self._strategy_apply_runtime_worker = None
+        self._strategy_feedback_save_runtime_worker = None
         self.__dict__.setdefault("_pending_user_profile_operations", []).clear()
         self.__dict__.setdefault("_pending_user_profile_updates", []).clear()
         self.__dict__.setdefault("_pending_user_profile_deletes", []).clear()
