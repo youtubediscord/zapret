@@ -912,6 +912,8 @@ class BlockcheckPage(BasePage):
             pass
 
     def _on_support_prepare_runtime_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_support_prepare_runtime"), _worker):
+            return
         pending = self.__dict__.get("_support_prepare_pending")
         if pending is not None and not self._cleanup_in_progress:
             self._schedule_support_prepare_worker_start(dict(pending or {}))
@@ -1112,9 +1114,22 @@ class BlockcheckPage(BasePage):
         )
 
     def _on_user_domain_action_runtime_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_user_domain_action_runtime"), _worker):
+            return
         if self._user_domain_action_pending and not self._cleanup_in_progress:
             pending = self._user_domain_action_pending.pop(0)
             self._schedule_user_domain_action_worker_start(dict(pending or {}))
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def _schedule_user_domain_action_worker_start(self, payload: dict[str, str]) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):

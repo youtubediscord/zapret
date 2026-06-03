@@ -48,6 +48,17 @@ class BlockcheckUserDomainRuntimeArchitectureTests(unittest.TestCase):
 
         page._start_user_domain_action_worker.assert_called_once_with({"action": "add", "domain": "example.com"})
 
+    def test_stale_user_domain_action_finish_does_not_restart_pending_action(self) -> None:
+        page = BlockcheckPage.__new__(BlockcheckPage)
+        page._cleanup_in_progress = False
+        page._user_domain_action_runtime = SimpleNamespace(request_id=3)
+        page._user_domain_action_pending = [{"action": "add", "domain": "example.com"}]
+        page._schedule_user_domain_action_worker_start = Mock()
+
+        BlockcheckPage._on_user_domain_action_runtime_finished(page, SimpleNamespace(_request_id=2))
+
+        page._schedule_user_domain_action_worker_start.assert_not_called()
+
     def test_scheduled_user_domain_action_queues_next_payload(self) -> None:
         import blockcheck.ui.page as blockcheck_page
 
