@@ -312,6 +312,29 @@ class UserPresetWriteSerializationTests(unittest.TestCase):
         self.assertEqual(len(callbacks), 0)
         self.assertEqual(page._pending_preset_write_actions[0]["file_name"], "Next.txt")
 
+    def test_cleared_item_action_worker_finished_does_not_start_pending_write(self) -> None:
+        old_worker = object()
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_item_action_runtime_worker = None
+        page._pending_preset_write_actions = [
+            {
+                "kind": "activate",
+                "file_name": "Next.txt",
+                "display_name": "Next",
+            }
+        ]
+        callbacks = []
+
+        with patch(
+            "presets.ui.common.user_presets_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            UserPresetsPageBase._on_preset_item_action_worker_finished(page, old_worker)
+
+        self.assertIsNone(page._preset_item_action_runtime_worker)
+        self.assertEqual(callbacks, [])
+        self.assertEqual(page._pending_preset_write_actions[0]["file_name"], "Next.txt")
+
     def test_scheduled_activation_uses_latest_request_before_worker_starts(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         page._preset_activate_runtime = _Runtime(running=False)

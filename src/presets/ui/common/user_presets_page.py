@@ -228,8 +228,12 @@ class UserPresetsPageBase(BasePage):
         return bool(runtime.is_running())
 
     def _accept_current_preset_write_worker_finished(self, attr: str, worker) -> bool:
-        current_worker = self.__dict__.get(attr)
-        if current_worker is not None and worker is not current_worker:
+        missing = object()
+        current_worker = self.__dict__.get(attr, missing)
+        if current_worker is missing:
+            setattr(self, attr, None)
+            return True
+        if worker is not current_worker:
             return False
         setattr(self, attr, None)
         return True

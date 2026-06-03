@@ -136,6 +136,28 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             [{"kind": "activate", "file_name": "Next.txt"}],
         )
 
+    def test_cleared_raw_preset_action_worker_finished_does_not_start_pending_activation(self) -> None:
+        old_worker = object()
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_action_runtime_worker = None
+        page._pending_raw_preset_write_operations = [{"kind": "activate", "file_name": "Next.txt"}]
+        page.create_raw_preset_activate_worker = Mock()
+        callbacks = []
+
+        with patch(
+            "presets.ui.common.preset_subpage_base.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, old_worker)
+
+        self.assertIsNone(page._raw_action_runtime_worker)
+        self.assertEqual(callbacks, [])
+        page.create_raw_preset_activate_worker.assert_not_called()
+        self.assertEqual(
+            page._pending_raw_preset_write_operations,
+            [{"kind": "activate", "file_name": "Next.txt"}],
+        )
+
     def test_duplicate_raw_preset_action_is_not_replayed_from_old_queue(self) -> None:
         worker = object()
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
