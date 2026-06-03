@@ -859,6 +859,25 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             [{"kind": "list_file_save", "profile_key": "profile-1", "text": "second.example"}],
         )
 
+    def test_list_file_save_error_ignored_when_new_save_is_pending(self) -> None:
+        from unittest.mock import Mock, patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_save_request_id = 5
+        page._pending_list_file_save = ("profile-1", "latest.example")
+        page._list_file_save_button = _BoolWidget(enabled=False)
+        page._render_list_file_validation = Mock()
+        page.window = Mock(return_value=object())
+
+        with patch("profile.ui.profile_setup_page.InfoBar.error") as error_mock:
+            ProfileSetupPageBase._on_list_file_save_failed(page, 5, "old error")
+
+        page._render_list_file_validation.assert_not_called()
+        self.assertEqual(page._list_file_save_button.enabled_calls, [])
+        error_mock.assert_not_called()
+
     def test_list_file_validation_label_skips_duplicate_error_render(self) -> None:
         from unittest.mock import Mock
 
@@ -1031,6 +1050,23 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         ProfileSetupPageBase._on_enabled_save_failed(page, 4, "boom")
 
         self.assertEqual(page._enabled_checkbox.enabled_calls, [])
+
+    def test_raw_profile_save_error_ignored_when_new_save_is_pending(self) -> None:
+        from unittest.mock import Mock, patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._raw_profile_save_request_id = 6
+        page._pending_raw_profile_save = ("profile-1", "--new\nlatest")
+        page._raw_profile_save_button = _BoolWidget(enabled=False)
+        page.window = Mock(return_value=object())
+
+        with patch("profile.ui.profile_setup_page.InfoBar.error") as error_mock:
+            ProfileSetupPageBase._on_raw_profile_save_failed(page, 6, "old error")
+
+        self.assertEqual(page._raw_profile_save_button.enabled_calls, [])
+        error_mock.assert_not_called()
 
     def test_apply_enabled_locally_skips_duplicate_checkbox_state(self) -> None:
         from dataclasses import dataclass, replace
