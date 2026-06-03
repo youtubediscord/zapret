@@ -307,6 +307,8 @@ class ProfileOrderPageBase(BasePage):
             cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
         ):
             return
+        if self.__dict__.get("_pending_profile_order_moves"):
+            return
         log(f"{self.__class__.__name__}: не удалось переместить profile в порядке preset: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
         if self.__dict__.get("_order_move_reload_required", False) and not self.__dict__.get(

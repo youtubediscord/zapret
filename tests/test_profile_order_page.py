@@ -445,6 +445,34 @@ class ProfileOrderPageTests(unittest.TestCase):
             ],
         )
 
+    def test_order_page_move_error_ignored_when_new_move_is_pending(self) -> None:
+        import profile.ui.profile_order_page as order_page
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._order_move_runtime = OneShotWorkerRuntime()
+        page._order_move_runtime.request_id = 4
+        page._cleanup_in_progress = False
+        page._pending_profile_order_moves = [
+            {
+                "action": "before",
+                "source_profile_key": "profile-b",
+                "destination_profile_key": "profile-a",
+            }
+        ]
+        page._order_move_reload_required = True
+        page._reload_order_profiles = Mock()
+        page.window = Mock(return_value=object())
+
+        with patch.object(order_page, "log") as log_mock, patch.object(order_page.InfoBar, "error") as error_mock:
+            ProfileOrderPageBase._on_profile_order_move_failed(page, 4, "stale error")
+
+        log_mock.assert_not_called()
+        error_mock.assert_not_called()
+        page._reload_order_profiles.assert_not_called()
+        self.assertTrue(page._order_move_reload_required)
+
     def test_order_page_replaces_pending_move_for_same_profile(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
         from ui.one_shot_worker_runtime import OneShotWorkerRuntime
