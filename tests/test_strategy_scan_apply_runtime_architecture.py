@@ -80,6 +80,60 @@ class StrategyScanApplyRuntimeArchitectureTests(unittest.TestCase):
         page._start_strategy_apply_worker.assert_called_once_with(pending)
         self.assertIsNone(page._strategy_apply_pending)
 
+    def test_strategy_apply_result_ignored_when_new_apply_is_pending(self) -> None:
+        import blockcheck.ui.strategy_scan_page as strategy_scan_page
+
+        page = StrategyScanPage.__new__(StrategyScanPage)
+        page._cleanup_in_progress = False
+        page._strategy_apply_pending = {
+            "strategy_args": "--dpi-desync=split",
+            "strategy_name": "new",
+        }
+        page._strategy_apply_runtime = Mock()
+        page._strategy_apply_runtime.is_current.return_value = True
+        page._blockcheck = Mock()
+        page._blockcheck.build_apply_success_plan.return_value = SimpleNamespace(
+            title_key="title",
+            title_default="Title",
+            body_text="Body",
+        )
+        page.window = Mock(return_value=object())
+
+        with patch.object(strategy_scan_page.InfoBarHelper, "success") as success:
+            StrategyScanPage._on_strategy_apply_finished(page, 5, object())
+
+        page._blockcheck.build_apply_success_plan.assert_not_called()
+        success.assert_not_called()
+
+    def test_strategy_apply_failure_ignored_when_new_apply_is_pending(self) -> None:
+        import blockcheck.ui.strategy_scan_page as strategy_scan_page
+
+        page = StrategyScanPage.__new__(StrategyScanPage)
+        page._cleanup_in_progress = False
+        page._strategy_apply_pending = {
+            "strategy_args": "--dpi-desync=split",
+            "strategy_name": "new",
+        }
+        page._strategy_apply_runtime = Mock()
+        page._strategy_apply_runtime.is_current.return_value = True
+        page._blockcheck = Mock()
+        page._blockcheck.build_apply_error_plan.return_value = SimpleNamespace(
+            title_key="title",
+            title_default="Title",
+            body_text="Body",
+        )
+        page.window = Mock(return_value=object())
+
+        with (
+            patch.object(strategy_scan_page.logger, "warning") as warning_log,
+            patch.object(strategy_scan_page.InfoBarHelper, "warning") as warning_bar,
+        ):
+            StrategyScanPage._on_strategy_apply_failed(page, 5, "stale error")
+
+        warning_log.assert_not_called()
+        page._blockcheck.build_apply_error_plan.assert_not_called()
+        warning_bar.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

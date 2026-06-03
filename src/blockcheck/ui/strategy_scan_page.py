@@ -872,6 +872,8 @@ class StrategyScanPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_strategy_apply_pending") is not None:
+            return
         message_plan = self._blockcheck.build_apply_success_plan(result)
 
         InfoBarHelper.success(
@@ -885,6 +887,8 @@ class StrategyScanPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_strategy_apply_pending") is not None:
             return
         logger.warning("Failed to apply strategy: %s", error)
         try:
