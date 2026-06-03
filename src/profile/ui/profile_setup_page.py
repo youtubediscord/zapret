@@ -3318,10 +3318,8 @@ class ProfileSetupPageBase(BasePage):
         self.reload_current_profile()
 
     def _on_strategy_apply_worker_finished(self, worker) -> None:
-        current_worker = self.__dict__.get("_strategy_apply_runtime_worker")
-        if current_worker is not None and worker is not current_worker:
+        if not self._accept_current_profile_setup_worker_finished("_strategy_apply_runtime_worker", worker):
             return
-        self._strategy_apply_runtime_worker = None
         self._strategy_apply_runtime_strategy_id = ""
         self._strategy_apply_runtime_branch_id = ""
         if self._start_next_profile_setup_write_operation():
