@@ -866,6 +866,8 @@ class UserPresetsRuntimeService:
     def _on_rows_plan_loaded(self, request_id: int, plan, started_at: float | None, page=None) -> None:
         if request_id != self._rows_plan_request_id:
             return
+        if self.__dict__.get("_rows_plan_pending") is not None:
+            return
         page = self._resolve_page(page)
         self._schedule_rows_plan_apply(plan, started_at, page)
 
