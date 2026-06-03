@@ -10,6 +10,7 @@ class ProfileSetupWorkerRuntimeArchitectureTests(unittest.TestCase):
 
         init_source = inspect.getsource(ProfileSetupPageBase.__init__)
         payload_source = inspect.getsource(ProfileSetupPageBase._request_profile_setup_payload)
+        payload_start_source = inspect.getsource(ProfileSetupPageBase._start_profile_setup_load_worker)
         list_load_source = inspect.getsource(ProfileSetupPageBase._request_list_file_editor_state)
         validation_request_source = inspect.getsource(ProfileSetupPageBase._request_list_file_validation)
         validation_start_source = inspect.getsource(ProfileSetupPageBase._start_list_file_validation_worker)
@@ -49,7 +50,7 @@ class ProfileSetupWorkerRuntimeArchitectureTests(unittest.TestCase):
             self.assertIn(attr, cleanup_source)
 
         for attr, source in (
-            ("_setup_load_runtime", payload_source),
+            ("_setup_load_runtime", payload_source + payload_start_source),
             ("_list_file_load_runtime", list_load_source),
             ("_list_file_validation_runtime", validation_request_source + validation_start_source),
             ("_list_file_save_runtime", save_request_source + save_start_source),
