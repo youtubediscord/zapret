@@ -326,6 +326,8 @@ class ConnectionTestPage(BasePage):
         self._set_status("Ошибка подготовки обращения", "error")
 
     def _on_support_prepare_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_support_prepare_runtime"), _worker):
+            return
         pending = self.__dict__.get("_support_prepare_pending")
         if pending is not None and not self._cleanup_in_progress:
             self._schedule_support_prepare_worker_start(dict(pending or {}))
@@ -352,6 +354,17 @@ class ConnectionTestPage(BasePage):
         if self.send_log_btn is not None:
             self.send_log_btn.setEnabled(False)
         self._start_support_prepare_worker(dict(pending or {}))
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     # ──────────────────────────────────────────────────────────────
     # Вспомогательное

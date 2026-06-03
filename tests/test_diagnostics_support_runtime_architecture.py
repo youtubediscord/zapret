@@ -54,6 +54,19 @@ class DiagnosticsSupportRuntimeArchitectureTests(unittest.TestCase):
         page._start_support_prepare_worker.assert_called_once_with({"selection": "YouTube"})
         self.assertIsNone(page._support_prepare_pending)
 
+    def test_stale_support_prepare_finish_does_not_restart_pending_prepare(self) -> None:
+        page = ConnectionTestPage.__new__(ConnectionTestPage)
+        page._cleanup_in_progress = False
+        page._support_prepare_runtime = SimpleNamespace(request_id=3)
+        page._support_prepare_pending = {"selection": "YouTube"}
+        page.send_log_btn = SimpleNamespace(setEnabled=Mock())
+        page._schedule_support_prepare_worker_start = Mock()
+
+        ConnectionTestPage._on_support_prepare_worker_finished(page, SimpleNamespace(_request_id=2))
+
+        page._schedule_support_prepare_worker_start.assert_not_called()
+        page.send_log_btn.setEnabled.assert_not_called()
+
     def test_support_prepare_runtime_keeps_page_worker_boundary(self) -> None:
         page_source = inspect.getsource(ConnectionTestPage)
         request_source = "\n".join(
