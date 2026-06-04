@@ -333,7 +333,8 @@ class UserPresetsRuntimeService:
             self.schedule_presets_reload(page, 0)
 
     def _on_single_metadata_worker_finished(self, worker: UserPresetsSingleMetadataWorker, page=None) -> None:
-        _ = worker
+        if not self._is_current_worker_finish(worker, "_single_metadata_request_id"):
+            return
         if self._single_metadata_pending:
             self._schedule_single_metadata_refresh(page)
 
@@ -782,7 +783,8 @@ class UserPresetsRuntimeService:
         log(f"Ошибка загрузки пресетов: {error}", "ERROR")
 
     def _on_metadata_worker_finished(self, worker: UserPresetsMetadataLoadWorker) -> None:
-        _ = worker
+        if not self._is_current_worker_finish(worker, "_metadata_load_request_id"):
+            return
         pending_page = self._metadata_load_pending_page
         if pending_page is not None:
             self._schedule_metadata_load()
@@ -908,7 +910,8 @@ class UserPresetsRuntimeService:
         log(f"Ошибка подготовки списка пресетов: {error}", "ERROR")
 
     def _on_rows_plan_worker_finished(self, worker: UserPresetsRowsPlanWorker) -> None:
-        _ = worker
+        if not self._is_current_worker_finish(worker, "_rows_plan_request_id"):
+            return
         pending = self._rows_plan_pending
         if pending is not None:
             self._schedule_rows_plan_refresh()
@@ -1014,6 +1017,15 @@ class UserPresetsRuntimeService:
 
         self._ui_dirty = False
         return True
+
+    def _is_current_worker_finish(self, worker, request_attr: str) -> bool:
+        request_id = getattr(worker, "_request_id", getattr(worker, "request_id", None))
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(self, request_attr, -1))
+        except (TypeError, ValueError):
+            return False
 
     def rename_preset_locally(self, current_name: str, next_file_name: str, display_name: str, page=None) -> bool:
         page = self._resolve_page(page)
