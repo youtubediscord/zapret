@@ -745,6 +745,8 @@ class LogsPage(BasePage):
             )
 
     def _on_support_prepare_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_support_prepare_runtime"), _worker):
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_support_prepare_pending", False):
@@ -1048,6 +1050,8 @@ class LogsPage(BasePage):
         log(f"Ошибка открытия папки: {error}", "ERROR")
 
     def _on_open_logs_folder_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_open_folder_runtime"), _worker):
+            return
         if self._open_folder_pending and not self._cleanup_in_progress:
             self._open_folder_pending = False
             self._schedule_open_logs_folder_start()
@@ -1082,6 +1086,17 @@ class LogsPage(BasePage):
             log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
         except Exception:
             pass
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def _update_errors_text_height(self):
         """Подстраивает высоту панели ошибок под содержимое."""
