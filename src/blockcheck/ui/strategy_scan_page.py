@@ -693,6 +693,8 @@ class StrategyScanPage(BasePage):
         logger.warning("Failed to save strategy-scan resume progress: %s", error)
 
     def _on_strategy_scan_resume_save_runtime_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_strategy_scan_resume_save_runtime"), _worker):
+            return
         pending = self.__dict__.get("_strategy_scan_resume_save_pending")
         if pending is not None and not self._cleanup_in_progress:
             self._strategy_scan_resume_save_pending = None
@@ -920,6 +922,8 @@ class StrategyScanPage(BasePage):
             pass
 
     def _on_strategy_apply_runtime_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_strategy_apply_runtime"), _worker):
+            return
         pending = self.__dict__.get("_strategy_apply_pending")
         if pending is not None and not self._cleanup_in_progress:
             self._schedule_strategy_apply_worker_start(dict(pending or {}))
@@ -1082,6 +1086,8 @@ class StrategyScanPage(BasePage):
             pass
 
     def _on_support_prepare_runtime_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_support_prepare_runtime"), _worker):
+            return
         pending = self.__dict__.get("_support_prepare_pending")
         if pending is not None and not self._cleanup_in_progress:
             self._schedule_support_prepare_worker_start(dict(pending or {}))
