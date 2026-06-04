@@ -25,6 +25,18 @@ GUI_ROOTS = (
     SRC_ROOT / "updater" / "ui",
 )
 
+GUI_SHELL_PATTERNS = (
+    "ui/navigation/**/*.py",
+    "ui/page_*.py",
+    "ui/page_deps/**/*.py",
+    "ui/runtime_ui_bridge.py",
+    "ui/theme*.py",
+    "ui/ui_root.py",
+    "ui/window_*.py",
+    "ui/workflows/**/*.py",
+    "main/window_*.py",
+)
+
 FORBIDDEN_IMPORT_ROOTS = {
     "requests",
     "socket",
@@ -69,12 +81,29 @@ class GuiDirectWorkContractTests(unittest.TestCase):
         offenders: list[str] = []
         for root in GUI_ROOTS:
             for path in root.rglob("*.py"):
-                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-                rel_path = path.relative_to(SRC_ROOT).as_posix()
-                offenders.extend(self._find_forbidden_imports(tree, rel_path))
-                offenders.extend(self._find_forbidden_calls(tree, rel_path))
+                offenders.extend(self._collect_offenders(path))
 
         self.assertEqual([], offenders)
+
+    def test_gui_shell_does_not_touch_file_windows_or_network_directly(self) -> None:
+        offenders: list[str] = []
+        for path in self._iter_shell_files():
+            offenders.extend(self._collect_offenders(path))
+
+        self.assertEqual([], offenders)
+
+    def _iter_shell_files(self) -> list[Path]:
+        files: set[Path] = set()
+        for pattern in GUI_SHELL_PATTERNS:
+            files.update(path for path in SRC_ROOT.glob(pattern) if path.is_file())
+        return sorted(files)
+
+    def _collect_offenders(self, path: Path) -> list[str]:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        rel_path = path.relative_to(SRC_ROOT).as_posix()
+        offenders = self._find_forbidden_imports(tree, rel_path)
+        offenders.extend(self._find_forbidden_calls(tree, rel_path))
+        return offenders
 
     def _find_forbidden_imports(self, tree: ast.Module, rel_path: str) -> list[str]:
         offenders: list[str] = []
