@@ -293,6 +293,8 @@ class HostsPage(BasePage):
         self._finish_runtime_init_after_selection(show_access_errors=show_access_errors)
 
     def _on_user_selection_load_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_selection_load_runtime"), _worker):
+            return
         if self._cleanup_in_progress:
             return
         if self.__dict__.get("_selection_load_pending", False):
@@ -520,6 +522,8 @@ class HostsPage(BasePage):
         log(f"Hosts: ошибка проверки каталога ({trigger}): {error}", "ERROR")
 
     def _on_catalog_refresh_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_catalog_refresh_runtime"), _worker):
+            return
         if self._cleanup_in_progress:
             return
         trigger = str(self._catalog_refresh_pending_trigger or "").strip()
@@ -700,6 +704,8 @@ class HostsPage(BasePage):
         self._show_error(str(error or ""))
 
     def _on_restore_hosts_permissions_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_permission_restore_runtime"), _worker):
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_permission_restore_pending", False):
@@ -1007,6 +1013,8 @@ class HostsPage(BasePage):
         self._show_open_hosts_file_error(str(error))
 
     def _on_open_hosts_file_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_open_file_runtime"), _worker):
+            return
         if self._open_file_pending and not self._cleanup_in_progress:
             self._open_file_pending = False
             self._schedule_open_hosts_file_start()
@@ -1100,6 +1108,8 @@ class HostsPage(BasePage):
         log(f"Hosts: ошибка сохранения выбора профилей: {error}", "ERROR")
 
     def _on_user_selection_save_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_selection_save_runtime"), _worker):
+            return
         if self._cleanup_in_progress:
             return
         pending = self._selection_save_pending
@@ -1226,6 +1236,8 @@ class HostsPage(BasePage):
             )
 
     def _on_hosts_state_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_state_load_runtime"), _worker):
+            return
         pending = dict(self._state_load_pending or {})
         if self._cleanup_in_progress:
             return
@@ -1290,6 +1302,17 @@ class HostsPage(BasePage):
             log(f"{label}: {elapsed_ms:.1f}ms", "DEBUG")
         except Exception:
             pass
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def refresh(self):
         """Обновляет страницу (сбрасывает кеш и перечитывает hosts)"""

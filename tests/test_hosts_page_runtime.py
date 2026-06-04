@@ -114,6 +114,23 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._request_user_selection_save.assert_called_once_with({"service": "profile"})
 
+    def test_stale_user_selection_save_worker_finished_does_not_restart_pending_save(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._selection_save_runtime = SimpleNamespace(request_id=2)
+        page._selection_save_pending = {"service": "profile"}
+        page._request_user_selection_save = Mock()
+
+        with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=Mock()), create=True) as timer_mock:
+            HostsPage._on_user_selection_save_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        timer_mock.singleShot.assert_not_called()
+        page._request_user_selection_save.assert_not_called()
+        self.assertEqual(page._selection_save_pending, {"service": "profile"})
+
     def test_user_selection_save_request_waits_while_restart_is_scheduled(self) -> None:
         from hosts.ui.page import HostsPage
 
@@ -200,6 +217,25 @@ class HostsPageRuntimeTests(unittest.TestCase):
         page._start_user_selection_load_worker.assert_called_once_with(show_access_errors=True)
         self.assertFalse(page._selection_load_pending)
 
+    def test_stale_user_selection_load_worker_finished_does_not_restart_pending_load(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._selection_load_runtime = SimpleNamespace(request_id=2)
+        page._selection_load_pending = True
+        page._selection_load_start_scheduled = False
+        page._selection_load_show_access_errors = True
+        page._start_user_selection_load_worker = Mock()
+
+        with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=Mock()), create=True) as timer_mock:
+            HostsPage._on_user_selection_load_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        timer_mock.singleShot.assert_not_called()
+        page._start_user_selection_load_worker.assert_not_called()
+        self.assertTrue(page._selection_load_pending)
+
     def test_user_selection_load_result_ignored_when_new_load_is_pending(self) -> None:
         from hosts.ui.page import HostsPage
 
@@ -256,6 +292,23 @@ class HostsPageRuntimeTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._refresh_catalog_if_needed.assert_called_once_with("watcher")
+
+    def test_stale_catalog_refresh_worker_finished_does_not_restart_pending_refresh(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._catalog_refresh_runtime = SimpleNamespace(request_id=2)
+        page._catalog_refresh_pending_trigger = "watcher"
+        page._refresh_catalog_if_needed = Mock()
+
+        with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=Mock()), create=True) as timer_mock:
+            HostsPage._on_catalog_refresh_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        timer_mock.singleShot.assert_not_called()
+        page._refresh_catalog_if_needed.assert_not_called()
+        self.assertEqual(page._catalog_refresh_pending_trigger, "watcher")
 
     def test_catalog_refresh_request_waits_while_restart_is_scheduled(self) -> None:
         from hosts.ui.page import HostsPage
@@ -335,6 +388,23 @@ class HostsPageRuntimeTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._request_open_hosts_file.assert_called_once_with()
+
+    def test_stale_open_hosts_file_worker_finished_does_not_restart_pending_open(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._open_file_runtime = SimpleNamespace(request_id=2)
+        page._open_file_pending = True
+        page._request_open_hosts_file = Mock()
+
+        with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=Mock()), create=True) as timer_mock:
+            HostsPage._on_open_hosts_file_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        timer_mock.singleShot.assert_not_called()
+        page._request_open_hosts_file.assert_not_called()
+        self.assertTrue(page._open_file_pending)
 
     def test_open_hosts_file_request_waits_while_restart_is_scheduled(self) -> None:
         from hosts.ui.page import HostsPage
@@ -422,6 +492,23 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         page._request_restore_hosts_permissions.assert_called_once_with()
 
+    def test_stale_restore_permissions_worker_finished_does_not_restart_pending_restore(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._permission_restore_runtime = SimpleNamespace(request_id=2)
+        page._permission_restore_pending = True
+        page._request_restore_hosts_permissions = Mock()
+
+        with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=Mock()), create=True) as timer_mock:
+            HostsPage._on_restore_hosts_permissions_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        timer_mock.singleShot.assert_not_called()
+        page._request_restore_hosts_permissions.assert_not_called()
+        self.assertTrue(page._permission_restore_pending)
+
     def test_restore_permissions_request_waits_while_restart_is_scheduled(self) -> None:
         from hosts.ui.page import HostsPage
 
@@ -498,6 +585,23 @@ class HostsPageRuntimeTests(unittest.TestCase):
             show_access_errors=True,
             update_status=True,
         )
+
+    def test_stale_hosts_state_worker_finished_does_not_restart_pending_load(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._state_load_runtime = SimpleNamespace(request_id=2)
+        page._state_load_pending = {"show_access_errors": True, "update_status": True}
+        page._request_hosts_state_load = Mock()
+
+        with patch.object(hosts_page, "QTimer", SimpleNamespace(singleShot=Mock()), create=True) as timer_mock:
+            HostsPage._on_hosts_state_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        timer_mock.singleShot.assert_not_called()
+        page._request_hosts_state_load.assert_not_called()
+        self.assertEqual(page._state_load_pending, {"show_access_errors": True, "update_status": True})
 
     def test_hosts_state_result_ignored_when_new_state_load_is_pending(self) -> None:
         from hosts.ui.page import HostsPage
