@@ -78,6 +78,7 @@ class ServersPage(BasePage):
         self._runtime_initialized = False
         self._cleanup_in_progress = False
         self._changelog_link_open_runtime = OneShotWorkerRuntime()
+        self._changelog_link_open_runtime_worker = None
         self._changelog_link_open_pending: str | None = None
         self._changelog_link_open_start_scheduled = False
 
@@ -367,7 +368,7 @@ class ServersPage(BasePage):
         self._start_changelog_link_open_worker(target)
 
     def _start_changelog_link_open_worker(self, url: str) -> None:
-        self._changelog_link_open_runtime.start_qthread_worker(
+        started = self._changelog_link_open_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self.create_changelog_link_open_worker(
                 request_id,
                 url=url,
@@ -376,6 +377,12 @@ class ServersPage(BasePage):
             on_failed=self._on_changelog_link_open_failed,
             on_finished=self._on_changelog_link_open_worker_finished,
         )
+        worker = (
+            started[1]
+            if isinstance(started, tuple) and len(started) > 1
+            else getattr(self._changelog_link_open_runtime, "worker", None)
+        )
+        self._changelog_link_open_runtime_worker = worker
 
     def _on_changelog_link_open_finished(self, request_id: int, result) -> None:
         if not self._changelog_link_open_runtime.is_current(
@@ -395,7 +402,11 @@ class ServersPage(BasePage):
             return
         self._show_changelog_link_open_error(str(error or ""))
 
-    def _on_changelog_link_open_worker_finished(self, _worker) -> None:
+    def _on_changelog_link_open_worker_finished(self, worker) -> None:
+        current_worker = self.__dict__.get("_changelog_link_open_runtime_worker")
+        if current_worker is not None and worker is not current_worker:
+            return
+        self._changelog_link_open_runtime_worker = None
         pending = self._changelog_link_open_pending
         if pending is not None and not self._cleanup_in_progress:
             self._schedule_changelog_link_open_worker_start()
@@ -431,6 +442,7 @@ class ServersPage(BasePage):
     def _stop_changelog_link_open_worker(self) -> None:
         self._changelog_link_open_pending = None
         self._changelog_link_open_start_scheduled = False
+        self._changelog_link_open_runtime_worker = None
         self._changelog_link_open_runtime.stop(
             blocking=True,
             warning_prefix="Changelog link open worker",

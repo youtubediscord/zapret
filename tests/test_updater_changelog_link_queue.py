@@ -19,6 +19,7 @@ class UpdaterChangelogLinkQueueTests(unittest.TestCase):
 
         page = ServersPage.__new__(ServersPage)
         page._cleanup_in_progress = False
+        page._changelog_link_open_runtime_worker = None
         page._changelog_link_open_pending = "https://example.org"
         page._start_changelog_link_open_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
@@ -33,6 +34,26 @@ class UpdaterChangelogLinkQueueTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_changelog_link_open_worker.assert_called_once_with("https://example.org")
+
+    def test_stale_changelog_link_worker_finished_does_not_restart_pending_open(self) -> None:
+        import updater.ui.page as updater_page
+        from updater.ui.page import ServersPage
+
+        current_worker = object()
+        page = ServersPage.__new__(ServersPage)
+        page._cleanup_in_progress = False
+        page._changelog_link_open_runtime_worker = current_worker
+        page._changelog_link_open_pending = "https://example.org"
+        page._start_changelog_link_open_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(updater_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            ServersPage._on_changelog_link_open_worker_finished(page, object())
+
+        single_shot.assert_not_called()
+        page._start_changelog_link_open_worker.assert_not_called()
+        self.assertIs(page._changelog_link_open_runtime_worker, current_worker)
+        self.assertEqual(page._changelog_link_open_pending, "https://example.org")
 
     def test_changelog_link_request_queues_while_start_is_scheduled(self) -> None:
         from updater.ui.page import ServersPage
@@ -57,6 +78,7 @@ class UpdaterChangelogLinkQueueTests(unittest.TestCase):
         page = ServersPage.__new__(ServersPage)
         page._cleanup_in_progress = False
         page._changelog_link_open_runtime = runtime
+        page._changelog_link_open_runtime_worker = None
         page._changelog_link_open_pending = "https://old.example.org"
         page._changelog_link_open_start_scheduled = False
         page._start_changelog_link_open_worker = Mock()
