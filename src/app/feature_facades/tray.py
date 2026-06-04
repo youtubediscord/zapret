@@ -17,6 +17,7 @@ class TrayFeature:
     _log_startup_metric: Any = None
     _tray_manager: Any = None
     _opacity_save_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
+    _opacity_save_runtime_worker: Any = None
     _opacity_save_pending: int | None = None
     _opacity_save_start_scheduled: bool = False
     _github_api_removal_toggle_runtime: OneShotWorkerRuntime = field(default_factory=OneShotWorkerRuntime)
@@ -251,12 +252,22 @@ class TrayFeature:
         self._start_window_opacity_save_worker(normalized)
 
     def _start_window_opacity_save_worker(self, value: int) -> None:
-        self._opacity_save_runtime.start_qthread_worker(
+        started = self._opacity_save_runtime.start_qthread_worker(
             worker_factory=lambda _request_id: self.create_opacity_save_worker(int(value)),
             on_finished=self._on_window_opacity_save_worker_finished,
         )
+        worker = started[1] if isinstance(started, tuple) and len(started) > 1 else getattr(
+            self._opacity_save_runtime,
+            "worker",
+            None,
+        )
+        self._opacity_save_runtime_worker = worker
 
-    def _on_window_opacity_save_worker_finished(self, _worker) -> None:
+    def _on_window_opacity_save_worker_finished(self, worker) -> None:
+        current_worker = self._opacity_save_runtime_worker
+        if current_worker is not None and worker is not current_worker:
+            return
+        self._opacity_save_runtime_worker = None
         pending = self._opacity_save_pending
         self._opacity_save_pending = None
         if pending is not None:

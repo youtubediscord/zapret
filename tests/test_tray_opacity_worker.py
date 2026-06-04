@@ -41,6 +41,7 @@ class TrayOpacityWorkerTests(unittest.TestCase):
             _telegram_proxy_feature=SimpleNamespace(),
         )
         feature._opacity_save_pending = 64
+        feature._opacity_save_runtime_worker = None
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with (
@@ -56,6 +57,31 @@ class TrayOpacityWorkerTests(unittest.TestCase):
             single_shot.call_args.args[1]()
 
             start_worker.assert_called_once_with(64)
+
+    def test_stale_tray_opacity_save_finish_does_not_restart_pending_save(self) -> None:
+        import app.feature_facades.tray as tray
+        from app.feature_facades.tray import TrayFeature
+
+        current_worker = object()
+        feature = TrayFeature(
+            _deps=SimpleNamespace(set_window_opacity=Mock()),
+            _runtime_feature=SimpleNamespace(),
+            _telegram_proxy_feature=SimpleNamespace(),
+        )
+        feature._opacity_save_runtime_worker = current_worker
+        feature._opacity_save_pending = 64
+        single_shot = Mock()
+
+        with (
+            patch.object(tray, "QTimer", SimpleNamespace(singleShot=single_shot), create=True),
+            patch.object(TrayFeature, "_start_window_opacity_save_worker") as start_worker,
+        ):
+            feature._on_window_opacity_save_worker_finished(object())
+
+        single_shot.assert_not_called()
+        start_worker.assert_not_called()
+        self.assertEqual(feature._opacity_save_pending, 64)
+        self.assertIs(feature._opacity_save_runtime_worker, current_worker)
 
     def test_tray_opacity_applies_window_immediately_and_starts_save_worker(self) -> None:
         from app.feature_facades.tray import TrayFeature
