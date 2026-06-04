@@ -659,6 +659,8 @@ class AboutPage(BasePage):
         self._show_about_open_error(str(error), error_default=error_default, raw_error_message=raw_error_message)
 
     def _on_about_open_action_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_about_open_runtime"), _worker):
+            return
         pending_actions = self.__dict__.setdefault("_about_open_pending", [])
         pending = pending_actions.pop(0) if pending_actions else None
         if pending is not None and not self._cleanup_in_progress:
@@ -685,6 +687,17 @@ class AboutPage(BasePage):
             return
         content = error if raw_error_message and error == raw_error_message else error_default.format(error=error)
         InfoBar.warning(title="Ошибка", content=content, parent=self.window())
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     # ─────────────────────────────────────────────────────────────────────────
     # Theme

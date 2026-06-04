@@ -278,6 +278,8 @@ class SupportPage(BasePage):
         self._show_support_open_error(error_key, error_default, str(error))
 
     def _on_support_open_action_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_support_open_runtime"), _worker):
+            return
         pending_actions = self.__dict__.setdefault("_support_open_pending", [])
         pending = pending_actions.pop(0) if pending_actions else None
         if pending is not None:
@@ -302,6 +304,17 @@ class SupportPage(BasePage):
                 content=self._tr(error_key, error_default).format(error=error),
                 parent=self.window(),
             )
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def cleanup(self) -> None:
         self.__dict__.setdefault("_support_open_pending", []).clear()

@@ -134,6 +134,28 @@ class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
             [("discord", second_action, "discord.error", "discord {error}")],
         )
 
+    def test_stale_support_open_worker_finished_does_not_schedule_next_queued_action(self) -> None:
+        import ui.pages.support_page as support_page
+
+        page = SupportPage.__new__(SupportPage)
+        first_action = Mock()
+        page._support_open_runtime = SimpleNamespace(request_id=2)
+        page._support_open_pending = [
+            ("telegram", first_action, "telegram.error", "telegram {error}"),
+        ]
+        page._start_support_open_action_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(support_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            SupportPage._on_support_open_action_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        single_shot.assert_not_called()
+        page._start_support_open_action_worker.assert_not_called()
+        self.assertEqual(
+            page._support_open_pending,
+            [("telegram", first_action, "telegram.error", "telegram {error}")],
+        )
+
     def test_support_open_scheduled_start_queues_next_action(self) -> None:
         import ui.pages.support_page as support_page
 
@@ -259,6 +281,26 @@ class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
             page._about_open_pending,
             [("github", second_action, "github {error}", "raw")],
         )
+
+    def test_stale_about_open_worker_finished_does_not_schedule_next_queued_action(self) -> None:
+        import ui.pages.about_page as about_page
+
+        page = AboutPage.__new__(AboutPage)
+        page._cleanup_in_progress = False
+        first_action = Mock()
+        page._about_open_runtime = SimpleNamespace(request_id=2)
+        page._about_open_pending = [
+            ("telegram", first_action, "telegram {error}", ""),
+        ]
+        page._start_about_open_action_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(about_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            AboutPage._on_about_open_action_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        single_shot.assert_not_called()
+        page._start_about_open_action_worker.assert_not_called()
+        self.assertEqual(page._about_open_pending, [("telegram", first_action, "telegram {error}", "")])
 
     def test_about_open_scheduled_start_queues_next_action(self) -> None:
         import ui.pages.about_page as about_page
