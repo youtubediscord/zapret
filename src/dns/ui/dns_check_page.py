@@ -353,7 +353,9 @@ class DNSCheckPage(BasePage):
         )
         self._set_status(plan.status_text, tone=plan.status_tone, bold=True)
 
-    def _on_check_worker_finished(self, _request_id: int, _thread) -> None:
+    def _on_check_worker_finished(self, request_id: int, _thread) -> None:
+        if not self._is_current_request_finish(self.__dict__.get("_check_runtime"), request_id):
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_check_pending", False):
@@ -421,7 +423,9 @@ class DNSCheckPage(BasePage):
         )
         self._set_status("✅ Быстрая проверка завершена", tone="success", bold=True)
 
-    def _on_quick_dns_check_worker_finished(self, _worker) -> None:
+    def _on_quick_dns_check_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_quick_runtime"), worker):
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if self.__dict__.get("_quick_check_pending", False):
@@ -503,12 +507,33 @@ class DNSCheckPage(BasePage):
             else:
                 InfoBar.error(title=plan.title, content=plan.content, parent=self.window())
 
-    def _on_save_results_worker_finished(self, _worker) -> None:
+    def _on_save_results_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_save_runtime"), worker):
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         pending = self.__dict__.get("_save_results_pending")
         if pending:
             self._schedule_save_results_worker_start()
+
+    def _is_current_request_finish(self, runtime, request_id: int) -> bool:
+        if runtime is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", request_id))
+        except (TypeError, ValueError):
+            return False
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if runtime is None:
+            return True
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is not None:
+            return self._is_current_request_finish(runtime, request_id)
+        current_worker = getattr(runtime, "worker", None)
+        if current_worker is not None:
+            return worker is current_worker
+        return True
 
     def _schedule_save_results_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
