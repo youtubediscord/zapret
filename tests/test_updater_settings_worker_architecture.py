@@ -75,6 +75,21 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
 
         runtime._schedule_auto_check_load_start.assert_not_called()
 
+    def test_stale_auto_check_load_worker_object_finish_does_not_restart_pending_load(self) -> None:
+        current_worker = object()
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._cleanup_in_progress = False
+        runtime._auto_check_load_runtime = SimpleNamespace(worker=current_worker)
+        runtime._auto_check_load_pending = True
+        runtime._schedule_auto_check_load_start = Mock()
+
+        update_page_runtime.UpdatePageRuntime._on_auto_check_load_worker_finished(
+            runtime,
+            object(),
+        )
+
+        runtime._schedule_auto_check_load_start.assert_not_called()
+
     def test_auto_check_load_result_ignored_when_new_load_is_pending(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
