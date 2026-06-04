@@ -200,6 +200,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_folder_action_start_scheduled = False
         self._preset_open_folder_runtime = OneShotWorkerRuntime()
         self._preset_open_folder_request_id = 0
+        self._preset_open_folder_runtime_worker = None
         self._preset_open_folder_pending = False
         self._preset_open_folder_start_scheduled = False
         self._preset_item_action_pending: list[dict[str, str]] = []
@@ -610,11 +611,12 @@ class UserPresetsPageBase(BasePage):
         def _bind_worker(worker) -> None:
             worker.failed.connect(self._on_preset_open_folder_failed)
 
-        self._worker_runtime("_preset_open_folder_runtime").start_qthread_worker(
+        _request_id, worker = self._worker_runtime("_preset_open_folder_runtime").start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_preset_open_folder_worker(request_id),
             bind_worker=_bind_worker,
             on_finished=self._on_preset_open_folder_worker_finished,
         )
+        self._preset_open_folder_runtime_worker = worker
 
     def _on_preset_open_folder_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_preset_open_folder_request_id", 0) or 0):
@@ -632,6 +634,10 @@ class UserPresetsPageBase(BasePage):
             )
 
     def _on_preset_open_folder_worker_finished(self, worker) -> None:
+        current_worker = self.__dict__.get("_preset_open_folder_runtime_worker")
+        if current_worker is not None and worker is not current_worker:
+            return
+        self._preset_open_folder_runtime_worker = None
         if self._preset_open_folder_pending:
             self._schedule_preset_open_folder_worker_start()
 
@@ -2349,6 +2355,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_folder_action_start_scheduled = False
         self._preset_open_folder_pending = False
         self._preset_open_folder_start_scheduled = False
+        self._preset_open_folder_runtime_worker = None
         self.__dict__.setdefault("_preset_item_action_pending", []).clear()
         self.__dict__.setdefault("_preset_link_action_pending", []).clear()
         self._preset_link_action_start_scheduled = False

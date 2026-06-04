@@ -314,6 +314,24 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
 
         page._start_preset_open_folder_worker.assert_called_once_with()
 
+    def test_stale_user_presets_open_folder_worker_finish_does_not_restart_pending_open(self) -> None:
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+
+        current_worker = object()
+        old_worker = object()
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._cleanup_in_progress = False
+        page._preset_open_folder_pending = True
+        page._preset_open_folder_runtime_worker = current_worker
+        page._schedule_preset_open_folder_worker_start = Mock(
+            side_effect=AssertionError("stale open-folder worker must not restart pending open")
+        )
+
+        UserPresetsPageBase._on_preset_open_folder_worker_finished(page, old_worker)
+
+        self.assertTrue(page._preset_open_folder_pending)
+        self.assertIs(page._preset_open_folder_runtime_worker, current_worker)
+
     def test_user_presets_open_folder_waits_while_restart_is_scheduled(self) -> None:
         from presets.ui.common.user_presets_page import UserPresetsPageBase
 
