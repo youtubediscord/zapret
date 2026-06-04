@@ -149,6 +149,24 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
 
         page._start_log_history_action_worker.assert_called_once_with(("delete", "log-1"))
 
+    def test_stale_log_history_action_finish_does_not_start_pending_action(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_history_action_runtime = SimpleNamespace(request_id=2)
+        page._log_history_action_pending = [("delete", "log-1")]
+        page._start_log_history_action_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._on_log_history_action_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        single_shot.assert_not_called()
+        page._start_log_history_action_worker.assert_not_called()
+        self.assertEqual(page._log_history_action_pending, [("delete", "log-1")])
+
     def test_orchestra_log_history_scheduled_action_queues_next_payload(self) -> None:
         import orchestra.ui.page as orchestra_page
         from orchestra.ui.page import OrchestraPage
@@ -241,6 +259,24 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
 
         page._start_log_context_action_worker.assert_called_once_with(("lock", "example.com", 7, "tcp"))
 
+    def test_stale_log_context_action_finish_does_not_start_pending_action(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_context_action_runtime = SimpleNamespace(request_id=2)
+        page._log_context_action_pending = [("lock", "example.com", 7, "tcp")]
+        page._start_log_context_action_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._on_log_context_action_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        single_shot.assert_not_called()
+        page._start_log_context_action_worker.assert_not_called()
+        self.assertEqual(page._log_context_action_pending, [("lock", "example.com", 7, "tcp")])
+
     def test_orchestra_log_context_scheduled_action_queues_next_payload(self) -> None:
         import orchestra.ui.page as orchestra_page
         from orchestra.ui.page import OrchestraPage
@@ -319,6 +355,25 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         page._start_clear_learned_worker.assert_called_once_with()
         self.assertFalse(page._clear_learned_pending_worker)
 
+    def test_stale_clear_learned_finish_does_not_restart_pending_worker(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._clear_learned_runtime = SimpleNamespace(request_id=2)
+        page._clear_learned_pending_worker = True
+        page._clear_learned_start_scheduled = False
+        page._start_clear_learned_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._on_clear_learned_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        single_shot.assert_not_called()
+        page._start_clear_learned_worker.assert_not_called()
+        self.assertTrue(page._clear_learned_pending_worker)
+
     def test_orchestra_main_page_does_not_read_learned_data_in_ui_thread(self) -> None:
         from orchestra.ui.page import OrchestraPage
 
@@ -348,6 +403,24 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_log_history_load_worker.assert_called_once_with()
+
+    def test_stale_log_history_load_finish_does_not_restart_pending_load(self) -> None:
+        import orchestra.ui.page as orchestra_page
+        from orchestra.ui.page import OrchestraPage
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._cleanup_in_progress = False
+        page._log_history_runtime = SimpleNamespace(request_id=2)
+        page._log_history_pending = True
+        page._start_log_history_load_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(orchestra_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            OrchestraPage._on_log_history_worker_finished(page, SimpleNamespace(_request_id=1))
+
+        single_shot.assert_not_called()
+        page._start_log_history_load_worker.assert_not_called()
+        self.assertTrue(page._log_history_pending)
 
     def test_orchestra_log_history_scheduled_load_keeps_pending_refresh(self) -> None:
         from orchestra.ui.page import OrchestraPage

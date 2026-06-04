@@ -435,6 +435,8 @@ class OrchestraPage(BasePage):
         log(f"Не удалось сбросить данные обучения: {error}", "WARNING")
 
     def _on_clear_learned_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_clear_learned_runtime"), worker):
+            return
         if self.__dict__.get("_clear_learned_pending_worker", False) and not self.__dict__.get(
             "_cleanup_in_progress",
             False,
@@ -686,7 +688,9 @@ class OrchestraPage(BasePage):
             return
         log(f"Ошибка обновления истории логов: {error}", "DEBUG")
 
-    def _on_log_history_worker_finished(self, _worker) -> None:
+    def _on_log_history_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_log_history_runtime"), worker):
+            return
         pending = bool(self._log_history_pending)
         self._log_history_pending = False
         if pending and not self._cleanup_in_progress:
@@ -791,7 +795,9 @@ class OrchestraPage(BasePage):
             return
         log(f"Ошибка действия истории логов {action}: {error}", "DEBUG")
 
-    def _on_log_history_action_worker_finished(self, _worker) -> None:
+    def _on_log_history_action_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_log_history_action_runtime"), worker):
+            return
         if self._log_history_action_pending and not self._cleanup_in_progress:
             pending = self._log_history_action_pending.pop(0)
             self._schedule_log_history_action_worker_start(pending)
@@ -1006,10 +1012,23 @@ class OrchestraPage(BasePage):
         log(f"Ошибка действия контекстного меню лога: {error}", "ERROR")
         self.append_log(self._tr("page.orchestra.log.error", "[ERROR] Ошибка: {error}", error=error))
 
-    def _on_log_context_action_worker_finished(self, _worker) -> None:
+    def _on_log_context_action_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_log_context_action_runtime"), worker):
+            return
         if self._log_context_action_pending and not self._cleanup_in_progress:
             pending = self._log_context_action_pending.pop(0)
             self._schedule_log_context_action_worker_start(pending)
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        if runtime is None:
+            return False
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def _schedule_log_context_action_worker_start(self, payload) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
