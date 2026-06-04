@@ -266,6 +266,24 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
         worker.start.assert_called_once()
         self.assertEqual(page._preset_link_action_pending, ["new_configs"])
 
+    def test_stale_user_presets_link_worker_finished_does_not_start_pending_action(self) -> None:
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+
+        current_worker = object()
+        old_worker = object()
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._cleanup_in_progress = False
+        page._preset_link_action_runtime_worker = current_worker
+        page._preset_link_action_pending = ["info"]
+        page._schedule_preset_link_action_start = Mock(
+            side_effect=AssertionError("stale link worker must not start pending action")
+        )
+
+        UserPresetsPageBase._on_preset_link_action_worker_finished(page, old_worker)
+
+        self.assertEqual(page._preset_link_action_pending, ["info"])
+        self.assertIs(page._preset_link_action_runtime_worker, current_worker)
+
     def test_user_presets_link_scheduled_start_queues_next_action(self) -> None:
         from presets.ui.common.user_presets_page import UserPresetsPageBase
 

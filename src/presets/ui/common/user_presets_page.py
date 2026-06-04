@@ -206,6 +206,7 @@ class UserPresetsPageBase(BasePage):
         self._preset_item_action_pending: list[dict[str, str]] = []
         self._preset_link_action_runtime = OneShotWorkerRuntime()
         self._preset_link_action_request_id = 0
+        self._preset_link_action_runtime_worker = None
         self._preset_link_action_pending: list[str] = []
         self._preset_link_action_start_scheduled = False
         self._build_ui()
@@ -2276,11 +2277,12 @@ class UserPresetsPageBase(BasePage):
             worker.completed.connect(self._on_preset_link_action_finished)
             worker.failed.connect(self._on_preset_link_action_failed)
 
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_preset_link_action_worker(request_id, action=action),
             bind_worker=_bind_worker,
             on_finished=self._on_preset_link_action_worker_finished,
         )
+        self._preset_link_action_runtime_worker = worker
 
     def _queue_preset_link_action(self, action: str) -> None:
         clean_action = str(action or "").strip()
@@ -2313,6 +2315,10 @@ class UserPresetsPageBase(BasePage):
         )
 
     def _on_preset_link_action_worker_finished(self, worker) -> None:
+        current_worker = self.__dict__.get("_preset_link_action_runtime_worker")
+        if current_worker is not None and worker is not current_worker:
+            return
+        self._preset_link_action_runtime_worker = None
         pending_actions = self.__dict__.setdefault("_preset_link_action_pending", [])
         pending = str(pending_actions.pop(0) if pending_actions else "").strip()
         if pending and not self._cleanup_in_progress:
@@ -2359,6 +2365,7 @@ class UserPresetsPageBase(BasePage):
         self.__dict__.setdefault("_preset_item_action_pending", []).clear()
         self.__dict__.setdefault("_preset_link_action_pending", []).clear()
         self._preset_link_action_start_scheduled = False
+        self._preset_link_action_runtime_worker = None
         self.__dict__.setdefault("_preset_bulk_action_pending", []).clear()
         self._preset_bulk_action_kind = ""
         self._bulk_reset_running = False
