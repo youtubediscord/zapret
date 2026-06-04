@@ -158,6 +158,76 @@ class ProfileSetupWriteSerializationTests(unittest.TestCase):
             ],
         )
 
+    def test_stale_user_profile_update_worker_finished_does_not_start_pending_operation(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._user_profile_update_runtime = _Runtime(running=False)
+        page._user_profile_delete_runtime = _Runtime(running=False)
+        page._user_profile_update_runtime_worker = object()
+        page._user_profile_write_operation_start_scheduled = False
+        page._pending_user_profile_operations = [
+            {"action": "delete", "profile_id": "user-2", "name": "", "protocol": "", "ports": ""}
+        ]
+        page._pending_user_profile_updates = []
+        page._pending_user_profile_deletes = ["user-2"]
+        page._set_user_profile_buttons_enabled = Mock()
+        callbacks = []
+
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_user_profile_update_worker_finished(page, object())
+
+        self.assertEqual(callbacks, [])
+        self.assertEqual(
+            page._pending_user_profile_operations,
+            [{"action": "delete", "profile_id": "user-2", "name": "", "protocol": "", "ports": ""}],
+        )
+        page._set_user_profile_buttons_enabled.assert_not_called()
+
+    def test_stale_user_profile_delete_worker_finished_does_not_start_pending_operation(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._user_profile_update_runtime = _Runtime(running=False)
+        page._user_profile_delete_runtime = _Runtime(running=False)
+        page._user_profile_delete_runtime_worker = object()
+        page._user_profile_write_operation_start_scheduled = False
+        page._pending_user_profile_operations = [
+            {
+                "action": "update",
+                "profile_id": "user-1",
+                "name": "Latest",
+                "protocol": "tcp",
+                "ports": "443",
+            }
+        ]
+        page._pending_user_profile_updates = [
+            {"profile_id": "user-1", "name": "Latest", "protocol": "tcp", "ports": "443"}
+        ]
+        page._pending_user_profile_deletes = []
+        page._set_user_profile_buttons_enabled = Mock()
+        callbacks = []
+
+        with patch(
+            "profile.ui.profile_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            ProfileSetupPageBase._on_user_profile_delete_worker_finished(page, object())
+
+        self.assertEqual(callbacks, [])
+        self.assertEqual(
+            page._pending_user_profile_operations,
+            [
+                {
+                    "action": "update",
+                    "profile_id": "user-1",
+                    "name": "Latest",
+                    "protocol": "tcp",
+                    "ports": "443",
+                }
+            ],
+        )
+        page._set_user_profile_buttons_enabled.assert_not_called()
+
     def test_raw_profile_save_waits_while_next_write_start_is_scheduled(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._profile_setup_write_operation_start_scheduled = True
