@@ -740,6 +740,8 @@ class AppearancePage(BasePage):
             self._schedule_lower_sections_build()
 
     def _on_initial_state_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_initial_state_load_runtime"), _worker):
+            return
         if self.__dict__.get("_initial_state_load_pending", False) and not self._cleanup_in_progress:
             self._schedule_initial_state_load_worker_start()
 
@@ -869,6 +871,8 @@ class AppearancePage(BasePage):
         log(f"Ошибка сохранения настройки внешнего вида ({action}): {error}", "WARNING")
 
     def _on_appearance_save_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_appearance_save_runtime"), _worker):
+            return
         if self._appearance_save_pending and not self._cleanup_in_progress:
             self._schedule_appearance_save_worker_start()
 
@@ -1035,6 +1039,8 @@ class AppearancePage(BasePage):
         self._apply_rkn_background_options(saved_value=None, options=())
 
     def _on_rkn_background_options_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_rkn_background_options_runtime"), _worker):
+            return
         if self._rkn_background_options_pending and not self._cleanup_in_progress:
             self._rkn_background_options_pending = False
             self._schedule_rkn_background_options_load_worker_start()
@@ -1312,6 +1318,8 @@ class AppearancePage(BasePage):
         log(f"Ошибка загрузки системного акцента Windows: {error}", "WARNING")
 
     def _on_windows_accent_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_windows_accent_load_runtime"), _worker):
+            return
         if self._windows_accent_load_pending and not self._cleanup_in_progress:
             self._windows_accent_load_pending = False
             self._schedule_windows_accent_load_worker_start()
@@ -1489,6 +1497,17 @@ class AppearancePage(BasePage):
         if self._editor_smooth_scroll_switch is not None:
             self._set_checked_silently(self._editor_smooth_scroll_switch, plan.editor_smooth_scroll_enabled)
         self._sync_performance_dependencies(plan.animations_enabled)
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
