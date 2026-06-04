@@ -386,7 +386,9 @@ class DpiSettingsPage(BasePage):
             self._settings_loaded = False
         log(f"Ошибка DPI-настроек ({action}): {error}", "ERROR")
 
-    def _on_dpi_settings_worker_finished(self, _worker) -> None:
+    def _on_dpi_settings_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_dpi_settings_runtime"), worker):
+            return
         if self._dpi_settings_pending and not self._cleanup_in_progress:
             pending = self._dpi_settings_pending.pop(0)
             self._schedule_dpi_settings_worker_start(pending)
@@ -551,10 +553,23 @@ class DpiSettingsPage(BasePage):
             return
         log(f"Ошибка сохранения настройки оркестратора {key}: {error}", "ERROR")
 
-    def _on_orchestra_setting_save_worker_finished(self, _worker) -> None:
+    def _on_orchestra_setting_save_worker_finished(self, worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_orchestra_settings_save_runtime"), worker):
+            return
         if self._orchestra_settings_save_pending and not self._cleanup_in_progress:
             pending = self._orchestra_settings_save_pending.pop(0)
             self._schedule_orchestra_setting_save_worker_start(pending)
+
+    def _is_current_worker_finish(self, runtime, worker) -> bool:
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return True
+        if runtime is None:
+            return False
+        try:
+            return int(request_id) == int(getattr(runtime, "request_id", -1))
+        except (TypeError, ValueError):
+            return False
 
     def _schedule_orchestra_setting_save_worker_start(self, payload: tuple[str, object]) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
