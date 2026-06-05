@@ -267,6 +267,21 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         page._refresh_header.assert_not_called()
         self.assertTrue(page._is_loading)
 
+    def test_pending_raw_preset_load_ignores_old_load_error(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_load_request_id = 5
+        page._raw_load_pending = True
+        page._raw_load_start_scheduled = False
+        page._is_loading = True
+        page._set_footer = Mock()
+
+        PresetRawEditorPage._on_raw_preset_text_failed(page, 5, "old error")
+
+        page._set_footer.assert_not_called()
+        self.assertTrue(page._is_loading)
+
     def test_raw_preset_activation_skips_duplicate_button_disable(self) -> None:
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
 

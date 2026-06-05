@@ -745,6 +745,11 @@ class PresetRawEditorPage(BasePage):
     def _on_raw_preset_text_failed(self, request_id: int, error: str) -> None:
         if request_id != self._raw_load_request_id:
             return
+        if (
+            self.__dict__.get("_raw_load_pending", False)
+            or self.__dict__.get("_raw_load_start_scheduled", False)
+        ):
+            return
         self._set_footer(f"Ошибка загрузки: {error}")
         self._is_loading = False
 
