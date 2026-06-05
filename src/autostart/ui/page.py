@@ -389,6 +389,8 @@ class AutostartPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_autostart_action_pending"):
+            return
         message = f"Не удалось изменить автозапуск: {error}"
         log(message, "WARNING")
         self._show_autostart_error(message)

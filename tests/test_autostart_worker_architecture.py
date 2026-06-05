@@ -156,6 +156,26 @@ class AutostartWorkerArchitectureTests(unittest.TestCase):
         page._autostart.set_autostart_runtime_state.assert_not_called()
         page.update_status.assert_not_called()
 
+    def test_autostart_action_error_ignored_when_new_action_is_pending(self) -> None:
+        page = AutostartPage.__new__(AutostartPage)
+        page._cleanup_in_progress = False
+        page._autostart_action_runtime = Mock()
+        page._autostart_action_runtime.is_current.return_value = True
+        page._autostart_action_pending = [("disable", False, "New")]
+        page._show_autostart_error = Mock()
+
+        with patch.object(autostart_page, "log") as log_mock:
+            AutostartPage._on_autostart_action_failed(
+                page,
+                4,
+                "enable",
+                "old error",
+                {"strategy_name": "Old"},
+            )
+
+        log_mock.assert_not_called()
+        page._show_autostart_error.assert_not_called()
+
     def test_mode_load_pending_restarts_after_event_loop_turn(self) -> None:
         page = AutostartPage.__new__(AutostartPage)
         page._cleanup_in_progress = False
