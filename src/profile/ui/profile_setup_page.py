@@ -2226,6 +2226,11 @@ class ProfileSetupPageBase(BasePage):
         self._profile_setup_payload_apply_scheduled = False
         if payload is None or self.__dict__.get("_cleanup_in_progress"):
             return
+        if (
+            self.__dict__.get("_setup_load_dirty")
+            or self.__dict__.get("_setup_load_start_scheduled", False)
+        ):
+            return
         self._apply_payload(payload)
 
     def _on_profile_setup_payload_failed(self, request_id: int, error: str) -> None:

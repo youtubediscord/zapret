@@ -582,6 +582,30 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
 
         page._apply_list_file_editor_state.assert_called_once_with(state)
 
+    def test_pending_profile_setup_payload_apply_is_ignored_after_new_load_is_pending(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        payload = SimpleNamespace(
+            item=SimpleNamespace(enabled=True),
+            match_summary="TCP 443",
+        )
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._pending_profile_setup_payload_apply = payload
+        page._profile_setup_payload_apply_scheduled = True
+        page._cleanup_in_progress = False
+        page._setup_load_dirty = True
+        page._apply_payload = Mock(
+            side_effect=AssertionError("pending newer profile setup load must own the visible payload")
+        )
+
+        ProfileSetupPageBase._run_scheduled_profile_setup_payload_apply(page)
+
+        page._apply_payload.assert_not_called()
+        self.assertTrue(page._setup_load_dirty)
+
     def test_pending_list_file_load_restarts_after_worker_signal(self) -> None:
         from unittest.mock import Mock, patch
 
