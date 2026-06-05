@@ -95,6 +95,15 @@ class SidebarIconStyleSettingsTests(unittest.TestCase):
 
 
 class SidebarIconStyleNavigationTests(unittest.TestCase):
+    def test_navigation_icon_resource_lookup_lives_outside_ui_module(self) -> None:
+        import ui.navigation.icons as nav_icons
+
+        source = inspect.getsource(nav_icons)
+
+        self.assertIn("resolve_windows11_sidebar_icon_path", source)
+        self.assertNotIn("Path(", source)
+        self.assertNotIn(".exists()", source)
+
     def test_current_sidebar_icon_style_uses_cache_without_settings_load(self) -> None:
         import settings.appearance as appearance_settings
         from ui.navigation.icons import current_sidebar_icon_style

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
+from app.navigation_icon_resources import resolve_windows11_sidebar_icon_path
 from app.page_names import PageName
 
 
@@ -81,24 +80,6 @@ def build_standard_nav_icons() -> dict[PageName, Any]:
     }
 
 
-def _resource_roots() -> tuple[Path, ...]:
-    roots: list[Path] = []
-    if getattr(sys, "frozen", False):
-        roots.append(Path(sys.executable).resolve().parent)
-    roots.append(Path.cwd())
-    roots.append(Path(__file__).resolve().parents[3])
-    return tuple(dict.fromkeys(roots))
-
-
-def _windows11_sidebar_icon_path(file_name: str) -> Path | None:
-    relative = Path("ico") / "windows11_fluent" / "sidebar" / file_name
-    for root in _resource_roots():
-        candidate = root / relative
-        if candidate.exists():
-            return candidate
-    return None
-
-
 def build_windows11_fluent_nav_icons() -> dict[PageName, Any]:
     from PyQt6.QtGui import QIcon
 
@@ -106,11 +87,11 @@ def build_windows11_fluent_nav_icons() -> dict[PageName, Any]:
     icons: dict[PageName, Any] = {}
     for page_name, fallback_icon in standard.items():
         file_name = _WINDOWS11_SIDEBAR_ICON_FILES.get(page_name)
-        icon_path = _windows11_sidebar_icon_path(file_name or "")
-        if icon_path is None:
+        icon_path = resolve_windows11_sidebar_icon_path(file_name or "")
+        if not icon_path:
             icons[page_name] = fallback_icon
             continue
-        icon = QIcon(str(icon_path))
+        icon = QIcon(icon_path)
         icons[page_name] = fallback_icon if icon.isNull() else icon
     return icons
 
@@ -126,9 +107,9 @@ def default_nav_icon(style: str | None = None) -> Any:
     if normalized == "windows11_fluent":
         from PyQt6.QtGui import QIcon
 
-        icon_path = _windows11_sidebar_icon_path("home.svg")
-        if icon_path is not None:
-            icon = QIcon(str(icon_path))
+        icon_path = resolve_windows11_sidebar_icon_path("home.svg")
+        if icon_path:
+            icon = QIcon(icon_path)
             if not icon.isNull():
                 return icon
     from qfluentwidgets import FluentIcon
