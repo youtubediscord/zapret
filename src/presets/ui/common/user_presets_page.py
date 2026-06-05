@@ -2326,6 +2326,8 @@ class UserPresetsPageBase(BasePage):
     def _on_preset_link_action_finished(self, request_id: int, _action: str, result, _context) -> None:
         if request_id != int(getattr(self, "_preset_link_action_request_id", 0) or 0):
             return
+        if self.__dict__.get("_preset_link_action_pending"):
+            return
         log(str(getattr(result, "log_message", "") or ""), str(getattr(result, "log_level", "") or "INFO"))
         if (not bool(getattr(result, "ok", False))) and getattr(result, "infobar_level", "") == "warning":
             InfoBar.warning(
@@ -2336,6 +2338,8 @@ class UserPresetsPageBase(BasePage):
 
     def _on_preset_link_action_failed(self, request_id: int, _action: str, error: str, _context) -> None:
         if request_id != int(getattr(self, "_preset_link_action_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_preset_link_action_pending"):
             return
         log(f"{self.__class__.__name__}: не удалось открыть ссылку preset: {error}", "ERROR")
         InfoBar.warning(

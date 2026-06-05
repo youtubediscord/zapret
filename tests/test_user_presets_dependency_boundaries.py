@@ -323,6 +323,52 @@ class UserPresetsDependencyBoundaryTests(unittest.TestCase):
         page._request_preset_link_action.assert_called_once_with("info")
         self.assertEqual(page._preset_link_action_pending, ["new_configs"])
 
+    def test_user_presets_link_result_is_ignored_when_new_action_is_pending(self) -> None:
+        from presets.ui.common import user_presets_page
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_link_action_request_id = 4
+        page._preset_link_action_pending = ["new_configs"]
+        page._tr = Mock(return_value="Ошибка")
+        page.window = Mock(return_value=object())
+        result = SimpleNamespace(
+            ok=False,
+            log_message="old message",
+            log_level="WARNING",
+            infobar_level="warning",
+            infobar_title="Old",
+            infobar_content="old content",
+        )
+
+        with (
+            patch.object(user_presets_page, "log") as log_mock,
+            patch.object(user_presets_page.InfoBar, "warning") as warning_mock,
+        ):
+            UserPresetsPageBase._on_preset_link_action_finished(page, 4, "info", result, {})
+
+        log_mock.assert_not_called()
+        warning_mock.assert_not_called()
+
+    def test_user_presets_link_error_is_ignored_when_new_action_is_pending(self) -> None:
+        from presets.ui.common import user_presets_page
+        from presets.ui.common.user_presets_page import UserPresetsPageBase
+
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_link_action_request_id = 4
+        page._preset_link_action_pending = ["new_configs"]
+        page._tr = Mock(return_value="Ошибка")
+        page.window = Mock(return_value=object())
+
+        with (
+            patch.object(user_presets_page, "log") as log_mock,
+            patch.object(user_presets_page.InfoBar, "warning") as warning_mock,
+        ):
+            UserPresetsPageBase._on_preset_link_action_failed(page, 4, "info", "old error", {})
+
+        log_mock.assert_not_called()
+        warning_mock.assert_not_called()
+
     def test_user_presets_open_folder_pending_restarts_later_after_worker_finished(self) -> None:
         from presets.ui.common.user_presets_page import UserPresetsPageBase
 
