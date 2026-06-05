@@ -1096,6 +1096,8 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_create_finished(self, request_id: int, _profile_id: str, profile_item=None) -> None:
         if request_id != int(getattr(self, "_user_profile_create_request_id", 0) or 0):
             return
+        if self.__dict__.get("_pending_user_profile_operations"):
+            return
         InfoBar.success(
             title="Profile добавлен",
             content="Он появился в общем списке и пока выключен во всех preset-ах.",
@@ -1116,6 +1118,8 @@ class PresetSetupPageBase(BasePage):
 
     def _on_user_profile_create_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_user_profile_create_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_pending_user_profile_operations"):
             return
         log(f"{self.__class__.__name__}: не удалось создать пользовательский profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -1173,6 +1177,8 @@ class PresetSetupPageBase(BasePage):
     ) -> None:
         if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
             return
+        if self.__dict__.get("_pending_user_profile_operations"):
+            return
         InfoBar.success(
             title="Profile изменён",
             content=f"Обновлено profile-ов в preset-ах: {int(changed or 0)}.",
@@ -1193,6 +1199,8 @@ class PresetSetupPageBase(BasePage):
 
     def _on_user_profile_update_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_pending_user_profile_operations"):
             return
         log(f"{self.__class__.__name__}: не удалось изменить пользовательский profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -1238,6 +1246,8 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_delete_finished(self, request_id: int, _profile_id: str, changed: int) -> None:
         if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
             return
+        if self.__dict__.get("_pending_user_profile_operations"):
+            return
         InfoBar.success(
             title="Profile удалён",
             content=f"Удалено profile-ов из preset-ов: {int(changed or 0)}.",
@@ -1258,6 +1268,8 @@ class PresetSetupPageBase(BasePage):
 
     def _on_user_profile_delete_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_pending_user_profile_operations"):
             return
         log(f"{self.__class__.__name__}: не удалось удалить пользовательский profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
