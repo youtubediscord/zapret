@@ -634,6 +634,8 @@ class TelegramProxyPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_auto_deeplink_pending", False):
+            return
         if not should_open:
             return
         QTimer.singleShot(2000, self._on_open_in_telegram)
@@ -644,6 +646,8 @@ class TelegramProxyPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_auto_deeplink_pending", False):
             return
         log(f"Telegram Proxy auto deeplink check failed: {error}", "WARNING")
 

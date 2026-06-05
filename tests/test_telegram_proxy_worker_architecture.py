@@ -481,6 +481,40 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         page._start_log_line_worker.assert_called_once_with("first")
         self.assertEqual(page._log_line_pending, ["second"])
 
+    def test_auto_deeplink_result_ignored_when_new_check_is_pending(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._auto_deeplink_pending = True
+        page._auto_deeplink_runtime = Mock()
+        page._auto_deeplink_runtime.is_current.return_value = True
+        page._on_open_in_telegram = Mock()
+        page._append_log_line = Mock()
+        single_shot = Mock()
+
+        with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            TelegramProxyPage._on_auto_deeplink_checked(page, 6, True)
+
+        single_shot.assert_not_called()
+        page._append_log_line.assert_not_called()
+
+    def test_auto_deeplink_error_ignored_when_new_check_is_pending(self) -> None:
+        import telegram_proxy.ui.page as telegram_proxy_page
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        page._auto_deeplink_pending = True
+        page._auto_deeplink_runtime = Mock()
+        page._auto_deeplink_runtime.is_current.return_value = True
+
+        with patch.object(telegram_proxy_page, "log") as log_mock:
+            TelegramProxyPage._on_auto_deeplink_failed(page, 6, "old deeplink failed")
+
+        log_mock.assert_not_called()
+
     def test_settings_save_worker_finished_schedules_next_queued_save(self) -> None:
         import telegram_proxy.ui.page as telegram_proxy_page
         from telegram_proxy.ui.page import TelegramProxyPage
