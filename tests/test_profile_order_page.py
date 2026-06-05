@@ -311,6 +311,30 @@ class ProfileOrderPageTests(unittest.TestCase):
         page._create_profile_order_load_worker.assert_not_called()
         self.assertTrue(page._order_load_dirty)
 
+    def test_stale_order_load_worker_finished_does_not_schedule_reload(self) -> None:
+        import profile.ui.profile_order_page as order_page
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._cleanup_in_progress = False
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_load_runtime.request_id = 5
+        page._order_load_dirty = True
+        page._schedule_order_profiles_reload = Mock(
+            side_effect=AssertionError("stale profile order load worker must not restart reload")
+        )
+
+        with patch.object(order_page, "QTimer") as timer_mock:
+            ProfileOrderPageBase._on_order_profiles_worker_finished(
+                page,
+                SimpleNamespace(_request_id=4),
+            )
+
+        timer_mock.singleShot.assert_not_called()
+        self.assertTrue(page._order_load_dirty)
+        page._schedule_order_profiles_reload.assert_not_called()
+
     def test_order_page_defers_list_apply_after_load_worker_signal(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
         from ui.one_shot_worker_runtime import OneShotWorkerRuntime

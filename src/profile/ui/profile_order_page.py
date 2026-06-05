@@ -145,6 +145,8 @@ class ProfileOrderPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_order_profiles_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_order_load_runtime"), _worker):
+            return
         should_reload = bool(getattr(self, "_order_load_dirty", False))
         if should_reload and not bool(self.__dict__.get("_cleanup_in_progress", False)):
             self._schedule_order_profiles_reload()
