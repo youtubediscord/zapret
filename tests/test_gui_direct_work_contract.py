@@ -26,6 +26,8 @@ GUI_ROOTS = (
 )
 
 GUI_SHELL_PATTERNS = (
+    "blockcheck/page_run_workflow.py",
+    "dns/page_*workflow.py",
     "ui/navigation/**/*.py",
     "ui/page_*.py",
     "ui/page_deps/**/*.py",
@@ -35,6 +37,8 @@ GUI_SHELL_PATTERNS = (
     "ui/window_*.py",
     "ui/workflows/**/*.py",
     "main/window_*.py",
+    "orchestra/page_runtime.py",
+    "updater/update_page_runtime.py",
 )
 
 FORBIDDEN_IMPORT_ROOTS = {
