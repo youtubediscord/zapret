@@ -458,6 +458,69 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
 
         self.assertEqual(widget._summary.calls, [])
 
+    def test_strategy_list_rows_store_screen_reader_text(self) -> None:
+        from types import SimpleNamespace
+
+        from PyQt6.QtCore import Qt
+
+        from profile.strategy_state import ProfileStrategyState
+        from profile.ui.profile_setup_page import ProfileStrategyListWidget
+
+        widget = ProfileStrategyListWidget.__new__(ProfileStrategyListWidget)
+        widget._search = _TextWidget("")
+        widget._list = _ListWidget()
+        widget._entries = {
+            "tls_fake": SimpleNamespace(
+                name="TLS fake",
+                args="--lua-desync=fake",
+                visual=SimpleNamespace(
+                    label="Fake",
+                    description="Подмена TLS",
+                    icon_name="",
+                    color="",
+                ),
+            )
+        }
+        widget._states = {"tls_fake": ProfileStrategyState(rating="work", favorite=True)}
+        widget._current_strategy_id = "tls_fake"
+        widget._item_by_strategy_id = {}
+        widget._summary = _TextWidget("")
+
+        ProfileStrategyListWidget._rebuild_tree(widget)
+
+        self.assertEqual(len(widget._list.items), 1)
+        accessible_text = widget._list.items[0].data(Qt.ItemDataRole.AccessibleTextRole)
+        self.assertEqual(accessible_text, "TLS fake, выбрана, в избранном, работает, Fake, Подмена TLS")
+
+    def test_strategy_item_refresh_updates_screen_reader_text(self) -> None:
+        from types import SimpleNamespace
+
+        from PyQt6.QtCore import Qt
+
+        from profile.ui.profile_setup_page import ProfileStrategyListWidget
+
+        widget = ProfileStrategyListWidget.__new__(ProfileStrategyListWidget)
+        widget._states = {"tls_fake": SimpleNamespace(favorite=False, rating="")}
+        widget._list = _ListWidget()
+        item = _StrategyItem(
+            data={
+                ProfileStrategyListWidget._ROLE_NAME_TEXT: "TLS fake",
+                ProfileStrategyListWidget._ROLE_STATUS_TEXT: "",
+                ProfileStrategyListWidget._ROLE_IS_ACTIVE: False,
+                ProfileStrategyListWidget._ROLE_VISUAL_LABEL_TEXT: "Fake",
+                ProfileStrategyListWidget._ROLE_VISUAL_DESCRIPTION: "Подмена TLS",
+                Qt.ItemDataRole.AccessibleTextRole: "TLS fake, не выбрана, Fake, Подмена TLS",
+            },
+            selected=False,
+        )
+
+        ProfileStrategyListWidget._refresh_strategy_item(widget, item, "tls_fake", is_current=True)
+
+        self.assertIn(
+            (Qt.ItemDataRole.AccessibleTextRole, "TLS fake, выбрана, Fake, Подмена TLS"),
+            item.data_calls,
+        )
+
     def test_strategy_item_refresh_skips_duplicate_repaint(self) -> None:
         from types import SimpleNamespace
 

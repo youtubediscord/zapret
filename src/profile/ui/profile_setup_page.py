@@ -525,26 +525,28 @@ class ProfileStrategyListWidget(QWidget):
             item = QListWidgetItem()
             state = self._states.get(strategy_id)
             is_current = strategy_id == self._current_strategy_id
-            status_parts = []
-            if is_current:
-                status_parts.append("Выбрана")
-            if bool(getattr(state, "favorite", False)):
-                status_parts.append("В избранном")
-            rating = str(getattr(state, "rating", "") or "")
-            if rating == "work":
-                status_parts.append("Работает")
-            elif rating == "notwork":
-                status_parts.append("Не работает")
+            status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=False)
+            accessible_status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=True)
+            status_text = " • ".join(status_parts)
 
             item.setText(name)
             item.setData(self._ROLE_STRATEGY_ID, strategy_id)
             item.setData(self._ROLE_NAME_TEXT, name)
-            item.setData(self._ROLE_STATUS_TEXT, " • ".join(status_parts))
+            item.setData(self._ROLE_STATUS_TEXT, status_text)
             item.setData(self._ROLE_IS_ACTIVE, is_current)
             item.setData(self._ROLE_VISUAL_ICON_NAME, str(visual.icon_name or ""))
             item.setData(self._ROLE_VISUAL_COLOR, str(visual.color or ""))
             item.setData(self._ROLE_VISUAL_LABEL_TEXT, visual_label)
             item.setData(self._ROLE_VISUAL_DESCRIPTION, visual_description)
+            item.setData(
+                Qt.ItemDataRole.AccessibleTextRole,
+                _strategy_screen_reader_text(
+                    name=name,
+                    status_parts=accessible_status_parts,
+                    visual_label=visual_label,
+                    visual_description=visual_description,
+                ),
+            )
             tooltip_parts = [visual_description.strip(), args]
             item.setData(self._ROLE_TOOLTIP_TEXT, "\n\n".join(part for part in tooltip_parts if part))
             item.setSizeHint(QSize(0, 31))
@@ -563,16 +565,8 @@ class ProfileStrategyListWidget(QWidget):
         if item is None:
             return
         state = self._states.get(strategy_id)
-        status_parts = []
-        if is_current:
-            status_parts.append("Выбрана")
-        if bool(getattr(state, "favorite", False)):
-            status_parts.append("В избранном")
-        rating = str(getattr(state, "rating", "") or "")
-        if rating == "work":
-            status_parts.append("Работает")
-        elif rating == "notwork":
-            status_parts.append("Не работает")
+        status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=False)
+        accessible_status_parts = _strategy_status_parts(state, is_current=is_current, include_unselected=True)
         changed = False
         status_text = " • ".join(status_parts)
         if str(item.data(self._ROLE_STATUS_TEXT) or "") != status_text:
@@ -603,6 +597,17 @@ class ProfileStrategyListWidget(QWidget):
                 selected = True
             if selected:
                 item.setSelected(False)
+                changed = True
+        name = str(item.data(self._ROLE_NAME_TEXT) or "")
+        if name:
+            accessible_text = _strategy_screen_reader_text(
+                name=name,
+                status_parts=accessible_status_parts,
+                visual_label=str(item.data(self._ROLE_VISUAL_LABEL_TEXT) or ""),
+                visual_description=str(item.data(self._ROLE_VISUAL_DESCRIPTION) or ""),
+            )
+            if str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "") != accessible_text:
+                item.setData(Qt.ItemDataRole.AccessibleTextRole, accessible_text)
                 changed = True
         if changed:
             self._list.viewport().update(self._list.visualItemRect(item))
@@ -649,6 +654,46 @@ def _strategy_rows_signature(entries, states) -> tuple[tuple, tuple]:
             bool(getattr(state, "favorite", False)),
         ))
     return tuple(sorted(entry_rows)), tuple(sorted(state_rows))
+
+
+def _strategy_status_parts(state, *, is_current: bool, include_unselected: bool) -> list[str]:
+    status_parts = []
+    if is_current:
+        status_parts.append("Выбрана")
+    elif include_unselected:
+        status_parts.append("Не выбрана")
+    if bool(getattr(state, "favorite", False)):
+        status_parts.append("В избранном")
+    rating = str(getattr(state, "rating", "") or "")
+    if rating == "work":
+        status_parts.append("Работает")
+    elif rating == "notwork":
+        status_parts.append("Не работает")
+    return status_parts
+
+
+def _strategy_screen_reader_text(
+    *,
+    name: str,
+    status_parts: list[str],
+    visual_label: str,
+    visual_description: str,
+) -> str:
+    parts = [str(name or "").strip()]
+    parts.extend(_lower_first(part) for part in status_parts if str(part or "").strip())
+    parts.extend(
+        str(part or "").strip()
+        for part in (visual_label, visual_description)
+        if str(part or "").strip()
+    )
+    return ", ".join(part for part in parts if part)
+
+
+def _lower_first(text: str) -> str:
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    return value[:1].lower() + value[1:]
 
 
 def _strategy_entry_signature(entries) -> tuple:
