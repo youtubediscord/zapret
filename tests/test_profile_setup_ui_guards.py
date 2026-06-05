@@ -922,6 +922,26 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             "Записей всего: 3 • ваших: 2 • есть несохранённые изменения",
         )
 
+    def test_list_file_validation_error_is_ignored_when_new_validation_is_pending(self) -> None:
+        from unittest.mock import Mock, patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_validation_request_id = 7
+        page._pending_list_file_validation = {"kind": "hostlist", "text": "new.example"}
+        page._render_list_file_validation = Mock()
+        page._list_file_save_button = _BoolWidget(enabled=True)
+        page._list_file_status_label = _TextWidget("Проверка списка...")
+
+        with patch("profile.ui.profile_setup_page.log") as log_mock:
+            ProfileSetupPageBase._on_list_file_validation_failed(page, 7, "old error")
+
+        log_mock.assert_not_called()
+        page._render_list_file_validation.assert_not_called()
+        self.assertEqual(page._list_file_save_button.enabled_calls, [])
+        self.assertEqual(page._list_file_status_label.calls, [])
+
     def test_pending_list_file_validation_restarts_after_worker_signal(self) -> None:
         from unittest.mock import Mock, patch
 

@@ -2617,9 +2617,9 @@ class ProfileSetupPageBase(BasePage):
     def _on_list_file_validation_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_list_file_validation_request_id", 0) or 0):
             return
-        log(f"{self.__class__.__name__}: не удалось проверить файл списка profile: {error}", "ERROR")
         if self.__dict__.get("_pending_list_file_validation"):
             return
+        log(f"{self.__class__.__name__}: не удалось проверить файл списка profile: {error}", "ERROR")
         self._render_list_file_validation((), fallback_error=str(error))
         if self._list_file_save_button is not None:
             set_widget_enabled_if_changed(self._list_file_save_button, False)
