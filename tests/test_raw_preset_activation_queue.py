@@ -99,6 +99,57 @@ class RawPresetActivationQueueTests(unittest.TestCase):
         self.assertEqual(runtime.started, [worker])
         self.assertEqual(page._pending_raw_preset_activation, "")
 
+    def test_activation_result_ignored_when_next_activation_is_pending(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_activate_request_id = 3
+        page._pending_raw_preset_activation = "Next.txt"
+        page._preset_name = "Old"
+        page._refresh_header = Mock(
+            side_effect=AssertionError("pending activation must own the success state")
+        )
+        page._set_footer = Mock()
+        page._show_success = Mock()
+
+        PresetRawEditorPage._on_preset_activation_finished(page, 3, True)
+
+        page._refresh_header.assert_not_called()
+        page._set_footer.assert_not_called()
+        page._show_success.assert_not_called()
+        self.assertEqual(page._pending_raw_preset_activation, "Next.txt")
+
+    def test_activation_rejection_ignored_when_next_activation_is_pending(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_activate_request_id = 3
+        page._pending_raw_preset_activation = "Next.txt"
+        page._preset_name = "Old"
+        page._show_error = Mock(
+            side_effect=AssertionError("pending activation must own the rejected state")
+        )
+
+        PresetRawEditorPage._on_preset_activation_finished(page, 3, False)
+
+        page._show_error.assert_not_called()
+        self.assertEqual(page._pending_raw_preset_activation, "Next.txt")
+
+    def test_activation_error_ignored_when_next_activation_is_pending(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_activate_request_id = 3
+        page._pending_raw_preset_activation = "Next.txt"
+        page._show_error = Mock(
+            side_effect=AssertionError("pending activation must own the error state")
+        )
+
+        PresetRawEditorPage._on_preset_activation_failed(page, 3, "old error")
+
+        page._show_error.assert_not_called()
+        self.assertEqual(page._pending_raw_preset_activation, "Next.txt")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1212,6 +1212,8 @@ class PresetRawEditorPage(BasePage):
     def _on_preset_activation_finished(self, request_id: int, activated: bool) -> None:
         if request_id != self._raw_activate_request_id:
             return
+        if self.__dict__.get("_pending_raw_preset_activation"):
+            return
         if activated:
             self._refresh_header()
             self._set_footer(self._activation_footer_text())
@@ -1221,6 +1223,8 @@ class PresetRawEditorPage(BasePage):
 
     def _on_preset_activation_failed(self, request_id: int, error: str) -> None:
         if request_id != self._raw_activate_request_id:
+            return
+        if self.__dict__.get("_pending_raw_preset_activation"):
             return
         self._show_error(str(error))
 
