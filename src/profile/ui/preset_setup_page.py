@@ -877,6 +877,10 @@ class PresetSetupPageBase(BasePage):
     def _on_profile_context_action_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_profile_context_action_request_id", 0) or 0):
             return
+        if self._has_pending_profile_preset_write_operation():
+            self.__dict__.get("_profile_context_action_enabled_by_request", {}).pop(request_id, None)
+            return
+        self.__dict__.get("_profile_context_action_enabled_by_request", {}).pop(request_id, None)
         log(f"{self.__class__.__name__}: не удалось выполнить действие profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
@@ -1397,6 +1401,8 @@ class PresetSetupPageBase(BasePage):
     def _on_profile_move_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_profile_move_request_id", 0) or 0):
             return
+        if self._has_pending_profile_preset_write_operation():
+            return
         log(f"{self.__class__.__name__}: не удалось переместить profile: {error}", "ERROR")
         self.refresh_from_preset_switch()
 
@@ -1608,6 +1614,9 @@ class PresetSetupPageBase(BasePage):
 
     def _on_profile_folder_action_failed(self, request_id: int, action: str, error: str, _context) -> None:
         if request_id != int(getattr(self, "_profile_folder_action_request_id", 0) or 0):
+            return
+        if self.__dict__.get("_profile_folder_action_pending"):
+            self.__dict__.setdefault("_profile_folder_action_refresh_by_request", {}).pop(request_id, None)
             return
         self.__dict__.setdefault("_profile_folder_action_refresh_by_request", {}).pop(request_id, None)
         log(f"{self.__class__.__name__}: не удалось выполнить действие папки profile ({action}): {error}", "ERROR")

@@ -162,6 +162,42 @@ class ProfileContextActionQueueTests(unittest.TestCase):
             ],
         )
 
+    def test_profile_context_action_error_ignored_when_next_action_is_pending(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_context_action_request_id = 3
+        page._profile_context_action_enabled_by_request = {3: True}
+        page._pending_profile_preset_write_operations = [
+            {
+                "kind": "context",
+                "action": "set_enabled",
+                "profile_key": "profile-a",
+                "enabled": False,
+                "source_profile_key": "",
+                "destination_profile_key": "",
+                "destination_group_key": "",
+            }
+        ]
+        page._pending_profile_context_actions = [
+            {
+                "action": "set_enabled",
+                "profile_key": "profile-a",
+                "enabled": False,
+            }
+        ]
+        page._pending_profile_moves = []
+        page._pending_user_profile_operations = []
+        page.window = Mock(return_value=None)
+
+        with (
+            patch("profile.ui.preset_setup_page.InfoBar.error") as error,
+            patch("profile.ui.preset_setup_page.log") as log_mock,
+        ):
+            PresetSetupPageBase._on_profile_context_action_failed(page, 3, "old error")
+
+        error.assert_not_called()
+        log_mock.assert_not_called()
+        self.assertNotIn(3, page._profile_context_action_enabled_by_request)
+
 
 if __name__ == "__main__":
     unittest.main()

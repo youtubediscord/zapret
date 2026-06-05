@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from profile.ui.preset_setup_page import PresetSetupPageBase
 
@@ -215,6 +215,38 @@ class ProfilePresetWriteSerializationTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_profile_move_error_ignored_when_next_write_is_pending(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_move_request_id = 4
+        page._pending_profile_preset_write_operations = [
+            {
+                "kind": "move",
+                "action": "after",
+                "profile_key": "profile-a",
+                "enabled": None,
+                "source_profile_key": "profile-a",
+                "destination_profile_key": "profile-b",
+                "destination_group_key": "games",
+            }
+        ]
+        page._pending_profile_context_actions = []
+        page._pending_profile_moves = [
+            {
+                "action": "after",
+                "source_profile_key": "profile-a",
+                "destination_profile_key": "profile-b",
+                "destination_group_key": "games",
+            }
+        ]
+        page._pending_user_profile_operations = []
+        page.refresh_from_preset_switch = Mock()
+
+        with patch("profile.ui.preset_setup_page.log") as log:
+            PresetSetupPageBase._on_profile_move_failed(page, 4, "old error")
+
+        log.assert_not_called()
+        page.refresh_from_preset_switch.assert_not_called()
 
 
 if __name__ == "__main__":
