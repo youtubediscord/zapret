@@ -137,12 +137,16 @@ class WindowNotificationCenter(QObject):
     def _on_external_open_url_finished(self, request_id: int, result) -> None:
         if not self._external_open_url_runtime.is_current(request_id):
             return
+        if self.__dict__.get("_external_open_url_pending"):
+            return
         if getattr(result, "ok", False):
             return
         self._notify_external_open_url_error(str(getattr(result, "error", "") or ""))
 
     def _on_external_open_url_failed(self, request_id: int, error: str) -> None:
         if not self._external_open_url_runtime.is_current(request_id):
+            return
+        if self.__dict__.get("_external_open_url_pending"):
             return
         self._notify_external_open_url_error(str(error or ""))
 
@@ -293,6 +297,8 @@ class WindowNotificationCenter(QObject):
         context = self._notification_action_context.pop(int(request_id), {})
         if not self._notification_action_runtime.is_current(request_id):
             return
+        if self.__dict__.get("_notification_action_pending") is not None:
+            return
 
         action = str(action_name or context.get("action_name") or "")
         bar = context.get("bar")
@@ -330,6 +336,8 @@ class WindowNotificationCenter(QObject):
     def _on_notification_action_failed(self, request_id: int, action_name: str, error: str) -> None:
         context = self._notification_action_context.pop(int(request_id), {})
         if not self._notification_action_runtime.is_current(request_id):
+            return
+        if self.__dict__.get("_notification_action_pending") is not None:
             return
         action = str(action_name or context.get("action_name") or "")
         bar = context.get("bar")

@@ -104,6 +104,29 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
 
         center._start_external_open_url_worker.assert_called_once_with("https://example.org/new")
 
+    def test_notification_open_url_result_is_ignored_when_new_url_is_pending(self) -> None:
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        center._external_open_url_pending = "https://example.org/new"
+        center._external_open_url_runtime = Mock()
+        center._external_open_url_runtime.is_current.return_value = True
+        center._notify_external_open_url_error = Mock()
+        result = SimpleNamespace(ok=False, error="old error")
+
+        WindowNotificationCenter._on_external_open_url_finished(center, 3, result)
+
+        center._notify_external_open_url_error.assert_not_called()
+
+    def test_notification_open_url_error_is_ignored_when_new_url_is_pending(self) -> None:
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        center._external_open_url_pending = "https://example.org/new"
+        center._external_open_url_runtime = Mock()
+        center._external_open_url_runtime.is_current.return_value = True
+        center._notify_external_open_url_error = Mock()
+
+        WindowNotificationCenter._on_external_open_url_failed(center, 3, "old error")
+
+        center._notify_external_open_url_error.assert_not_called()
+
     def test_notification_system_actions_run_through_worker(self) -> None:
         from app.feature_facades.external import ExternalActionsFeature
         import app.external_workers as external_workers
@@ -240,6 +263,42 @@ class WindowNotificationActionsContractTests(unittest.TestCase):
             new_bar,
             {"reason": "new"},
         )
+
+    def test_notification_action_result_is_ignored_when_new_action_is_pending(self) -> None:
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        center._notification_action_runtime = Mock()
+        center._notification_action_runtime.is_current.return_value = True
+        center._notification_action_pending = ("disable_proxy", Mock(), object(), {"reason": "new"})
+        center._notification_action_context = {4: {"action_name": "disable_proxy", "bar": object()}}
+        center._notify_disable_proxy_result = Mock()
+
+        WindowNotificationCenter._on_notification_action_finished(
+            center,
+            4,
+            "disable_proxy",
+            (False, "old result"),
+        )
+
+        center._notify_disable_proxy_result.assert_not_called()
+        self.assertNotIn(4, center._notification_action_context)
+
+    def test_notification_action_error_is_ignored_when_new_action_is_pending(self) -> None:
+        center = WindowNotificationCenter.__new__(WindowNotificationCenter)
+        center._notification_action_runtime = Mock()
+        center._notification_action_runtime.is_current.return_value = True
+        center._notification_action_pending = ("disable_proxy", Mock(), object(), {"reason": "new"})
+        center._notification_action_context = {4: {"action_name": "disable_proxy", "bar": object()}}
+        center._notify_disable_proxy_result = Mock()
+
+        WindowNotificationCenter._on_notification_action_failed(
+            center,
+            4,
+            "disable_proxy",
+            "old error",
+        )
+
+        center._notify_disable_proxy_result.assert_not_called()
+        self.assertNotIn(4, center._notification_action_context)
 
     def test_launch_conflict_notification_action_runs_heavy_part_through_worker(self) -> None:
         handler_source = inspect.getsource(WindowNotificationActionHandler)
