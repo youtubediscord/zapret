@@ -3255,7 +3255,7 @@ class WindowsSessionShutdownTests(unittest.TestCase):
             update_runtime_state=False,
         )
         q_application.closeAllWindows.assert_called_once()
-        q_application.processEvents.assert_called_once()
+        q_application.processEvents.assert_not_called()
         q_application.quit.assert_called_once()
 
 

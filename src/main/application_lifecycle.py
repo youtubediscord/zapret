@@ -113,7 +113,6 @@ class ApplicationLifecycle:
 
     def _quit_application(self) -> None:
         QApplication.closeAllWindows()
-        QApplication.processEvents()
         QApplication.quit()
 
     def _cleanup_before_close(self) -> None:
