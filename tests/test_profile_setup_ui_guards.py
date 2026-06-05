@@ -612,6 +612,19 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         page._apply_list_file_editor_state.assert_not_called()
         self.assertTrue(page._pending_list_file_load)
 
+    def test_pending_list_file_load_ignores_old_load_error(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_load_request_id = 9
+        page._pending_list_file_load = True
+        page._list_file_status_label = _TextWidget("Загружаем новый список...")
+
+        ProfileSetupPageBase._on_list_file_editor_state_failed(page, 9, "old error")
+
+        self.assertEqual(page._list_file_status_label.text(), "Загружаем новый список...")
+        self.assertEqual(page._list_file_status_label.calls, [])
+
     def test_pending_profile_setup_payload_apply_is_ignored_after_new_load_is_pending(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import Mock
@@ -635,6 +648,26 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
 
         page._apply_payload.assert_not_called()
         self.assertTrue(page._setup_load_dirty)
+
+    def test_pending_profile_setup_load_ignores_old_load_error(self) -> None:
+        from unittest.mock import patch
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._setup_load_request_id = 7
+        page._setup_load_dirty = True
+        page._profile_key = "profile-1"
+        page._summary = _TextWidget("Загружаем новый профиль...")
+        page._enabled_checkbox = _BoolWidget(enabled=True)
+
+        with patch("profile.ui.profile_setup_page.log") as log_mock:
+            ProfileSetupPageBase._on_profile_setup_payload_failed(page, 7, "old error")
+
+        log_mock.assert_not_called()
+        self.assertEqual(page._summary.text(), "Загружаем новый профиль...")
+        self.assertEqual(page._summary.calls, [])
+        self.assertEqual(page._enabled_checkbox.enabled_calls, [])
 
     def test_pending_list_file_load_restarts_after_worker_signal(self) -> None:
         from unittest.mock import Mock, patch

@@ -1479,12 +1479,20 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_state_apply_scheduled = False
         if state is None or self.__dict__.get("_cleanup_in_progress"):
             return
-        if self.__dict__.get("_pending_list_file_load") or self.__dict__.get("_list_file_load_start_scheduled", False):
+        if (
+            self.__dict__.get("_pending_list_file_load")
+            or self.__dict__.get("_list_file_load_start_scheduled", False)
+        ):
             return
         self._apply_list_file_editor_state(state)
 
     def _on_list_file_editor_state_failed(self, request_id: int, error: str) -> None:
         if request_id != self._list_file_load_request_id:
+            return
+        if (
+            self.__dict__.get("_pending_list_file_load")
+            or self.__dict__.get("_list_file_load_start_scheduled", False)
+        ):
             return
         if self._list_file_status_label is not None:
             set_widget_text_if_changed(
@@ -2237,6 +2245,11 @@ class ProfileSetupPageBase(BasePage):
 
     def _on_profile_setup_payload_failed(self, request_id: int, error: str) -> None:
         if request_id != self._setup_load_request_id:
+            return
+        if (
+            self.__dict__.get("_setup_load_dirty")
+            or self.__dict__.get("_setup_load_start_scheduled", False)
+        ):
             return
         log(f"{self.__class__.__name__}: не удалось прочитать профиль {self._profile_key}: {error}", "ERROR")
         set_widget_text_if_changed(
