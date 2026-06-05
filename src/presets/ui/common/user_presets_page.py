@@ -821,6 +821,8 @@ class UserPresetsPageBase(BasePage):
     def _on_preset_edit_action_finished(self, request_id: int, action: str, result, context) -> None:
         if request_id != int(getattr(self, "_preset_edit_action_request_id", 0) or 0):
             return
+        if self._has_pending_preset_write_action():
+            return
         context = dict(context or {})
         structure_changed = bool(getattr(result, "structure_changed", False))
         if action == "create" and bool(getattr(result, "ok", False)):
@@ -937,6 +939,8 @@ class UserPresetsPageBase(BasePage):
 
     def _on_preset_bulk_action_finished(self, request_id: int, action: str, result, _context) -> None:
         if request_id != int(getattr(self, "_preset_bulk_action_request_id", 0) or 0):
+            return
+        if self._has_pending_preset_write_action():
             return
         log(str(getattr(result, "log_message", "") or ""), str(getattr(result, "log_level", "") or "INFO"))
         structure_changed = bool(getattr(result, "structure_changed", False))
@@ -1837,6 +1841,8 @@ class UserPresetsPageBase(BasePage):
     def _on_preset_storage_action_finished(self, request_id: int, action: str, result, context) -> None:
         if request_id != int(getattr(self, "_preset_storage_action_request_id", 0) or 0):
             return
+        if self._has_pending_preset_write_action():
+            return
         context = dict(context or {})
         if isinstance(context.get("folder_state"), dict):
             self._runtime_service.update_cached_folder_state(context.get("folder_state"))
@@ -2230,6 +2236,8 @@ class UserPresetsPageBase(BasePage):
 
     def _on_preset_item_action_finished(self, request_id: int, action: str, result, context) -> None:
         if request_id != int(getattr(self, "_preset_item_action_request_id", 0) or 0):
+            return
+        if self._has_pending_preset_write_action():
             return
         context = dict(context or {})
         log(str(getattr(result, "log_message", "") or ""), str(getattr(result, "log_level", "") or "INFO"))

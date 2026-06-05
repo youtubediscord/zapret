@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from presets.ui.common.user_presets_page import UserPresetsPageBase
@@ -631,6 +632,100 @@ class UserPresetWriteSerializationTests(unittest.TestCase):
 
         error.assert_not_called()
         log_mock.assert_not_called()
+
+    def test_write_action_results_ignored_when_next_write_is_pending(self) -> None:
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_edit_action_request_id = 2
+        page._preset_bulk_action_request_id = 3
+        page._preset_storage_action_request_id = 4
+        page._preset_item_action_request_id = 5
+        page._pending_preset_write_actions = [{"kind": "activate", "file_name": "Next.txt"}]
+        page._pending_preset_storage_actions = []
+        page._preset_item_action_pending = []
+        page._preset_bulk_action_pending = []
+        page._preset_edit_action_pending = []
+        page._pending_preset_activation = None
+        page._preset_folder_action_pending = []
+        page._runtime_service = Mock()
+        page._config = Mock(tr_prefix="page.user_presets")
+        page._ui_language = "ru"
+        page.window = Mock(return_value=None)
+        page._refresh_presets_view_from_cache = Mock()
+        page._update_cached_preset_rating = Mock()
+        page._apply_preset_move_locally = Mock(return_value=False)
+
+        edit_result = SimpleNamespace(
+            ok=True,
+            structure_changed=True,
+            preset_file_name="Renamed.txt",
+            preset_display_name="Renamed",
+            log_message="old edit",
+            log_level="INFO",
+        )
+        bulk_result = SimpleNamespace(
+            ok=True,
+            structure_changed=True,
+            actual_file_name="Imported.txt",
+            actual_name="Imported",
+            infobar_level="success",
+            infobar_title="Imported",
+            infobar_content="Done",
+            log_message="old bulk",
+            log_level="INFO",
+        )
+        item_result = SimpleNamespace(
+            ok=True,
+            structure_changed=True,
+            error_code="",
+            preset_file_name="Copy.txt",
+            preset_display_name="Copy",
+            infobar_level="success",
+            infobar_title="Copied",
+            infobar_content="Done",
+            log_message="old item",
+            log_level="INFO",
+        )
+
+        with (
+            patch("presets.ui.common.user_presets_page.InfoBar.success") as success,
+            patch("presets.ui.common.user_presets_page.InfoBar.warning") as warning,
+            patch("presets.ui.common.user_presets_page.InfoBar.error") as error,
+            patch("presets.ui.common.user_presets_page.log") as log_mock,
+        ):
+            UserPresetsPageBase._on_preset_edit_action_finished(
+                page,
+                2,
+                "rename",
+                edit_result,
+                {"current_name": "Old.txt", "new_name": "Renamed.txt"},
+            )
+            UserPresetsPageBase._on_preset_bulk_action_finished(page, 3, "import", bulk_result, {})
+            UserPresetsPageBase._on_preset_storage_action_finished(
+                page,
+                4,
+                "rating",
+                True,
+                {"name": "Old.txt", "rating": 9, "folder_state": {"folders": {}, "items": {}}},
+            )
+            UserPresetsPageBase._on_preset_item_action_finished(
+                page,
+                5,
+                "duplicate",
+                item_result,
+                {"file_name": "Old.txt"},
+            )
+
+        log_mock.assert_not_called()
+        success.assert_not_called()
+        warning.assert_not_called()
+        error.assert_not_called()
+        page._runtime_service.add_created_preset_locally.assert_not_called()
+        page._runtime_service.rename_preset_locally.assert_not_called()
+        page._runtime_service.mark_presets_structure_changed.assert_not_called()
+        page._runtime_service.update_cached_folder_state.assert_not_called()
+        page._refresh_presets_view_from_cache.assert_not_called()
+        page._update_cached_preset_rating.assert_not_called()
+        page._apply_preset_move_locally.assert_not_called()
 
     def test_legacy_pending_edit_action_restarts_later_after_worker_finished(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
