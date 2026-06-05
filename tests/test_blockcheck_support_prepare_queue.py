@@ -109,6 +109,43 @@ class BlockcheckSupportPrepareQueueTests(unittest.TestCase):
         page._schedule_support_prepare_worker_start.assert_not_called()
         page._prepare_support_btn.setEnabled.assert_not_called()
 
+    def test_support_prepare_result_is_ignored_when_new_prepare_is_pending(self) -> None:
+        page = BlockcheckPage.__new__(BlockcheckPage)
+        page._cleanup_in_progress = False
+        page._support_prepare_pending = {
+            "run_log_file": "new.log",
+            "mode_label": "Full",
+            "extra_domains": ["new.example"],
+        }
+        page._support_prepare_runtime = Mock()
+        page._support_prepare_runtime.is_current.return_value = True
+        page._set_support_status = Mock()
+        feedback = SimpleNamespace(
+            result=SimpleNamespace(zip_path=None),
+            status_text="old status",
+            info_text="old info",
+        )
+
+        BlockcheckPage._on_support_prepare_finished(page, 5, feedback)
+
+        page._set_support_status.assert_not_called()
+
+    def test_support_prepare_error_is_ignored_when_new_prepare_is_pending(self) -> None:
+        page = BlockcheckPage.__new__(BlockcheckPage)
+        page._cleanup_in_progress = False
+        page._support_prepare_pending = {
+            "run_log_file": "new.log",
+            "mode_label": "Full",
+            "extra_domains": ["new.example"],
+        }
+        page._support_prepare_runtime = Mock()
+        page._support_prepare_runtime.is_current.return_value = True
+        page._set_support_status = Mock()
+
+        BlockcheckPage._on_support_prepare_failed(page, 5, "old error")
+
+        page._set_support_status.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -876,6 +876,8 @@ class BlockcheckPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_support_prepare_pending") is not None:
+            return
         result = feedback.result
         if result.zip_path:
             logger.info("Prepared BlockCheck support archive: %s", result.zip_path)
@@ -899,6 +901,8 @@ class BlockcheckPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_support_prepare_pending") is not None:
             return
         logger.warning("Failed to prepare BlockCheck support bundle: %s", error)
         self._set_support_status("Ошибка подготовки")

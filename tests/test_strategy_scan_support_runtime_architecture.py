@@ -125,6 +125,59 @@ class StrategyScanSupportRuntimeArchitectureTests(unittest.TestCase):
         page._prepare_support_btn.setEnabled.assert_not_called()
         self.assertEqual(page._support_prepare_pending, pending)
 
+    def test_support_prepare_result_is_ignored_when_new_prepare_is_pending(self) -> None:
+        page = StrategyScanPage.__new__(StrategyScanPage)
+        page._cleanup_in_progress = False
+        page._support_prepare_pending = {
+            "run_log_file": "new.log",
+            "target": "new.example",
+            "protocol_label": "TCP",
+            "mode_label": "Full",
+            "scan_protocol": "tcp",
+        }
+        page._support_prepare_runtime = Mock()
+        page._support_prepare_runtime.is_current.return_value = True
+        page._blockcheck = Mock()
+        page._blockcheck.build_support_success_plan.return_value = SimpleNamespace(
+            status_text="old status",
+            title_key="old.title",
+            title_default="Old",
+            body_text="old body",
+        )
+        page._set_support_status = Mock()
+        feedback = SimpleNamespace(result=SimpleNamespace(zip_path=None))
+
+        StrategyScanPage._on_support_prepare_finished(page, 2, feedback)
+
+        page._blockcheck.build_support_success_plan.assert_not_called()
+        page._set_support_status.assert_not_called()
+
+    def test_support_prepare_error_is_ignored_when_new_prepare_is_pending(self) -> None:
+        page = StrategyScanPage.__new__(StrategyScanPage)
+        page._cleanup_in_progress = False
+        page._support_prepare_pending = {
+            "run_log_file": "new.log",
+            "target": "new.example",
+            "protocol_label": "TCP",
+            "mode_label": "Full",
+            "scan_protocol": "tcp",
+        }
+        page._support_prepare_runtime = Mock()
+        page._support_prepare_runtime.is_current.return_value = True
+        page._blockcheck = Mock()
+        page._blockcheck.build_support_error_plan.return_value = SimpleNamespace(
+            status_text="old error status",
+            title_key="old.error",
+            title_default="Old error",
+            body_text="old error body",
+        )
+        page._set_support_status = Mock()
+
+        StrategyScanPage._on_support_prepare_failed(page, 2, "old error")
+
+        page._blockcheck.build_support_error_plan.assert_not_called()
+        page._set_support_status.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

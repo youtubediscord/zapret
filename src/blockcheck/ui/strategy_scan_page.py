@@ -1051,6 +1051,8 @@ class StrategyScanPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_support_prepare_pending") is not None:
+            return
         result = feedback.result
         if result.zip_path:
             logger.info("Prepared Strategy Scan support archive: %s", result.zip_path)
@@ -1072,6 +1074,8 @@ class StrategyScanPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_support_prepare_pending") is not None:
             return
         logger.warning("Failed to prepare strategy-scan support bundle: %s", error)
         message_plan = self._blockcheck.build_support_error_plan(str(error))
