@@ -772,6 +772,8 @@ class NetworkPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self._has_pending_dns_mutation_action():
+            return
         log(f"Ошибка применения DNS: {error}", "ERROR")
 
     def _on_dns_apply_worker_finished(self, _worker) -> None:
@@ -1129,6 +1131,8 @@ class NetworkPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self._has_pending_dns_mutation_action():
             return
         log(f"Ошибка Force DNS ({action}): {error}", "ERROR")
         if action == "toggle":
