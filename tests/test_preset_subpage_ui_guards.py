@@ -115,6 +115,19 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         self.assertFalse(page._raw_load_pending)
         page._request_raw_preset_text.assert_called_once_with()
 
+    def test_stale_raw_preset_load_finish_does_not_restart_pending_load(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._cleanup_in_progress = False
+        page._raw_load_runtime_worker = object()
+        page._raw_load_pending = True
+        page._schedule_pending_raw_preset_load_start = Mock()
+
+        PresetRawEditorPage._on_raw_preset_worker_finished(page, object())
+
+        page._schedule_pending_raw_preset_load_start.assert_not_called()
+
     def test_raw_preset_load_skips_duplicate_plain_text_update(self) -> None:
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
 
