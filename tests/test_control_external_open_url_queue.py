@@ -192,6 +192,47 @@ class ControlExternalOpenUrlQueueTests(unittest.TestCase):
             [("https://example.org/new", "Ошибка", "Не удалось открыть: {error}")],
         )
 
+    def test_external_open_url_result_is_ignored_when_new_request_is_pending(self) -> None:
+        page = _Page()
+        page._cleanup_in_progress = False
+        page._external_open_url_pending = [
+            ("https://example.org/new", "Ошибка", "Не удалось открыть: {error}")
+        ]
+        page._external_open_url_runtime = Mock()
+        page._external_open_url_runtime.is_current.return_value = True
+        page._show_external_open_url_error = Mock()
+        result = SimpleNamespace(ok=False, error="old error")
+
+        ControlPageActionMixin._on_external_open_url_finished(
+            page,
+            3,
+            result,
+            error_title="Ошибка",
+            error_default="Не удалось открыть: {error}",
+        )
+
+        page._show_external_open_url_error.assert_not_called()
+
+    def test_external_open_url_error_is_ignored_when_new_request_is_pending(self) -> None:
+        page = _Page()
+        page._cleanup_in_progress = False
+        page._external_open_url_pending = [
+            ("https://example.org/new", "Ошибка", "Не удалось открыть: {error}")
+        ]
+        page._external_open_url_runtime = Mock()
+        page._external_open_url_runtime.is_current.return_value = True
+        page._show_external_open_url_error = Mock()
+
+        ControlPageActionMixin._on_external_open_url_failed(
+            page,
+            3,
+            "old error",
+            error_title="Ошибка",
+            error_default="Не удалось открыть: {error}",
+        )
+
+        page._show_external_open_url_error.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -219,6 +219,8 @@ class ControlPageActionMixin:
         runtime = self._ensure_external_open_url_runtime()
         if not runtime.is_current(request_id, cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False))):
             return
+        if self.__dict__.get("_external_open_url_pending"):
+            return
         if getattr(result, "ok", False):
             return
         self._show_external_open_url_error(
@@ -237,6 +239,8 @@ class ControlPageActionMixin:
     ) -> None:
         runtime = self._ensure_external_open_url_runtime()
         if not runtime.is_current(request_id, cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False))):
+            return
+        if self.__dict__.get("_external_open_url_pending"):
             return
         self._show_external_open_url_error(error_title, error_default, str(error))
 
