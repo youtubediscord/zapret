@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from presets.ui.control.additional_settings_runtime import create_refresh_runtime
@@ -52,6 +53,28 @@ class ControlTopSummaryWorkerQueueTests(unittest.TestCase):
                 self.assertIs(page._refresh_runtime.top_summary_runtime.worker, current_worker)
                 self.assertTrue(page._refresh_runtime.top_summary_pending)
                 page._schedule_top_summary_worker_start.assert_not_called()
+
+    def test_pending_top_summary_result_does_not_apply_stale_widget_state(self) -> None:
+        for page_cls in (Zapret1ModeControlPage, Zapret2ModeControlPage):
+            with self.subTest(page=page_cls.__name__):
+                page = page_cls.__new__(page_cls)
+                page._cleanup_in_progress = False
+                page._ui_language = "ru"
+                page._refresh_runtime = create_refresh_runtime()
+                page._refresh_runtime.top_summary_request_id = 4
+                page._refresh_runtime.top_summary_pending = True
+                page.top_summary = Mock()
+                page._schedule_top_summary_profile_retry = Mock()
+
+                page_cls._on_top_summary_loaded(
+                    page,
+                    4,
+                    SimpleNamespace(preset_text="Old preset", profile_count=3),
+                )
+
+                page.top_summary.set_preset.assert_not_called()
+                page.top_summary.set_profile_count.assert_not_called()
+                page._schedule_top_summary_profile_retry.assert_not_called()
 
     def test_scheduled_top_summary_start_replays_latest_pending_request(self) -> None:
         for page_cls in (Zapret1ModeControlPage, Zapret2ModeControlPage):

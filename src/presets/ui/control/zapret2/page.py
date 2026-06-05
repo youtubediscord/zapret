@@ -248,6 +248,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         runtime = self._refresh_runtime
         if request_id != runtime.top_summary_request_id or self._cleanup_in_progress:
             return
+        if bool(getattr(runtime, "top_summary_pending", False)):
+            return
         summary = self.top_summary
         if summary is None:
             return
