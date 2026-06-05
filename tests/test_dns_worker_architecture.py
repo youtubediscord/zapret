@@ -691,6 +691,18 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         page._schedule_page_load_worker_start.assert_not_called()
         self.assertTrue(page._page_load_pending)
 
+    def test_network_page_load_result_ignored_when_new_load_is_pending(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._page_load_pending = True
+        page._page_load_runtime = Mock()
+        page._page_load_runtime.is_current.return_value = True
+        page._on_page_state_loaded = Mock()
+
+        NetworkPage._on_page_state_loaded_from_worker(page, 11, object())
+
+        page._on_page_state_loaded.assert_not_called()
+
     def test_isp_warning_plan_queues_while_worker_runs(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._isp_warning_runtime = SimpleNamespace(is_running=Mock(return_value=True), start_qthread_worker=Mock())

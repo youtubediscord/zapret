@@ -489,6 +489,8 @@ class NetworkPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_page_load_pending", False):
+            return
         self._on_page_state_loaded(state)
 
     def _on_page_load_worker_finished(self, _worker) -> None:
