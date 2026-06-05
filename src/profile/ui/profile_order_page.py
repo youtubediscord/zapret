@@ -131,6 +131,8 @@ class ProfileOrderPageBase(BasePage):
         self._order_payload_apply_scheduled = False
         if payload is None or bool(self.__dict__.get("_cleanup_in_progress", False)):
             return
+        if self.__dict__.get("_order_load_dirty", False) or self.__dict__.get("_order_load_restart_scheduled", False):
+            return
         if self._order_list is not None:
             self._order_list.set_profiles(tuple(getattr(payload, "items", ()) or ()))
         self._rebuild_breadcrumb()

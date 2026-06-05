@@ -366,6 +366,46 @@ class ProfileOrderPageTests(unittest.TestCase):
         page._order_list.set_profiles.assert_called_once_with(payload.items)
         page._rebuild_breadcrumb.assert_called_once_with()
 
+    def test_pending_order_payload_apply_is_ignored_after_reload_is_requested(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+
+        class _RunningWorker:
+            def isRunning(self) -> bool:
+                return True
+
+        payload = SimpleNamespace(items=(_item("Old", key="profile:old"),))
+        callbacks = []
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page.launch_method = "zapret2_mode"
+        page._order_load_runtime = OneShotWorkerRuntime()
+        page._order_load_runtime.worker = _RunningWorker()
+        page._order_load_runtime.request_id = 3
+        page._cleanup_in_progress = False
+        page._order_load_dirty = False
+        page._order_load_restart_scheduled = False
+        page._order_payload_apply_scheduled = False
+        page._pending_order_payload_apply = None
+        page._order_list = Mock()
+        page._rebuild_breadcrumb = Mock()
+
+        with patch(
+            "profile.ui.profile_order_page.QTimer",
+            SimpleNamespace(singleShot=lambda _delay, callback: callbacks.append(callback)),
+            create=True,
+        ):
+            ProfileOrderPageBase._on_order_profiles_loaded(page, 3, payload)
+
+        ProfileOrderPageBase._reload_order_profiles(page, force=True)
+
+        self.assertTrue(page._order_load_dirty)
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._order_list.set_profiles.assert_not_called()
+        page._rebuild_breadcrumb.assert_not_called()
+
     def test_order_page_replays_queued_moves_after_running_move_worker_finishes(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
         from ui.one_shot_worker_runtime import OneShotWorkerRuntime
