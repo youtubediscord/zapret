@@ -746,7 +746,9 @@ class AboutPage(BasePage):
         self._cleanup_in_progress = True
         self._pending_tab_key = None
         self.__dict__.setdefault("_about_open_pending", []).clear()
-        self._about_open_runtime.stop(blocking=True, warning_prefix="About open action worker")
+        self._about_open_start_scheduled = False
+        self._about_open_runtime.stop(blocking=False, warning_prefix="About open action worker")
+        self._about_open_runtime.cancel()
 
         unsubscribe = getattr(self, "_ui_state_unsubscribe", None)
         if callable(unsubscribe):

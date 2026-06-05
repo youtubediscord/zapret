@@ -278,7 +278,8 @@ class ControlPageActionMixin:
         self._external_open_url_start_scheduled = False
         runtime = self.__dict__.get("_external_open_url_runtime")
         if runtime is not None:
-            runtime.stop(blocking=True, warning_prefix="External open url worker")
+            runtime.stop(blocking=False, warning_prefix="External open url worker")
+            runtime.cancel()
 
     def _set_toggle_checked(self, toggle, checked: bool) -> None:
         set_toggle_checked(toggle, checked)

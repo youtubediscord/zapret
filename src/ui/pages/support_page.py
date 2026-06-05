@@ -324,5 +324,8 @@ class SupportPage(BasePage):
             return False
 
     def cleanup(self) -> None:
+        self._cleanup_in_progress = True
         self.__dict__.setdefault("_support_open_pending", []).clear()
-        self._support_open_runtime.stop(blocking=True, warning_prefix="Support open action worker")
+        self._support_open_start_scheduled = False
+        self._support_open_runtime.stop(blocking=False, warning_prefix="Support open action worker")
+        self._support_open_runtime.cancel()

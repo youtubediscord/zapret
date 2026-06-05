@@ -448,7 +448,7 @@ class ServersPage(BasePage):
         self._changelog_link_open_start_scheduled = False
         self._changelog_link_open_runtime_worker = None
         self._changelog_link_open_runtime.stop(
-            blocking=True,
+            blocking=False,
             warning_prefix="Changelog link open worker",
         )
         self._changelog_link_open_runtime.cancel()

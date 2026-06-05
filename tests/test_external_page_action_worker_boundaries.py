@@ -11,6 +11,8 @@ from ui.page_deps import system as system_deps
 from ui.pages.about_page import AboutPage
 from ui.pages.support_page import SupportPage
 from app.page_names import PageName
+from presets.ui.control.control_page_shared import ControlPageActionMixin
+from updater.ui.page import ServersPage
 
 
 class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
@@ -220,6 +222,24 @@ class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
 
         page._show_support_open_error.assert_not_called()
 
+    def test_support_cleanup_stops_open_worker_without_blocking_gui(self) -> None:
+        runtime = Mock()
+        page = SupportPage.__new__(SupportPage)
+        page._support_open_runtime = runtime
+        page._support_open_pending = [("telegram", Mock(), "telegram.error", "telegram {error}")]
+        page._support_open_start_scheduled = True
+
+        SupportPage.cleanup(page)
+
+        self.assertTrue(page._cleanup_in_progress)
+        self.assertFalse(page._support_open_start_scheduled)
+        self.assertEqual([], page._support_open_pending)
+        runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="Support open action worker",
+        )
+        runtime.cancel.assert_called_once()
+
     def test_about_open_actions_are_queued_while_worker_runs(self) -> None:
         class _Runtime:
             def is_running(self) -> bool:
@@ -400,6 +420,65 @@ class ExternalPageActionWorkerBoundaryTests(unittest.TestCase):
         )
 
         page._show_about_open_error.assert_not_called()
+
+    def test_about_cleanup_stops_open_worker_without_blocking_gui(self) -> None:
+        runtime = Mock()
+        page = AboutPage.__new__(AboutPage)
+        page._about_open_runtime = runtime
+        page._about_open_pending = [("github", Mock(), "github {error}", "")]
+        page._about_open_start_scheduled = True
+        page._pending_tab_key = "support"
+        page._ui_state_unsubscribe = None
+        page._ui_state_store = object()
+
+        AboutPage.cleanup(page)
+
+        self.assertTrue(page._cleanup_in_progress)
+        self.assertFalse(page._about_open_start_scheduled)
+        self.assertIsNone(page._pending_tab_key)
+        self.assertEqual([], page._about_open_pending)
+        self.assertIsNone(page._ui_state_store)
+        runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="About open action worker",
+        )
+        runtime.cancel.assert_called_once()
+
+    def test_control_page_external_open_cleanup_does_not_block_gui(self) -> None:
+        runtime = Mock()
+        page = ControlPageActionMixin()
+        page._external_open_url_runtime = runtime
+        page._external_open_url_pending = [("https://example.test", "Ошибка", "{error}")]
+        page._external_open_url_start_scheduled = True
+
+        ControlPageActionMixin._stop_external_open_url_worker(page)
+
+        self.assertFalse(page._external_open_url_start_scheduled)
+        self.assertEqual([], page._external_open_url_pending)
+        runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="External open url worker",
+        )
+        runtime.cancel.assert_called_once()
+
+    def test_updater_changelog_link_cleanup_does_not_block_gui(self) -> None:
+        runtime = Mock()
+        page = ServersPage.__new__(ServersPage)
+        page._changelog_link_open_runtime = runtime
+        page._changelog_link_open_pending = "https://example.test"
+        page._changelog_link_open_start_scheduled = True
+        page._changelog_link_open_runtime_worker = object()
+
+        ServersPage._stop_changelog_link_open_worker(page)
+
+        self.assertIsNone(page._changelog_link_open_pending)
+        self.assertFalse(page._changelog_link_open_start_scheduled)
+        self.assertIsNone(page._changelog_link_open_runtime_worker)
+        runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="Changelog link open worker",
+        )
+        runtime.cancel.assert_called_once()
 
 
 if __name__ == "__main__":
