@@ -1118,6 +1118,7 @@ class ThemeManager:
         self._latest_requested_theme: str | None = None
         self._active_theme_build_jobs: dict[int, OneShotWorkerRuntime] = {}
         self._theme_persist_runtime = OneShotWorkerRuntime()
+        self._theme_persist_runtime_worker = None
         self._theme_persist_pending: str | None = None
         self._theme_persist_start_scheduled = False
         
@@ -1153,6 +1154,7 @@ class ThemeManager:
             self._cleanup_theme_build_thread()
             self._theme_persist_pending = None
             self._theme_persist_start_scheduled = False
+            self._theme_persist_runtime_worker = None
             self._theme_persist_runtime.stop(
                 blocking=True,
                 wait_timeout_ms=1000,
@@ -1384,14 +1386,19 @@ class ThemeManager:
             worker.saved.connect(lambda saved_theme, _ok: log(f"💾 Тема сохранена: '{saved_theme}'", "DEBUG"))
             worker.failed.connect(lambda saved_theme, error: log(f"Не удалось сохранить тему '{saved_theme}': {error}", "WARNING"))
 
-        self._theme_persist_runtime.start_qthread_worker(
+        _request_id, worker = self._theme_persist_runtime.start_qthread_worker(
             worker_factory=lambda _request_id: self._create_theme_persist_worker(theme_name, parent=self.widget),
             bind_worker=bind_worker,
             on_finished=self._on_theme_persist_finished,
             signal_includes_request_id=False,
         )
+        self._theme_persist_runtime_worker = worker
 
     def _on_theme_persist_finished(self, _worker) -> None:
+        current_worker = self.__dict__.get("_theme_persist_runtime_worker")
+        if current_worker is not None and _worker is not current_worker:
+            return
+        self._theme_persist_runtime_worker = None
         pending = self._theme_persist_pending
         self._theme_persist_pending = None
         if pending and not self._cleanup_in_progress:

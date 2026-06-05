@@ -123,6 +123,7 @@ class PremiumPage(BasePage):
         self._reset_storage_pending = False
         self._reset_storage_start_scheduled = False
         self._premium_action_runtime = OneShotWorkerRuntime()
+        self._premium_action_runtime_worker = None
         self._pending_premium_action = ""
         self._pending_premium_action_start_scheduled = False
 
@@ -352,6 +353,7 @@ class PremiumPage(BasePage):
         )
         self._reset_storage_pending = False
         self._reset_storage_start_scheduled = False
+        self._premium_action_runtime_worker = None
         self._pending_premium_action = ""
         self._pending_premium_action_start_scheduled = False
 
@@ -933,17 +935,22 @@ class PremiumPage(BasePage):
         )
 
     def _start_worker_thread(self, task_callable, result_handler, error_handler) -> None:
-        self._premium_action_runtime.start_qthread_worker(
+        _request_id, worker = self._premium_action_runtime.start_qthread_worker(
             worker_factory=lambda _request_id: self._premium.create_premium_worker_thread(task_callable),
             on_loaded=lambda _request_id, result: result_handler(result),
             on_failed=lambda _request_id, error: error_handler(error),
-            on_finished=lambda _worker: self._on_worker_thread_finished(),
+            on_finished=self._on_worker_thread_finished,
             signal_includes_request_id=False,
             loaded_signal_name="result_ready",
             failed_signal_name="error_occurred",
         )
+        self._premium_action_runtime_worker = worker
 
-    def _on_worker_thread_finished(self) -> None:
+    def _on_worker_thread_finished(self, _worker=None) -> None:
+        current_worker = self.__dict__.get("_premium_action_runtime_worker")
+        if current_worker is not None and _worker is not current_worker:
+            return
+        self._premium_action_runtime_worker = None
         if self.__dict__.get("_pending_premium_action") and not self.__dict__.get(
             "_cleanup_in_progress",
             False,

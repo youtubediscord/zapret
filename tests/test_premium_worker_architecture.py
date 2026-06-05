@@ -125,15 +125,17 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
     def test_premium_worker_finished_replays_pending_action_later(self) -> None:
         import donater.ui.page as premium_page
 
+        worker = object()
         page = PremiumPage.__new__(PremiumPage)
         page._cleanup_in_progress = False
+        page._premium_action_runtime_worker = worker
         page._pending_premium_action = "test_connection"
         page._pending_premium_action_start_scheduled = False
         page._test_connection = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(premium_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            PremiumPage._on_worker_thread_finished(page)
+            PremiumPage._on_worker_thread_finished(page, worker)
 
         single_shot.assert_called_once()
         page._test_connection.assert_not_called()
@@ -142,6 +144,18 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
 
         page._test_connection.assert_called_once_with()
         self.assertEqual(page._pending_premium_action, "")
+
+    def test_stale_premium_worker_finished_does_not_replay_pending_action(self) -> None:
+        page = PremiumPage.__new__(PremiumPage)
+        page._cleanup_in_progress = False
+        page._premium_action_runtime_worker = object()
+        page._pending_premium_action = "test_connection"
+        page._schedule_pending_premium_action_start = Mock()
+
+        PremiumPage._on_worker_thread_finished(page, object())
+
+        page._schedule_pending_premium_action_start.assert_not_called()
+        self.assertEqual(page._pending_premium_action, "test_connection")
 
     def test_pending_premium_action_is_cleared_when_init_fails(self) -> None:
         page = PremiumPage.__new__(PremiumPage)

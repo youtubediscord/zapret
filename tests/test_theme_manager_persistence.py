@@ -46,14 +46,16 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
     def test_pending_theme_persist_restarts_after_event_loop_turn(self) -> None:
         import ui.theme as theme
 
+        worker = object()
         manager = theme.ThemeManager.__new__(theme.ThemeManager)
         manager._theme_persist_pending = "dark"
+        manager._theme_persist_runtime_worker = worker
         manager._cleanup_in_progress = False
         manager._start_theme_persist_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(theme, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            theme.ThemeManager._on_theme_persist_finished(manager, object())
+            theme.ThemeManager._on_theme_persist_finished(manager, worker)
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -62,6 +64,20 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         manager._start_theme_persist_worker.assert_called_once_with("dark")
+
+    def test_stale_theme_persist_finish_does_not_restart_pending_persist(self) -> None:
+        import ui.theme as theme
+
+        manager = theme.ThemeManager.__new__(theme.ThemeManager)
+        manager._theme_persist_pending = "dark"
+        manager._theme_persist_runtime_worker = object()
+        manager._cleanup_in_progress = False
+        manager._schedule_theme_persist_worker_start = Mock()
+
+        theme.ThemeManager._on_theme_persist_finished(manager, object())
+
+        manager._schedule_theme_persist_worker_start.assert_not_called()
+        self.assertEqual(manager._theme_persist_pending, "dark")
 
     def test_theme_build_runs_through_runtime(self) -> None:
         import ui.one_shot_worker_runtime as one_shot_runtime
