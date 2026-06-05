@@ -2982,6 +2982,8 @@ class ProfileSetupPageBase(BasePage):
     def _on_settings_save_failed(self, request_id: int, error: str) -> None:
         if request_id != self._settings_save_request_id:
             return
+        if self._pending_settings_save:
+            return
         log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {error}", "ERROR")
 
     def _on_settings_save_worker_finished(self, worker) -> None:

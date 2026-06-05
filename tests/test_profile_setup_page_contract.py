@@ -4491,6 +4491,22 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIs(page._pending_settings_save, pending)
         page._start_settings_save_worker.assert_not_called()
 
+    def test_settings_save_error_is_ignored_when_new_save_is_pending(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._settings_save_request_id = 4
+        page._pending_settings_save = {
+            "profile_key": "profile-1",
+            "filter_kind": "hostlist",
+            "filter_value": "lists/new.txt",
+            "in_range": "x",
+            "out_range": "a",
+        }
+
+        with patch("profile.ui.profile_setup_page.log") as log_mock:
+            ProfileSetupPageBase._on_settings_save_failed(page, 4, "old error")
+
+        log_mock.assert_not_called()
+
     def test_strategy_list_uses_fluent_item_tooltip(self) -> None:
         delegate_init = inspect.getsource(ProfileStrategyListDelegate.__init__)
         help_event = inspect.getsource(ProfileStrategyListDelegate.helpEvent)
