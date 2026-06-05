@@ -167,6 +167,9 @@ class ControlPageWindowsFeatureMixin:
             return False
         request_id = getattr(worker, "_request_id", None)
         if request_id is None:
+            current_worker = getattr(runtime, "worker", None)
+            if current_worker is not None:
+                return worker is current_worker
             return True
         try:
             return int(request_id) == int(getattr(runtime, "request_id", -1))
