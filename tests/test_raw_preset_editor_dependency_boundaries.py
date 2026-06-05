@@ -7,19 +7,34 @@ from unittest.mock import Mock
 
 class RawPresetEditorDependencyBoundaryTests(unittest.TestCase):
     def test_raw_preset_editor_receives_actions_instead_of_presets_feature(self) -> None:
-        from presets.raw_preset_editor_workflow import RawPresetEditorController
+        import presets.raw_preset_editor_workflow as raw_workflow
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
         from ui.navigation_pages import PageName
         from ui.page_deps.presets import build_preset_raw_editor_page_kwargs
 
         page_init_source = inspect.getsource(PresetRawEditorPage.__init__)
-        controller_source = inspect.getsource(RawPresetEditorController)
+        page_source = inspect.getsource(PresetRawEditorPage)
+        deps_source = inspect.getsource(build_preset_raw_editor_page_kwargs)
+        workflow_source = inspect.getsource(raw_workflow)
 
-        for source in (page_init_source, controller_source):
-            self.assertNotIn("presets_feature", source)
-            self.assertNotIn("self._presets", source)
+        self.assertFalse(hasattr(raw_workflow, "RawPresetEditorController"))
+        self.assertNotIn("RawPresetEditorController", page_source)
+        self.assertNotIn("presets_feature", page_init_source)
+        self.assertNotIn("self._presets", page_source)
 
-        expected_keys = {
+        page_dependency_keys = {
+            "create_raw_preset_load_worker",
+            "create_raw_preset_save_worker",
+            "create_raw_preset_activate_worker",
+            "create_raw_preset_action_worker",
+            "get_selected_raw_preset_name",
+            "get_selected_raw_preset_file_name",
+        }
+        for key in page_dependency_keys:
+            self.assertIn(key, page_init_source)
+            self.assertIn(key, deps_source)
+
+        workflow_method_names = {
             "save_preset_source_by_file_name",
             "get_preset_source_path_by_file_name",
             "get_preset_manifest_by_file_name",
@@ -34,9 +49,8 @@ class RawPresetEditorDependencyBoundaryTests(unittest.TestCase):
             "activate_preset_file",
             "publish_preset_content_changed",
         }
-        for key in expected_keys:
-            self.assertIn(key, page_init_source)
-            self.assertIn(key, controller_source)
+        for method_name in workflow_method_names:
+            self.assertIn(method_name, workflow_source)
 
         presets = Mock()
         kwargs = build_preset_raw_editor_page_kwargs(
@@ -47,7 +61,7 @@ class RawPresetEditorDependencyBoundaryTests(unittest.TestCase):
             ui_state_store=Mock(),
         )
 
-        for key in expected_keys:
+        for key in page_dependency_keys:
             self.assertIs(kwargs[key], getattr(presets, key))
         self.assertNotIn("presets_feature", kwargs)
 

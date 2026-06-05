@@ -63,6 +63,58 @@ class _RunningRuntime:
 
 
 class PresetSubpageUiGuardTests(unittest.TestCase):
+    def test_raw_preset_load_while_worker_runs_queues_latest_request(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        runtime = SimpleNamespace(
+            is_running=Mock(return_value=True),
+            start_qthread_worker=Mock(),
+        )
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_load_runtime = runtime
+        page._raw_load_request_id = 2
+        page._raw_load_pending = False
+        page._raw_load_start_scheduled = False
+        page._is_loading = False
+        page._preset_file_name = "Default.txt"
+        page._set_footer = Mock()
+        page.create_raw_preset_load_worker = Mock()
+
+        PresetRawEditorPage._request_raw_preset_text(page)
+
+        self.assertEqual(page._raw_load_request_id, 3)
+        self.assertTrue(page._raw_load_pending)
+        self.assertTrue(page._is_loading)
+        page._set_footer.assert_called_once_with("Загрузка...")
+        runtime.start_qthread_worker.assert_not_called()
+        page.create_raw_preset_load_worker.assert_not_called()
+
+    def test_pending_raw_preset_load_restarts_after_worker_signal(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        worker = object()
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._cleanup_in_progress = False
+        page._raw_load_runtime_worker = worker
+        page._raw_load_pending = True
+        page._raw_load_start_scheduled = False
+        page._request_raw_preset_text = Mock()
+        callbacks = []
+
+        with patch(
+            "presets.ui.common.preset_subpage_base.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetRawEditorPage._on_raw_preset_worker_finished(page, worker)
+
+        page._request_raw_preset_text.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        self.assertFalse(page._raw_load_pending)
+        page._request_raw_preset_text.assert_called_once_with()
+
     def test_raw_preset_load_skips_duplicate_plain_text_update(self) -> None:
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
 

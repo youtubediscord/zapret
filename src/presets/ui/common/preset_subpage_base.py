@@ -239,6 +239,9 @@ class PresetRawEditorPage(BasePage):
         self._is_loading = False
         self._raw_load_runtime = OneShotWorkerRuntime()
         self._raw_load_request_id = 0
+        self._raw_load_runtime_worker = None
+        self._raw_load_pending = False
+        self._raw_load_start_scheduled = False
         self._raw_text_apply_scheduled = False
         self._pending_raw_text_apply = None
         self._raw_save_runtime = OneShotWorkerRuntime()
@@ -683,11 +686,17 @@ class PresetRawEditorPage(BasePage):
 
     def _request_raw_preset_text(self) -> None:
         runtime = self._raw_worker_runtime("_raw_load_runtime")
+        if runtime.is_running() or self.__dict__.get("_raw_load_start_scheduled", False):
+            self._raw_load_request_id += 1
+            self._raw_load_pending = True
+            self._is_loading = True
+            self._set_footer("Загрузка...")
+            return
         self._raw_load_request_id += 1
         request_id = self._raw_load_request_id
         self._is_loading = True
         self._set_footer("Загрузка...")
-        runtime.start_qthread_worker(
+        _request_id, worker = runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_raw_preset_load_worker(
                 request_id,
                 self._preset_file_name,
@@ -697,6 +706,7 @@ class PresetRawEditorPage(BasePage):
             on_failed=self._on_raw_preset_text_failed,
             on_finished=self._on_raw_preset_worker_finished,
         )
+        self._raw_load_runtime_worker = worker
 
     def _on_raw_preset_text_loaded(self, request_id: int, result) -> None:
         if request_id != self._raw_load_request_id:
@@ -737,7 +747,28 @@ class PresetRawEditorPage(BasePage):
         self._is_loading = False
 
     def _on_raw_preset_worker_finished(self, _worker) -> None:
-        pass
+        if not self._accept_current_raw_write_worker_finished("_raw_load_runtime_worker", _worker):
+            return
+        if self.__dict__.get("_raw_load_pending") and not bool(self.__dict__.get("_cleanup_in_progress", False)):
+            self._schedule_pending_raw_preset_load_start()
+
+    def _schedule_pending_raw_preset_load_start(self) -> None:
+        if self.__dict__.get("_raw_load_start_scheduled", False):
+            return
+        self._raw_load_start_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_scheduled_raw_preset_load_start)
+        except Exception:
+            self._run_scheduled_raw_preset_load_start()
+
+    def _run_scheduled_raw_preset_load_start(self) -> None:
+        self._raw_load_start_scheduled = False
+        if not self.__dict__.get("_raw_load_pending"):
+            return
+        self._raw_load_pending = False
+        if bool(self.__dict__.get("_cleanup_in_progress", False)):
+            return
+        self._request_raw_preset_text()
 
     def _search_preset_text(self, text: str) -> None:
         editor = getattr(self, "editor", None)
@@ -1485,6 +1516,8 @@ class PresetRawEditorPage(BasePage):
         except Exception:
             pass
         self._cleanup_in_progress = True
+        self._raw_load_pending = False
+        self._raw_load_start_scheduled = False
         self._pending_raw_text_apply = None
         self._raw_text_apply_scheduled = False
         self.__dict__.setdefault("_pending_raw_preset_write_operations", []).clear()
@@ -1493,6 +1526,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_preset_save_start_scheduled = False
         self._raw_preset_activation_start_scheduled = False
         self._pending_raw_preset_activation = ""
+        self._raw_load_runtime_worker = None
         self._raw_save_runtime_worker = None
         self._raw_activate_runtime_worker = None
         self._raw_action_runtime_worker = None
