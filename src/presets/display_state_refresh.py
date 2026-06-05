@@ -111,6 +111,10 @@ class PresetProfileStrategySummaryRefreshRuntime(QObject):
     def _is_current_worker_finish(self, worker) -> bool:
         request_id = getattr(worker, "_request_id", None)
         if request_id is None:
+            summary_runtime = self.__dict__.get("_summary_runtime")
+            current_worker = getattr(summary_runtime, "worker", None)
+            if current_worker is not None:
+                return worker is current_worker
             return True
         try:
             return int(request_id) == int(self._summary_runtime.request_id)

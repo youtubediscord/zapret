@@ -130,6 +130,27 @@ class ControlExternalOpenUrlQueueTests(unittest.TestCase):
             [("https://example.org/next", "Ошибка", "Не удалось открыть: {error}")],
         )
 
+    def test_stale_external_open_url_object_finished_does_not_start_pending_request(self) -> None:
+        page = _Page()
+        page._cleanup_in_progress = False
+        page._external_open_url_runtime = _Runtime(running=False)
+        page._external_open_url_runtime.worker = object()
+        page._external_open_url_pending = [
+            ("https://example.org/next", "Ошибка", "Не удалось открыть: {error}")
+        ]
+        page.create_external_open_url_worker = Mock()
+
+        with patch("presets.ui.control.control_page_shared.QTimer.singleShot") as single_shot:
+            _Page._on_external_open_url_worker_finished(page, object())
+
+        single_shot.assert_not_called()
+        page.create_external_open_url_worker.assert_not_called()
+        self.assertEqual(page._external_open_url_runtime.started, [])
+        self.assertEqual(
+            page._external_open_url_pending,
+            [("https://example.org/next", "Ошибка", "Не удалось открыть: {error}")],
+        )
+
     def test_external_open_url_request_waits_while_start_is_scheduled(self) -> None:
         old_worker = object()
         page = _Page()

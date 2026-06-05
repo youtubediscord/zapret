@@ -77,6 +77,18 @@ class ControlProgramSettingsLoadQueueTests(unittest.TestCase):
         self.assertEqual(load_runtime.started, 0)
         self.assertTrue(page._refresh_runtime.program_settings_load_pending)
 
+    def test_stale_program_settings_load_worker_object_does_not_restart_pending_load(self) -> None:
+        page, load_runtime = self._make_page(running=False)
+        load_runtime.worker = object()
+        page._refresh_runtime.program_settings_load_pending = True
+
+        with patch("presets.ui.control.control_page_shared.QTimer.singleShot") as single_shot:
+            page._on_program_settings_load_worker_finished(object())
+
+        single_shot.assert_not_called()
+        self.assertEqual(load_runtime.started, 0)
+        self.assertTrue(page._refresh_runtime.program_settings_load_pending)
+
     def test_program_settings_load_waits_while_restart_is_scheduled(self) -> None:
         page, load_runtime = self._make_page(running=False)
         page._refresh_runtime.program_settings_load_pending = True

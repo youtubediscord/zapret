@@ -121,6 +121,19 @@ class ControlProgramSettingsSaveQueueTests(unittest.TestCase):
         self.assertEqual(save_runtime.started, [])
         self.assertEqual(page._refresh_runtime.program_settings_save_pending, [("hide_to_tray", True)])
 
+    def test_stale_program_settings_save_worker_object_does_not_start_pending_save(self) -> None:
+        page, save_runtime = self._make_page(running=False)
+        save_runtime.worker = object()
+        page._refresh_runtime.program_settings_save_pending = [("hide_to_tray", True)]
+
+        with patch("presets.ui.control.control_page_shared.QTimer.singleShot") as single_shot:
+            _Page._on_program_settings_save_worker_finished(page, object())
+
+        single_shot.assert_not_called()
+        page.create_program_settings_save_worker.assert_not_called()
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(page._refresh_runtime.program_settings_save_pending, [("hide_to_tray", True)])
+
     def test_program_settings_save_status_ignored_when_new_save_is_pending(self) -> None:
         from presets.ui.control.control_page_shared import ControlPageActionMixin
 

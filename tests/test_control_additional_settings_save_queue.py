@@ -257,6 +257,21 @@ class ControlAdditionalSettingsSaveQueueTests(unittest.TestCase):
         self.assertEqual(save_runtime.started, [])
         self.assertEqual(runtime.additional_settings_save_pending, [("debug_log", True, "zapret1")])
 
+    def test_zapret1_stale_additional_settings_save_object_does_not_start_pending_save(self) -> None:
+        from presets.ui.control.zapret1.page import Zapret1ModeControlPage
+
+        runtime, save_runtime = _make_refresh_runtime(running=False)
+        save_runtime.worker = object()
+        runtime.additional_settings_save_pending = [("debug_log", True, "zapret1")]
+        page = _make_page(Zapret1ModeControlPage, runtime)
+
+        with patch("presets.ui.control.zapret1.page.QTimer.singleShot") as single_shot:
+            Zapret1ModeControlPage._on_additional_settings_save_worker_finished(page, object())
+
+        single_shot.assert_not_called()
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(runtime.additional_settings_save_pending, [("debug_log", True, "zapret1")])
+
     def test_zapret2_stale_additional_settings_save_finish_does_not_start_pending_save(self) -> None:
         from presets.ui.control.zapret2.page import Zapret2ModeControlPage
 
@@ -270,6 +285,21 @@ class ControlAdditionalSettingsSaveQueueTests(unittest.TestCase):
                 page,
                 SimpleNamespace(_request_id=1),
             )
+
+        single_shot.assert_not_called()
+        self.assertEqual(save_runtime.started, [])
+        self.assertEqual(runtime.additional_settings_save_pending, [("debug_log", True, "zapret2")])
+
+    def test_zapret2_stale_additional_settings_save_object_does_not_start_pending_save(self) -> None:
+        from presets.ui.control.zapret2.page import Zapret2ModeControlPage
+
+        runtime, save_runtime = _make_refresh_runtime(running=False)
+        save_runtime.worker = object()
+        runtime.additional_settings_save_pending = [("debug_log", True, "zapret2")]
+        page = _make_page(Zapret2ModeControlPage, runtime)
+
+        with patch("presets.ui.control.zapret2.page.QTimer.singleShot") as single_shot:
+            Zapret2ModeControlPage._on_additional_settings_save_worker_finished(page, object())
 
         single_shot.assert_not_called()
         self.assertEqual(save_runtime.started, [])

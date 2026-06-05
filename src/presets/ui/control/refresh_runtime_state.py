@@ -89,6 +89,15 @@ class ModeControlRefreshRuntime:
     def accept_worker_finish(self, worker, request_attr: str) -> bool:
         request_id = getattr(worker, "_request_id", None)
         if request_id is None:
+            runtime_attr = {
+                "additional_settings_request_id": "additional_settings_load_runtime",
+                "additional_settings_save_request_id": "additional_settings_save_runtime",
+                "top_summary_request_id": "top_summary_runtime",
+            }.get(str(request_attr or ""))
+            current_runtime = getattr(self, str(runtime_attr or ""), None)
+            current_worker = getattr(current_runtime, "worker", None)
+            if current_worker is not None:
+                return worker is current_worker
             return True
         try:
             return int(request_id) == int(getattr(self, request_attr, -1))

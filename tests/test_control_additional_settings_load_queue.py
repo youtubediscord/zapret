@@ -50,6 +50,16 @@ def _make_page(page_cls, runtime):
 
 
 class ControlAdditionalSettingsLoadQueueTests(unittest.TestCase):
+    def test_refresh_runtime_rejects_stale_additional_settings_load_worker_object(self) -> None:
+        from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+
+        runtime = ModeControlRefreshRuntime()
+        runtime.additional_settings_load_runtime = SimpleNamespace(worker=object())
+
+        self.assertFalse(
+            runtime.accept_worker_finish(object(), "additional_settings_request_id")
+        )
+
     def test_zapret1_additional_settings_reload_marks_pending_while_worker_runs(self) -> None:
         from presets.ui.control.zapret1.page import Zapret1ModeControlPage
 
