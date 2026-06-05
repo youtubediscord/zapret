@@ -1021,6 +1021,15 @@ class UserPresetsRuntimeService:
     def _is_current_worker_finish(self, worker, request_attr: str) -> bool:
         request_id = getattr(worker, "_request_id", getattr(worker, "request_id", None))
         if request_id is None:
+            runtime_attr = {
+                "_metadata_load_request_id": "_metadata_load_runtime",
+                "_single_metadata_request_id": "_single_metadata_runtime",
+                "_rows_plan_request_id": "_rows_plan_runtime",
+            }.get(str(request_attr or ""))
+            current_runtime = getattr(self, str(runtime_attr or ""), None)
+            current_worker = getattr(current_runtime, "worker", None)
+            if current_worker is not None:
+                return worker is current_worker
             return True
         try:
             return int(request_id) == int(getattr(self, request_attr, -1))
