@@ -1443,6 +1443,8 @@ class NetworkPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_isp_warning_pending", False):
+            return
         show_isp_dns_warning(
             cleanup_in_progress=self._cleanup_in_progress,
             plan=plan,
@@ -1477,6 +1479,8 @@ class NetworkPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_isp_warning_pending", False):
             return
         log(f"Ошибка подготовки ISP DNS предупреждения: {error}", "DEBUG")
 

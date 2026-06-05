@@ -746,6 +746,35 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         page._schedule_isp_warning_worker_start.assert_not_called()
         self.assertTrue(page._isp_warning_pending)
 
+    def test_isp_warning_plan_result_ignored_when_new_plan_is_pending(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._isp_warning_pending = True
+        page._isp_warning_runtime = Mock()
+        page._isp_warning_runtime.is_current.return_value = True
+        page._render_isp_warning_styles = Mock()
+        page.add_widget = Mock()
+        page.dns_cards_container = object()
+        page._accept_isp_dns_recommendation = Mock()
+        page._dismiss_isp_dns_warning = Mock()
+
+        with patch.object(network_page, "show_isp_dns_warning") as show_warning:
+            NetworkPage._on_isp_dns_warning_plan_loaded(page, 14, object())
+
+        show_warning.assert_not_called()
+
+    def test_isp_warning_plan_error_ignored_when_new_plan_is_pending(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._isp_warning_pending = True
+        page._isp_warning_runtime = Mock()
+        page._isp_warning_runtime.is_current.return_value = True
+
+        with patch.object(network_page, "log") as log_mock:
+            NetworkPage._on_isp_dns_warning_plan_failed(page, 14, "old warning failed")
+
+        log_mock.assert_not_called()
+
     def test_connectivity_test_queues_while_worker_runs(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._connectivity_test_runtime = SimpleNamespace(is_running=Mock(return_value=True))
