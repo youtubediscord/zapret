@@ -3,7 +3,6 @@
 Main app window using qfluentwidgets FluentWindow (WinUI 3 style).
 Replaces the old QWidget + FramelessWindowMixin + CustomTitleBar stack.
 """
-import os
 import time as _time
 from qfluentwidgets import (
     FluentWindow, NavigationItemPosition, FluentIcon,
@@ -14,8 +13,8 @@ from PyQt6.QtWidgets import QApplication, QWidget, QLabel
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
 from PyQt6.QtCore import Qt, QTimer
 
+from app.app_icon_resources import resolve_existing_app_icon_path
 from config.build_info import APP_VERSION
-from config.config import ICON_PATH, ICON_DEV_PATH, is_dev_build_channel
 
 from log.log import log
 from main.runtime_state import log_startup_metric as emit_startup_metric
@@ -58,8 +57,8 @@ class ZapretFluentWindow(FluentWindow):
         self._app_icon_deferred_started = True
 
         t_icon = _time.perf_counter()
-        icon_path = ICON_DEV_PATH if is_dev_build_channel() else ICON_PATH
-        if os.path.exists(icon_path):
+        icon_path = resolve_existing_app_icon_path()
+        if icon_path:
             self._app_icon = QIcon(icon_path)
             self.setWindowIcon(self._app_icon)
             app = QApplication.instance()

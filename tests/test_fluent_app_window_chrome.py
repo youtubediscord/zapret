@@ -42,6 +42,14 @@ class FluentAppWindowChromeTests(unittest.TestCase):
 
         self.assertNotIn("setMinimumSize(", source)
 
+    def test_window_icon_file_lookup_lives_outside_ui_window(self) -> None:
+        source = inspect.getsource(ZapretFluentWindow)
+
+        self.assertIn("resolve_existing_app_icon_path", source)
+        self.assertNotIn("os.path.exists", source)
+        self.assertNotIn("ICON_DEV_PATH", source)
+        self.assertNotIn("ICON_PATH", source)
+
     def test_titlebar_search_is_centered_in_the_whole_window(self) -> None:
         window = ZapretFluentWindow()
         search_widget = _SidebarSearchNavWidget()
