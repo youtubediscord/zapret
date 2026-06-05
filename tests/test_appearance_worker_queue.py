@@ -119,6 +119,30 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
         page._apply_initial_display_state.assert_not_called()
         page._schedule_lower_sections_build.assert_not_called()
 
+    def test_initial_state_error_ignored_when_new_load_is_pending(self) -> None:
+        from ui.pages import appearance_page
+        from ui.pages.appearance_page import AppearancePage
+
+        page = AppearancePage.__new__(AppearancePage)
+        page._cleanup_in_progress = False
+        page._initial_state_load_runtime = Mock()
+        page._initial_state_load_runtime.is_current.return_value = True
+        page._initial_state_load_pending = True
+        page._initial_state_plan = None
+        page._lower_sections_build_scheduled = True
+        page._schedule_lower_sections_build = Mock()
+        page.isVisible = Mock(return_value=True)
+
+        with (
+            patch.object(appearance_page, "log") as log_mock,
+            patch.object(appearance_page.appearance_settings, "build_default_page_initial_state") as default_mock,
+        ):
+            AppearancePage._on_initial_state_failed(page, 12, "old error")
+
+        log_mock.assert_not_called()
+        default_mock.assert_not_called()
+        page._schedule_lower_sections_build.assert_not_called()
+
     def test_appearance_save_pending_restarts_after_event_loop_turn(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
@@ -345,6 +369,23 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
         page._apply_rkn_background_options.assert_not_called()
 
+    def test_rkn_background_options_error_ignored_when_new_load_is_pending(self) -> None:
+        from ui.pages import appearance_page
+        from ui.pages.appearance_page import AppearancePage
+
+        page = AppearancePage.__new__(AppearancePage)
+        page._cleanup_in_progress = False
+        page._rkn_background_options_runtime = Mock()
+        page._rkn_background_options_runtime.is_current.return_value = True
+        page._rkn_background_options_pending = True
+        page._apply_rkn_background_options = Mock()
+
+        with patch.object(appearance_page, "log") as log_mock:
+            AppearancePage._on_rkn_background_options_failed(page, 9, "old error")
+
+        log_mock.assert_not_called()
+        page._apply_rkn_background_options.assert_not_called()
+
     def test_windows_accent_pending_restarts_after_event_loop_turn(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
@@ -444,6 +485,21 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
         AppearancePage._on_windows_accent_loaded(page, 11, SimpleNamespace(hex_color="#111111"))
 
         page._apply_windows_accent.assert_not_called()
+
+    def test_windows_accent_error_ignored_when_new_load_is_pending(self) -> None:
+        from ui.pages import appearance_page
+        from ui.pages.appearance_page import AppearancePage
+
+        page = AppearancePage.__new__(AppearancePage)
+        page._cleanup_in_progress = False
+        page._windows_accent_load_runtime = Mock()
+        page._windows_accent_load_runtime.is_current.return_value = True
+        page._windows_accent_load_pending = True
+
+        with patch.object(appearance_page, "log") as log_mock:
+            AppearancePage._on_windows_accent_failed(page, 11, "old error")
+
+        log_mock.assert_not_called()
 
 
 if __name__ == "__main__":

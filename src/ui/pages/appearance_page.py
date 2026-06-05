@@ -733,6 +733,8 @@ class AppearancePage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_initial_state_load_pending", False):
+            return
         log(f"Ошибка загрузки настроек оформления: {error}", "WARNING")
         if self._initial_state_plan is None:
             self._initial_state_plan = appearance_settings.build_default_page_initial_state()
@@ -1035,6 +1037,8 @@ class AppearancePage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_rkn_background_options_pending", False):
+            return
         log(f"Ошибка загрузки RKN-фонов: {error}", "WARNING")
         self._apply_rkn_background_options(saved_value=None, options=())
 
@@ -1314,6 +1318,8 @@ class AppearancePage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_windows_accent_load_pending", False):
             return
         log(f"Ошибка загрузки системного акцента Windows: {error}", "WARNING")
 
