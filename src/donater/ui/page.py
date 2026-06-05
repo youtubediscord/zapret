@@ -937,14 +937,30 @@ class PremiumPage(BasePage):
     def _start_worker_thread(self, task_callable, result_handler, error_handler) -> None:
         _request_id, worker = self._premium_action_runtime.start_qthread_worker(
             worker_factory=lambda _request_id: self._premium.create_premium_worker_thread(task_callable),
-            on_loaded=lambda _request_id, result: result_handler(result),
-            on_failed=lambda _request_id, error: error_handler(error),
+            on_loaded=lambda request_id, result: self._handle_current_premium_action_result(
+                request_id,
+                result,
+                result_handler,
+            ),
+            on_failed=lambda request_id, error: self._handle_current_premium_action_result(
+                request_id,
+                error,
+                error_handler,
+            ),
             on_finished=self._on_worker_thread_finished,
             signal_includes_request_id=False,
             loaded_signal_name="result_ready",
             failed_signal_name="error_occurred",
         )
         self._premium_action_runtime_worker = worker
+
+    def _handle_current_premium_action_result(self, request_id: int, payload, handler) -> None:
+        if not self._premium_action_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        handler(payload)
 
     def _on_worker_thread_finished(self, _worker=None) -> None:
         current_worker = self.__dict__.get("_premium_action_runtime_worker")

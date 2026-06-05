@@ -157,6 +157,31 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
         page._schedule_pending_premium_action_start.assert_not_called()
         self.assertEqual(page._pending_premium_action, "test_connection")
 
+    def test_stale_premium_action_result_is_ignored(self) -> None:
+        worker = object()
+        start_kwargs = {}
+        result_handler = Mock()
+        error_handler = Mock()
+        runtime = SimpleNamespace(
+            start_qthread_worker=Mock(side_effect=lambda **kwargs: start_kwargs.update(kwargs) or (2, worker)),
+            is_current=Mock(return_value=False),
+        )
+        page = PremiumPage.__new__(PremiumPage)
+        page._cleanup_in_progress = False
+        page._premium_action_runtime = runtime
+        page._premium = SimpleNamespace(
+            create_premium_worker_thread=Mock(return_value=worker),
+        )
+
+        PremiumPage._start_worker_thread(page, Mock(), result_handler, error_handler)
+
+        start_kwargs["on_loaded"](1, "old-result")
+        start_kwargs["on_failed"](1, "old-error")
+
+        result_handler.assert_not_called()
+        error_handler.assert_not_called()
+        runtime.is_current.assert_any_call(1, cleanup_in_progress=False)
+
     def test_pending_premium_action_is_cleared_when_init_fails(self) -> None:
         page = PremiumPage.__new__(PremiumPage)
         page._cleanup_in_progress = False
