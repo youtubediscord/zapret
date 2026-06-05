@@ -99,6 +99,18 @@ class StrategyScanQuickTargetsRuntimeArchitectureTests(unittest.TestCase):
             {"scan_protocol": "tcp_http", "current_value": "example.com"},
         )
 
+    def test_quick_targets_result_is_ignored_when_new_menu_is_pending(self) -> None:
+        page = StrategyScanPage.__new__(StrategyScanPage)
+        page._cleanup_in_progress = False
+        page._quick_targets_pending = {"scan_protocol": "udp", "current_value": "latest"}
+        page._quick_targets_runtime = Mock()
+        page._quick_targets_runtime.is_current.return_value = True
+        page._open_quick_targets_menu = Mock()
+
+        StrategyScanPage._on_quick_targets_loaded(page, 3, object())
+
+        page._open_quick_targets_menu.assert_not_called()
+
     def test_quick_stun_targets_cache_after_first_load(self) -> None:
         strategy_scan_targeting._quick_stun_targets_cache = None
 

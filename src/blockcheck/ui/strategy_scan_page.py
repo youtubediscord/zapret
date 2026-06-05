@@ -408,6 +408,8 @@ class StrategyScanPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_quick_targets_pending"):
+            return
         self._open_quick_targets_menu(menu_plan)
 
     def _on_quick_targets_failed(self, request_id: int, error: str) -> None:
