@@ -1022,6 +1022,9 @@ class OrchestraPage(BasePage):
     def _is_current_worker_finish(self, runtime, worker) -> bool:
         request_id = getattr(worker, "_request_id", None)
         if request_id is None:
+            current_worker = getattr(runtime, "worker", None)
+            if current_worker is not None:
+                return worker is current_worker
             return True
         if runtime is None:
             return False
