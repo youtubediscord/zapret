@@ -5291,6 +5291,25 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         page._apply_payload.assert_called_once_with(payload)
 
+    def test_loaded_profile_setup_payload_is_ignored_while_new_load_is_pending(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._setup_load_request_id = 7
+        page._setup_load_dirty = True
+        page._payload = None
+        page._schedule_profile_setup_payload_apply = Mock(
+            side_effect=AssertionError("pending newer profile setup load must own the page payload")
+        )
+        payload = SimpleNamespace(
+            item=SimpleNamespace(enabled=True),
+            match_summary="TCP 443",
+        )
+
+        ProfileSetupPageBase._on_profile_setup_payload_loaded(page, 7, payload)
+
+        self.assertIsNone(page._payload)
+        self.assertTrue(page._setup_load_dirty)
+        page._schedule_profile_setup_payload_apply.assert_not_called()
+
     def test_profile_setup_worker_result_payloads_use_deferred_apply(self) -> None:
         handlers = (
             ProfileSetupPageBase._apply_user_profile_update_locally,

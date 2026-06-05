@@ -1458,6 +1458,8 @@ class ProfileSetupPageBase(BasePage):
     def _on_list_file_editor_state_loaded(self, request_id: int, state) -> None:
         if request_id != self._list_file_load_request_id:
             return
+        if self.__dict__.get("_pending_list_file_load"):
+            return
         self._list_file_dirty = False
         self._schedule_list_file_editor_state_apply(state)
 
@@ -2192,6 +2194,8 @@ class ProfileSetupPageBase(BasePage):
 
     def _on_profile_setup_payload_loaded(self, request_id: int, payload) -> None:
         if request_id != self._setup_load_request_id:
+            return
+        if self.__dict__.get("_setup_load_dirty"):
             return
         if payload is None:
             set_widget_text_if_changed(

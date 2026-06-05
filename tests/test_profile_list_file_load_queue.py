@@ -72,6 +72,21 @@ class ProfileListFileLoadQueueTests(unittest.TestCase):
         next_worker.start.assert_called_once_with()
         self.assertFalse(page._pending_list_file_load)
 
+    def test_list_file_loaded_result_is_ignored_while_new_load_is_pending(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_load_request_id = 2
+        page._pending_list_file_load = True
+        page._list_file_dirty = True
+        page._schedule_list_file_editor_state_apply = Mock(
+            side_effect=AssertionError("pending newer list file load must own the editor state")
+        )
+
+        ProfileSetupPageBase._on_list_file_editor_state_loaded(page, 2, object())
+
+        self.assertTrue(page._pending_list_file_load)
+        self.assertTrue(page._list_file_dirty)
+        page._schedule_list_file_editor_state_apply.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
