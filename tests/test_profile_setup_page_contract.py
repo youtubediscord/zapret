@@ -846,7 +846,8 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(model.index(1, 0).data(ProfileListModel.ProfileKeyRole), "profile:1")
 
     def test_profile_model_apply_view_state_skips_reset_for_same_state(self) -> None:
-        from profile.ui.profile_list_model import ProfileListModel, build_profile_list_view_state
+        from profile.list_view_state import build_profile_list_view_state
+        from profile.ui.profile_list_model import ProfileListModel
 
         youtube = SimpleNamespace(
             key="profile:1",

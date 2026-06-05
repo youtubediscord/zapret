@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from core.paths import AppPaths
-from profile.ui.profile_list_model import _ordered_group_keys
+from profile.list_view_state import ordered_group_keys
 from profile.strategy_state import ProfileStrategyState
 from profile.service import ProfilePresetService
 
@@ -92,7 +92,7 @@ class ProfileListPayloadTests(unittest.TestCase):
             "messengers": [object()],
         }
 
-        self.assertEqual(_ordered_group_keys(grouped), ["youtube", "discord", "messengers"])
+        self.assertEqual(ordered_group_keys(grouped), ["youtube", "discord", "messengers"])
 
     def test_list_profiles_keeps_catalog_rows_but_collapses_hostlist_ipset_variants(self) -> None:
         with TemporaryDirectory() as temp_dir:

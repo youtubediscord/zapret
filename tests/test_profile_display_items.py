@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 import unittest
 
-from profile.ui.profile_display_items import build_profile_display_items
+from profile.display_items import build_profile_display_items
 
 
 def _item(

@@ -42,7 +42,7 @@ class ProfileFeature:
     def warm_profile_list(self, launch_method: str):
         from settings.mode import normalize_launch_method
         from profile.profile_list_loader import ProfileListLoadResult
-        from profile.ui.profile_list_model import build_profile_list_view_state
+        from profile.list_view_state import build_profile_list_view_state
 
         method = normalize_launch_method(launch_method)
         service = self._commands()._profile_preset_service(self, method)
@@ -735,7 +735,7 @@ class ProfileFeature:
 
     def create_profile_list_load_worker(self, request_id: int, launch_method: str, parent=None):
         from profile.profile_list_loader import ProfileListLoadResult, ProfileListLoadWorker
-        from profile.ui.profile_list_model import build_profile_list_view_state
+        from profile.list_view_state import build_profile_list_view_state
 
         service = self._commands()._profile_preset_service(self, launch_method)
 
