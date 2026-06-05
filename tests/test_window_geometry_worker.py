@@ -140,6 +140,28 @@ class WindowGeometryWorkerTests(unittest.TestCase):
         geometry_runtime._start_geometry_save_worker.assert_not_called()
         self.assertEqual(geometry_runtime._geometry_save_pending, ((10, 20, 800, 600), True))
 
+    def test_stale_geometry_save_worker_object_finished_does_not_restart_pending_save(self) -> None:
+        import ui.window_geometry_runtime as runtime
+
+        old_worker = object()
+        current_worker = object()
+        geometry_runtime = runtime.WindowGeometryRuntime.__new__(runtime.WindowGeometryRuntime)
+        geometry_runtime._cleanup_in_progress = False
+        geometry_runtime._geometry_save_runtime = SimpleNamespace(request_id=2, worker=current_worker)
+        geometry_runtime._geometry_save_pending = ((10, 20, 800, 600), True)
+        geometry_runtime._start_geometry_save_worker = Mock()
+        single_shot = Mock()
+
+        with patch.object(runtime, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
+            runtime.WindowGeometryRuntime._on_geometry_save_worker_finished(
+                geometry_runtime,
+                old_worker,
+            )
+
+        single_shot.assert_not_called()
+        geometry_runtime._start_geometry_save_worker.assert_not_called()
+        self.assertEqual(geometry_runtime._geometry_save_pending, ((10, 20, 800, 600), True))
+
 
 if __name__ == "__main__":
     unittest.main()
