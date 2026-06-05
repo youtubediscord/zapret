@@ -215,6 +215,21 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         log_mock.assert_not_called()
 
+    def test_user_selection_save_error_ignored_when_new_save_is_pending(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._selection_save_runtime = Mock()
+        page._selection_save_runtime.is_current.return_value = True
+        page._selection_save_pending = {"service": "latest"}
+
+        with patch.object(hosts_page, "log") as log_mock:
+            HostsPage._on_user_selection_save_failed(page, 7, "old save failed")
+
+        log_mock.assert_not_called()
+
     def test_user_selection_load_request_waits_while_worker_runs(self) -> None:
         from hosts.ui.page import HostsPage
 
@@ -403,6 +418,21 @@ class HostsPageRuntimeTests(unittest.TestCase):
         self.assertFalse(page._catalog_dirty)
         page._hosts.invalidate_catalog_cache.assert_not_called()
         page._rebuild_services_selectors.assert_not_called()
+
+    def test_catalog_refresh_error_ignored_when_new_refresh_is_pending(self) -> None:
+        import hosts.ui.page as hosts_page
+        from hosts.ui.page import HostsPage
+
+        page = HostsPage.__new__(HostsPage)
+        page._cleanup_in_progress = False
+        page._catalog_refresh_runtime = Mock()
+        page._catalog_refresh_runtime.is_current.return_value = True
+        page._catalog_refresh_pending_trigger = "watcher"
+
+        with patch.object(hosts_page, "log") as log_mock:
+            HostsPage._on_catalog_refresh_failed(page, 4, "timer", "old refresh failed")
+
+        log_mock.assert_not_called()
 
     def test_open_hosts_file_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page

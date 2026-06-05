@@ -520,6 +520,8 @@ class HostsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
+        if self.__dict__.get("_catalog_refresh_pending_trigger"):
+            return
         log(f"Hosts: ошибка проверки каталога ({trigger}): {error}", "ERROR")
 
     def _on_catalog_refresh_worker_finished(self, _worker) -> None:
@@ -1104,6 +1106,8 @@ class HostsPage(BasePage):
             request_id,
             cleanup_in_progress=self._cleanup_in_progress,
         ):
+            return
+        if self.__dict__.get("_selection_save_pending") is not None:
             return
         log(f"Hosts: ошибка сохранения выбора профилей: {error}", "ERROR")
 
