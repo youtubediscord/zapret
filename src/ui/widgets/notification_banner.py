@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel, QGraphicsOpacityEffect
 from qfluentwidgets import FluentIcon, TransparentToolButton
 
 from ui.animation_policy import register_managed_animation, start_managed_animation
+from ui.accessibility import set_control_accessibility
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
 
@@ -54,6 +55,13 @@ class NotificationBanner(QWidget):
         },
     }
 
+    ACCESSIBLE_TYPE_NAMES = {
+        'error': 'Ошибка',
+        'warning': 'Предупреждение',
+        'info': 'Уведомление',
+        'success': 'Успешно',
+    }
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._setup_ui()
@@ -91,6 +99,11 @@ class NotificationBanner(QWidget):
         self.close_btn.setIconSize(QSize(16, 16))
         self.close_btn.setFixedSize(28, 28)
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        set_control_accessibility(
+            self.close_btn,
+            name="Закрыть уведомление",
+            description="Скрывает текущее уведомление.",
+        )
         self.close_btn.clicked.connect(self.hide_animated)
         layout.addWidget(self.close_btn)
 
@@ -195,6 +208,14 @@ class NotificationBanner(QWidget):
 
         # Устанавливаем текст
         self.message_label.setText(message)
+        type_name = self.ACCESSIBLE_TYPE_NAMES.get(notification_type, self.ACCESSIBLE_TYPE_NAMES['info'])
+        accessible_text = f"{type_name}: {message}"
+        set_control_accessibility(
+            self,
+            name=accessible_text,
+            description="Текстовое уведомление программы.",
+        )
+        set_control_accessibility(self.message_label, name=accessible_text)
 
         # Показываем с анимацией
         self.opacity_effect.setOpacity(0.0)
