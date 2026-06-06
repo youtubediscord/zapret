@@ -323,6 +323,7 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
         page._open_bot_pending = True
         page._open_bot_start_scheduled = True
         page._device_info_pending = True
+        page._device_info_start_scheduled = True
         page._reset_storage_pending = True
         page._reset_storage_start_scheduled = True
         page._premium_action_runtime_worker = object()
@@ -334,11 +335,18 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
         self.assertTrue(page._cleanup_in_progress)
         self.assertFalse(page._open_bot_pending)
         self.assertFalse(page._open_bot_start_scheduled)
+        self.assertFalse(page._device_info_pending)
+        self.assertFalse(page._device_info_start_scheduled)
         page._open_bot_runtime.stop.assert_called_once_with(
             blocking=False,
             warning_prefix="Premium open bot worker",
         )
         page._open_bot_runtime.cancel.assert_called_once()
+        page._device_info_runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="Premium device info worker",
+        )
+        page._device_info_runtime.cancel.assert_called_once()
         page._premium_action_runtime.stop.assert_called_once_with(
             blocking=True,
             wait_timeout_ms=1000,

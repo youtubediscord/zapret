@@ -346,10 +346,12 @@ class PremiumPage(BasePage):
         )
         self._open_bot_runtime.cancel()
         self._device_info_pending = False
+        self._device_info_start_scheduled = False
         self._device_info_runtime.stop(
-            blocking=True,
+            blocking=False,
             warning_prefix="Premium device info worker",
         )
+        self._device_info_runtime.cancel()
         self._reset_storage_runtime.stop(
             blocking=True,
             warning_prefix="Premium reset storage worker",
