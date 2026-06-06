@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 )
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.pages.base_page import BasePage
 from ui.fluent_widgets import SettingsCard
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
@@ -41,10 +42,13 @@ class AutostartOptionCard(SimpleCardWidget):
                  accent: bool = False, parent=None):
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._accent = accent
         self._disabled = False
         self._is_active = False
         self._icon_name = icon_name
+        self._accessible_title = str(title or "")
+        self._accessible_description = str(description or "")
         self._tokens = get_theme_tokens()
         self._current_qss = ""
 
@@ -81,10 +85,25 @@ class AutostartOptionCard(SimpleCardWidget):
         layout.addWidget(self._arrow)
 
         self._apply_visuals()
+        self._update_accessibility()
 
     def set_texts(self, title: str, description: str) -> None:
+        self._accessible_title = str(title or "")
+        self._accessible_description = str(description or "")
         self._title_label.setText(title)
         self._desc_label.setText(description)
+        self._update_accessibility()
+
+    def _update_accessibility(self) -> None:
+        if self._is_active:
+            state = "включено"
+        elif self._disabled:
+            state = "недоступно"
+        else:
+            state = "не включено"
+        name = f"{self._accessible_title}, {state}"
+        set_control_accessibility(self, name=name, description=self._accessible_description)
+        set_state_text(self, name)
 
     def refresh_theme(self) -> None:
         self._tokens = get_theme_tokens()
@@ -163,6 +182,7 @@ class AutostartOptionCard(SimpleCardWidget):
         self._is_active = is_active
 
         self._apply_visuals()
+        self._update_accessibility()
         self.update()  # Принудительное обновление виджета
 
     def mousePressEvent(self, event):
@@ -178,6 +198,16 @@ class AutostartOptionCard(SimpleCardWidget):
         self.clicked.emit()
         event.accept()
 
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            if self._disabled or self._is_active or not self.isEnabled():
+                event.accept()
+                return
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             event.accept()
@@ -192,12 +222,31 @@ class ClickableModeCard(SimpleCardWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.set_mode_accessibility(mode="Загрузка...", strategy="Не выбрана")
+
+    def set_mode_accessibility(self, *, mode: str, strategy: str) -> None:
+        mode_text = str(mode or "Неизвестно").strip() or "Неизвестно"
+        strategy_text = str(strategy or "Не выбрана").strip() or "Не выбрана"
+        set_control_accessibility(
+            self,
+            name=f"Текущий режим: {mode_text}. Стратегия: {strategy_text}",
+            description="Открыть настройки режима запуска.",
+        )
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             log("ClickableModeCard: clicked!", "DEBUG")
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            log("ClickableModeCard: activated from keyboard", "DEBUG")
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class AutostartPage(BasePage):
@@ -460,6 +509,14 @@ class AutostartPage(BasePage):
         )
         self.disable_btn.setFixedHeight(36)
         self.disable_btn.setVisible(False)
+        set_control_accessibility(
+            self.disable_btn,
+            name=self._tr("page.autostart.accessibility.disable.name", "Отключить автозапуск"),
+            description=self._tr(
+                "page.autostart.accessibility.disable.description",
+                "Удалить задачу автозапуска ZapretGUI из Планировщика заданий Windows.",
+            ),
+        )
         self.disable_btn.clicked.connect(self._on_disable_clicked)
         status_layout.addWidget(self.disable_btn)
 
@@ -661,9 +718,11 @@ class AutostartPage(BasePage):
             else:
                 mode_text = "Неизвестно"
             self.mode_label.setText(mode_text)
+            self._update_mode_card_accessibility()
         except Exception as exc:
             log(f"Ошибка обновления режима: {exc}", "WARNING")
             self.mode_label.setText(self._tr("page.autostart.mode.unknown", "Неизвестно"))
+            self._update_mode_card_accessibility()
 
     def _on_mode_card_clicked(self):
         log("AutostartPage: mode_card clicked, emitting navigate_to_dpi_settings", "DEBUG")
@@ -715,6 +774,14 @@ class AutostartPage(BasePage):
         self.disable_btn.setText(self._tr("page.autostart.button.disable", "Отключить"))
         self._mode_text_label.setText(self._tr("page.autostart.mode.current_label", "Текущий режим:"))
         self._strategy_text_label.setText(self._tr("page.autostart.mode.strategy_label", "Стратегия:"))
+        set_control_accessibility(
+            self.disable_btn,
+            name=self._tr("page.autostart.accessibility.disable.name", "Отключить автозапуск"),
+            description=self._tr(
+                "page.autostart.accessibility.disable.description",
+                "Удалить задачу автозапуска ZapretGUI из Планировщика заданий Windows.",
+            ),
+        )
 
         self.gui_option.set_texts(
             self._tr("page.autostart.option.gui.title", "Автозапуск программы Zapret"),
@@ -748,25 +815,29 @@ class AutostartPage(BasePage):
         self.__dict__["_last_status_render_key"] = status_key
 
         if enabled:
-            self.status_label.setText(self._tr("page.autostart.status.enabled.title", "Автозапуск включён"))
-            self.status_desc.setText(
+            status_title = self._tr("page.autostart.status.enabled.title", "Автозапуск включён")
+            status_desc = (
                 self._tr(
                     "page.autostart.status.enabled.desc.base",
                     "Zapret запускается автоматически при входе в Windows и открывается в трее",
                 )
             )
+            self.status_label.setText(status_title)
+            self.status_desc.setText(status_desc)
             self.status_icon.setPixmap(
                 get_cached_qta_pixmap("fa5s.check-circle", color=get_semantic_palette().success, size=20)
             )
             self.disable_btn.setVisible(True)
         else:
-            self.status_label.setText(self._tr("page.autostart.status.disabled.title", "Автозапуск отключён"))
-            self.status_desc.setText(
-                self._tr("page.autostart.status.disabled.desc", "Zapret не запускается автоматически")
-            )
+            status_title = self._tr("page.autostart.status.disabled.title", "Автозапуск отключён")
+            status_desc = self._tr("page.autostart.status.disabled.desc", "Zapret не запускается автоматически")
+            self.status_label.setText(status_title)
+            self.status_desc.setText(status_desc)
             tokens = get_theme_tokens()
             self.status_icon.setPixmap(get_cached_qta_pixmap("fa5s.circle", color=tokens.fg_faint, size=20))
             self.disable_btn.setVisible(False)
+        set_state_text(self.status_label, status_title)
+        set_state_text(self.status_desc, status_desc)
 
         self._set_current_strategy_label(strategy_text)
 
@@ -783,10 +854,28 @@ class AutostartPage(BasePage):
         )
         try:
             if str(self.current_strategy_label.text() or "") == str(strategy_text or ""):
+                set_state_text(self.current_strategy_label, f"Текущая стратегия: {strategy_text}")
+                self._update_mode_card_accessibility()
                 return
         except Exception:
             pass
         self.current_strategy_label.setText(strategy_text)
+        set_state_text(self.current_strategy_label, f"Текущая стратегия: {strategy_text}")
+        self._update_mode_card_accessibility()
+
+    def _update_mode_card_accessibility(self) -> None:
+        mode_card = self.__dict__.get("mode_card")
+        if mode_card is None or not hasattr(mode_card, "set_mode_accessibility"):
+            return
+        try:
+            mode = self.mode_label.text()
+        except Exception:
+            mode = "Неизвестно"
+        try:
+            strategy = self.current_strategy_label.text()
+        except Exception:
+            strategy = self._tr("page.autostart.strategy.not_selected", "Не выбрана")
+        mode_card.set_mode_accessibility(mode=mode, strategy=strategy)
 
     def _current_autostart_state(self) -> bool:
         store = self._ui_state_store
