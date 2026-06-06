@@ -2649,7 +2649,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         self.assertIn("profile_search_input", shell_builder)
         self.assertIn("on_profile_search_text_changed", shell_builder)
-        self.assertIn("Поиск profile по имени, портам и т.д.", shell_builder)
+        self.assertIn("Поиск профиля по имени, портам и т.д.", shell_builder)
         self.assertIn("set_search_query", apply_payload)
         self.assertIn("on_profile_search_text_changed=self._on_profile_search_text_changed", build_content)
 

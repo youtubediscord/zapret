@@ -134,7 +134,7 @@ def build_profile_shell(
 
     profile_search_input = SearchLineEdit(content_parent)
     profile_search_input.setPlaceholderText(
-        tr_fn(_toolbar_key("search.placeholder"), "Поиск profile по имени, портам и т.д.")
+        tr_fn(_toolbar_key("search.placeholder"), "Поиск профиля по имени, портам и т.д.")
     )
     profile_search_input.setClearButtonEnabled(True)
     profile_search_input.setFixedHeight(34)
