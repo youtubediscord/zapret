@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+import os
 import unittest
+from unittest.mock import Mock
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtWidgets import QApplication
 
 
 class _TextLabel:
@@ -81,6 +89,10 @@ class _ComboBox:
 
 
 class Win11ToggleRowTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
     def test_set_checked_skips_duplicate_state(self) -> None:
         from ui.widgets.win11_controls import Win11ToggleRow
 
@@ -185,6 +197,43 @@ class Win11ToggleRowTests(unittest.TestCase):
         self.assertEqual(title_label.set_calls, ["Zapret 2"])
         self.assertEqual(desc_label.set_calls, ["Preset mode"])
         self.assertEqual(badge_label.set_calls, ["recommended"])
+
+    def test_radio_option_has_screen_reader_text_and_keyboard_activation(self) -> None:
+        from ui.widgets.win11_controls import Win11RadioOption
+
+        option = Win11RadioOption(
+            "Профили Zapret 2",
+            "Запуск через готовые профили",
+            recommended=True,
+            recommended_badge="рекомендуется",
+        )
+        clicked = Mock()
+        option.clicked.connect(clicked)
+
+        self.assertEqual(option.focusPolicy(), Qt.FocusPolicy.StrongFocus)
+        self.assertEqual(
+            option.accessibleName(),
+            "Профили Zapret 2, не выбрано, рекомендуется",
+        )
+        self.assertIn("Запуск через готовые профили", option.accessibleDescription())
+
+        event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(option, event)
+
+        clicked.assert_called_once()
+
+    def test_radio_option_updates_screen_reader_state_after_selection_change(self) -> None:
+        from ui.widgets.win11_controls import Win11RadioOption
+
+        option = Win11RadioOption(
+            "Профили Zapret 2",
+            "Запуск через готовые профили",
+        )
+
+        option.setSelected(True)
+
+        self.assertEqual(option.accessibleName(), "Профили Zapret 2, выбрано")
+        self.assertEqual(option.property("screenReaderStateText"), "Профили Zapret 2, выбрано")
 
     def test_number_row_set_value_skips_duplicate_value(self) -> None:
         from ui.widgets.win11_controls import Win11NumberRow

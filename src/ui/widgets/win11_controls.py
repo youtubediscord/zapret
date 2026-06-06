@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon
 import qtawesome as qta
 
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.theme import (
     get_cached_qta_pixmap,
     get_card_gradient_qss,
@@ -185,10 +186,14 @@ class Win11RadioOption(QWidget):
     ):
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self._selected = False
         self._hover = False
         self._recommended = recommended
+        self._accessible_title = str(title or "")
+        self._accessible_description = str(description or "")
+        self._recommended_badge_text = str(recommended_badge or "") if recommended else ""
 
         self._icon_name = icon_name
         self._icon_color = icon_color
@@ -246,6 +251,7 @@ class Win11RadioOption(QWidget):
         layout.addLayout(text_layout, 1)
 
         self._update_style(initial_tokens)
+        self._update_accessibility()
         self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
@@ -282,9 +288,11 @@ class Win11RadioOption(QWidget):
     def setSelected(self, selected: bool):
         selected = bool(selected)
         if self._selected == selected:
+            self._update_accessibility()
             return
         self._selected = selected
         self._update_style()
+        self._update_accessibility()
 
     def isSelected(self) -> bool:
         return self._selected
@@ -316,9 +324,24 @@ class Win11RadioOption(QWidget):
                 self._desc_label.setText(next_description)
             if next_badge is not None and self._badge_label is not None and hasattr(self._badge_label, "setText"):
                 self._badge_label.setText(next_badge)
+            self._accessible_title = next_title
+            self._accessible_description = next_description
+            if next_badge is not None:
+                self._recommended_badge_text = next_badge if self._recommended else ""
             self._last_win11_radio_texts_key = text_key
+            self._update_accessibility()
         except Exception:
             pass
+
+    def _update_accessibility(self) -> None:
+        state = "выбрано" if self._selected else "не выбрано"
+        parts = [str(self._accessible_title or "").strip(), state]
+        badge = str(getattr(self, "_recommended_badge_text", "") or "").strip()
+        if badge:
+            parts.append(badge)
+        name = ", ".join(part for part in parts if part)
+        set_control_accessibility(self, name=name, description=self._accessible_description)
+        set_state_text(self, name)
 
     def _update_style(self, tokens=None):
         if self._applying_theme_styles:
@@ -372,6 +395,13 @@ class Win11RadioOption(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def paintEvent(self, event):
         super().paintEvent(event)
