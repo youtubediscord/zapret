@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+import unittest
+
+from PyQt6.QtCore import Qt
+
+
+class ListAccessibilityModelTests(unittest.TestCase):
+    def test_profile_rows_expose_screen_reader_text(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        model = ProfileListModel()
+        model._rows = [
+            {
+                "kind": "profile",
+                "display_name": "YouTube",
+                "enabled": True,
+                "in_preset": True,
+                "strategy_name": "TLS fake",
+                "favorite": True,
+                "rating": "work",
+            }
+        ]
+
+        text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
+
+        self.assertEqual(text, "YouTube, включён, есть в preset, стратегия: TLS fake, в избранном, работает")
+
+    def test_profile_folder_rows_expose_screen_reader_text(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+
+        model = ProfileListModel()
+        model._rows = [
+            {
+                "kind": "group",
+                "group_name": "Видео",
+                "count": 3,
+                "collapsed": True,
+            }
+        ]
+
+        text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
+
+        self.assertEqual(text, "Группа Видео, 3 профиля, свернута")
+
+    def test_preset_rows_expose_screen_reader_text(self) -> None:
+        from ui.presets_menu.model import PresetListModel
+
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {
+                    "kind": "preset",
+                    "name": "Default",
+                    "file_name": "Default.txt",
+                    "is_active": True,
+                    "is_builtin": True,
+                    "is_pinned": True,
+                    "rating": 9,
+                }
+            ]
+        )
+
+        text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
+
+        self.assertEqual(text, "Default, активный preset, встроенный, закреплённый, оценка 9")
+
+    def test_preset_folder_rows_expose_screen_reader_text(self) -> None:
+        from ui.presets_menu.model import PresetListModel
+
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {
+                    "kind": "folder",
+                    "name": "Общие",
+                    "count": 5,
+                    "is_collapsed": False,
+                }
+            ]
+        )
+
+        text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
+
+        self.assertEqual(text, "Папка Общие, 5 пресетов, развернута")
+
+
+if __name__ == "__main__":
+    unittest.main()

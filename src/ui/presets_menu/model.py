@@ -381,6 +381,8 @@ class PresetListModel(QAbstractListModel):
             if kind == "preset":
                 return row.get("name", "")
             return row.get("text", "")
+        if role == int(Qt.ItemDataRole.AccessibleTextRole):
+            return _preset_accessible_text(row)
 
         if role == self.KindRole:
             return kind
@@ -571,7 +573,46 @@ def _all_data_roles() -> list[int]:
         PresetListModel.CountRole,
         PresetListModel.SystemRole,
         PresetListModel.ServiceRole,
+        int(Qt.ItemDataRole.AccessibleTextRole),
     ]
+
+
+def _preset_accessible_text(row: dict[str, object]) -> str:
+    kind = str(row.get("kind") or "preset")
+    if kind == "preset":
+        name = str(row.get("name") or row.get("file_name") or "").strip()
+        parts = [name]
+        parts.append("активный preset" if bool(row.get("is_active", False)) else "не активный preset")
+        parts.append("встроенный" if bool(row.get("is_builtin", False)) else "пользовательский")
+        if bool(row.get("is_pinned", False)):
+            parts.append("закреплённый")
+        rating = _safe_int(row.get("rating"))
+        if rating:
+            parts.append(f"оценка {rating}")
+        return ", ".join(part for part in parts if part)
+
+    if kind == "folder":
+        name = str(row.get("name") or row.get("text") or "").strip()
+        count = _safe_int(row.get("count"))
+        expanded_text = "свернута" if bool(row.get("is_collapsed", False)) else "развернута"
+        return f"Папка {name}, {_preset_count_text(count)}, {expanded_text}"
+
+    return str(row.get("text") or row.get("name") or "").strip()
+
+
+def _preset_count_text(count: int) -> str:
+    if count % 10 == 1 and count % 100 != 11:
+        return f"{count} пресет"
+    if count % 10 in {2, 3, 4} and count % 100 not in {12, 13, 14}:
+        return f"{count} пресета"
+    return f"{count} пресетов"
+
+
+def _safe_int(value: object) -> int:
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
 
 
 __all__ = ["PresetListModel"]

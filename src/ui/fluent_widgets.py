@@ -15,6 +15,7 @@ import qtawesome as qta
 from ui.theme import get_cached_qta_pixmap, get_themed_qta_icon, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
 from ui.pulsing_dot import PulsingDot
+from ui.accessibility import set_accessible_description
 from qfluentwidgets import (
     BodyLabel, CaptionLabel, CardWidget, CheckBox, ComboBox, FlowLayout,
     FluentIcon, HeaderCardWidget, IndeterminateProgressBar, InfoBar,
@@ -47,6 +48,7 @@ def set_tooltip(widget, text: str, *, position=None, delay: int = 300) -> None:
             widget.setToolTip(value)
     except Exception:
         widget.setToolTip(value)
+    set_accessible_description(widget, value)
     # Install only once — skip if already done for this widget.
     if getattr(widget, "_fluent_tooltip_filter", None) is None:
         pos = position if position is not None else ToolTipPosition.TOP

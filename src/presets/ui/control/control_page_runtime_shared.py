@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ui.accessibility import set_accessible_description, set_state_text
+
 
 def _current_widget_text(widget) -> str | None:
     try:
@@ -135,6 +137,8 @@ def apply_status_plan(
     setattr(status_dot, "_last_control_status_plan_key", plan_key)
     set_text_if_changed(status_title, plan.title)
     set_text_if_changed(status_desc, plan.description)
+    set_state_text(status_title, plan.title)
+    set_accessible_description(status_title, plan.description)
     status_dot.set_color(plan.dot_color)
     if plan.pulsing:
         status_dot.start_pulse()
@@ -170,6 +174,7 @@ def apply_last_status_message(
         return
     setattr(message_dot, "_last_control_status_message_key", message_key)
     message_label.setText(text)
+    set_state_text(message_label, text)
     message_dot.set_color(color)
     message_dot.stop_pulse()
 

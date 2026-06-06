@@ -631,6 +631,8 @@ class ProfileListModel(QAbstractListModel):
 
         if role == int(Qt.ItemDataRole.DisplayRole):
             return row.get("display_name") or row.get("group_name") or ""
+        if role == int(Qt.ItemDataRole.AccessibleTextRole):
+            return _profile_accessible_text(row)
         if role == self.KindRole:
             return kind
         if role == self.ProfileKeyRole:
@@ -881,7 +883,50 @@ def _profile_data_roles() -> list[int]:
         ProfileListModel.IconNameRole,
         ProfileListModel.IconColorRole,
         ProfileListModel.TooltipRole,
+        int(Qt.ItemDataRole.AccessibleTextRole),
     ]
+
+
+def _profile_accessible_text(row: dict[str, Any]) -> str:
+    kind = str(row.get("kind") or "")
+    if kind == "profile":
+        name = str(row.get("display_name") or "").strip()
+        parts = [name]
+        parts.append("включён" if bool(row.get("enabled", False)) else "выключен")
+        parts.append("есть в preset" if bool(row.get("in_preset", False)) else "нет в preset")
+        strategy_name = str(row.get("strategy_name") or "").strip()
+        if strategy_name:
+            parts.append(f"стратегия: {strategy_name}")
+        if bool(row.get("favorite", False)):
+            parts.append("в избранном")
+        rating = str(row.get("rating") or "").strip()
+        if rating == "work":
+            parts.append("работает")
+        elif rating == "notwork":
+            parts.append("не работает")
+        return ", ".join(part for part in parts if part)
+
+    group_name = str(row.get("group_name") or row.get("display_name") or "").strip()
+    if group_name:
+        count = _safe_int(row.get("count"))
+        expanded_text = "свернута" if bool(row.get("collapsed", False)) else "развернута"
+        return f"Группа {group_name}, {_profile_count_text(count)}, {expanded_text}"
+    return str(row.get("display_name") or "").strip()
+
+
+def _profile_count_text(count: int) -> str:
+    if count % 10 == 1 and count % 100 != 11:
+        return f"{count} профиль"
+    if count % 10 in {2, 3, 4} and count % 100 not in {12, 13, 14}:
+        return f"{count} профиля"
+    return f"{count} профилей"
+
+
+def _safe_int(value: object) -> int:
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
 
 
 __all__ = ["ProfileListModel", "ProfileListViewState", "build_profile_list_view_state"]

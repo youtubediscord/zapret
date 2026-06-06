@@ -8,9 +8,23 @@ from unittest.mock import Mock, patch
 class _TextTarget:
     def __init__(self) -> None:
         self.text = ""
+        self.accessible_name = ""
+        self.accessible_description = ""
 
     def setText(self, text: str) -> None:  # noqa: N802
         self.text = text
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self.accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self.accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self.accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self.accessible_description = str(text)
 
 
 class _VisibleTarget:
@@ -130,6 +144,35 @@ class ControlStatusDotPulseTests(unittest.TestCase):
 
         self.assertEqual(dot.started, 0)
         self.assertEqual(dot.stopped, 1)
+
+    def test_apply_status_plan_sets_screen_reader_status_text(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import apply_status_plan
+
+        status_title = _TextTarget()
+        status_desc = _TextTarget()
+
+        apply_status_plan(
+            SimpleNamespace(
+                phase="failed",
+                title="Ошибка запуска",
+                description="Не удалось запустить процесс обхода блокировок",
+                dot_color="#f5c04d",
+                pulsing=False,
+                show_start=True,
+                show_stop_only=False,
+                show_stop_and_exit=False,
+            ),
+            status_title=status_title,
+            status_desc=status_desc,
+            status_dot=_StatusDot(),
+            start_btn=_VisibleTarget(),
+            stop_winws_btn=_VisibleTarget(),
+            stop_and_exit_btn=_VisibleTarget(),
+            update_stop_button_text=lambda: None,
+        )
+
+        self.assertEqual(status_title.accessible_name, "Ошибка запуска")
+        self.assertEqual(status_title.accessible_description, "Не удалось запустить процесс обхода блокировок")
 
     def test_apply_status_plan_skips_duplicate_render(self) -> None:
         from presets.ui.control.control_page_runtime_shared import apply_status_plan

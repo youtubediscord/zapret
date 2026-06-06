@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
 from qfluentwidgets import CardWidget, FluentIcon
 
 from ui.pulsing_dot import PulsingDot
+from ui.accessibility import set_control_accessibility
 
 
 @dataclass(slots=True)
@@ -120,12 +121,20 @@ def build_mode_management_section_common(
         tr_fn(start_key, start_default),
         icon=FluentIcon.PLAY,
     )
+    set_control_accessibility(
+        start_btn,
+        description="Запускает обход блокировок в выбранном режиме.",
+    )
     start_btn.clicked.connect(on_start)
     buttons_layout.addWidget(start_btn)
 
     stop_winws_btn = stop_button_cls(
         tr_fn(stop_key, stop_default),
         icon=FluentIcon.CANCEL,
+    )
+    set_control_accessibility(
+        stop_winws_btn,
+        description="Останавливает запущенный процесс обхода блокировок.",
     )
     stop_winws_btn.clicked.connect(on_stop)
     stop_winws_btn.setVisible(False)
@@ -134,6 +143,10 @@ def build_mode_management_section_common(
     stop_and_exit_btn = stop_button_cls(
         tr_fn(stop_exit_key, stop_exit_default),
         icon=FluentIcon.POWER_BUTTON,
+    )
+    set_control_accessibility(
+        stop_and_exit_btn,
+        description="Останавливает обход блокировок и закрывает программу.",
     )
     stop_and_exit_btn.clicked.connect(on_stop_and_exit)
     stop_and_exit_btn.setVisible(False)
