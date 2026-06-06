@@ -165,7 +165,10 @@ class OrchestraRatingsPage(BasePage):
         )
 
     def _on_ratings_state_loaded(self, request_id: int, state) -> None:
-        if not self._ratings_state_runtime.is_current(request_id):
+        if not self._ratings_state_runtime.is_current(
+            request_id,
+            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
+        ):
             return
         self._ratings_state = state
         self._no_runner = self._ratings_state.no_runner
@@ -173,7 +176,10 @@ class OrchestraRatingsPage(BasePage):
         self._set_refresh_loading(False)
 
     def _on_ratings_state_failed(self, request_id: int, error: str) -> None:
-        if not self._ratings_state_runtime.is_current(request_id):
+        if not self._ratings_state_runtime.is_current(
+            request_id,
+            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
+        ):
             return
         log(f"Ошибка загрузки рейтингов orchestra: {error}", "ERROR")
         self._set_refresh_loading(False)
@@ -197,8 +203,9 @@ class OrchestraRatingsPage(BasePage):
         self.history_text.setPlainText(plan.history_text)
 
     def cleanup(self) -> None:
+        self._cleanup_in_progress = True
         self._ratings_state_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="Orchestra ratings worker",
         )

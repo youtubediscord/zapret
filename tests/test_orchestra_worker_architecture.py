@@ -544,6 +544,39 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn('"ratings"', deps_source)
         self.assertIn("create_ratings_state_load_worker", feature_source)
 
+    def test_ratings_cleanup_does_not_block_gui(self) -> None:
+        from orchestra.ui.ratings_page import OrchestraRatingsPage
+
+        page = OrchestraRatingsPage.__new__(OrchestraRatingsPage)
+        page._cleanup_in_progress = False
+        page._ratings_state_runtime = Mock()
+
+        OrchestraRatingsPage.cleanup(page)
+
+        self.assertTrue(page._cleanup_in_progress)
+        page._ratings_state_runtime.stop.assert_called_once()
+        self.assertFalse(page._ratings_state_runtime.stop.call_args.kwargs["blocking"])
+        page._ratings_state_runtime.cancel.assert_called_once()
+
+    def test_stale_ratings_result_is_ignored_after_cleanup(self) -> None:
+        from orchestra.ui.ratings_page import OrchestraRatingsPage
+
+        page = OrchestraRatingsPage.__new__(OrchestraRatingsPage)
+        page._cleanup_in_progress = True
+        page._ratings_state_runtime = Mock()
+        page._ratings_state_runtime.is_current.return_value = False
+        page._render_history = Mock()
+        page._set_refresh_loading = Mock()
+
+        OrchestraRatingsPage._on_ratings_state_loaded(page, 4, object())
+
+        page._ratings_state_runtime.is_current.assert_called_once_with(
+            4,
+            cleanup_in_progress=True,
+        )
+        page._render_history.assert_not_called()
+        page._set_refresh_loading.assert_not_called()
+
     def test_managed_workers_receive_action_functions(self) -> None:
         from orchestra.managed_lists_workers import (
             OrchestraManagedActionWorker,
