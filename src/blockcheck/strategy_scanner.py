@@ -1455,12 +1455,6 @@ class StrategyScanner:
         lines.extend(_LUA_INITS)
         lines.append("")
 
-        # Blob definitions — only what the strategy uses
-        blob_defs = self._generate_blob_lines(strategy_args)
-        if blob_defs:
-            lines.extend(blob_defs)
-            lines.append("")
-
         if self._scan_protocol == _PROTOCOL_STUN_VOICE:
             lines.append("--wf-udp-out=443-65535")
             lines.append("")
@@ -1498,23 +1492,6 @@ class StrategyScanner:
             f.write("\n".join(lines) + "\n")
 
         return preset_path
-
-    def _generate_blob_lines(self, strategy_args: str) -> list[str]:
-        """Generate --blob= lines for blobs used in the strategy."""
-        try:
-            from blobs.service import find_used_blobs, get_blobs
-            used = find_used_blobs(strategy_args)
-            if not used:
-                return []
-            blobs = get_blobs()
-            result = []
-            for name in sorted(used):
-                if name in blobs:
-                    result.append(f"--blob={name}:{blobs[name]}")
-            return result
-        except Exception as e:
-            logger.debug("Failed to generate blob definitions: %s", e)
-            return []
 
     # ------------------------------------------------------------------
     # Process management

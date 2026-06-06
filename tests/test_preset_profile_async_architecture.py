@@ -46,10 +46,8 @@ from presets.user_presets_runtime_service import (
 from hosts.ui.page import HostsPage
 import hosts.ui.page_runtime as hosts_page_runtime
 import hosts.commands as hosts_commands
-from autostart.ui.page import AutostartPage
 import log.commands as log_commands
 from log.ui.page import LogsPage
-from blobs.ui.page import BlobsPage
 import blockcheck.page_runtime as blockcheck_page_runtime
 import blockcheck.page_run_workflow as blockcheck_page_run_workflow
 import blockcheck.worker as blockcheck_worker
@@ -3116,59 +3114,6 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("QTimer.singleShot", scheduled_source)
         self.assertIn("build_logs_secondary_panels_ui", ensure_source)
 
-    def test_blobs_page_actions_run_through_worker(self) -> None:
-        spec = importlib.util.find_spec("blobs.workers")
-        self.assertIsNotNone(spec)
-        blobs_workers = importlib.import_module("blobs.workers")
-        blobs_feature = importlib.import_module("app.feature_facades.blobs")
-
-        load_source = inspect.getsource(BlobsPage._load_blobs)
-        reload_source = inspect.getsource(BlobsPage._reload_blobs)
-        add_source = inspect.getsource(BlobsPage._add_blob)
-        delete_source = inspect.getsource(BlobsPage._delete_blob)
-        open_bin_source = inspect.getsource(BlobsPage._open_bin_folder)
-        open_json_source = inspect.getsource(BlobsPage._open_json)
-        page_source = inspect.getsource(BlobsPage)
-        load_worker_source = inspect.getsource(blobs_workers.BlobsLoadWorker.run)
-        action_worker_source = inspect.getsource(blobs_workers.BlobActionWorker.run)
-        feature_source = inspect.getsource(blobs_feature.BlobsFeature)
-
-        self.assertIn("_request_blobs_load", load_source)
-        self.assertIn("_request_blobs_load", reload_source)
-        self.assertIn("_request_blob_action", add_source)
-        self.assertIn("_request_blob_action", delete_source)
-        self.assertIn("_request_blob_open_action", open_bin_source)
-        self.assertIn("_request_blob_open_action", open_json_source)
-        for source in (load_source, reload_source, add_source, delete_source):
-            self.assertNotIn(".get_blobs_info(", source)
-            self.assertNotIn(".reload_blobs(", source)
-            self.assertNotIn(".save_user_blob(", source)
-            self.assertNotIn(".delete_user_blob(", source)
-        for source in (open_bin_source, open_json_source):
-            self.assertNotIn(".open_bin_folder(", source)
-            self.assertNotIn(".open_blobs_json(", source)
-
-        self.assertIn("create_blobs_load_worker", page_source)
-        self.assertIn("create_blob_action_worker", page_source)
-        self.assertIn("create_blob_open_action_worker", page_source)
-        self.assertIn("_blobs_load_pending", page_source)
-        self.assertIn("_blob_open_action_runtime", page_source)
-        self.assertIn("OneShotWorkerRuntime", page_source)
-        self.assertIn("create_blobs_load_worker", feature_source)
-        self.assertIn("create_blob_action_worker", feature_source)
-        self.assertIn("create_blob_open_action_worker", feature_source)
-        self.assertNotIn("import blobs.public", load_worker_source)
-        self.assertNotIn("import blobs.public", action_worker_source)
-        self.assertIn("get_blobs_info", load_worker_source)
-        self.assertIn("reload_blobs", load_worker_source)
-        self.assertIn("save_user_blob", action_worker_source)
-        self.assertIn("delete_user_blob", action_worker_source)
-        self.assertTrue(hasattr(blobs_workers, "BlobOpenActionWorker"))
-        open_worker_source = inspect.getsource(blobs_workers.BlobOpenActionWorker.run)
-        self.assertNotIn("import blobs.public", open_worker_source)
-        self.assertIn("open_bin_folder", open_worker_source)
-        self.assertIn("open_blobs_json", open_worker_source)
-
     def test_common_one_shot_worker_runtime_is_used_by_shared_pages(self) -> None:
         self.assertIsNotNone(importlib.util.find_spec("ui.one_shot_worker_runtime"))
         runtime = importlib.import_module("ui.one_shot_worker_runtime")
@@ -4243,7 +4188,6 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
     def test_lazy_pages_start_runtime_after_activation_not_constructor(self) -> None:
         page_classes = (
             dns_page.NetworkPage,
-            BlobsPage,
             ServersPage,
             TelegramProxyPage,
             PremiumPage,
@@ -4380,51 +4324,6 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("_set_setting", worker_source)
         self.assertNotIn("orchestra_commands", worker_source)
         self.assertIn("set_setting", worker_source)
-
-    def test_autostart_page_actions_run_through_worker(self) -> None:
-        spec = importlib.util.find_spec("autostart.workers")
-        self.assertIsNotNone(spec)
-        autostart_workers = importlib.import_module("autostart.workers")
-
-        page_source = inspect.getsource(AutostartPage)
-        enable_source = inspect.getsource(AutostartPage._on_gui_autostart)
-        disable_source = inspect.getsource(AutostartPage._on_disable_clicked)
-        push_source = inspect.getsource(AutostartPage._push_autostart_state)
-        finished_source = inspect.getsource(AutostartPage._on_autostart_action_finished)
-        worker_source = inspect.getsource(autostart_workers.AutostartActionWorker.run)
-
-        for source in (enable_source, disable_source, push_source):
-            self.assertIn("_request_autostart_action", source)
-            self.assertNotIn("self._autostart.enable_gui_autostart", source)
-            self.assertNotIn("self._autostart.disable_gui_autostart", source)
-            self.assertNotIn("self._autostart.set_autostart_enabled", source)
-
-        self.assertIn("create_autostart_action_worker", page_source)
-        self.assertIn("_autostart_action_pending", page_source)
-        self.assertIn("set_autostart_runtime_state", finished_source)
-        self.assertIn("enable_gui_autostart", worker_source)
-        self.assertIn("disable_gui_autostart", worker_source)
-        self.assertIn("save_gui_autostart_enabled", worker_source)
-
-    def test_autostart_mode_load_runs_through_worker(self) -> None:
-        spec = importlib.util.find_spec("autostart.workers")
-        self.assertIsNotNone(spec)
-        autostart_workers = importlib.import_module("autostart.workers")
-
-        init_source = inspect.getsource(AutostartPage.__init__)
-        update_mode_source = inspect.getsource(AutostartPage._update_mode)
-        page_source = inspect.getsource(AutostartPage)
-        feature_source = inspect.getsource(__import__("app.feature_facades.autostart", fromlist=["AutostartFeature"]).AutostartFeature)
-
-        self.assertTrue(hasattr(autostart_workers, "AutostartModeLoadWorker"))
-        worker_source = inspect.getsource(autostart_workers.AutostartModeLoadWorker.run)
-
-        self.assertIn("_mode_load_runtime", init_source)
-        self.assertIn("_request_mode_load", update_mode_source)
-        self.assertNotIn("get_current_launch_method()", update_mode_source)
-        self.assertIn("create_autostart_mode_load_worker", page_source)
-        self.assertIn("create_autostart_mode_load_worker", feature_source)
-        self.assertIn("get_current_launch_method", worker_source)
 
     def test_network_and_telegram_ui_do_not_create_python_threads(self) -> None:
         modules = (

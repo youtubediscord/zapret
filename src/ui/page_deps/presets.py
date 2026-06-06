@@ -86,7 +86,6 @@ def build_control_page_kwargs(
         "open_folder": open_folder,
         "open_presets": lambda page=user_presets_page: show_page(page, allow_internal=True),
         "open_preset_setup": lambda page=preset_setup_page: show_page(page, allow_internal=True),
-        "open_blobs": lambda: show_page(PageName.BLOBS, allow_internal=True),
         "open_premium": lambda: show_page(PageName.PREMIUM, allow_internal=True),
         "create_external_open_url_worker": external_actions_feature.create_open_url_worker,
         "ui_state_store": ui_state_store,

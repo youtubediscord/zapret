@@ -220,12 +220,6 @@ def default_blockcheck() -> dict[str, Any]:
     }
 
 
-def default_blobs() -> dict[str, Any]:
-    return {
-        "user_blobs": {},
-    }
-
-
 def default_folders() -> dict[str, Any]:
     from folders.defaults import build_default_preset_folders, build_default_profile_folders
 
@@ -256,6 +250,5 @@ def build_default_settings() -> dict[str, Any]:
         "orchestra": default_orchestra(),
         "updater": default_updater(),
         "blockcheck": default_blockcheck(),
-        "blobs": default_blobs(),
         "folders": default_folders(),
     }

@@ -137,24 +137,10 @@ def _find_existing_tcp_https_profile_for_target(profiles, target: str):
     return None
 
 
-def generate_blob_lines_for_apply(strategy_args: str) -> list[str]:
-    try:
-        from blobs.service import find_used_blobs, get_blobs
-
-        used = find_used_blobs(strategy_args)
-        if not used:
-            return []
-        blobs = get_blobs()
-        return [f"--blob={name}:{blobs[name]}" for name in sorted(used) if name in blobs]
-    except Exception:
-        return []
-
-
 def apply_profile_to_selected_preset(
     *,
     presets_feature,
     strategy_lines: list[str],
-    blob_lines: list[str],
     match_target: str = "",
     scan_protocol: str = "",
 ) -> tuple[str, str]:
@@ -185,7 +171,7 @@ def apply_profile_to_selected_preset(
         raise RuntimeError("Не удалось собрать profile из найденной стратегии")
 
     known_preamble = {line.strip() for line in source.preamble_lines if line.strip()}
-    for line in [*blob_lines, *profile_preset.preamble_lines]:
+    for line in profile_preset.preamble_lines:
         stripped = str(line or "").strip()
         if not stripped or stripped in known_preamble:
             continue
@@ -238,9 +224,8 @@ def apply_strategy(
     scan_target: str,
     scan_protocol: str,
     scan_udp_games_scope: str,
-) -> StrategyApplyResult:
+    ) -> StrategyApplyResult:
     target = scan_target or default_target_for_protocol(scan_protocol)
-    blob_lines = generate_blob_lines_for_apply(strategy_args)
 
     if scan_protocol == "stun_voice":
         target_host, target_port = stun_target_parts(target)
@@ -288,7 +273,6 @@ def apply_strategy(
     selected_file_name, operation = apply_profile_to_selected_preset(
         presets_feature=presets_feature,
         strategy_lines=new_strategy_lines,
-        blob_lines=blob_lines,
         match_target=target,
         scan_protocol=scan_protocol,
     )

@@ -82,9 +82,7 @@ def build_app_features(*, deps: AppFeatureAssemblyDeps, paths: Any, state: Any) 
     """Собирает feature-входы без превращения AppFeatures в общий контейнер."""
     t_import = _time.perf_counter()
     from app.feature_facades.appearance import build_appearance_feature
-    from app.feature_facades.autostart import build_autostart_feature
     from app.feature_facades.blockcheck import BlockcheckFeature
-    from app.feature_facades.blobs import build_blobs_feature
     from app.feature_facades.diagnostics import build_diagnostics_feature
     from app.feature_facades.dns import build_dns_feature
     from app.feature_facades.dpi_settings import build_dpi_settings_feature
@@ -160,7 +158,6 @@ def build_app_features(*, deps: AppFeatureAssemblyDeps, paths: Any, state: Any) 
             presets_feature=preset_profile.presets,
             profile_feature=preset_profile.profile,
         ),
-        blobs=build_blobs_feature(),
         diagnostics=build_diagnostics_feature(),
         dns=build_dns_feature(),
         hosts=build_hosts_feature(),
@@ -173,7 +170,6 @@ def build_app_features(*, deps: AppFeatureAssemblyDeps, paths: Any, state: Any) 
         external_actions=build_external_actions_feature(),
         orchestra=orchestra_feature,
         program_settings=build_program_settings_feature(),
-        autostart=build_autostart_feature(runtime_state=state.runtime),
         window_geometry=build_window_geometry_feature(),
     )
     emit_startup_metric(

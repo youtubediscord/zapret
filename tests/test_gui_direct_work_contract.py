@@ -10,7 +10,6 @@ SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
 GUI_ROOTS = (
     SRC_ROOT / "ui" / "pages",
     SRC_ROOT / "autostart" / "ui",
-    SRC_ROOT / "blobs" / "ui",
     SRC_ROOT / "blockcheck" / "ui",
     SRC_ROOT / "diagnostics" / "ui",
     SRC_ROOT / "dns" / "ui",

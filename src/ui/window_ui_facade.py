@@ -18,7 +18,6 @@ def _get_nav_labels():
     from app.page_names import PageName
 
     return {
-        PageName.AUTOSTART: "Автозапуск",
         PageName.NETWORK: "Сеть",
         PageName.HOSTS: "Редактор файла hosts",
         PageName.BLOCKCHECK: "BlockCheck",
@@ -27,7 +26,6 @@ def _get_nav_labels():
         PageName.LOGS: "Логи",
         PageName.ABOUT: "О программе",
         PageName.DPI_SETTINGS: "Сменить режим DPI",
-        PageName.BLOBS: "Блобы",
         PageName.SERVERS: "Обновления",
         PageName.SUPPORT: "Поддержка",
         PageName.ORCHESTRA: "Оркестратор",

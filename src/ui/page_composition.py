@@ -13,8 +13,6 @@ from ui.page_deps.presets import (
 from ui.page_deps.system import (
     build_about_page_kwargs,
     build_appearance_page_kwargs,
-    build_autostart_page_kwargs,
-    build_blobs_page_kwargs,
     build_blockcheck_page_kwargs,
     build_dpi_settings_page_kwargs,
     build_hosts_page_kwargs,
@@ -104,11 +102,6 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
         features=("dpi_settings", "orchestra", "runtime"),
         actions=("set_status", "after_launch_method_changed"),
     ),
-    PageName.BLOBS: PageDepsSpec(
-        build_blobs_page_kwargs,
-        features=("blobs",),
-        actions=("show_active_mode_control_page",),
-    ),
     PageName.NETWORK: PageDepsSpec(build_network_page_kwargs, features=("dns",)),
     PageName.HOSTS: PageDepsSpec(build_hosts_page_kwargs, features=("hosts",)),
     PageName.PREMIUM: PageDepsSpec(
@@ -117,12 +110,6 @@ PAGE_DEPS_BUILDERS: dict[PageName, PageDepsSpec] = {
         include_ui_state_store=True,
     ),
     PageName.SUPPORT: PageDepsSpec(build_support_page_kwargs, features=("external_actions",)),
-    PageName.AUTOSTART: PageDepsSpec(
-        build_autostart_page_kwargs,
-        features=("autostart",),
-        actions=("show_page", "notify"),
-        include_ui_state_store=True,
-    ),
     PageName.APPEARANCE: PageDepsSpec(
         build_appearance_page_kwargs,
         features=("appearance",),

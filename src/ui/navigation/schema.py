@@ -160,17 +160,6 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         breadcrumb_parent=PageName.ZAPRET1_USER_PRESETS,
         sidebar_group=None,
     ),
-    PageName.BLOBS: PageRouteSpec(
-        page_name=PageName.BLOBS,
-        module_name="blobs.ui.page",
-        class_name="BlobsPage",
-        route_key="BlobsPage",
-        is_top_level=False,
-        is_hidden=True,
-        launch_modes=_COMMON,
-        breadcrumb_parent=None,
-        sidebar_group=None,
-    ),
     PageName.DPI_SETTINGS: PageRouteSpec(
         page_name=PageName.DPI_SETTINGS,
         module_name="settings.dpi.page",
@@ -181,17 +170,6 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
         launch_modes=_COMMON,
         breadcrumb_parent=None,
         sidebar_group="settings",
-    ),
-    PageName.AUTOSTART: PageRouteSpec(
-        page_name=PageName.AUTOSTART,
-        module_name="autostart.ui.page",
-        class_name="AutostartPage",
-        route_key="AutostartPage",
-        is_top_level=True,
-        is_hidden=False,
-        launch_modes=_COMMON,
-        breadcrumb_parent=None,
-        sidebar_group="system",
     ),
     PageName.NETWORK: PageRouteSpec(
         page_name=PageName.NETWORK,
@@ -328,8 +306,6 @@ PAGE_ROUTE_SPECS: dict[PageName, PageRouteSpec] = {
 }
 
 PAGE_CLEANUP_ORDER: tuple[PageName, ...] = (
-    PageName.AUTOSTART,
-    PageName.BLOBS,
     PageName.ZAPRET2_MODE_CONTROL,
     PageName.ZAPRET2_PRESET_SETUP,
     PageName.ZAPRET2_PROFILE_SETUP,

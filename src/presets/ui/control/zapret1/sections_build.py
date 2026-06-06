@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from presets.ui.control.shared_builders import (
-    build_push_setting_card_common,
-)
+from presets.ui.control.shared_builders import build_push_setting_card_common
 from presets.ui.control.windows_features.build import build_windows_feature_toggles
 from ui.fluent_widgets import build_additional_settings_section, enable_setting_card_group_auto_height
 from ui.theme import get_themed_qta_icon
@@ -16,6 +14,7 @@ from ui.theme import get_themed_qta_icon
 class Zapret1SettingsBuildWidgets:
     program_settings_section_label: object | None
     program_settings_card: object
+    gui_autostart_toggle: object
     auto_dpi_toggle: object
     hide_to_tray_toggle: object
     defender_toggle: object
@@ -25,8 +24,6 @@ class Zapret1SettingsBuildWidgets:
     discord_restart_toggle: object | None
     wssize_toggle: object | None
     debug_log_toggle: object | None
-    blobs_action_card: object | None
-    blobs_open_btn: object | None
     extra_card: object
     test_card: object
     folder_card: object
@@ -41,6 +38,7 @@ def build_winws1_pages_settings_sections(
     push_setting_card_cls,
     setting_card_group_cls,
     win11_toggle_row_cls,
+    on_gui_autostart_toggled,
     on_auto_dpi_toggled,
     on_hide_to_tray_toggled,
     on_defender_toggled,
@@ -48,7 +46,6 @@ def build_winws1_pages_settings_sections(
     on_discord_restart_changed,
     on_wssize_toggled,
     on_debug_log_toggled,
-    on_navigate_to_blobs,
     on_open_connection_test,
     on_open_folder,
     on_open_docs,
@@ -56,6 +53,13 @@ def build_winws1_pages_settings_sections(
     program_settings_title = tr_fn("page.winws1_control.section.program_settings", "Настройки программы")
     program_settings_section_label = None
     program_settings_card = setting_card_group_cls(program_settings_title, content_parent)
+
+    gui_autostart_toggle = win11_toggle_row_cls(
+        "fa5s.power-off",
+        tr_fn("page.control.setting.gui_autostart.title", "Автозапуск ZapretGUI"),
+        tr_fn("page.control.setting.gui_autostart.desc", "Запускать программу в трее при входе в Windows"),
+    )
+    gui_autostart_toggle.toggled.connect(on_gui_autostart_toggled)
 
     auto_dpi_toggle = win11_toggle_row_cls(
         "fa5s.bolt",
@@ -78,6 +82,7 @@ def build_winws1_pages_settings_sections(
         on_max_blocker_toggled=on_max_blocker_toggled,
     )
 
+    program_settings_card.addSettingCard(gui_autostart_toggle)
     program_settings_card.addSettingCard(auto_dpi_toggle)
     program_settings_card.addSettingCard(hide_to_tray_toggle)
     program_settings_card.addSettingCard(windows_feature_toggles.defender_toggle)
@@ -122,22 +127,12 @@ def build_winws1_pages_settings_sections(
     if debug_log_toggle is not None:
         debug_log_toggle.toggled.connect(on_debug_log_toggled)
 
-    blobs_card = build_push_setting_card_common(
-        push_setting_card_cls=push_setting_card_cls,
-        button_text=tr_fn("page.winws1_control.button.open", "Открыть"),
-        icon=get_themed_qta_icon("fa5s.file-archive", color="#ff9800"),
-        title_text=tr_fn("page.winws1_control.blobs.title", "Блобы"),
-        content_text=tr_fn("page.winws1_control.blobs.desc", "Бинарные данные (.bin / hex) для стратегий"),
-        on_click=on_navigate_to_blobs,
-        parent=content_parent,
-    )
-
     additional_settings_card, additional_settings_notice = build_additional_settings_section(
         title=tr_fn("page.winws1_control.card.advanced", "Дополнительные настройки"),
         warning_text=tr_fn("page.winws1_control.advanced.warning", "Изменяйте только если знаете что делаете"),
         parent=content_parent,
         toggle_rows=[discord_restart_toggle, wssize_toggle, debug_log_toggle],
-        action_rows=[blobs_card],
+        action_rows=[],
     )
 
     extra_card = setting_card_group_cls(
@@ -179,6 +174,7 @@ def build_winws1_pages_settings_sections(
     return Zapret1SettingsBuildWidgets(
         program_settings_section_label=program_settings_section_label,
         program_settings_card=program_settings_card,
+        gui_autostart_toggle=gui_autostart_toggle,
         auto_dpi_toggle=auto_dpi_toggle,
         hide_to_tray_toggle=hide_to_tray_toggle,
         defender_toggle=windows_feature_toggles.defender_toggle,
@@ -188,8 +184,6 @@ def build_winws1_pages_settings_sections(
         discord_restart_toggle=discord_restart_toggle,
         wssize_toggle=wssize_toggle,
         debug_log_toggle=debug_log_toggle,
-        blobs_action_card=blobs_card,
-        blobs_open_btn=blobs_card.button,
         extra_card=extra_card,
         test_card=test_card,
         folder_card=folder_card,

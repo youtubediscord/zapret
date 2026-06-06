@@ -217,6 +217,14 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "После запуска ZapretGUI автоматически запускать текущий DPI-режим",
         "en": "Automatically start the current DPI mode after ZapretGUI launches",
     },
+    "page.control.setting.gui_autostart.title": {
+        "ru": "Автозапуск ZapretGUI",
+        "en": "ZapretGUI autostart",
+    },
+    "page.control.setting.gui_autostart.desc": {
+        "ru": "Запускать программу в трее при входе в Windows",
+        "en": "Start the app in the tray when signing in to Windows",
+    },
     "page.control.setting.hide_to_tray.title": {
         "ru": "Всегда скрывать в трей при сворачивании и закрытии",
         "en": "Always hide to tray when minimizing and closing",
@@ -368,14 +376,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.winws1_control.advanced.debug_log.desc": {
         "ru": "Записывает логи winws в папку logs",
         "en": "Writes winws logs to the logs folder",
-    },
-    "page.winws1_control.blobs.title": {
-        "ru": "Блобы",
-        "en": "Blobs",
-    },
-    "page.winws1_control.blobs.desc": {
-        "ru": "Бинарные данные (.bin / hex) для стратегий",
-        "en": "Binary data (.bin / hex) for strategies",
     },
     "page.winws1_control.section.additional": {
         "ru": "Дополнительные действия",
@@ -904,178 +904,6 @@ TEXTS: dict[str, dict[str, str]] = {
     "page.autostart.tip.recommendation": {
         "ru": "Используется один тип автозапуска: запуск самого ZapretGUI в трей через Планировщик заданий Windows.",
         "en": "Only one autostart type is used: launching ZapretGUI itself in the tray through Windows Task Scheduler.",
-    },
-    "page.blobs.title": {
-        "ru": "Блобы",
-        "en": "Blobs",
-    },
-    "page.blobs.subtitle": {
-        "ru": "Управление бинарными данными для стратегий",
-        "en": "Manage binary data for strategies",
-    },
-    "page.blobs.button.back": {
-        "ru": "Управление",
-        "en": "Control",
-    },
-    "page.blobs.description": {
-        "ru": "Блобы — это бинарные данные (файлы .bin или hex-значения), используемые в стратегиях для имитации TLS/QUIC пакетов.\nВы можете добавлять свои блобы для кастомных стратегий.",
-        "en": "Blobs are binary data (.bin files or hex values) used in strategies to imitate TLS/QUIC packets.\nYou can add your own blobs for custom strategies.",
-    },
-    "page.blobs.button.add": {
-        "ru": "Добавить блоб",
-        "en": "Add blob",
-    },
-    "page.blobs.button.bin_folder": {
-        "ru": "Папка bin",
-        "en": "bin folder",
-    },
-    "page.blobs.button.open_json": {
-        "ru": "Открыть JSON",
-        "en": "Open JSON",
-    },
-    "page.blobs.filter.placeholder": {
-        "ru": "Фильтр по имени...",
-        "en": "Filter by name...",
-    },
-    "page.blobs.section.user": {
-        "ru": "★ Пользовательские ({count})",
-        "en": "★ Custom ({count})",
-    },
-    "page.blobs.section.system": {
-        "ru": "Системные ({count})",
-        "en": "System ({count})",
-    },
-    "page.blobs.count": {
-        "ru": "{total} блобов ({user} пользовательских)",
-        "en": "{total} blobs ({user} custom)",
-    },
-    "page.blobs.item.user_badge": {
-        "ru": "пользовательский",
-        "en": "custom",
-    },
-    "page.blobs.item.file_found": {
-        "ru": "Файл найден",
-        "en": "File found",
-    },
-    "page.blobs.item.file_missing": {
-        "ru": "Файл не найден",
-        "en": "File not found",
-    },
-    "page.blobs.dialog.delete.title": {
-        "ru": "Удаление блоба",
-        "en": "Delete blob",
-    },
-    "page.blobs.dialog.delete.body": {
-        "ru": "Удалить пользовательский блоб '{name}'?",
-        "en": "Delete custom blob '{name}'?",
-    },
-    "page.blobs.dialog.add.title": {
-        "ru": "Добавить блоб",
-        "en": "Add blob",
-    },
-    "page.blobs.dialog.add.name": {
-        "ru": "Имя",
-        "en": "Name",
-    },
-    "page.blobs.dialog.add.name.placeholder": {
-        "ru": "Латиница, цифры, подчеркивания",
-        "en": "Latin letters, numbers, underscores",
-    },
-    "page.blobs.dialog.add.type": {
-        "ru": "Тип",
-        "en": "Type",
-    },
-    "page.blobs.dialog.add.type.file": {
-        "ru": "Файл (.bin)",
-        "en": "File (.bin)",
-    },
-    "page.blobs.dialog.add.type.hex": {
-        "ru": "Hex значение",
-        "en": "Hex value",
-    },
-    "page.blobs.dialog.add.value": {
-        "ru": "Значение",
-        "en": "Value",
-    },
-    "page.blobs.dialog.add.value.path_placeholder": {
-        "ru": "Путь к файлу",
-        "en": "File path",
-    },
-    "page.blobs.dialog.add.value.hex_placeholder": {
-        "ru": "Hex значение (например: 0x0E0E0F0E)",
-        "en": "Hex value (for example: 0x0E0E0F0E)",
-    },
-    "page.blobs.dialog.add.value.path_placeholder_bin": {
-        "ru": "Путь к .bin файлу",
-        "en": "Path to .bin file",
-    },
-    "page.blobs.dialog.add.browse.tooltip": {
-        "ru": "Выбрать файл",
-        "en": "Select file",
-    },
-    "page.blobs.dialog.add.browse.title": {
-        "ru": "Выберите файл блоба",
-        "en": "Choose blob file",
-    },
-    "page.blobs.dialog.add.description": {
-        "ru": "Описание (опционально)",
-        "en": "Description (optional)",
-    },
-    "page.blobs.dialog.add.description.placeholder": {
-        "ru": "Краткое описание блоба",
-        "en": "Short blob description",
-    },
-    "page.blobs.dialog.add.button.add": {
-        "ru": "Добавить",
-        "en": "Add",
-    },
-    "page.blobs.dialog.add.button.cancel": {
-        "ru": "Отмена",
-        "en": "Cancel",
-    },
-    "page.blobs.dialog.add.error.name_required": {
-        "ru": "Введите имя блоба",
-        "en": "Enter blob name",
-    },
-    "page.blobs.dialog.add.error.name_invalid": {
-        "ru": "Имя должно начинаться с буквы и содержать только латиницу, цифры и подчеркивания",
-        "en": "Name must start with a letter and contain only Latin letters, digits, and underscores",
-    },
-    "page.blobs.dialog.add.error.value_required": {
-        "ru": "Введите значение блоба",
-        "en": "Enter blob value",
-    },
-    "page.blobs.dialog.add.error.hex_prefix": {
-        "ru": "Hex значение должно начинаться с 0x",
-        "en": "Hex value must start with 0x",
-    },
-    "page.blobs.error.load": {
-        "ru": "❌ Ошибка загрузки: {error}",
-        "en": "❌ Load error: {error}",
-    },
-    "page.blobs.error.save": {
-        "ru": "Не удалось сохранить блоб",
-        "en": "Failed to save blob",
-    },
-    "page.blobs.error.add": {
-        "ru": "Не удалось добавить блоб: {error}",
-        "en": "Failed to add blob: {error}",
-    },
-    "page.blobs.error.delete_named": {
-        "ru": "Не удалось удалить блоб '{name}'",
-        "en": "Failed to delete blob '{name}'",
-    },
-    "page.blobs.error.delete": {
-        "ru": "Не удалось удалить блоб: {error}",
-        "en": "Failed to delete blob: {error}",
-    },
-    "page.blobs.error.open_folder": {
-        "ru": "Не удалось открыть папку: {error}",
-        "en": "Failed to open folder: {error}",
-    },
-    "page.blobs.error.open_file": {
-        "ru": "Не удалось открыть файл: {error}",
-        "en": "Failed to open file: {error}",
     },
     "page.connection.title": {
         "ru": "Диагностика соединения",
@@ -3038,7 +2866,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Profiles",
     },
     "page.winws1_pages.toolbar.search.placeholder": {
-        "ru": "Поиск profile по имени, портам и т.д.",
+        "ru": "Поиск профиля по имени, портам и т.д.",
         "en": "Search profiles by name, ports, etc.",
     },
     "page.winws1_pages.request.button": {
@@ -3489,14 +3317,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "ru": "Изменяйте только если знаете что делаете",
         "en": "Change only if you know what you are doing",
     },
-    "page.winws2_control.blobs.title": {
-        "ru": "Блобы",
-        "en": "Blobs",
-    },
-    "page.winws2_control.blobs.desc": {
-        "ru": "Бинарные данные (.bin / hex) для стратегий",
-        "en": "Binary data (.bin / hex) for strategies",
-    },
     "page.winws2_control.button.connection_test": {
         "ru": "Тест соединения",
         "en": "Connection Test",
@@ -3542,7 +3362,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "What is this?",
     },
     "page.winws2_pages.toolbar.search.placeholder": {
-        "ru": "Поиск profile по имени, портам и т.д.",
+        "ru": "Поиск профиля по имени, портам и т.д.",
         "en": "Search profiles by name, ports, etc.",
     },
     "page.winws2_pages.info.title": {
@@ -4540,10 +4360,8 @@ NAV_PAGE_TEXT_KEYS: dict[PageName, str] = {
     PageName.ZAPRET2_MODE_CONTROL: "nav.page.zapret2_mode_control",
     PageName.ZAPRET1_MODE_CONTROL: "nav.page.zapret1_mode_control",
     PageName.ORCHESTRA: "nav.page.orchestra",
-    PageName.BLOBS: "page.blobs.title",
     PageName.ORCHESTRA_SETTINGS: "nav.page.orchestra_settings",
     PageName.DPI_SETTINGS: "nav.page.dpi_settings",
-    PageName.AUTOSTART: "nav.page.autostart",
     PageName.NETWORK: "nav.page.network",
     PageName.HOSTS: "nav.page.hosts",
     PageName.BLOCKCHECK: "nav.page.blockcheck",

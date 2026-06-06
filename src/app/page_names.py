@@ -30,7 +30,6 @@ class PageName(Enum):
     ZAPRET1_PROFILE_SETUP = auto()
     ZAPRET1_PROFILE_ORDER = auto()
 
-    BLOBS = auto()                   # Блобы
     DPI_SETTINGS = auto()            # Настройки DPI
 
     # === Настройки системы ===

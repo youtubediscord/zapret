@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from blockcheck.strategy_scan_apply import (
-    generate_blob_lines_for_apply,
     apply_profile_to_selected_preset,
     apply_strategy,
 )
@@ -114,7 +113,6 @@ __all__ = [
     "default_target_for_protocol",
     "finalize_scan_report",
     "format_stun_target",
-    "generate_blob_lines_for_apply",
     "get_resume_index",
     "load_quick_domains",
     "load_quick_stun_targets",

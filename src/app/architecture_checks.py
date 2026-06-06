@@ -533,7 +533,6 @@ def check_no_qfluentwidgets_fallbacks(files: list[Path]) -> list[Problem]:
         "src/donater/ui/",
         "src/lists/ui/",
         "src/blockcheck/ui/",
-        "src/blobs/ui/",
         "src/autostart/ui/",
         "src/settings/dpi/",
         "src/orchestra/ui/",
@@ -572,7 +571,6 @@ def check_no_legacy_toggle_widgets_in_production_ui(files: list[Path]) -> list[P
         "src/donater/ui/",
         "src/lists/ui/",
         "src/blockcheck/ui/",
-        "src/blobs/ui/",
         "src/autostart/ui/",
         "src/settings/dpi/",
         "src/orchestra/ui/",
@@ -604,7 +602,6 @@ def check_no_raw_text_edit_in_production_ui(files: list[Path]) -> list[Problem]:
         "src/donater/ui/",
         "src/lists/ui/",
         "src/blockcheck/ui/",
-        "src/blobs/ui/",
         "src/autostart/ui/",
         "src/settings/dpi/",
         "src/orchestra/ui/",
@@ -668,7 +665,7 @@ def check_external_imports(files: list[Path]) -> list[Problem]:
         "src/log/ui/",
     )
     feature_names = (
-        "autostart|blobs|blockcheck|diagnostics|dns|donater|hosts|lists|"
+        "autostart|blockcheck|diagnostics|dns|donater|hosts|lists|"
         "log|orchestra|presets|profile|settings\\.dpi|telegram_proxy|"
         "updater|winws_runtime"
     )
@@ -1006,7 +1003,7 @@ def check_settings_json_is_single_app_storage(files: list[Path]) -> list[Problem
                 r"\.update_cache\.json|\.update_rate_limit\.json|\.server_pool_stats\.json|"
                 r"\.selected_server\.json|\.github_cache\.json|\.github_rate_limit|"
                 r"\.vps_block\.json|\.server_stats\.json|strategy_scan_resume\.json|"
-                r"blockcheck_user_domains\.txt|blobs\.json"
+                r"blockcheck_user_domains\.txt"
                 r")\b"
             ),
             "настройки/состояние приложения должны жить в settings.json; отдельные state-файлы запрещены",

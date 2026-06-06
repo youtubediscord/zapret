@@ -11,10 +11,19 @@ from presets.ui.control.control_page_runtime_shared import (
 )
 
 
-def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, hide_to_tray_toggle, defender_toggle, max_block_toggle) -> None:
+def apply_program_settings_snapshot(
+    snapshot,
+    *,
+    auto_dpi_toggle,
+    gui_autostart_toggle=None,
+    hide_to_tray_toggle=None,
+    defender_toggle=None,
+    max_block_toggle=None,
+) -> None:
     apply_program_settings_toggles(
         snapshot,
         auto_dpi_toggle=auto_dpi_toggle,
+        gui_autostart_toggle=gui_autostart_toggle,
         hide_to_tray_toggle=hide_to_tray_toggle,
         defender_toggle=defender_toggle,
         max_block_toggle=max_block_toggle,
@@ -58,7 +67,6 @@ def apply_profile_language(
     start_btn,
     stop_and_exit_btn,
     profile_ui_mode_btn,
-    blobs_open_btn,
     test_card,
     folder_card,
     docs_card,
@@ -66,11 +74,11 @@ def apply_profile_language(
     additional_settings_notice,
     program_settings_card,
     auto_dpi_toggle,
+    gui_autostart_toggle,
     hide_to_tray_toggle,
     defender_toggle,
     max_block_toggle,
     additional_settings_card,
-    blobs_action_card,
     discord_restart_toggle,
     wssize_toggle,
     debug_log_toggle,
@@ -81,8 +89,6 @@ def apply_profile_language(
     stop_and_exit_btn.setText(tr_catalog("page.winws2_control.button.stop_and_exit", language=language, default="Остановить и закрыть программу"))
     if profile_ui_mode_btn is not None:
         profile_ui_mode_btn.setText(tr_catalog("page.winws2_control.button.change_mode", language=language, default="Изменить режим"))
-    if blobs_open_btn is not None:
-        blobs_open_btn.setText(tr_catalog("page.winws2_control.button.open", language=language, default="Открыть"))
 
     if profile_ui_mode_caption is not None:
         profile_ui_mode_caption.setText(tr_catalog("page.winws2_control.profile_ui_mode.caption", language=language, default="Режим отображения профилей"))
@@ -99,6 +105,11 @@ def apply_profile_language(
         tr_catalog("page.winws2_control.setting.autostart.title", language=language, default="Автозапуск DPI после старта программы"),
         tr_catalog("page.winws2_control.setting.autostart.desc", language=language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим"),
     )
+    if gui_autostart_toggle is not None:
+        gui_autostart_toggle.set_texts(
+            tr_catalog("page.control.setting.gui_autostart.title", language=language, default="Автозапуск ZapretGUI"),
+            tr_catalog("page.control.setting.gui_autostart.desc", language=language, default="Запускать программу в трее при входе в Windows"),
+        )
     hide_to_tray_toggle.set_texts(
         tr_catalog("page.control.setting.hide_to_tray.title", language=language, default="Всегда скрывать в трей при сворачивании и закрытии"),
         tr_catalog("page.control.setting.hide_to_tray.desc", language=language, default="Кнопка свернуть и крестик прячут окно в системный трей"),
@@ -114,15 +125,6 @@ def apply_profile_language(
     additional_settings_card.titleLabel.setText(
         tr_catalog("page.winws2_control.card.advanced", language=language, default="Дополнительные настройки")
     )
-    if blobs_action_card is not None:
-        blobs_action_card.setTitle(
-            tr_catalog("page.winws2_control.blobs.title", language=language, default="Блобы")
-        )
-        blobs_action_card.setContent(
-            tr_catalog("page.winws2_control.blobs.desc", language=language, default="Бинарные данные (.bin / hex) для стратегий")
-        )
-        if blobs_open_btn is not None:
-            blobs_open_btn.setText(tr_catalog("page.winws2_control.button.open", language=language, default="Открыть"))
 
     test_card.setTitle(
         tr_catalog("page.winws2_control.button.connection_test", language=language, default="Тест соединения")

@@ -19,10 +19,19 @@ from presets.ui.control.additional_settings_runtime import (
 )
 
 
-def apply_program_settings_snapshot(snapshot, *, auto_dpi_toggle, hide_to_tray_toggle=None, defender_toggle=None, max_block_toggle=None) -> None:
+def apply_program_settings_snapshot(
+    snapshot,
+    *,
+    auto_dpi_toggle,
+    gui_autostart_toggle=None,
+    hide_to_tray_toggle=None,
+    defender_toggle=None,
+    max_block_toggle=None,
+) -> None:
     apply_program_settings_toggles(
         snapshot,
         auto_dpi_toggle=auto_dpi_toggle,
+        gui_autostart_toggle=gui_autostart_toggle,
         hide_to_tray_toggle=hide_to_tray_toggle,
         defender_toggle=defender_toggle,
         max_block_toggle=max_block_toggle,
@@ -50,6 +59,7 @@ def apply_winws1_pages_language(
     stop_and_exit_btn,
     program_settings_card,
     auto_dpi_toggle,
+    gui_autostart_toggle,
     hide_to_tray_toggle,
     defender_toggle,
     max_block_toggle,
@@ -61,8 +71,6 @@ def apply_winws1_pages_language(
     discord_restart_toggle,
     wssize_toggle,
     debug_log_toggle,
-    blobs_action_card,
-    blobs_open_btn,
     refresh_preset_name,
     get_current_dpi_runtime_state,
     update_status,
@@ -78,6 +86,11 @@ def apply_winws1_pages_language(
         auto_dpi_toggle.set_texts(
             tr_catalog("page.winws1_control.setting.autostart.title", language=language, default="Автозапуск DPI после старта программы"),
             tr_catalog("page.winws1_control.setting.autostart.desc", language=language, default="После запуска ZapretGUI автоматически запускать текущий DPI-режим"),
+        )
+    if gui_autostart_toggle is not None:
+        gui_autostart_toggle.set_texts(
+            tr_catalog("page.control.setting.gui_autostart.title", language=language, default="Автозапуск ZapretGUI"),
+            tr_catalog("page.control.setting.gui_autostart.desc", language=language, default="Запускать программу в трее при входе в Windows"),
         )
     if hide_to_tray_toggle is not None:
         hide_to_tray_toggle.set_texts(
@@ -143,15 +156,6 @@ def apply_winws1_pages_language(
         tr_catalog("page.winws1_control.advanced.debug_log.title", language=language, default="Включить лог-файл (--debug)"),
         tr_catalog("page.winws1_control.advanced.debug_log.desc", language=language, default="Записывает логи winws в папку logs"),
     )
-    if blobs_action_card is not None:
-        blobs_action_card.setTitle(
-            tr_catalog("page.winws1_control.blobs.title", language=language, default="Блобы")
-        )
-        blobs_action_card.setContent(
-            tr_catalog("page.winws1_control.blobs.desc", language=language, default="Бинарные данные (.bin / hex) для стратегий")
-        )
-        if blobs_open_btn is not None:
-            blobs_open_btn.setText(tr_catalog("page.winws1_control.button.open", language=language, default="Открыть"))
 
     refresh_preset_name()
     phase, last_error = get_current_dpi_runtime_state()

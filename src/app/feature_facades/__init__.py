@@ -5,9 +5,7 @@ from importlib import import_module
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     "AppearanceFeature": ("app.feature_facades.appearance", "AppearanceFeature"),
-    "AutostartFeature": ("app.feature_facades.autostart", "AutostartFeature"),
     "BlockcheckFeature": ("app.feature_facades.blockcheck", "BlockcheckFeature"),
-    "BlobsFeature": ("app.feature_facades.blobs", "BlobsFeature"),
     "DiagnosticsFeature": ("app.feature_facades.diagnostics", "DiagnosticsFeature"),
     "DnsFeature": ("app.feature_facades.dns", "DnsFeature"),
     "DpiSettingsFeature": ("app.feature_facades.dpi_settings", "DpiSettingsFeature"),
@@ -26,8 +24,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "UpdaterFeature": ("app.feature_facades.updater", "UpdaterFeature"),
     "WindowGeometryFeature": ("app.feature_facades.window_geometry", "WindowGeometryFeature"),
     "build_appearance_feature": ("app.feature_facades.appearance", "build_appearance_feature"),
-    "build_autostart_feature": ("app.feature_facades.autostart", "build_autostart_feature"),
-    "build_blobs_feature": ("app.feature_facades.blobs", "build_blobs_feature"),
     "build_diagnostics_feature": ("app.feature_facades.diagnostics", "build_diagnostics_feature"),
     "build_dns_feature": ("app.feature_facades.dns", "build_dns_feature"),
     "build_dpi_settings_feature": ("app.feature_facades.dpi_settings", "build_dpi_settings_feature"),

@@ -1313,8 +1313,6 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
     def test_feature_builders_do_not_import_page_command_modules_before_ui(self) -> None:
         import builtins
-        from app.feature_facades.autostart import build_autostart_feature
-        from app.feature_facades.blobs import build_blobs_feature
         from app.feature_facades.diagnostics import build_diagnostics_feature
         from app.feature_facades.dns import build_dns_feature
         from app.feature_facades.dpi_settings import build_dpi_settings_feature
@@ -1329,8 +1327,6 @@ class StartupRuntimeSetupTests(unittest.TestCase):
         from app.feature_facades.updater import build_updater_feature
 
         blocked_roots = {
-            "autostart",
-            "blobs",
             "diagnostics",
             "dns",
             "app",
@@ -1353,7 +1349,6 @@ class StartupRuntimeSetupTests(unittest.TestCase):
                 imported.append((str(name), tuple(str(item) for item in (fromlist or ()))))
             return real_import(name, globals, locals, fromlist, level)
 
-        runtime_state = SimpleNamespace(set_autostart=Mock())
         premium_deps = SimpleNamespace(
             thread_parent=object(),
             set_status=Mock(),
@@ -1362,8 +1357,6 @@ class StartupRuntimeSetupTests(unittest.TestCase):
             mark_startup_ready=Mock(),
         )
         with patch.object(builtins, "__import__", side_effect=tracking_import):
-            build_autostart_feature(runtime_state=runtime_state)
-            build_blobs_feature()
             build_diagnostics_feature()
             build_dns_feature()
             build_dpi_settings_feature()

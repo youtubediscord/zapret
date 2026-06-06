@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from types import SimpleNamespace
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -10,7 +9,6 @@ from PyQt6.QtCore import QEvent
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 from qfluentwidgets import FluentIcon, LineEdit, PushButton, SettingCardGroup
 
-from blobs.ui.page import BlobsPage
 from ui.fluent_widgets import (
     QuickActionsBar,
     SettingsCard,
@@ -229,41 +227,6 @@ class QuickActionsBarLayoutTests(unittest.TestCase):
         self.assertNotIn(QEvent.Type.Resize, events)
         self.assertIn(QEvent.Type.ChildAdded, events)
         self.assertIn(QEvent.Type.ChildRemoved, events)
-
-    def test_blobs_actions_group_keeps_meta_card_visible(self) -> None:
-        feature = SimpleNamespace(
-            get_blobs_info=lambda: {},
-            get_bin_folder=lambda: "",
-            save_user_blob=lambda *args, **kwargs: None,
-            delete_user_blob=lambda *args, **kwargs: None,
-            reload_blobs=lambda: None,
-            open_bin_folder=lambda: None,
-            open_blobs_json=lambda: None,
-        )
-        from blobs.workers import BlobActionWorker, BlobsLoadWorker
-
-        feature.create_blobs_load_worker = lambda request_id, reload=False, parent=None: BlobsLoadWorker(
-            request_id,
-            reload=reload,
-            parent=parent,
-        )
-        feature.create_blob_action_worker = lambda request_id, **kwargs: BlobActionWorker(
-            request_id,
-            **kwargs,
-        )
-        page = BlobsPage(blobs_feature=feature, open_control=lambda: None)
-        page.resize(710, 500)
-        page.show()
-        self._app.processEvents()
-        self._app.processEvents()
-
-        group = page._actions_group
-        meta_card = page._actions_meta_card
-        needed_meta_bottom = meta_card.geometry().y() + meta_card.sizeHint().height()
-        self.assertGreaterEqual(group.minimumHeight(), needed_meta_bottom)
-        self.assertGreaterEqual(group.maximumHeight(), needed_meta_bottom)
-        self.assertLessEqual(group.minimumHeight(), needed_meta_bottom + 1)
-        self.assertLessEqual(group.maximumHeight(), needed_meta_bottom + 1)
 
 
 if __name__ == "__main__":

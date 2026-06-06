@@ -333,15 +333,6 @@ def set_blockcheck_settings(values: dict[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(updated["blockcheck"])
 
 
-def get_blobs_settings() -> dict[str, Any]:
-    return copy.deepcopy(read_settings()["blobs"])
-
-
-def set_blobs_settings(values: dict[str, Any]) -> dict[str, Any]:
-    updated = _update_settings(lambda data: data["blobs"].update(_as_dict(values)))
-    return copy.deepcopy(updated["blobs"])
-
-
 def get_folders_settings() -> dict[str, Any]:
     return copy.deepcopy(read_settings()["folders"])
 

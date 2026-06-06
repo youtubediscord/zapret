@@ -73,7 +73,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         open_folder,
         open_presets,
         open_preset_setup,
-        open_blobs,
         open_premium,
         create_external_open_url_worker,
         ui_state_store,
@@ -102,7 +101,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._open_folder_callback = open_folder
         self._open_presets_callback = open_presets
         self._open_preset_setup_callback = open_preset_setup
-        self._open_blobs_callback = open_blobs
         self._open_premium_callback = open_premium
         self._create_external_open_url_worker = create_external_open_url_worker
         self._ui_state_store = None
@@ -116,6 +114,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self._refresh_runtime = winws1_page_runtime.create_refresh_runtime()
         self.top_summary = None
         self.program_settings_card = None
+        self.gui_autostart_toggle = None
         self.auto_dpi_toggle = None
         self.hide_to_tray_toggle = None
         self.defender_toggle = None
@@ -123,8 +122,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.discord_restart_toggle = None
         self.wssize_toggle = None
         self.debug_log_toggle = None
-        self.blobs_action_card = None
-        self.blobs_open_btn = None
         self.additional_settings_card = None
         self.additional_settings_notice = None
         self.last_status_message_card = None
@@ -225,6 +222,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             push_setting_card_cls=PushSettingCard,
             setting_card_group_cls=SettingCardGroup,
             win11_toggle_row_cls=Win11ToggleRow,
+            on_gui_autostart_toggled=self._on_gui_autostart_toggled,
             on_auto_dpi_toggled=self._on_auto_dpi_toggled,
             on_hide_to_tray_toggled=self._on_hide_to_tray_toggled,
             on_defender_toggled=self._on_defender_toggled,
@@ -232,13 +230,13 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             on_discord_restart_changed=self._on_discord_restart_changed,
             on_wssize_toggled=self._on_wssize_toggled,
             on_debug_log_toggled=self._on_debug_log_toggled,
-            on_navigate_to_blobs=self._open_blobs_callback,
             on_open_connection_test=self._open_connection_test,
             on_open_folder=self._open_folder,
             on_open_docs=self._open_docs,
         )
         self.program_settings_section_label = section_widgets.program_settings_section_label
         self.program_settings_card = section_widgets.program_settings_card
+        self.gui_autostart_toggle = section_widgets.gui_autostart_toggle
         self.auto_dpi_toggle = section_widgets.auto_dpi_toggle
         self.hide_to_tray_toggle = section_widgets.hide_to_tray_toggle
         self.defender_toggle = section_widgets.defender_toggle
@@ -251,8 +249,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         self.discord_restart_toggle = section_widgets.discord_restart_toggle
         self.wssize_toggle = section_widgets.wssize_toggle
         self.debug_log_toggle = section_widgets.debug_log_toggle
-        self.blobs_action_card = section_widgets.blobs_action_card
-        self.blobs_open_btn = section_widgets.blobs_open_btn
         self.add_widget(self.additional_settings_card)
 
         self.add_spacing(16)
@@ -291,6 +287,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         apply_program_settings_snapshot(
             snapshot,
             auto_dpi_toggle=self.auto_dpi_toggle,
+            gui_autostart_toggle=self.gui_autostart_toggle,
             hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
@@ -298,6 +295,9 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _sync_program_settings(self) -> None:
         self._request_program_settings_load()
+
+    def _on_gui_autostart_toggled(self, enabled: bool) -> None:
+        self._request_program_settings_save("gui_autostart", bool(enabled))
 
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
         self._request_program_settings_save("auto_dpi", bool(enabled))
@@ -780,6 +780,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             stop_and_exit_btn=self.stop_and_exit_btn,
             program_settings_card=self.program_settings_card,
             auto_dpi_toggle=self.auto_dpi_toggle,
+            gui_autostart_toggle=self.gui_autostart_toggle,
             hide_to_tray_toggle=self.hide_to_tray_toggle,
             defender_toggle=self.defender_toggle,
             max_block_toggle=self.max_block_toggle,
@@ -791,8 +792,6 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             discord_restart_toggle=self.discord_restart_toggle,
             wssize_toggle=self.wssize_toggle,
             debug_log_toggle=self.debug_log_toggle,
-            blobs_action_card=self.blobs_action_card,
-            blobs_open_btn=self.blobs_open_btn,
             refresh_preset_name=self._refresh_preset_name,
             get_current_dpi_runtime_state=self._get_current_dpi_runtime_state,
             update_status=self.update_status,

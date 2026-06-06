@@ -57,7 +57,6 @@ PAGE_PERFORMANCE_PROFILE_OVERRIDES: dict[PageName, PagePerformanceProfile] = {
     ),
     **_profiles_for(
         (
-            PageName.BLOBS,
             PageName.NETWORK,
             PageName.PREMIUM,
         ),
@@ -65,7 +64,6 @@ PAGE_PERFORMANCE_PROFILE_OVERRIDES: dict[PageName, PagePerformanceProfile] = {
     ),
     **_profiles_for(
         (
-            PageName.AUTOSTART,
             PageName.HOSTS,
             PageName.BLOCKCHECK,
             PageName.LOGS,

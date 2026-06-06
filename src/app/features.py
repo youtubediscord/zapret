@@ -6,9 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.feature_facades import (
         AppearanceFeature,
-        AutostartFeature,
         BlockcheckFeature,
-        BlobsFeature,
         DiagnosticsFeature,
         DnsFeature,
         DpiSettingsFeature,
@@ -37,7 +35,6 @@ class AppFeatures:
     presets: PresetsFeature
     profile: ProfileFeature
     blockcheck: BlockcheckFeature
-    blobs: BlobsFeature
     diagnostics: DiagnosticsFeature
     dns: DnsFeature
     hosts: HostsFeature
@@ -50,5 +47,4 @@ class AppFeatures:
     external_actions: ExternalActionsFeature
     orchestra: OrchestraFeature
     program_settings: ProgramSettingsFeature
-    autostart: AutostartFeature
     window_geometry: WindowGeometryFeature

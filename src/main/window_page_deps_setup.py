@@ -7,8 +7,6 @@ def build_window_page_deps_sources(*, features, state, page_actions) -> PageDeps
     return PageDepsSources(
         feature_deps={
             "appearance": features.appearance,
-            "autostart": features.autostart,
-            "blobs": features.blobs,
             "blockcheck": features.blockcheck,
             "diagnostics": features.diagnostics,
             "dns": features.dns,

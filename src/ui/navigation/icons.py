@@ -15,7 +15,6 @@ _WINDOWS11_SIDEBAR_ICON_FILES: dict[PageName, str] = {
     PageName.ZAPRET2_PRESET_SETUP: "play.svg",
     PageName.ZAPRET1_PRESET_SETUP: "play.svg",
     PageName.DPI_SETTINGS: "settings.svg",
-    PageName.AUTOSTART: "play.svg",
     PageName.NETWORK: "search.svg",
     PageName.TELEGRAM_PROXY: "share.svg",
     PageName.HOSTS: "document.svg",
@@ -26,7 +25,6 @@ _WINDOWS11_SIDEBAR_ICON_FILES: dict[PageName, str] = {
     PageName.ABOUT: "info.svg",
     PageName.SERVERS: "cloud-download.svg",
     PageName.SUPPORT: "share.svg",
-    PageName.BLOBS: "key.svg",
     PageName.ORCHESTRA_SETTINGS: "settings.svg",
 }
 
@@ -57,7 +55,6 @@ def build_standard_nav_icons() -> dict[PageName, Any]:
 
     return {
         PageName.ZAPRET2_MODE_CONTROL: FluentIcon.GAME,
-        PageName.AUTOSTART: FluentIcon.POWER_BUTTON,
         PageName.NETWORK: FluentIcon.WIFI,
         PageName.HOSTS: FluentIcon.GLOBE,
         PageName.BLOCKCHECK: FluentIcon.CODE,
@@ -66,7 +63,6 @@ def build_standard_nav_icons() -> dict[PageName, Any]:
         PageName.LOGS: FluentIcon.HISTORY,
         PageName.ABOUT: FluentIcon.INFO,
         PageName.DPI_SETTINGS: FluentIcon.SETTING,
-        PageName.BLOBS: FluentIcon.CLOUD,
         PageName.ZAPRET2_USER_PRESETS: FluentIcon.FOLDER,
         PageName.SERVERS: FluentIcon.UPDATE,
         PageName.SUPPORT: FluentIcon.CHAT,

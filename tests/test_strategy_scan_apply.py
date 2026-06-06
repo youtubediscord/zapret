@@ -55,6 +55,7 @@ class StrategyScanApplyTests(unittest.TestCase):
         self.assertEqual(result.operation, "created")
         self.assertIn("--hostlist-domains=www.youtube.com", feature.saved_text)
         self.assertIn("--lua-desync=fake:blob=tls_google", feature.saved_text)
+        self.assertNotIn("--blob=tls_google:", feature.saved_text)
         preset = parse_preset_text(feature.saved_text, engine=ENGINE_WINWS2, source_name="Selected.txt")
         self.assertEqual(len(preset.profiles), 2)
         self.assertIn("www.youtube.com", preset.profiles[0].match_signature)

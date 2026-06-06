@@ -31,14 +31,6 @@ def build_dpi_settings_page_kwargs(
     }
 
 
-def build_blobs_page_kwargs(*, page_name: PageName, blobs_feature, show_active_mode_control_page) -> dict:
-    _ = page_name
-    return {
-        "blobs_feature": blobs_feature,
-        "open_control": lambda: show_active_mode_control_page(allow_internal=False),
-    }
-
-
 def build_network_page_kwargs(*, page_name: PageName, dns_feature) -> dict:
     _ = page_name
     return {
@@ -241,7 +233,6 @@ __all__ = [
     "build_appearance_page_kwargs",
     "build_autostart_page_kwargs",
     "build_blockcheck_page_kwargs",
-    "build_blobs_page_kwargs",
     "build_dpi_settings_page_kwargs",
     "build_hosts_page_kwargs",
     "build_logs_page_kwargs",

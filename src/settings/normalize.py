@@ -498,27 +498,6 @@ def normalize_blockcheck(data: object) -> dict[str, Any]:
     }
 
 
-def normalize_blobs(data: object) -> dict[str, Any]:
-    raw = as_dict(data)
-    user_blobs: dict[str, Any] = {}
-    for raw_name, raw_blob in as_dict(raw.get("user_blobs")).items():
-        name = as_clean_str(raw_name)
-        blob = as_dict(raw_blob)
-        if not name:
-            continue
-        normalized = {"description": as_str(blob.get("description"), "")}
-        hex_value = as_clean_str(blob.get("hex"))
-        path_value = as_clean_str(blob.get("path"))
-        if hex_value:
-            normalized["hex"] = hex_value
-        elif path_value:
-            normalized["path"] = path_value
-        else:
-            continue
-        user_blobs[name] = normalized
-    return {"user_blobs": user_blobs}
-
-
 def normalize_folders(data: object) -> dict[str, Any]:
     from folders.defaults import build_default_preset_folders, build_default_profile_folders
     from folders.store import normalize_folder_state
@@ -578,6 +557,5 @@ def normalize_settings(data: object) -> dict[str, Any]:
         "orchestra": normalize_orchestra(raw.get("orchestra")),
         "updater": normalize_updater(raw.get("updater")),
         "blockcheck": normalize_blockcheck(raw.get("blockcheck")),
-        "blobs": normalize_blobs(raw.get("blobs")),
         "folders": normalize_folders(raw.get("folders")),
     }
