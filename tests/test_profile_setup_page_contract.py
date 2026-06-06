@@ -19,6 +19,7 @@ from profile.profile_setup_loader import (
     ProfileEnabledSaveWorker,
     ProfileListFileValidationWorker,
     ProfileListFileSaveWorker,
+    ProfileSetupLoadResult,
     ProfilePresetProfileMoveWorker,
     ProfilePresetProfileActionWorker,
     ProfileRawTextSaveWorker,
@@ -5476,6 +5477,64 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         callbacks[0]()
 
         page._apply_payload.assert_called_once_with(payload)
+
+    def test_loaded_profile_setup_result_uses_worker_apply_signature(self) -> None:
+        payload = SimpleNamespace(
+            item=SimpleNamespace(enabled=True),
+            match_summary="TCP 443",
+        )
+        result = SimpleNamespace(payload=payload, apply_signature=("profile", "same"))
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._setup_load_request_id = 7
+        page._setup_load_dirty = False
+        page._last_profile_setup_payload_apply_signature = ("profile", "same")
+        page._payload = payload
+        page._summary = _TextWidget("Загрузка profile...")
+        page._enabled_checkbox = _EnabledWidget(False)
+        page._enabled_checkbox.isChecked = Mock(return_value=True)
+        page._enabled_checkbox.setChecked = Mock()
+        page._schedule_profile_setup_payload_apply = Mock(
+            side_effect=AssertionError("same worker signature must not repaint profile page")
+        )
+
+        ProfileSetupPageBase._on_profile_setup_payload_loaded(page, 7, result)
+
+        page._schedule_profile_setup_payload_apply.assert_not_called()
+        self.assertEqual(page._summary.text(), "TCP 443")
+        self.assertEqual(page._enabled_checkbox.enabled_calls, [True])
+        page._enabled_checkbox.setChecked.assert_not_called()
+
+    def test_profile_setup_load_result_precomputes_apply_signature(self) -> None:
+        item = ProfileListItem(
+            key="profile-1",
+            persistent_key="profile-1",
+            profile_index=1,
+            display_name="Profile",
+            enabled=True,
+            in_preset=True,
+            strategy_id="strategy",
+            strategy_name="Strategy",
+            match_lines=("--filter-tcp=443",),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="common",
+            group_name="",
+            order=1,
+        )
+        payload = ProfileSetupPayload(
+            item=item,
+            strategy_entries={},
+            strategy_states={},
+            raw_profile_text="",
+            raw_strategy_text="--dpi-desync=fake",
+            match_summary="TCP 443",
+        )
+
+        result = ProfileSetupLoadResult(payload=payload)
+
+        self.assertIs(result.payload, payload)
+        self.assertTrue(result.apply_signature)
 
     def test_loaded_profile_setup_payload_is_ignored_while_new_load_is_pending(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)

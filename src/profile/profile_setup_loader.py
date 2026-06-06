@@ -3,10 +3,21 @@ from __future__ import annotations
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from log.log import log
+from profile.setup_apply_signature import profile_setup_payload_apply_signature
 
 
 def _list_file_entries_count(text: str) -> int:
     return sum(1 for line in str(text or "").splitlines() if line.strip())
+
+
+class ProfileSetupLoadResult:
+    def __init__(self, *, payload, apply_signature=None) -> None:
+        self.payload = payload
+        self.apply_signature = (
+            tuple(apply_signature)
+            if apply_signature is not None
+            else profile_setup_payload_apply_signature(payload)
+        )
 
 
 class ProfileSetupLoadWorker(QThread):
@@ -26,7 +37,7 @@ class ProfileSetupLoadWorker(QThread):
             log(f"ProfileSetupLoadWorker: не удалось загрузить profile setup: {exc}", "ERROR")
             self.failed.emit(self._request_id, str(exc))
             return
-        self.loaded.emit(self._request_id, payload)
+        self.loaded.emit(self._request_id, ProfileSetupLoadResult(payload=payload))
 
 
 class ProfileListFileLoadWorker(QThread):

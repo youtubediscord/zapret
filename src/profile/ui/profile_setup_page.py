@@ -913,6 +913,15 @@ def _profile_has_list_file_editor(payload) -> bool:
     )
 
 
+def _profile_setup_payload_from_worker_result(result):
+    return getattr(result, "payload", result)
+
+
+def _profile_setup_apply_signature_from_worker_result(result):
+    apply_signature = getattr(result, "apply_signature", None)
+    return tuple(apply_signature) if apply_signature is not None else None
+
+
 def _list_file_entries_count(text: str) -> int:
     return len([
         line
@@ -2259,6 +2268,8 @@ class ProfileSetupPageBase(BasePage):
             return
         if self.__dict__.get("_setup_load_dirty"):
             return
+        apply_signature = _profile_setup_apply_signature_from_worker_result(payload)
+        payload = _profile_setup_payload_from_worker_result(payload)
         if payload is None:
             set_widget_text_if_changed(
                 self._summary,
@@ -2266,14 +2277,23 @@ class ProfileSetupPageBase(BasePage):
             )
             set_widget_enabled_if_changed(self._enabled_checkbox, False)
             return
+        if (
+            apply_signature is not None
+            and self.__dict__.get("_last_profile_setup_payload_apply_signature") == apply_signature
+        ):
+            self._restore_loaded_payload_header(payload)
+            return
         if payload == self.__dict__.get("_payload"):
             self._restore_loaded_payload_header(payload)
             return
         self._payload = payload
-        self._schedule_profile_setup_payload_apply(payload)
+        self._schedule_profile_setup_payload_apply(payload, apply_signature=apply_signature)
 
-    def _schedule_profile_setup_payload_apply(self, payload) -> None:
-        self._pending_profile_setup_payload_apply = payload
+    def _schedule_profile_setup_payload_apply(self, payload, *, apply_signature=None) -> None:
+        self._pending_profile_setup_payload_apply = (
+            payload,
+            tuple(apply_signature) if apply_signature is not None else None,
+        )
         if self.__dict__.get("_profile_setup_payload_apply_scheduled", False):
             return
         self._profile_setup_payload_apply_scheduled = True
@@ -2283,9 +2303,14 @@ class ProfileSetupPageBase(BasePage):
             self._run_scheduled_profile_setup_payload_apply()
 
     def _run_scheduled_profile_setup_payload_apply(self) -> None:
-        payload = self.__dict__.get("_pending_profile_setup_payload_apply")
+        pending = self.__dict__.get("_pending_profile_setup_payload_apply")
         self._pending_profile_setup_payload_apply = None
         self._profile_setup_payload_apply_scheduled = False
+        if isinstance(pending, tuple) and len(pending) == 2:
+            payload, apply_signature = pending
+        else:
+            payload = pending
+            apply_signature = None
         if payload is None or self.__dict__.get("_cleanup_in_progress"):
             return
         if (
@@ -2293,7 +2318,15 @@ class ProfileSetupPageBase(BasePage):
             or self.__dict__.get("_setup_load_start_scheduled", False)
         ):
             return
+        if (
+            apply_signature is not None
+            and self.__dict__.get("_last_profile_setup_payload_apply_signature") == apply_signature
+        ):
+            self._restore_loaded_payload_header(payload)
+            return
         self._apply_payload(payload)
+        if apply_signature is not None:
+            self._last_profile_setup_payload_apply_signature = apply_signature
 
     def _on_profile_setup_payload_failed(self, request_id: int, error: str) -> None:
         if request_id != self._setup_load_request_id:
