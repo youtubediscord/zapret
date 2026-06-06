@@ -1385,14 +1385,19 @@ class PresetSetupPageBase(BasePage):
     ) -> None:
         if request_id != int(getattr(self, "_profile_move_request_id", 0) or 0):
             return
+        applied_locally = False
+        if result:
+            applied_locally = self._apply_profile_move_locally(
+                action,
+                source_profile_key,
+                destination_profile_key=destination_profile_key,
+                destination_group_key=destination_group_key,
+            )
         if self._has_pending_profile_preset_write_operation():
+            if applied_locally:
+                self._profile_payload_dirty = True
             return
-        if result and self._apply_profile_move_locally(
-            action,
-            source_profile_key,
-            destination_profile_key=destination_profile_key,
-            destination_group_key=destination_group_key,
-        ):
+        if applied_locally:
             self._profile_payload_dirty = True
             return
         self.refresh_from_preset_switch()

@@ -1994,7 +1994,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         )
         self.assertEqual(moved, [(9, "before", "profile-1", "profile-2", "youtube", "profile-1")])
 
-    def test_profile_move_result_ignored_when_new_action_is_pending(self) -> None:
+    def test_profile_move_result_applies_locally_when_new_action_is_pending(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_move_request_id = 4
         page._profile_payload_dirty = False
@@ -2032,9 +2032,14 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             True,
         )
 
-        page._apply_profile_move_locally.assert_not_called()
+        page._apply_profile_move_locally.assert_called_once_with(
+            "before",
+            "profile-1",
+            destination_profile_key="profile-2",
+            destination_group_key="youtube",
+        )
         page.refresh_from_preset_switch.assert_not_called()
-        self.assertFalse(page._profile_payload_dirty)
+        self.assertTrue(page._profile_payload_dirty)
 
     def test_profile_context_actions_refresh_current_list_through_worker(self) -> None:
         enable_handler = inspect.getsource(PresetSetupPageBase._set_profile_enabled_from_menu)
