@@ -5,6 +5,7 @@ from PyQt6.QtGui import QCursor, QFont, QFontMetrics, QPainter
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
 from qfluentwidgets import HorizontalSeparator, StrongBodyLabel
 
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.presets_menu.common import cached_icon, to_qcolor
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
@@ -97,6 +98,7 @@ class FolderGroupHeader(QFrame):
 
     def _build_ui(self) -> None:
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFixedHeight(FOLDER_HEADER_HEIGHT)
         self.setProperty("clickable", True)
         self.setProperty("noDrag", True)
@@ -119,6 +121,7 @@ class FolderGroupHeader(QFrame):
         self._line = HorizontalSeparator()
         layout.addWidget(self._line, 1)
         self._theme_refresh = ThemeRefreshBinding(self, self._update_chevron)
+        self._update_accessibility()
 
     def _update_chevron(self) -> None:
         self._chevron.setPixmap(
@@ -144,6 +147,13 @@ class FolderGroupHeader(QFrame):
                 event.accept()
         return super().mouseReleaseEvent(event)
 
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.toggle()
+            event.accept()
+            return
+        return super().keyPressEvent(event)
+
     def leaveEvent(self, event):  # noqa: N802
         self._pressed = False
         return super().leaveEvent(event)
@@ -155,12 +165,25 @@ class FolderGroupHeader(QFrame):
     def toggle(self) -> None:
         self._expanded = not self._expanded
         self._update_chevron()
+        self._update_accessibility()
         self.toggled.emit(self._group_key, self._expanded)
 
     def set_expanded(self, expanded: bool) -> None:
         if self._expanded != bool(expanded):
             self._expanded = bool(expanded)
             self._update_chevron()
+            self._update_accessibility()
+
+    def _update_accessibility(self) -> None:
+        state = "развернута" if self._expanded else "свернута"
+        count_text = f", элементов: {self._count}" if self._count > 0 else ""
+        text = f"Папка {self._title}, {state}{count_text}"
+        set_control_accessibility(
+            self,
+            name=text,
+            description="Нажмите Enter или пробел, чтобы свернуть или развернуть папку.",
+        )
+        set_state_text(self, text)
 
 
 class FolderGroup(QWidget):
