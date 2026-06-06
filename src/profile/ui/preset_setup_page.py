@@ -6,6 +6,7 @@ from PyQt6.QtCore import QTimer
 
 from log.log import log
 from profile.match_filters import filter_values
+from profile.list_apply_signature import profile_payload_apply_signature
 from profile.ui.profile_context_menu import ProfileContextMenuActions, show_profile_context_menu
 from profile.ui.profile_folder_menu import show_profile_folder_menu
 from profile.ui.profiles_list import ProfilesList
@@ -34,18 +35,6 @@ def preset_setup_title_for_payload(payload, default_title: str = "Настрой
     if not preset_name:
         return default_title
     return f"{default_title}: {preset_name}"
-
-
-def profile_payload_apply_signature(payload, *, view_state=None, search_query: str = "") -> tuple[object, ...]:
-    return (
-        tuple(getattr(payload, "items", ()) or ()),
-        str(getattr(payload, "selected_preset_file_name", "") or ""),
-        str(getattr(payload, "selected_preset_name", "") or ""),
-        int(getattr(payload, "normalized_split_profiles", 0) or 0),
-        int(getattr(payload, "normalized_created_profiles", 0) or 0),
-        view_state,
-        str(search_query or ""),
-    )
 
 
 def set_widget_text_if_changed(widget, text: str) -> bool:
@@ -327,13 +316,14 @@ class PresetSetupPageBase(BasePage):
         if self.__dict__.get("_profile_load_refresh_pending", False):
             return
         view_state = getattr(payload, "view_state", None)
+        apply_signature_base = getattr(payload, "apply_signature_base", None)
         payload = getattr(payload, "payload", payload)
         self._profile_payload_loaded_once = True
         self._profile_payload_dirty = False
-        self._schedule_profile_payload_apply(payload, view_state=view_state)
+        self._schedule_profile_payload_apply(payload, view_state=view_state, apply_signature_base=apply_signature_base)
 
-    def _schedule_profile_payload_apply(self, payload, *, view_state=None) -> None:
-        self._pending_profile_payload_apply = (payload, view_state)
+    def _schedule_profile_payload_apply(self, payload, *, view_state=None, apply_signature_base=None) -> None:
+        self._pending_profile_payload_apply = (payload, view_state, apply_signature_base)
         if self.__dict__.get("_profile_payload_apply_scheduled", False):
             return
         self._profile_payload_apply_scheduled = True
@@ -353,8 +343,8 @@ class PresetSetupPageBase(BasePage):
             or self.__dict__.get("_profile_payload_request_scheduled", False)
         ):
             return
-        payload, view_state = pending
-        self._apply_payload(payload, view_state=view_state)
+        payload, view_state, apply_signature_base = pending
+        self._apply_payload(payload, view_state=view_state, apply_signature_base=apply_signature_base)
 
     def _on_profile_payload_failed(self, request_id: int, error: str) -> None:
         if request_id != self._profile_load_request_id or self._cleanup_in_progress:
@@ -379,7 +369,7 @@ class PresetSetupPageBase(BasePage):
         if self._profile_payload_dirty and not self._cleanup_in_progress:
             self._schedule_profiles_payload_request(force=True)
 
-    def _apply_payload(self, payload, *, view_state=None) -> None:
+    def _apply_payload(self, payload, *, view_state=None, apply_signature_base=None) -> None:
         if self._content_host_layout is None:
             return
         total_started_at = time.perf_counter()
@@ -387,6 +377,7 @@ class PresetSetupPageBase(BasePage):
             payload,
             view_state=view_state,
             search_query=self.__dict__.get("_profile_search_query", ""),
+            apply_signature_base=apply_signature_base,
         )
         if (
             self.__dict__.get("_profiles_list") is not None

@@ -2722,7 +2722,27 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         callbacks[0]()
 
-        page._apply_payload.assert_called_once_with(payload, view_state=None)
+        page._apply_payload.assert_called_once_with(payload, view_state=None, apply_signature_base=None)
+
+    def test_loaded_profile_payload_passes_worker_signature_to_apply(self) -> None:
+        from profile.profile_list_loader import ProfileListLoadResult
+
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_load_request_id = 7
+        page._cleanup_in_progress = False
+        page._profile_payload_loaded_once = False
+        page._profile_payload_dirty = True
+        page._schedule_profile_payload_apply = Mock()
+        payload = SimpleNamespace(items=(), selected_preset_file_name="Default.txt")
+        result = ProfileListLoadResult(payload=payload, view_state="state")
+
+        PresetSetupPageBase._on_profile_payload_loaded(page, 7, result)
+
+        page._schedule_profile_payload_apply.assert_called_once_with(
+            payload,
+            view_state="state",
+            apply_signature_base=result.apply_signature_base,
+        )
 
     def test_loaded_profile_payload_apply_coalesces_latest_payload(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
@@ -2747,7 +2767,25 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         callbacks[0]()
 
-        page._apply_payload.assert_called_once_with(second_payload, view_state=None)
+        page._apply_payload.assert_called_once_with(second_payload, view_state=None, apply_signature_base=None)
+
+    def test_profile_list_load_result_precomputes_apply_signature_base(self) -> None:
+        from profile.profile_list_loader import ProfileListLoadResult
+
+        payload = SimpleNamespace(
+            items=("profile-1", "profile-2"),
+            selected_preset_file_name="Default.txt",
+            selected_preset_name="Default",
+            normalized_split_profiles=1,
+            normalized_created_profiles=2,
+        )
+
+        result = ProfileListLoadResult(payload=payload, view_state="state")
+
+        self.assertEqual(
+            result.apply_signature_base,
+            (("profile-1", "profile-2"), "Default.txt", "Default", 1, 2, "state"),
+        )
 
     def test_pending_profile_payload_apply_is_ignored_after_refresh_is_requested(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)

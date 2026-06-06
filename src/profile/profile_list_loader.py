@@ -5,15 +5,21 @@ import time
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from log.log import log
+from profile.list_apply_signature import profile_payload_apply_signature_base
 
 
 PROFILE_TIMING_LOG_LEVEL = "⏱ PROFILE"
 
 
 class ProfileListLoadResult:
-    def __init__(self, *, payload, view_state=None) -> None:
+    def __init__(self, *, payload, view_state=None, apply_signature_base=None) -> None:
         self.payload = payload
         self.view_state = view_state
+        self.apply_signature_base = (
+            tuple(apply_signature_base)
+            if apply_signature_base is not None
+            else profile_payload_apply_signature_base(payload, view_state=view_state)
+        )
 
 
 class ProfileListLoadWorker(QThread):
