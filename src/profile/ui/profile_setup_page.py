@@ -48,6 +48,7 @@ from qfluentwidgets import (
 )
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, is_preset_launch_method, is_zapret2_launch_method
 from ui.pages.base_page import BasePage
+from ui.accessibility import set_control_accessibility
 from ui.fluent_widgets import set_tooltip
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from app.ui_texts import tr as tr_catalog
@@ -361,6 +362,7 @@ class ProfileStrategyListWidget(QWidget):
 
         self._search = SearchLineEdit(self)
         self._search.setPlaceholderText("Поиск по готовым стратегиям")
+        set_control_accessibility(self._search, name="Поиск готовых стратегий")
         set_tooltip(
             self._search,
             "Поиск по названию, параметрам --lua-desync и описанию готовой стратегии.",
@@ -381,7 +383,12 @@ class ProfileStrategyListWidget(QWidget):
         self._list.setUniformItemSizes(True)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._list.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._list.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        set_control_accessibility(
+            self._list,
+            name="Список готовых стратегий",
+            description="Выберите готовую стратегию стрелками вверх и вниз, затем нажмите Enter.",
+        )
         self._list.setMouseTracking(True)
         self._list.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
         self._list.setMinimumHeight(520)
