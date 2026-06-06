@@ -91,6 +91,18 @@ class ProfileListModel(QAbstractListModel):
             and self._rows == next_rows
         ):
             return
+        if [_stable_row_identity(row) for row in self._rows] == [
+            _stable_row_identity(row) for row in next_rows
+        ]:
+            changed_rows = tuple(index for index, row in enumerate(next_rows) if self._rows[index] != row)
+            self._all_items = next_all_items
+            self._profile_items = next_profile_items
+            self._group_expanded = next_group_expanded
+            self._active_profile_types = next_active_profile_types
+            self._search_query = next_search_query
+            self._rows = next_rows
+            self._emit_data_changed_for_rows(changed_rows)
+            return
         self.beginResetModel()
         self._all_items = next_all_items
         self._profile_items = next_profile_items

@@ -879,6 +879,50 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(model.rowCount(), 2)
         self.assertEqual(model.index(1, 0).data(ProfileListModel.ProfileKeyRole), "profile:1")
 
+    def test_profile_model_apply_view_state_updates_stable_rows_without_full_reset(self) -> None:
+        from profile.list_view_state import build_profile_list_view_state
+        from profile.ui.profile_list_model import ProfileListModel
+
+        youtube = SimpleNamespace(
+            key="profile:1",
+            persistent_key="p1",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="none",
+            strategy_name="Стратегия не выбрана",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=2,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        updated = SimpleNamespace(
+            **{
+                **vars(youtube),
+                "display_name": "YouTube updated",
+                "profile_name": "YouTube updated",
+                "strategy_id": "fake",
+                "strategy_name": "Fake",
+            }
+        )
+
+        model = ProfileListModel()
+        model.apply_view_state(build_profile_list_view_state((youtube,)))
+        model.beginResetModel = Mock(side_effect=AssertionError("stable view state rows must not reset the whole model"))
+
+        model.apply_view_state(build_profile_list_view_state((updated,)))
+
+        self.assertEqual(model.rowCount(), 2)
+        self.assertEqual(model.index(1, 0).data(ProfileListModel.ProfileKeyRole), "profile:1")
+        self.assertEqual(model.index(1, 0).data(ProfileListModel.DisplayNameRole), "YouTube updated")
+        self.assertEqual(model.index(1, 0).data(ProfileListModel.StrategyNameRole), "Fake")
+
     def test_profile_model_toggles_one_folder_without_resetting_whole_model(self) -> None:
         from profile.ui.profile_list_model import ProfileListModel
 
