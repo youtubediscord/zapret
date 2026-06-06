@@ -58,6 +58,61 @@ def set_auto_dpi_enabled(enabled: bool) -> AutoDpiUpdateResult:
     )
 
 
+def set_gui_autostart_enabled(
+    enabled: bool,
+    *,
+    status_callback: Callable[[str], None] | None = None,
+) -> ProgramSettingActionResult:
+    try:
+        from autostart import public as autostart_public
+
+        if enabled:
+            result = autostart_public.enable_gui_autostart(status_cb=status_callback)
+            if getattr(result, "success", False):
+                autostart_public.save_gui_autostart_enabled(True)
+                return ProgramSettingActionResult(
+                    level="success",
+                    title="Автозапуск включён",
+                    content="ZapretGUI будет запускаться в трее при входе в Windows.",
+                    revert_checked=None,
+                    final_status="Готово",
+                )
+            message = str(getattr(result, "message", "") or "Не удалось включить автозапуск.")
+            return ProgramSettingActionResult(
+                level="warning" if getattr(result, "restart_requested", False) else "error",
+                title="Автозапуск не включён",
+                content=message,
+                revert_checked=False,
+                final_status="",
+            )
+
+        result = autostart_public.disable_gui_autostart()
+        if getattr(result, "success", False):
+            autostart_public.save_gui_autostart_enabled(False)
+            return ProgramSettingActionResult(
+                level="success",
+                title="Автозапуск отключён",
+                content="ZapretGUI больше не будет запускаться вместе с Windows.",
+                revert_checked=None,
+                final_status="Готово",
+            )
+        return ProgramSettingActionResult(
+            level="error",
+            title="Автозапуск не отключён",
+            content=str(getattr(result, "message", "") or "Не удалось отключить автозапуск."),
+            revert_checked=True,
+            final_status="",
+        )
+    except Exception as e:
+        return ProgramSettingActionResult(
+            level="error",
+            title="Ошибка автозапуска",
+            content=f"Не удалось изменить автозапуск: {e}",
+            revert_checked=None,
+            final_status="",
+        )
+
+
 def set_hide_to_tray_on_minimize_close(enabled: bool) -> bool:
     from settings.store import set_hide_to_tray_on_minimize_close
 

@@ -5,7 +5,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 
 PROJECT_SRC = Path(__file__).resolve().parents[1] / "src"
@@ -119,78 +119,6 @@ class GuiAutostartContractTests(unittest.TestCase):
         self.assertFalse(result.restart_requested)
         self.assertIn("Не удалось включить автозапуск", result.message)
 
-    def test_autostart_page_deps_pass_notify_callback(self) -> None:
-        from app.page_names import PageName
-        from ui.page_deps.system import build_autostart_page_kwargs
-
-        notify = Mock()
-        kwargs = build_autostart_page_kwargs(
-            page_name=PageName.AUTOSTART,
-            autostart_feature=object(),
-            show_page=Mock(),
-            notify=notify,
-            ui_state_store=object(),
-        )
-
-        self.assertIs(kwargs["notify"], notify)
-
-    def test_autostart_page_deps_composition_includes_notify_callback(self) -> None:
-        from app.page_names import PageName
-        from main.window_page_deps_setup import build_window_page_deps_sources
-        from ui.page_composition import build_page_deps
-
-        notify = Mock()
-        sources = build_window_page_deps_sources(
-            features=SimpleNamespace(
-                autostart=object(),
-                blobs=object(),
-                blockcheck=object(),
-                diagnostics=object(),
-                dns=object(),
-                dpi_settings=object(),
-                external_actions=object(),
-                hosts=object(),
-                lists=object(),
-                logs=object(),
-                orchestra=object(),
-                premium=object(),
-                presets=object(),
-                profile=object(),
-                program_settings=object(),
-                runtime=object(),
-                telegram_proxy=object(),
-                updater=object(),
-            ),
-            state=SimpleNamespace(ui=object()),
-            page_actions=SimpleNamespace(
-                after_launch_method_changed=Mock(),
-                notify=notify,
-                on_animations_changed=Mock(),
-                on_background_preset_changed=Mock(),
-                on_background_refresh_needed=Mock(),
-                on_editor_smooth_scroll_changed=Mock(),
-                on_mica_changed=Mock(),
-                on_opacity_changed=Mock(),
-                on_profile_setup_changed=Mock(),
-                on_smooth_scroll_changed=Mock(),
-                on_ui_language_changed=Mock(),
-                open_connection_test=Mock(),
-                open_folder=Mock(),
-                open_preset_raw_editor=Mock(),
-                open_profile_setup=Mock(),
-                request_exit=Mock(),
-                set_garland_enabled=Mock(),
-                set_snowflakes_enabled=Mock(),
-                set_status=Mock(),
-                show_active_mode_control_page=Mock(),
-                show_page=Mock(),
-            ),
-        )
-
-        kwargs = build_page_deps(sources, PageName.AUTOSTART)
-
-        self.assertIs(kwargs["notify"], notify)
-
     def test_autostart_error_notification_payload_is_user_readable(self) -> None:
         from autostart.ui.notifications import build_autostart_error_notification
 
@@ -201,6 +129,72 @@ class GuiAutostartContractTests(unittest.TestCase):
         self.assertIn("COM raw details", payload["content"])
         self.assertEqual(payload["source"], "autostart.gui")
         self.assertEqual(payload["queue"], "immediate")
+
+    def test_gui_autostart_lives_in_program_settings_snapshot(self) -> None:
+        from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
+
+        with (
+            patch("settings.store.get_dpi_autostart", return_value=True),
+            patch("settings.store.get_gui_autostart_enabled", return_value=True),
+            patch("settings.store.get_hide_to_tray_on_minimize_close", return_value=False),
+            patch("windows_features.defender_manager.WindowsDefenderManager") as defender_cls,
+            patch("windows_features.max_blocker.is_max_blocked", return_value=False),
+        ):
+            defender_cls.return_value.is_defender_disabled.return_value = False
+            snapshot = ProgramSettingsRuntimeService().read_snapshot()
+
+        self.assertTrue(snapshot.gui_autostart_enabled)
+        self.assertEqual(snapshot.revision[1], True)
+
+    def test_gui_autostart_toggle_uses_program_settings_action(self) -> None:
+        from autostart.public import GuiAutostartResult
+        from program_settings.commands import set_gui_autostart_enabled
+
+        with (
+            patch("autostart.public.enable_gui_autostart", return_value=GuiAutostartResult(success=True)) as enable,
+            patch("autostart.public.save_gui_autostart_enabled", return_value=True) as save,
+        ):
+            result = set_gui_autostart_enabled(True)
+
+        enable.assert_called_once()
+        save.assert_called_once_with(True)
+        self.assertEqual(result.level, "success")
+        self.assertIsNone(result.revert_checked)
+
+    def test_gui_autostart_toggle_is_top_program_settings_row_for_both_modes(self) -> None:
+        import inspect
+
+        import presets.ui.control.zapret1.sections_build as winws1_sections
+        import presets.ui.control.zapret2.sections_build as winws2_sections
+
+        for source in (
+            inspect.getsource(winws1_sections.build_winws1_pages_settings_sections),
+            inspect.getsource(winws2_sections.build_winws2_pages_settings_sections),
+        ):
+            self.assertIn("gui_autostart_toggle", source)
+            self.assertLess(
+                source.index("program_settings_card.addSettingCard(gui_autostart_toggle)"),
+                source.index("program_settings_card.addSettingCard(auto_dpi_toggle)"),
+            )
+
+    def test_autostart_is_no_longer_registered_as_standalone_page(self) -> None:
+        import ui.pages as pages
+        from app.page_names import PageName
+        from app.search_index import SEARCH_ENTRIES
+        from ui.navigation.schema import PAGE_ROUTE_SPECS
+        from ui.page_composition import PAGE_DEPS_BUILDERS
+
+        self.assertFalse(hasattr(PageName, "AUTOSTART"))
+        self.assertNotIn("AutostartPage", pages.__all__)
+        self.assertFalse(
+            any(entry.entry_id.startswith("autostart.") for entry in SEARCH_ENTRIES)
+        )
+        self.assertFalse(
+            any(
+                str(getattr(page_name, "name", "")) == "AUTOSTART"
+                for page_name in (*PAGE_ROUTE_SPECS.keys(), *PAGE_DEPS_BUILDERS.keys())
+            )
+        )
 
 
 if __name__ == "__main__":

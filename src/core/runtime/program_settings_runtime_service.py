@@ -7,8 +7,9 @@ import weakref
 
 @dataclass(frozen=True, slots=True)
 class ProgramSettingsSnapshot:
-    revision: tuple[bool, bool, bool, bool]
+    revision: tuple[bool, bool, bool, bool, bool]
     auto_dpi_enabled: bool
+    gui_autostart_enabled: bool
     hide_to_tray_on_minimize_close: bool
     defender_disabled: bool
     max_blocked: bool
@@ -51,8 +52,16 @@ class ProgramSettingsRuntimeService:
         try:
             from settings.store import get_dpi_autostart
 
-
             return bool(get_dpi_autostart())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _read_gui_autostart_enabled() -> bool:
+        try:
+            from settings.store import get_gui_autostart_enabled
+
+            return bool(get_gui_autostart_enabled())
         except Exception:
             return False
 
@@ -85,11 +94,13 @@ class ProgramSettingsRuntimeService:
 
     def _read_snapshot(self) -> ProgramSettingsSnapshot:
         auto_dpi_enabled = self._read_auto_dpi_enabled()
+        gui_autostart_enabled = self._read_gui_autostart_enabled()
         hide_to_tray_on_minimize_close = self._read_hide_to_tray_on_minimize_close()
         defender_disabled = self._read_defender_disabled()
         max_blocked = self._read_max_blocked()
         revision = (
             bool(auto_dpi_enabled),
+            bool(gui_autostart_enabled),
             bool(hide_to_tray_on_minimize_close),
             bool(defender_disabled),
             bool(max_blocked),
@@ -97,6 +108,7 @@ class ProgramSettingsRuntimeService:
         return ProgramSettingsSnapshot(
             revision=revision,
             auto_dpi_enabled=auto_dpi_enabled,
+            gui_autostart_enabled=gui_autostart_enabled,
             hide_to_tray_on_minimize_close=hide_to_tray_on_minimize_close,
             defender_disabled=defender_disabled,
             max_blocked=max_blocked,
@@ -142,11 +154,13 @@ class ProgramSettingsRuntimeService:
         updated = ProgramSettingsSnapshot(
             revision=(
                 bool(snapshot.auto_dpi_enabled),
+                bool(snapshot.gui_autostart_enabled),
                 enabled,
                 bool(snapshot.defender_disabled),
                 bool(snapshot.max_blocked),
             ),
             auto_dpi_enabled=bool(snapshot.auto_dpi_enabled),
+            gui_autostart_enabled=bool(snapshot.gui_autostart_enabled),
             hide_to_tray_on_minimize_close=enabled,
             defender_disabled=bool(snapshot.defender_disabled),
             max_blocked=bool(snapshot.max_blocked),

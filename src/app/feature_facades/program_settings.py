@@ -88,6 +88,7 @@ class ProgramSettingsFeature:
 
         actions = {
             "auto_dpi": commands.set_auto_dpi_enabled,
+            "gui_autostart": commands.set_gui_autostart_enabled,
             "hide_to_tray": save_hide_to_tray,
             "defender_disabled": commands.set_defender_disabled,
             "max_block": commands.set_max_block_enabled,

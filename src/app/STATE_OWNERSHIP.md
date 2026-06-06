@@ -31,8 +31,8 @@ src/ui/state/app_runtime_state.py
 | `launch_running` | `LaunchRuntimeService` | control pages, tray, close flow, runtime facade | Оставить. Это UI-сводка, не process tracking. |
 | `launch_busy` / `launch_busy_text` | `LaunchRuntimeService.set_busy` | control pages | Оставить. Это состояние кнопок и загрузки UI. |
 | `launch_last_error` | `LaunchRuntimeService` | control pages, runtime snapshot | Оставить. Это короткая ошибка для UI, не лог runtime. |
-| `current_strategy_summary` | `presets.display_state` | control pages, autostart page | Оставить. Текст готовит presets feature, UI только показывает. |
-| `autostart_enabled` | `app.feature_facades.autostart` через `AppRuntimeState` | autostart page | Оставить. Это короткий UI-флаг автозапуска GUI. |
+| `current_strategy_summary` | `presets.display_state` | control pages | Оставить. Текст готовит presets feature, UI только показывает. |
+| `autostart_enabled` | `LaunchRuntimeService.build_initial_ui_state` из `settings.json` | program settings, tray/runtime snapshot | Оставить. Это короткий UI-флаг автозапуска GUI. |
 | `subscription_is_premium` / `subscription_days_remaining` | `donater.subscription_ui` | Premium page, About page, Appearance page, title badge | Оставить только как UI-сводку. Подробности Premium живут в `donater.state.PremiumState`. |
 | `garland_enabled` / `snowflakes_enabled` | `main.window_state_actions` | Appearance page | Оставить. Это состояние общей оболочки окна. |
 | `window_opacity` | `main.window_state_actions` | Appearance page | Оставить. Это состояние общей оболочки окна. |

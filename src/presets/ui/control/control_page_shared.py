@@ -441,6 +441,11 @@ class ControlPageActionMixin:
                     content=str(getattr(result, "message", "") or ""),
                     parent=self.window(),
                 )
+            elif action == "gui_autostart":
+                self._show_windows_feature_action_result(
+                    result,
+                    getattr(self, "gui_autostart_toggle", None),
+                )
             elif action == "defender_disabled":
                 self._show_windows_feature_action_result(result, self.defender_toggle)
             elif action == "max_block":

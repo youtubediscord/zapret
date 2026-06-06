@@ -82,12 +82,15 @@ def apply_program_settings_toggles(
     snapshot,
     *,
     auto_dpi_toggle=None,
+    gui_autostart_toggle=None,
     hide_to_tray_toggle=None,
     defender_toggle=None,
     max_block_toggle=None,
 ) -> None:
     if auto_dpi_toggle is not None:
         set_toggle_checked(auto_dpi_toggle, getattr(snapshot, "auto_dpi_enabled", False))
+    if gui_autostart_toggle is not None:
+        set_toggle_checked(gui_autostart_toggle, getattr(snapshot, "gui_autostart_enabled", False))
     if hide_to_tray_toggle is not None:
         set_toggle_checked(hide_to_tray_toggle, getattr(snapshot, "hide_to_tray_on_minimize_close", False))
     if defender_toggle is not None:
