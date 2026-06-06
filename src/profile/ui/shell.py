@@ -107,7 +107,7 @@ def build_profile_shell(
     )
 
     order_btn = PushButton(
-        tr_fn(_toolbar_key("order"), "Порядок в preset"),
+        tr_fn(_toolbar_key("order"), "Порядок в пресете"),
         icon=FluentIcon.MENU,
     )
     order_btn.clicked.connect(on_open_profile_order)
@@ -115,7 +115,7 @@ def build_profile_shell(
         order_btn,
         tr_fn(
             _toolbar_key("order.description"),
-            "Открыть отдельный список для изменения реального порядка profile-ов внутри файла preset.",
+            "Открыть отдельный список для изменения реального порядка профилей внутри файла пресета.",
         )
     )
 

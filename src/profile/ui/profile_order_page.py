@@ -27,7 +27,7 @@ class ProfileOrderPageBase(BasePage):
         open_root,
     ):
         super().__init__(
-            title="Порядок в preset",
+            title="Порядок в пресете",
             parent=parent,
             title_key=self.title_key,
         )
@@ -409,7 +409,7 @@ class ProfileOrderPageBase(BasePage):
             self._breadcrumb.clear()
             self._breadcrumb.addItem("control", tr_catalog(self.control_key, language=self._ui_language, default="Управление"))
             self._breadcrumb.addItem("profiles", tr_catalog(self.profiles_key, language=self._ui_language, default=self.profiles_default))
-            self._breadcrumb.addItem("order", "Порядок в preset")
+            self._breadcrumb.addItem("order", "Порядок в пресете")
         finally:
             self._breadcrumb.blockSignals(False)
 

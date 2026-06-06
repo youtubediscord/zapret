@@ -2660,7 +2660,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         self.assertIn("open_profile_order", init_source)
         self.assertIn("on_open_profile_order=self._open_profile_order", build_content)
-        self.assertIn("Порядок в preset", shell_builder)
+        self.assertIn("Порядок в пресете", shell_builder)
         self.assertIn("order_btn", shell_builder)
 
     def test_preset_setup_page_does_not_show_loading_placeholder_text(self) -> None:
