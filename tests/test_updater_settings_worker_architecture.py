@@ -12,6 +12,9 @@ import updater.update_page_runtime as update_page_runtime
 
 
 class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
+    def _runtime_mock(self):
+        return SimpleNamespace(stop=Mock(), cancel=Mock())
+
     def test_auto_check_workers_receive_feature_action_callables(self) -> None:
         feature_source = inspect.getsource(UpdaterFeature)
         save_source = inspect.getsource(settings_workers.UpdaterAutoCheckSaveWorker)
@@ -30,6 +33,70 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("updater_commands.is_auto_update_enabled", load_source)
         self.assertNotIn("import updater.commands", save_source)
         self.assertNotIn("import updater.commands", load_source)
+
+    def test_cleanup_does_not_wait_for_read_only_update_workers(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._server_worker_runtime = self._runtime_mock()
+        runtime._version_worker_runtime = self._runtime_mock()
+        runtime._auto_check_load_runtime = self._runtime_mock()
+        runtime._update_channel_open_runtime = self._runtime_mock()
+        runtime._cache_invalidate_runtime = self._runtime_mock()
+        runtime._server_check_gate_runtime = self._runtime_mock()
+        runtime._auto_check_save_runtime = self._runtime_mock()
+        runtime._dpi_restart_runtime = self._runtime_mock()
+        runtime._server_retry_without_dpi_runtime = self._runtime_mock()
+        runtime._dpi_restart_after = "version_check"
+        runtime._auto_check_save_pending = True
+        runtime._auto_check_save_start_scheduled = True
+        runtime._auto_check_load_pending = True
+        runtime._auto_check_load_start_scheduled = True
+        runtime._update_channel_open_pending = "dev"
+        runtime._update_channel_open_start_scheduled = True
+        runtime._cache_invalidate_pending_context = "manual_check"
+        runtime._cache_invalidate_start_scheduled = True
+        runtime._server_check_gate_pending = True
+        runtime._server_check_gate_start_scheduled = True
+
+        update_page_runtime.UpdatePageRuntime._teardown_server_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_version_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_auto_check_load_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_update_channel_open_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_cache_invalidate_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_server_check_gate_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_auto_check_save_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_dpi_restart_worker(runtime)
+        update_page_runtime.UpdatePageRuntime._teardown_server_retry_without_dpi_worker(runtime)
+
+        for worker_runtime, prefix in (
+            (runtime._server_worker_runtime, "server_worker"),
+            (runtime._version_worker_runtime, "version_worker"),
+            (runtime._auto_check_load_runtime, "auto_check_load_worker"),
+            (runtime._update_channel_open_runtime, "update_channel_open_worker"),
+            (runtime._cache_invalidate_runtime, "cache_invalidate_worker"),
+            (runtime._server_check_gate_runtime, "server_check_gate_worker"),
+        ):
+            worker_runtime.stop.assert_called_once_with(
+                blocking=False,
+                log_fn=update_page_runtime.log,
+                warning_prefix=prefix,
+            )
+            worker_runtime.cancel.assert_called_once_with()
+
+        runtime._auto_check_save_runtime.stop.assert_called_once_with(
+            blocking=True,
+            log_fn=update_page_runtime.log,
+            warning_prefix="auto_check_save_worker",
+        )
+        runtime._dpi_restart_runtime.stop.assert_called_once_with(
+            blocking=True,
+            log_fn=update_page_runtime.log,
+            warning_prefix="dpi_restart_worker",
+        )
+        runtime._server_retry_without_dpi_runtime.stop.assert_called_once_with(
+            blocking=True,
+            log_fn=update_page_runtime.log,
+            warning_prefix="server_retry_without_dpi_worker",
+        )
 
     def test_auto_check_load_queues_while_worker_runs(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)

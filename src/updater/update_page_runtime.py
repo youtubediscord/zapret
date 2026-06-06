@@ -958,7 +958,7 @@ class UpdatePageRuntime:
 
     def _teardown_server_worker(self) -> None:
         self._server_worker_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="server_worker",
         )
@@ -983,7 +983,7 @@ class UpdatePageRuntime:
 
     def _teardown_version_worker(self) -> None:
         self._version_worker_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="version_worker",
         )
@@ -1003,7 +1003,7 @@ class UpdatePageRuntime:
         self._auto_check_load_pending = False
         self._auto_check_load_start_scheduled = False
         self._auto_check_load_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="auto_check_load_worker",
         )
@@ -1013,7 +1013,7 @@ class UpdatePageRuntime:
         self._update_channel_open_pending = ""
         self._update_channel_open_start_scheduled = False
         self._update_channel_open_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="update_channel_open_worker",
         )
@@ -1023,7 +1023,7 @@ class UpdatePageRuntime:
         self._cache_invalidate_pending_context = None
         self._cache_invalidate_start_scheduled = False
         self._cache_invalidate_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="cache_invalidate_worker",
         )
@@ -1033,7 +1033,7 @@ class UpdatePageRuntime:
         self._server_check_gate_pending = None
         self._server_check_gate_start_scheduled = False
         self._server_check_gate_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="server_check_gate_worker",
         )
