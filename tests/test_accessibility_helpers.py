@@ -102,6 +102,19 @@ class AccessibilityHelpersTests(unittest.TestCase):
         self.assertEqual(widget.tooltip, "Открывает папку с логами.")
         self.assertEqual(widget.accessible_description, "Открывает папку с логами.")
 
+    def test_set_tooltip_sets_accessible_name_for_icon_only_controls(self) -> None:
+        from unittest.mock import patch
+
+        from ui.fluent_widgets import set_tooltip
+
+        widget = _Widget("")
+        widget.installEventFilter = lambda _filter: None
+
+        with patch("ui.fluent_widgets.ToolTipFilter", return_value=object()):
+            set_tooltip(widget, "Создать новый preset")
+
+        self.assertEqual(widget.accessible_name, "Создать новый preset")
+
 
 if __name__ == "__main__":
     unittest.main()
