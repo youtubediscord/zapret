@@ -142,7 +142,7 @@ class PresetProfileStrategySummaryRefreshRuntime(QObject):
         self._pending = False
         self._start_scheduled = False
         self._summary_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="preset summary refresh worker",
         )

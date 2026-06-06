@@ -27,6 +27,27 @@ class PresetSummaryRefreshRuntimeTests(unittest.TestCase):
         self.assertIn("_summary_runtime.stop", cleanup_source)
         self.assertIn("_summary_runtime.cancel", cleanup_source)
 
+    def test_cleanup_does_not_wait_for_summary_refresh_worker(self) -> None:
+        from presets.display_state_refresh import PresetProfileStrategySummaryRefreshRuntime
+
+        runtime = PresetProfileStrategySummaryRefreshRuntime.__new__(
+            PresetProfileStrategySummaryRefreshRuntime
+        )
+        runtime._pending = True
+        runtime._start_scheduled = True
+        runtime._summary_runtime = SimpleNamespace(stop=Mock(), cancel=Mock())
+
+        runtime.cleanup()
+
+        self.assertFalse(runtime._pending)
+        self.assertFalse(runtime._start_scheduled)
+        runtime._summary_runtime.stop.assert_called_once_with(
+            blocking=False,
+            log_fn=__import__("presets.display_state_refresh", fromlist=["log"]).log,
+            warning_prefix="preset summary refresh worker",
+        )
+        runtime._summary_runtime.cancel.assert_called_once_with()
+
     def test_pending_summary_refresh_restarts_after_event_loop_turn(self) -> None:
         import presets.display_state_refresh as display_state_refresh
         from presets.display_state_refresh import PresetProfileStrategySummaryRefreshRuntime
