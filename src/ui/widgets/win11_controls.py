@@ -494,6 +494,8 @@ class Win11NumberRow(FluentSettingCard):
         self._desc_label = None
         self._icon_label = None
         self._applying_theme_styles = False
+        self._accessible_title = str(title or "")
+        self._accessible_description = str(description or "")
         initial_tokens = get_theme_tokens()
 
         super().__init__(
@@ -515,9 +517,10 @@ class Win11NumberRow(FluentSettingCard):
         self.spinbox.setSuffix(suffix)
         self.spinbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.spinbox.setFixedWidth(160)
-        self.spinbox.valueChanged.connect(self.valueChanged.emit)
+        self.spinbox.valueChanged.connect(self._on_spinbox_value_changed)
         layout.addWidget(self.spinbox)
         layout.addSpacing(16)
+        self._update_number_accessibility()
         self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
@@ -580,6 +583,7 @@ class Win11NumberRow(FluentSettingCard):
         self.spinbox.setValue(next_value)
         if block_signals:
             self.spinbox.blockSignals(False)
+        self._update_number_accessibility()
 
     def value(self) -> int:
         return self.spinbox.value()
@@ -602,9 +606,31 @@ class Win11NumberRow(FluentSettingCard):
         try:
             self.setTitle(next_title)
             self.setContent(next_description)
+            self._accessible_title = next_title
+            self._accessible_description = next_description
             self._last_win11_number_texts_key = text_key
+            self._update_number_accessibility()
         except Exception:
             pass
+
+    def _on_spinbox_value_changed(self, value: int) -> None:
+        self._update_number_accessibility()
+        self.valueChanged.emit(int(value))
+
+    def _update_number_accessibility(self) -> None:
+        title = str(self.__dict__.get("_accessible_title", "") or "").strip()
+        description = str(self.__dict__.get("_accessible_description", "") or "")
+        try:
+            value = self.spinbox.value()
+        except Exception:
+            value = ""
+        name = f"{title}, значение: {value}".strip(", ")
+        set_control_accessibility(self, name=name, description=description)
+        set_state_text(self, name)
+        spinbox = self.__dict__.get("spinbox")
+        if spinbox is not None:
+            set_control_accessibility(spinbox, name=name, description=description)
+            set_state_text(spinbox, name)
 
 
 class Win11ComboRow(FluentSettingCard):
@@ -628,6 +654,8 @@ class Win11ComboRow(FluentSettingCard):
         self._desc_label = None
         self._icon_label = None
         self._applying_theme_styles = False
+        self._accessible_title = str(title or "")
+        self._accessible_description = str(description or "")
         initial_tokens = get_theme_tokens()
 
         super().__init__(
@@ -649,10 +677,11 @@ class Win11ComboRow(FluentSettingCard):
             for text, data in items:
                 self.combo.addItem(text, userData=data)
 
-        self.combo.currentIndexChanged.connect(self.currentIndexChanged.emit)
-        self.combo.currentTextChanged.connect(self.currentTextChanged.emit)
+        self.combo.currentIndexChanged.connect(self._on_combo_index_changed)
+        self.combo.currentTextChanged.connect(self._on_combo_text_changed)
         layout.addWidget(self.combo)
         layout.addSpacing(16)
+        self._update_combo_accessibility()
         self._theme_refresh = ThemeRefreshBinding(
             self,
             self._apply_theme_refresh,
@@ -717,6 +746,7 @@ class Win11ComboRow(FluentSettingCard):
         self.combo.setCurrentIndex(index)
         if block_signals:
             self.combo.blockSignals(False)
+        self._update_combo_accessibility()
 
     def currentData(self):
         return self.combo.currentData()
@@ -733,6 +763,7 @@ class Win11ComboRow(FluentSettingCard):
         self.combo.setCurrentIndex(next_index)
         if block_signals:
             self.combo.blockSignals(False)
+        self._update_combo_accessibility()
 
     def currentIndex(self) -> int:
         return self.combo.currentIndex()
@@ -755,9 +786,35 @@ class Win11ComboRow(FluentSettingCard):
         try:
             self.setTitle(next_title)
             self.setContent(next_description)
+            self._accessible_title = next_title
+            self._accessible_description = next_description
             self._last_win11_combo_texts_key = text_key
+            self._update_combo_accessibility()
         except Exception:
             pass
+
+    def _on_combo_index_changed(self, index: int) -> None:
+        self._update_combo_accessibility()
+        self.currentIndexChanged.emit(int(index))
+
+    def _on_combo_text_changed(self, text: str) -> None:
+        self._update_combo_accessibility()
+        self.currentTextChanged.emit(str(text))
+
+    def _update_combo_accessibility(self) -> None:
+        title = str(self.__dict__.get("_accessible_title", "") or "").strip()
+        description = str(self.__dict__.get("_accessible_description", "") or "")
+        try:
+            text = self.combo.currentText()
+        except Exception:
+            text = ""
+        name = f"{title}, выбрано: {text}".strip(", ")
+        set_control_accessibility(self, name=name, description=description)
+        set_state_text(self, name)
+        combo = self.__dict__.get("combo")
+        if combo is not None:
+            set_control_accessibility(combo, name=name, description=description)
+            set_state_text(combo, name)
 
 
 __all__ = [

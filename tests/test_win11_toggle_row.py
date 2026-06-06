@@ -289,6 +289,41 @@ class Win11ToggleRowTests(unittest.TestCase):
         self.assertEqual(spinbox.block_calls, [True, False])
         self.assertEqual(spinbox.value(), 8)
 
+    def test_number_row_has_screen_reader_text_for_current_value(self) -> None:
+        from ui.widgets.win11_controls import Win11NumberRow
+
+        row = Win11NumberRow(
+            "fa5s.redo",
+            "Количество попыток",
+            "Сколько раз повторять проверку",
+            min_val=1,
+            max_val=10,
+            default_val=3,
+        )
+
+        self.assertEqual(row.accessibleName(), "Количество попыток, значение: 3")
+        self.assertEqual(row.property("screenReaderStateText"), "Количество попыток, значение: 3")
+        self.assertIn("Сколько раз повторять проверку", row.accessibleDescription())
+        self.assertEqual(row.spinbox.accessibleName(), "Количество попыток, значение: 3")
+
+    def test_number_row_updates_screen_reader_text_after_value_change(self) -> None:
+        from ui.widgets.win11_controls import Win11NumberRow
+
+        row = Win11NumberRow(
+            "fa5s.redo",
+            "Количество попыток",
+            "Сколько раз повторять проверку",
+            min_val=1,
+            max_val=10,
+            default_val=3,
+        )
+
+        row.setValue(5)
+
+        self.assertEqual(row.accessibleName(), "Количество попыток, значение: 5")
+        self.assertEqual(row.property("screenReaderStateText"), "Количество попыток, значение: 5")
+        self.assertEqual(row.spinbox.accessibleName(), "Количество попыток, значение: 5")
+
     def test_number_row_set_texts_skips_duplicate_title_and_description(self) -> None:
         from ui.widgets.win11_controls import Win11NumberRow
 
@@ -384,6 +419,37 @@ class Win11ToggleRowTests(unittest.TestCase):
         self.assertEqual(combo.set_calls, [1])
         self.assertEqual(combo.block_calls, [True, False])
         self.assertEqual(combo.currentData(), "on")
+
+    def test_combo_row_has_screen_reader_text_for_current_choice(self) -> None:
+        from ui.widgets.win11_controls import Win11ComboRow
+
+        row = Win11ComboRow(
+            "fa5s.list",
+            "Режим запуска",
+            "Выберите способ запуска",
+            items=[("Zapret 1", "zapret1"), ("Zapret 2", "zapret2")],
+        )
+
+        self.assertEqual(row.accessibleName(), "Режим запуска, выбрано: Zapret 1")
+        self.assertEqual(row.property("screenReaderStateText"), "Режим запуска, выбрано: Zapret 1")
+        self.assertIn("Выберите способ запуска", row.accessibleDescription())
+        self.assertEqual(row.combo.accessibleName(), "Режим запуска, выбрано: Zapret 1")
+
+    def test_combo_row_updates_screen_reader_text_after_selection_change(self) -> None:
+        from ui.widgets.win11_controls import Win11ComboRow
+
+        row = Win11ComboRow(
+            "fa5s.list",
+            "Режим запуска",
+            "Выберите способ запуска",
+            items=[("Zapret 1", "zapret1"), ("Zapret 2", "zapret2")],
+        )
+
+        row.setCurrentIndex(1)
+
+        self.assertEqual(row.accessibleName(), "Режим запуска, выбрано: Zapret 2")
+        self.assertEqual(row.property("screenReaderStateText"), "Режим запуска, выбрано: Zapret 2")
+        self.assertEqual(row.combo.accessibleName(), "Режим запуска, выбрано: Zapret 2")
 
     def test_combo_row_set_texts_skips_duplicate_title_and_description(self) -> None:
         from ui.widgets.win11_controls import Win11ComboRow
