@@ -63,8 +63,8 @@ class TelegramProxyFeature:
     def cleanup(self) -> None:
         self._tray_toggle_state.pending_count = 0
         self._tray_toggle_state.start_scheduled = False
-        self._tray_start_runtime.stop(blocking=True, warning_prefix="Telegram Proxy tray start worker")
-        self._tray_stop_runtime.stop(blocking=True, warning_prefix="Telegram Proxy tray stop worker")
+        self._tray_start_runtime.stop(blocking=False, warning_prefix="Telegram Proxy tray start worker")
+        self._tray_stop_runtime.stop(blocking=False, warning_prefix="Telegram Proxy tray stop worker")
         try:
             self.get_proxy_manager().cleanup()
         except Exception:

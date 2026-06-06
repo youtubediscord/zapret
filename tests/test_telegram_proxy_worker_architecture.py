@@ -165,6 +165,32 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("manager.stop_proxy()", toggle_source)
         self.assertNotIn("self.set_enabled(False)", toggle_source)
 
+    def test_feature_cleanup_does_not_wait_for_tray_toggle_workers(self) -> None:
+        start_runtime = SimpleNamespace(stop=Mock())
+        stop_runtime = SimpleNamespace(stop=Mock())
+        manager = SimpleNamespace(cleanup=Mock(), is_running=False)
+        feature = self._make_feature(
+            manager=manager,
+            start_runtime=start_runtime,
+            stop_runtime=stop_runtime,
+        )
+        feature._tray_toggle_state.pending_count = 2
+        feature._tray_toggle_state.start_scheduled = True
+
+        feature.cleanup()
+
+        start_runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="Telegram Proxy tray start worker",
+        )
+        stop_runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="Telegram Proxy tray stop worker",
+        )
+        self.assertEqual(feature._tray_toggle_state.pending_count, 0)
+        self.assertFalse(feature._tray_toggle_state.start_scheduled)
+        manager.cleanup.assert_called_once_with()
+
     def test_tray_toggle_running_proxy_starts_stop_runtime(self) -> None:
         class _Runtime:
             def __init__(self) -> None:
