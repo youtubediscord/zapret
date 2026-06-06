@@ -1161,10 +1161,13 @@ class LogsPage(BasePage):
         self._logs_overview_restart_scheduled = False
         self._spin_timer.stop()
         self._stop_logs_overview_worker(blocking=True)
-        self._stop_support_prepare_worker(blocking=True)
+        self._stop_support_prepare_worker(blocking=False)
+        self._open_folder_pending = False
+        self._open_folder_start_scheduled = False
         self._open_folder_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="Logs open folder worker",
         )
+        self._open_folder_runtime.cancel()
         self._stop_tail_worker(blocking=True)

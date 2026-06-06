@@ -239,6 +239,35 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
 
         log_mock.assert_not_called()
 
+    def test_cleanup_does_not_block_one_shot_support_or_open_folder_workers(self) -> None:
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._cleanup_in_progress = False
+        page._logs_overview_restart_scheduled = True
+        page._spin_timer = Mock()
+        page._stop_logs_overview_worker = Mock()
+        page._stop_support_prepare_worker = Mock()
+        page._open_folder_runtime = Mock()
+        page._open_folder_pending = True
+        page._open_folder_start_scheduled = True
+        page._stop_tail_worker = Mock()
+
+        logs_page.LogsPage.cleanup(page)
+
+        self.assertTrue(page._cleanup_in_progress)
+        self.assertFalse(page._logs_overview_restart_scheduled)
+        self.assertFalse(page._open_folder_pending)
+        self.assertFalse(page._open_folder_start_scheduled)
+        page._spin_timer.stop.assert_called_once()
+        page._stop_logs_overview_worker.assert_called_once_with(blocking=True)
+        page._stop_support_prepare_worker.assert_called_once_with(blocking=False)
+        page._open_folder_runtime.stop.assert_called_once_with(
+            blocking=False,
+            log_fn=logs_page.log,
+            warning_prefix="Logs open folder worker",
+        )
+        page._open_folder_runtime.cancel.assert_called_once()
+        page._stop_tail_worker.assert_called_once_with(blocking=True)
+
 
 if __name__ == "__main__":
     unittest.main()
