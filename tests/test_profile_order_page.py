@@ -650,12 +650,13 @@ class ProfileOrderPageTests(unittest.TestCase):
             ],
         )
 
-    def test_order_page_ignores_move_result_when_new_move_is_pending(self) -> None:
+    def test_order_page_applies_move_locally_even_when_new_move_is_pending(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
 
         page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
         page._cleanup_in_progress = False
         page._order_move_runtime = SimpleNamespace(is_current=Mock(return_value=True))
+        page._order_move_reload_required = False
         page._pending_profile_order_moves = [
             {
                 "action": "end",
@@ -663,7 +664,7 @@ class ProfileOrderPageTests(unittest.TestCase):
                 "destination_profile_key": "",
             }
         ]
-        page._apply_profile_order_move_locally = Mock()
+        page._apply_profile_order_move_locally = Mock(return_value=True)
         page._reload_order_profiles = Mock()
 
         ProfileOrderPageBase._on_profile_order_moved(
@@ -675,10 +676,15 @@ class ProfileOrderPageTests(unittest.TestCase):
             True,
         )
 
-        page._apply_profile_order_move_locally.assert_not_called()
+        page._apply_profile_order_move_locally.assert_called_once_with(
+            "after",
+            "profile-a",
+            destination_profile_key="profile-b",
+        )
+        self.assertFalse(page._order_move_reload_required)
         page._reload_order_profiles.assert_not_called()
 
-    def test_order_page_reloads_after_queue_when_previous_move_was_not_applied_locally(self) -> None:
+    def test_order_page_reloads_after_queue_when_pending_move_cannot_apply_locally(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
 
         page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
@@ -691,7 +697,7 @@ class ProfileOrderPageTests(unittest.TestCase):
                 "destination_profile_key": "",
             }
         ]
-        page._apply_profile_order_move_locally = Mock()
+        page._apply_profile_order_move_locally = Mock(return_value=False)
         page._reload_order_profiles = Mock()
 
         ProfileOrderPageBase._on_profile_order_moved(
@@ -703,6 +709,11 @@ class ProfileOrderPageTests(unittest.TestCase):
             True,
         )
 
+        page._apply_profile_order_move_locally.assert_called_once_with(
+            "after",
+            "profile-a",
+            destination_profile_key="profile-b",
+        )
         page._pending_profile_order_moves = []
         ProfileOrderPageBase._on_profile_order_moved(
             page,
@@ -713,7 +724,6 @@ class ProfileOrderPageTests(unittest.TestCase):
             True,
         )
 
-        page._apply_profile_order_move_locally.assert_not_called()
         page._reload_order_profiles.assert_called_once_with(force=True)
 
     def test_profile_order_move_waits_while_restart_is_scheduled(self) -> None:

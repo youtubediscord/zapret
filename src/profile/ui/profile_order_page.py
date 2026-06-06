@@ -288,19 +288,22 @@ class ProfileOrderPageBase(BasePage):
             cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
         ):
             return
+        applied_locally = False
+        if result:
+            applied_locally = self._apply_profile_order_move_locally(
+                action,
+                source_profile_key,
+                destination_profile_key=destination_profile_key,
+            )
         if self.__dict__.get("_pending_profile_order_moves"):
-            if result:
+            if result and not applied_locally:
                 self._order_move_reload_required = True
             return
         if self.__dict__.get("_order_move_reload_required", False):
             self._order_move_reload_required = False
             self._reload_order_profiles(force=True)
             return
-        if result and self._apply_profile_order_move_locally(
-            action,
-            source_profile_key,
-            destination_profile_key=destination_profile_key,
-        ):
+        if applied_locally:
             return
         if result:
             self._reload_order_profiles(force=True)
