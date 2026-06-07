@@ -289,12 +289,13 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         ui_state = _UiState()
         watcher_calls: list[str] = []
         switch_calls: list[tuple[str, str, str]] = []
+        refresh_calls: list[str] = []
         coordinator = PresetRuntimeCoordinator(
             presets_feature=SimpleNamespace(),
             ui_state_store=ui_state,
             get_launch_method=lambda: ZAPRET2_MODE,
             get_active_preset_path=lambda: "",
-            refresh_after_switch=lambda: None,
+            refresh_after_switch=lambda: refresh_calls.append("refresh"),
             request_selected_source_preset_apply=lambda method, reason, file_name: switch_calls.append(
                 (method, reason, file_name)
             )
@@ -315,6 +316,8 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertEqual(watcher_calls, ["watcher"])
         self.assertEqual(ui_state.active_revision, 1)
         self.assertEqual(switch_calls, [])
+        self.assertEqual(refresh_calls, [])
+        self.assertEqual(coordinator._preset_switch_refresh_timer.interval(), 180)
 
         coordinator._apply_pending_selected_source_preset()
 
@@ -424,6 +427,11 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self._app.processEvents()
 
         self.assertEqual(switch_calls, [])
+        self.assertEqual(refresh_calls, [])
+        self.assertEqual(coordinator._preset_switch_refresh_timer.interval(), 180)
+        coordinator._preset_switch_refresh_timer.timeout.emit()
+        self.assertEqual(refresh_calls, ["refresh"])
+
         coordinator._apply_pending_selected_source_preset()
 
         self.assertEqual(
@@ -433,7 +441,6 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
             ],
         )
         self.assertEqual(ui_state.active_revision, 1)
-        self.assertEqual(refresh_calls, ["refresh"])
 
     def test_selecting_same_preset_file_does_not_emit_switch_signal(self) -> None:
         from presets.file_service import PresetFileService

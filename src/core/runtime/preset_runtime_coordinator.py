@@ -10,6 +10,7 @@ from log.log import log
 
 
 PRESET_SWITCH_APPLY_DEBOUNCE_MS = 500
+PRESET_SWITCH_REFRESH_DEBOUNCE_MS = 180
 
 
 @dataclass(frozen=True)
@@ -364,7 +365,7 @@ class PresetRuntimeCoordinator(QObject):
         current_method = normalize_launch_method(self._get_launch_method(), default="")
         return bool(current_method and method == current_method)
 
-    def schedule_refresh_after_preset_switch(self, delay_ms: int = 0) -> None:
+    def schedule_refresh_after_preset_switch(self, delay_ms: int = PRESET_SWITCH_REFRESH_DEBOUNCE_MS) -> None:
         try:
             timer = self._preset_switch_refresh_timer
             if timer is None:
