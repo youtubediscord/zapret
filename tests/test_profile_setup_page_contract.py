@@ -2926,7 +2926,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertFalse(page._profile_payload_request_scheduled)
         self.assertTrue(page._profile_load_refresh_pending)
 
-    def test_preset_setup_ui_state_change_schedules_profile_refresh(self) -> None:
+    def test_preset_setup_content_state_change_schedules_profile_refresh(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._cleanup_in_progress = False
         page._profile_payload_dirty = False
@@ -2934,11 +2934,36 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._schedule_profiles_payload_request = Mock()
         page._request_profiles_payload = Mock(side_effect=AssertionError("state signal must not load immediately"))
 
-        PresetSetupPageBase._on_ui_state_changed(page, object(), frozenset({"active_preset_revision"}))
+        PresetSetupPageBase._on_ui_state_changed(page, object(), frozenset({"preset_content_revision"}))
 
         self.assertTrue(page._profile_payload_dirty)
         page._schedule_profiles_payload_request.assert_called_once_with(force=True)
         page._request_profiles_payload.assert_not_called()
+
+    def test_preset_setup_active_preset_state_change_coalesces_profile_refresh(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._cleanup_in_progress = False
+        page._profile_payload_dirty = False
+        page.isVisible = Mock(return_value=True)
+        page._schedule_profiles_payload_request = Mock()
+        page._request_profiles_payload = Mock(side_effect=AssertionError("state signal must not load immediately"))
+        callbacks = []
+
+        with patch(
+            "profile.ui.preset_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: callbacks.append(callback),
+        ):
+            PresetSetupPageBase._on_ui_state_changed(page, object(), frozenset({"active_preset_revision"}))
+            PresetSetupPageBase._on_ui_state_changed(page, object(), frozenset({"active_preset_revision"}))
+
+        self.assertTrue(page._profile_payload_dirty)
+        page._schedule_profiles_payload_request.assert_not_called()
+        page._request_profiles_payload.assert_not_called()
+        self.assertEqual(len(callbacks), 1)
+
+        callbacks[0]()
+
+        page._schedule_profiles_payload_request.assert_called_once_with(force=True)
 
     def test_preset_setup_page_does_not_use_profile_loading_skeleton(self) -> None:
         shell_builder = inspect.getsource(build_profile_shell)

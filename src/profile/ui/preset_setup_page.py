@@ -26,6 +26,7 @@ PROFILE_UI_VISIBLE_TIMING_LABELS = frozenset(
         "profile_ui.profile_list.build",
     }
 )
+PROFILE_PAYLOAD_PRESET_SWITCH_RELOAD_DELAY_MS = 180
 
 
 def preset_setup_title_for_payload(payload, default_title: str = "Настройка пресета") -> str:
@@ -144,6 +145,7 @@ class PresetSetupPageBase(BasePage):
         self._profile_load_refresh_pending = False
         self._profile_payload_request_scheduled = False
         self._profile_payload_request_force = False
+        self._profile_payload_reload_after_preset_switch_scheduled = False
         self._profile_payload_apply_scheduled = False
         self._pending_profile_payload_apply = None
         self._profile_context_action_enabled_by_request: dict[int, bool] = {}
@@ -246,6 +248,29 @@ class PresetSetupPageBase(BasePage):
     def refresh_from_preset_switch(self) -> None:
         self._schedule_profiles_payload_request(force=True)
 
+    def _schedule_profiles_payload_reload_after_preset_switch(self) -> None:
+        self._profile_payload_dirty = True
+        if bool(self.__dict__.get("_profile_payload_reload_after_preset_switch_scheduled", False)):
+            return
+        self._profile_payload_reload_after_preset_switch_scheduled = True
+        try:
+            QTimer.singleShot(
+                PROFILE_PAYLOAD_PRESET_SWITCH_RELOAD_DELAY_MS,
+                self._run_scheduled_profiles_payload_reload_after_preset_switch,
+            )
+        except Exception:
+            self._run_scheduled_profiles_payload_reload_after_preset_switch()
+
+    def _run_scheduled_profiles_payload_reload_after_preset_switch(self) -> None:
+        self._profile_payload_reload_after_preset_switch_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if not self.__dict__.get("_profile_payload_dirty", False):
+            return
+        if not self.isVisible():
+            return
+        self._schedule_profiles_payload_request(force=True)
+
     def bind_ui_state_store(self, store) -> None:
         if self._ui_state_store is store:
             return
@@ -271,8 +296,12 @@ class PresetSetupPageBase(BasePage):
         if not (changed & {"active_preset_revision", "preset_content_revision"}):
             return
         self._profile_payload_dirty = True
-        if self.isVisible():
+        if not self.isVisible():
+            return
+        if "preset_content_revision" in changed:
             self._schedule_profiles_payload_request(force=True)
+            return
+        self._schedule_profiles_payload_reload_after_preset_switch()
 
     def _request_profiles_payload(self, *, force: bool = False) -> None:
         if self._cleanup_in_progress:
