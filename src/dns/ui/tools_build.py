@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from qfluentwidgets import FluentIcon
 
+from ui.accessibility import set_control_accessibility
+
 
 @dataclass(slots=True)
 class NetworkToolsWidgets:
@@ -51,10 +53,20 @@ def build_tools_card_ui(
     test_btn = action_button_cls(test_text, icon=FluentIcon.WIFI)
     test_btn.clicked.connect(on_test)
     set_tooltip_fn(test_btn, test_tooltip)
+    set_control_accessibility(
+        test_btn,
+        name=tr_fn("page.network.tools.test.accessible_name", "Проверить DNS и сайты"),
+        description=test_tooltip,
+    )
 
     flush_btn = action_button_cls(flush_text, icon=FluentIcon.ERASE_TOOL)
     flush_btn.clicked.connect(on_flush_dns)
     set_tooltip_fn(flush_btn, flush_tooltip)
+    set_control_accessibility(
+        flush_btn,
+        name=tr_fn("page.network.tools.flush_dns.accessible_name", "Сбросить DNS кэш Windows"),
+        description=flush_tooltip,
+    )
 
     actions_bar.add_buttons([test_btn, flush_btn])
     insert_widget_into_setting_card_group_fn(tools_card, 1, actions_bar)
