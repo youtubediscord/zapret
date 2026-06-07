@@ -1550,8 +1550,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "Prepare report",
     },
     "page.network.subtitle": {
-        "ru": "Настройки DNS и доступа к сервисам",
-        "en": "DNS settings and service access",
+        "ru": "DNS-серверы и проверка DNS",
+        "en": "DNS servers and DNS checks",
     },
     "page.network.section.dns_servers": {
         "ru": "DNS Серверы",

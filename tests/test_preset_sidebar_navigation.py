@@ -277,6 +277,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertEqual(tr("nav.header.system", language="ru"), "Инструменты")
         self.assertEqual(get_nav_page_label(PageName.NETWORK, language="ru"), "Настройка DNS")
         self.assertEqual(get_nav_page_label(PageName.HOSTS, language="ru"), "Редактор hosts")
+        self.assertEqual(tr("page.network.subtitle", language="ru"), "DNS-серверы и проверка DNS")
 
     def test_initial_sidebar_build_skips_secondary_and_hidden_other_mode_items(self) -> None:
         from app.page_names import PageName

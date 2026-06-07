@@ -94,8 +94,8 @@ class NetworkPage(BasePage):
     
     def __init__(self, parent=None, *, deps):
         super().__init__(
-            "Сеть",
-            "Настройки DNS и доступа к сервисам",
+            "Настройка DNS",
+            "DNS-серверы и проверка DNS",
             parent,
             title_key="page.network.title",
             subtitle_key="page.network.subtitle",
