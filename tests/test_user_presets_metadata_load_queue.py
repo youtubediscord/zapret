@@ -112,6 +112,27 @@ class _RowsPlanWorker:
         self._running = False
 
 
+class _Watcher:
+    def __init__(self, files=()) -> None:
+        self._files = set(files or ())
+        self.add_calls: list[list[str]] = []
+        self.remove_calls: list[list[str]] = []
+
+    def files(self):
+        return sorted(self._files)
+
+    def addPaths(self, paths):  # noqa: N802
+        normalized = [str(path) for path in paths]
+        self.add_calls.append(normalized)
+        self._files.update(normalized)
+
+    def removePaths(self, paths):  # noqa: N802
+        normalized = [str(path) for path in paths]
+        self.remove_calls.append(normalized)
+        for path in normalized:
+            self._files.discard(path)
+
+
 class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -915,6 +936,64 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
             page,
             {"Alpha.txt", "Beta.txt", "Gamma.txt"},
         )
+
+    def test_watched_preset_files_sync_runs_in_small_gui_batches(self) -> None:
+        from pathlib import Path
+
+        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+
+        import presets.user_presets_runtime_service as runtime_service
+
+        page = SimpleNamespace()
+        presets_dir = Path("/tmp/presets")
+        adapter = UserPresetsRuntimeAdapter(
+            bulk_reset_running=lambda: False,
+            read_single_metadata=lambda _name: None,
+            selected_source_file_name=lambda: "",
+            presets_dir=lambda: presets_dir,
+            cached_metadata=lambda: {},
+            load_all_metadata=lambda: {},
+            load_folder_state=lambda: {},
+            build_rows_plan=lambda _metadata, _folder_state: object(),
+            apply_rows_plan=lambda _plan, _started_at: None,
+        )
+        service = UserPresetsRuntimeService()
+        service.attach_page(page, adapter)
+        service._file_watcher = _Watcher()
+        service._watched_preset_files_sync_batch_size = 2
+        callbacks = []
+
+        with patch.object(
+            runtime_service,
+            "QTimer",
+            SimpleNamespace(singleShot=lambda _delay, callback: callbacks.append(callback)),
+        ):
+            service.sync_watched_preset_files(
+                page,
+                {"Alpha.txt", "Beta.txt", "Gamma.txt", "Omega.txt", "Zeta.txt"},
+            )
+
+            self.assertEqual(
+                service._file_watcher.add_calls,
+                [[str(presets_dir / "Alpha.txt"), str(presets_dir / "Beta.txt")]],
+            )
+            self.assertEqual(len(callbacks), 1)
+
+            callbacks.pop(0)()
+
+            self.assertEqual(
+                service._file_watcher.add_calls[1],
+                [str(presets_dir / "Gamma.txt"), str(presets_dir / "Omega.txt")],
+            )
+            self.assertEqual(len(callbacks), 1)
+
+            callbacks.pop(0)()
+
+        self.assertEqual(
+            service._file_watcher.add_calls[2],
+            [str(presets_dir / "Zeta.txt")],
+        )
+        self.assertEqual(callbacks, [])
 
 
 if __name__ == "__main__":

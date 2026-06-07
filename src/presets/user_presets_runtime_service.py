@@ -151,6 +151,9 @@ class UserPresetsRuntimeService:
         self._pending_rows_plan_apply: tuple[object, float | None, object] | None = None
         self._watched_preset_files_sync_scheduled = False
         self._watched_preset_files_sync_pending: tuple[object, set[str] | None] | None = None
+        self._watched_preset_files_sync_batch_pending: tuple[object, list[str], list[str]] | None = None
+        self._watched_preset_files_sync_batch_scheduled = False
+        self._watched_preset_files_sync_batch_size = 64
 
     def is_ui_dirty(self) -> bool:
         return bool(self._ui_dirty)
@@ -609,6 +612,8 @@ class UserPresetsRuntimeService:
         self._pending_rows_plan_apply = None
         self._watched_preset_files_sync_scheduled = False
         self._watched_preset_files_sync_pending = None
+        self._watched_preset_files_sync_batch_pending = None
+        self._watched_preset_files_sync_batch_scheduled = False
         for attr, warning_prefix in (
             ("_metadata_load_runtime", "user presets metadata load worker"),
             ("_single_metadata_runtime", "user presets single metadata worker"),
@@ -687,12 +692,59 @@ class UserPresetsRuntimeService:
             remove_paths = sorted(current_paths - desired_paths)
             add_paths = sorted(desired_paths - current_paths)
 
-            if remove_paths:
-                watcher.removePaths(remove_paths)
-            if add_paths:
-                watcher.addPaths(add_paths)
+            self._start_watched_preset_files_sync_batches(page, remove_paths, add_paths)
         except Exception as e:
             log(f"Ошибка синхронизации watcher файлов пресетов: {e}", "DEBUG")
+
+    def _start_watched_preset_files_sync_batches(self, page, remove_paths: list[str], add_paths: list[str]) -> None:
+        self._watched_preset_files_sync_batch_pending = (page, list(remove_paths or []), list(add_paths or []))
+        self._watched_preset_files_sync_batch_scheduled = False
+        self._run_next_watched_preset_files_sync_batch()
+
+    def _run_next_watched_preset_files_sync_batch(self) -> None:
+        self._watched_preset_files_sync_batch_scheduled = False
+        pending = self.__dict__.get("_watched_preset_files_sync_batch_pending")
+        if pending is None:
+            return
+        page, remove_paths, add_paths = pending
+        watcher = self.__dict__.get("_file_watcher")
+        if watcher is None:
+            self._watched_preset_files_sync_batch_pending = None
+            return
+
+        try:
+            batch_size = int(self.__dict__.get("_watched_preset_files_sync_batch_size", 64) or 64)
+        except (TypeError, ValueError):
+            batch_size = 64
+        batch_size = max(1, batch_size)
+
+        slots = batch_size
+        remove_batch = remove_paths[:slots]
+        if remove_batch:
+            watcher.removePaths(remove_batch)
+            remove_paths = remove_paths[len(remove_batch):]
+            slots -= len(remove_batch)
+
+        add_batch = add_paths[:slots] if slots > 0 else []
+        if add_batch:
+            watcher.addPaths(add_batch)
+            add_paths = add_paths[len(add_batch):]
+
+        if remove_paths or add_paths:
+            self._watched_preset_files_sync_batch_pending = (page, remove_paths, add_paths)
+            self._schedule_watched_preset_files_sync_batch()
+            return
+
+        self._watched_preset_files_sync_batch_pending = None
+
+    def _schedule_watched_preset_files_sync_batch(self) -> None:
+        if self.__dict__.get("_watched_preset_files_sync_batch_scheduled", False):
+            return
+        self._watched_preset_files_sync_batch_scheduled = True
+        try:
+            QTimer.singleShot(0, self._run_next_watched_preset_files_sync_batch)
+        except Exception:
+            self._run_next_watched_preset_files_sync_batch()
 
     def _schedule_watched_preset_files_sync(self, page=None, file_names: set[str] | None = None) -> None:
         page = self._resolve_page(page)
