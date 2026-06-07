@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBox, MessageBoxBase, RoundMenu, SubtitleLabel
 
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import style_semantic_caption_label
 from ui.popup_menu import exec_popup_menu
 from ui.presets_menu.common import fluent_icon, make_menu_action
@@ -53,14 +54,42 @@ class FolderNameDialog(MessageBoxBase):
         self.yesButton.setText(button_text)
         self.cancelButton.setText("Отмена")
         self.widget.setMinimumWidth(420)
+        self._install_accessibility(button_text=button_text)
 
     def validate(self) -> bool:
         if self.nameEdit.text().strip():
             self.warningLabel.hide()
             return True
-        self.warningLabel.setText("Введите название папки.")
+        self._show_warning("Введите название папки.")
         self.warningLabel.show()
         return False
+
+    def _install_accessibility(self, *, button_text: str) -> None:
+        current_name = self.nameEdit.text().strip()
+        is_rename = bool(current_name) or str(button_text or "").strip().lower().startswith("переимен")
+        if is_rename:
+            name = "Новое название папки"
+            description = f"Текущее имя: {current_name}. Введите новое имя папки."
+            yes_name = "Переименовать папку"
+            yes_description = "Меняет имя папки."
+            cancel_name = "Отменить переименование папки"
+        else:
+            name = "Название папки"
+            description = "Введите имя папки для группировки элементов."
+            yes_name = "Создать папку"
+            yes_description = "Создаёт папку."
+            cancel_name = "Отменить создание папки"
+        set_control_accessibility(self.nameEdit, name=name, description=description)
+        set_control_accessibility(self.yesButton, name=yes_name, description=yes_description)
+        set_control_accessibility(
+            self.cancelButton,
+            name=cancel_name,
+            description="Закрывает окно без изменений.",
+        )
+
+    def _show_warning(self, text: str) -> None:
+        self.warningLabel.setText(text)
+        set_state_text(self.warningLabel, f"Ошибка: {text}")
 
 
 def show_folder_context_menu(
