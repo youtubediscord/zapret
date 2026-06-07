@@ -370,7 +370,7 @@ class PresetRawEditorPage(BasePage):
         if kind == "save":
             self._start_raw_preset_save_worker(
                 file_name=str(operation.get("file_name") or ""),
-                source_text=self._resolve_raw_preset_save_text(operation.get("source_text")),
+                source_text=operation.get("source_text"),
                 publish_content_changed=bool(operation.get("publish_content_changed")),
             )
             return True

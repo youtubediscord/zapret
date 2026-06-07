@@ -112,6 +112,38 @@ class RawPresetEditorReadDeferTests(unittest.TestCase):
             parent=page,
         )
 
+    def test_queued_raw_preset_save_defers_editor_read_until_worker_start(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._cleanup_in_progress = False
+        page._raw_save_runtime = _Runtime(running=False)
+        page._raw_activate_runtime = _Runtime(running=False)
+        page._raw_action_runtime = _Runtime(running=False)
+        page._raw_preset_save_start_scheduled = False
+        page._raw_preset_activation_start_scheduled = False
+        page._raw_preset_write_operation_start_scheduled = False
+        page._raw_editor_text_snapshot = None
+        page.editor = _RawTextEditor("--new\n--filter-tcp=443\n")
+        page._pending_raw_preset_write_operations = [
+            {
+                "kind": "save",
+                "file_name": "Default.txt",
+                "source_text": None,
+                "publish_content_changed": True,
+            }
+        ]
+        page._start_raw_preset_save_worker = Mock()
+
+        self.assertTrue(PresetRawEditorPage._start_next_raw_preset_write_operation(page))
+
+        self.assertEqual(page.editor.read_calls, 0)
+        page._start_raw_preset_save_worker.assert_called_once_with(
+            file_name="Default.txt",
+            source_text=None,
+            publish_content_changed=True,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
