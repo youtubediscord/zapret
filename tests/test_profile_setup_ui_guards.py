@@ -872,6 +872,21 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._list_file_validation_timer.start_calls, [180])
         page._request_list_file_validation.assert_not_called()
 
+    def test_list_file_text_change_disables_save_until_worker_validation_finishes(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._list_file_text = _PlainTextWidget("user.example\nsecond.example")
+        page._list_file_status_label = _TextWidget("")
+        page._list_file_save_button = _BoolWidget(enabled=True)
+        page._list_file_validation_timer = _Timer()
+
+        ProfileSetupPageBase._on_list_file_text_changed(page)
+
+        self.assertEqual(page._list_file_text.plain_text_read_calls, [])
+        self.assertEqual(page._list_file_save_button.enabled_calls, [False])
+
     def test_scheduled_list_file_validation_does_not_count_entries_in_gui(self) -> None:
         from unittest.mock import Mock
 

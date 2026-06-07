@@ -2733,6 +2733,9 @@ class ProfileSetupPageBase(BasePage):
         if self._loading or self._list_file_text is None:
             return
         self._list_file_text_dirty = True
+        save_button = self.__dict__.get("_list_file_save_button")
+        if save_button is not None:
+            set_widget_enabled_if_changed(save_button, False)
         timer = self.__dict__.get("_list_file_validation_timer")
         if timer is not None:
             try:
