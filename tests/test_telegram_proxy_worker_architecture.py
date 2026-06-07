@@ -686,6 +686,17 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         log_mock.assert_not_called()
 
+    def test_page_uses_queue_state_to_schedule_next_queued_worker(self) -> None:
+        import inspect
+        from telegram_proxy.ui.page import TelegramProxyPage
+        from telegram_proxy.ui.worker_state import TelegramProxyPageQueuedWorkerState
+
+        page_source = inspect.getsource(TelegramProxyPage)
+        queued_state_source = inspect.getsource(TelegramProxyPageQueuedWorkerState)
+
+        self.assertNotIn(".pop_next_after_finish(", page_source)
+        self.assertIn("def schedule_next_after_finish", queued_state_source)
+
     def test_auto_deeplink_result_ignored_when_new_check_is_pending(self) -> None:
         import telegram_proxy.ui.page as telegram_proxy_page
         from telegram_proxy.ui.page import TelegramProxyPage

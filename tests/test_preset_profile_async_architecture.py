@@ -93,6 +93,7 @@ from app.feature_facades.telegram_proxy import TelegramProxyFeature
 import telegram_proxy.ui.upstream_workflow as telegram_upstream_workflow
 import telegram_proxy.runtime.workers as telegram_proxy_workers
 from telegram_proxy.ui.page import TelegramProxyPage
+from telegram_proxy.ui.worker_state import TelegramProxyPageQueuedWorkerState
 from telegram_proxy.runtime.workers import TelegramProxyDiagnosticsWorker
 from diagnostics.ui.page import ConnectionTestPage
 import diagnostics.ui.runtime_helpers as diagnostics_runtime_helpers
@@ -2641,6 +2642,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         finished_source = inspect.getsource(TelegramProxyPage._on_settings_save_worker_finished)
         cleanup_source = inspect.getsource(TelegramProxyPage.cleanup)
         command_source = inspect.getsource(telegram_proxy_commands)
+        queued_state_source = inspect.getsource(TelegramProxyPageQueuedWorkerState)
 
         self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxySettingsSaveWorker"))
         worker_source = inspect.getsource(telegram_proxy_workers.TelegramProxySettingsSaveWorker.run)
@@ -2676,7 +2678,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("worker.failed.connect(self._on_settings_save_failed)", start_source)
         self.assertIn("_settings_save_runtime.is_current", completed_source)
         self.assertIn("_settings_save_runtime.is_current", failed_source)
-        self.assertIn("pop_next_after_finish", finished_source)
+        self.assertIn("schedule_next_after_finish", finished_source)
+        self.assertIn("pop_next_after_finish", queued_state_source)
         self.assertIn("_settings_save_runtime.stop", cleanup_source)
         self.assertNotIn("_settings_save_worker =", page_source)
         self.assertNotIn("worker.start()", start_source)

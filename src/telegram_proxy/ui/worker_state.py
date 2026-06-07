@@ -175,6 +175,32 @@ class TelegramProxyPageQueuedWorkerState(Generic[T]):
             return None
         return self.pop_next()
 
+    def schedule_next_after_finish(
+        self,
+        worker,
+        *,
+        is_current_worker_finish: Callable[[object, object], bool],
+        single_shot: Callable[[int, Callable[[], None]], None],
+        start: Callable[[T], None],
+        queue_item: Callable[[T], bool],
+        is_cleanup_in_progress: Callable[[], bool],
+    ) -> Optional[T]:
+        item = self.pop_next_after_finish(
+            worker,
+            is_current_worker_finish=is_current_worker_finish,
+            cleanup_in_progress=is_cleanup_in_progress(),
+        )
+        if not item:
+            return None
+        self.schedule_start(
+            item,
+            single_shot,
+            start,
+            queue_item=queue_item,
+            is_cleanup_in_progress=is_cleanup_in_progress,
+        )
+        return item
+
     def reset(self) -> None:
         self.pending.clear()
         self.start_scheduled = False

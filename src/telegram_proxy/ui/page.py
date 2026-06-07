@@ -820,13 +820,15 @@ class TelegramProxyPage(BasePage):
         log(f"Telegram Proxy log append failed: {error}", "WARNING")
 
     def _on_log_line_worker_finished(self, _worker) -> None:
-        pending = self._queued_worker_state("_log_line_state", "_log_line_runtime").pop_next_after_finish(
+        state = self._queued_worker_state("_log_line_state", "_log_line_runtime")
+        state.schedule_next_after_finish(
             _worker,
             is_current_worker_finish=self._is_current_worker_finish,
-            cleanup_in_progress=self._cleanup_in_progress,
+            single_shot=QTimer.singleShot,
+            start=self._start_log_line_worker,
+            queue_item=state.append,
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
         )
-        if pending:
-            self._schedule_log_line_worker_start(pending)
 
     def _schedule_log_line_worker_start(self, message: str) -> None:
         queued = str(message or "")
@@ -915,13 +917,15 @@ class TelegramProxyPage(BasePage):
             self._append_log_line(f"Failed to open log file: {message}")
 
     def _on_open_log_file_worker_finished(self, _worker) -> None:
-        pending = self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime").pop_next_after_finish(
+        state = self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime")
+        state.schedule_next_after_finish(
             _worker,
             is_current_worker_finish=self._is_current_worker_finish,
-            cleanup_in_progress=self._cleanup_in_progress,
+            single_shot=QTimer.singleShot,
+            start=self._start_open_log_file_worker,
+            queue_item=lambda value: state.append_unique(value, key=lambda item: item),
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
         )
-        if pending:
-            self._schedule_open_log_file_worker_start(pending)
 
     def _schedule_open_log_file_worker_start(self, path: str) -> None:
         queued = str(path or "")
@@ -1125,13 +1129,15 @@ class TelegramProxyPage(BasePage):
         log(f"{self.__class__.__name__}: не удалось сохранить настройку Telegram Proxy ({action}): {error}", "WARNING")
 
     def _on_settings_save_worker_finished(self, _worker) -> None:
-        pending = self._queued_worker_state("_settings_save_state", "_settings_save_runtime").pop_next_after_finish(
+        state = self._queued_worker_state("_settings_save_state", "_settings_save_runtime")
+        state.schedule_next_after_finish(
             _worker,
             is_current_worker_finish=self._is_current_worker_finish,
-            cleanup_in_progress=self._cleanup_in_progress,
+            single_shot=QTimer.singleShot,
+            start=self._start_settings_save_worker,
+            queue_item=self._queue_settings_save_payload,
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
         )
-        if pending:
-            self._schedule_settings_save_worker_start(dict(pending or {}))
 
     def _schedule_settings_save_worker_start(self, payload: dict) -> None:
         queued = dict(payload or {})
@@ -1826,13 +1832,15 @@ class TelegramProxyPage(BasePage):
             self._append_log_line(f"Failed to open link: {message}")
 
     def _on_external_link_worker_finished(self, _worker) -> None:
-        pending = self._queued_worker_state("_external_link_state", "_external_link_runtime").pop_next_after_finish(
+        state = self._queued_worker_state("_external_link_state", "_external_link_runtime")
+        state.schedule_next_after_finish(
             _worker,
             is_current_worker_finish=self._is_current_worker_finish,
-            cleanup_in_progress=self._cleanup_in_progress,
+            single_shot=QTimer.singleShot,
+            start=self._run_external_link_payload,
+            queue_item=self._queue_external_link,
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
         )
-        if pending:
-            self._schedule_external_link_worker_start(pending)
 
     def _schedule_external_link_worker_start(self, payload: dict) -> None:
         queued = {
