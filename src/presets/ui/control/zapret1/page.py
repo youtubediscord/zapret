@@ -49,6 +49,7 @@ from qfluentwidgets import (
 TOP_SUMMARY_PROFILE_RETRY_MS = 750
 TOP_SUMMARY_PROFILE_RETRY_LIMIT = 10
 ADDITIONAL_SETTINGS_PRESET_SWITCH_RELOAD_DELAY_MS = 180
+TOP_SUMMARY_PRESET_SWITCH_RELOAD_DELAY_MS = 180
 
 
 class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMixin, BasePage):
@@ -433,6 +434,29 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _refresh_preset_name(self) -> None:
         self._request_top_summary_worker()
 
+    def _schedule_top_summary_reload_after_preset_switch(self) -> None:
+        runtime = self._refresh_runtime
+        if bool(getattr(runtime, "top_summary_reload_after_preset_switch_scheduled", False)):
+            return
+        runtime.top_summary_reload_after_preset_switch_scheduled = True
+        try:
+            QTimer.singleShot(
+                TOP_SUMMARY_PRESET_SWITCH_RELOAD_DELAY_MS,
+                self._run_scheduled_top_summary_reload_after_preset_switch,
+            )
+        except Exception:
+            self._run_scheduled_top_summary_reload_after_preset_switch()
+
+    def _run_scheduled_top_summary_reload_after_preset_switch(self) -> None:
+        runtime = self._refresh_runtime
+        runtime.top_summary_reload_after_preset_switch_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if not self.isVisible():
+            self.run_when_page_ready(self._apply_pending_preset_name_refresh)
+            return
+        self._request_top_summary_worker()
+
     def _schedule_top_summary_profile_retry(self) -> None:
         if self._cleanup_in_progress:
             return
@@ -688,9 +712,7 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         changed = set(changed_fields or ())
         if "active_preset_revision" in changed:
             self._refresh_runtime.additional_settings_dirty = True
-            self._refresh_preset_name()
-            if not self.isVisible():
-                self.run_when_page_ready(self._apply_pending_preset_name_refresh)
+            self._schedule_top_summary_reload_after_preset_switch()
             self._schedule_additional_settings_reload_after_preset_switch()
         top_summary_data_changed = (
             not changed

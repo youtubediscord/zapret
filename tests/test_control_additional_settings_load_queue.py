@@ -255,6 +255,7 @@ class ControlAdditionalSettingsLoadQueueTests(unittest.TestCase):
                 page.isVisible = Mock(return_value=True)
                 page.run_when_page_ready = Mock()
                 page._schedule_additional_settings_reload = Mock()
+                page._schedule_top_summary_reload_after_preset_switch = Mock()
                 page._refresh_preset_name = Mock()
                 page._apply_selected_preset_name_fast = Mock()
                 page._refresh_top_summary = Mock()

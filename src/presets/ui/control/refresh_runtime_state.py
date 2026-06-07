@@ -18,6 +18,7 @@ class ModeControlRefreshRuntime:
         self.top_summary_runtime = OneShotWorkerRuntime()
         self.top_summary_pending = False
         self.top_summary_start_scheduled = False
+        self.top_summary_reload_after_preset_switch_scheduled = False
         self.top_summary_request_id = 0
         self.program_settings_load_runtime = OneShotWorkerRuntime()
         self.program_settings_load_pending = False
@@ -110,6 +111,7 @@ class ModeControlRefreshRuntime:
         self.additional_settings_reload_after_preset_switch_scheduled = False
         self.additional_settings_save_start_scheduled = False
         self.top_summary_start_scheduled = False
+        self.top_summary_reload_after_preset_switch_scheduled = False
         self.program_settings_load_start_scheduled = False
         self.program_settings_save_start_scheduled = False
         for runtime, label in (

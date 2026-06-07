@@ -52,6 +52,7 @@ if TYPE_CHECKING:
 TOP_SUMMARY_PROFILE_RETRY_MS = 750
 TOP_SUMMARY_PROFILE_RETRY_LIMIT = 10
 ADDITIONAL_SETTINGS_PRESET_SWITCH_RELOAD_DELAY_MS = 180
+TOP_SUMMARY_PRESET_SWITCH_RELOAD_DELAY_MS = 180
 
 
 def _zapret2_page_runtime():
@@ -203,6 +204,29 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         return True
 
     def _apply_selected_preset_name_fast(self) -> None:
+        self._request_top_summary_worker()
+
+    def _schedule_top_summary_reload_after_preset_switch(self) -> None:
+        runtime = self._refresh_runtime
+        if bool(getattr(runtime, "top_summary_reload_after_preset_switch_scheduled", False)):
+            return
+        runtime.top_summary_reload_after_preset_switch_scheduled = True
+        try:
+            QTimer.singleShot(
+                TOP_SUMMARY_PRESET_SWITCH_RELOAD_DELAY_MS,
+                self._run_scheduled_top_summary_reload_after_preset_switch,
+            )
+        except Exception:
+            self._run_scheduled_top_summary_reload_after_preset_switch()
+
+    def _run_scheduled_top_summary_reload_after_preset_switch(self) -> None:
+        runtime = self._refresh_runtime
+        runtime.top_summary_reload_after_preset_switch_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if not self.isVisible():
+            self.run_when_page_ready(self._refresh_top_summary)
+            return
         self._request_top_summary_worker()
 
     def _schedule_top_summary_profile_retry(self) -> None:
@@ -765,7 +789,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self._apply_top_summary_premium(state)
         if presets_changed:
             try:
-                self._apply_selected_preset_name_fast()
+                self._schedule_top_summary_reload_after_preset_switch()
             except Exception:
                 pass
             self._refresh_runtime.additional_settings_dirty = True
