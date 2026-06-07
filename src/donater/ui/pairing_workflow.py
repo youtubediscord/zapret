@@ -7,6 +7,7 @@ from collections.abc import Callable
 from PyQt6.QtWidgets import QApplication
 
 import donater.ui.page_plans as premium_page_plans
+from donater.ui.accessibility import apply_premium_button_accessibility
 
 
 def apply_device_info_snapshot_labels(
@@ -61,6 +62,11 @@ def apply_pair_code_start_ui(
     activate_btn.setText(
         tr(plan.activate_text_key, plan.activate_text_default)
     )
+    apply_premium_button_accessibility(
+        tr_fn=tr,
+        activate_btn=activate_btn,
+        activate_loading=plan.activation_in_progress,
+    )
     set_activation_status(
         text=plan.activation_status_plan.text,
         text_key=plan.activation_status_plan.text_key,
@@ -84,6 +90,11 @@ def apply_pair_code_result_ui(
     plan = premium_page_plans.build_pair_code_result_plan(result)
     activate_btn.setEnabled(plan.activate_enabled)
     activate_btn.setText(tr(plan.activate_text_key, plan.activate_text_default))
+    apply_premium_button_accessibility(
+        tr_fn=tr,
+        activate_btn=activate_btn,
+        activate_loading=plan.activation_in_progress,
+    )
     if plan.clear_key_input:
         key_input.clear()
     else:
@@ -123,6 +134,11 @@ def apply_pair_code_error_ui(
         key_input.clear()
     activate_btn.setEnabled(plan.activate_enabled)
     activate_btn.setText(tr(plan.activate_text_key, plan.activate_text_default))
+    apply_premium_button_accessibility(
+        tr_fn=tr,
+        activate_btn=activate_btn,
+        activate_loading=plan.activation_in_progress,
+    )
     set_activation_status(
         text=plan.activation_status_plan.text,
         text_key=plan.activation_status_plan.text_key,

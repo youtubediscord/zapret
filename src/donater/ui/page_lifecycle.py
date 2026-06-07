@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from donater.ui.accessibility import apply_premium_button_accessibility
 from ui.fluent_widgets import set_tooltip
 
 
@@ -229,6 +230,17 @@ def apply_premium_language(
             "page.premium.action.test_connection.description",
             "Проверить доступность Premium backend и соединение с сервером.",
         )
+    )
+    apply_premium_button_accessibility(
+        tr_fn=tr_fn,
+        activate_btn=activate_btn,
+        activate_loading=activation_in_progress,
+        open_bot_btn=open_bot_btn,
+        refresh_btn=refresh_btn,
+        change_key_btn=change_key_btn,
+        test_btn=test_btn,
+        test_loading=connection_test_in_progress,
+        extend_btn=extend_btn,
     )
 
     render_server_status_fn()

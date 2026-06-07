@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import donater.ui.page_plans as premium_page_plans
+from donater.ui.accessibility import apply_premium_button_accessibility
 
 
 def render_server_status_label(
@@ -156,6 +157,11 @@ def apply_connection_test_plan(
 ) -> bool:
     test_btn.setEnabled(plan.test_enabled)
     test_btn.setText(tr(plan.test_text_key, plan.test_text_default))
+    apply_premium_button_accessibility(
+        tr_fn=tr,
+        test_btn=test_btn,
+        test_loading=plan.connection_in_progress,
+    )
     set_server_status_state(
         plan.server_status_plan.mode,
         plan.server_status_plan.message,

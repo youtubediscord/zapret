@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon, LineEdit, PrimaryPushButton, PushButton
 
+from donater.ui.accessibility import apply_premium_button_accessibility
 from ui.fluent_widgets import SettingsCard, RefreshButton, QuickActionsBar, set_tooltip
 
 
@@ -76,6 +77,7 @@ def build_premium_activation_section(
         tr("page.premium.button.create_code", "Создать код"),
         icon=FluentIcon.LINK,
     )
+    apply_premium_button_accessibility(tr_fn=tr, activate_btn=activate_btn)
     activate_btn.clicked.connect(on_create_pair_code)
     key_row.addWidget(activate_btn)
 
@@ -129,6 +131,7 @@ def build_premium_device_info_section(
         tr("page.premium.button.open_bot", "Открыть бота"),
         icon=FluentIcon.SEND,
     )
+    apply_premium_button_accessibility(tr_fn=tr, open_bot_btn=open_bot_btn)
     open_bot_btn.clicked.connect(on_open_bot)
 
     row_layout = QHBoxLayout()
@@ -166,6 +169,7 @@ def build_premium_actions_section(
             "Повторно запросить Premium-статус и обновить данные устройства.",
         )
     )
+    apply_premium_button_accessibility(tr_fn=tr, refresh_btn=refresh_btn)
 
     actions_bar = QuickActionsBar(parent)
     actions_bar.add_button(refresh_btn)
@@ -178,9 +182,10 @@ def build_premium_actions_section(
         change_key_btn,
         tr(
             "page.premium.action.reset_activation.description",
-            "Удалить токен устройства, офлайн-кэш и код привязки на этом компьютере.",
+            "Удаляет токен устройства, офлайн-кэш и код привязки на этом компьютере.",
         )
     )
+    apply_premium_button_accessibility(tr_fn=tr, change_key_btn=change_key_btn)
     change_key_btn.clicked.connect(on_change_key)
     actions_bar.add_button(change_key_btn)
 
@@ -195,6 +200,7 @@ def build_premium_actions_section(
             "Проверить доступность Premium backend и соединение с сервером.",
         )
     )
+    apply_premium_button_accessibility(tr_fn=tr, test_btn=test_btn)
     test_btn.clicked.connect(on_test_connection)
     actions_bar.add_button(test_btn)
 
@@ -209,6 +215,7 @@ def build_premium_actions_section(
             "Открыть Telegram-бота для продления подписки или покупки Premium.",
         )
     )
+    apply_premium_button_accessibility(tr_fn=tr, extend_btn=extend_btn)
     extend_btn.clicked.connect(on_open_bot)
     actions_bar.add_button(extend_btn)
 
