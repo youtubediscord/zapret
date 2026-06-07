@@ -1211,7 +1211,7 @@ class ProfileSetupPageBase(BasePage):
             self._pending_raw_profile_save = None
             self._start_raw_profile_save_worker(
                 str(operation.get("profile_key") or ""),
-                self._resolve_raw_profile_save_text(operation.get("text")),
+                operation.get("text"),
             )
             return True
         if kind == "enabled_save":
@@ -3186,12 +3186,13 @@ class ProfileSetupPageBase(BasePage):
                 {"kind": "raw_profile_save", "profile_key": profile_key, "text": raw_text}
             )
             return
-        self._start_raw_profile_save_worker(profile_key, self._resolve_raw_profile_save_text(raw_text))
+        self._start_raw_profile_save_worker(profile_key, raw_text)
 
-    def _start_raw_profile_save_worker(self, profile_key: str, raw_text: str) -> None:
+    def _start_raw_profile_save_worker(self, profile_key: str, raw_text: str | None) -> None:
         runtime = self._worker_runtime("_raw_profile_save_runtime")
         self._raw_profile_save_request_id += 1
         request_id = self._raw_profile_save_request_id
+        raw_text = self._resolve_raw_profile_save_text(raw_text)
         if self._raw_profile_save_button is not None:
             set_widget_enabled_if_changed(self._raw_profile_save_button, False)
         _request_id, worker = runtime.start_qthread_worker(

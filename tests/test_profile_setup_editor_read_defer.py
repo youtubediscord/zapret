@@ -35,6 +35,33 @@ class _StartRuntime(_Runtime):
 
 
 class ProfileSetupEditorReadDeferTests(unittest.TestCase):
+    def test_raw_profile_save_request_defers_editor_read_until_worker_start(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._cleanup_in_progress = False
+        page._profile_key = "profile-1"
+        page._raw_profile_text = _RawTextEditor("--new\n--lua-desync=latest")
+        page._raw_profile_save_runtime = _Runtime(running=False)
+        page._raw_profile_save_start_scheduled = False
+        page._pending_raw_profile_save = None
+        page._pending_profile_setup_write_operations = []
+        page._profile_setup_write_operation_start_scheduled = False
+        page._list_file_save_runtime = _Runtime(running=False)
+        page._settings_save_runtime = _Runtime(running=False)
+        page._enabled_save_runtime = _Runtime(running=False)
+        page._user_profile_update_runtime = _Runtime(running=False)
+        page._user_profile_delete_runtime = _Runtime(running=False)
+        page._strategy_apply_runtime = _Runtime(running=False)
+        page._strategy_feedback_save_runtime = _Runtime(running=False)
+        page._raw_profile_save_button = Mock()
+        page._start_raw_profile_save_worker = Mock()
+
+        ProfileSetupPageBase._request_raw_profile_save(page, "profile-1", None)
+
+        self.assertEqual(page._raw_profile_text.read_calls, 0)
+        page._start_raw_profile_save_worker.assert_called_once_with("profile-1", None)
+
     def test_list_file_validation_while_worker_runs_defers_editor_read(self) -> None:
         from profile.ui.profile_setup_page import ProfileSetupPageBase
 
@@ -125,12 +152,33 @@ class ProfileSetupEditorReadDeferTests(unittest.TestCase):
 
         callbacks[0]()
 
-        self.assertEqual(page._raw_profile_text.read_calls, 1)
+        self.assertEqual(page._raw_profile_text.read_calls, 0)
         page._start_raw_profile_save_worker.assert_called_once_with(
             "profile-1",
-            "--new\n--lua-desync=latest",
+            None,
         )
         self.assertIsNone(page._pending_raw_profile_save)
+
+    def test_raw_profile_save_worker_start_reads_editor_once(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._raw_profile_text = _RawTextEditor("--new\n--lua-desync=latest")
+        page._raw_profile_text_cache = None
+        page._raw_profile_save_runtime = _StartRuntime()
+        page._raw_profile_save_request_id = 0
+        page._raw_profile_save_button = None
+        page.create_profile_raw_text_save_worker = Mock(return_value=object())
+
+        ProfileSetupPageBase._start_raw_profile_save_worker(page, "profile-1", None)
+
+        self.assertEqual(page._raw_profile_text.read_calls, 1)
+        page.create_profile_raw_text_save_worker.assert_called_once_with(
+            1,
+            "profile-1",
+            "--new\n--lua-desync=latest",
+            parent=page,
+        )
 
 
 if __name__ == "__main__":
