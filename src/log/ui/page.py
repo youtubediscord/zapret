@@ -28,6 +28,7 @@ from ui.accessibility import set_control_accessibility, set_state_text
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
+from ui.log_limits import MAIN_LOG_VIEW_MAX_LINES
 from log.ui.logs_build import build_logs_primary_tab_ui, build_logs_secondary_panels_ui
 from log.ui.runtime_helpers import (
     append_error,
@@ -118,6 +119,7 @@ class LogsPage(BasePage):
         self._logs_overview_pending_cleanup = False
         self._logs_overview_restart_scheduled = False
         self._tail_runtime = OneShotWorkerRuntime()
+        self._log_text_cache = ""
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._support_prepare_pending = False
         self._support_prepare_start_scheduled = False
@@ -975,7 +977,7 @@ class LogsPage(BasePage):
             stop_worker_fn=self._stop_tail_worker,
             build_tail_start_plan_fn=self._logs.build_tail_start_plan,
             set_info_text_fn=self._set_info_text,
-            clear_log_view_fn=self.log_text.clear,
+            clear_log_view_fn=self._clear_log_view_silent,
             tail_runtime=self._tail_runtime,
             parent=self,
             create_worker_fn=self._logs.create_log_tail_worker,
@@ -998,6 +1000,7 @@ class LogsPage(BasePage):
             return
         if not text:
             return
+        self._append_log_text_cache(text)
 
         # Быстро вставляем текст одним куском (append по строкам сильно тормозит на больших логах).
         try:
@@ -1038,7 +1041,7 @@ class LogsPage(BasePage):
         
     def _copy_log(self):
         """Копирует содержимое лога в буфер"""
-        text = self.log_text.toPlainText()
+        text = str(self.__dict__.get("_log_text_cache", "") or "")
         if text:
             QApplication.clipboard().setText(text)
             self._set_info_text(
@@ -1059,7 +1062,7 @@ class LogsPage(BasePage):
             
     def _clear_view(self):
         """Очищает вид (не файл)"""
-        self.log_text.clear()
+        self._clear_log_view_silent()
         self._set_info_text(
             tr_catalog(
                 "page.logs.info.view_cleared",
@@ -1067,6 +1070,18 @@ class LogsPage(BasePage):
                 default="🧹 Вид очищен",
             )
         )
+
+    def _clear_log_view_silent(self) -> None:
+        self.log_text.clear()
+        self._log_text_cache = ""
+
+    def _append_log_text_cache(self, text: str) -> None:
+        current = str(self.__dict__.get("_log_text_cache", "") or "")
+        combined = f"{current}\n{text}" if current else str(text or "")
+        lines = combined.splitlines()
+        if len(lines) > MAIN_LOG_VIEW_MAX_LINES:
+            lines = lines[-MAIN_LOG_VIEW_MAX_LINES:]
+        self._log_text_cache = "\n".join(lines)
         
     def _open_folder(self):
         """Открывает папку с логами"""

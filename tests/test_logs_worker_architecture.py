@@ -315,6 +315,24 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
         page._open_folder_runtime.cancel.assert_called_once()
         page._stop_tail_worker.assert_called_once_with(blocking=False)
 
+    def test_copy_log_uses_cached_text_without_reading_log_widget(self) -> None:
+        class LogText:
+            def toPlainText(self):  # noqa: N802
+                raise AssertionError("GUI log text should not be read during copy")
+
+        clipboard = SimpleNamespace(setText=Mock())
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page.log_text = LogText()
+        page._log_text_cache = "cached log"
+        page._ui_language = "ru"
+        page._set_info_text = Mock()
+
+        with patch.object(logs_page, "QApplication", SimpleNamespace(clipboard=Mock(return_value=clipboard))):
+            logs_page.LogsPage._copy_log(page)
+
+        clipboard.setText.assert_called_once_with("cached log")
+        page._set_info_text.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
