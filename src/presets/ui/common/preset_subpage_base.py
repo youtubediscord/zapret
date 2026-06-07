@@ -173,17 +173,6 @@ def set_enabled_if_changed(widget, enabled: bool) -> bool:
     return True
 
 
-def set_plain_text_if_changed(widget, text: str) -> bool:
-    value = str(text or "")
-    try:
-        if str(widget.toPlainText()) == value:
-            return False
-    except Exception:
-        pass
-    widget.setPlainText(value)
-    return True
-
-
 class _RenameDialog(MessageBoxBase):
     def __init__(self, current_name: str, existing_names: list[str], parent=None):
         if parent is not None and not parent.isWindow():

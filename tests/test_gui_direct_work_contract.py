@@ -45,9 +45,7 @@ ALLOWED_PROCESS_EVENTS_FILES = {
 }
 
 ALLOWED_EDITOR_TEXT_READS = {
-    "presets/ui/common/preset_subpage_base.py:set_plain_text_if_changed:toPlainText()",
     "presets/ui/common/preset_subpage_base.py:_resolve_raw_preset_save_text:toPlainText()",
-    "profile/ui/profile_setup_page.py:set_plain_text_if_changed:toPlainText()",
     "profile/ui/profile_setup_page.py:_resolve_list_file_validation_request:toPlainText()",
     "profile/ui/profile_setup_page.py:_resolve_raw_profile_save_text:toPlainText()",
 }

@@ -139,17 +139,6 @@ def set_widget_style_sheet_if_changed(widget, style: str) -> bool:
     return True
 
 
-def set_plain_text_if_changed(widget, text: str) -> bool:
-    value = str(text or "")
-    try:
-        if str(widget.toPlainText()) == value:
-            return False
-    except Exception:
-        pass
-    widget.setPlainText(value)
-    return True
-
-
 def set_read_only_if_changed(widget, read_only: bool) -> bool:
     value = bool(read_only)
     try:
