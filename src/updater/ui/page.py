@@ -291,6 +291,9 @@ class ServersPage(BasePage):
     def update_download_progress(self, percent: int, done_bytes: int, total_bytes: int) -> None:
         self.changelog_card.update_progress(percent, done_bytes, total_bytes)
 
+    def update_download_status_text(self, message: str) -> None:
+        self.changelog_card.set_download_status_text(message)
+
     def mark_update_download_complete(self) -> None:
         self.changelog_card.download_complete()
 

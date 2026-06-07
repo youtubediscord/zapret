@@ -503,6 +503,24 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         runtime._view.set_update_check_enabled.assert_called_once_with(False)
         runtime._request_update_cache_invalidate.assert_called_once_with("install_update")
 
+    def test_update_worker_progress_shows_preparation_messages_only(self) -> None:
+        runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
+        runtime._view = Mock()
+
+        with patch.object(update_page_runtime, "log"):
+            update_page_runtime.UpdatePageRuntime._on_update_worker_progress(
+                runtime,
+                "Остановка DPI для скачивания...",
+            )
+            update_page_runtime.UpdatePageRuntime._on_update_worker_progress(
+                runtime,
+                "Скачивание… 12%",
+            )
+
+        runtime._view.update_download_status_text.assert_called_once_with(
+            "Остановка DPI для скачивания..."
+        )
+
     def test_cache_invalidate_error_ignored_when_new_context_is_pending(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False

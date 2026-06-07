@@ -112,6 +112,7 @@ class UpdatePageView(Protocol):
     def hide_update_offer(self) -> None: ...
     def start_update_download(self, version: str) -> None: ...
     def update_download_progress(self, percent: int, done_bytes: int, total_bytes: int) -> None: ...
+    def update_download_status_text(self, message: str) -> None: ...
     def mark_update_download_complete(self) -> None: ...
     def mark_update_download_failed(self, error: str) -> None: ...
     def show_update_download_error(self) -> None: ...
@@ -972,7 +973,14 @@ class UpdatePageRuntime:
         worker.download_failed.connect(self._view.mark_update_download_failed)
         worker.download_failed.connect(self._on_download_failed)
         worker.dpi_restart_needed.connect(self._restart_dpi_after_update)
-        worker.progress.connect(lambda message: log(f"{message}", "🔁 UPDATE"))
+        worker.progress.connect(self._on_update_worker_progress)
+
+    def _on_update_worker_progress(self, message: str) -> None:
+        text = str(message or "").strip()
+        log(f"{text}", "🔁 UPDATE")
+        if not text or text.startswith("Скачивание"):
+            return
+        self._view.update_download_status_text(text)
 
     def _handle_update_install_finished(self, _request_id: int, _thread) -> None:
         if self._cleanup_in_progress:

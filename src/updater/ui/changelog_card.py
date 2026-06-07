@@ -319,6 +319,14 @@ class ChangelogCard(CardWidget):
         self.eta_label.setText(plan.eta_label_text)
         self._update_accessibility()
 
+    def set_download_status_text(self, message: str) -> None:
+        if not self._is_downloading:
+            return
+        text = str(message or "").strip()
+        if text:
+            self.version_label.setText(text)
+            self._update_accessibility()
+
     def download_complete(self):
         plan = update_page_plans.build_changelog_terminal_plan(
             kind="installing",
