@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from telegram_proxy.config.upstream_catalog import UpstreamCatalog
 from telegram_proxy.proxy.cloudflare import CloudflareFallbackConfig, normalize_domain_list
+from telegram_proxy.proxy.mtproxy import normalize_secret
 
 
 @dataclass(slots=True)
@@ -21,6 +22,7 @@ class TelegramProxySettingsState:
     cloudflare_domains: tuple[str, ...]
     cloudflare_worker_enabled: bool
     cloudflare_worker_domains: tuple[str, ...]
+    mtproxy_secret: str
 
 
 @dataclass(slots=True)
@@ -48,6 +50,7 @@ def default_state() -> TelegramProxySettingsState:
         cloudflare_domains=(),
         cloudflare_worker_enabled=False,
         cloudflare_worker_domains=(),
+        mtproxy_secret="",
     )
 
 def validate_host(host: str) -> bool:
@@ -101,6 +104,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
     upstream_mode = str(raw.get("upstream_mode") or "fallback").strip().lower() or "fallback"
     cloudflare_domains = normalize_domain_list(raw.get("cloudflare_domains"))
     cloudflare_worker_domains = normalize_domain_list(raw.get("cloudflare_worker_domains"))
+    mtproxy_secret = normalize_secret(raw.get("mtproxy_secret"))
 
     return TelegramProxySettingsState(
         host=normalize_host(raw.get("host")),
@@ -121,6 +125,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
         cloudflare_domains=cloudflare_domains,
         cloudflare_worker_enabled=bool(raw.get("cloudflare_worker_enabled", False)),
         cloudflare_worker_domains=cloudflare_worker_domains,
+        mtproxy_secret=mtproxy_secret,
     )
 
 

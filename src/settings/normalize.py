@@ -68,6 +68,15 @@ def as_str_in(value: object, allowed: frozenset[str], default: str) -> str:
     return default
 
 
+def normalize_hex_secret(value: object) -> str:
+    text = as_clean_str(value).lower()
+    if len(text) != 32:
+        return ""
+    if not all(ch in "0123456789abcdef" for ch in text):
+        return ""
+    return text
+
+
 def unique_str_list(value: object) -> list[str]:
     if not isinstance(value, (list, tuple, set)):
         return []
@@ -264,6 +273,7 @@ def normalize_telegram_proxy(data: object) -> dict[str, Any]:
             defaults["cloudflare_worker_enabled"],
         ),
         "cloudflare_worker_domains": unique_domain_list(raw.get("cloudflare_worker_domains")),
+        "mtproxy_secret": normalize_hex_secret(raw.get("mtproxy_secret")),
     }
 
 

@@ -25,6 +25,7 @@ from settings.normalize import (
     as_dict as _as_dict,
     as_int as _as_int,
     normalize_askey as _normalize_askey,
+    normalize_hex_secret as _normalize_hex_secret,
     normalize_settings as _normalize_settings,
     normalize_lookup_key as _normalize_lookup_key,
     unique_domain_list as _unique_domain_list,
@@ -969,6 +970,14 @@ def set_tg_proxy_cloudflare_worker_domains(value: object) -> bool:
     return _set_str_list(("telegram_proxy", "cloudflare_worker_domains"), value)
 
 
+def get_tg_proxy_mtproxy_secret() -> str:
+    return _get_str(("telegram_proxy", "mtproxy_secret"), "")
+
+
+def set_tg_proxy_mtproxy_secret(value: str) -> bool:
+    return _set_str(("telegram_proxy", "mtproxy_secret"), _normalize_hex_secret(value))
+
+
 def get_orchestra_strict_detection() -> bool:
     return _get_bool(("orchestra", "settings", "strict_detection"), True)
 
@@ -1279,6 +1288,7 @@ __all__ = [
     "get_tg_proxy_enabled",
     "get_tg_proxy_host",
     "get_tg_proxy_mode",
+    "get_tg_proxy_mtproxy_secret",
     "get_tg_proxy_port",
     "get_tg_proxy_upstream_enabled",
     "get_tg_proxy_upstream_host",
@@ -1368,6 +1378,7 @@ __all__ = [
     "set_tg_proxy_enabled",
     "set_tg_proxy_host",
     "set_tg_proxy_mode",
+    "set_tg_proxy_mtproxy_secret",
     "set_tg_proxy_port",
     "set_tg_proxy_upstream_enabled",
     "set_tg_proxy_upstream_host",
