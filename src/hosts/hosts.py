@@ -696,7 +696,10 @@ class HostsManager:
                 return current_active
 
             for domain, ip in _iter_managed_hosts_block_rows(content.splitlines(keepends=True)):
-                current_active[domain] = ip
+                domain_key = (domain or "").casefold()
+                if not domain_key or domain_key in current_active:
+                    continue
+                current_active[domain_key] = ip
 
             log(f"Найдено активных управляемых доменов: {len(current_active)}", "DEBUG")
         except Exception as e:
