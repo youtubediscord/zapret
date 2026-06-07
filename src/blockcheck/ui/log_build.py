@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from qfluentwidgets import FluentIcon
 
 from ui.log_limits import BLOCKCHECK_LOG_VIEW_MAX_LINES, apply_text_line_limit
+from ui.accessibility import set_control_accessibility
 
 
 @dataclass(slots=True)
@@ -37,6 +38,11 @@ def build_log_card_section(
     )
 
     expand_btn = push_button_cls("Развернуть", icon=FluentIcon.FULL_SCREEN)
+    set_control_accessibility(
+        expand_btn,
+        name="Развернуть лог BlockCheck",
+        description="Разворачивает подробный лог BlockCheck на странице.",
+    )
     expand_btn.setFixedWidth(120)
     expand_btn.clicked.connect(on_toggle_expand)
 
@@ -50,12 +56,22 @@ def build_log_card_section(
         tr_fn("page.blockcheck.prepare_support", "Подготовить обращение"),
         icon=FluentIcon.GITHUB,
     )
+    set_control_accessibility(
+        prepare_support_btn,
+        name="Подготовить обращение по BlockCheck",
+        description="Готовит обращение с логами BlockCheck для поддержки.",
+    )
     prepare_support_btn.clicked.connect(on_prepare_support)
     log_header.addWidget(prepare_support_btn)
     log_header.addWidget(expand_btn)
     card.add_layout(log_header)
 
     log_edit = text_edit_cls()
+    set_control_accessibility(
+        log_edit,
+        name="Подробный лог BlockCheck",
+        description="Здесь появляется подробный текстовый лог проверки BlockCheck.",
+    )
     log_edit.setReadOnly(True)
     log_edit.setMinimumHeight(180)
     log_edit.setMaximumHeight(300)

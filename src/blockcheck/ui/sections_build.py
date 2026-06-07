@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QLabel
 from qfluentwidgets import FluentIcon
 
 from ui.fluent_widgets import set_tooltip
+from ui.accessibility import set_control_accessibility
 from ui.widgets.fluent_item_tooltip import install_fluent_item_tooltips
 
 
@@ -50,12 +51,15 @@ def build_actions_section(
         tr_fn("page.blockcheck.start", "Запустить"),
         icon=FluentIcon.PLAY,
     )
-    set_tooltip(
+    start_description = tr_fn(
+        "page.blockcheck.action.start.description",
+        "Запустить анализ блокировок и проверку DPI для выбранного режима.",
+    )
+    set_tooltip(start_btn, start_description)
+    set_control_accessibility(
         start_btn,
-        tr_fn(
-            "page.blockcheck.action.start.description",
-            "Запустить анализ блокировок и проверку DPI для выбранного режима.",
-        )
+        name="Запустить BlockCheck",
+        description=start_description,
     )
     start_btn.clicked.connect(on_start)
     actions_bar.add_button(start_btn)
@@ -64,12 +68,15 @@ def build_actions_section(
         tr_fn("page.blockcheck.stop", "Остановить"),
         icon=FluentIcon.CANCEL,
     )
-    set_tooltip(
+    stop_description = tr_fn(
+        "page.blockcheck.action.stop.description",
+        "Остановить текущую проверку и вернуть страницу в обычный режим.",
+    )
+    set_tooltip(stop_btn, stop_description)
+    set_control_accessibility(
         stop_btn,
-        tr_fn(
-            "page.blockcheck.action.stop.description",
-            "Остановить текущую проверку и вернуть страницу в обычный режим.",
-        )
+        name="Остановить BlockCheck",
+        description=stop_description,
     )
     stop_btn.clicked.connect(on_stop)
     stop_btn.setEnabled(False)

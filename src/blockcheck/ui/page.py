@@ -34,6 +34,7 @@ from blockcheck.page_run_workflow import (
     start_blockcheck_page_run,
 )
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from app.ui_texts import tr as tr_catalog
 
@@ -267,6 +268,8 @@ class BlockcheckPage(BasePage):
         )
         self._mode_combo.setCurrentIndex(1)  # Default: full
         self._mode_combo.setFixedWidth(160)
+        self._update_mode_combo_accessibility()
+        self._mode_combo.currentIndexChanged.connect(self._update_mode_combo_accessibility)
         ctrl_row.addWidget(self._mode_combo)
 
         ctrl_row.addStretch()
@@ -282,6 +285,8 @@ class BlockcheckPage(BasePage):
             "Если включено, домены с провалившимся preflight "
             "(DNS-заглушка, ISP-инъекция) будут пропущены в основном блокчеке"
         )
+        self._update_skip_failed_accessibility()
+        self._skip_failed_cb.toggled.connect(self._update_skip_failed_accessibility)
         ctrl_row.addWidget(self._skip_failed_cb)
 
         self._control_card.add_layout(ctrl_row)
@@ -296,6 +301,7 @@ class BlockcheckPage(BasePage):
         self._status_label = CaptionLabel(
             tr_catalog("page.blockcheck.ready", default="Готово")
         )
+        self._set_status_text(self._status_label.text())
         self._control_card.add_widget(self._status_label)
         self._add_tab_widget(self._control_card)
         self._log_ui_timing("blockcheck_ui.control_card.build", section_started_at)
@@ -649,6 +655,7 @@ class BlockcheckPage(BasePage):
             on_finished=self._on_finished,
         )
         self._run_log_file = run_state.run_log_file
+        self._set_status_text(self._status_label.text())
 
     def _on_run_log_started(self, run_log_file) -> None:
         if self._cleanup_in_progress:
@@ -663,6 +670,7 @@ class BlockcheckPage(BasePage):
             force_stop=self._force_stop,
             tr_fn=tr_catalog,
         )
+        self._set_status_text(self._status_label.text())
 
     def _force_stop(self, expected_worker=None):
         if expected_worker is None:
@@ -673,7 +681,7 @@ class BlockcheckPage(BasePage):
                 "page.blockcheck.stopping_slow",
                 default="Остановка занимает больше времени, ждём завершения фоновой проверки...",
             )
-            self._status_label.setText(warning_text)
+            self._set_status_text(warning_text)
             self._set_support_status(
                 tr_catalog(
                     "page.blockcheck.support_wait_stop",
@@ -688,7 +696,7 @@ class BlockcheckPage(BasePage):
     def _on_phase_changed(self, phase: str):
         if self._cleanup_in_progress:
             return
-        self._status_label.setText(phase)
+        self._set_status_text(phase)
 
     def _on_test_result(self, result):
         """Update table with individual test result."""
@@ -735,9 +743,7 @@ class BlockcheckPage(BasePage):
         was_cancelled = bool(report is not None and getattr(report, "cancelled", False))
 
         if report is None:
-            self._status_label.setText(
-                tr_catalog("page.blockcheck.error", default="Ошибка выполнения")
-            )
+            self._set_status_text(tr_catalog("page.blockcheck.error", default="Ошибка выполнения"))
             self._set_support_status(
                 tr_catalog(
                     "page.blockcheck.support_ready_after_error",
@@ -748,7 +754,7 @@ class BlockcheckPage(BasePage):
 
         elapsed = report.elapsed_seconds
         if was_cancelled:
-            self._status_label.setText(
+            self._set_status_text(
                 tr_catalog("page.blockcheck.cancelled", default="Отменено") + f" ({elapsed:.1f}s)"
             )
             self._set_support_status(
@@ -758,7 +764,7 @@ class BlockcheckPage(BasePage):
                 )
             )
         else:
-            self._status_label.setText(
+            self._set_status_text(
                 tr_catalog("page.blockcheck.done", default="Готово") + f" ({elapsed:.1f}s)"
             )
             self._set_support_status(
@@ -812,10 +818,48 @@ class BlockcheckPage(BasePage):
             progress_bar=self._progress_bar,
         )
 
+    def _set_status_text(self, text: str) -> None:
+        value = str(text or "").strip()
+        self._status_label.setText(value)
+        set_state_text(self._status_label, f"Статус BlockCheck: {value}")
+
+    def _update_mode_combo_accessibility(self, *_args) -> None:
+        text = str(self._mode_combo.currentText() or "").strip() or "не выбрано"
+        set_control_accessibility(
+            self._mode_combo,
+            name=f"Режим BlockCheck, выбрано: {text}",
+            description="Выберите глубину проверки BlockCheck.",
+        )
+
+    def _update_skip_failed_accessibility(self, *_args) -> None:
+        state = "включено" if self._skip_failed_cb.isChecked() else "выключено"
+        set_control_accessibility(
+            self._skip_failed_cb,
+            name=f"Пропускать проблемные домены, {state}",
+            description="Если включено, домены с DNS-заглушкой или ошибкой провайдера будут пропущены.",
+        )
+
+    def _update_log_expand_accessibility(self) -> None:
+        if self._log_expanded:
+            set_control_accessibility(
+                self._expand_log_btn,
+                name="Свернуть лог BlockCheck",
+                description="Возвращает подробный лог BlockCheck к обычному размеру.",
+            )
+        else:
+            set_control_accessibility(
+                self._expand_log_btn,
+                name="Развернуть лог BlockCheck",
+                description="Разворачивает подробный лог BlockCheck на странице.",
+            )
+
     def _set_support_status(self, text: str) -> None:
         if self._support_status_label is None:
             return
-        self._support_status_label.setText(str(text or "").strip())
+        value = str(text or "").strip()
+        self._support_status_label.setText(value)
+        if value:
+            set_state_text(self._support_status_label, f"Статус обращения BlockCheck: {value}")
 
     def _prepare_support_from_blockcheck(self) -> None:
         mode_label = self._mode_combo.currentText() if self._mode_combo is not None else "BlockCheck"
@@ -957,6 +1001,7 @@ class BlockcheckPage(BasePage):
             self._log_edit.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
             self._log_edit.setMinimumHeight(400)
             self._expand_log_btn.setText("Свернуть")
+            self._update_log_expand_accessibility()
         else:
             self._control_card.setVisible(True)
             self._domains_card.setVisible(True)
@@ -967,6 +1012,7 @@ class BlockcheckPage(BasePage):
             self._log_edit.setMinimumHeight(180)
             self._log_edit.setMaximumHeight(300)
             self._expand_log_btn.setText("Развернуть")
+            self._update_log_expand_accessibility()
 
     def _update_dpi_summary(self, report):
         """Show DPI summary card after tests complete."""

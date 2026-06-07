@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 from qfluentwidgets import FluentIcon
 
+from ui.accessibility import set_control_accessibility
+
 
 @dataclass(slots=True)
 class BlockcheckDomainsWidgets:
@@ -39,6 +41,11 @@ def build_blockcheck_domains_ui(
     input_edit.setPlaceholderText(
         tr_fn("page.blockcheck.domain_placeholder", "example.com")
     )
+    set_control_accessibility(
+        input_edit,
+        name="Пользовательский домен для BlockCheck",
+        description="Введите домен, который нужно дополнительно проверить в BlockCheck.",
+    )
     input_edit.setFixedHeight(33)
     input_edit.returnPressed.connect(on_add)
     input_row.addWidget(input_edit)
@@ -46,6 +53,11 @@ def build_blockcheck_domains_ui(
     add_button = push_button_cls(
         tr_fn("page.blockcheck.add_domain", "Добавить"),
         icon=FluentIcon.ADD,
+    )
+    set_control_accessibility(
+        add_button,
+        name="Добавить домен в BlockCheck",
+        description="Добавляет введённый домен в список проверки BlockCheck.",
     )
     add_button.clicked.connect(on_add)
     input_row.addWidget(add_button)
