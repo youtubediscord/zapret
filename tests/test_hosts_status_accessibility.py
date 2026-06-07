@@ -30,6 +30,28 @@ class HostsStatusAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.open_hosts_button.accessibleName(), "Открыть файл hosts")
         self.assertIn("Открывает системный файл hosts", widgets.open_hosts_button.accessibleDescription())
 
+    def test_status_state_is_text_for_screen_reader(self) -> None:
+        active_widgets = build_hosts_status_section(
+            tr_fn=lambda _key, default, **kwargs: default.format(**kwargs) if kwargs else default,
+            active_count=3,
+            on_clear_clicked=lambda: None,
+            on_open_hosts_file=lambda: None,
+        )
+        inactive_widgets = build_hosts_status_section(
+            tr_fn=lambda _key, default, **kwargs: default.format(**kwargs) if kwargs else default,
+            active_count=0,
+            on_clear_clicked=lambda: None,
+            on_open_hosts_file=lambda: None,
+        )
+
+        self.assertEqual(active_widgets.status_label.accessibleName(), "Статус hosts: Активно 3 доменов")
+        self.assertEqual(active_widgets.status_dot.accessibleName(), "Индикатор hosts: есть активные домены")
+        self.assertEqual(active_widgets.card.accessibleName(), "Статус hosts: Активно 3 доменов")
+
+        self.assertEqual(inactive_widgets.status_label.accessibleName(), "Статус hosts: Нет активных")
+        self.assertEqual(inactive_widgets.status_dot.accessibleName(), "Индикатор hosts: нет активных доменов")
+        self.assertEqual(inactive_widgets.card.accessibleName(), "Статус hosts: Нет активных")
+
     def test_adobe_switch_reads_current_state(self) -> None:
         widgets = build_hosts_adobe_section(
             tr_fn=lambda _key, default, **_kwargs: default,

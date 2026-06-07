@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import SettingsCard, SemanticNotice
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
@@ -94,12 +94,39 @@ def build_hosts_status_section(
     status_dot = QLabel("●")
     dot_color = semantic.success if active_count > 0 else tokens.fg_faint
     status_dot.setStyleSheet(f"color: {dot_color}; font-size: 12px;")
+    set_state_text(
+        status_dot,
+        tr_fn(
+            "page.hosts.status.dot.active.accessible_name",
+            "Индикатор hosts: есть активные домены",
+        )
+        if active_count > 0
+        else tr_fn(
+            "page.hosts.status.dot.inactive.accessible_name",
+            "Индикатор hosts: нет активных доменов",
+        ),
+    )
     status_layout.addWidget(status_dot)
 
-    status_label = BodyLabel(
+    status_text = (
         tr_fn("page.hosts.status.active_domains", "Активно {count} доменов", count=active_count)
         if active_count > 0
         else tr_fn("page.hosts.status.none_active", "Нет активных")
+    )
+    status_label = BodyLabel(status_text)
+    status_accessible_text = tr_fn(
+        "page.hosts.status.accessible_name",
+        "Статус hosts: {status}",
+        status=status_text,
+    )
+    set_state_text(status_label, status_accessible_text)
+    set_control_accessibility(
+        status_card,
+        name=status_accessible_text,
+        description=tr_fn(
+            "page.hosts.status.accessible_description",
+            "Показывает, есть ли сейчас активные домены в файле hosts.",
+        ),
     )
     status_label.setProperty("tone", "primary")
     status_layout.addWidget(status_label, 1)
