@@ -124,7 +124,7 @@ class ThemeManagerPersistenceTests(unittest.TestCase):
         )
         build_runtime.cancel.assert_called_once_with()
         persist_runtime.stop.assert_called_once_with(
-            blocking=True,
+            blocking=False,
             wait_timeout_ms=1000,
             log_fn=theme.log,
             warning_prefix="theme persist worker",

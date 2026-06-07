@@ -1156,7 +1156,7 @@ class ThemeManager:
             self._theme_persist_start_scheduled = False
             self._theme_persist_runtime_worker = None
             self._theme_persist_runtime.stop(
-                blocking=True,
+                blocking=False,
                 wait_timeout_ms=1000,
                 log_fn=log,
                 warning_prefix="theme persist worker",
