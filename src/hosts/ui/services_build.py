@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
 from qfluentwidgets import ScrollArea
 
+from ui.accessibility import set_control_accessibility
 from ui.fluent_widgets import SettingsCard
 from ui.theme import get_theme_tokens
 
@@ -155,7 +156,19 @@ def build_hosts_service_row(
         control = toggle_cls()
         control.setEnabled(row_plan.toggle_enabled)
         control.setChecked(row_plan.toggle_checked)
+        _update_direct_service_accessibility(
+            control,
+            service_name=row_plan.service_name,
+            checked=row_plan.toggle_checked,
+        )
         toggle_signal = getattr(control, "checkedChanged", None) or getattr(control, "toggled", None)
+        toggle_signal.connect(
+            lambda checked, c=control, s=row_plan.service_name: _update_direct_service_accessibility(
+                c,
+                service_name=s,
+                checked=checked,
+            )
+        )
         toggle_signal.connect(
             lambda checked, s=row_plan.service_name: on_direct_toggle(s, checked)
         )
@@ -178,6 +191,18 @@ def build_hosts_service_row(
         else:
             control.setCurrentIndex(0)
 
+        _update_profile_service_accessibility(
+            control,
+            service_name=row_plan.service_name,
+            off_label=off_label,
+        )
+        control.currentIndexChanged.connect(
+            lambda _idx, c=control, s=row_plan.service_name, o=off_label: _update_profile_service_accessibility(
+                c,
+                service_name=s,
+                off_label=o,
+            )
+        )
         control.currentIndexChanged.connect(
             lambda _idx, s=row_plan.service_name, c=control: on_profile_changed(s, c.currentData())
         )
@@ -188,4 +213,26 @@ def build_hosts_service_row(
         icon_label=icon_label,
         name_label=name_label,
         control=control,
+    )
+
+
+def _update_direct_service_accessibility(control, *, service_name: str, checked: bool) -> None:
+    state = "включено" if bool(checked) else "выключено"
+    set_control_accessibility(
+        control,
+        name=f"{service_name}, {state}",
+        description=f"Включает или отключает hosts-запись для сервиса {service_name}.",
+    )
+
+
+def _update_profile_service_accessibility(control, *, service_name: str, off_label: str) -> None:
+    selected_text = str(control.currentText() or "").strip()
+    if not selected_text or selected_text == str(off_label or ""):
+        state = "отключено"
+    else:
+        state = f"выбран профиль {selected_text}"
+    set_control_accessibility(
+        control,
+        name=f"{service_name}, {state}",
+        description=f"Выберите профиль hosts для сервиса {service_name}.",
     )
