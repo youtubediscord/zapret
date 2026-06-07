@@ -215,8 +215,7 @@ class UpdatePageRuntime:
         self._server_check_gate_runtime = OneShotWorkerRuntime()
         self._update_install_runtime = OneShotWorkerRuntime()
         self._cleanup_in_progress = False
-        self._auto_check_load_pending = False
-        self._auto_check_load_start_scheduled = False
+        self._auto_check_load_state = UpdateLatestValueWorkerState(self._auto_check_load_runtime, empty_value=False)
         self._auto_check_save_state = UpdateLatestValueWorkerState(self._auto_check_save_runtime, empty_value=None)
         self._cache_invalidate_state = UpdateLatestValueWorkerState(self._cache_invalidate_runtime, empty_value=None)
         self._update_channel_open_state = UpdateLatestValueWorkerState(self._update_channel_open_runtime, empty_value="")
@@ -235,6 +234,32 @@ class UpdatePageRuntime:
     @property
     def auto_check_enabled(self) -> bool:
         return bool(self._auto_check_enabled)
+
+    def _auto_check_load_state_obj(self) -> UpdateLatestValueWorkerState:
+        state = self.__dict__.get("_auto_check_load_state")
+        if state is None:
+            state = UpdateLatestValueWorkerState(
+                self.__dict__.get("_auto_check_load_runtime"),
+                empty_value=False,
+            )
+            self.__dict__["_auto_check_load_state"] = state
+        return state
+
+    @property
+    def _auto_check_load_pending(self) -> bool:
+        return bool(self._auto_check_load_state_obj().pending)
+
+    @_auto_check_load_pending.setter
+    def _auto_check_load_pending(self, value: bool) -> None:
+        self._auto_check_load_state_obj().pending = bool(value)
+
+    @property
+    def _auto_check_load_start_scheduled(self) -> bool:
+        return bool(self._auto_check_load_state_obj().start_scheduled)
+
+    @_auto_check_load_start_scheduled.setter
+    def _auto_check_load_start_scheduled(self, value: bool) -> None:
+        self._auto_check_load_state_obj().start_scheduled = bool(value)
 
     def _update_channel_open_state_obj(self) -> UpdateLatestValueWorkerState:
         state = self.__dict__.get("_update_channel_open_state")
@@ -476,13 +501,12 @@ class UpdatePageRuntime:
         self._request_auto_check_load()
 
     def _request_auto_check_load(self) -> None:
-        if (
-            self._auto_check_load_runtime.is_running()
-            or self.__dict__.get("_auto_check_load_start_scheduled", False)
-        ):
-            self._auto_check_load_pending = True
-            return
-        self._auto_check_load_pending = False
+        self._auto_check_load_state_obj().request_or_start(True, lambda _pending: self._start_auto_check_load_worker())
+
+    def _auto_check_load_has_pending(self) -> bool:
+        return self._auto_check_load_state_obj().has_pending()
+
+    def _start_auto_check_load_worker(self) -> None:
         self._auto_check_load_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._updater_feature.create_auto_check_load_worker(
                 request_id,
@@ -498,7 +522,7 @@ class UpdatePageRuntime:
             return
         if self._auto_check_user_changed:
             return
-        if self.__dict__.get("_auto_check_load_pending", False):
+        if self._auto_check_load_has_pending():
             return
         self._auto_check_enabled = bool(enabled)
         self._view.set_auto_check_toggle_checked(bool(enabled))
@@ -511,32 +535,31 @@ class UpdatePageRuntime:
     def _on_auto_check_load_failed(self, request_id: int, error: str) -> None:
         if not self._auto_check_load_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
             return
-        if self.__dict__.get("_auto_check_load_pending", False):
+        if self._auto_check_load_has_pending():
             return
         log(f"Не удалось загрузить автопроверку обновлений: {error}", "WARNING")
 
     def _on_auto_check_load_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_auto_check_load_runtime"), _worker):
-            return
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if self.__dict__.get("_auto_check_load_pending", False):
-            self._schedule_auto_check_load_start()
+        self._auto_check_load_state_obj().schedule_pending_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_auto_check_load_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _schedule_auto_check_load_start(self) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if self.__dict__.get("_auto_check_load_start_scheduled", False):
-            self._auto_check_load_pending = True
-            return
-        self._auto_check_load_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_auto_check_load_start)
+        self._auto_check_load_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_auto_check_load_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_auto_check_load_start(self) -> None:
-        self._auto_check_load_start_scheduled = False
-        pending = bool(self.__dict__.get("_auto_check_load_pending", False))
-        self._auto_check_load_pending = False
-        if self.__dict__.get("_cleanup_in_progress", False) or not pending:
+        pending = self._auto_check_load_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
+        if not pending:
             return
         self._request_auto_check_load()
 
@@ -1162,8 +1185,7 @@ class UpdatePageRuntime:
         self._auto_check_save_runtime.cancel()
 
     def _teardown_auto_check_load_worker(self) -> None:
-        self._auto_check_load_pending = False
-        self._auto_check_load_start_scheduled = False
+        self._auto_check_load_state_obj().reset()
         self._auto_check_load_runtime.stop(
             blocking=_updater_cleanup_blocking("auto_check_load_worker"),
             log_fn=log,

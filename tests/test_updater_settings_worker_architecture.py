@@ -128,6 +128,15 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
         runtime._request_auto_check_load.assert_called_once_with()
         self.assertFalse(runtime._auto_check_load_pending)
 
+    def test_auto_check_load_queue_state_lives_in_state_object(self) -> None:
+        init_source = inspect.getsource(update_page_runtime.UpdatePageRuntime.__init__)
+        finished_source = inspect.getsource(update_page_runtime.UpdatePageRuntime._on_auto_check_load_worker_finished)
+        state_source = inspect.getsource(update_page_runtime.UpdateLatestValueWorkerState)
+
+        self.assertIn("_auto_check_load_state = UpdateLatestValueWorkerState", init_source)
+        self.assertIn("schedule_pending_after_finish", finished_source)
+        self.assertIn("def schedule_pending_after_finish", state_source)
+
     def test_stale_auto_check_load_finish_does_not_restart_pending_load(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
