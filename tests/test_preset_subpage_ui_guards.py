@@ -180,6 +180,7 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         page._preset_name = "Default"
         page._preset_path = None
         page._preset_origin = "user"
+        page._raw_editor_text_snapshot = "--new\n--filter-tcp=443\n"
         page._is_loading = True
         page.editor = _PlainTextEditor("--new\n--filter-tcp=443\n")
         page._set_footer = Mock()
@@ -210,6 +211,7 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
         callbacks[0]()
 
         self.assertEqual(page.editor.plain_text_calls, [])
+        self.assertEqual(page.editor.plain_text_read_calls, [])
         page._set_footer.assert_called_once_with("Готово")
         page._refresh_header.assert_called_once_with()
         self.assertFalse(page._is_loading)

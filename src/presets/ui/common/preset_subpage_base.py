@@ -236,6 +236,7 @@ class PresetRawEditorPage(BasePage):
         self._preset_origin = "user"
         self._active_preset_file_name = ""
         self._active_preset_name = ""
+        self._raw_editor_text_snapshot: str | None = None
         self._is_loading = False
         self._raw_load_runtime = OneShotWorkerRuntime()
         self._raw_load_request_id = 0
@@ -575,6 +576,7 @@ class PresetRawEditorPage(BasePage):
         self._preset_name = Path(self._preset_file_name).stem if self._preset_file_name else ""
         self._preset_path = None
         self._preset_origin = "user"
+        self._raw_editor_text_snapshot = None
         self._load_file()
         self._refresh_header()
 
@@ -739,10 +741,17 @@ class PresetRawEditorPage(BasePage):
             getattr(result, "active_file_name", ""),
             getattr(result, "active_name", ""),
         )
-        set_plain_text_if_changed(self.editor, result.text)
+        self._apply_raw_editor_text(result.text)
         self._set_footer(result.footer_text)
         self._is_loading = False
         self._refresh_header()
+
+    def _apply_raw_editor_text(self, text: str) -> None:
+        value = str(text or "")
+        if self.__dict__.get("_raw_editor_text_snapshot") == value:
+            return
+        self.editor.setPlainText(value)
+        self._raw_editor_text_snapshot = value
 
     def _apply_raw_preset_active_state(self, file_name: str, name: str = "") -> None:
         active_file_name = str(file_name or "").strip()
@@ -804,6 +813,7 @@ class PresetRawEditorPage(BasePage):
             return
         if self._is_loading:
             return
+        self._raw_editor_text_snapshot = None
         self._content_publish_pending = True
         self._save_timer.stop()
         self._commit_timer.stop()
@@ -821,9 +831,11 @@ class PresetRawEditorPage(BasePage):
                 source_text=None,
                 publish_content_changed=publish_content_changed,
             )
+        source_text = self.editor.toPlainText()
+        self._raw_editor_text_snapshot = str(source_text or "")
         return self._request_raw_preset_save(
             file_name=self._preset_file_name,
-            source_text=self.editor.toPlainText(),
+            source_text=source_text,
             publish_content_changed=publish_content_changed,
         )
 
