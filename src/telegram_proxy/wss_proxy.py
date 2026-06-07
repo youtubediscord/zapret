@@ -59,6 +59,7 @@ from telegram_proxy.proxy.mtproxy import (
     relay_mtproxy_wss,
 )
 from telegram_proxy.proxy.pool import (
+    CloudflareWorkerPool,
     WsPool as _WsPool,
     get_wss_semaphore as _get_wss_semaphore,
     relay_ip_for_domain as _relay_ip_for_domain,
@@ -116,6 +117,7 @@ class TelegramWSProxy:
         self._running = False
         self.stats = ProxyStats()
         self._ws_pool = _WsPool(self.stats)
+        self._cloudflare_worker_pool = CloudflareWorkerPool(self.stats)
         # WS blacklist: set of (dc, is_media) where ALL domains returned 302
         self._ws_blacklist: set[tuple[int, bool]] = set()
         # Cooldown for failed DCs: {(dc, is_media): fail_until_timestamp}
@@ -142,6 +144,7 @@ class TelegramWSProxy:
 
         self.stats = ProxyStats()
         self._ws_pool = _WsPool(self.stats)
+        self._cloudflare_worker_pool = CloudflareWorkerPool(self.stats)
         # Reset learned routing state from previous session
         self._dc_upstream_required = set()
         self._ws_blacklist = set()
@@ -179,6 +182,7 @@ class TelegramWSProxy:
 
         # Close all pooled WebSocket connections
         await self._ws_pool.close_all()
+        await self._cloudflare_worker_pool.close_all()
 
         for srv in self._servers:
             srv.close()
@@ -680,16 +684,23 @@ class TelegramWSProxy:
             path = build_worker_path(target_host, dc)
             for worker_domain in self._cloudflare.worker_domains:
                 try:
-                    self._log(
-                        f"[{label}] DC{dc}{media_tag} -> Cloudflare Worker "
-                        f"{worker_domain}{path}"
-                    )
-                    ws = await RawWebSocket.connect(
-                        worker_domain,
-                        worker_domain,
-                        path=path,
-                        timeout=CONNECT_TIMEOUT,
-                    )
+                    ws = await self._cloudflare_worker_pool.get(dc, worker_domain, target_host)
+                    if ws is not None:
+                        self._log(
+                            f"[{label}] DC{dc}{media_tag} -> Cloudflare Worker pool "
+                            f"{worker_domain}{path}"
+                        )
+                    else:
+                        self._log(
+                            f"[{label}] DC{dc}{media_tag} -> Cloudflare Worker "
+                            f"{worker_domain}{path}"
+                        )
+                        ws = await RawWebSocket.connect(
+                            worker_domain,
+                            worker_domain,
+                            path=path,
+                            timeout=CONNECT_TIMEOUT,
+                        )
                     self.stats.cloudflare_connections += 1
                     self.stats.cloudflare_worker_connections += 1
                     await ws.send(init)

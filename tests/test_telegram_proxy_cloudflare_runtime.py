@@ -277,6 +277,55 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
             ],
         )
 
+    def test_wss_proxy_uses_cloudflare_worker_pool_before_fresh_connect(self) -> None:
+        from telegram_proxy.proxy.cloudflare import CloudflareFallbackConfig
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _Ws:
+            async def send(self, data):
+                return None
+
+        class _WorkerPool:
+            def __init__(self):
+                self.calls: list[tuple[int, str, str]] = []
+
+            async def get(self, dc, worker_domain, fallback_dst):
+                self.calls.append((dc, worker_domain, fallback_dst))
+                return _Ws()
+
+        async def fake_relay(*args, **kwargs):
+            return None
+
+        worker_pool = _WorkerPool()
+        proxy = TelegramWSProxy(
+            cloudflare_config=CloudflareFallbackConfig(
+                worker_enabled=True,
+                worker_domains=("worker.example.dev",),
+            )
+        )
+        proxy._cloudflare_worker_pool = worker_pool
+        proxy._relay_wss = fake_relay
+
+        with patch("telegram_proxy.wss_proxy.RawWebSocket.connect") as connect:
+            ok = asyncio.run(
+                proxy._cloudflare_fallback(
+                    None,
+                    None,
+                    "149.154.167.91",
+                    443,
+                    b"x" * 64,
+                    False,
+                    "test",
+                    4,
+                    False,
+                )
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual(worker_pool.calls, [(4, "worker.example.dev", "149.154.167.91")])
+        self.assertEqual(connect.call_count, 0)
+        self.assertEqual(proxy.stats.cloudflare_worker_connections, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

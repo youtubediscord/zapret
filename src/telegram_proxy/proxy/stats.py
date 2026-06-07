@@ -20,6 +20,8 @@ class ProxyStats:
     failed_connections: int = 0
     pool_hits: int = 0
     pool_misses: int = 0
+    cloudflare_worker_pool_hits: int = 0
+    cloudflare_worker_pool_misses: int = 0
     passthrough_connections: int = 0
     upstream_connections: int = 0
     recv_zero_count: int = 0

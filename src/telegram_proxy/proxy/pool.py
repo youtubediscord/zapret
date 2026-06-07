@@ -12,6 +12,7 @@ from telegram_proxy.proxy.dc_map import (
     WSS_RELAY_IPS,
     ws_domains_for_dc,
 )
+from telegram_proxy.proxy.cloudflare import build_worker_path
 from telegram_proxy.proxy.stats import ProxyStats
 from telegram_proxy.proxy.transport import RawWebSocket, WsHandshakeError
 
@@ -160,7 +161,97 @@ class WsPool:
         self._idle.clear()
 
 
+class CloudflareWorkerPool:
+    """Pre-opened WebSocket connections to user Cloudflare Worker domains."""
+
+    def __init__(self, stats: ProxyStats):
+        self._idle: dict[tuple[int, str, str], list[tuple[RawWebSocket, float]]] = {}
+        self._refilling: set[tuple[int, str, str]] = set()
+        self._stats = stats
+
+    async def get(self, dc: int, worker_domain: str, fallback_dst: str) -> Optional[RawWebSocket]:
+        key = (int(dc), str(worker_domain), str(fallback_dst))
+        now = time.monotonic()
+
+        bucket = self._idle.get(key, [])
+        while bucket:
+            ws, created = bucket.pop(0)
+            age = now - created
+            if age > WS_POOL_MAX_AGE or getattr(ws, "_closed", False):
+                asyncio.create_task(self._quiet_close(ws))
+                continue
+            self._stats.cloudflare_worker_pool_hits += 1
+            self._schedule_refill(key)
+            return ws
+
+        self._stats.cloudflare_worker_pool_misses += 1
+        self._schedule_refill(key)
+        return None
+
+    def _schedule_refill(self, key: tuple[int, str, str]) -> None:
+        if key in self._refilling:
+            return
+        self._refilling.add(key)
+        asyncio.create_task(self._refill(key))
+
+    async def _refill(self, key: tuple[int, str, str]) -> None:
+        dc, worker_domain, fallback_dst = key
+        try:
+            bucket = self._idle.setdefault(key, [])
+            needed = WS_POOL_SIZE - len(bucket)
+            if needed <= 0:
+                return
+            tasks = [
+                asyncio.create_task(self._connect_one(dc, worker_domain, fallback_dst))
+                for _ in range(needed)
+            ]
+            for task in tasks:
+                try:
+                    ws = await task
+                    if ws is not None:
+                        bucket.append((ws, time.monotonic()))
+                except Exception:
+                    pass
+            log.debug(
+                "Cloudflare Worker pool refilled DC%d %s: %d ready",
+                dc,
+                worker_domain,
+                len(bucket),
+            )
+        finally:
+            self._refilling.discard(key)
+
+    @staticmethod
+    async def _connect_one(dc: int, worker_domain: str, fallback_dst: str) -> Optional[RawWebSocket]:
+        path = build_worker_path(fallback_dst, dc)
+        sem = get_wss_semaphore()
+        async with sem:
+            try:
+                return await RawWebSocket.connect(
+                    worker_domain,
+                    worker_domain,
+                    path=path,
+                    timeout=8.0,
+                )
+            except Exception:
+                return None
+
+    @staticmethod
+    async def _quiet_close(ws: RawWebSocket) -> None:
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+    async def close_all(self) -> None:
+        for bucket in self._idle.values():
+            for ws, _created in bucket:
+                asyncio.create_task(self._quiet_close(ws))
+        self._idle.clear()
+
+
 __all__ = [
+    "CloudflareWorkerPool",
     "WsPool",
     "get_wss_semaphore",
     "relay_ip_for_domain",
