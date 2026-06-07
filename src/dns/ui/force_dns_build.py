@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from qfluentwidgets import FluentIcon
 
+from ui.accessibility import set_control_accessibility
 from ui.fluent_widgets import set_tooltip
 
 
@@ -85,12 +86,18 @@ def build_force_dns_card_ui(
     )
     force_dns_reset_dhcp_btn.setFixedHeight(30)
     force_dns_reset_dhcp_btn.clicked.connect(on_confirm_reset)
+    reset_description = tr_fn(
+        "page.network.force_dns.reset.description",
+        "Отключить Force DNS и вернуть получение DNS через DHCP для всех адаптеров.",
+    )
     set_tooltip(
         force_dns_reset_dhcp_btn,
-        tr_fn(
-            "page.network.force_dns.reset.description",
-            "Отключить Force DNS и вернуть получение DNS через DHCP для всех адаптеров.",
-        )
+        reset_description,
+    )
+    set_control_accessibility(
+        force_dns_reset_dhcp_btn,
+        name=tr_fn("page.network.force_dns.reset.accessible_name", "Сбросить DNS на DHCP"),
+        description=reset_description,
     )
 
     reset_row = None
