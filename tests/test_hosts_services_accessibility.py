@@ -6,9 +6,10 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
-from qfluentwidgets import BodyLabel, ComboBox, SwitchButton
+from qfluentwidgets import BodyLabel, ComboBox, PushButton, StrongBodyLabel, SwitchButton
 
-from hosts.page_plans import HostsServiceRowPlan
+from hosts.page_plans import HostsServiceGroupPlan, HostsServiceRowPlan
+from hosts.ui.services_build import build_hosts_services_group
 from hosts.ui.services_build import build_hosts_service_row
 
 
@@ -72,6 +73,26 @@ class HostsServicesAccessibilityTests(unittest.TestCase):
         widgets.control.setCurrentIndex(0)
 
         self.assertEqual(widgets.control.accessibleName(), "YouTube, отключено")
+
+    def test_group_chips_read_bulk_action(self) -> None:
+        widgets = build_hosts_services_group(
+            HostsServiceGroupPlan(
+                title="Видео",
+                direct_only=False,
+                service_names=["YouTube", "Twitch"],
+                common_profiles=[("zapret_dns", "Zapret DNS")],
+                rows=[],
+            ),
+            off_label="Отключено",
+            strong_body_label_cls=StrongBodyLabel,
+            make_chip=lambda label: PushButton(label),
+            on_bulk_apply=lambda *_args: None,
+        )
+
+        self.assertEqual(widgets.chip_buttons[0].accessibleName(), "Отключить группу Видео")
+        self.assertIn("YouTube, Twitch", widgets.chip_buttons[0].accessibleDescription())
+        self.assertEqual(widgets.chip_buttons[1].accessibleName(), "Применить Zapret DNS к группе Видео")
+        self.assertIn("YouTube, Twitch", widgets.chip_buttons[1].accessibleDescription())
 
 
 if __name__ == "__main__":

@@ -84,6 +84,12 @@ def build_hosts_services_group(
 
         off_btn = make_chip(off_label)
         chip_buttons.append(off_btn)
+        _set_group_chip_accessibility(
+            off_btn,
+            group_title=group_plan.title,
+            service_names=group_plan.service_names,
+            profile_label="",
+        )
         off_btn.clicked.connect(
             lambda _checked=False, n=tuple(group_plan.service_names): on_bulk_apply(list(n), None)
         )
@@ -94,6 +100,12 @@ def build_hosts_services_group(
                 continue
             btn = make_chip(label)
             chip_buttons.append(btn)
+            _set_group_chip_accessibility(
+                btn,
+                group_title=group_plan.title,
+                service_names=group_plan.service_names,
+                profile_label=label,
+            )
             btn.clicked.connect(
                 lambda _checked=False, n=tuple(group_plan.service_names), p=profile_name: on_bulk_apply(list(n), p)
             )
@@ -235,4 +247,19 @@ def _update_profile_service_accessibility(control, *, service_name: str, off_lab
         control,
         name=f"{service_name}, {state}",
         description=f"Выберите профиль hosts для сервиса {service_name}.",
+    )
+
+
+def _set_group_chip_accessibility(button, *, group_title: str, service_names: list[str], profile_label: str) -> None:
+    services_text = ", ".join(str(name) for name in service_names if str(name or "").strip())
+    if profile_label:
+        name = f"Применить {profile_label} к группе {group_title}"
+        description = f"Применяет профиль {profile_label} к сервисам: {services_text}."
+    else:
+        name = f"Отключить группу {group_title}"
+        description = f"Отключает hosts-профили для сервисов: {services_text}."
+    set_control_accessibility(
+        button,
+        name=name,
+        description=description,
     )
