@@ -39,7 +39,6 @@ def start_worker_thread(
             current_thread = getattr(owner, thread_attr, None)
             if current_thread:
                 current_thread.quit()
-                current_thread.wait(2000)
                 setattr(owner, thread_attr, None)
 
             current_worker = getattr(owner, worker_attr, None)
@@ -50,5 +49,6 @@ def start_worker_thread(
             log(f"Ошибка при очистке {cleanup_log_label}: {e}", "❌ ERROR")
 
     finished_signal.connect(cleanup)
+    thread.finished.connect(thread.deleteLater)
     thread.start()
     return thread
