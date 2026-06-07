@@ -806,9 +806,9 @@ class HostsPageRuntimeTests(unittest.TestCase):
         self.assertIn("_state_load_runtime.stop(\n                blocking=False,", cleanup_source)
         self.assertIn("_open_file_runtime.stop(\n                blocking=False,", cleanup_source)
 
-        self.assertIn("_operation_runtime.stop(\n                blocking=True,", cleanup_source)
-        self.assertIn("_selection_save_runtime.stop(\n                blocking=True,", cleanup_source)
-        self.assertIn("_permission_restore_runtime.stop(\n                blocking=True,", cleanup_source)
+        self.assertIn("_operation_runtime.stop(\n                blocking=False,", cleanup_source)
+        self.assertIn("_selection_save_runtime.stop(\n                blocking=False,", cleanup_source)
+        self.assertIn("_permission_restore_runtime.stop(\n                blocking=False,", cleanup_source)
 
 
 if __name__ == "__main__":

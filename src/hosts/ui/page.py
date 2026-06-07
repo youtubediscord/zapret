@@ -1340,7 +1340,7 @@ class HostsPage(BasePage):
                 log_fn=log,
             )
             self._operation_runtime.stop(
-                blocking=True,
+                blocking=False,
                 log_fn=log,
                 warning_prefix="Hosts operation worker",
             )
@@ -1359,7 +1359,7 @@ class HostsPage(BasePage):
             self._selection_load_pending = False
             self._selection_load_start_scheduled = False
             self._selection_save_runtime.stop(
-                blocking=True,
+                blocking=False,
                 log_fn=log,
                 warning_prefix="Hosts selection save worker",
             )
@@ -1374,7 +1374,7 @@ class HostsPage(BasePage):
                 warning_prefix="Hosts open file worker",
             )
             self._permission_restore_runtime.stop(
-                blocking=True,
+                blocking=False,
                 log_fn=log,
                 warning_prefix="Hosts permission restore worker",
             )
