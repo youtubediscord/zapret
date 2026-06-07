@@ -604,7 +604,7 @@ class WindowGeometryRuntime:
         if runtime is None:
             return
         runtime.stop(
-            blocking=True,
+            blocking=False,
             wait_timeout_ms=1000,
             log_fn=log,
             warning_prefix="window geometry save worker",

@@ -162,6 +162,27 @@ class WindowGeometryWorkerTests(unittest.TestCase):
         geometry_runtime._start_geometry_save_worker.assert_not_called()
         self.assertEqual(geometry_runtime._geometry_save_pending, ((10, 20, 800, 600), True))
 
+    def test_force_sync_geometry_save_does_not_wait_for_worker(self) -> None:
+        import ui.window_geometry_runtime as runtime
+
+        worker_runtime = SimpleNamespace(stop=Mock(), cancel=Mock())
+        geometry_runtime = runtime.WindowGeometryRuntime.__new__(runtime.WindowGeometryRuntime)
+        geometry_runtime._geometry_save_pending = ((10, 20, 800, 600), False)
+        geometry_runtime._geometry_save_start_scheduled = True
+        geometry_runtime._geometry_save_runtime = worker_runtime
+
+        runtime.WindowGeometryRuntime._stop_geometry_save_worker_for_sync(geometry_runtime)
+
+        self.assertIsNone(geometry_runtime._geometry_save_pending)
+        self.assertFalse(geometry_runtime._geometry_save_start_scheduled)
+        worker_runtime.stop.assert_called_once_with(
+            blocking=False,
+            wait_timeout_ms=1000,
+            log_fn=runtime.log,
+            warning_prefix="window geometry save worker",
+        )
+        worker_runtime.cancel.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()
