@@ -132,6 +132,9 @@ class TelegramProxyPage(BasePage):
         self._restart_stop_state = TelegramProxyPageWorkerState(self._restart_stop_runtime)
         self._relay_check_runtime = OneShotWorkerRuntime()
         self._relay_check_state = TelegramProxyPageWorkerState(self._relay_check_runtime)
+        self._cloudflare_check_runtime = OneShotWorkerRuntime()
+        self._cloudflare_check_state = TelegramProxyPageWorkerState(self._cloudflare_check_runtime)
+        self._cloudflare_check_kind = ""
         self._ensure_hosts_runtime = OneShotWorkerRuntime()
         self._ensure_hosts_state = TelegramProxyPageWorkerState(self._ensure_hosts_runtime)
         self._settings_save_runtime = OneShotWorkerRuntime()
@@ -341,6 +344,10 @@ class TelegramProxyPage(BasePage):
             on_copy_link=self._on_copy_link,
             on_open_mtproxy=self._on_open_mtproxy,
             on_generate_mtproxy_secret=self._on_generate_mtproxy_secret,
+            on_test_cloudflare=self._on_test_cloudflare,
+            on_copy_cloudflare_dns=self._on_copy_cloudflare_dns,
+            on_test_cloudflare_worker=self._on_test_cloudflare_worker,
+            on_copy_cloudflare_worker_code=self._on_copy_cloudflare_worker_code,
             upstream_catalog=self._initial_state.upstream_catalog,
         )
         self._status_card = widgets.status_card
@@ -389,10 +396,14 @@ class TelegramProxyPage(BasePage):
         self._cloudflare_domains_row = widgets.cloudflare_domains_row
         self._cloudflare_domains_label = widgets.cloudflare_domains_label
         self._cloudflare_domains_edit = widgets.cloudflare_domains_edit
+        self._cloudflare_test_btn = widgets.cloudflare_test_btn
+        self._cloudflare_dns_btn = widgets.cloudflare_dns_btn
         self._cloudflare_worker_toggle = widgets.cloudflare_worker_toggle
         self._cloudflare_worker_domains_row = widgets.cloudflare_worker_domains_row
         self._cloudflare_worker_domains_label = widgets.cloudflare_worker_domains_label
         self._cloudflare_worker_domains_edit = widgets.cloudflare_worker_domains_edit
+        self._cloudflare_worker_test_btn = widgets.cloudflare_worker_test_btn
+        self._cloudflare_worker_code_btn = widgets.cloudflare_worker_code_btn
         self._manual_section_label = widgets.manual_section_label
         self._instructions_card = widgets.instructions_card
         self._instr1_label = widgets.instr1_label
@@ -517,6 +528,10 @@ class TelegramProxyPage(BasePage):
             setup_open_btn=getattr(self, "_setup_open_btn", None),
             setup_copy_btn=getattr(self, "_setup_copy_btn", None),
             mtproxy_action_btn=getattr(self, "_mtproxy_action_btn", None),
+            cloudflare_test_btn=getattr(self, "_cloudflare_test_btn", None),
+            cloudflare_dns_btn=getattr(self, "_cloudflare_dns_btn", None),
+            cloudflare_worker_test_btn=getattr(self, "_cloudflare_worker_test_btn", None),
+            cloudflare_worker_code_btn=getattr(self, "_cloudflare_worker_code_btn", None),
             btn_copy_logs=getattr(self, "_btn_copy_logs", None),
             btn_open_log_file=getattr(self, "_btn_open_log_file", None),
             btn_clear_logs=getattr(self, "_btn_clear_logs", None),
@@ -1482,6 +1497,163 @@ class TelegramProxyPage(BasePage):
             restart="now",
         )
 
+    def _on_test_cloudflare(self):
+        domains = self._cloudflare_domains_text(self._cloudflare_domains_edit)
+        self._start_cloudflare_check("domain", domains)
+
+    def _on_test_cloudflare_worker(self):
+        domains = self._cloudflare_domains_text(self._cloudflare_worker_domains_edit)
+        if not domains:
+            self._show_cloudflare_message(
+                title="Worker не указан",
+                content="Введите домен Cloudflare Worker, например name.workers.dev.",
+                success=False,
+            )
+            return
+        self._start_cloudflare_check("worker", domains)
+
+    def _on_copy_cloudflare_dns(self):
+        text = self._telegram_proxy.get_cloudflare_dns_records_text()
+        plan = self._telegram_proxy.copy_text(
+            text,
+            success_title="Скопировано",
+            success_content="DNS-записи Cloudflare",
+            success_log="Copied Cloudflare DNS records",
+        )
+        if plan.log_line:
+            self._append_log_line(plan.log_line)
+        if plan.ok:
+            self._show_cloudflare_message(plan.info_title, plan.info_content, success=True)
+
+    def _on_copy_cloudflare_worker_code(self):
+        text = self._telegram_proxy.get_cloudflare_worker_code()
+        plan = self._telegram_proxy.copy_text(
+            text,
+            success_title="Скопировано",
+            success_content="Код Cloudflare Worker",
+            success_log="Copied Cloudflare Worker code",
+        )
+        if plan.log_line:
+            self._append_log_line(plan.log_line)
+        if plan.ok:
+            self._show_cloudflare_message(plan.info_title, plan.info_content, success=True)
+
+    def create_cloudflare_check_worker(self, request_id: int, *, kind: str, domains):
+        return self._telegram_proxy.create_cloudflare_check_worker(
+            request_id,
+            kind=kind,
+            domains=domains,
+            parent=self,
+        )
+
+    def _start_cloudflare_check(self, kind: str, domains: str) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        state = self._worker_state("_cloudflare_check_state", "_cloudflare_check_runtime")
+        normalized_kind = str(kind or "domain").strip().lower()
+        if state.is_busy():
+            self._show_cloudflare_message(
+                "Проверка уже идёт",
+                "Дождитесь результата текущей проверки Cloudflare.",
+                success=False,
+            )
+            return
+        self._cloudflare_check_kind = normalized_kind
+        self._set_cloudflare_check_buttons_enabled(False)
+        self._append_log_line(
+            "Проверяем Cloudflare Worker..."
+            if normalized_kind == "worker"
+            else "Проверяем Cloudflare-домен..."
+        )
+
+        def bind_worker(worker) -> None:
+            worker.completed.connect(self._on_cloudflare_check_finished)
+            worker.failed.connect(self._on_cloudflare_check_failed)
+
+        self._cloudflare_check_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: self.create_cloudflare_check_worker(
+                request_id,
+                kind=normalized_kind,
+                domains=domains,
+            ),
+            bind_worker=bind_worker,
+            on_finished=self._on_cloudflare_check_worker_finished,
+        )
+
+    def _on_cloudflare_check_finished(self, request_id: int, result) -> None:
+        if not self._cloudflare_check_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        summary = result.summary() if hasattr(result, "summary") else str(result or "")
+        self._append_log_line(f"Проверка Cloudflare: {summary}")
+        for entry in tuple(getattr(result, "entries", ()) or ()):
+            status = "OK" if getattr(entry, "ok", False) else "FAIL"
+            error = str(getattr(entry, "error", "") or "")
+            suffix = f" - {error}" if error else ""
+            self._append_log_line(f"Cloudflare {status}: {getattr(entry, 'host', '')}{suffix}")
+
+        if bool(getattr(result, "ok", False)):
+            self._show_cloudflare_message("Cloudflare отвечает", summary, success=True)
+        else:
+            self._show_cloudflare_message("Cloudflare не отвечает", summary, success=False)
+
+    def _on_cloudflare_check_failed(self, request_id: int, error: str) -> None:
+        if not self._cloudflare_check_runtime.is_current(
+            request_id,
+            cleanup_in_progress=self._cleanup_in_progress,
+        ):
+            return
+        message = str(error or "").strip() or "Не удалось проверить Cloudflare."
+        self._append_log_line(f"Ошибка проверки Cloudflare: {message}")
+        self._show_cloudflare_message("Ошибка проверки", message, success=False)
+
+    def _on_cloudflare_check_worker_finished(self, _worker) -> None:
+        if not self._is_current_worker_finish(self.__dict__.get("_cloudflare_check_runtime"), _worker):
+            return
+        self._set_cloudflare_check_buttons_enabled(True)
+        self._worker_state("_cloudflare_check_state", "_cloudflare_check_runtime").reset()
+
+    def _set_cloudflare_check_buttons_enabled(self, enabled: bool) -> None:
+        for button in (
+            getattr(self, "_cloudflare_test_btn", None),
+            getattr(self, "_cloudflare_worker_test_btn", None),
+        ):
+            if button is not None:
+                button.setEnabled(bool(enabled))
+        if enabled:
+            self._apply_ui_texts()
+            return
+        if getattr(self, "_cloudflare_check_kind", "") == "worker":
+            if getattr(self, "_cloudflare_worker_test_btn", None) is not None:
+                self._cloudflare_worker_test_btn.setText("Проверяем...")
+        elif getattr(self, "_cloudflare_test_btn", None) is not None:
+            self._cloudflare_test_btn.setText("Проверяем...")
+
+    def _show_cloudflare_message(self, title: str, content: str, *, success: bool) -> None:
+        if InfoBar is None:
+            return
+        try:
+            if success:
+                InfoBar.success(
+                    title=str(title or ""),
+                    content=str(content or ""),
+                    parent=self,
+                    duration=2500,
+                    position=InfoBarPosition.TOP,
+                )
+            else:
+                InfoBar.warning(
+                    title=str(title or ""),
+                    content=str(content or ""),
+                    parent=self,
+                    duration=3500,
+                    position=InfoBarPosition.TOP,
+                )
+        except Exception:
+            pass
+
     # -- Upstream proxy handlers --
 
     def _on_upstream_changed(self, checked: bool):
@@ -1904,6 +2076,13 @@ class TelegramProxyPage(BasePage):
         )
         self._relay_check_runtime.cancel()
         self._worker_state("_relay_check_state", "_relay_check_runtime").reset()
+        self._cloudflare_check_runtime.stop(
+            blocking=False,
+            log_fn=log,
+            warning_prefix="telegram proxy cloudflare check worker",
+        )
+        self._cloudflare_check_runtime.cancel()
+        self._worker_state("_cloudflare_check_state", "_cloudflare_check_runtime").reset()
         if self._upstream_restart_timer is not None:
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()

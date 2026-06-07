@@ -34,6 +34,25 @@ class TelegramProxyUiTextsTests(unittest.TestCase):
         self.assertNotIn("upstream", joined)
         self.assertNotIn("WSS relay", joined)
 
+    def test_cloudflare_settings_panel_exposes_test_and_copy_actions(self) -> None:
+        import inspect
+        from telegram_proxy.ui import settings_build
+
+        signature = inspect.signature(settings_build.build_telegram_proxy_settings_panel)
+        source = inspect.getsource(settings_build)
+
+        self.assertIn("on_test_cloudflare", signature.parameters)
+        self.assertIn("on_copy_cloudflare_dns", signature.parameters)
+        self.assertIn("on_test_cloudflare_worker", signature.parameters)
+        self.assertIn("on_copy_cloudflare_worker_code", signature.parameters)
+        self.assertIn("cloudflare_test_btn", source)
+        self.assertIn("cloudflare_dns_btn", source)
+        self.assertIn("cloudflare_worker_test_btn", source)
+        self.assertIn("cloudflare_worker_code_btn", source)
+        self.assertIn("Проверить", source)
+        self.assertIn("DNS", source)
+        self.assertIn("Код Worker", source)
+
 
 if __name__ == "__main__":
     unittest.main()

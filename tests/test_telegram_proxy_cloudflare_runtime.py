@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -101,6 +102,61 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
         self.assertTrue(should_try_cloudflare(config))
         self.assertEqual(build_cloudflare_domains(4, config), ["kws4.example.com"])
         self.assertEqual(build_worker_path("149.154.167.91", 4), "/apiws?dst=149.154.167.91&dc=4")
+
+    def test_cloudflare_guides_include_dns_records_and_worker_code(self) -> None:
+        from telegram_proxy.proxy.cloudflare import build_cfproxy_dns_records_text, build_cfworker_code
+
+        dns_text = build_cfproxy_dns_records_text()
+        worker_code = build_cfworker_code()
+
+        self.assertIn("kws1", dns_text)
+        self.assertIn("149.154.175.50", dns_text)
+        self.assertIn("kws203", dns_text)
+        self.assertIn("91.105.192.100", dns_text)
+        self.assertIn('url.pathname !== "/apiws"', worker_code)
+        self.assertIn("connect({ hostname: dst, port: 443 })", worker_code)
+
+    def test_cloudflare_connectivity_check_builds_domain_and_worker_probes(self) -> None:
+        from telegram_proxy.proxy.cloudflare import check_cloudflare_connectivity
+
+        class _Ws:
+            async def close(self):
+                return None
+
+        calls = []
+
+        async def fake_connect(host, domain, path="/apiws", timeout=10.0):
+            calls.append((host, domain, path, timeout))
+            return _Ws()
+
+        domain_result = asyncio.run(
+            check_cloudflare_connectivity(
+                "domain",
+                ["Example.COM"],
+                dcs=(4,),
+                timeout=1.5,
+                connect=fake_connect,
+            )
+        )
+        worker_result = asyncio.run(
+            check_cloudflare_connectivity(
+                "worker",
+                ["worker.example.dev"],
+                dcs=(4,),
+                timeout=1.5,
+                connect=fake_connect,
+            )
+        )
+
+        self.assertTrue(domain_result.ok)
+        self.assertTrue(worker_result.ok)
+        self.assertEqual(
+            calls,
+            [
+                ("kws4.example.com", "kws4.example.com", "/apiws", 1.5),
+                ("worker.example.dev", "worker.example.dev", "/apiws?dst=149.154.167.91&dc=4", 1.5),
+            ],
+        )
 
     def test_wss_proxy_uses_cloudflare_before_plain_tcp_fallback(self) -> None:
         import inspect

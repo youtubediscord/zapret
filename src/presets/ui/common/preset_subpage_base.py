@@ -917,6 +917,9 @@ class PresetRawEditorPage(BasePage):
         runtime = self._raw_worker_runtime("_raw_save_runtime")
         self._raw_save_request_id += 1
         request_id = self._raw_save_request_id
+        if source_text is None and self.__dict__.get("_raw_editor_text_snapshot") is None:
+            editor = self.__dict__.get("editor")
+            source_text = "" if editor is None else str(editor.toPlainText() or "")
         source_text = self._resolve_raw_preset_save_text(source_text)
         self._raw_save_succeeded = False
         self._set_footer("Сохранение...")
@@ -942,8 +945,7 @@ class PresetRawEditorPage(BasePage):
             snapshot = self.__dict__.get("_raw_editor_text_snapshot")
             if snapshot is not None:
                 return str(snapshot or "")
-            editor = self.__dict__.get("editor")
-            text = "" if editor is None else str(editor.toPlainText() or "")
+            text = ""
         self._raw_editor_text_snapshot = text
         return text
 

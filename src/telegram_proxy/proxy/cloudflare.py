@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
@@ -11,6 +13,60 @@ class CloudflareFallbackConfig:
     worker_enabled: bool = False
     worker_domains: tuple[str, ...] = ()
 
+
+@dataclass(frozen=True, slots=True)
+class CloudflareDnsRecord:
+    dc: int
+    host: str
+    ip: str
+
+
+@dataclass(frozen=True, slots=True)
+class CloudflareCheckEntry:
+    kind: str
+    host: str
+    path: str
+    ok: bool
+    error: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class CloudflareCheckResult:
+    kind: str
+    entries: tuple[CloudflareCheckEntry, ...]
+
+    @property
+    def ok(self) -> bool:
+        return any(entry.ok for entry in self.entries)
+
+    @property
+    def checked(self) -> int:
+        return len(self.entries)
+
+    @property
+    def working(self) -> int:
+        return sum(1 for entry in self.entries if entry.ok)
+
+    @property
+    def failed(self) -> int:
+        return self.checked - self.working
+
+    def summary(self) -> str:
+        if self.checked <= 0:
+            return "Нет доменов для проверки."
+        if self.ok:
+            return f"Работает: {self.working} из {self.checked}."
+        return f"Не отвечает: 0 из {self.checked}."
+
+
+CLOUDFLARE_DNS_RECORDS: tuple[CloudflareDnsRecord, ...] = (
+    CloudflareDnsRecord(1, "kws1", "149.154.175.50"),
+    CloudflareDnsRecord(2, "kws2", "149.154.167.51"),
+    CloudflareDnsRecord(3, "kws3", "149.154.175.100"),
+    CloudflareDnsRecord(4, "kws4", "149.154.167.91"),
+    CloudflareDnsRecord(5, "kws5", "149.154.171.5"),
+    CloudflareDnsRecord(203, "kws203", "91.105.192.100"),
+)
 
 AUTO_CLOUDFLARE_DOMAINS: tuple[str, ...] = (
     "sorokdva.co.uk",
@@ -29,6 +85,62 @@ AUTO_CLOUDFLARE_DOMAINS: tuple[str, ...] = (
     "pyatdesyatodin.co.uk",
     "ebally.co.uk",
 )
+
+_DNS_RECORD_BY_DC = {record.dc: record for record in CLOUDFLARE_DNS_RECORDS}
+
+_CFWORKER_CODE = """\
+import { connect } from "cloudflare:sockets";
+
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname !== "/apiws") {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const dst = url.searchParams.get("dst");
+    if (!dst) {
+      return new Response("dst is required", { status: 400 });
+    }
+
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+    server.accept();
+
+    const socket = connect({ hostname: dst, port: 443 });
+    const writer = socket.writable.getWriter();
+    const reader = socket.readable.getReader();
+
+    server.addEventListener("message", async event => {
+      const data = event.data instanceof ArrayBuffer
+        ? new Uint8Array(event.data)
+        : new TextEncoder().encode(String(event.data));
+      await writer.write(data);
+    });
+
+    server.addEventListener("close", () => {
+      try { writer.close(); } catch (_) {}
+    });
+
+    (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) {
+            break;
+          }
+          server.send(value);
+        }
+      } finally {
+        try { server.close(); } catch (_) {}
+      }
+    })();
+
+    return new Response(null, { status: 101, webSocket: client });
+  },
+};
+"""
 
 
 def _is_valid_domain(value: str) -> bool:
@@ -91,11 +203,119 @@ def build_worker_path(dst: str, dc: int) -> str:
     return "/apiws?" + urlencode({"dst": str(dst or ""), "dc": str(int(dc or 0))})
 
 
+def build_cfproxy_dns_records_text() -> str:
+    lines = [
+        "DNS-записи Cloudflare для своего домена:",
+        "",
+        "Тип: A",
+        "Статус прокси: включён (Proxied)",
+        "",
+    ]
+    for record in CLOUDFLARE_DNS_RECORDS:
+        lines.append(f"{record.host} A {record.ip}")
+    return "\n".join(lines)
+
+
+def build_cfworker_code() -> str:
+    return _CFWORKER_CODE
+
+
+async def _close_ws(ws) -> None:
+    close = getattr(ws, "close", None)
+    if close is None:
+        return
+    result = close()
+    if inspect.isawaitable(result):
+        await result
+
+
+async def _check_entry(
+    *,
+    kind: str,
+    host: str,
+    path: str,
+    timeout: float,
+    connect,
+) -> CloudflareCheckEntry:
+    try:
+        ws = await connect(host, host, path=path, timeout=float(timeout))
+        await _close_ws(ws)
+        return CloudflareCheckEntry(kind=kind, host=host, path=path, ok=True)
+    except Exception as exc:
+        return CloudflareCheckEntry(kind=kind, host=host, path=path, ok=False, error=str(exc))
+
+
+def _probe_targets(kind: str, domains: object, dcs: tuple[int, ...]) -> tuple[tuple[str, str], ...]:
+    normalized_kind = str(kind or "").strip().lower()
+    normalized_domains = normalize_domain_list(domains)
+    if normalized_kind == "domain" and not normalized_domains:
+        normalized_domains = AUTO_CLOUDFLARE_DOMAINS
+    if not normalized_domains:
+        return ()
+
+    targets: list[tuple[str, str]] = []
+    for domain in normalized_domains:
+        if normalized_kind == "worker":
+            for dc in dcs:
+                record = _DNS_RECORD_BY_DC.get(int(dc))
+                if record is None:
+                    continue
+                targets.append((domain, build_worker_path(record.ip, record.dc)))
+            continue
+
+        for dc in dcs:
+            record = _DNS_RECORD_BY_DC.get(int(dc))
+            if record is None:
+                continue
+            targets.append((f"{record.host}.{domain}", "/apiws"))
+    return tuple(targets)
+
+
+async def check_cloudflare_connectivity(
+    kind: str,
+    domains: object,
+    *,
+    dcs: tuple[int, ...] = (1, 2, 3, 4, 5, 203),
+    timeout: float = 6.0,
+    connect=None,
+) -> CloudflareCheckResult:
+    from telegram_proxy.proxy.transport import RawWebSocket
+
+    normalized_kind = str(kind or "").strip().lower()
+    if normalized_kind not in {"domain", "worker"}:
+        normalized_kind = "domain"
+    connect_fn = connect or RawWebSocket.connect
+    tasks = [
+        _check_entry(kind=normalized_kind, host=host, path=path, timeout=timeout, connect=connect_fn)
+        for host, path in _probe_targets(normalized_kind, domains, tuple(int(dc) for dc in dcs))
+    ]
+    if not tasks:
+        return CloudflareCheckResult(kind=normalized_kind, entries=())
+    return CloudflareCheckResult(kind=normalized_kind, entries=tuple(await asyncio.gather(*tasks)))
+
+
+def run_cloudflare_connectivity_check(
+    kind: str,
+    domains: object,
+    *,
+    timeout: float = 6.0,
+) -> CloudflareCheckResult:
+    return asyncio.run(check_cloudflare_connectivity(kind, domains, timeout=timeout))
+
+
 __all__ = [
     "AUTO_CLOUDFLARE_DOMAINS",
+    "CLOUDFLARE_DNS_RECORDS",
+    "CloudflareCheckEntry",
+    "CloudflareCheckResult",
+    "CloudflareDnsRecord",
     "CloudflareFallbackConfig",
+    "build_cfproxy_dns_records_text",
+    "build_cfworker_code",
     "build_cloudflare_domains",
     "build_worker_path",
+    "check_cloudflare_connectivity",
     "normalize_domain_list",
+    "run_cloudflare_connectivity_check",
     "should_try_cloudflare",
 ]

@@ -62,6 +62,9 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             save_settings_action=Mock(),
             check_relay_reachable=Mock(),
             check_relay_http=Mock(),
+            check_cloudflare_connectivity=Mock(),
+            get_cloudflare_dns_records_text=Mock(),
+            get_cloudflare_worker_code=Mock(),
             build_diagnostics_start_plan=Mock(),
             build_diagnostics_poll_plan=Mock(),
             build_diagnostics_finish_plan=Mock(),
@@ -168,6 +171,20 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("telegram_proxy.wss_proxy", worker_source)
         self.assertIn("telegram_proxy.wss_proxy", command_source)
         self.assertIn("check_relay_reachable", command_source)
+
+    def test_cloudflare_check_probe_is_owned_by_commands_and_worker(self) -> None:
+        feature_source = inspect.getsource(TelegramProxyFeature)
+        worker_source = inspect.getsource(telegram_proxy_workers)
+
+        self.assertTrue(hasattr(telegram_proxy_commands, "check_cloudflare_connectivity"))
+        self.assertTrue(hasattr(telegram_proxy_workers, "TelegramProxyCloudflareCheckWorker"))
+        self.assertIn("check_cloudflare_connectivity=self.check_cloudflare_connectivity", feature_source)
+        self.assertIn("create_cloudflare_check_worker", feature_source)
+        self.assertIn("_check_cloudflare_connectivity", worker_source)
+        self.assertNotIn(
+            "telegram_proxy.runtime.commands",
+            inspect.getsource(telegram_proxy_workers.TelegramProxyCloudflareCheckWorker.run),
+        )
 
     def test_start_worker_loads_upstream_config_outside_ui_runtime(self) -> None:
         from telegram_proxy.ui import proxy_runtime_workflow
@@ -311,6 +328,9 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             save_settings_action=Mock(),
             check_relay_reachable=Mock(),
             check_relay_http=Mock(),
+            check_cloudflare_connectivity=Mock(),
+            get_cloudflare_dns_records_text=Mock(),
+            get_cloudflare_worker_code=Mock(),
             build_diagnostics_start_plan=Mock(),
             build_diagnostics_poll_plan=Mock(),
             build_diagnostics_finish_plan=Mock(),

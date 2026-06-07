@@ -196,3 +196,21 @@ def check_relay_http(relay_ip: str = "149.154.167.220", timeout: float = 5.0) ->
         return True
     except Exception:
         return False
+
+
+def check_cloudflare_connectivity(kind: str, domains: object, *, timeout: float = 6.0):
+    from telegram_proxy.proxy.cloudflare import run_cloudflare_connectivity_check
+
+    return run_cloudflare_connectivity_check(kind, domains, timeout=timeout)
+
+
+def get_cloudflare_dns_records_text() -> str:
+    from telegram_proxy.proxy.cloudflare import build_cfproxy_dns_records_text
+
+    return build_cfproxy_dns_records_text()
+
+
+def get_cloudflare_worker_code() -> str:
+    from telegram_proxy.proxy.cloudflare import build_cfworker_code
+
+    return build_cfworker_code()

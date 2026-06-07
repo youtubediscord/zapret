@@ -92,6 +92,10 @@ def apply_ui_texts(
     setup_open_btn,
     setup_copy_btn,
     mtproxy_action_btn,
+    cloudflare_test_btn,
+    cloudflare_dns_btn,
+    cloudflare_worker_test_btn,
+    cloudflare_worker_code_btn,
     btn_copy_logs,
     btn_open_log_file,
     btn_clear_logs,
@@ -185,6 +189,18 @@ def apply_ui_texts(
                 mtproxy_action_btn,
                 "MTProxy настраивается в Telegram напрямую. Нажмите для добавления."
             )
+        if cloudflare_test_btn is not None and cloudflare_test_btn.isEnabled():
+            cloudflare_test_btn.setText("Проверить")
+            set_tooltip(cloudflare_test_btn, "Проверить, отвечает ли ваш Cloudflare-домен для Telegram.")
+        if cloudflare_dns_btn is not None:
+            cloudflare_dns_btn.setText("DNS")
+            set_tooltip(cloudflare_dns_btn, "Скопировать DNS-записи для своего Cloudflare-домена.")
+        if cloudflare_worker_test_btn is not None and cloudflare_worker_test_btn.isEnabled():
+            cloudflare_worker_test_btn.setText("Проверить")
+            set_tooltip(cloudflare_worker_test_btn, "Проверить, отвечает ли ваш Cloudflare Worker.")
+        if cloudflare_worker_code_btn is not None:
+            cloudflare_worker_code_btn.setText("Код Worker")
+            set_tooltip(cloudflare_worker_code_btn, "Скопировать готовый код для Cloudflare Worker.")
         if btn_copy_logs is not None:
             btn_copy_logs.setText("Копировать все")
         if btn_open_log_file is not None:

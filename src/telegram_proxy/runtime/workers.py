@@ -247,6 +247,41 @@ class TelegramProxyRelayCheckWorker(QThread):
             self.warning.emit(f"Relay check error: {exc}")
 
 
+class TelegramProxyCloudflareCheckWorker(QThread):
+    completed = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        kind: str,
+        domains,
+        check_cloudflare_connectivity,
+        timeout: float = 6.0,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._kind = str(kind or "domain")
+        self._domains = domains
+        self._check_cloudflare_connectivity = check_cloudflare_connectivity
+        self._timeout = float(timeout)
+
+    def run(self) -> None:
+        try:
+            result = self._check_cloudflare_connectivity(
+                self._kind,
+                self._domains,
+                timeout=self._timeout,
+            )
+        except Exception as exc:
+            log(f"TelegramProxyCloudflareCheckWorker: ошибка проверки Cloudflare: {exc}", "WARNING")
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.completed.emit(self._request_id, result)
+
+
 class TelegramProxyDiagnosticsWorker(QThread):
     progress = pyqtSignal(str)
     completed = pyqtSignal(str)

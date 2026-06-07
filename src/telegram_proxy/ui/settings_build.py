@@ -64,10 +64,14 @@ class TelegramProxySettingsPanelWidgets:
     cloudflare_domains_row: object
     cloudflare_domains_label: object
     cloudflare_domains_edit: object
+    cloudflare_test_btn: object
+    cloudflare_dns_btn: object
     cloudflare_worker_toggle: object
     cloudflare_worker_domains_row: object
     cloudflare_worker_domains_label: object
     cloudflare_worker_domains_edit: object
+    cloudflare_worker_test_btn: object
+    cloudflare_worker_code_btn: object
     manual_section_label: object
     instructions_card: object
     instr1_label: object
@@ -96,6 +100,10 @@ def build_telegram_proxy_settings_panel(
     on_copy_link,
     on_open_mtproxy,
     on_generate_mtproxy_secret,
+    on_test_cloudflare,
+    on_copy_cloudflare_dns,
+    on_test_cloudflare_worker,
+    on_copy_cloudflare_worker_code,
     upstream_catalog,
 ) -> TelegramProxySettingsPanelWidgets:
     text = TELEGRAM_PROXY_SETTINGS_TEXT
@@ -330,6 +338,16 @@ def build_telegram_proxy_settings_panel(
     cloudflare_domains_edit.setClearButtonEnabled(True)
     set_tooltip(cloudflare_domains_edit, "Cloudflare-домены для запасного WSS-пути. Оставьте пустым для авто-списка.")
     cloudflare_domains_layout.addWidget(cloudflare_domains_edit)
+    cloudflare_test_btn = push_button_cls("Проверить", icon=FluentIcon.SEARCH)
+    cloudflare_test_btn.setMinimumWidth(116)
+    set_tooltip(cloudflare_test_btn, "Проверить, отвечает ли ваш Cloudflare-домен для Telegram.")
+    cloudflare_test_btn.clicked.connect(on_test_cloudflare)
+    cloudflare_domains_layout.addWidget(cloudflare_test_btn)
+    cloudflare_dns_btn = push_button_cls("DNS", icon=FluentIcon.COPY)
+    cloudflare_dns_btn.setMinimumWidth(84)
+    set_tooltip(cloudflare_dns_btn, "Скопировать DNS-записи kws1, kws2, kws3, kws4, kws5 и kws203.")
+    cloudflare_dns_btn.clicked.connect(on_copy_cloudflare_dns)
+    cloudflare_domains_layout.addWidget(cloudflare_dns_btn)
     cloudflare_domains_layout.addStretch()
     cloudflare_domains_row.setVisible(False)
     upstream_card.addSettingCard(cloudflare_domains_row)
@@ -354,6 +372,16 @@ def build_telegram_proxy_settings_panel(
     cloudflare_worker_domains_edit.setClearButtonEnabled(True)
     set_tooltip(cloudflare_worker_domains_edit, "Домены Cloudflare Worker для отдельного запасного пути.")
     cloudflare_worker_domains_layout.addWidget(cloudflare_worker_domains_edit)
+    cloudflare_worker_test_btn = push_button_cls("Проверить", icon=FluentIcon.SEARCH)
+    cloudflare_worker_test_btn.setMinimumWidth(116)
+    set_tooltip(cloudflare_worker_test_btn, "Проверить, отвечает ли ваш Cloudflare Worker.")
+    cloudflare_worker_test_btn.clicked.connect(on_test_cloudflare_worker)
+    cloudflare_worker_domains_layout.addWidget(cloudflare_worker_test_btn)
+    cloudflare_worker_code_btn = push_button_cls("Код Worker", icon=FluentIcon.COPY)
+    cloudflare_worker_code_btn.setMinimumWidth(120)
+    set_tooltip(cloudflare_worker_code_btn, "Скопировать готовый код для Cloudflare Worker.")
+    cloudflare_worker_code_btn.clicked.connect(on_copy_cloudflare_worker_code)
+    cloudflare_worker_domains_layout.addWidget(cloudflare_worker_code_btn)
     cloudflare_worker_domains_layout.addStretch()
     cloudflare_worker_domains_row.setVisible(False)
     upstream_card.addSettingCard(cloudflare_worker_domains_row)
@@ -429,10 +457,14 @@ def build_telegram_proxy_settings_panel(
         cloudflare_domains_row=cloudflare_domains_row,
         cloudflare_domains_label=cloudflare_domains_label,
         cloudflare_domains_edit=cloudflare_domains_edit,
+        cloudflare_test_btn=cloudflare_test_btn,
+        cloudflare_dns_btn=cloudflare_dns_btn,
         cloudflare_worker_toggle=cloudflare_worker_toggle,
         cloudflare_worker_domains_row=cloudflare_worker_domains_row,
         cloudflare_worker_domains_label=cloudflare_worker_domains_label,
         cloudflare_worker_domains_edit=cloudflare_worker_domains_edit,
+        cloudflare_worker_test_btn=cloudflare_worker_test_btn,
+        cloudflare_worker_code_btn=cloudflare_worker_code_btn,
         manual_section_label=manual_section_label,
         instructions_card=instructions_card,
         instr1_label=instr1_label,

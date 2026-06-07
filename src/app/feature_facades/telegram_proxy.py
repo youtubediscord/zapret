@@ -26,6 +26,9 @@ class TelegramProxyFeature:
     save_settings_action: Callable
     check_relay_reachable: Callable
     check_relay_http: Callable
+    check_cloudflare_connectivity: Callable
+    get_cloudflare_dns_records_text: Callable
+    get_cloudflare_worker_code: Callable
     build_diagnostics_start_plan: Callable
     build_diagnostics_poll_plan: Callable
     build_diagnostics_finish_plan: Callable
@@ -164,6 +167,17 @@ class TelegramProxyFeature:
             check_relay_reachable=self.check_relay_reachable,
             check_relay_http=self.check_relay_http,
             get_zapret_running=get_zapret_running,
+            parent=parent,
+        )
+
+    def create_cloudflare_check_worker(self, request_id: int, *, kind: str, domains, parent=None):
+        from telegram_proxy.runtime.workers import TelegramProxyCloudflareCheckWorker
+
+        return TelegramProxyCloudflareCheckWorker(
+            request_id,
+            kind=str(kind or "domain"),
+            domains=domains,
+            check_cloudflare_connectivity=self.check_cloudflare_connectivity,
             parent=parent,
         )
 
@@ -339,6 +353,9 @@ def build_telegram_proxy_feature() -> TelegramProxyFeature:
         save_settings_action=lambda *args, **kwargs: _commands().save_settings_action(*args, **kwargs),
         check_relay_reachable=lambda *args, **kwargs: _commands().check_relay_reachable(*args, **kwargs),
         check_relay_http=lambda *args, **kwargs: _commands().check_relay_http(*args, **kwargs),
+        check_cloudflare_connectivity=lambda *args, **kwargs: _commands().check_cloudflare_connectivity(*args, **kwargs),
+        get_cloudflare_dns_records_text=lambda *args, **kwargs: _commands().get_cloudflare_dns_records_text(*args, **kwargs),
+        get_cloudflare_worker_code=lambda *args, **kwargs: _commands().get_cloudflare_worker_code(*args, **kwargs),
         build_diagnostics_start_plan=lambda *args, **kwargs: _public().build_diagnostics_start_plan(*args, **kwargs),
         build_diagnostics_poll_plan=lambda *args, **kwargs: _public().build_diagnostics_poll_plan(*args, **kwargs),
         build_diagnostics_finish_plan=lambda *args, **kwargs: _public().build_diagnostics_finish_plan(*args, **kwargs),
