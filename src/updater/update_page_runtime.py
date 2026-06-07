@@ -214,11 +214,10 @@ class UpdatePageRuntime:
         self._auto_check_load_pending = False
         self._auto_check_load_start_scheduled = False
         self._auto_check_save_pending: bool | None = None
-        self._cache_invalidate_pending_context: str | None = None
+        self._cache_invalidate_state = UpdateLatestValueWorkerState(self._cache_invalidate_runtime, empty_value=None)
         self._update_channel_open_state = UpdateLatestValueWorkerState(self._update_channel_open_runtime, empty_value="")
         self._server_check_gate_pending: bool | None = None
         self._auto_check_save_start_scheduled = False
-        self._cache_invalidate_start_scheduled = False
         self._server_check_gate_start_scheduled = False
         self._auto_check_user_changed = False
         self._dpi_restart_after = ""
@@ -259,6 +258,33 @@ class UpdatePageRuntime:
     @_update_channel_open_start_scheduled.setter
     def _update_channel_open_start_scheduled(self, value: bool) -> None:
         self._update_channel_open_state_obj().start_scheduled = bool(value)
+
+    def _cache_invalidate_state_obj(self) -> UpdateLatestValueWorkerState:
+        state = self.__dict__.get("_cache_invalidate_state")
+        if state is None:
+            state = UpdateLatestValueWorkerState(
+                self.__dict__.get("_cache_invalidate_runtime"),
+                empty_value=None,
+            )
+            self.__dict__["_cache_invalidate_state"] = state
+        return state
+
+    @property
+    def _cache_invalidate_pending_context(self) -> str | None:
+        pending = self._cache_invalidate_state_obj().pending
+        return None if pending is None else str(pending or "")
+
+    @_cache_invalidate_pending_context.setter
+    def _cache_invalidate_pending_context(self, value: str | None) -> None:
+        self._cache_invalidate_state_obj().pending = None if value is None else str(value or "")
+
+    @property
+    def _cache_invalidate_start_scheduled(self) -> bool:
+        return bool(self._cache_invalidate_state_obj().start_scheduled)
+
+    @_cache_invalidate_start_scheduled.setter
+    def _cache_invalidate_start_scheduled(self, value: bool) -> None:
+        self._cache_invalidate_state_obj().start_scheduled = bool(value)
 
     @staticmethod
     def build_responsibility_map() -> UpdateResponsibilityMap:
@@ -649,15 +675,18 @@ class UpdatePageRuntime:
             self._view.mark_update_download_failed(str(e)[:50])
 
     def _request_update_cache_invalidate(self, context: str) -> None:
-        if self._cache_invalidate_runtime.is_running() or self.__dict__.get("_cache_invalidate_start_scheduled", False):
-            self._cache_invalidate_pending_context = str(context or "")
-            return
-        self._cache_invalidate_pending_context = None
+        target = str(context or "")
+        self._cache_invalidate_state_obj().request_or_start(target, self._start_update_cache_invalidate_worker)
+
+    def _cache_invalidate_has_pending(self) -> bool:
+        return self._cache_invalidate_state_obj().has_pending()
+
+    def _start_update_cache_invalidate_worker(self, context: str) -> None:
         self._cache_invalidate_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._updater_feature.create_cache_invalidate_worker(
                 request_id,
                 channel=CHANNEL,
-                context=context,
+                context=str(context or ""),
                 parent=self._view.window(),
             ),
             on_loaded=self._on_update_cache_invalidate_finished,
@@ -668,14 +697,14 @@ class UpdatePageRuntime:
     def _on_update_cache_invalidate_finished(self, request_id: int, context: str) -> None:
         if not self._cache_invalidate_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
             return
-        if self.__dict__.get("_cache_invalidate_pending_context"):
+        if self._cache_invalidate_has_pending():
             return
         self._continue_after_update_cache_invalidate(str(context or ""))
 
     def _on_update_cache_invalidate_failed(self, request_id: int, context: str, error: str) -> None:
         if not self._cache_invalidate_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
             return
-        if self.__dict__.get("_cache_invalidate_pending_context"):
+        if self._cache_invalidate_has_pending():
             return
         log(f"Не удалось очистить кэш обновлений: {error}", "WARNING")
         self._continue_after_update_cache_invalidate(str(context or ""))
@@ -689,31 +718,28 @@ class UpdatePageRuntime:
             self._start_update_download()
 
     def _on_update_cache_invalidate_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_cache_invalidate_runtime"), _worker):
-            return
-        if self._cleanup_in_progress:
-            return
-        pending = self._cache_invalidate_pending_context
-        if pending:
-            self._schedule_update_cache_invalidate_start()
+        self._cache_invalidate_state_obj().schedule_pending_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_update_cache_invalidate_start,
+            cleanup_in_progress=self._cleanup_in_progress,
+        )
 
     def _schedule_update_cache_invalidate_start(self) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if self.__dict__.get("_cache_invalidate_start_scheduled", False):
-            return
-        self._cache_invalidate_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_update_cache_invalidate_start)
+        self._cache_invalidate_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_update_cache_invalidate_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_update_cache_invalidate_start(self) -> None:
-        self._cache_invalidate_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        context = str(self.__dict__.get("_cache_invalidate_pending_context") or "")
-        self._cache_invalidate_pending_context = None
+        context = self._cache_invalidate_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
         if not context:
             return
-        self._request_update_cache_invalidate(context)
+        self._request_update_cache_invalidate(str(context or ""))
 
     def dismiss_update(self) -> None:
         version = self._resolve_dismissed_update_version()
@@ -1135,8 +1161,7 @@ class UpdatePageRuntime:
         self._update_channel_open_runtime.cancel()
 
     def _teardown_cache_invalidate_worker(self) -> None:
-        self._cache_invalidate_pending_context = None
-        self._cache_invalidate_start_scheduled = False
+        self._cache_invalidate_state_obj().reset()
         self._cache_invalidate_runtime.stop(
             blocking=_updater_cleanup_blocking("cache_invalidate_worker"),
             log_fn=log,

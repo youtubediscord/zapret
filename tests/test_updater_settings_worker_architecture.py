@@ -447,6 +447,15 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
 
         runtime._request_update_cache_invalidate.assert_called_once_with("manual_check")
 
+    def test_cache_invalidate_queue_state_lives_in_state_object(self) -> None:
+        init_source = inspect.getsource(update_page_runtime.UpdatePageRuntime.__init__)
+        finished_source = inspect.getsource(update_page_runtime.UpdatePageRuntime._on_update_cache_invalidate_worker_finished)
+        state_source = inspect.getsource(update_page_runtime.UpdateLatestValueWorkerState)
+
+        self.assertIn("_cache_invalidate_state = UpdateLatestValueWorkerState", init_source)
+        self.assertIn("schedule_pending_after_finish", finished_source)
+        self.assertIn("def schedule_pending_after_finish", state_source)
+
     def test_stale_cache_invalidate_finish_does_not_restart_pending_invalidate(self) -> None:
         runtime = update_page_runtime.UpdatePageRuntime.__new__(update_page_runtime.UpdatePageRuntime)
         runtime._cleanup_in_progress = False
