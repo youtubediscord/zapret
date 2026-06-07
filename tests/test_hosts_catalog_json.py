@@ -289,6 +289,70 @@ class HostsCatalogJsonTests(unittest.TestCase):
         self.assertEqual(rows["GitHub"].icon_name, "fa5b.github")
         self.assertEqual(rows["Остальное"].icon_name, "fa5s.box-open")
 
+    def test_services_catalog_plan_groups_current_ai_service_names(self) -> None:
+        from hosts import page_plans
+
+        catalog = {
+            "version": 1,
+            "profiles": [{"id": "zapret_dns", "name": "Zapret DNS"}],
+            "services": [
+                {
+                    "name": "Meta AI",
+                    "mode": "dns",
+                    "domains": [{"host": "meta.ai", "ips": {"zapret_dns": "72.56.93.144"}}],
+                },
+                {
+                    "name": "Trae.ai",
+                    "mode": "dns",
+                    "domains": [{"host": "trae.ai", "ips": {"zapret_dns": "72.56.93.144"}}],
+                },
+                {
+                    "name": "Windsurf",
+                    "mode": "dns",
+                    "domains": [{"host": "windsurf.com", "ips": {"zapret_dns": "72.56.93.144"}}],
+                },
+                {
+                    "name": "Tailscale",
+                    "mode": "dns",
+                    "domains": [{"host": "tailscale.com", "ips": {"zapret_dns": "72.56.93.144"}}],
+                },
+                {
+                    "name": "JetBrains",
+                    "mode": "dns",
+                    "domains": [{"host": "jetbrains.com", "ips": {"zapret_dns": "72.56.93.144"}}],
+                },
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog_path = root / "private_zapretgui" / "resources" / "json" / "hosts_catalog.json"
+            catalog_path.parent.mkdir(parents=True, exist_ok=True)
+            catalog_path.write_text(json.dumps(catalog, ensure_ascii=False, indent=2), encoding="utf-8")
+            fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
+            fake_module.parent.mkdir(parents=True, exist_ok=True)
+            fake_module.write_text("", encoding="utf-8")
+
+            with patch.object(self.proxy_domains, "__file__", str(fake_module)):
+                self.proxy_domains.invalidate_hosts_catalog_cache()
+                plan = page_plans.build_services_catalog_plan(
+                    current_selection={},
+                    active_domains_map={},
+                    direct_title="Direct",
+                    ai_title="AI",
+                    other_title="Other",
+                )
+
+        groups = {group.title: {row.service_name: row for row in group.rows} for group in plan.groups}
+        self.assertIn("Meta AI", groups["AI"])
+        self.assertIn("Trae.ai", groups["AI"])
+        self.assertIn("Windsurf", groups["AI"])
+        self.assertIn("Tailscale", groups["Other"])
+        self.assertIn("JetBrains", groups["Other"])
+        self.assertEqual(groups["AI"]["Meta AI"].icon_name, "fa5b.facebook-f")
+        self.assertEqual(groups["AI"]["Trae.ai"].icon_name, "fa5s.code")
+        self.assertEqual(groups["AI"]["Windsurf"].icon_name, "fa5s.wind")
+
     def test_services_catalog_plan_keeps_saved_selection_when_hosts_is_empty(self) -> None:
         from hosts import page_plans
 

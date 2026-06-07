@@ -424,7 +424,7 @@ def is_ai_service(name: str) -> bool:
     return any(
         marker in service_name
         for marker in ("chatgpt", "openai", "gemini", "claude", "copilot", "grok", "manus")
-    )
+    ) or service_name in {"meta ai", "trae.ai", "windsurf"}
 
 
 def build_services_catalog_plan(
