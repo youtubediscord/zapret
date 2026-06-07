@@ -15,6 +15,9 @@ class UpdaterSettingsWorkerArchitectureTests(unittest.TestCase):
     def _runtime_mock(self):
         return SimpleNamespace(stop=Mock(), cancel=Mock())
 
+    def test_latest_value_worker_state_is_shared_ui_helper(self) -> None:
+        self.assertEqual(update_page_runtime.UpdateLatestValueWorkerState.__module__, "ui.latest_value_worker_state")
+
     def test_auto_check_workers_receive_feature_action_callables(self) -> None:
         feature_source = inspect.getsource(UpdaterFeature)
         save_source = inspect.getsource(settings_workers.UpdaterAutoCheckSaveWorker)

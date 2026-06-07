@@ -28,6 +28,7 @@ from ui.fluent_widgets import (
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
 )
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from app.state_store import AppUiState, MainWindowStateStore
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
@@ -146,8 +147,7 @@ class AppearancePage(BasePage):
         self._rkn_background_options_pending = False
         self._rkn_background_options_start_scheduled = False
         self._windows_accent_load_runtime = OneShotWorkerRuntime()
-        self._windows_accent_load_pending = False
-        self._windows_accent_load_start_scheduled = False
+        self._windows_accent_load_state = LatestValueWorkerState(self._windows_accent_load_runtime, empty_value=False)
         self._build_ui()
         self.bind_ui_state_store(ui_state_store)
 
@@ -1284,16 +1284,42 @@ class AppearancePage(BasePage):
     def create_windows_accent_load_worker(self, request_id: int):
         return self._appearance.create_windows_accent_load_worker(request_id, parent=self)
 
+    def _windows_accent_load_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_windows_accent_load_state")
+        if state is None:
+            state = LatestValueWorkerState(
+                self.__dict__.get("_windows_accent_load_runtime"),
+                empty_value=False,
+            )
+            self.__dict__["_windows_accent_load_state"] = state
+        return state
+
+    @property
+    def _windows_accent_load_pending(self) -> bool:
+        return bool(self._windows_accent_load_state_obj().pending)
+
+    @_windows_accent_load_pending.setter
+    def _windows_accent_load_pending(self, value: bool) -> None:
+        self._windows_accent_load_state_obj().pending = bool(value)
+
+    @property
+    def _windows_accent_load_start_scheduled(self) -> bool:
+        return bool(self._windows_accent_load_state_obj().start_scheduled)
+
+    @_windows_accent_load_start_scheduled.setter
+    def _windows_accent_load_start_scheduled(self, value: bool) -> None:
+        self._windows_accent_load_state_obj().start_scheduled = bool(value)
+
     def _request_windows_accent_load(self) -> None:
         if self._cleanup_in_progress:
             return
-        if (
-            self._windows_accent_load_runtime.is_running()
-            or self.__dict__.get("_windows_accent_load_start_scheduled", False)
-        ):
-            self._windows_accent_load_pending = True
-            return
-        self._start_windows_accent_load_worker()
+        self._windows_accent_load_state_obj().request_or_start(
+            True,
+            lambda _pending: self._start_windows_accent_load_worker(),
+        )
+
+    def _windows_accent_load_has_pending(self) -> bool:
+        return self._windows_accent_load_state_obj().has_pending()
 
     def _start_windows_accent_load_worker(self) -> None:
         self._windows_accent_load_runtime.start_qthread_worker(
@@ -1309,7 +1335,7 @@ class AppearancePage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
-        if self.__dict__.get("_windows_accent_load_pending", False):
+        if self._windows_accent_load_has_pending():
             return
         self._apply_windows_accent(plan)
 
@@ -1319,28 +1345,32 @@ class AppearancePage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
-        if self.__dict__.get("_windows_accent_load_pending", False):
+        if self._windows_accent_load_has_pending():
             return
         log(f"Ошибка загрузки системного акцента Windows: {error}", "WARNING")
 
     def _on_windows_accent_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_windows_accent_load_runtime"), _worker):
-            return
-        if self._windows_accent_load_pending and not self._cleanup_in_progress:
-            self._windows_accent_load_pending = False
-            self._schedule_windows_accent_load_worker_start()
+        self._windows_accent_load_state_obj().schedule_pending_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_windows_accent_load_worker_start,
+            cleanup_in_progress=self._cleanup_in_progress,
+            clear_pending_before_schedule=True,
+        )
 
     def _schedule_windows_accent_load_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_windows_accent_load_start_scheduled", False):
-            self._windows_accent_load_pending = True
-            return
-        self._windows_accent_load_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_windows_accent_load_worker_start)
+        self._windows_accent_load_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_windows_accent_load_worker_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+            pending_when_already_scheduled=True,
+        )
 
     def _run_scheduled_windows_accent_load_worker_start(self) -> None:
-        self._windows_accent_load_start_scheduled = False
+        self._windows_accent_load_state_obj().start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         self._start_windows_accent_load_worker()
@@ -1534,8 +1564,7 @@ class AppearancePage(BasePage):
         self._initial_state_load_pending = False
         self._initial_state_load_pending_force = False
         self._initial_state_load_start_scheduled = False
-        self._windows_accent_load_pending = False
-        self._windows_accent_load_start_scheduled = False
+        self._windows_accent_load_state_obj().reset()
         self._rkn_background_options_start_scheduled = False
         for runtime, name in (
             (self._initial_state_load_runtime, "загрузка оформления"),

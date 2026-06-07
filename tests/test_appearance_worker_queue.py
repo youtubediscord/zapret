@@ -407,6 +407,19 @@ class AppearanceWorkerQueueTests(unittest.TestCase):
 
         page._start_windows_accent_load_worker.assert_called_once_with()
 
+    def test_windows_accent_queue_state_lives_in_state_object(self) -> None:
+        import inspect
+        import ui.pages.appearance_page as appearance_page
+        from ui.pages.appearance_page import AppearancePage
+
+        module_source = inspect.getsource(appearance_page)
+        init_source = inspect.getsource(AppearancePage.__init__)
+        finished_source = inspect.getsource(AppearancePage._on_windows_accent_worker_finished)
+
+        self.assertIn("from ui.latest_value_worker_state import LatestValueWorkerState", module_source)
+        self.assertIn("_windows_accent_load_state = LatestValueWorkerState", init_source)
+        self.assertIn("schedule_pending_after_finish", finished_source)
+
     def test_stale_windows_accent_worker_finished_does_not_restart_pending_load(self) -> None:
         import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
