@@ -113,12 +113,12 @@ class ProgramSettingsRuntimeService:
         )
 
     def _read_system_status_snapshot(self) -> ProgramSettingsSnapshot:
+        defender_disabled = self._read_defender_disabled()
+        max_blocked = self._read_max_blocked()
         with self._lock:
             snapshot = self._snapshot
         if snapshot is None:
             snapshot = self._read_fast_snapshot()
-        defender_disabled = self._read_defender_disabled()
-        max_blocked = self._read_max_blocked()
         return self._build_snapshot(
             auto_dpi_enabled=bool(snapshot.auto_dpi_enabled),
             gui_autostart_enabled=bool(snapshot.gui_autostart_enabled),

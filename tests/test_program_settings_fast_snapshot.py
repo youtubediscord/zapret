@@ -90,6 +90,50 @@ class ProgramSettingsFastSnapshotTests(unittest.TestCase):
         self.assertTrue(heavy_snapshot.defender_disabled)
         self.assertTrue(heavy_snapshot.max_blocked)
 
+    def test_system_status_refresh_does_not_restore_stale_fast_fields(self) -> None:
+        from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
+
+        service = ProgramSettingsRuntimeService()
+        enabled_settings = {
+            "program": {
+                "dpi_autostart": True,
+                "gui_autostart_enabled": True,
+                "defender_disabled": False,
+                "max_blocked": False,
+            },
+            "window": {"hide_to_tray_on_minimize_close": False},
+        }
+        disabled_settings = {
+            "program": {
+                "dpi_autostart": True,
+                "gui_autostart_enabled": False,
+                "defender_disabled": False,
+                "max_blocked": False,
+            },
+            "window": {"hide_to_tray_on_minimize_close": False},
+        }
+
+        with patch("settings.store.read_settings", return_value=enabled_settings):
+            service.refresh_fast()
+
+        def disable_autostart_during_system_check() -> bool:
+            with patch("settings.store.read_settings", return_value=disabled_settings):
+                service.refresh_fast()
+            return True
+
+        with (
+            patch.object(
+                ProgramSettingsRuntimeService,
+                "_read_defender_disabled",
+                side_effect=disable_autostart_during_system_check,
+            ),
+            patch.object(ProgramSettingsRuntimeService, "_read_max_blocked", return_value=False),
+        ):
+            snapshot = service.refresh_system_status()
+
+        self.assertFalse(snapshot.gui_autostart_enabled)
+        self.assertTrue(snapshot.defender_disabled)
+
     def test_load_snapshot_refreshes_settings_json_instead_of_old_cached_snapshot(self) -> None:
         from core.runtime.program_settings_runtime_service import ProgramSettingsRuntimeService
 
