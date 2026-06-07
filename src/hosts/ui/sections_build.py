@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout
 
+from ui.accessibility import set_control_accessibility
 from ui.fluent_widgets import SettingsCard, SemanticNotice
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
@@ -108,6 +109,14 @@ def build_hosts_status_section(
         icon=FluentIcon.DELETE,
     )
     clear_btn.clicked.connect(on_clear_clicked)
+    set_control_accessibility(
+        clear_btn,
+        name=tr_fn("page.hosts.button.clear.accessible_name", "Очистить hosts"),
+        description=tr_fn(
+            "page.hosts.button.clear.accessible_description",
+            "Удаляет активные домены из файла hosts.",
+        ),
+    )
     status_layout.addWidget(clear_btn)
 
     open_hosts_button = PushButton(
@@ -115,6 +124,14 @@ def build_hosts_status_section(
         icon=FluentIcon.LINK,
     )
     open_hosts_button.clicked.connect(on_open_hosts_file)
+    set_control_accessibility(
+        open_hosts_button,
+        name=tr_fn("page.hosts.button.open.accessible_name", "Открыть файл hosts"),
+        description=tr_fn(
+            "page.hosts.button.open.accessible_description",
+            "Открывает системный файл hosts для просмотра или ручной проверки.",
+        ),
+    )
     status_layout.addWidget(open_hosts_button)
 
     status_card.add_layout(status_layout)
@@ -136,12 +153,11 @@ def build_hosts_adobe_section(
 ) -> HostsAdobeWidgets:
     adobe_card = SettingsCard()
 
-    adobe_desc_label = CaptionLabel(
-        tr_fn(
-            "page.hosts.adobe.description",
-            "⚠️ Блокирует серверы проверки активации Adobe. Включите, если у вас установлена пиратская версия.",
-        )
+    adobe_description = tr_fn(
+        "page.hosts.adobe.description",
+        "⚠️ Блокирует серверы проверки активации Adobe. Включите, если у вас установлена пиратская версия.",
     )
+    adobe_desc_label = CaptionLabel(adobe_description)
     adobe_desc_label.setWordWrap(True)
     adobe_card.add_widget(adobe_desc_label)
 
@@ -153,11 +169,29 @@ def build_hosts_adobe_section(
     icon_label.setPixmap(get_cached_qta_pixmap('fa5s.puzzle-piece', color='#ff0000', size=20))
     adobe_layout.addWidget(icon_label)
 
-    adobe_title_label = StrongBodyLabel(tr_fn("page.hosts.adobe.title", "Блокировка Adobe"))
+    adobe_title = tr_fn("page.hosts.adobe.title", "Блокировка Adobe")
+    adobe_title_label = StrongBodyLabel(adobe_title)
     adobe_layout.addWidget(adobe_title_label, 1)
 
     adobe_switch = switch_button_cls()
     adobe_switch.setChecked(adobe_active)
+    _update_adobe_switch_accessibility(
+        adobe_switch,
+        title=adobe_title,
+        description=adobe_description,
+        checked=adobe_active,
+    )
+    try:
+        adobe_switch.checkedChanged.connect(
+            lambda checked: _update_adobe_switch_accessibility(
+                adobe_switch,
+                title=adobe_title,
+                description=adobe_description,
+                checked=checked,
+            )
+        )
+    except Exception:
+        pass
     adobe_switch.checkedChanged.connect(on_toggle_adobe)
     adobe_layout.addWidget(adobe_switch)
 
@@ -167,4 +201,13 @@ def build_hosts_adobe_section(
         description_label=adobe_desc_label,
         title_label=adobe_title_label,
         switch=adobe_switch,
+    )
+
+
+def _update_adobe_switch_accessibility(switch, *, title: str, description: str, checked: bool) -> None:
+    state = "включено" if bool(checked) else "выключено"
+    set_control_accessibility(
+        switch,
+        name=f"{title}, {state}",
+        description=description,
     )
