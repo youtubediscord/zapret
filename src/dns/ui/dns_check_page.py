@@ -15,6 +15,7 @@ import dns.dns_check_plans as dns_check_page_plans
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
+from ui.accessibility import set_control_accessibility, set_state_text
 from app.ui_texts import tr as tr_catalog
 
 from qfluentwidgets import (
@@ -150,13 +151,15 @@ class DNSCheckPage(BasePage):
             tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"),
             icon=FluentIcon.PLAY,
         )
-        set_tooltip(
+        start_description = self._action_description(
+            "page.dns_check.action.start.description",
+            "Полностью проверить DNS-резолвинг через разные серверы и собрать расширенный отчёт.",
+        )
+        set_tooltip(self.check_button, start_description)
+        set_control_accessibility(
             self.check_button,
-            tr_catalog(
-                "page.dns_check.action.start.description",
-                language=self._ui_language,
-                default="Полностью проверить DNS-резолвинг через разные серверы и собрать расширенный отчёт.",
-            )
+            name="Начать полную проверку DNS",
+            description=start_description,
         )
         self.check_button.clicked.connect(self.start_check)
         self._actions_bar.add_button(self.check_button)
@@ -165,13 +168,15 @@ class DNSCheckPage(BasePage):
             tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"),
             icon=FluentIcon.SPEED_HIGH,
         )
-        set_tooltip(
+        quick_description = self._action_description(
+            "page.dns_check.action.quick.description",
+            "Сделать быстрый тест только текущего системного DNS без полного сценария.",
+        )
+        set_tooltip(self.quick_check_button, quick_description)
+        set_control_accessibility(
             self.quick_check_button,
-            tr_catalog(
-                "page.dns_check.action.quick.description",
-                language=self._ui_language,
-                default="Сделать быстрый тест только текущего системного DNS без полного сценария.",
-            )
+            name="Начать быструю проверку DNS",
+            description=quick_description,
         )
         self.quick_check_button.clicked.connect(self.quick_dns_check)
         self._actions_bar.add_button(self.quick_check_button)
@@ -180,13 +185,15 @@ class DNSCheckPage(BasePage):
             tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"),
             icon=FluentIcon.SAVE,
         )
-        set_tooltip(
+        save_description = self._action_description(
+            "page.dns_check.action.save.description",
+            "Сохранить текущий отчёт DNS-проверки в текстовый файл.",
+        )
+        set_tooltip(self.save_button, save_description)
+        set_control_accessibility(
             self.save_button,
-            tr_catalog(
-                "page.dns_check.action.save.description",
-                language=self._ui_language,
-                default="Сохранить текущий отчёт DNS-проверки в текстовый файл.",
-            )
+            name="Сохранить результаты проверки DNS",
+            description=save_description,
         )
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self.save_results)
@@ -201,6 +208,11 @@ class DNSCheckPage(BasePage):
         self.result_text.setReadOnly(True)
         self.result_text.setFont(QFont("Consolas", 10))
         self.result_text.setMinimumHeight(300)
+        set_control_accessibility(
+            self.result_text,
+            name="Результаты проверки DNS",
+            description="Здесь появляется текстовый отчёт DNS-проверки.",
+        )
         self.result_text.setStyleSheet(
             f"""
             QTextEdit {{
@@ -237,6 +249,17 @@ class DNSCheckPage(BasePage):
         )
         self._status_tone = tone
         self._status_bold = bold
+        set_state_text(self.status_label, f"Статус проверки DNS: {self._clean_status_text(text)}")
+
+    def _action_description(self, key: str, default: str) -> str:
+        return tr_catalog(key, language=self._ui_language, default=default)
+
+    def _clean_status_text(self, text: str) -> str:
+        value = " ".join(str(text or "").strip().split())
+        for prefix in ("⚡", "✅"):
+            if value.startswith(prefix):
+                value = value[len(prefix):].strip()
+        return value
 
     def _apply_page_theme(self, tokens=None, force: bool = False) -> None:
         _ = force
@@ -640,27 +663,34 @@ class DNSCheckPage(BasePage):
         self.check_button.setText(tr_catalog("page.dns_check.button.start", language=self._ui_language, default="Начать проверку"))
         self.quick_check_button.setText(tr_catalog("page.dns_check.button.quick", language=self._ui_language, default="Быстрая проверка"))
         self.save_button.setText(tr_catalog("page.dns_check.button.save", language=self._ui_language, default="Сохранить результаты"))
-        set_tooltip(
+        start_description = self._action_description(
+            "page.dns_check.action.start.description",
+            "Полностью проверить DNS-резолвинг через разные серверы и собрать расширенный отчёт.",
+        )
+        set_tooltip(self.check_button, start_description)
+        set_control_accessibility(
             self.check_button,
-            tr_catalog(
-                "page.dns_check.action.start.description",
-                language=self._ui_language,
-                default="Полностью проверить DNS-резолвинг через разные серверы и собрать расширенный отчёт.",
-            )
+            name="Начать полную проверку DNS",
+            description=start_description,
         )
-        set_tooltip(
+        quick_description = self._action_description(
+            "page.dns_check.action.quick.description",
+            "Сделать быстрый тест только текущего системного DNS без полного сценария.",
+        )
+        set_tooltip(self.quick_check_button, quick_description)
+        set_control_accessibility(
             self.quick_check_button,
-            tr_catalog(
-                "page.dns_check.action.quick.description",
-                language=self._ui_language,
-                default="Сделать быстрый тест только текущего системного DNS без полного сценария.",
-            )
+            name="Начать быструю проверку DNS",
+            description=quick_description,
         )
-        set_tooltip(
+        save_description = self._action_description(
+            "page.dns_check.action.save.description",
+            "Сохранить текущий отчёт DNS-проверки в текстовый файл.",
+        )
+        set_tooltip(self.save_button, save_description)
+        set_control_accessibility(
             self.save_button,
-            tr_catalog(
-                "page.dns_check.action.save.description",
-                language=self._ui_language,
-                default="Сохранить текущий отчёт DNS-проверки в текстовый файл.",
-            )
+            name="Сохранить результаты проверки DNS",
+            description=save_description,
         )
+        self._set_status(self.status_label.text(), tone=self._status_tone, bold=self._status_bold)
