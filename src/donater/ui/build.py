@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from qfluentwidgets import BodyLabel, CaptionLabel, FluentIcon, LineEdit, PrimaryPushButton, PushButton
 
-from donater.ui.accessibility import apply_premium_button_accessibility
+from donater.ui.accessibility import apply_premium_button_accessibility, apply_premium_pair_code_accessibility
 from ui.fluent_widgets import SettingsCard, RefreshButton, QuickActionsBar, set_tooltip
 
 
@@ -71,6 +71,7 @@ def build_premium_activation_section(
         tr("page.premium.placeholder.pair_code", "ABCD12EF")
     )
     key_input.setReadOnly(True)
+    apply_premium_pair_code_accessibility(tr_fn=tr, key_input=key_input)
     key_row.addWidget(key_input, 1)
 
     activate_btn = PrimaryPushButton(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from donater.ui.accessibility import apply_premium_button_accessibility
+from donater.ui.accessibility import apply_premium_button_accessibility, apply_premium_pair_code_accessibility
 from ui.fluent_widgets import set_tooltip
 
 
@@ -188,6 +188,7 @@ def apply_premium_language(
         )
     )
     key_input.setPlaceholderText(tr_fn("page.premium.placeholder.pair_code", "ABCD12EF"))
+    apply_premium_pair_code_accessibility(tr_fn=tr_fn, key_input=key_input)
 
     if activation_in_progress:
         activate_btn.setText(tr_fn("page.premium.button.create_code.loading", "Создание..."))

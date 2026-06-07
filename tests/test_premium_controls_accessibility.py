@@ -13,7 +13,7 @@ from donater.ui.build import (
     build_premium_device_info_section,
 )
 from donater.ui.page_plans import build_connection_test_start_plan
-from donater.ui.pairing_workflow import apply_pair_code_start_ui
+from donater.ui.pairing_workflow import apply_pair_code_result_ui, apply_pair_code_start_ui
 from donater.ui.page_lifecycle import apply_premium_language
 from donater.ui.status_workflow import apply_connection_test_plan
 
@@ -55,6 +55,8 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         self.assertIn("Premium backend", actions.test_btn.accessibleDescription())
         self.assertEqual(actions.extend_btn.accessibleName(), "Продлить Premium-подписку")
         self.assertIn("Telegram-бота", actions.extend_btn.accessibleDescription())
+        self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: пока не создан")
+        self.assertIn("код, который нужно отправить", activation.key_input.accessibleDescription())
 
     def test_premium_language_refresh_keeps_screen_reader_names(self) -> None:
         parent = QWidget()
@@ -97,6 +99,7 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         self.assertEqual(actions.test_btn.accessibleName(), "Проверка соединения Premium выполняется")
         self.assertEqual(actions.refresh_btn.accessibleName(), "Обновить Premium-статус")
         self.assertEqual(actions.extend_btn.accessibleName(), "Продлить Premium-подписку")
+        self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: пока не создан")
 
     def test_premium_runtime_actions_update_screen_reader_names(self) -> None:
         parent = QWidget()
@@ -130,6 +133,21 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(activation.activate_btn.accessibleName(), "Создание кода привязки Premium")
         self.assertEqual(actions.test_btn.accessibleName(), "Проверка соединения Premium выполняется")
+        self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: пока не создан")
+
+        apply_pair_code_result_ui(
+            (True, "ok", "ABCD12EF"),
+            activate_btn=activation.activate_btn,
+            key_input=activation.key_input,
+            tr=lambda _key, default: default,
+            set_activation_status=lambda **_kwargs: None,
+            update_device_info=lambda: None,
+            start_autopoll=lambda: None,
+            stop_autopoll=lambda: None,
+        )
+
+        self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: ABCD12EF")
+        self.assertEqual(activation.key_input.property("screenReaderStateText"), "Код привязки Premium: ABCD12EF")
 
 
 if __name__ == "__main__":

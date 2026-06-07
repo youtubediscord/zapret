@@ -7,7 +7,7 @@ from collections.abc import Callable
 from PyQt6.QtWidgets import QApplication
 
 import donater.ui.page_plans as premium_page_plans
-from donater.ui.accessibility import apply_premium_button_accessibility
+from donater.ui.accessibility import apply_premium_button_accessibility, apply_premium_pair_code_accessibility
 
 
 def apply_device_info_snapshot_labels(
@@ -58,6 +58,7 @@ def apply_pair_code_start_ui(
         stop_autopoll()
     if plan.clear_key_input:
         key_input.clear()
+    apply_premium_pair_code_accessibility(tr_fn=tr, key_input=key_input)
     activate_btn.setEnabled(plan.activate_enabled)
     activate_btn.setText(
         tr(plan.activate_text_key, plan.activate_text_default)
@@ -99,6 +100,7 @@ def apply_pair_code_result_ui(
         key_input.clear()
     else:
         key_input.setText(plan.key_input_text)
+    apply_premium_pair_code_accessibility(tr_fn=tr, key_input=key_input)
     if plan.copy_to_clipboard and plan.key_input_text:
         try:
             QApplication.clipboard().setText(plan.key_input_text)
@@ -132,6 +134,7 @@ def apply_pair_code_error_ui(
     plan = premium_page_plans.build_pair_code_error_plan(str(error or ""))
     if plan.clear_key_input:
         key_input.clear()
+    apply_premium_pair_code_accessibility(tr_fn=tr, key_input=key_input)
     activate_btn.setEnabled(plan.activate_enabled)
     activate_btn.setText(tr(plan.activate_text_key, plan.activate_text_default))
     apply_premium_button_accessibility(

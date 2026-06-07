@@ -2,7 +2,34 @@
 
 from __future__ import annotations
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_accessible_description, set_control_accessibility, set_state_text
+
+
+def apply_premium_pair_code_accessibility(*, tr_fn, key_input) -> None:
+    """Задаёт понятный текст поля с Premium-кодом для экранного диктора."""
+
+    if key_input is None:
+        return
+    try:
+        code = str(key_input.text() or "").strip()
+    except Exception:
+        code = ""
+    if code:
+        template = tr_fn("page.premium.pair_code.accessible_name_ready", "Код привязки Premium: {code}")
+        try:
+            name = template.format(code=code)
+        except Exception:
+            name = f"Код привязки Premium: {code}"
+    else:
+        name = tr_fn("page.premium.pair_code.accessible_name_empty", "Код привязки Premium: пока не создан")
+    set_state_text(key_input, name)
+    set_accessible_description(
+        key_input,
+        tr_fn(
+            "page.premium.pair_code.accessible_description",
+            "Это код, который нужно отправить Premium-боту в Telegram. Поле только показывает готовый код.",
+        ),
+    )
 
 
 def apply_premium_button_accessibility(
@@ -85,4 +112,4 @@ def apply_premium_button_accessibility(
         )
 
 
-__all__ = ["apply_premium_button_accessibility"]
+__all__ = ["apply_premium_button_accessibility", "apply_premium_pair_code_accessibility"]
