@@ -896,6 +896,9 @@ class PresetRawEditorPage(BasePage):
         if source_text is not None:
             text = str(source_text or "")
         else:
+            snapshot = self.__dict__.get("_raw_editor_text_snapshot")
+            if snapshot is not None:
+                return str(snapshot or "")
             editor = self.__dict__.get("editor")
             text = "" if editor is None else str(editor.toPlainText() or "")
         self._raw_editor_text_snapshot = text

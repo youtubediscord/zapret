@@ -454,6 +454,18 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
             parent=page,
         )
 
+    def test_raw_preset_save_uses_snapshot_when_editor_is_unchanged(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        page._raw_editor_text_snapshot = "--new\n--filter-tcp=443\n"
+        page.editor = _PlainTextEditor("--new\n--filter-tcp=443\n")
+
+        text = PresetRawEditorPage._resolve_raw_preset_save_text(page, None)
+
+        self.assertEqual(text, "--new\n--filter-tcp=443\n")
+        self.assertEqual(page.editor.plain_text_read_calls, [])
+
     def test_status_message_update_skips_runtime_toggle_render(self) -> None:
         from app.state_store import AppUiState
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
