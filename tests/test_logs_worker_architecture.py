@@ -296,6 +296,8 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
         page._open_folder_runtime = Mock()
         page._open_folder_pending = True
         page._open_folder_start_scheduled = True
+        page._pending_log_text_append = "old log"
+        page._log_text_append_scheduled = True
         page._stop_tail_worker = Mock()
 
         logs_page.LogsPage.cleanup(page)
@@ -304,6 +306,8 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
         self.assertFalse(page._logs_overview_restart_scheduled)
         self.assertFalse(page._open_folder_pending)
         self.assertFalse(page._open_folder_start_scheduled)
+        self.assertEqual(page._pending_log_text_append, "")
+        self.assertFalse(page._log_text_append_scheduled)
         page._spin_timer.stop.assert_called_once()
         page._stop_logs_overview_worker.assert_called_once_with(blocking=False)
         page._stop_support_prepare_worker.assert_called_once_with(blocking=False)
@@ -332,6 +336,73 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
 
         clipboard.setText.assert_called_once_with("cached log")
         page._set_info_text.assert_called_once()
+
+    def test_log_tail_text_appends_are_coalesced_for_next_gui_turn(self) -> None:
+        class ScrollBar:
+            def value(self):
+                return 10
+
+            def maximum(self):
+                return 10
+
+            def setValue(self, value):  # noqa: N802
+                self.last_value = value
+
+        class Cursor:
+            MoveOperation = SimpleNamespace(End="end")
+
+            def __init__(self):
+                self.inserted = []
+
+            def movePosition(self, _operation):  # noqa: N802
+                return True
+
+            def insertText(self, text):  # noqa: N802
+                self.inserted.append(text)
+
+        class LogText:
+            def __init__(self):
+                self.cursor = Cursor()
+                self.scrollbar = ScrollBar()
+
+            def verticalScrollBar(self):  # noqa: N802
+                return self.scrollbar
+
+            def setUpdatesEnabled(self, _enabled):  # noqa: N802
+                return None
+
+            def textCursor(self):  # noqa: N802
+                return self.cursor
+
+            def setTextCursor(self, _cursor):  # noqa: N802
+                return None
+
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._cleanup_in_progress = False
+        page._pending_log_text_append = ""
+        page._log_text_append_scheduled = False
+        page._log_text_cache = ""
+        page._error_pattern = Mock(search=Mock(return_value=False))
+        page._exclude_pattern = Mock(search=Mock(return_value=False))
+        page._add_error = Mock()
+        page.log_text = LogText()
+        scheduled_callbacks = []
+        single_shot = Mock(side_effect=lambda _delay, callback: scheduled_callbacks.append(callback))
+
+        with patch.object(logs_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
+            logs_page.LogsPage._append_text(page, "first\n")
+            logs_page.LogsPage._append_text(page, "second\n")
+
+        single_shot.assert_called_once()
+        self.assertEqual(single_shot.call_args.args[0], 0)
+        self.assertEqual(page._log_text_cache, "first\nsecond")
+        self.assertEqual(page.log_text.cursor.inserted, [])
+
+        scheduled_callbacks[0]()
+
+        self.assertEqual(page.log_text.cursor.inserted, ["first\nsecond\n"])
+        self.assertFalse(page._log_text_append_scheduled)
+        self.assertEqual(page._pending_log_text_append, "")
 
 
 if __name__ == "__main__":

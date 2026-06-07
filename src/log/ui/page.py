@@ -120,6 +120,8 @@ class LogsPage(BasePage):
         self._logs_overview_restart_scheduled = False
         self._tail_runtime = OneShotWorkerRuntime()
         self._log_text_cache = ""
+        self._pending_log_text_append = ""
+        self._log_text_append_scheduled = False
         self._support_prepare_runtime = OneShotWorkerRuntime()
         self._support_prepare_pending = False
         self._support_prepare_start_scheduled = False
@@ -1001,7 +1003,27 @@ class LogsPage(BasePage):
         if not text:
             return
         self._append_log_text_cache(text)
+        self._pending_log_text_append = (
+            str(self.__dict__.get("_pending_log_text_append", "") or "") + text
+        )
+        if self.__dict__.get("_log_text_append_scheduled", False):
+            return
+        self._log_text_append_scheduled = True
+        QTimer.singleShot(0, self._flush_pending_log_text_append)
 
+    def _flush_pending_log_text_append(self):
+        """Вставляет накопленные строки лога в поле одним обновлением GUI."""
+        text = str(self.__dict__.get("_pending_log_text_append", "") or "")
+        self._pending_log_text_append = ""
+        self._log_text_append_scheduled = False
+        if self._cleanup_in_progress:
+            return
+        if not text:
+            return
+        self._append_text_now(text)
+
+    def _append_text_now(self, text: str):
+        """Добавляет уже собранный текст в виджет лога."""
         # Быстро вставляем текст одним куском (append по строкам сильно тормозит на больших логах).
         try:
             scrollbar = self.log_text.verticalScrollBar()
@@ -1212,6 +1234,8 @@ class LogsPage(BasePage):
         """Очистка фоновых задач при закрытии страницы логов."""
         self._cleanup_in_progress = True
         self._logs_overview_restart_scheduled = False
+        self._pending_log_text_append = ""
+        self._log_text_append_scheduled = False
         self._spin_timer.stop()
         self._stop_logs_overview_worker(blocking=False)
         self._stop_support_prepare_worker(blocking=False)
