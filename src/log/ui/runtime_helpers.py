@@ -55,7 +55,8 @@ def set_winws_status(label, *, kind: str, text: str, neutral_color: str, running
 
 def compute_errors_text_height(*, text_edit, min_height: int, max_height: int) -> int:
     try:
-        is_empty = not bool(text_edit.toPlainText().strip())
+        document = text_edit.document()
+        is_empty = bool(document.isEmpty())
     except Exception:
         is_empty = True
 
@@ -63,7 +64,7 @@ def compute_errors_text_height(*, text_edit, min_height: int, max_height: int) -
         return min_height
 
     try:
-        document_height = int(text_edit.document().size().height())
+        document_height = int(document.size().height())
     except Exception:
         document_height = min_height
 
