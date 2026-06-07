@@ -38,6 +38,15 @@ class ControlDefenderAdminCheckQueueTests(unittest.TestCase):
         page.create_program_settings_admin_check_worker.assert_not_called()
         self.assertFalse(page._defender_admin_check_pending)
 
+    def test_defender_toggle_ignores_program_settings_snapshot_apply(self) -> None:
+        page = _Page()
+        page._program_settings_snapshot_apply_in_progress = True
+        page._request_defender_admin_check = Mock()
+
+        page._on_defender_toggled(True)
+
+        page._request_defender_admin_check.assert_not_called()
+
     def test_defender_admin_check_worker_finished_restarts_pending_check_later(self) -> None:
         worker = object()
         page = _Page()

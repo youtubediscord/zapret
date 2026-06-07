@@ -18,6 +18,9 @@ if TYPE_CHECKING:
 class ControlPageWindowsFeatureMixin:
     """Общие обработчики служебных Windows-функций на страницах управления."""
 
+    def _is_program_settings_snapshot_apply_in_progress(self) -> bool:
+        return bool(getattr(self, "_program_settings_snapshot_apply_in_progress", False))
+
     def _show_windows_feature_action_result(self, plan, toggle=None) -> None:
         from qfluentwidgets import InfoBar
 
@@ -40,6 +43,8 @@ class ControlPageWindowsFeatureMixin:
         )
 
     def _on_defender_toggled(self, disable: bool) -> None:
+        if self._is_program_settings_snapshot_apply_in_progress():
+            return
         self._request_defender_admin_check(bool(disable))
 
     def create_program_settings_admin_check_worker(self, request_id: int):
@@ -181,6 +186,8 @@ class ControlPageWindowsFeatureMixin:
             return False
 
     def _on_max_blocker_toggled(self, enable: bool) -> None:
+        if self._is_program_settings_snapshot_apply_in_progress():
+            return
         import presets.ui.control.control_runtime as control_runtime
 
         start_plan = control_runtime.build_max_block_toggle_start_plan(

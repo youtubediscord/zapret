@@ -655,22 +655,32 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _apply_program_settings_snapshot(self, snapshot) -> None:
         if self._cleanup_in_progress:
             return
-        apply_program_settings_snapshot(
-            snapshot,
-            auto_dpi_toggle=self.auto_dpi_toggle,
-            gui_autostart_toggle=self.gui_autostart_toggle,
-            hide_to_tray_toggle=self.hide_to_tray_toggle,
-            defender_toggle=self.defender_toggle,
-            max_block_toggle=self.max_block_toggle,
-        )
+        self._program_settings_snapshot_apply_in_progress = True
+        try:
+            apply_program_settings_snapshot(
+                snapshot,
+                auto_dpi_toggle=self.auto_dpi_toggle,
+                gui_autostart_toggle=self.gui_autostart_toggle,
+                hide_to_tray_toggle=self.hide_to_tray_toggle,
+                defender_toggle=self.defender_toggle,
+                max_block_toggle=self.max_block_toggle,
+            )
+        finally:
+            self._program_settings_snapshot_apply_in_progress = False
 
     def _on_gui_autostart_toggled(self, enabled: bool) -> None:
+        if self._is_program_settings_snapshot_apply_in_progress():
+            return
         self._request_program_settings_save("gui_autostart", bool(enabled))
 
     def _on_auto_dpi_toggled(self, enabled: bool) -> None:
+        if self._is_program_settings_snapshot_apply_in_progress():
+            return
         self._request_program_settings_save("auto_dpi", bool(enabled))
 
     def _on_hide_to_tray_toggled(self, enabled: bool) -> None:
+        if self._is_program_settings_snapshot_apply_in_progress():
+            return
         self._request_program_settings_save("hide_to_tray", bool(enabled))
 
     def _update_stop_winws_button_text(self):
