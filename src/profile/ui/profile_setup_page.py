@@ -1520,7 +1520,7 @@ class ProfileSetupPageBase(BasePage):
         if editor is None:
             self._raw_profile_text_cache = value
             return
-        set_plain_text_if_changed(editor, value)
+        editor.setPlainText(value)
         self._raw_profile_text_cache = value
 
     def _request_list_file_editor_state(self) -> None:
