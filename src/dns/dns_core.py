@@ -5,12 +5,8 @@
 """
 from __future__ import annotations
 
-import ctypes, ipaddress, socket, struct, platform, sys, uuid
-try:
-    import winreg
-except ImportError:  # pragma: no cover - модуль есть только на Windows
-    winreg = None
-from ctypes import wintypes, POINTER, Structure, c_ulong, c_wchar_p
+import ctypes, socket, struct, platform, sys, winreg
+from ctypes import wintypes, windll, POINTER, Structure, c_ulong, c_wchar_p
 from functools import lru_cache
 from typing import List, Tuple, Dict, Optional
 from log.log import log
@@ -21,7 +17,7 @@ from log.log import log
 # ──────────────────────────────────────────────────────────────────────
 
 # IP Helper API
-iphlpapi = getattr(getattr(ctypes, "windll", None), "iphlpapi", None)
+iphlpapi = windll.iphlpapi
 
 # Константы
 MAX_ADAPTER_NAME_LENGTH = 256
@@ -32,37 +28,6 @@ ERROR_BUFFER_OVERFLOW = 111
 MIB_IF_TYPE_ETHERNET = 6
 MIB_IF_TYPE_PPP = 23
 MIB_IF_TYPE_LOOPBACK = 24
-DNS_INTERFACE_SETTINGS_VERSION1 = 1
-DNS_SETTING_IPV6 = 0x0001
-DNS_SETTING_NAMESERVER = 0x0002
-
-
-class GUID(Structure):
-    _fields_ = [
-        ("Data1", ctypes.c_uint32),
-        ("Data2", ctypes.c_uint16),
-        ("Data3", ctypes.c_uint16),
-        ("Data4", ctypes.c_ubyte * 8),
-    ]
-
-
-class NET_LUID(Structure):
-    _fields_ = [("Value", ctypes.c_uint64)]
-
-
-class DNS_INTERFACE_SETTINGS(Structure):
-    _fields_ = [
-        ("Version", ctypes.c_uint32),
-        ("Flags", ctypes.c_uint64),
-        ("Domain", c_wchar_p),
-        ("NameServer", c_wchar_p),
-        ("SearchList", c_wchar_p),
-        ("RegistrationEnabled", ctypes.c_uint32),
-        ("RegisterAdapterName", ctypes.c_uint32),
-        ("EnableLLMNR", ctypes.c_uint32),
-        ("QueryAdapterName", ctypes.c_uint32),
-        ("ProfileNameServer", c_wchar_p),
-    ]
 
 class IP_ADDR_STRING(Structure):
     pass
@@ -143,9 +108,6 @@ def refresh_exclusion_cache() -> None:
 def get_adapters_info_native() -> List[Dict]:
     """Получает информацию об адаптерах через IP Helper API"""
     adapters = []
-    if iphlpapi is None:
-        log("IP Helper API недоступен", "DEBUG")
-        return adapters
     
     # Получаем размер буфера
     size = c_ulong(0)
@@ -198,92 +160,9 @@ def get_adapters_info_native() -> List[Dict]:
     
     return adapters
 
-def _guid_from_string(guid: str) -> GUID:
-    value = uuid.UUID(str(guid).strip("{}"))
-    data4 = (ctypes.c_ubyte * 8)(
-        value.clock_seq_hi_variant,
-        value.clock_seq_low,
-        *value.node.to_bytes(6, "big"),
-    )
-    return GUID(value.time_low, value.time_mid, value.time_hi_version, data4)
-
-
-def _guid_to_string(guid: GUID) -> str:
-    data4 = bytes(guid.Data4)
-    return (
-        f"{{{guid.Data1:08X}-{guid.Data2:04X}-{guid.Data3:04X}-"
-        f"{data4[0]:02X}{data4[1]:02X}-"
-        f"{''.join(f'{item:02X}' for item in data4[2:])}}}"
-    )
-
-
-def _normalize_dns_servers(dns_servers: List[str]) -> list[str]:
-    normalized_servers: list[str] = []
-    for raw_dns in dns_servers:
-        dns = (raw_dns or "").strip()
-        if not dns:
-            continue
-        if dns in normalized_servers:
-            continue
-        normalized_servers.append(dns)
-    return normalized_servers
-
-
-def _split_dns_server_string(dns_string: str) -> list[str]:
-    return [
-        ip.strip()
-        for ip in str(dns_string or "").replace(";", ",").replace(" ", ",").split(",")
-        if ip.strip()
-    ]
-
-
-def _filter_dns_servers_by_family(dns_servers: list[str], is_ipv6: bool) -> list[str]:
-    filtered: list[str] = []
-    for dns in dns_servers:
-        try:
-            address = ipaddress.ip_address(dns)
-        except ValueError:
-            continue
-        if address.version == (6 if is_ipv6 else 4):
-            filtered.append(dns)
-    return filtered
-
-
-def get_interface_guid_from_alias_winapi(adapter_name: str) -> Optional[str]:
-    """Получает GUID интерфейса по имени через IP Helper API."""
-    try:
-        if iphlpapi is None:
-            return None
-        alias_to_luid = getattr(iphlpapi, "ConvertInterfaceAliasToLuid", None)
-        luid_to_guid = getattr(iphlpapi, "ConvertInterfaceLuidToGuid", None)
-        if alias_to_luid is None or luid_to_guid is None:
-            return None
-
-        luid = NET_LUID()
-        alias_result = alias_to_luid(c_wchar_p(_normalize_alias(adapter_name)), ctypes.byref(luid))
-        if alias_result != ERROR_SUCCESS:
-            return None
-
-        guid = GUID()
-        guid_result = luid_to_guid(ctypes.byref(luid), ctypes.byref(guid))
-        if guid_result != ERROR_SUCCESS:
-            return None
-
-        return _guid_to_string(guid)
-    except Exception as e:
-        log(f"Error getting GUID via WinAPI for {adapter_name}: {e}", "DEBUG")
-        return None
-
-
 def get_interface_guid_from_name(adapter_name: str) -> Optional[str]:
     """Получает GUID интерфейса по имени через реестр"""
-    guid = get_interface_guid_from_alias_winapi(adapter_name)
-    if guid:
-        return guid
-
     try:
-        if winreg is None:
-            return None
         # Ищем в реестре
         reg_path = r"SYSTEM\CurrentControlSet\Control\Network\{4D36E972-E325-11CE-BFC1-08002BE10318}"
         
@@ -317,66 +196,53 @@ def get_interface_guid_from_name(adapter_name: str) -> Optional[str]:
     
     return None
 
-
-def set_dns_via_windows_api(guid: str, dns_servers: List[str], is_ipv6: bool = False) -> bool:
-    """Устанавливает DNS через IP Helper API Windows."""
+def set_dns_via_registry(guid: str, dns_servers: List[str], is_ipv6: bool = False) -> bool:
+    """Устанавливает DNS через реестр (быстрее чем netsh)"""
     try:
-        if iphlpapi is None:
-            log("IP Helper API недоступен для установки DNS", "ERROR")
-            return False
-        set_interface_dns_settings = getattr(iphlpapi, "SetInterfaceDnsSettings", None)
-        if set_interface_dns_settings is None:
-            log("SetInterfaceDnsSettings недоступен в IP Helper API", "ERROR")
-            return False
+        if is_ipv6:
+            reg_path = f"SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters\\Interfaces\\{guid}"
+        else:
+            reg_path = f"SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\{guid}"
+        
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0, 
+                           winreg.KEY_SET_VALUE | winreg.KEY_WOW64_64KEY) as key:
+            
+            if dns_servers:
+                # Устанавливаем DNS
+                normalized_servers: list[str] = []
+                for raw_dns in dns_servers:
+                    dns = (raw_dns or "").strip()
+                    if not dns:
+                        continue
+                    if dns in normalized_servers:
+                        continue
+                    normalized_servers.append(dns)
 
-        dns_string = ",".join(_normalize_dns_servers(dns_servers))
-        settings = DNS_INTERFACE_SETTINGS()
-        settings.Version = DNS_INTERFACE_SETTINGS_VERSION1
-        settings.Flags = DNS_SETTING_NAMESERVER | (DNS_SETTING_IPV6 if is_ipv6 else 0)
-        settings.NameServer = dns_string
+                if is_ipv6:
+                    # Для IPv6 в реестре надёжнее использовать разделение пробелом.
+                    dns_string = " ".join(normalized_servers)
+                else:
+                    dns_string = ",".join(normalized_servers)
 
-        result = set_interface_dns_settings(_guid_from_string(guid), ctypes.byref(settings))
-        if result == ERROR_SUCCESS:
-            return True
-
-        log(f"SetInterfaceDnsSettings failed: {result}", "ERROR")
-        return False
+                winreg.SetValueEx(key, "NameServer", 0, winreg.REG_SZ, dns_string)
+                
+                # Отключаем DHCP для DNS
+                try:
+                    winreg.SetValueEx(key, "RegisterAdapterName", 0, winreg.REG_DWORD, 0)
+                except:
+                    pass
+            else:
+                # Очищаем DNS (автоматический режим)
+                try:
+                    winreg.DeleteValue(key, "NameServer")
+                except:
+                    pass
+        
+        return True
+        
     except Exception as e:
-        log(f"Error setting DNS via WinAPI: {e}", "ERROR")
+        log(f"Error setting DNS via registry: {e}", "ERROR")
         return False
-
-
-def get_dns_via_windows_api(guid: str, is_ipv6: bool = False) -> Optional[list[str]]:
-    """Читает статические DNS интерфейса через IP Helper API Windows."""
-    try:
-        if iphlpapi is None:
-            return None
-        get_interface_dns_settings = getattr(iphlpapi, "GetInterfaceDnsSettings", None)
-        if get_interface_dns_settings is None:
-            return None
-
-        settings = DNS_INTERFACE_SETTINGS()
-        settings.Version = DNS_INTERFACE_SETTINGS_VERSION1
-        settings.Flags = 0
-
-        result = get_interface_dns_settings(_guid_from_string(guid), ctypes.byref(settings))
-        if result != ERROR_SUCCESS:
-            log(f"GetInterfaceDnsSettings failed: {result}", "DEBUG")
-            return None
-
-        try:
-            raw_dns = settings.NameServer or settings.ProfileNameServer or ""
-            return _filter_dns_servers_by_family(
-                _split_dns_server_string(raw_dns),
-                is_ipv6,
-            )
-        finally:
-            free_interface_dns_settings = getattr(iphlpapi, "FreeInterfaceDnsSettings", None)
-            if free_interface_dns_settings is not None:
-                free_interface_dns_settings(ctypes.byref(settings))
-    except Exception as e:
-        log(f"Error getting DNS via WinAPI: {e}", "DEBUG")
-        return None
 
 def notify_dns_change():
     """Уведомляет систему об изменении DNS через Win32 API"""
@@ -385,7 +251,7 @@ def notify_dns_change():
         HWND_BROADCAST = 0xFFFF
         WM_SETTINGCHANGE = 0x001A
         
-        user32 = ctypes.windll.user32
+        user32 = windll.user32
         user32.SendNotifyMessageW(
             HWND_BROADCAST,
             WM_SETTINGCHANGE,
@@ -401,7 +267,7 @@ def notify_dns_change():
 def flush_dns_cache_native() -> bool:
     """Очищает DNS кэш через Win32 API"""
     try:
-        dnsapi = ctypes.windll.dnsapi
+        dnsapi = windll.dnsapi
         result = dnsapi.DnsFlushResolverCache()
         return True
     except Exception as e:
@@ -700,7 +566,7 @@ class DNSManager:
         return guid
     
     def get_current_dns(self, adapter_name: str, address_family: str = "IPv4") -> List[str]:
-        """Получает текущие статические DNS серверы через Windows API"""
+        """Получает текущие DNS серверы через реестр"""
         try:
             guid = self.get_adapter_guid(adapter_name)
             if not guid:
@@ -708,8 +574,30 @@ class DNSManager:
                 return []
             
             is_ipv6 = (address_family.lower() == "ipv6")
-            dns_list = get_dns_via_windows_api(guid, is_ipv6)
-            return dns_list if dns_list is not None else []
+            
+            if is_ipv6:
+                reg_path = f"SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters\\Interfaces\\{guid}"
+            else:
+                reg_path = f"SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\{guid}"
+            
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, reg_path, 0,
+                               winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+                try:
+                    dns_string, _ = winreg.QueryValueEx(key, "NameServer")
+                    
+                    if dns_string:
+                        # DNS могут быть разделены запятыми/пробелами/точкой с запятой.
+                        dns_list = [
+                            ip.strip()
+                            for ip in dns_string.replace(';', ',').replace(' ', ',').split(',')
+                            if ip.strip()
+                        ]
+                        return dns_list
+                    
+                except FileNotFoundError:
+                    pass
+            
+            return []
             
         except Exception as e:
             log(f"Error getting DNS for {adapter_name}: {e}", "DEBUG")
@@ -735,7 +623,7 @@ class DNSManager:
         secondary_dns: Optional[str] = None,
         address_family: str = "IPv4"
     ) -> Tuple[bool, str]:
-        """Устанавливает пользовательские DNS через Windows API"""
+        """Устанавливает пользовательские DNS через реестр"""
         try:
             guid = self.get_adapter_guid(adapter_name)
             if not guid:
@@ -747,7 +635,7 @@ class DNSManager:
             
             is_ipv6 = (address_family.lower() == "ipv6")
             
-            success = set_dns_via_windows_api(guid, dns_list, is_ipv6)
+            success = set_dns_via_registry(guid, dns_list, is_ipv6)
             
             if success:
                 if not is_ipv6:
@@ -764,7 +652,7 @@ class DNSManager:
                 notify_dns_change()
                 return True, "OK"
             else:
-                return False, "Windows DNS API update failed"
+                return False, "Registry update failed"
             
         except Exception as e:
             return False, str(e)
@@ -777,15 +665,10 @@ class DNSManager:
                 return False, "GUID not found"
             
             families = ["IPv4", "IPv6"] if address_family is None else [address_family]
-            all_ok = True
             
             for family in families:
                 is_ipv6 = (family.lower() == "ipv6")
-                if not set_dns_via_windows_api(guid, [], is_ipv6):
-                    all_ok = False
-
-            if not all_ok:
-                return False, "Windows DNS API reset failed"
+                set_dns_via_registry(guid, [], is_ipv6)
 
             if address_family is None or address_family.lower() == "ipv4":
                 clear_doh_for_adapter(guid)
