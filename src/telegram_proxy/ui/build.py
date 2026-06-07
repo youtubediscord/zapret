@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 from qfluentwidgets import FluentIcon
 
+from ui.accessibility import set_control_accessibility
 from ui.pages.base_page import ScrollBlockingPlainTextEdit
 from ui.log_limits import (
     TELEGRAM_PROXY_DIAG_VIEW_MAX_LINES,
@@ -94,14 +95,29 @@ def build_telegram_proxy_logs_panel(
     toolbar.setSpacing(8)
 
     btn_copy_logs = push_button_cls("Копировать все", icon=FluentIcon.COPY)
+    set_control_accessibility(
+        btn_copy_logs,
+        name="Копировать лог Telegram Proxy",
+        description="Копирует весь лог Telegram Proxy в буфер обмена.",
+    )
     btn_copy_logs.clicked.connect(on_copy_all_logs)
     toolbar.addWidget(btn_copy_logs)
 
     btn_open_log_file = push_button_cls("Открыть файл лога", icon=FluentIcon.DOCUMENT)
+    set_control_accessibility(
+        btn_open_log_file,
+        name="Открыть файл лога Telegram Proxy",
+        description="Открывает файл с полным логом Telegram Proxy.",
+    )
     btn_open_log_file.clicked.connect(on_open_log_file)
     toolbar.addWidget(btn_open_log_file)
 
     btn_clear_logs = push_button_cls("Очистить", icon=FluentIcon.ERASE_TOOL)
+    set_control_accessibility(
+        btn_clear_logs,
+        name="Очистить лог Telegram Proxy",
+        description="Очищает видимый лог Telegram Proxy на этой странице.",
+    )
     btn_clear_logs.clicked.connect(on_clear_logs)
     toolbar.addWidget(btn_clear_logs)
 
@@ -111,6 +127,11 @@ def build_telegram_proxy_logs_panel(
     log_edit = ScrollBlockingPlainTextEdit()
     log_edit.setReadOnly(True)
     log_edit.setPlaceholderText("Лог подключений появится здесь...")
+    set_control_accessibility(
+        log_edit,
+        name="Лог Telegram Proxy",
+        description="Показывает события подключений и работы Telegram Proxy.",
+    )
     apply_text_line_limit(log_edit, TELEGRAM_PROXY_LOG_VIEW_MAX_LINES)
     layout.addWidget(log_edit)
 
@@ -136,16 +157,31 @@ def build_telegram_proxy_diag_panel(
         "SOCKS5 прокси и определение типа блокировки."
     )
     desc.setWordWrap(True)
+    set_control_accessibility(
+        desc,
+        name="Описание диагностики Telegram Proxy",
+        description=desc.text(),
+    )
     layout.addWidget(desc)
 
     toolbar = QHBoxLayout()
     toolbar.setSpacing(8)
 
     btn_run_diag = primary_push_button_cls("Запустить диагностику", icon=FluentIcon.DEVELOPER_TOOLS)
+    set_control_accessibility(
+        btn_run_diag,
+        name="Запустить диагностику Telegram Proxy",
+        description="Проверяет соединения к Telegram DC, WSS relay, SOCKS5 прокси и тип блокировки.",
+    )
     btn_run_diag.clicked.connect(on_run_diagnostics)
     toolbar.addWidget(btn_run_diag)
 
     btn_copy_diag = push_button_cls("Копировать результат", icon=FluentIcon.COPY)
+    set_control_accessibility(
+        btn_copy_diag,
+        name="Копировать результат диагностики Telegram Proxy",
+        description="Копирует результат диагностики Telegram Proxy в буфер обмена.",
+    )
     btn_copy_diag.clicked.connect(on_copy_diag)
     toolbar.addWidget(btn_copy_diag)
 
@@ -155,6 +191,11 @@ def build_telegram_proxy_diag_panel(
     diag_edit = ScrollBlockingPlainTextEdit()
     diag_edit.setReadOnly(True)
     diag_edit.setPlaceholderText("Нажмите 'Запустить диагностику'...")
+    set_control_accessibility(
+        diag_edit,
+        name="Результат диагностики Telegram Proxy",
+        description="Показывает подробный результат диагностики Telegram Proxy.",
+    )
     apply_text_line_limit(diag_edit, TELEGRAM_PROXY_DIAG_VIEW_MAX_LINES)
     layout.addWidget(diag_edit)
 
