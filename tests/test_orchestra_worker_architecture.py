@@ -859,7 +859,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         page._start_snapshot_worker.assert_not_called()
         self.assertTrue(page._snapshot_load_pending)
 
-    def test_locked_cleanup_does_not_block_snapshot_load_worker(self) -> None:
+    def test_locked_cleanup_does_not_block_running_workers(self) -> None:
         from orchestra.ui.locked_page import OrchestraLockedPage
 
         page = OrchestraLockedPage.__new__(OrchestraLockedPage)
@@ -881,7 +881,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         page._snapshot_load_runtime.stop.assert_called_once()
         self.assertFalse(page._snapshot_load_runtime.stop.call_args.kwargs["blocking"])
         page._managed_action_runtime.stop.assert_called_once()
-        self.assertTrue(page._managed_action_runtime.stop.call_args.kwargs["blocking"])
+        self.assertFalse(page._managed_action_runtime.stop.call_args.kwargs["blocking"])
         page._snapshot_load_runtime.cancel.assert_called_once()
         page._managed_action_runtime.cancel.assert_called_once()
         self.assertEqual(page._managed_action_pending, [])
@@ -942,7 +942,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         page._start_snapshot_worker.assert_not_called()
         self.assertTrue(page._snapshot_load_pending)
 
-    def test_blocked_cleanup_does_not_block_snapshot_load_worker(self) -> None:
+    def test_blocked_cleanup_does_not_block_running_workers(self) -> None:
         from orchestra.ui.blocked_page import OrchestraBlockedPage
 
         page = OrchestraBlockedPage.__new__(OrchestraBlockedPage)
@@ -964,7 +964,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         page._snapshot_load_runtime.stop.assert_called_once()
         self.assertFalse(page._snapshot_load_runtime.stop.call_args.kwargs["blocking"])
         page._managed_action_runtime.stop.assert_called_once()
-        self.assertTrue(page._managed_action_runtime.stop.call_args.kwargs["blocking"])
+        self.assertFalse(page._managed_action_runtime.stop.call_args.kwargs["blocking"])
         page._snapshot_load_runtime.cancel.assert_called_once()
         page._managed_action_runtime.cancel.assert_called_once()
         self.assertEqual(page._managed_action_pending, [])

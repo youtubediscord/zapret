@@ -353,7 +353,7 @@ class PremiumPage(BasePage):
         )
         self._device_info_runtime.cancel()
         self._reset_storage_runtime.stop(
-            blocking=True,
+            blocking=False,
             warning_prefix="Premium reset storage worker",
         )
         self._reset_storage_pending = False

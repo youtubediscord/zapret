@@ -369,6 +369,10 @@ class PremiumWorkerArchitectureTests(unittest.TestCase):
             wait_timeout_ms=1000,
             warning_prefix="Premium action worker",
         )
+        page._reset_storage_runtime.stop.assert_called_once_with(
+            blocking=False,
+            warning_prefix="Premium reset storage worker",
+        )
 
     def test_close_event_stops_premium_action_worker_without_blocking_gui(self) -> None:
         from donater.ui.page_lifecycle import close_premium_page

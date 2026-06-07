@@ -912,7 +912,7 @@ class OrchestraBlockedPage(BasePage):
             warning_prefix="Orchestra blocked snapshot worker",
         )
         self._managed_action_runtime.stop(
-            blocking=True,
+            blocking=False,
             log_fn=log,
             warning_prefix="Orchestra blocked action worker",
         )
