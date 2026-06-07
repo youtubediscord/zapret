@@ -8,6 +8,8 @@ from collections.abc import Callable
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QHBoxLayout, QFrame, QSizePolicy
 
+from ui.pages.about_page_help_accessibility import set_help_card_accessibility
+
 
 @dataclass(slots=True)
 class AboutPageHelpWidgets:
@@ -125,6 +127,14 @@ def build_about_page_help_content(
         tr_fn("page.about.help.docs.forum.title", "Сайт-форум для новичков"),
         tr_fn("page.about.help.docs.forum.desc", "Авторизация через Telegram-бота"),
     )
+    set_help_card_accessibility(
+        forum_card,
+        action_name=tr_fn(
+            "page.about.help.docs.forum.accessible_name",
+            "Открыть сайт-форум для новичков",
+        ),
+        description=tr_fn("page.about.help.docs.forum.desc", "Авторизация через Telegram-бота"),
+    )
     forum_card.clicked.connect(on_open_forum)
 
     info_card = hyperlink_card_cls(
@@ -134,12 +144,28 @@ def build_about_page_help_content(
         tr_fn("page.about.help.docs.info.title", "Что это такое?"),
         tr_fn("page.about.help.docs.info.desc", "Руководство и ответы на вопросы"),
     )
+    set_help_card_accessibility(
+        info_card,
+        action_name=tr_fn(
+            "page.about.help.docs.info.accessible_name",
+            "Открыть руководство и ответы",
+        ),
+        description=tr_fn("page.about.help.docs.info.desc", "Руководство и ответы на вопросы"),
+    )
 
     folder_card = push_setting_card_cls(
         tr_fn("page.about.help.button.open", "Открыть"),
         fluent_icon.FOLDER,
         tr_fn("page.about.help.docs.folder.title", "Папка с инструкциями"),
         tr_fn("page.about.help.docs.folder.desc", "Открыть локальную папку help"),
+    )
+    set_help_card_accessibility(
+        folder_card,
+        action_name=tr_fn(
+            "page.about.help.docs.folder.accessible_name",
+            "Открыть папку с инструкциями",
+        ),
+        description=tr_fn("page.about.help.docs.folder.desc", "Открыть локальную папку help"),
     )
     folder_card.clicked.connect(on_open_help_folder)
 
@@ -150,6 +176,14 @@ def build_about_page_help_content(
         tr_fn("page.about.help.docs.android.title", "На Android (Magisk Zapret, ByeByeDPI и др.)"),
         tr_fn("page.about.help.docs.android.desc", "Открыть инструкцию на сайте"),
     )
+    set_help_card_accessibility(
+        android_card,
+        action_name=tr_fn(
+            "page.about.help.docs.android.accessible_name",
+            "Открыть инструкцию для Android",
+        ),
+        description=tr_fn("page.about.help.docs.android.desc", "Открыть инструкцию на сайте"),
+    )
 
     github_card = hyperlink_card_cls(
         "https://github.com/youtubediscord/zapret",
@@ -157,6 +191,11 @@ def build_about_page_help_content(
         fluent_icon.GITHUB,
         "GitHub",
         tr_fn("page.about.help.docs.github.desc", "Исходный код и документация"),
+    )
+    set_help_card_accessibility(
+        github_card,
+        action_name=tr_fn("page.about.help.docs.github.accessible_name", "Открыть GitHub"),
+        description=tr_fn("page.about.help.docs.github.desc", "Исходный код и документация"),
     )
 
     docs_group.addSettingCards([forum_card, info_card, folder_card, android_card, github_card])
@@ -174,6 +213,14 @@ def build_about_page_help_content(
         tr_fn("page.about.help.news.telegram.title", "Telegram канал"),
         tr_fn("page.about.help.news.telegram.desc", "Новости и обновления"),
     )
+    set_help_card_accessibility(
+        telegram_card,
+        action_name=tr_fn(
+            "page.about.help.news.telegram.accessible_name",
+            "Открыть Telegram канал",
+        ),
+        description=tr_fn("page.about.help.news.telegram.desc", "Новости и обновления"),
+    )
     telegram_card.clicked.connect(on_open_telegram_news)
 
     youtube_card = hyperlink_card_cls(
@@ -183,6 +230,14 @@ def build_about_page_help_content(
         tr_fn("page.about.help.news.youtube.title", "YouTube канал"),
         tr_fn("page.about.help.news.youtube.desc", "Видео и обновления"),
     )
+    set_help_card_accessibility(
+        youtube_card,
+        action_name=tr_fn(
+            "page.about.help.news.youtube.accessible_name",
+            "Открыть YouTube канал",
+        ),
+        description=tr_fn("page.about.help.news.youtube.desc", "Видео и обновления"),
+    )
 
     mastodon_card = hyperlink_card_cls(
         "https://mastodon.social/@zapret",
@@ -191,6 +246,14 @@ def build_about_page_help_content(
         tr_fn("page.about.help.news.mastodon.title", "Mastodon профиль"),
         tr_fn("page.about.help.news.mastodon.desc", "Новости в Fediverse"),
     )
+    set_help_card_accessibility(
+        mastodon_card,
+        action_name=tr_fn(
+            "page.about.help.news.mastodon.accessible_name",
+            "Открыть Mastodon профиль",
+        ),
+        description=tr_fn("page.about.help.news.mastodon.desc", "Новости в Fediverse"),
+    )
 
     bastyon_card = hyperlink_card_cls(
         "https://bastyon.com/zapretgui",
@@ -198,6 +261,14 @@ def build_about_page_help_content(
         fluent_icon.GLOBE,
         tr_fn("page.about.help.news.bastyon.title", "Bastyon профиль"),
         tr_fn("page.about.help.news.bastyon.desc", "Новости в Bastyon"),
+    )
+    set_help_card_accessibility(
+        bastyon_card,
+        action_name=tr_fn(
+            "page.about.help.news.bastyon.accessible_name",
+            "Открыть Bastyon профиль",
+        ),
+        description=tr_fn("page.about.help.news.bastyon.desc", "Новости в Bastyon"),
     )
 
     news_group.addSettingCards([telegram_card, youtube_card, mastodon_card, bastyon_card])
