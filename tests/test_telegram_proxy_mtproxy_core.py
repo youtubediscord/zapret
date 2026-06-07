@@ -228,6 +228,39 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
         self.assertEqual(config.mode, "mtproxy")
         self.assertEqual(config.mtproxy_secret, "aabbccddeeff00112233445566778899")
 
+    def test_standalone_cli_accepts_mtproxy_mode_and_secret(self) -> None:
+        from telegram_proxy.__main__ import build_arg_parser
+
+        parser = build_arg_parser()
+        args = parser.parse_args(
+            [
+                "--port",
+                "1443",
+                "--mode",
+                "mtproxy",
+                "--secret",
+                "aabbccddeeff00112233445566778899",
+            ]
+        )
+
+        self.assertEqual(args.port, 1443)
+        self.assertEqual(args.mode, "mtproxy")
+        self.assertEqual(args.secret, "aabbccddeeff00112233445566778899")
+
+    def test_windows_service_command_can_pass_mtproxy_secret(self) -> None:
+        from telegram_proxy.service import build_service_args
+
+        args = build_service_args(
+            port=1443,
+            mode="mtproxy",
+            mtproxy_secret="aabbccddeeff00112233445566778899",
+        )
+
+        self.assertEqual(
+            args,
+            "-m telegram_proxy --port 1443 --mode mtproxy --secret aabbccddeeff00112233445566778899",
+        )
+
     def test_page_links_follow_selected_local_proxy_mode(self) -> None:
         from telegram_proxy.config.settings import (
             build_manual_instruction_text,

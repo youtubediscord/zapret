@@ -3,8 +3,8 @@
 
 Usage:
     python -m telegram_proxy --port 1353 --mode socks5
+    python -m telegram_proxy --port 1443 --mode mtproxy --secret HEX_SECRET
     python -m telegram_proxy --port 1353
-    python -m telegram_proxy --mode both
 """
 
 import argparse
@@ -16,22 +16,31 @@ import sys
 from telegram_proxy.wss_proxy import TelegramWSProxy
 
 
-def main():
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Telegram WebSocket Proxy — bypass IP blocking",
     )
     parser.add_argument(
         "--port", type=int, default=1353,
-        help="SOCKS5 listen port (default: 1353)",
+        help="Listen port (default: 1353)",
     )
     parser.add_argument(
-        "--mode", choices=["socks5"], default="socks5",
+        "--mode", choices=["socks5", "mtproxy"], default="socks5",
         help="Proxy mode (default: socks5)",
+    )
+    parser.add_argument(
+        "--secret", default="",
+        help="MTProxy secret: 32 hex characters",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Enable debug logging",
     )
+    return parser
+
+
+def main():
+    parser = build_arg_parser()
     args = parser.parse_args()
 
     # Setup logging
@@ -45,6 +54,7 @@ def main():
     proxy = TelegramWSProxy(
         port=args.port,
         mode=args.mode,
+        mtproxy_secret=args.secret,
         on_log=lambda msg: print(f"[TG-PROXY] {msg}"),
     )
 
