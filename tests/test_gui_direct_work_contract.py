@@ -44,6 +44,14 @@ ALLOWED_PROCESS_EVENTS_FILES = {
     "ui/startup_ui_metrics.py",
 }
 
+ALLOWED_EDITOR_TEXT_READS = {
+    "presets/ui/common/preset_subpage_base.py:set_plain_text_if_changed:toPlainText()",
+    "presets/ui/common/preset_subpage_base.py:_resolve_raw_preset_save_text:toPlainText()",
+    "profile/ui/profile_setup_page.py:set_plain_text_if_changed:toPlainText()",
+    "profile/ui/profile_setup_page.py:_resolve_list_file_validation_request:toPlainText()",
+    "profile/ui/profile_setup_page.py:_resolve_raw_profile_save_text:toPlainText()",
+}
+
 FORBIDDEN_IMPORT_ROOTS = {
     "requests",
     "socket",
@@ -127,6 +135,18 @@ class GuiDirectWorkContractTests(unittest.TestCase):
 
         self.assertEqual([], offenders)
 
+    def test_gui_editor_text_reads_stay_at_worker_boundaries(self) -> None:
+        offenders: list[str] = []
+        for root in GUI_ROOTS:
+            for path in root.rglob("*.py"):
+                rel_path = path.relative_to(SRC_ROOT).as_posix()
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                for location in self._find_editor_text_reads(tree, rel_path):
+                    if location not in ALLOWED_EDITOR_TEXT_READS:
+                        offenders.append(location)
+
+        self.assertEqual([], offenders)
+
     def _iter_shell_files(self) -> list[Path]:
         files: set[Path] = set()
         for pattern in GUI_SHELL_PATTERNS:
@@ -139,6 +159,32 @@ class GuiDirectWorkContractTests(unittest.TestCase):
         offenders = self._find_forbidden_imports(tree, rel_path)
         offenders.extend(self._find_forbidden_calls(tree, rel_path))
         return offenders
+
+    def _find_editor_text_reads(self, tree: ast.Module, rel_path: str) -> list[str]:
+        locations: list[str] = []
+
+        class Visitor(ast.NodeVisitor):
+            def __init__(self) -> None:
+                self._function_stack: list[str] = []
+
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+                self._function_stack.append(str(node.name))
+                self.generic_visit(node)
+                self._function_stack.pop()
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+                self._function_stack.append(str(node.name))
+                self.generic_visit(node)
+                self._function_stack.pop()
+
+            def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+                if isinstance(node.func, ast.Attribute) and node.func.attr == "toPlainText":
+                    function_name = self._function_stack[-1] if self._function_stack else "<module>"
+                    locations.append(f"{rel_path}:{function_name}:toPlainText()")
+                self.generic_visit(node)
+
+        Visitor().visit(tree)
+        return locations
 
     def _find_forbidden_imports(self, tree: ast.Module, rel_path: str) -> list[str]:
         offenders: list[str] = []
