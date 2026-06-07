@@ -42,6 +42,15 @@ class FluentAppWindowChromeTests(unittest.TestCase):
 
         self.assertNotIn("setMinimumSize(", source)
 
+    def test_titlebar_search_has_screen_reader_text(self) -> None:
+        search_widget = _SidebarSearchNavWidget()
+        self.addCleanup(search_widget.deleteLater)
+
+        self.assertEqual(search_widget.accessibleName(), "Глобальный поиск по ZapretGUI")
+        self.assertIn("страницу, preset или profile", search_widget.accessibleDescription())
+        self.assertEqual(search_widget._search.accessibleName(), "Глобальный поиск по ZapretGUI")
+        self.assertIn("страницу, preset или profile", search_widget._search.accessibleDescription())
+
     def test_window_icon_file_lookup_lives_outside_ui_window(self) -> None:
         source = inspect.getsource(ZapretFluentWindow)
 

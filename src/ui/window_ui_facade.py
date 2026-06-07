@@ -60,6 +60,7 @@ def _get_sidebar_search_nav_widget_cls():
     from PyQt6.QtCore import QTimer, pyqtSignal
     from PyQt6.QtWidgets import QWidget, QHBoxLayout
     from app.ui_texts import tr as tr_catalog
+    from ui.accessibility import set_control_accessibility
     from qfluentwidgets import SearchLineEdit
 
     class _SidebarSearchNavWidget(QWidget):
@@ -72,6 +73,17 @@ def _get_sidebar_search_nav_widget_cls():
             self._completion_timer.setSingleShot(True)
             self._completion_timer.timeout.connect(self._show_completions_deferred)
             self._search.setPlaceholderText(tr_catalog("sidebar.search.placeholder"))
+            search_description = "Ищет страницу, preset или profile. Введите текст и выберите результат стрелками."
+            set_control_accessibility(
+                self,
+                name="Глобальный поиск по ZapretGUI",
+                description=search_description,
+            )
+            set_control_accessibility(
+                self._search,
+                name="Глобальный поиск по ZapretGUI",
+                description=search_description,
+            )
             try:
                 self._search.setClearButtonEnabled(True)
             except Exception:
