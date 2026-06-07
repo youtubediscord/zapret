@@ -314,6 +314,10 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
 
         self.assertEqual(watcher_calls, ["watcher"])
         self.assertEqual(ui_state.active_revision, 1)
+        self.assertEqual(switch_calls, [])
+
+        coordinator._apply_pending_selected_source_preset()
+
         self.assertEqual(switch_calls, [(ZAPRET2_MODE, "preset_switched", "Default v3.txt")])
 
     def test_get_selected_source_path_does_not_build_launch_snapshot(self) -> None:
@@ -326,8 +330,8 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self.assertNotIn("get_launch_snapshot", source)
         self.assertIn("preset_mode_coordinator.get_selected_source_path", source)
 
-    def test_preset_switch_apply_runs_next_event_loop_turn_without_visible_debounce(self) -> None:
-        from core.runtime.preset_runtime_coordinator import PresetRuntimeCoordinator
+    def test_preset_switch_apply_uses_short_debounce_to_coalesce_fast_clicks(self) -> None:
+        from core.runtime.preset_runtime_coordinator import PRESET_SWITCH_APPLY_DEBOUNCE_MS, PresetRuntimeCoordinator
         from settings.mode import ZAPRET2_MODE
 
         class _Signal:
@@ -378,7 +382,7 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
                 if getattr(timer.timeout.callback, "__name__", "") == "_apply_pending_selected_source_preset"
             ]
             self.assertEqual(len(apply_timers), 1)
-            self.assertEqual(apply_timers[0].delay_ms, 0)
+            self.assertEqual(apply_timers[0].delay_ms, PRESET_SWITCH_APPLY_DEBOUNCE_MS)
             self.assertEqual(switch_calls, [])
 
             apply_timers[0].fire()
@@ -418,6 +422,9 @@ class PresetRuntimeCoordinatorTests(unittest.TestCase):
         self._app.processEvents()
         coordinator.handle_preset_switched(ZAPRET2_MODE, "Default v5.txt")
         self._app.processEvents()
+
+        self.assertEqual(switch_calls, [])
+        coordinator._apply_pending_selected_source_preset()
 
         self.assertEqual(
             switch_calls,
