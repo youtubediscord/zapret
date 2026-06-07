@@ -12,12 +12,13 @@ class ProcessMonitorManager(QObject):
         super().__init__()
         self._observe_process_details = observe_process_details
         self.process_monitor = None
+        self._retired_process_monitors = []
         self._process_details: dict[str, list[int]] = {}
 
     def initialize_process_monitor(self):
         """Инициализирует поток мониторинга процесса"""
         if self.process_monitor is not None:
-            self.process_monitor.stop()
+            self._retire_process_monitor(self.process_monitor)
         
         from winws_runtime.monitoring.process_monitor import ProcessMonitorThread
         
@@ -57,5 +58,25 @@ class ProcessMonitorManager(QObject):
     def stop_monitoring(self):
         """Останавливает мониторинг процесса"""
         if self.process_monitor:
-            self.process_monitor.stop()
+            self._retire_process_monitor(self.process_monitor)
+            self.process_monitor = None
             log("Process Monitor остановлен", "INFO")
+
+    def _retire_process_monitor(self, monitor) -> None:
+        if monitor is None:
+            return
+        if monitor not in self._retired_process_monitors:
+            self._retired_process_monitors.append(monitor)
+        try:
+            finished = getattr(monitor, "finished", None)
+            if finished is not None:
+                finished.connect(lambda m=monitor: self._forget_retired_process_monitor(m))
+        except Exception:
+            pass
+        monitor.stop()
+
+    def _forget_retired_process_monitor(self, monitor) -> None:
+        try:
+            self._retired_process_monitors.remove(monitor)
+        except ValueError:
+            pass

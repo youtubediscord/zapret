@@ -82,4 +82,4 @@ class ProcessMonitorThread(QThread):
     # ------------------------ СТАНДАРТНЫЙ STOP ------------------------
     def stop(self):
         self._running = False
-        self.wait()           # корректно ждём завершения run()
+        self.quit()
