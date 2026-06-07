@@ -394,16 +394,29 @@ def get_service_domains(service_name: str) -> dict[str, str]:
 def get_service_domain_ip_rows(service_name: str, profile_name: str) -> list[tuple[str, str]]:
     cat = _load_catalog()
     profile_id = _clean_str(profile_name)
+    return _get_complete_profile_rows(cat, service_name, profile_id)
+
+
+def _get_complete_profile_rows(cat: HostsCatalog, service_name: str, profile_id: str) -> list[tuple[str, str]]:
     if profile_id not in cat.dns_profiles:
         return []
     profile_index = cat.dns_profiles.index(profile_id)
 
     entries = cat.service_entries.get(service_name, []) or []
+    if not entries:
+        return []
+
+    required_domains = {domain.casefold() for domain, _ips in entries if domain}
     out: list[tuple[str, str]] = []
+    covered_domains: set[str] = set()
     for domain, ips in entries:
         if not ips or profile_index >= len(ips) or not ips[profile_index]:
-            return []
+            continue
         out.append((domain, ips[profile_index]))
+        covered_domains.add(domain.casefold())
+
+    if not required_domains or covered_domains != required_domains:
+        return []
     return out
 
 
@@ -418,13 +431,8 @@ def _get_service_available_dns_profiles_from_catalog(cat: HostsCatalog, service_
         return []
 
     available: list[str] = []
-    for profile_index, profile_id in enumerate(cat.dns_profiles):
-        ok = True
-        for _domain, ips in entries:
-            if not ips or profile_index >= len(ips) or not ips[profile_index]:
-                ok = False
-                break
-        if ok:
+    for profile_id in cat.dns_profiles:
+        if _get_complete_profile_rows(cat, service_name, profile_id):
             available.append(profile_id)
     return available
 

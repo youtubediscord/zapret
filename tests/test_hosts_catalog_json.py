@@ -116,6 +116,36 @@ class HostsCatalogJsonTests(unittest.TestCase):
                     ],
                 )
 
+    def test_multi_value_profile_does_not_hide_single_value_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            catalog_path = self._write_catalog(root)
+            data = json.loads(catalog_path.read_text(encoding="utf-8"))
+            data["services"][0]["domains"][0]["ips"]["xbox_dns"] = ["2.23.88.118", "2.23.88.119"]
+            catalog_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            fake_module = root / "public_zapretgui" / "src" / "hosts" / "proxy_domains.py"
+            fake_module.parent.mkdir(parents=True, exist_ok=True)
+            fake_module.write_text("", encoding="utf-8")
+
+            with patch.object(self.proxy_domains, "__file__", str(fake_module)):
+                self.proxy_domains.invalidate_hosts_catalog_cache()
+
+                self.assertEqual(
+                    self.proxy_domains.get_service_available_dns_profiles("ChatGPT"),
+                    ["zapret_dns", "xbox_dns", "xbox_dns_old"],
+                )
+                self.assertEqual(
+                    self.proxy_domains.get_service_domain_ip_rows("ChatGPT", "zapret_dns"),
+                    [("chat.openai.com", "72.56.93.144")],
+                )
+                self.assertEqual(
+                    self.proxy_domains.get_service_domain_ip_rows("ChatGPT", "xbox_dns"),
+                    [
+                        ("chat.openai.com", "2.23.88.118"),
+                        ("chat.openai.com", "2.23.88.119"),
+                    ],
+                )
+
     def test_services_catalog_plan_keeps_saved_selection_when_hosts_is_empty(self) -> None:
         from hosts import page_plans
 
