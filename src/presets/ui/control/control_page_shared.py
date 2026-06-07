@@ -306,12 +306,6 @@ class ControlPageActionMixin:
             parent=self,
         )
 
-    def create_program_settings_system_status_load_worker(self, request_id: int):
-        return self._create_program_settings_system_status_load_worker(
-            request_id,
-            parent=self,
-        )
-
     def _request_program_settings_load(self) -> None:
         runtime = self._refresh_runtime
         if (
@@ -326,22 +320,6 @@ class ControlPageActionMixin:
             on_loaded=self._on_program_settings_load_finished,
             on_failed=self._on_program_settings_load_failed,
             on_finished=self._on_program_settings_load_worker_finished,
-        )
-
-    def _request_program_settings_system_status_load(self) -> None:
-        runtime = self._refresh_runtime
-        if (
-            runtime.program_settings_system_status_load_runtime.is_running()
-            or bool(getattr(runtime, "program_settings_system_status_load_start_scheduled", False))
-        ):
-            runtime.program_settings_system_status_load_pending = True
-            return
-
-        runtime.program_settings_system_status_load_runtime.start_qthread_worker(
-            worker_factory=self.create_program_settings_system_status_load_worker,
-            on_loaded=self._on_program_settings_system_status_load_finished,
-            on_failed=self._on_program_settings_system_status_load_failed,
-            on_finished=self._on_program_settings_system_status_load_worker_finished,
         )
 
     def _on_program_settings_load_finished(self, request_id: int, snapshot) -> None:
@@ -377,39 +355,6 @@ class ControlPageActionMixin:
         except Exception:
             pass
 
-    def _on_program_settings_system_status_load_finished(self, request_id: int, snapshot) -> None:
-        runtime = self._refresh_runtime
-        if not runtime.program_settings_system_status_load_runtime.is_current(
-            request_id,
-            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
-        ):
-            return
-        if bool(getattr(runtime, "program_settings_system_status_load_pending", False)):
-            return
-        try:
-            self._publish_program_settings_snapshot(snapshot)
-        except Exception:
-            pass
-        apply_snapshot = getattr(self, "_apply_program_settings_snapshot", None)
-        if callable(apply_snapshot):
-            apply_snapshot(snapshot)
-
-    def _on_program_settings_system_status_load_failed(self, request_id: int, error: str) -> None:
-        runtime = self._refresh_runtime
-        if not runtime.program_settings_system_status_load_runtime.is_current(
-            request_id,
-            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
-        ):
-            return
-        if bool(getattr(runtime, "program_settings_system_status_load_pending", False)):
-            return
-        try:
-            from log.log import log
-
-            log(f"Не удалось проверить функции Windows: {error}", "WARNING")
-        except Exception:
-            pass
-
     def _on_program_settings_load_worker_finished(self, _worker) -> None:
         runtime = self._refresh_runtime
         if not self._is_current_worker_finish(runtime.program_settings_load_runtime, _worker):
@@ -419,18 +364,6 @@ class ControlPageActionMixin:
             self._schedule_program_settings_load_start()
             return
         runtime.program_settings_load_pending = False
-
-    def _on_program_settings_system_status_load_worker_finished(self, _worker) -> None:
-        runtime = self._refresh_runtime
-        if not self._is_current_worker_finish(runtime.program_settings_system_status_load_runtime, _worker):
-            return
-        if runtime.program_settings_system_status_load_pending and not bool(
-            getattr(self, "_cleanup_in_progress", False)
-        ):
-            runtime.program_settings_system_status_load_pending = False
-            self._schedule_program_settings_system_status_load_start()
-            return
-        runtime.program_settings_system_status_load_pending = False
 
     def _schedule_program_settings_load_start(self) -> None:
         runtime = self._refresh_runtime
@@ -450,25 +383,6 @@ class ControlPageActionMixin:
             return
         runtime.program_settings_load_pending = False
         self._request_program_settings_load()
-
-    def _schedule_program_settings_system_status_load_start(self) -> None:
-        runtime = self._refresh_runtime
-        if bool(getattr(runtime, "program_settings_system_status_load_start_scheduled", False)):
-            runtime.program_settings_system_status_load_pending = True
-            return
-        runtime.program_settings_system_status_load_start_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_scheduled_program_settings_system_status_load_start)
-        except Exception:
-            self._run_scheduled_program_settings_system_status_load_start()
-
-    def _run_scheduled_program_settings_system_status_load_start(self) -> None:
-        runtime = self._refresh_runtime
-        runtime.program_settings_system_status_load_start_scheduled = False
-        if bool(getattr(self, "_cleanup_in_progress", False)):
-            return
-        runtime.program_settings_system_status_load_pending = False
-        self._request_program_settings_system_status_load()
 
     def _request_program_settings_save(self, action: str, enabled: bool) -> None:
         runtime = self._refresh_runtime
@@ -664,14 +578,6 @@ def cleanup_control_page_subscriptions(owner) -> None:
             warning_prefix="Program settings load worker",
         )
         runtime.program_settings_load_runtime.cancel()
-
-        runtime.program_settings_system_status_load_pending = False
-        runtime.program_settings_system_status_load_start_scheduled = False
-        runtime.program_settings_system_status_load_runtime.stop(
-            blocking=False,
-            warning_prefix="Program settings system status load worker",
-        )
-        runtime.program_settings_system_status_load_runtime.cancel()
 
         runtime.program_settings_save_pending.clear()
         runtime.program_settings_save_start_scheduled = False

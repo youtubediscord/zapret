@@ -20,10 +20,6 @@ def refresh_program_settings_snapshot(runtime_service):
     return runtime_service.refresh()
 
 
-def refresh_program_settings_system_status(runtime_service):
-    return runtime_service.refresh_system_status()
-
-
 def load_program_settings_snapshot(runtime_service):
     return runtime_service.refresh_fast()
 

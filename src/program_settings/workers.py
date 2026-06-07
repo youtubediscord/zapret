@@ -33,31 +33,6 @@ class ProgramSettingsLoadWorker(QThread):
         self.loaded.emit(self._request_id, snapshot)
 
 
-class ProgramSettingsSystemStatusLoadWorker(QThread):
-    loaded = pyqtSignal(int, object)
-    failed = pyqtSignal(int, str)
-
-    def __init__(
-        self,
-        request_id: int,
-        *,
-        refresh_system_status: Callable[[], Any],
-        parent=None,
-    ):
-        super().__init__(parent)
-        self._request_id = int(request_id)
-        self._refresh_system_status = refresh_system_status
-
-    def run(self) -> None:
-        try:
-            snapshot = self._refresh_system_status()
-        except Exception as exc:
-            log(f"ProgramSettingsSystemStatusLoadWorker: не удалось проверить функции Windows: {exc}", "WARNING")
-            self.failed.emit(self._request_id, str(exc))
-            return
-        self.loaded.emit(self._request_id, snapshot)
-
-
 class ProgramSettingsAdminCheckWorker(QThread):
     loaded = pyqtSignal(int, bool)
     failed = pyqtSignal(int, str)

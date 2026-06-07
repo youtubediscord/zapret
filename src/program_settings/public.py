@@ -19,7 +19,6 @@ from program_settings.runtime import (
     publish_program_settings_snapshot,
     remember_hide_to_tray_on_minimize_close,
     refresh_program_settings_snapshot,
-    refresh_program_settings_system_status,
 )
 
 __all__ = [
@@ -33,7 +32,6 @@ __all__ = [
     "publish_program_settings_snapshot",
     "remember_hide_to_tray_on_minimize_close",
     "refresh_program_settings_snapshot",
-    "refresh_program_settings_system_status",
     "set_auto_dpi_enabled",
     "set_defender_disabled",
     "set_gui_autostart_enabled",

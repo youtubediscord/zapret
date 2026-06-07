@@ -32,19 +32,12 @@ class ProgramSettingsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("program_settings_commands.is_user_admin", worker_source)
         self.assertNotIn("import program_settings.public", worker_source)
 
-    def test_system_status_load_worker_receives_feature_action_callable(self) -> None:
+    def test_defender_and_max_do_not_use_system_status_load_worker(self) -> None:
         feature_source = inspect.getsource(ProgramSettingsFeature)
-        worker_source = inspect.getsource(program_settings_workers.ProgramSettingsSystemStatusLoadWorker)
-        worker_init_signature = inspect.signature(
-            program_settings_workers.ProgramSettingsSystemStatusLoadWorker.__init__
-        )
 
-        self.assertNotIn("program_settings_feature=self", feature_source)
-        self.assertNotIn("self._program_settings", worker_source)
-        self.assertIn("refresh_system_status=self.refresh_program_settings_system_status", feature_source)
-        self.assertIn("refresh_system_status", worker_init_signature.parameters)
-        self.assertNotIn("program_settings_commands.refresh_program_settings_system_status", worker_source)
-        self.assertNotIn("import program_settings.public", worker_source)
+        self.assertFalse(hasattr(program_settings_workers, "ProgramSettingsSystemStatusLoadWorker"))
+        self.assertNotIn("refresh_program_settings_system_status", feature_source)
+        self.assertNotIn("create_program_settings_system_status_load_worker", feature_source)
 
     def test_save_worker_receives_feature_action_callable(self) -> None:
         feature_source = inspect.getsource(ProgramSettingsFeature)

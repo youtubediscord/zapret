@@ -72,24 +72,6 @@ class ProgramSettingsRuntimeService:
             max_blocked=bool(max_blocked),
         )
 
-    @staticmethod
-    def _read_defender_disabled() -> bool:
-        try:
-            from windows_features.defender_manager import WindowsDefenderManager
-
-            return bool(WindowsDefenderManager().is_defender_disabled())
-        except Exception:
-            return False
-
-    @staticmethod
-    def _read_max_blocked() -> bool:
-        try:
-            from windows_features.max_blocker import is_max_blocked
-
-            return bool(is_max_blocked())
-        except Exception:
-            return False
-
     def _read_fast_snapshot(self) -> ProgramSettingsSnapshot:
         try:
             from settings.store import read_settings
@@ -110,21 +92,6 @@ class ProgramSettingsRuntimeService:
             hide_to_tray_on_minimize_close=bool(window.get("hide_to_tray_on_minimize_close", False)),
             defender_disabled=bool(program.get("defender_disabled", False)),
             max_blocked=bool(program.get("max_blocked", False)),
-        )
-
-    def _read_system_status_snapshot(self) -> ProgramSettingsSnapshot:
-        defender_disabled = self._read_defender_disabled()
-        max_blocked = self._read_max_blocked()
-        with self._lock:
-            snapshot = self._snapshot
-        if snapshot is None:
-            snapshot = self._read_fast_snapshot()
-        return self._build_snapshot(
-            auto_dpi_enabled=bool(snapshot.auto_dpi_enabled),
-            gui_autostart_enabled=bool(snapshot.gui_autostart_enabled),
-            hide_to_tray_on_minimize_close=bool(snapshot.hide_to_tray_on_minimize_close),
-            defender_disabled=defender_disabled,
-            max_blocked=max_blocked,
         )
 
     def read_snapshot(self) -> ProgramSettingsSnapshot:
@@ -223,11 +190,6 @@ class ProgramSettingsRuntimeService:
 
     def refresh_fast(self) -> ProgramSettingsSnapshot:
         snapshot = self._read_fast_snapshot()
-        self.publish_snapshot(snapshot)
-        return snapshot
-
-    def refresh_system_status(self) -> ProgramSettingsSnapshot:
-        snapshot = self._read_system_status_snapshot()
         self.publish_snapshot(snapshot)
         return snapshot
 

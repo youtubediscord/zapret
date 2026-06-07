@@ -77,9 +77,6 @@ def build_control_page_kwargs(
         ),
         "create_program_settings_save_worker": program_settings_feature.create_program_settings_save_worker,
         "create_program_settings_load_worker": program_settings_feature.create_program_settings_load_worker,
-        "create_program_settings_system_status_load_worker": (
-            program_settings_feature.create_program_settings_system_status_load_worker
-        ),
         "create_program_settings_admin_check_worker": program_settings_feature.create_program_settings_admin_check_worker,
         "attach_program_settings_runtime": program_settings_feature.attach_program_settings_runtime,
         "publish_program_settings_snapshot": program_settings_feature.publish_program_settings_snapshot,

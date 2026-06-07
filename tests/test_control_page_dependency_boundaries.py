@@ -9,7 +9,7 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
     def test_control_pages_receive_worker_factories_instead_of_broad_features(self) -> None:
         from app.page_names import PageName
         from presets.ui.control import control_page_shared
-        from presets.ui.control.windows_features import runtime as system_status_runtime
+        from presets.ui.control.windows_features import runtime as windows_features_runtime
         from presets.ui.control.zapret1.page import Zapret1ModeControlPage
         from presets.ui.control.zapret2.page import Zapret2ModeControlPage
         from ui.page_deps.presets import build_control_page_kwargs
@@ -40,13 +40,13 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
             self.assertNotIn("set_debug_log_enabled", init_source)
             self.assertIn("create_program_settings_save_worker", init_source)
             self.assertIn("create_program_settings_load_worker", init_source)
-            self.assertIn("create_program_settings_system_status_load_worker", init_source)
+            self.assertNotIn("create_program_settings_system_status_load_worker", init_source)
             self.assertIn("create_program_settings_admin_check_worker", init_source)
             self.assertIn("create_external_open_url_worker", init_source)
             self.assertIn("runtime_actions", init_source)
 
         shared_source = inspect.getsource(control_page_shared.ControlPageActionMixin)
-        windows_source = inspect.getsource(system_status_runtime.ControlPageWindowsFeatureMixin)
+        windows_source = inspect.getsource(windows_features_runtime.ControlPageWindowsFeatureMixin)
 
         self.assertNotIn("self._runtime_feature.", shared_source)
         self.assertIn("self._runtime_actions.", shared_source)
@@ -96,10 +96,7 @@ class ControlPageDependencyBoundaryTests(unittest.TestCase):
             kwargs["create_program_settings_load_worker"],
             program_settings.create_program_settings_load_worker,
         )
-        self.assertIs(
-            kwargs["create_program_settings_system_status_load_worker"],
-            program_settings.create_program_settings_system_status_load_worker,
-        )
+        self.assertNotIn("create_program_settings_system_status_load_worker", kwargs)
         self.assertIs(
             kwargs["create_program_settings_admin_check_worker"],
             program_settings.create_program_settings_admin_check_worker,

@@ -21,9 +21,6 @@ class ModeControlRefreshRuntime:
         self.program_settings_load_runtime = OneShotWorkerRuntime()
         self.program_settings_load_pending = False
         self.program_settings_load_start_scheduled = False
-        self.program_settings_system_status_load_runtime = OneShotWorkerRuntime()
-        self.program_settings_system_status_load_pending = False
-        self.program_settings_system_status_load_start_scheduled = False
         self.program_settings_save_runtime = OneShotWorkerRuntime()
         self.program_settings_save_pending: list[tuple[str, bool]] = []
         self.program_settings_save_start_scheduled = False
@@ -112,17 +109,12 @@ class ModeControlRefreshRuntime:
         self.additional_settings_save_start_scheduled = False
         self.top_summary_start_scheduled = False
         self.program_settings_load_start_scheduled = False
-        self.program_settings_system_status_load_start_scheduled = False
         self.program_settings_save_start_scheduled = False
         for runtime, label in (
             (self.additional_settings_load_runtime, "control additional settings load worker"),
             (self.additional_settings_save_runtime, "control additional settings save worker"),
             (self.top_summary_runtime, "control top summary worker"),
             (self.program_settings_load_runtime, "control program settings load worker"),
-            (
-                self.program_settings_system_status_load_runtime,
-                "control program settings system status load worker",
-            ),
             (self.program_settings_save_runtime, "control program settings save worker"),
         ):
             runtime.stop(

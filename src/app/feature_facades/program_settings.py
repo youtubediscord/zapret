@@ -37,9 +37,6 @@ class ProgramSettingsFeature:
     def refresh_program_settings_snapshot(self):
         return self._commands().refresh_program_settings_snapshot(self.runtime_service)
 
-    def refresh_program_settings_system_status(self):
-        return self._commands().refresh_program_settings_system_status(self.runtime_service)
-
     def load_program_settings_snapshot(self):
         return self._commands().load_program_settings_snapshot(self.runtime_service)
 
@@ -122,15 +119,6 @@ class ProgramSettingsFeature:
         return ProgramSettingsLoadWorker(
             request_id,
             load_program_settings_snapshot=self.load_program_settings_snapshot,
-            parent=parent,
-        )
-
-    def create_program_settings_system_status_load_worker(self, request_id: int, *, parent=None):
-        from program_settings.workers import ProgramSettingsSystemStatusLoadWorker
-
-        return ProgramSettingsSystemStatusLoadWorker(
-            request_id,
-            refresh_system_status=self.refresh_program_settings_system_status,
             parent=parent,
         )
 
