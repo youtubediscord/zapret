@@ -7,7 +7,10 @@ from telegram_proxy import commands as telegram_proxy_commands
 from telegram_proxy import workers as telegram_proxy_workers
 import app.feature_facades.telegram_proxy as telegram_proxy_feature_module
 from app.feature_facades.telegram_proxy import TelegramProxyFeature
-from telegram_proxy.ui.worker_state import TelegramProxyPageWorkerState
+from telegram_proxy.ui.worker_state import (
+    TelegramProxyPageQueuedWorkerState,
+    TelegramProxyPageWorkerState,
+)
 
 
 def _set_state(page, name: str, *, runtime=None, pending: bool = False, start_scheduled: bool = False):
@@ -19,6 +22,21 @@ def _set_state(page, name: str, *, runtime=None, pending: bool = False, start_sc
     state = TelegramProxyPageWorkerState(
         runtime=runtime,
         pending=bool(pending),
+        start_scheduled=bool(start_scheduled),
+    )
+    setattr(page, state_attr, state)
+    return state
+
+
+def _set_queue_state(page, name: str, *, runtime=None, pending=None, start_scheduled: bool = False):
+    runtime_attr = f"_{name}_runtime"
+    state_attr = f"_{name}_state"
+    if runtime is None:
+        runtime = page.__dict__.get(runtime_attr, SimpleNamespace(is_running=Mock(return_value=False)))
+    setattr(page, runtime_attr, runtime)
+    state = TelegramProxyPageQueuedWorkerState(
+        runtime=runtime,
+        pending=list(pending or []),
         start_scheduled=bool(start_scheduled),
     )
     setattr(page, state_attr, state)
@@ -352,8 +370,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
                 return True
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
-        page._external_link_runtime = _Runtime()
-        page._external_link_pending = []
+        state = _set_queue_state(page, "external_link", runtime=_Runtime())
         page.create_external_link_worker = Mock()
 
         TelegramProxyPage._start_external_link_worker(
@@ -370,7 +387,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            page._external_link_pending,
+            state.pending,
             [
                 {"url": "tg://proxy-one", "success_log": "one", "error_prefix": "bad one"},
                 {"url": "tg://proxy-two", "success_log": "two", "error_prefix": "bad two"},
@@ -386,9 +403,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
                 return True
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
-        page._external_link_runtime = _Runtime()
-        page._external_link_start_scheduled = False
-        page._external_link_pending = []
+        state = _set_queue_state(page, "external_link", runtime=_Runtime())
         page.create_external_link_worker = Mock()
 
         TelegramProxyPage._start_external_link_worker(
@@ -405,7 +420,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            page._external_link_pending,
+            state.pending,
             [{"url": "tg://proxy-one", "success_log": "one", "error_prefix": "bad one"}],
         )
         page.create_external_link_worker.assert_not_called()
@@ -416,10 +431,14 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        page._external_link_pending = [
-            {"url": "tg://proxy-one", "success_log": "one", "error_prefix": "bad one"},
-            {"url": "tg://proxy-two", "success_log": "two", "error_prefix": "bad two"},
-        ]
+        state = _set_queue_state(
+            page,
+            "external_link",
+            pending=[
+                {"url": "tg://proxy-one", "success_log": "one", "error_prefix": "bad one"},
+                {"url": "tg://proxy-two", "success_log": "two", "error_prefix": "bad two"},
+            ],
+        )
         page._start_external_link_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
@@ -438,7 +457,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             error_prefix="bad one",
         )
         self.assertEqual(
-            page._external_link_pending,
+            state.pending,
             [{"url": "tg://proxy-two", "success_log": "two", "error_prefix": "bad two"}],
         )
 
@@ -450,14 +469,13 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
                 return True
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
-        page._open_log_file_runtime = _Runtime()
-        page._open_log_file_pending = []
+        state = _set_queue_state(page, "open_log_file", runtime=_Runtime())
         page.create_open_log_file_worker = Mock()
 
         TelegramProxyPage._start_open_log_file_worker(page, "first.log")
         TelegramProxyPage._start_open_log_file_worker(page, "second.log")
 
-        self.assertEqual(page._open_log_file_pending, ["first.log", "second.log"])
+        self.assertEqual(state.pending, ["first.log", "second.log"])
         page.create_open_log_file_worker.assert_not_called()
 
     def test_duplicate_open_log_file_request_is_queued_once(self) -> None:
@@ -468,15 +486,13 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
                 return True
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
-        page._open_log_file_runtime = _Runtime()
-        page._open_log_file_start_scheduled = False
-        page._open_log_file_pending = []
+        state = _set_queue_state(page, "open_log_file", runtime=_Runtime())
         page.create_open_log_file_worker = Mock()
 
         TelegramProxyPage._start_open_log_file_worker(page, "proxy.log")
         TelegramProxyPage._start_open_log_file_worker(page, "proxy.log")
 
-        self.assertEqual(page._open_log_file_pending, ["proxy.log"])
+        self.assertEqual(state.pending, ["proxy.log"])
         page.create_open_log_file_worker.assert_not_called()
 
     def test_open_log_file_worker_finished_schedules_next_queued_path(self) -> None:
@@ -485,7 +501,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        page._open_log_file_pending = ["first.log", "second.log"]
+        state = _set_queue_state(page, "open_log_file", pending=["first.log", "second.log"])
         page._start_open_log_file_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
@@ -499,7 +515,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_open_log_file_worker.assert_called_once_with("first.log")
-        self.assertEqual(page._open_log_file_pending, ["second.log"])
+        self.assertEqual(state.pending, ["second.log"])
 
     def test_log_line_worker_finished_schedules_next_queued_line(self) -> None:
         import telegram_proxy.ui.page as telegram_proxy_page
@@ -507,7 +523,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        page._log_line_pending = ["first", "second"]
+        state = _set_queue_state(page, "log_line", pending=["first", "second"])
         page._start_log_line_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
@@ -521,7 +537,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         single_shot.call_args.args[1]()
 
         page._start_log_line_worker.assert_called_once_with("first")
-        self.assertEqual(page._log_line_pending, ["second"])
+        self.assertEqual(state.pending, ["second"])
 
     def test_log_line_error_ignored_when_new_line_is_pending(self) -> None:
         import telegram_proxy.ui.page as telegram_proxy_page
@@ -529,9 +545,9 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        page._log_line_pending = ["new line"]
         page._log_line_runtime = Mock()
         page._log_line_runtime.is_current.return_value = True
+        _set_queue_state(page, "log_line", runtime=page._log_line_runtime, pending=["new line"])
 
         with patch.object(telegram_proxy_page, "log") as log_mock:
             TelegramProxyPage._on_log_line_worker_failed(page, 6, "old log append failed")
@@ -578,7 +594,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
 
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        page._settings_save_pending = [{"action": "port", "port": 8080}]
+        _set_queue_state(page, "settings_save", pending=[{"action": "port", "port": 8080}])
         page._start_settings_save_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 

@@ -52,7 +52,10 @@ from telegram_proxy.ui.settings_save_flow import merge_restart_request
 from telegram_proxy.ui.settings_build import (
     build_telegram_proxy_settings_panel,
 )
-from telegram_proxy.ui.worker_state import TelegramProxyPageWorkerState
+from telegram_proxy.ui.worker_state import (
+    TelegramProxyPageQueuedWorkerState,
+    TelegramProxyPageWorkerState,
+)
 from ui.fluent_widgets import (
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
@@ -131,19 +134,15 @@ class TelegramProxyPage(BasePage):
         self._ensure_hosts_runtime = OneShotWorkerRuntime()
         self._ensure_hosts_state = TelegramProxyPageWorkerState(self._ensure_hosts_runtime)
         self._settings_save_runtime = OneShotWorkerRuntime()
+        self._settings_save_state = TelegramProxyPageQueuedWorkerState(self._settings_save_runtime)
         self._open_log_file_runtime = OneShotWorkerRuntime()
-        self._open_log_file_pending: list[str] = []
-        self._open_log_file_start_scheduled = False
+        self._open_log_file_state = TelegramProxyPageQueuedWorkerState(self._open_log_file_runtime)
         self._external_link_runtime = OneShotWorkerRuntime()
-        self._external_link_pending: list[dict[str, str]] = []
-        self._external_link_start_scheduled = False
+        self._external_link_state = TelegramProxyPageQueuedWorkerState(self._external_link_runtime)
         self._log_line_runtime = OneShotWorkerRuntime()
-        self._log_line_pending: list[str] = []
-        self._log_line_start_scheduled = False
+        self._log_line_state = TelegramProxyPageQueuedWorkerState(self._log_line_runtime)
         self._auto_deeplink_runtime = OneShotWorkerRuntime()
         self._auto_deeplink_state = TelegramProxyPageWorkerState(self._auto_deeplink_runtime)
-        self._settings_save_pending: list[dict[str, object]] = []
-        self._settings_save_start_scheduled = False
         self._settings_save_restart_pending = ""
         self._initial_state_runtime = OneShotWorkerRuntime()
         self._initial_state_load_started_at = 0.0
@@ -176,6 +175,13 @@ class TelegramProxyPage(BasePage):
         state = self.__dict__.get(state_attr)
         if state is None:
             state = TelegramProxyPageWorkerState(self.__dict__.get(runtime_attr))
+            self.__dict__[state_attr] = state
+        return state
+
+    def _queued_worker_state(self, state_attr: str, runtime_attr: str) -> TelegramProxyPageQueuedWorkerState:
+        state = self.__dict__.get(state_attr)
+        if state is None:
+            state = TelegramProxyPageQueuedWorkerState(self.__dict__.get(runtime_attr))
             self.__dict__[state_attr] = state
         return state
 
@@ -708,11 +714,8 @@ class TelegramProxyPage(BasePage):
     def _request_log_line_append(self, message: str) -> None:
         if not message:
             return
-        if self._log_line_runtime.is_running() or self.__dict__.get("_log_line_start_scheduled", False):
-            self._log_line_pending.append(message)
-            return
-
-        self._start_log_line_worker(message)
+        state = self._queued_worker_state("_log_line_state", "_log_line_runtime")
+        state.start_or_queue(message, self._start_log_line_worker, state.append)
 
     def _start_log_line_worker(self, message: str) -> None:
         if self._cleanup_in_progress:
@@ -740,32 +743,36 @@ class TelegramProxyPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
-        if self.__dict__.get("_log_line_pending"):
+        if self._queued_worker_state("_log_line_state", "_log_line_runtime").has_pending():
             return
         log(f"Telegram Proxy log append failed: {error}", "WARNING")
 
     def _on_log_line_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_log_line_runtime"), _worker):
-            return
-        if self._log_line_pending and not self._cleanup_in_progress:
-            pending = self._log_line_pending.pop(0)
+        pending = self._queued_worker_state("_log_line_state", "_log_line_runtime").pop_next_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            cleanup_in_progress=self._cleanup_in_progress,
+        )
+        if pending:
             self._schedule_log_line_worker_start(pending)
 
     def _schedule_log_line_worker_start(self, message: str) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
         queued = str(message or "")
-        if self.__dict__.get("_log_line_start_scheduled", False):
-            self._log_line_pending.append(queued)
-            return
-        self._log_line_start_scheduled = True
-        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_log_line_worker_start(value))
+        state = self._queued_worker_state("_log_line_state", "_log_line_runtime")
+        state.schedule_start(
+            queued,
+            QTimer.singleShot,
+            self._start_log_line_worker,
+            queue_item=state.append,
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_log_line_worker_start(self, message: str) -> None:
-        self._log_line_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        self._start_log_line_worker(message)
+        self._queued_worker_state("_log_line_state", "_log_line_runtime").run_scheduled(
+            str(message or ""),
+            self._start_log_line_worker,
+            lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     # -- Log tab buttons --
 
@@ -799,10 +806,8 @@ class TelegramProxyPage(BasePage):
         return self._telegram_proxy.create_open_log_file_worker(path=path, parent=self)
 
     def _start_open_log_file_worker(self, path: str) -> None:
-        if (
-            self._open_log_file_runtime.is_running()
-            or self.__dict__.get("_open_log_file_start_scheduled", False)
-        ):
+        state = self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime")
+        if state.is_busy():
             self._queue_open_log_file_path(str(path or ""))
             return
 
@@ -818,10 +823,10 @@ class TelegramProxyPage(BasePage):
 
     def _queue_open_log_file_path(self, path: str) -> None:
         queued = str(path or "")
-        pending = self.__dict__.setdefault("_open_log_file_pending", [])
-        if queued and queued in pending:
-            return
-        pending.append(queued)
+        self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime").append_unique(
+            queued,
+            key=lambda item: item,
+        )
 
     def _on_open_log_file_finished(self, plan) -> None:
         if self._cleanup_in_progress:
@@ -838,28 +843,31 @@ class TelegramProxyPage(BasePage):
             self._append_log_line(f"Failed to open log file: {message}")
 
     def _on_open_log_file_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_open_log_file_runtime"), _worker):
-            return
-        pending_paths = self.__dict__.setdefault("_open_log_file_pending", [])
-        pending = pending_paths.pop(0) if pending_paths else ""
-        if pending and not self._cleanup_in_progress:
+        pending = self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime").pop_next_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            cleanup_in_progress=self._cleanup_in_progress,
+        )
+        if pending:
             self._schedule_open_log_file_worker_start(pending)
 
     def _schedule_open_log_file_worker_start(self, path: str) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
         queued = str(path or "")
-        if self.__dict__.get("_open_log_file_start_scheduled", False):
-            self._queue_open_log_file_path(queued)
-            return
-        self._open_log_file_start_scheduled = True
-        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_open_log_file_worker_start(value))
+        state = self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime")
+        state.schedule_start(
+            queued,
+            QTimer.singleShot,
+            self._start_open_log_file_worker,
+            queue_item=lambda value: state.append_unique(value, key=lambda item: item),
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_open_log_file_worker_start(self, path: str) -> None:
-        self._open_log_file_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        self._start_open_log_file_worker(path)
+        self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime").run_scheduled(
+            str(path or ""),
+            self._start_open_log_file_worker,
+            lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _on_clear_logs(self):
         if self._log_edit is not None:
@@ -974,24 +982,16 @@ class TelegramProxyPage(BasePage):
                 "update_manual": bool(update_manual),
             },
         }
-        if (
-            self._settings_save_runtime.is_running()
-            or self.__dict__.get("_settings_save_start_scheduled", False)
-        ):
-            self._queue_settings_save_payload(payload)
-            return
-        self._start_settings_save_worker(payload)
+        state = self._queued_worker_state("_settings_save_state", "_settings_save_runtime")
+        state.start_or_queue(payload, self._start_settings_save_worker, self._queue_settings_save_payload)
 
     def _queue_settings_save_payload(self, payload: dict) -> None:
         queued = dict(payload or {})
         action = str(queued.get("action") or "")
-        pending_payloads = self.__dict__.setdefault("_settings_save_pending", [])
-        pending_payloads[:] = [
-            pending
-            for pending in pending_payloads
-            if str(pending.get("action") or "") != action
-        ]
-        pending_payloads.append(queued)
+        self._queued_worker_state("_settings_save_state", "_settings_save_runtime").replace_by_key(
+            queued,
+            key=lambda pending: str(pending.get("action") or ""),
+        )
 
     def _start_settings_save_worker(self, payload: dict) -> None:
         def bind_worker(worker) -> None:
@@ -1025,7 +1025,7 @@ class TelegramProxyPage(BasePage):
             getattr(self, "_settings_save_restart_pending", ""),
             restart,
         )
-        if self.__dict__.get("_settings_save_pending"):
+        if self._queued_worker_state("_settings_save_state", "_settings_save_runtime").has_pending():
             return
         if bool(context.get("update_manual")):
             self._update_manual_instructions()
@@ -1042,33 +1042,37 @@ class TelegramProxyPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
-        if self.__dict__.get("_settings_save_pending"):
+        if self._queued_worker_state("_settings_save_state", "_settings_save_runtime").has_pending():
             return
         self._settings_save_restart_pending = ""
         log(f"{self.__class__.__name__}: не удалось сохранить настройку Telegram Proxy ({action}): {error}", "WARNING")
 
     def _on_settings_save_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_settings_save_runtime"), _worker):
-            return
-        if self._settings_save_pending and not self._cleanup_in_progress:
-            pending = self._settings_save_pending.pop(0)
+        pending = self._queued_worker_state("_settings_save_state", "_settings_save_runtime").pop_next_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            cleanup_in_progress=self._cleanup_in_progress,
+        )
+        if pending:
             self._schedule_settings_save_worker_start(dict(pending or {}))
 
     def _schedule_settings_save_worker_start(self, payload: dict) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
         queued = dict(payload or {})
-        if self.__dict__.get("_settings_save_start_scheduled", False):
-            self._queue_settings_save_payload(queued)
-            return
-        self._settings_save_start_scheduled = True
-        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_settings_save_worker_start(value))
+        state = self._queued_worker_state("_settings_save_state", "_settings_save_runtime")
+        state.schedule_start(
+            queued,
+            QTimer.singleShot,
+            self._start_settings_save_worker,
+            queue_item=self._queue_settings_save_payload,
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_settings_save_worker_start(self, payload: dict) -> None:
-        self._settings_save_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        self._start_settings_save_worker(payload)
+        self._queued_worker_state("_settings_save_state", "_settings_save_runtime").run_scheduled(
+            dict(payload or {}),
+            self._start_settings_save_worker,
+            lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     @pyqtSlot()
     def _start_proxy(self):
@@ -1448,10 +1452,8 @@ class TelegramProxyPage(BasePage):
         )
 
     def _start_external_link_worker(self, url: str, *, success_log: str, error_prefix: str) -> None:
-        if (
-            self._external_link_runtime.is_running()
-            or self.__dict__.get("_external_link_start_scheduled", False)
-        ):
+        state = self._queued_worker_state("_external_link_state", "_external_link_runtime")
+        if state.is_busy():
             self._queue_external_link(
                 {
                     "url": str(url or ""),
@@ -1481,11 +1483,10 @@ class TelegramProxyPage(BasePage):
             "success_log": str((payload or {}).get("success_log") or ""),
             "error_prefix": str((payload or {}).get("error_prefix") or ""),
         }
-        pending = self.__dict__.setdefault("_external_link_pending", [])
-        url = queued["url"]
-        if url and any(str(item.get("url") or "") == url for item in pending):
-            return
-        pending.append(queued)
+        self._queued_worker_state("_external_link_state", "_external_link_runtime").append_unique(
+            queued,
+            key=lambda item: str(item.get("url") or ""),
+        )
 
     def _on_external_link_finished(self, plan) -> None:
         if self._cleanup_in_progress:
@@ -1502,31 +1503,37 @@ class TelegramProxyPage(BasePage):
             self._append_log_line(f"Failed to open link: {message}")
 
     def _on_external_link_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_external_link_runtime"), _worker):
-            return
-        pending_links = self.__dict__.setdefault("_external_link_pending", [])
-        pending = pending_links.pop(0) if pending_links else None
-        if pending and not self._cleanup_in_progress:
+        pending = self._queued_worker_state("_external_link_state", "_external_link_runtime").pop_next_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            cleanup_in_progress=self._cleanup_in_progress,
+        )
+        if pending:
             self._schedule_external_link_worker_start(pending)
 
     def _schedule_external_link_worker_start(self, payload: dict) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
         queued = {
             "url": str((payload or {}).get("url") or ""),
             "success_log": str((payload or {}).get("success_log") or ""),
             "error_prefix": str((payload or {}).get("error_prefix") or ""),
         }
-        if self.__dict__.get("_external_link_start_scheduled", False):
-            self._queue_external_link(queued)
-            return
-        self._external_link_start_scheduled = True
-        QTimer.singleShot(0, lambda value=queued: self._run_scheduled_external_link_worker_start(value))
+        state = self._queued_worker_state("_external_link_state", "_external_link_runtime")
+        state.schedule_start(
+            queued,
+            QTimer.singleShot,
+            self._run_external_link_payload,
+            queue_item=self._queue_external_link,
+            is_cleanup_in_progress=lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_external_link_worker_start(self, payload: dict) -> None:
-        self._external_link_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
+        self._queued_worker_state("_external_link_state", "_external_link_runtime").run_scheduled(
+            dict(payload or {}),
+            self._run_external_link_payload,
+            lambda: self.__dict__.get("_cleanup_in_progress", False),
+        )
+
+    def _run_external_link_payload(self, payload: dict) -> None:
         self._start_external_link_worker(
             str((payload or {}).get("url") or ""),
             success_log=str((payload or {}).get("success_log") or ""),
@@ -1702,14 +1709,14 @@ class TelegramProxyPage(BasePage):
             warning_prefix="telegram proxy open log file worker",
         )
         self._open_log_file_runtime.cancel()
-        self._open_log_file_pending.clear()
+        self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime").reset()
         self._external_link_runtime.stop(
             blocking=False,
             log_fn=log,
             warning_prefix="telegram proxy external link worker",
         )
         self._external_link_runtime.cancel()
-        self._external_link_pending.clear()
+        self._queued_worker_state("_external_link_state", "_external_link_runtime").reset()
         self._settings_save_runtime.stop(
             blocking=False,
             log_fn=log,
@@ -1748,8 +1755,8 @@ class TelegramProxyPage(BasePage):
             self._upstream_restart_timer.stop()
             self._upstream_restart_timer.deleteLater()
             self._upstream_restart_timer = None
-        self._log_line_pending.clear()
-        self._settings_save_pending.clear()
+        self._queued_worker_state("_log_line_state", "_log_line_runtime").reset()
+        self._queued_worker_state("_settings_save_state", "_settings_save_runtime").reset()
         self._settings_save_restart_pending = ""
         mgr = self._proxy_manager()
         mgr.cleanup()
