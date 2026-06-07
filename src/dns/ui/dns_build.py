@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from qfluentwidgets import FluentIcon
 from PyQt6.QtCore import Qt
 
+from ui.accessibility import set_control_accessibility
 from ui.theme import get_cached_qta_pixmap
 
 
@@ -59,12 +60,28 @@ def build_custom_dns_ui(
     custom_primary.setPlaceholderText("8.8.8.8")
     custom_primary.setFixedWidth(110)
     custom_primary.returnPressed.connect(on_apply)
+    set_control_accessibility(
+        custom_primary,
+        name=tr_fn("page.network.custom.primary.accessible_name", "Основной DNS сервер"),
+        description=tr_fn(
+            "page.network.custom.primary.accessible_description",
+            "Введите первый DNS сервер, например 8.8.8.8.",
+        ),
+    )
     custom_layout.addWidget(custom_primary)
 
     custom_secondary = line_edit_cls()
     custom_secondary.setPlaceholderText("208.67.222.222")
     custom_secondary.setFixedWidth(110)
     custom_secondary.returnPressed.connect(on_apply)
+    set_control_accessibility(
+        custom_secondary,
+        name=tr_fn("page.network.custom.secondary.accessible_name", "Дополнительный DNS сервер"),
+        description=tr_fn(
+            "page.network.custom.secondary.accessible_description",
+            "Введите второй DNS сервер, если он нужен.",
+        ),
+    )
     custom_layout.addWidget(custom_secondary)
 
     custom_apply_btn = action_button_cls(
@@ -73,6 +90,14 @@ def build_custom_dns_ui(
     )
     custom_apply_btn.setFixedSize(70, 26)
     custom_apply_btn.clicked.connect(on_apply)
+    set_control_accessibility(
+        custom_apply_btn,
+        name=tr_fn("page.network.custom.apply.accessible_name", "Применить свой DNS"),
+        description=tr_fn(
+            "page.network.custom.apply.accessible_description",
+            "Применяет указанные DNS серверы к выбранным сетевым адаптерам.",
+        ),
+    )
     custom_layout.addWidget(custom_apply_btn)
 
     custom_layout.addStretch()
