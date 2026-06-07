@@ -1453,6 +1453,7 @@ class ProfileSetupPageBase(BasePage):
             self._raw_profile_text,
             "Сырой текст profile. Сохраняется только в текущий preset и не меняет пользовательский шаблон.",
         )
+        self._raw_profile_text.textChanged.connect(self._on_raw_profile_text_changed)
         match_layout.addWidget(self._raw_profile_text)
 
         raw_actions = QWidget(match_tab)
@@ -1522,6 +1523,9 @@ class ProfileSetupPageBase(BasePage):
             return
         editor.setPlainText(value)
         self._raw_profile_text_cache = value
+
+    def _on_raw_profile_text_changed(self) -> None:
+        self._raw_profile_text_cache = None
 
     def _request_list_file_editor_state(self) -> None:
         if not self._editor_tab_built or not self._profile_key:
@@ -3158,6 +3162,9 @@ class ProfileSetupPageBase(BasePage):
     def _resolve_raw_profile_save_text(self, raw_text) -> str:
         if raw_text is not None:
             return str(raw_text or "")
+        cached = self.__dict__.get("_raw_profile_text_cache")
+        if cached is not None:
+            return str(cached or "")
         editor = self.__dict__.get("_raw_profile_text")
         if editor is None:
             return ""

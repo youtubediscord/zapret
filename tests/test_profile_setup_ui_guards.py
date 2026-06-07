@@ -1246,6 +1246,19 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._raw_profile_text.plain_text_calls, [raw_text])
         self.assertEqual(page._raw_profile_text_cache, raw_text)
 
+    def test_raw_profile_save_uses_cached_payload_text_when_unchanged(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        raw_text = "--new\n--lua-desync=fake"
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._raw_profile_text = _PlainTextWidget(raw_text)
+        page._raw_profile_text_cache = raw_text
+
+        text = ProfileSetupPageBase._resolve_raw_profile_save_text(page, None)
+
+        self.assertEqual(text, raw_text)
+        self.assertEqual(page._raw_profile_text.plain_text_read_calls, [])
+
     def test_raw_profile_save_skips_duplicate_button_disable(self) -> None:
         from unittest.mock import Mock
 
