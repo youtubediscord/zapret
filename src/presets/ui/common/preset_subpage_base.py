@@ -1532,9 +1532,9 @@ class PresetRawEditorPage(BasePage):
     def _stop_raw_worker_runtimes(self) -> None:
         for attr, warning_prefix, blocking in (
             ("_raw_load_runtime", "raw preset load worker", False),
-            ("_raw_save_runtime", "raw preset save worker", True),
-            ("_raw_activate_runtime", "raw preset activate worker", True),
-            ("_raw_action_runtime", "raw preset action worker", True),
+            ("_raw_save_runtime", "raw preset save worker", False),
+            ("_raw_activate_runtime", "raw preset activate worker", False),
+            ("_raw_action_runtime", "raw preset action worker", False),
         ):
             runtime = self.__dict__.get(attr)
             if runtime is None:

@@ -177,7 +177,7 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
             (page._raw_activate_runtime, "raw preset activate worker"),
             (page._raw_action_runtime, "raw preset action worker"),
         ):
-            runtime.stop.assert_called_once_with(blocking=True, warning_prefix=prefix)
+            runtime.stop.assert_called_once_with(blocking=False, warning_prefix=prefix)
             runtime.cancel.assert_called_once_with()
 
     def test_raw_preset_load_skips_duplicate_plain_text_update(self) -> None:
