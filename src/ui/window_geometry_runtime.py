@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QApplication
 
 from log.log import log
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 
 
@@ -82,8 +83,7 @@ class WindowGeometryRuntime:
         self._last_persisted_maximized: bool | None = None
         self._pending_window_maximized_state: bool | None = None
         self._geometry_save_runtime = OneShotWorkerRuntime()
-        self._geometry_save_pending: tuple[tuple[int, int, int, int] | None, bool] | None = None
-        self._geometry_save_start_scheduled = False
+        self._geometry_save_state = LatestValueWorkerState(self._geometry_save_runtime, empty_value=None)
         self._window_fsm_active = False
         self._window_fsm_target_mode: str | None = None
         self._window_fsm_retry_count = 0
@@ -598,8 +598,7 @@ class WindowGeometryRuntime:
             log(f"Ошибка синхронного сохранения геометрии окна: {e}", "DEBUG")
 
     def _stop_geometry_save_worker_for_sync(self) -> None:
-        self._geometry_save_pending = None
-        self._geometry_save_start_scheduled = False
+        self._geometry_save_state_obj().reset()
         runtime = self.__dict__.get("_geometry_save_runtime")
         if runtime is None:
             return
@@ -617,9 +616,10 @@ class WindowGeometryRuntime:
         if runtime is None:
             runtime = OneShotWorkerRuntime()
             self._geometry_save_runtime = runtime
-        if runtime.is_running() or bool(self.__dict__.get("_geometry_save_start_scheduled", False)):
-            self._geometry_save_pending = self._merge_geometry_save_payload(
-                self._geometry_save_pending,
+        state = self._geometry_save_state_obj()
+        if state.is_busy():
+            state.pending = self._merge_geometry_save_payload(
+                state.pending,
                 payload,
             )
             return
@@ -664,30 +664,66 @@ class WindowGeometryRuntime:
             self._last_persisted_geometry = tuple(int(value) for value in geometry)
 
     def _on_geometry_save_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_geometry_save_runtime"), _worker):
-            return
-        pending = self._geometry_save_pending
-        self._geometry_save_pending = None
-        if pending is not None:
-            self._schedule_geometry_save_worker_start(pending)
+        self._geometry_save_state_obj().schedule_pending_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_geometry_save_worker_start,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
 
     def _schedule_geometry_save_worker_start(self, payload) -> None:
-        self._geometry_save_pending = self._merge_geometry_save_payload(
-            self._geometry_save_pending,
+        state = self._geometry_save_state_obj()
+        state.pending = self._merge_geometry_save_payload(
+            state.pending,
             payload,
         )
-        if bool(self.__dict__.get("_geometry_save_start_scheduled", False)):
-            return
-        self._geometry_save_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_geometry_save_worker_start)
+        state.schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_geometry_save_worker_start,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
 
     def _run_scheduled_geometry_save_worker_start(self) -> None:
-        self._geometry_save_start_scheduled = False
-        pending = self._geometry_save_pending
-        self._geometry_save_pending = None
-        if pending is None or bool(self.__dict__.get("_cleanup_in_progress", False)):
+        pending = self._geometry_save_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False))
+        )
+        if pending is None:
             return
         self._start_geometry_save_worker(pending)
+
+    def _geometry_save_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_geometry_save_state")
+        runtime = self.__dict__.get("_geometry_save_runtime")
+        if state is None:
+            pending = self.__dict__.pop("_geometry_save_pending", None)
+            start_scheduled = bool(self.__dict__.pop("_geometry_save_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=None,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_geometry_save_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _geometry_save_pending(self):
+        return self._geometry_save_state_obj().pending
+
+    @_geometry_save_pending.setter
+    def _geometry_save_pending(self, value) -> None:
+        self._geometry_save_state_obj().pending = value
+
+    @property
+    def _geometry_save_start_scheduled(self) -> bool:
+        return bool(self._geometry_save_state_obj().start_scheduled)
+
+    @_geometry_save_start_scheduled.setter
+    def _geometry_save_start_scheduled(self, value: bool) -> None:
+        self._geometry_save_state_obj().start_scheduled = bool(value)
 
     def _is_current_worker_finish(self, runtime, worker) -> bool:
         if self.__dict__.get("_cleanup_in_progress", False):

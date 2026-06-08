@@ -88,13 +88,27 @@ class WindowGeometryWorkerTests(unittest.TestCase):
         self.assertIn("_request_geometry_save", persist_source)
         self.assertIn("_request_geometry_save", max_source)
         self.assertIn("_stop_geometry_save_worker_for_sync", sync_source)
-        self.assertIn("_geometry_save_pending", request_source)
+        self.assertIn("_geometry_save_state_obj", request_source)
         self.assertIn("_geometry_save_runtime", request_source)
         self.assertIn("start_qthread_worker", start_source)
         self.assertNotIn("worker.start()", start_source)
         self.assertNotIn("worker.deleteLater()", runtime_source)
         self.assertNotIn("self.store.save_geometry", persist_source)
         self.assertNotIn("self.store.save_maximized", max_source)
+
+    def test_geometry_save_pending_uses_shared_latest_worker_state(self) -> None:
+        import ui.window_geometry_runtime as runtime
+
+        runtime_source = inspect.getsource(runtime.WindowGeometryRuntime)
+        init_source = inspect.getsource(runtime.WindowGeometryRuntime.__init__)
+
+        self.assertIn("LatestValueWorkerState", runtime_source)
+        self.assertIn("_geometry_save_state_obj", runtime_source)
+        self.assertNotIn(
+            "self._geometry_save_pending: tuple[tuple[int, int, int, int] | None, bool] | None = None",
+            init_source,
+        )
+        self.assertNotIn("self._geometry_save_start_scheduled = False", init_source)
 
     def test_pending_geometry_save_restarts_after_event_loop_turn(self) -> None:
         import ui.window_geometry_runtime as runtime
