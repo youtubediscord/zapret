@@ -1,12 +1,36 @@
 import os
 import unittest
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
-from qfluentwidgets import CaptionLabel, PrimaryPushButton, PushButton
+from PyQt6.QtWidgets import QApplication, QLabel, QSpinBox, QVBoxLayout, QWidget
+from qfluentwidgets import CaptionLabel, LineEdit, PrimaryPushButton, PushButton
 
 from telegram_proxy.ui.build import build_telegram_proxy_diag_panel, build_telegram_proxy_logs_panel
+from telegram_proxy.ui.proxy_runtime_workflow import apply_status_changed
+
+
+class _AccessibleStatusDot:
+    def __init__(self) -> None:
+        self.active = False
+        self._accessible_name = ""
+        self._accessible_description = ""
+
+    def set_active(self, active: bool) -> None:
+        self.active = bool(active)
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text or "")
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self._accessible_description = str(text or "")
 
 
 class TelegramProxyAccessibilityTests(unittest.TestCase):
@@ -55,6 +79,35 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertIn("копирует результат", widgets.btn_copy_diag.accessibleDescription().lower())
         self.assertEqual(widgets.diag_edit.accessibleName(), "Результат диагностики Telegram Proxy")
         self.assertIn("подробный результат", widgets.diag_edit.accessibleDescription())
+
+    def test_status_change_sets_screen_reader_state_text(self) -> None:
+        status_dot = _AccessibleStatusDot()
+        stats_label = QLabel()
+        status_label = QLabel()
+        btn_toggle = PushButton("Запустить")
+        port_spin = QSpinBox()
+        host_edit = LineEdit()
+
+        apply_status_changed(
+            manager=SimpleNamespace(host="127.0.0.1", port=1353),
+            running=True,
+            restarting=False,
+            starting=False,
+            status_dot=status_dot,
+            stats_label=stats_label,
+            status_label=status_label,
+            btn_toggle=btn_toggle,
+            port_spin=port_spin,
+            host_edit=host_edit,
+            relay_check_gen=0,
+            set_speed_state=lambda *_args: None,
+            set_generation=lambda _value: None,
+        )
+
+        self.assertEqual(status_label.accessibleName(), "Статус Telegram Proxy: Работает на 127.0.0.1:1353")
+        self.assertEqual(status_dot.accessibleName(), "Индикатор Telegram Proxy: Работает на 127.0.0.1:1353")
+        self.assertEqual(btn_toggle.accessibleName(), "Остановить Telegram Proxy")
+        self.assertIn("Останавливает", btn_toggle.accessibleDescription())
 
 
 if __name__ == "__main__":

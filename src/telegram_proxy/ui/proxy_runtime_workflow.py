@@ -5,6 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QMetaObject, Qt as QtNS
 from qfluentwidgets import FluentIcon
 
+from ui.accessibility import set_control_accessibility, set_state_text
 import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
 
 
@@ -299,9 +300,24 @@ def apply_status_changed(
         set_generation(relay_check_gen + 1)
 
     status_label.setText(plan.status_text)
+    status_accessible_text = f"Статус Telegram Proxy: {plan.status_text}"
+    set_state_text(status_label, status_accessible_text)
+    set_state_text(status_dot, f"Индикатор Telegram Proxy: {plan.status_text}")
     btn_toggle.setText(plan.toggle_text)
     btn_toggle.setIcon(FluentIcon.CANCEL if "Останов" in plan.toggle_text else FluentIcon.PLAY)
     btn_toggle.setMinimumWidth(140)
+    if "Останов" in plan.toggle_text:
+        set_control_accessibility(
+            btn_toggle,
+            name="Остановить Telegram Proxy",
+            description="Останавливает локальный Telegram Proxy.",
+        )
+    else:
+        set_control_accessibility(
+            btn_toggle,
+            name="Запустить Telegram Proxy",
+            description="Запускает локальный Telegram Proxy.",
+        )
     port_spin.setEnabled(plan.port_spin_enabled)
     host_edit.setEnabled(plan.host_edit_enabled)
 
