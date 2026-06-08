@@ -62,7 +62,7 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
     def test_mtproxy_settings_are_normalized_in_settings_json_shape(self) -> None:
         from settings.normalize import normalize_telegram_proxy
         from settings.schema import VALID_TG_PROXY_MODES, default_telegram_proxy
-        from telegram_proxy.config.settings import default_state
+        from telegram_proxy.config.settings import default_state, normalize_proxy_mode
 
         defaults = default_telegram_proxy()
 
@@ -71,9 +71,10 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
         self.assertIn("dc_ip", defaults)
         self.assertEqual(defaults["pool_size"], 4)
         self.assertEqual(defaults["buffer_kb"], 256)
-        self.assertEqual(defaults["mode"], "mtproxy")
-        self.assertEqual(normalize_telegram_proxy({})["mode"], "mtproxy")
-        self.assertEqual(default_state().mode, "mtproxy")
+        self.assertEqual(defaults["mode"], "socks5")
+        self.assertEqual(normalize_telegram_proxy({})["mode"], "socks5")
+        self.assertEqual(default_state().mode, "socks5")
+        self.assertEqual(normalize_proxy_mode("bad"), "socks5")
         self.assertEqual(default_state().mtproxy_secret, "")
 
         normalized = normalize_telegram_proxy(

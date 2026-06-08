@@ -190,8 +190,8 @@ def build_telegram_proxy_settings_panel(
         title=text.proxy_mode_title,
         description=text.proxy_mode_description,
         items=[
-            ("MTProxy (рекомендуется)", "mtproxy"),
-            ("SOCKS5 (совместимость)", "socks5"),
+            ("SOCKS5 (рекомендуется)", "socks5"),
+            ("MTProxy (продвинутый)", "mtproxy"),
         ],
     )
     proxy_mode_row.combo.setFixedWidth(250)

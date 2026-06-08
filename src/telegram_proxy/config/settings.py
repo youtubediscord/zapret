@@ -47,7 +47,7 @@ def default_state() -> TelegramProxySettingsState:
     return TelegramProxySettingsState(
         host=DEFAULT_HOST,
         port=DEFAULT_PORT,
-        mode="mtproxy",
+        mode="socks5",
         upstream_enabled=False,
         upstream_host="",
         upstream_port=DEFAULT_UPSTREAM_PORT,
@@ -104,9 +104,9 @@ def normalize_upstream_port(port: int | None) -> int:
 
 def normalize_proxy_mode(mode: object) -> str:
     text = str(mode or "").strip().lower()
-    if text == "socks5":
-        return "socks5"
-    return "mtproxy"
+    if text == "mtproxy":
+        return "mtproxy"
+    return "socks5"
 
 
 def normalize_pool_size(value: object) -> int:

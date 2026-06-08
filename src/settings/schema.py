@@ -102,7 +102,7 @@ def default_telegram_proxy() -> dict[str, Any]:
         "enabled": True,
         "host": DEFAULT_TG_PROXY_HOST,
         "port": DEFAULT_TG_PROXY_PORT,
-        "mode": "mtproxy",
+        "mode": "socks5",
         "upstream_enabled": False,
         "upstream_host": "",
         "upstream_port": DEFAULT_TG_PROXY_UPSTREAM_PORT,

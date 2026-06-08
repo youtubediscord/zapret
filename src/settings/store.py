@@ -889,7 +889,7 @@ def set_tg_proxy_port(value: int) -> bool:
 
 
 def get_tg_proxy_mode() -> str:
-    return _get_str(("telegram_proxy", "mode"), "mtproxy")
+    return _get_str(("telegram_proxy", "mode"), "socks5")
 
 
 def set_tg_proxy_mode(value: str) -> bool:
