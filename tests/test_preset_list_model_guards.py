@@ -73,6 +73,19 @@ class PresetListModelGuardTests(unittest.TestCase):
 
         self.assertTrue(model.preset_is_builtin("A.txt"))
 
+    def test_preset_rating_cache_updates_with_row_metadata(self) -> None:
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {"kind": "preset", "file_name": "A.txt", "name": "A", "rating": 2},
+            ]
+        )
+
+        self.assertEqual(model.preset_rating("A.txt"), 2)
+        self.assertTrue(model.update_preset_row("A.txt", rating=7))
+
+        self.assertEqual(model.preset_rating("A.txt"), 7)
+
 
 if __name__ == "__main__":
     unittest.main()

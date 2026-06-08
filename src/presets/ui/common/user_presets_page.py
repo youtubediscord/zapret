@@ -2072,15 +2072,28 @@ class UserPresetsPageBase(BasePage):
     def _show_rating_menu(self, name: str, global_pos: QPoint | None = None):
         display_name = self._resolve_display_name(name)
         current_rating = 0
-        cached_metadata = self._runtime_service.cached_presets_metadata()
         preset_name = str(name or "").strip()
-        rating_meta = cached_metadata.get(preset_name) or {}
-        if not rating_meta and preset_name and not preset_name.lower().endswith(".txt"):
-            rating_meta = cached_metadata.get(f"{preset_name}.txt") or {}
-        try:
-            current_rating = int(rating_meta.get("rating", 0) or 0)
-        except (TypeError, ValueError):
-            current_rating = 0
+        rating_loaded = False
+        model = getattr(self, "_presets_model", None)
+        rating_getter = getattr(model, "preset_rating", None)
+        if callable(rating_getter):
+            try:
+                cached_rating = rating_getter(preset_name)
+                if cached_rating is not None:
+                    current_rating = int(cached_rating or 0)
+                    rating_loaded = True
+            except (TypeError, ValueError):
+                current_rating = 0
+                rating_loaded = True
+        if not rating_loaded:
+            cached_metadata = self._runtime_service.cached_presets_metadata()
+            rating_meta = cached_metadata.get(preset_name) or {}
+            if not rating_meta and preset_name and not preset_name.lower().endswith(".txt"):
+                rating_meta = cached_metadata.get(f"{preset_name}.txt") or {}
+            try:
+                current_rating = int(rating_meta.get("rating", 0) or 0)
+            except (TypeError, ValueError):
+                current_rating = 0
         rating = show_preset_rating_menu(
             self,
             current_rating=current_rating,

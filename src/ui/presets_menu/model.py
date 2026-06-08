@@ -30,6 +30,7 @@ class PresetListModel(QAbstractListModel):
         self._preset_row_by_file_name: dict[str, int] = {}
         self._preset_name_by_file_name: dict[str, str] = {}
         self._preset_builtin_by_file_name: dict[str, bool] = {}
+        self._preset_rating_by_file_name: dict[str, int] = {}
         self._active_preset_file_names: set[str] = set()
         self._first_preset_row = -1
 
@@ -84,6 +85,7 @@ class PresetListModel(QAbstractListModel):
         self._preset_row_by_file_name = {}
         self._preset_name_by_file_name = {}
         self._preset_builtin_by_file_name = {}
+        self._preset_rating_by_file_name = {}
         self._active_preset_file_names = set()
         self._first_preset_row = -1
         for row_index, row in enumerate(self._rows):
@@ -99,6 +101,7 @@ class PresetListModel(QAbstractListModel):
             if display_name:
                 self._preset_name_by_file_name[file_name] = display_name
             self._preset_builtin_by_file_name[file_name] = bool(row.get("is_builtin", False))
+            self._preset_rating_by_file_name[file_name] = _safe_int(row.get("rating"))
             if bool(row.get("is_active", False)):
                 self._active_preset_file_names.add(file_name)
 
@@ -119,6 +122,12 @@ class PresetListModel(QAbstractListModel):
         if not candidate:
             return None
         return self._preset_builtin_by_file_name.get(candidate)
+
+    def preset_rating(self, file_name: str) -> int | None:
+        candidate = str(file_name or "").strip()
+        if not candidate:
+            return None
+        return self._preset_rating_by_file_name.get(candidate)
 
     def active_preset_file_name(self) -> str:
         for file_name in self._active_preset_file_names:
@@ -244,6 +253,10 @@ class PresetListModel(QAbstractListModel):
                 file_name = str(row.get("file_name") or "").strip()
                 if file_name:
                     self._preset_builtin_by_file_name[file_name] = bool(value)
+            if key == "rating":
+                file_name = str(row.get("file_name") or "").strip()
+                if file_name:
+                    self._preset_rating_by_file_name[file_name] = _safe_int(value)
             changed_roles.update(role_map[key])
 
         if not changed_roles:

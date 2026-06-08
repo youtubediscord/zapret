@@ -1230,6 +1230,43 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertTrue(page._is_builtin_preset_file("cached.txt"))
         self.assertFalse(page._is_builtin_preset_file("fallback.txt"))
 
+    def test_user_presets_rating_menu_uses_visible_cache_not_backend_metadata(self) -> None:
+        class _RuntimeService:
+            def cached_presets_metadata(self):
+                raise AssertionError("rating menu should use model rating cache")
+
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._runtime_service = _RuntimeService()
+        page._config = SimpleNamespace(tr_prefix="presets")
+        page._tr = Mock(side_effect=lambda _key, fallback="": fallback)
+        page._request_preset_storage_action = Mock()
+        page._presets_model = PresetListModel()
+        page._presets_model.set_rows(
+            [
+                {
+                    "kind": "preset",
+                    "file_name": "visible.txt",
+                    "name": "Visible Preset",
+                    "rating": 6,
+                }
+            ]
+        )
+
+        with patch(
+            "presets.ui.common.user_presets_page.show_preset_rating_menu",
+            return_value=8,
+        ) as menu_mock:
+            page._show_rating_menu("visible.txt")
+
+        menu_mock.assert_called_once()
+        self.assertEqual(menu_mock.call_args.kwargs["current_rating"], 6)
+        page._request_preset_storage_action.assert_called_once_with(
+            "rating",
+            name="visible.txt",
+            display_name="Visible Preset",
+            rating=8,
+        )
+
     def test_user_presets_cleanup_stops_action_workers_and_pending_requests(self) -> None:
         class _Runtime:
             def __init__(self) -> None:
