@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from PyQt6.QtCore import QModelIndex, QRect, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QPainter
+from PyQt6.QtGui import QFontMetrics, QPainter, QTextCursor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QAbstractScrollArea,
@@ -1550,7 +1550,7 @@ class ProfileSetupPageBase(BasePage):
             name="Текст profile в текущем preset",
             description="Сырой текст profile. Сохраняется только в текущий preset.",
         )
-        self._raw_profile_text.textChanged.connect(self._on_raw_profile_text_changed)
+        self._raw_profile_text.document().contentsChange.connect(self._on_raw_profile_text_contents_changed)
         match_layout.addWidget(self._raw_profile_text)
 
         raw_actions = QWidget(match_tab)
@@ -1646,11 +1646,39 @@ class ProfileSetupPageBase(BasePage):
         if editor is None:
             self._raw_profile_text_cache = value
             return
-        editor.setPlainText(value)
+        self._raw_profile_text_cache_update_suspended = True
+        try:
+            editor.setPlainText(value)
+        finally:
+            self._raw_profile_text_cache_update_suspended = False
         self._raw_profile_text_cache = value
 
     def _on_raw_profile_text_changed(self) -> None:
         self._raw_profile_text_cache = None
+
+    def _on_raw_profile_text_contents_changed(self, position: int, chars_removed: int, chars_added: int) -> None:
+        if self._loading or bool(self.__dict__.get("_raw_profile_text_cache_update_suspended", False)):
+            return
+        current = str(self.__dict__.get("_raw_profile_text_cache", "") or "")
+        start = max(0, min(int(position or 0), len(current)))
+        removed = max(0, int(chars_removed or 0))
+        inserted = self._raw_profile_inserted_text(start, max(0, int(chars_added or 0)))
+        self._raw_profile_text_cache = f"{current[:start]}{inserted}{current[start + removed:]}"
+
+    def _raw_profile_inserted_text(self, position: int, chars_added: int) -> str:
+        if chars_added <= 0:
+            return ""
+        editor = self.__dict__.get("_raw_profile_text")
+        if editor is None:
+            return ""
+        try:
+            document = editor.document()
+            cursor = QTextCursor(document)
+            cursor.setPosition(max(0, int(position or 0)))
+            cursor.setPosition(max(0, int(position or 0)) + int(chars_added or 0), QTextCursor.MoveMode.KeepAnchor)
+            return str(cursor.selectedText() or "").replace("\u2029", "\n")
+        except Exception:
+            return ""
 
     def _request_list_file_editor_state(self) -> None:
         if not self._editor_tab_built or not self._profile_key:
@@ -3334,9 +3362,6 @@ class ProfileSetupPageBase(BasePage):
         runtime = self._worker_runtime("_raw_profile_save_runtime")
         self._raw_profile_save_request_id += 1
         request_id = self._raw_profile_save_request_id
-        if raw_text is None and self.__dict__.get("_raw_profile_text_cache") is None:
-            editor = self.__dict__.get("_raw_profile_text")
-            raw_text = str(editor.toPlainText() or "") if editor is not None else ""
         raw_text = self._resolve_raw_profile_save_text(raw_text)
         if self._raw_profile_save_button is not None:
             set_widget_enabled_if_changed(self._raw_profile_save_button, False)

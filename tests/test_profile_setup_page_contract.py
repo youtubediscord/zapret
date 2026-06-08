@@ -3591,6 +3591,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._loading = False
         page._profile_key = "profile-1"
         page._raw_profile_text = SimpleNamespace(toPlainText=lambda: "--new\n--lua-desync=fake")
+        page._raw_profile_text_cache = "--new\n--lua-desync=fake"
         page._raw_profile_save_request_id = 0
         page._raw_profile_save_button = Mock()
         worker = _Worker()
@@ -3646,6 +3647,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page._loading = False
         page._profile_key = "profile-1"
         page._raw_profile_text = SimpleNamespace(toPlainText=lambda: "--new\n--lua-desync=split")
+        page._raw_profile_text_cache = "--new\n--lua-desync=split"
         page._raw_profile_save_request_id = 1
         page._raw_profile_save_runtime = runtime
         page._pending_raw_profile_save = None
