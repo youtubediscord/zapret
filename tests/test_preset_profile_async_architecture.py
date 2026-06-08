@@ -1192,6 +1192,9 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
                 }
             ]
         )
+        page._presets_model.find_preset_row = Mock(
+            side_effect=AssertionError("display name should use model display cache")
+        )
 
         self.assertEqual(page._resolve_display_name("visible.txt"), "Visible Preset")
         self.assertEqual(page._resolve_display_name("cached.txt"), "Cached Preset")

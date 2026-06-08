@@ -291,14 +291,11 @@ class UserPresetsPageBase(BasePage):
 
         model = getattr(self, "_presets_model", None)
         try:
-            row = model.find_preset_row(candidate) if model is not None else -1
-            if row >= 0:
-                index = model.index(row, 0)
-                name_role = getattr(type(model), "NameRole", None)
-                if index.isValid() and name_role is not None:
-                    display_name = str(index.data(name_role) or "").strip()
-                    if display_name:
-                        return display_name
+            display_name_getter = getattr(model, "preset_display_name", None)
+            if callable(display_name_getter):
+                display_name = str(display_name_getter(candidate) or "").strip()
+                if display_name:
+                    return display_name
         except Exception:
             pass
 

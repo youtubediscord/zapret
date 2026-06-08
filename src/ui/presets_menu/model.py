@@ -28,6 +28,7 @@ class PresetListModel(QAbstractListModel):
         super().__init__(parent)
         self._rows: list[dict[str, object]] = []
         self._preset_row_by_file_name: dict[str, int] = {}
+        self._preset_name_by_file_name: dict[str, str] = {}
         self._active_preset_file_names: set[str] = set()
         self._first_preset_row = -1
 
@@ -80,6 +81,7 @@ class PresetListModel(QAbstractListModel):
 
     def _rebuild_row_index(self) -> None:
         self._preset_row_by_file_name = {}
+        self._preset_name_by_file_name = {}
         self._active_preset_file_names = set()
         self._first_preset_row = -1
         for row_index, row in enumerate(self._rows):
@@ -91,6 +93,9 @@ class PresetListModel(QAbstractListModel):
             if not file_name:
                 continue
             self._preset_row_by_file_name[file_name] = row_index
+            display_name = str(row.get("name") or "").strip()
+            if display_name:
+                self._preset_name_by_file_name[file_name] = display_name
             if bool(row.get("is_active", False)):
                 self._active_preset_file_names.add(file_name)
 
@@ -99,6 +104,12 @@ class PresetListModel(QAbstractListModel):
         if not candidate:
             return -1
         return int(self._preset_row_by_file_name.get(candidate, -1))
+
+    def preset_display_name(self, file_name: str) -> str:
+        candidate = str(file_name or "").strip()
+        if not candidate:
+            return ""
+        return str(self._preset_name_by_file_name.get(candidate, "") or "").strip()
 
     def active_preset_file_name(self) -> str:
         for file_name in self._active_preset_file_names:
@@ -205,6 +216,14 @@ class PresetListModel(QAbstractListModel):
             if row.get(key) == value:
                 continue
             row[key] = value
+            if key == "name":
+                file_name = str(row.get("file_name") or "").strip()
+                if file_name:
+                    display_name = str(value or "").strip()
+                    if display_name:
+                        self._preset_name_by_file_name[file_name] = display_name
+                    else:
+                        self._preset_name_by_file_name.pop(file_name, None)
             if key == "is_active":
                 file_name = str(row.get("file_name") or "").strip()
                 if file_name:

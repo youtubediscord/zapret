@@ -47,6 +47,19 @@ class PresetListModelGuardTests(unittest.TestCase):
 
         self.assertFalse(model.set_folder_collapsed("common", False))
 
+    def test_preset_display_name_cache_updates_with_row_metadata(self) -> None:
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {"kind": "preset", "file_name": "A.txt", "name": "Old"},
+            ]
+        )
+
+        self.assertEqual(model.preset_display_name("A.txt"), "Old")
+        self.assertTrue(model.update_preset_row("A.txt", name="New"))
+
+        self.assertEqual(model.preset_display_name("A.txt"), "New")
+
 
 if __name__ == "__main__":
     unittest.main()
