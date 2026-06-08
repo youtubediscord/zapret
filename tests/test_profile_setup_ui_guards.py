@@ -295,6 +295,20 @@ class _SaveWorker:
         pass
 
 
+class _ValidationWorker:
+    def __init__(self) -> None:
+        self.validated = _Signal()
+        self.failed = _Signal()
+        self.finished = _Signal()
+        self.start_calls = 0
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+    def deleteLater(self) -> None:  # noqa: N802
+        pass
+
+
 class ProfileSetupUiGuardTests(unittest.TestCase):
     def test_text_update_skips_duplicate_value(self) -> None:
         from profile.ui.profile_setup_page import set_widget_text_if_changed
@@ -928,6 +942,43 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             "text": "user.example\nsecond.example",
         })
         self.assertEqual(page._list_file_text.plain_text_read_calls, [])
+
+    def test_list_file_validation_after_text_change_uses_cached_snapshot(self) -> None:
+        from unittest.mock import Mock
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        worker = _ValidationWorker()
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._list_file_kind = "hostlist"
+        page._list_file_text = _PlainTextWidget("new.example\nsecond.example")
+        page._list_file_text_snapshot = "old.example"
+        page._list_file_text_dirty = False
+        page._list_file_validation_request_id = 0
+        page.create_profile_list_file_validation_worker = Mock(return_value=worker)
+        page._list_file_inserted_text = Mock(return_value="new.example\nsecond.example")
+
+        ProfileSetupPageBase._on_list_file_text_contents_changed(
+            page,
+            0,
+            len("old.example"),
+            len("new.example\nsecond.example"),
+        )
+        page._list_file_text.plain_text_read_calls.clear()
+        ProfileSetupPageBase._start_list_file_validation_worker(page, {
+            "kind": "hostlist",
+            "text": None,
+        })
+
+        self.assertEqual(page._list_file_text.plain_text_read_calls, [])
+        page.create_profile_list_file_validation_worker.assert_called_once_with(
+            1,
+            kind="hostlist",
+            text="new.example\nsecond.example",
+            parent=page,
+        )
+        self.assertEqual(worker.start_calls, 1)
 
     def test_list_file_validation_result_updates_entries_count_from_worker(self) -> None:
         from unittest.mock import Mock

@@ -4272,7 +4272,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._loading = False
         page._list_file_kind = "hostlist"
-        page._list_file_text = SimpleNamespace(toPlainText=lambda: "bad domain", isReadOnly=lambda: False)
+        page._list_file_text = SimpleNamespace(
+            toPlainText=Mock(side_effect=AssertionError("GUI must not read full list text")),
+            isReadOnly=lambda: False,
+        )
+        page._list_file_text_snapshot = "bad domain"
         page._list_file_base_text = SimpleNamespace(toPlainText=lambda: "base.example\n")
         page._list_file_validation_request_id = 0
         page._list_file_validation_worker = None

@@ -46,7 +46,6 @@ ALLOWED_PROCESS_EVENTS_FILES = {
 
 ALLOWED_EDITOR_TEXT_READS = {
     "presets/ui/common/preset_subpage_base.py:_start_raw_preset_save_worker:toPlainText()",
-    "profile/ui/profile_setup_page.py:_start_list_file_validation_worker:toPlainText()",
 }
 
 FORBIDDEN_IMPORT_ROOTS = {

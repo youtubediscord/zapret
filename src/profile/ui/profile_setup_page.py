@@ -1089,6 +1089,7 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_base_text_snapshot = ""
         self._list_file_text_snapshot = ""
         self._list_file_text_dirty = True
+        self._list_file_text_cache_update_suspended = False
         self._list_file_user_entries_count = 0
         self._list_file_base_entries_count = 0
         self._list_file_normal_style = ""
@@ -1478,6 +1479,7 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_text = PlainTextEdit()
         self._list_file_text.setMinimumHeight(320)
         self._list_file_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._list_file_text.document().contentsChange.connect(self._on_list_file_text_contents_changed)
         self._list_file_text.textChanged.connect(self._on_list_file_text_changed)
         set_tooltip(
             self._list_file_text,
@@ -2728,6 +2730,7 @@ class ProfileSetupPageBase(BasePage):
             )
         if self._list_file_text is not None:
             self._list_file_text.blockSignals(True)
+            self._list_file_text_cache_update_suspended = True
             try:
                 if user_text_changed:
                     self._list_file_text.setPlainText(visible_user_text)
@@ -2737,6 +2740,7 @@ class ProfileSetupPageBase(BasePage):
                 else:
                     set_placeholder_text_if_changed(self._list_file_text, "Домены по одному на строку:\nexample.com\nsub.example.org")
             finally:
+                self._list_file_text_cache_update_suspended = False
                 self._list_file_text.blockSignals(False)
         self._list_file_text_snapshot = visible_user_text
         self._list_file_text_dirty = False
@@ -2776,6 +2780,31 @@ class ProfileSetupPageBase(BasePage):
             return
         self._run_scheduled_list_file_validation()
 
+    def _on_list_file_text_contents_changed(self, position: int, chars_removed: int, chars_added: int) -> None:
+        if self._loading or bool(self.__dict__.get("_list_file_text_cache_update_suspended", False)):
+            return
+        current = str(self.__dict__.get("_list_file_text_snapshot", "") or "")
+        start = max(0, min(int(position or 0), len(current)))
+        removed = max(0, int(chars_removed or 0))
+        inserted = self._list_file_inserted_text(start, max(0, int(chars_added or 0)))
+        self._list_file_text_snapshot = f"{current[:start]}{inserted}{current[start + removed:]}"
+        self._list_file_text_dirty = True
+
+    def _list_file_inserted_text(self, position: int, chars_added: int) -> str:
+        if chars_added <= 0:
+            return ""
+        editor = self.__dict__.get("_list_file_text")
+        if editor is None:
+            return ""
+        try:
+            document = editor.document()
+            cursor = QTextCursor(document)
+            cursor.setPosition(max(0, int(position or 0)))
+            cursor.setPosition(max(0, int(position or 0)) + int(chars_added or 0), QTextCursor.MoveMode.KeepAnchor)
+            return str(cursor.selectedText() or "").replace("\u2029", "\n")
+        except Exception:
+            return ""
+
     def _run_scheduled_list_file_validation(self) -> None:
         if self._loading or self._list_file_text is None:
             return
@@ -2795,10 +2824,7 @@ class ProfileSetupPageBase(BasePage):
         request = dict(request or {})
         raw_text = request.get("text")
         if raw_text is None:
-            if not bool(self.__dict__.get("_list_file_text_dirty", True)):
-                text = str(self.__dict__.get("_list_file_text_snapshot", "") or "")
-            else:
-                text = ""
+            text = str(self.__dict__.get("_list_file_text_snapshot", "") or "")
         else:
             text = str(raw_text or "")
         self._list_file_text_snapshot = text
@@ -2809,10 +2835,6 @@ class ProfileSetupPageBase(BasePage):
         }
 
     def _start_list_file_validation_worker(self, request: dict) -> None:
-        request = dict(request or {})
-        if request.get("text") is None and bool(self.__dict__.get("_list_file_text_dirty", True)):
-            editor = self.__dict__.get("_list_file_text")
-            request["text"] = str(editor.toPlainText() or "") if editor is not None else ""
         request = self._resolve_list_file_validation_request(request)
         runtime = self._worker_runtime("_list_file_validation_runtime")
         self._list_file_validation_request_id = int(getattr(self, "_list_file_validation_request_id", 0) or 0) + 1
