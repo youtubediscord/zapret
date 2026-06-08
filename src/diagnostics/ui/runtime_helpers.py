@@ -29,6 +29,8 @@ def apply_interaction_state(
     test_combo.setEnabled(combo_enabled)
     send_log_btn.setEnabled(send_log_enabled)
     progress_bar.setVisible(progress_visible)
+    progress_state = "выполняется" if progress_visible else "не выполняется"
+    set_state_text(progress_bar, f"Ход диагностики соединений: {progress_state}")
 
     if progress_visible:
         progress_bar.start()

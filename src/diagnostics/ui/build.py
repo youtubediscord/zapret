@@ -115,6 +115,14 @@ def build_connection_controls(
 
     progress_bar = progress_bar_cls()
     progress_bar.setVisible(False)
+    set_control_accessibility(
+        progress_bar,
+        name=tr_fn("page.connection.progress.accessible_name", "Ход диагностики соединений"),
+        description=tr_fn(
+            "page.connection.progress.accessible_description",
+            "Показывает, что проверка выполняется.",
+        ),
+    )
     status_layout.addWidget(progress_bar, 1)
     controls_card.add_layout(status_layout)
     container_layout.addWidget(controls_card)

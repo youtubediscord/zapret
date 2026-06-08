@@ -6,11 +6,16 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, ProgressBar, PushButton
+from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, IndeterminateProgressBar, ProgressBar, PushButton
 
 from diagnostics.ui.build import build_connection_controls, build_connection_log_viewer
 from diagnostics.ui.components import ConnectionStatusBadge
-from diagnostics.ui.runtime_helpers import apply_connection_language, refresh_test_combo_items, set_connection_status
+from diagnostics.ui.runtime_helpers import (
+    apply_connection_language,
+    apply_interaction_state,
+    refresh_test_combo_items,
+    set_connection_status,
+)
 
 
 class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
@@ -88,6 +93,46 @@ class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(widgets.result_text.accessibleName(), "Результат диагностики соединений")
         self.assertIn("ход и итог проверки Discord и YouTube", widgets.result_text.accessibleDescription())
+
+    def test_progress_indicator_exposes_screen_reader_state(self) -> None:
+        parent = QWidget()
+        layout = QVBoxLayout(parent)
+
+        widgets = build_connection_controls(
+            container_layout=layout,
+            content_parent=parent,
+            tr_fn=lambda _key, default: default,
+            combo_cls=ComboBox,
+            body_label_cls=BodyLabel,
+            caption_label_cls=CaptionLabel,
+            progress_bar_cls=IndeterminateProgressBar,
+            push_button_cls=PushButton,
+            on_start=lambda: None,
+            on_stop=lambda: None,
+            on_support=lambda: None,
+        )
+
+        self.assertEqual(widgets.progress_bar.accessibleName(), "Ход диагностики соединений")
+        self.assertIn("Показывает, что проверка выполняется", widgets.progress_bar.accessibleDescription())
+
+        apply_interaction_state(
+            start_btn=widgets.start_btn,
+            stop_btn=widgets.stop_btn,
+            test_combo=widgets.test_combo,
+            send_log_btn=widgets.send_log_btn,
+            progress_bar=widgets.progress_bar,
+            start_enabled=False,
+            stop_enabled=True,
+            combo_enabled=False,
+            send_log_enabled=False,
+            progress_visible=True,
+        )
+
+        self.assertEqual(widgets.progress_bar.accessibleName(), "Ход диагностики соединений: выполняется")
+        self.assertEqual(
+            widgets.progress_bar.property("screenReaderStateText"),
+            "Ход диагностики соединений: выполняется",
+        )
 
     def test_connection_language_refresh_keeps_screen_reader_descriptions(self) -> None:
         parent = QWidget()
