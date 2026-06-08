@@ -576,6 +576,26 @@ class TelegramWSProxy:
         except Exception:
             splitter = None
 
+        if dc not in WSS_DOMAINS:
+            self._log(f"[{label}] MTProxy DC{dc}{media_tag} -> fallback (no own WSS relay)")
+            if await self._cloudflare_fallback(
+                client_reader,
+                client_writer,
+                target_host,
+                target_port,
+                relay_init,
+                False,
+                label,
+                dc,
+                is_media,
+                relay_wss_fn=lambda **kwargs: relay_mtproxy_wss(crypto=crypto, splitter=splitter, **kwargs),
+            ):
+                return
+            await self._mtproxy_tcp_fallback(
+                client_reader, client_writer, target_host, target_port, relay_init, crypto, label, dc, is_media
+            )
+            return
+
         if dc_key in self._ws_blacklist or now < self._dc_cooldown.get(dc_key, 0):
             if await self._cloudflare_fallback(
                 client_reader,

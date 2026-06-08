@@ -256,6 +256,7 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
 
         self.assertEqual(overrides, {4: "149.154.167.220"})
         self.assertEqual(dc_to_tcp_endpoint(4, overrides), ("149.154.167.220", 443))
+        self.assertEqual(dc_to_tcp_endpoint(203), ("91.105.192.100", 443))
         self.assertIn("dc_to_tcp_endpoint(dc, self._dc_endpoint_overrides)", inspect.getsource(wss_proxy.TelegramWSProxy._handle_mtproxy_client))
         self.assertNotIn("TCP_ENDPOINTS.get(dc", inspect.getsource(wss_proxy.TelegramWSProxy._handle_mtproxy_client))
 
@@ -335,6 +336,46 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
         self.assertIn("_cloudflare_fallback", tunnel_source)
         self.assertIn("MTProxyMsgSplitter", tunnel_source)
         self.assertIn("splitter=splitter", tunnel_source)
+
+    def test_mtproxy_skips_plain_wss_for_dc_without_own_relay(self) -> None:
+        import asyncio
+        from unittest.mock import patch
+
+        from telegram_proxy.proxy.mtproxy import PROTO_TAG_INTERMEDIATE, generate_relay_init
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _NoWssPool:
+            async def get(self, *_args, **_kwargs):
+                raise AssertionError("MTProxy DC without own WSS relay must go straight to fallback")
+
+        async def fake_cloudflare(*_args, **_kwargs):
+            return True
+
+        proxy = TelegramWSProxy(mode="mtproxy", mtproxy_secret="aabbccddeeff00112233445566778899")
+        proxy._ws_pool = _NoWssPool()
+        relay_init = generate_relay_init(PROTO_TAG_INTERMEDIATE, dc=1, is_media=False)
+
+        with (
+            patch.object(proxy, "_cloudflare_fallback", side_effect=fake_cloudflare) as cloudflare,
+            patch("telegram_proxy.wss_proxy.RawWebSocket.connect") as connect,
+        ):
+            asyncio.run(
+                proxy._tunnel_mtproxy_via_wss(
+                    object(),
+                    object(),
+                    1,
+                    False,
+                    relay_init,
+                    object(),
+                    PROTO_TAG_INTERMEDIATE,
+                    "149.154.175.50",
+                    443,
+                    "test",
+                )
+            )
+
+        self.assertEqual(cloudflare.call_count, 1)
+        connect.assert_not_called()
 
 
 if __name__ == "__main__":
