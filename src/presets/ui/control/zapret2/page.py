@@ -514,11 +514,9 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             runtime.additional_settings_dirty = True
             self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
             return
-        if (
-            runtime.additional_settings_load_runtime.is_running()
-            or bool(getattr(runtime, "additional_settings_load_start_scheduled", False))
-        ):
-            runtime.additional_settings_load_pending = True
+        state = runtime.additional_settings_load_state
+        if state.is_busy():
+            state.pending = True
             runtime.additional_settings_dirty = True
             return
 
@@ -538,7 +536,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _on_additional_settings_loaded(self, request_id: int, state: dict) -> None:
         if not self._refresh_runtime.accept_additional_settings_result(request_id):
             return
-        if bool(getattr(self._refresh_runtime, "additional_settings_load_pending", False)):
+        if self._refresh_runtime.additional_settings_load_state.has_pending():
             return
         plan = _zapret2_page_runtime().build_additional_settings_state(state if isinstance(state, dict) else {})
         self._apply_additional_settings_state(plan)
@@ -547,30 +545,43 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         runtime = self._refresh_runtime
         if not runtime.accept_worker_finish(worker, "additional_settings_request_id"):
             return
-        if runtime.additional_settings_load_pending and not self._cleanup_in_progress:
-            runtime.additional_settings_load_pending = False
-            self._schedule_additional_settings_reload_start()
+        state = runtime.additional_settings_load_state
+        if state.has_pending() and not self._cleanup_in_progress:
+            state.schedule_pending_after_finish(
+                worker,
+                is_current_worker_finish=lambda _runtime, current_worker: runtime.accept_worker_finish(
+                    current_worker,
+                    "additional_settings_request_id",
+                ),
+                single_shot=QTimer.singleShot,
+                run_scheduled=self._run_scheduled_additional_settings_reload_start,
+                clear_pending_before_schedule=True,
+            )
             return
-        runtime.additional_settings_load_pending = False
+        state.pending = False
 
     def _schedule_additional_settings_reload_start(self) -> None:
         runtime = self._refresh_runtime
-        if bool(getattr(runtime, "additional_settings_load_start_scheduled", False)):
-            runtime.additional_settings_load_pending = True
+        state = runtime.additional_settings_load_state
+        if state.start_scheduled:
+            state.pending = True
             runtime.additional_settings_dirty = True
             return
-        runtime.additional_settings_load_start_scheduled = True
+        state.pending = True
         try:
-            QTimer.singleShot(0, self._run_scheduled_additional_settings_reload_start)
+            state.schedule_start(QTimer.singleShot, self._run_scheduled_additional_settings_reload_start)
         except Exception:
             self._run_scheduled_additional_settings_reload_start()
 
     def _run_scheduled_additional_settings_reload_start(self) -> None:
         runtime = self._refresh_runtime
-        runtime.additional_settings_load_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
+        state = runtime.additional_settings_load_state
+        was_scheduled = bool(state.start_scheduled)
+        pending = state.take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
+        if pending is False and not was_scheduled:
             return
-        runtime.additional_settings_load_pending = False
         self._schedule_additional_settings_reload(force=True)
 
     def _schedule_additional_settings_reload_after_preset_switch(self) -> None:

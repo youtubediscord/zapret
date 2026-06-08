@@ -7,8 +7,10 @@ from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 class ModeControlRefreshRuntime:
     def __init__(self) -> None:
         self.additional_settings_load_runtime = OneShotWorkerRuntime()
-        self.additional_settings_load_pending = False
-        self.additional_settings_load_start_scheduled = False
+        self.additional_settings_load_state = LatestValueWorkerState(
+            self.additional_settings_load_runtime,
+            empty_value=False,
+        )
         self.additional_settings_reload_after_preset_switch_scheduled = False
         self.additional_settings_save_runtime = OneShotWorkerRuntime()
         self.additional_settings_save_pending: list[tuple[str, bool, str]] = []
@@ -81,6 +83,22 @@ class ModeControlRefreshRuntime:
     def next_top_summary_request_id(self) -> int:
         self.top_summary_request_id += 1
         return self.top_summary_request_id
+
+    @property
+    def additional_settings_load_pending(self) -> bool:
+        return bool(self.additional_settings_load_state.pending)
+
+    @additional_settings_load_pending.setter
+    def additional_settings_load_pending(self, value: bool) -> None:
+        self.additional_settings_load_state.pending = bool(value)
+
+    @property
+    def additional_settings_load_start_scheduled(self) -> bool:
+        return bool(self.additional_settings_load_state.start_scheduled)
+
+    @additional_settings_load_start_scheduled.setter
+    def additional_settings_load_start_scheduled(self, value: bool) -> None:
+        self.additional_settings_load_state.start_scheduled = bool(value)
 
     @property
     def top_summary_pending(self) -> bool:

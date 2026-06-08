@@ -18,16 +18,16 @@ class _LoadRuntime:
 
 
 def _make_refresh_runtime(*, running: bool):
+    from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+
     load_runtime = _LoadRuntime(running=running)
-    runtime = SimpleNamespace(
-        additional_settings_load_runtime=load_runtime,
-        additional_settings_load_pending=False,
-        additional_settings_load_start_scheduled=False,
-        additional_settings_dirty=False,
-        additional_settings_request_id=0,
-        next_additional_settings_request_id=Mock(return_value=1),
-        accept_additional_settings_result=Mock(return_value=True),
-    )
+    runtime = ModeControlRefreshRuntime()
+    runtime.additional_settings_load_runtime = load_runtime
+    runtime.additional_settings_load_state.runtime = load_runtime
+    runtime.additional_settings_dirty = False
+    runtime.additional_settings_request_id = 0
+    runtime.next_additional_settings_request_id = Mock(return_value=1)
+    runtime.accept_additional_settings_result = Mock(return_value=True)
 
     def _accept_worker_finish(worker, request_attr: str) -> bool:
         request_id = getattr(worker, "_request_id", None)
@@ -50,6 +50,19 @@ def _make_page(page_cls, runtime):
 
 
 class ControlAdditionalSettingsLoadQueueTests(unittest.TestCase):
+    def test_additional_settings_load_queue_uses_shared_latest_worker_state(self) -> None:
+        import inspect
+
+        from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        runtime = ModeControlRefreshRuntime()
+        runtime_source = inspect.getsource(ModeControlRefreshRuntime.__init__)
+
+        self.assertIsInstance(runtime.additional_settings_load_state, LatestValueWorkerState)
+        self.assertNotIn("self.additional_settings_load_pending = False", runtime_source)
+        self.assertNotIn("self.additional_settings_load_start_scheduled = False", runtime_source)
+
     def test_refresh_runtime_rejects_stale_additional_settings_load_worker_object(self) -> None:
         from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
 
