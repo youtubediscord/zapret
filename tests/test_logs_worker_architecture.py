@@ -188,6 +188,21 @@ class LogsWorkerArchitectureTests(unittest.TestCase):
 
         page._request_support_prepare.assert_called_once_with()
 
+    def test_support_prepare_state_uses_shared_latest_value_helper(self) -> None:
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        init_source = inspect.getsource(logs_page.LogsPage.__init__)
+        request_source = inspect.getsource(logs_page.LogsPage._request_support_prepare)
+        finished_source = inspect.getsource(logs_page.LogsPage._on_support_prepare_worker_finished)
+        cleanup_source = inspect.getsource(logs_page.LogsPage._stop_support_prepare_worker)
+
+        self.assertTrue(hasattr(logs_page, "LatestValueWorkerState"))
+        self.assertIs(logs_page.LatestValueWorkerState, LatestValueWorkerState)
+        self.assertIn("_support_prepare_state = LatestValueWorkerState", init_source)
+        self.assertIn("_support_prepare_state_obj()", request_source)
+        self.assertIn("schedule_pending_after_finish", finished_source)
+        self.assertIn("_support_prepare_state_obj().reset()", cleanup_source)
+
     def test_stale_support_prepare_worker_finished_does_not_restart_pending_prepare(self) -> None:
         page = logs_page.LogsPage.__new__(logs_page.LogsPage)
         page._cleanup_in_progress = False

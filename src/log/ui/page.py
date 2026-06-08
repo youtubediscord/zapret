@@ -26,6 +26,7 @@ import time
 
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
 from ui.log_limits import MAIN_LOG_VIEW_MAX_LINES
@@ -123,8 +124,7 @@ class LogsPage(BasePage):
         self._pending_log_text_append = ""
         self._log_text_append_scheduled = False
         self._support_prepare_runtime = OneShotWorkerRuntime()
-        self._support_prepare_pending = False
-        self._support_prepare_start_scheduled = False
+        self._support_prepare_state = LatestValueWorkerState(self._support_prepare_runtime, empty_value=False)
         self._open_folder_runtime = OneShotWorkerRuntime()
         self._open_folder_pending = False
         self._open_folder_start_scheduled = False
@@ -711,13 +711,11 @@ class LogsPage(BasePage):
         self._request_support_prepare()
 
     def _request_support_prepare(self) -> None:
-        if (
-            self._support_prepare_runtime.is_running()
-            or self.__dict__.get("_support_prepare_start_scheduled", False)
-        ):
-            self._support_prepare_pending = True
+        state = self._support_prepare_state_obj()
+        if state.is_busy():
+            state.pending = True
             return
-        self._support_prepare_pending = False
+        state.pending = False
         self._support_prepare_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._logs.create_support_prepare_worker(
                 request_id,
@@ -733,7 +731,7 @@ class LogsPage(BasePage):
     def _on_support_prepare_finished(self, request_id: int, result) -> None:
         if not self._support_prepare_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
             return
-        if self.__dict__.get("_support_prepare_pending", False):
+        if self._support_prepare_state_obj().has_pending():
             return
         apply_support_feedback(
             result=result,
@@ -752,7 +750,7 @@ class LogsPage(BasePage):
     def _on_support_prepare_failed(self, request_id: int, error: str) -> None:
         if not self._support_prepare_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
             return
-        if self.__dict__.get("_support_prepare_pending", False):
+        if self._support_prepare_state_obj().has_pending():
             return
         feedback = self._logs.build_support_error_feedback(str(error or ""))
         self._send_status_text = feedback.status_text
@@ -771,25 +769,66 @@ class LogsPage(BasePage):
             return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_support_prepare_pending", False):
-            self._schedule_support_prepare_start()
+        self._support_prepare_state_obj().schedule_pending_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_support_prepare_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _schedule_support_prepare_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_support_prepare_start_scheduled", False):
-            return
-        self._support_prepare_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_support_prepare_start)
+        state = self._support_prepare_state_obj()
+        state.pending = True
+        state.schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_support_prepare_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+            pending_when_already_scheduled=True,
+        )
 
     def _run_scheduled_support_prepare_start(self) -> None:
-        self._support_prepare_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
+        pending = self._support_prepare_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False)
+        )
+        if not pending:
             return
-        if not self.__dict__.get("_support_prepare_pending", False):
-            return
-        self._support_prepare_pending = False
         self._request_support_prepare()
+
+    def _support_prepare_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_support_prepare_state")
+        runtime = self.__dict__.get("_support_prepare_runtime")
+        if state is None:
+            pending = bool(self.__dict__.pop("_support_prepare_pending", False))
+            start_scheduled = bool(self.__dict__.pop("_support_prepare_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=False,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_support_prepare_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _support_prepare_pending(self) -> bool:
+        return bool(self._support_prepare_state_obj().pending)
+
+    @_support_prepare_pending.setter
+    def _support_prepare_pending(self, value: bool) -> None:
+        self._support_prepare_state_obj().pending = bool(value)
+
+    @property
+    def _support_prepare_start_scheduled(self) -> bool:
+        return bool(self._support_prepare_state_obj().start_scheduled)
+
+    @_support_prepare_start_scheduled.setter
+    def _support_prepare_start_scheduled(self, value: bool) -> None:
+        self._support_prepare_state_obj().start_scheduled = bool(value)
 
     def _refresh_logs_list(self, *, run_cleanup: bool = True):
         """Обновляет список доступных лог-файлов"""
@@ -925,8 +964,7 @@ class LogsPage(BasePage):
 
     def _stop_support_prepare_worker(self, blocking: bool = False) -> None:
         try:
-            self._support_prepare_pending = False
-            self._support_prepare_start_scheduled = False
+            self._support_prepare_state_obj().reset()
             self._support_prepare_runtime.stop(
                 blocking=blocking,
                 log_fn=log,
