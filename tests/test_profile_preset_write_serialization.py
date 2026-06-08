@@ -248,6 +248,83 @@ class ProfilePresetWriteSerializationTests(unittest.TestCase):
         log.assert_not_called()
         page.refresh_from_preset_switch.assert_not_called()
 
+    def test_latest_profile_move_replaces_older_pending_move_for_same_profile(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._pending_profile_preset_write_operations = []
+        page._pending_profile_context_actions = []
+        page._pending_profile_moves = []
+        page._pending_user_profile_operations = []
+
+        PresetSetupPageBase._queue_profile_preset_write_operation(
+            page,
+            "move",
+            action="before",
+            source_profile_key="profile-a",
+            destination_profile_key="profile-b",
+            destination_group_key="games",
+        )
+        PresetSetupPageBase._queue_profile_preset_write_operation(
+            page,
+            "move",
+            action="after",
+            source_profile_key="profile-a",
+            destination_profile_key="profile-c",
+            destination_group_key="games",
+        )
+
+        self.assertEqual(
+            page._pending_profile_preset_write_operations,
+            [
+                {
+                    "kind": "move",
+                    "action": "after",
+                    "profile_key": "profile-a",
+                    "enabled": None,
+                    "source_profile_key": "profile-a",
+                    "destination_profile_key": "profile-c",
+                    "destination_group_key": "games",
+                }
+            ],
+        )
+        self.assertEqual(
+            page._pending_profile_moves,
+            [
+                {
+                    "action": "after",
+                    "source_profile_key": "profile-a",
+                    "destination_profile_key": "profile-c",
+                    "destination_group_key": "games",
+                }
+            ],
+        )
+
+    def test_profile_move_queue_keeps_moves_for_different_profiles(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._pending_profile_preset_write_operations = []
+        page._pending_profile_context_actions = []
+        page._pending_profile_moves = []
+        page._pending_user_profile_operations = []
+
+        PresetSetupPageBase._queue_profile_preset_write_operation(
+            page,
+            "move",
+            action="before",
+            source_profile_key="profile-a",
+            destination_profile_key="profile-b",
+            destination_group_key="games",
+        )
+        PresetSetupPageBase._queue_profile_preset_write_operation(
+            page,
+            "move",
+            action="after",
+            source_profile_key="profile-c",
+            destination_profile_key="profile-d",
+            destination_group_key="games",
+        )
+
+        self.assertEqual(len(page._pending_profile_preset_write_operations), 2)
+        self.assertEqual(len(page._pending_profile_moves), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

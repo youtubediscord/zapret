@@ -675,6 +675,23 @@ class PresetSetupPageBase(BasePage):
                     and str(pending.get("profile_key") or "") == profile_key_to_replace
                 )
             ]
+        if operation["kind"] == "move":
+            source_profile_key_to_replace = str(operation["source_profile_key"] or "")
+            pending_operations = self.__dict__.setdefault("_pending_profile_preset_write_operations", [])
+            pending_operations[:] = [
+                pending
+                for pending in pending_operations
+                if not (
+                    str(pending.get("kind") or "") == "move"
+                    and str(pending.get("source_profile_key") or "") == source_profile_key_to_replace
+                )
+            ]
+            pending_moves = self.__dict__.setdefault("_pending_profile_moves", [])
+            pending_moves[:] = [
+                pending
+                for pending in pending_moves
+                if str(pending.get("source_profile_key") or "") != source_profile_key_to_replace
+            ]
         self.__dict__.setdefault("_pending_profile_preset_write_operations", []).append(operation)
         if operation["kind"] == "context":
             self.__dict__.setdefault("_pending_profile_context_actions", []).append(
