@@ -40,6 +40,8 @@ class _StatusDot:
         self.color = ""
         self.started = 0
         self.stopped = 0
+        self.accessible_name = ""
+        self.properties: dict[str, str] = {}
 
     def set_color(self, color: str) -> None:
         self.color = color
@@ -49,6 +51,15 @@ class _StatusDot:
 
     def stop_pulse(self) -> None:
         self.stopped += 1
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self.accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self.accessible_name = str(text)
+
+    def setProperty(self, name: str, value: str) -> None:  # noqa: N802
+        self.properties[str(name)] = str(value)
 
 
 class _ToggleTarget:
@@ -173,6 +184,37 @@ class ControlStatusDotPulseTests(unittest.TestCase):
 
         self.assertEqual(status_title.accessible_name, "Ошибка запуска")
         self.assertEqual(status_title.accessible_description, "Не удалось запустить процесс обхода блокировок")
+
+    def test_apply_status_plan_sets_screen_reader_dot_state_text(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import apply_status_plan
+
+        status_dot = _StatusDot()
+
+        apply_status_plan(
+            SimpleNamespace(
+                phase="failed",
+                title="Ошибка запуска",
+                description="Не удалось запустить процесс обхода блокировок",
+                dot_color="#f5c04d",
+                pulsing=False,
+                show_start=True,
+                show_stop_only=False,
+                show_stop_and_exit=False,
+            ),
+            status_title=_TextTarget(),
+            status_desc=_TextTarget(),
+            status_dot=status_dot,
+            start_btn=_VisibleTarget(),
+            stop_winws_btn=_VisibleTarget(),
+            stop_and_exit_btn=_VisibleTarget(),
+            update_stop_button_text=lambda: None,
+        )
+
+        self.assertEqual(status_dot.accessible_name, "Индикатор состояния Zapret: Ошибка запуска")
+        self.assertEqual(
+            status_dot.properties.get("screenReaderStateText"),
+            "Индикатор состояния Zapret: Ошибка запуска",
+        )
 
     def test_apply_status_plan_skips_duplicate_render(self) -> None:
         from presets.ui.control.control_page_runtime_shared import apply_status_plan

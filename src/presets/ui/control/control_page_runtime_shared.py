@@ -142,6 +142,7 @@ def apply_status_plan(
     set_text_if_changed(status_desc, plan.description)
     set_state_text(status_title, plan.title)
     set_accessible_description(status_title, plan.description)
+    set_state_text(status_dot, f"Индикатор состояния Zapret: {plan.title}")
     status_dot.set_color(plan.dot_color)
     if plan.pulsing:
         status_dot.start_pulse()
