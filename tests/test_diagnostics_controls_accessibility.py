@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, ProgressBar, PushButton
 
-from diagnostics.ui.build import build_connection_controls
+from diagnostics.ui.build import build_connection_controls, build_connection_log_viewer
 from diagnostics.ui.components import ConnectionStatusBadge
 from diagnostics.ui.runtime_helpers import apply_connection_language, refresh_test_combo_items, set_connection_status
 
@@ -76,6 +76,18 @@ class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
             "Статус диагностики: Тестирование в процессе...",
         )
         self.assertEqual(status_badge.accessibleName(), "Индикатор диагностики: Тестирование в процессе...")
+
+    def test_result_log_viewer_is_named_for_screen_reader(self) -> None:
+        parent = QWidget()
+        layout = QVBoxLayout(parent)
+
+        widgets = build_connection_log_viewer(
+            container_layout=layout,
+            tr_fn=lambda _key, default: default,
+        )
+
+        self.assertEqual(widgets.result_text.accessibleName(), "Результат диагностики соединений")
+        self.assertIn("ход и итог проверки Discord и YouTube", widgets.result_text.accessibleDescription())
 
     def test_connection_language_refresh_keeps_screen_reader_descriptions(self) -> None:
         parent = QWidget()

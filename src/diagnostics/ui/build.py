@@ -212,6 +212,14 @@ def build_connection_log_viewer(*, container_layout, tr_fn):
     log_card = SettingsCard(tr_fn("page.connection.card.result", "Результат тестирования"))
     result_text = ScrollBlockingConnectionTextEdit()
     result_text.setReadOnly(True)
+    set_control_accessibility(
+        result_text,
+        name=tr_fn("page.connection.result.accessible_name", "Результат диагностики соединений"),
+        description=tr_fn(
+            "page.connection.result.accessible_description",
+            "Показывает ход и итог проверки Discord и YouTube.",
+        ),
+    )
     apply_text_line_limit(result_text, DIAGNOSTICS_LOG_VIEW_MAX_LINES)
     log_card.add_widget(result_text)
     container_layout.addWidget(log_card)
