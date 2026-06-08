@@ -14,8 +14,9 @@ class ModeControlRefreshRuntime:
         )
         self.additional_settings_reload_after_preset_switch_scheduled = False
         self.additional_settings_save_runtime = OneShotWorkerRuntime()
-        self.additional_settings_save_pending: list[tuple[str, bool, str]] = []
-        self.additional_settings_save_start_scheduled = False
+        self.additional_settings_save_state = QueuedWorkerState[tuple[str, bool, str]](
+            self.additional_settings_save_runtime,
+        )
         self.additional_settings_request_id = 0
         self.additional_settings_save_request_id = 0
         self.additional_settings_dirty = True
@@ -42,15 +43,16 @@ class ModeControlRefreshRuntime:
         front: bool = False,
     ) -> None:
         item = (str(setting or ""), bool(enabled), str(launch_method or ""))
-        self.additional_settings_save_pending = [
-            pending
-            for pending in self.additional_settings_save_pending
-            if not (pending[0] == item[0] and pending[2] == item[2])
+        pending = self.additional_settings_save_state.pending
+        pending[:] = [
+            queued
+            for queued in pending
+            if not (queued[0] == item[0] and queued[2] == item[2])
         ]
         if front:
-            self.additional_settings_save_pending.insert(0, item)
+            pending.insert(0, item)
         else:
-            self.additional_settings_save_pending.append(item)
+            pending.append(item)
 
     def queue_program_settings_save(self, action: str, enabled: bool, *, front: bool = False) -> None:
         item = (str(action or ""), bool(enabled))
@@ -104,6 +106,25 @@ class ModeControlRefreshRuntime:
     @additional_settings_load_start_scheduled.setter
     def additional_settings_load_start_scheduled(self, value: bool) -> None:
         self.additional_settings_load_state.start_scheduled = bool(value)
+
+    @property
+    def additional_settings_save_pending(self) -> list[tuple[str, bool, str]]:
+        return self.additional_settings_save_state.pending
+
+    @additional_settings_save_pending.setter
+    def additional_settings_save_pending(self, value: list[tuple[str, bool, str]]) -> None:
+        self.additional_settings_save_state.pending[:] = [
+            (str(item[0] or ""), bool(item[1]), str(item[2] or ""))
+            for item in (value or [])
+        ]
+
+    @property
+    def additional_settings_save_start_scheduled(self) -> bool:
+        return bool(self.additional_settings_save_state.start_scheduled)
+
+    @additional_settings_save_start_scheduled.setter
+    def additional_settings_save_start_scheduled(self, value: bool) -> None:
+        self.additional_settings_save_state.start_scheduled = bool(value)
 
     @property
     def top_summary_pending(self) -> bool:

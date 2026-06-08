@@ -4,6 +4,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from ui.queued_worker_state import QueuedWorkerState
+
 
 class _SaveRuntime:
     def __init__(self, *, running: bool) -> None:
@@ -25,6 +27,7 @@ def _make_refresh_runtime(*, running: bool):
     save_runtime = _SaveRuntime(running=running)
     runtime = ModeControlRefreshRuntime()
     runtime.additional_settings_save_runtime = save_runtime
+    runtime.additional_settings_save_state.runtime = save_runtime
     runtime.additional_settings_save_request_id = 1
     runtime.additional_settings_request_id = 0
     runtime.additional_settings_dirty = False
@@ -43,6 +46,18 @@ def _make_page(page_cls, runtime):
 
 
 class ControlAdditionalSettingsSaveQueueTests(unittest.TestCase):
+    def test_additional_settings_save_queue_uses_shared_queued_worker_state(self) -> None:
+        import inspect
+
+        from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+
+        runtime = ModeControlRefreshRuntime()
+        runtime_source = inspect.getsource(ModeControlRefreshRuntime.__init__)
+
+        self.assertIsInstance(runtime.additional_settings_save_state, QueuedWorkerState)
+        self.assertNotIn("self.additional_settings_save_pending: list", runtime_source)
+        self.assertNotIn("self.additional_settings_save_start_scheduled = False", runtime_source)
+
     def test_zapret1_additional_settings_save_keeps_pending_toggles_for_different_settings(self) -> None:
         from presets.ui.control.zapret1.page import Zapret1ModeControlPage
 

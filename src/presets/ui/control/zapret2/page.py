@@ -622,10 +622,8 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _request_additional_settings_save(self, setting: str, enabled: bool, *, launch_method: str) -> None:
         runtime = self._refresh_runtime
         runtime.mark_additional_settings_written()
-        if (
-            runtime.additional_settings_save_runtime.is_running()
-            or bool(getattr(runtime, "additional_settings_save_start_scheduled", False))
-        ):
+        state = runtime.additional_settings_save_state
+        if state.is_busy():
             runtime.queue_additional_settings_save(setting, bool(enabled), launch_method)
             return
         self._start_additional_settings_save_worker(setting, enabled, launch_method=launch_method)
@@ -653,7 +651,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _on_additional_settings_save_failed(self, request_id: int, _setting: str, error: str) -> None:
         if request_id != self._refresh_runtime.additional_settings_save_request_id:
             return
-        if self._refresh_runtime.additional_settings_save_pending:
+        if self._refresh_runtime.additional_settings_save_state.has_pending():
             return
         from qfluentwidgets import InfoBar
 
@@ -661,31 +659,48 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _on_additional_settings_save_worker_finished(self, worker) -> None:
         runtime = self._refresh_runtime
-        if not runtime.accept_worker_finish(worker, "additional_settings_save_request_id"):
-            return
-        pending = runtime.additional_settings_save_pending
-        if pending and not self._cleanup_in_progress:
-            next_save = pending.pop(0)
-            self._schedule_additional_settings_save_start(
-                str(next_save[0]),
-                bool(next_save[1]),
-                launch_method=str(next_save[2]),
-            )
+        state = runtime.additional_settings_save_state
+        state.schedule_next_after_finish(
+            worker,
+            is_current_worker_finish=lambda _runtime, current_worker: runtime.accept_worker_finish(
+                current_worker,
+                "additional_settings_save_request_id",
+            ),
+            single_shot=QTimer.singleShot,
+            start=lambda item: self._run_scheduled_additional_settings_save_start(
+                str(item[0]),
+                bool(item[1]),
+                launch_method=str(item[2]),
+            ),
+            queue_item=lambda item: runtime.queue_additional_settings_save(
+                str(item[0]),
+                bool(item[1]),
+                str(item[2]),
+                front=True,
+            ),
+            is_cleanup_in_progress=lambda: bool(getattr(self, "_cleanup_in_progress", False)),
+        )
 
     def _schedule_additional_settings_save_start(self, setting: str, enabled: bool, *, launch_method: str) -> None:
         runtime = self._refresh_runtime
-        if bool(getattr(runtime, "additional_settings_save_start_scheduled", False)):
-            runtime.queue_additional_settings_save(setting, bool(enabled), launch_method, front=True)
-            return
-        runtime.additional_settings_save_start_scheduled = True
+        state = runtime.additional_settings_save_state
+        item = (str(setting or ""), bool(enabled), str(launch_method or ""))
         try:
-            QTimer.singleShot(
-                0,
-                lambda: self._run_scheduled_additional_settings_save_start(
-                    str(setting or ""),
-                    bool(enabled),
-                    launch_method=str(launch_method or ""),
+            state.schedule_start(
+                item,
+                QTimer.singleShot,
+                lambda pending: self._run_scheduled_additional_settings_save_start(
+                    str(pending[0]),
+                    bool(pending[1]),
+                    launch_method=str(pending[2]),
                 ),
+                queue_item=lambda pending: runtime.queue_additional_settings_save(
+                    str(pending[0]),
+                    bool(pending[1]),
+                    str(pending[2]),
+                    front=True,
+                ),
+                is_cleanup_in_progress=lambda: bool(getattr(self, "_cleanup_in_progress", False)),
             )
         except Exception:
             self._run_scheduled_additional_settings_save_start(
@@ -701,7 +716,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         *,
         launch_method: str,
     ) -> None:
-        self._refresh_runtime.additional_settings_save_start_scheduled = False
+        self._refresh_runtime.additional_settings_save_state.start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         self._start_additional_settings_save_worker(
