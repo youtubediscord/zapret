@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import unittest
+from types import SimpleNamespace
 
 import log.ui.logs_build as logs_build
 import log.ui.page as logs_page
@@ -31,6 +32,39 @@ class _FakeLabel:
         self.properties[name] = value
 
 
+class _FakeLogCombo:
+    def __init__(self) -> None:
+        self.items: list[tuple[str, str]] = []
+        self.current_index = -1
+        self.accessible_name = ""
+        self.accessible_description = ""
+
+    def blockSignals(self, _blocked: bool) -> None:  # noqa: N802
+        pass
+
+    def clear(self) -> None:
+        self.items.clear()
+        self.current_index = -1
+
+    def addItem(self, display: str, userData: str = "") -> None:  # noqa: N802
+        self.items.append((display, userData))
+
+    def setCurrentIndex(self, index: int) -> None:  # noqa: N802
+        self.current_index = int(index)
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self.accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self.accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self.accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self.accessible_description = str(text)
+
+
 class LogsAccessibilityTests(unittest.TestCase):
     def test_logs_build_assigns_screen_reader_names_to_core_controls(self) -> None:
         source = inspect.getsource(logs_build.build_logs_primary_tab_ui)
@@ -51,6 +85,25 @@ class LogsAccessibilityTests(unittest.TestCase):
         self.assertIn("def _set_info_text", source)
         self.assertIn("set_info_text_fn=self._set_info_text", source)
         self.assertIn("self._set_info_text(", source)
+
+    def test_log_combo_accessible_name_includes_selected_file(self) -> None:
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._ui_language = "ru"
+        page.log_combo = _FakeLogCombo()
+
+        logs_page.LogsPage._apply_logs_list_state(
+            page,
+            SimpleNamespace(
+                entries=[
+                    {"display": "old.log", "path": "C:/Zapret/Dev/logs/old.log", "is_current": False, "index": 0},
+                    {"display": "current.log", "path": "C:/Zapret/Dev/logs/current.log", "is_current": True, "index": 1},
+                ],
+            ),
+            run_cleanup=False,
+        )
+
+        self.assertEqual(page.log_combo.accessible_name, "Выбор файла лога, выбрано: current.log")
+        self.assertEqual(page.log_combo.accessible_description, "Доступных файлов логов: 2.")
 
     def test_send_status_label_updates_screen_reader_state(self) -> None:
         label = _FakeLabel()

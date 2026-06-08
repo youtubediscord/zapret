@@ -917,17 +917,22 @@ class LogsPage(BasePage):
                 log(f"⚠️ Ошибки при удалении логов: {state.cleanup_errors[:3]}", "DEBUG")
 
             current_index = 0
+            current_display = ""
             for entry in state.entries:
                 if entry["is_current"]:
                     current_index = entry["index"]
+                    current_display = str(entry.get("display") or "")
                 self.log_combo.addItem(entry["display"], userData=entry["path"])
+            combo_name = tr_catalog(
+                "page.logs.accessibility.log_combo.name",
+                language=self._ui_language,
+                default="Выбор файла лога",
+            )
+            if current_display:
+                combo_name = f"{combo_name}, выбрано: {current_display}"
             set_control_accessibility(
                 self.log_combo,
-                name=tr_catalog(
-                    "page.logs.accessibility.log_combo.name",
-                    language=self._ui_language,
-                    default="Выбор файла лога",
-                ),
+                name=combo_name,
                 description=tr_catalog(
                     "page.logs.accessibility.log_combo.count_description",
                     language=self._ui_language,
