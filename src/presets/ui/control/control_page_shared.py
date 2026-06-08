@@ -340,11 +340,9 @@ class ControlPageActionMixin:
 
     def _request_program_settings_load(self) -> None:
         runtime = self._refresh_runtime
-        if (
-            runtime.program_settings_load_runtime.is_running()
-            or bool(getattr(runtime, "program_settings_load_start_scheduled", False))
-        ):
-            runtime.program_settings_load_pending = True
+        state = runtime.program_settings_load_state
+        if state.is_busy():
+            state.pending = True
             return
 
         runtime.program_settings_load_runtime.start_qthread_worker(
@@ -361,7 +359,7 @@ class ControlPageActionMixin:
             cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
         ):
             return
-        if bool(getattr(runtime, "program_settings_load_pending", False)):
+        if runtime.program_settings_load_state.has_pending():
             return
         try:
             self._publish_program_settings_snapshot(snapshot)
@@ -378,7 +376,7 @@ class ControlPageActionMixin:
             cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
         ):
             return
-        if bool(getattr(runtime, "program_settings_load_pending", False)):
+        if runtime.program_settings_load_state.has_pending():
             return
         try:
             from log.log import log
@@ -391,29 +389,39 @@ class ControlPageActionMixin:
         runtime = self._refresh_runtime
         if not self._is_current_worker_finish(runtime.program_settings_load_runtime, _worker):
             return
-        if runtime.program_settings_load_pending and not bool(getattr(self, "_cleanup_in_progress", False)):
-            runtime.program_settings_load_pending = False
-            self._schedule_program_settings_load_start()
+        state = runtime.program_settings_load_state
+        if state.has_pending() and not bool(getattr(self, "_cleanup_in_progress", False)):
+            state.schedule_pending_after_finish(
+                _worker,
+                is_current_worker_finish=self._is_current_worker_finish,
+                single_shot=QTimer.singleShot,
+                run_scheduled=self._run_scheduled_program_settings_load_start,
+                clear_pending_before_schedule=True,
+            )
             return
-        runtime.program_settings_load_pending = False
+        state.pending = False
 
     def _schedule_program_settings_load_start(self) -> None:
         runtime = self._refresh_runtime
-        if bool(getattr(runtime, "program_settings_load_start_scheduled", False)):
-            runtime.program_settings_load_pending = True
+        state = runtime.program_settings_load_state
+        if state.start_scheduled:
+            state.pending = True
             return
-        runtime.program_settings_load_start_scheduled = True
+        state.pending = True
         try:
-            QTimer.singleShot(0, self._run_scheduled_program_settings_load_start)
+            state.schedule_start(QTimer.singleShot, self._run_scheduled_program_settings_load_start)
         except Exception:
             self._run_scheduled_program_settings_load_start()
 
     def _run_scheduled_program_settings_load_start(self) -> None:
         runtime = self._refresh_runtime
-        runtime.program_settings_load_start_scheduled = False
-        if bool(getattr(self, "_cleanup_in_progress", False)):
+        state = runtime.program_settings_load_state
+        was_scheduled = bool(state.start_scheduled)
+        pending = state.take_pending_for_scheduled_start(
+            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
+        )
+        if pending is False and not was_scheduled:
             return
-        runtime.program_settings_load_pending = False
         self._request_program_settings_load()
 
     def _request_program_settings_save(self, action: str, enabled: bool) -> None:

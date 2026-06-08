@@ -23,8 +23,10 @@ class ModeControlRefreshRuntime:
         self.top_summary_reload_after_preset_switch_scheduled = False
         self.top_summary_request_id = 0
         self.program_settings_load_runtime = OneShotWorkerRuntime()
-        self.program_settings_load_pending = False
-        self.program_settings_load_start_scheduled = False
+        self.program_settings_load_state = LatestValueWorkerState(
+            self.program_settings_load_runtime,
+            empty_value=False,
+        )
         self.program_settings_save_runtime = OneShotWorkerRuntime()
         self.program_settings_save_pending: list[tuple[str, bool]] = []
         self.program_settings_save_start_scheduled = False
@@ -115,6 +117,22 @@ class ModeControlRefreshRuntime:
     @top_summary_start_scheduled.setter
     def top_summary_start_scheduled(self, value: bool) -> None:
         self.top_summary_state.start_scheduled = bool(value)
+
+    @property
+    def program_settings_load_pending(self) -> bool:
+        return bool(self.program_settings_load_state.pending)
+
+    @program_settings_load_pending.setter
+    def program_settings_load_pending(self, value: bool) -> None:
+        self.program_settings_load_state.pending = bool(value)
+
+    @property
+    def program_settings_load_start_scheduled(self) -> bool:
+        return bool(self.program_settings_load_state.start_scheduled)
+
+    @program_settings_load_start_scheduled.setter
+    def program_settings_load_start_scheduled(self, value: bool) -> None:
+        self.program_settings_load_state.start_scheduled = bool(value)
 
     def accept_additional_settings_result(self, request_id: int) -> bool:
         if int(request_id) != int(self.additional_settings_request_id):

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from presets.ui.control.control_page_shared import ControlPageActionMixin
+from ui.latest_value_worker_state import LatestValueWorkerState
 
 
 class _LoadRuntime:
@@ -27,16 +28,28 @@ class _Page(ControlPageActionMixin):
 
 class ControlProgramSettingsLoadQueueTests(unittest.TestCase):
     def _make_page(self, *, running: bool):
+        from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+
         load_runtime = _LoadRuntime(running=running)
         page = _Page()
         page._cleanup_in_progress = False
-        page._refresh_runtime = SimpleNamespace(
-            program_settings_load_runtime=load_runtime,
-            program_settings_load_pending=False,
-            program_settings_load_start_scheduled=False,
-        )
+        page._refresh_runtime = ModeControlRefreshRuntime()
+        page._refresh_runtime.program_settings_load_runtime = load_runtime
+        page._refresh_runtime.program_settings_load_state.runtime = load_runtime
         page.create_program_settings_load_worker = Mock(return_value=object())
         return page, load_runtime
+
+    def test_program_settings_load_queue_uses_shared_latest_worker_state(self) -> None:
+        import inspect
+
+        from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+
+        runtime = ModeControlRefreshRuntime()
+        runtime_source = inspect.getsource(ModeControlRefreshRuntime.__init__)
+
+        self.assertIsInstance(runtime.program_settings_load_state, LatestValueWorkerState)
+        self.assertNotIn("self.program_settings_load_pending = False", runtime_source)
+        self.assertNotIn("self.program_settings_load_start_scheduled = False", runtime_source)
 
     def test_program_settings_load_marks_pending_while_worker_runs(self) -> None:
         page, load_runtime = self._make_page(running=True)
