@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -8,6 +9,22 @@ from blockcheck.ui.page import BlockcheckPage
 
 
 class BlockcheckSupportPrepareQueueTests(unittest.TestCase):
+    def test_support_prepare_state_uses_shared_latest_value_helper(self) -> None:
+        import blockcheck.ui.page as blockcheck_page
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        init_source = inspect.getsource(BlockcheckPage.__init__)
+        request_source = inspect.getsource(BlockcheckPage._request_support_prepare)
+        finished_source = inspect.getsource(BlockcheckPage._on_support_prepare_runtime_finished)
+        cleanup_source = inspect.getsource(BlockcheckPage.cleanup)
+
+        self.assertTrue(hasattr(blockcheck_page, "LatestValueWorkerState"))
+        self.assertIs(blockcheck_page.LatestValueWorkerState, LatestValueWorkerState)
+        self.assertIn("_support_prepare_state = LatestValueWorkerState", init_source)
+        self.assertIn("_support_prepare_state_obj()", request_source)
+        self.assertIn("schedule_pending_after_finish", finished_source)
+        self.assertIn("_support_prepare_state_obj().reset()", cleanup_source)
+
     def test_support_prepare_queues_latest_request_while_worker_runs(self) -> None:
         class _Runtime:
             def is_running(self) -> bool:
