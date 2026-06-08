@@ -38,9 +38,11 @@ class TelegramProxyStartWorker(QThread):
         host: str,
         build_upstream_config,
         build_cloudflare_config,
+        build_dc_endpoint_overrides=None,
         upstream_config=None,
         cloudflare_config=None,
         mtproxy_secret: str = "",
+        dc_endpoint_overrides=None,
         parent=None,
     ):
         super().__init__(parent)
@@ -50,9 +52,11 @@ class TelegramProxyStartWorker(QThread):
         self._host = str(host or "127.0.0.1")
         self._build_upstream_config = build_upstream_config
         self._build_cloudflare_config = build_cloudflare_config
+        self._build_dc_endpoint_overrides = build_dc_endpoint_overrides or (lambda: {})
         self._upstream_config = upstream_config
         self._cloudflare_config = cloudflare_config
         self._mtproxy_secret = str(mtproxy_secret or "")
+        self._dc_endpoint_overrides = dc_endpoint_overrides
 
     def run(self) -> None:
         try:
@@ -62,6 +66,9 @@ class TelegramProxyStartWorker(QThread):
             cloudflare_config = self._cloudflare_config
             if cloudflare_config is None:
                 cloudflare_config = self._build_cloudflare_config()
+            dc_endpoint_overrides = self._dc_endpoint_overrides
+            if dc_endpoint_overrides is None:
+                dc_endpoint_overrides = self._build_dc_endpoint_overrides()
             ok = self._manager.start_proxy(
                 port=self._port,
                 mode=self._mode,
@@ -69,6 +76,7 @@ class TelegramProxyStartWorker(QThread):
                 upstream_config=upstream_config,
                 cloudflare_config=cloudflare_config,
                 mtproxy_secret=self._mtproxy_secret,
+                dc_endpoint_overrides=dc_endpoint_overrides,
             )
         except Exception as exc:
             log(f"TelegramProxyStartWorker: ошибка запуска proxy: {exc}", "WARNING")

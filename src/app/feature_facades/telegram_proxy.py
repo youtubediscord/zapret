@@ -22,6 +22,7 @@ class TelegramProxyFeature:
     set_enabled: Callable
     build_upstream_config: Callable
     build_cloudflare_config: Callable
+    build_dc_endpoint_overrides: Callable
     load_page_initial_state: Callable
     save_settings_action: Callable
     check_relay_reachable: Callable
@@ -84,6 +85,7 @@ class TelegramProxyFeature:
         upstream_config=None,
         cloudflare_config=None,
         mtproxy_secret: str = "",
+        dc_endpoint_overrides=None,
         parent=None,
     ):
         from telegram_proxy.runtime.workers import TelegramProxyStartWorker
@@ -96,8 +98,10 @@ class TelegramProxyFeature:
             upstream_config=upstream_config,
             cloudflare_config=cloudflare_config,
             mtproxy_secret=mtproxy_secret,
+            dc_endpoint_overrides=dc_endpoint_overrides,
             build_upstream_config=self.build_upstream_config,
             build_cloudflare_config=self.build_cloudflare_config,
+            build_dc_endpoint_overrides=self.build_dc_endpoint_overrides,
             parent=parent,
         )
 
@@ -246,6 +250,7 @@ class TelegramProxyFeature:
                     upstream_config=config.upstream_config,
                     cloudflare_config=config.cloudflare_config,
                     mtproxy_secret=config.mtproxy_secret,
+                    dc_endpoint_overrides=config.dc_endpoint_overrides,
                 ),
                 on_finished=self._on_tray_toggle_worker_finished,
                 signal_includes_request_id=False,
@@ -349,6 +354,7 @@ def build_telegram_proxy_feature() -> TelegramProxyFeature:
         set_enabled=lambda *args, **kwargs: _public().set_enabled(*args, **kwargs),
         build_upstream_config=lambda *args, **kwargs: _commands().build_upstream_config(*args, **kwargs),
         build_cloudflare_config=lambda *args, **kwargs: _commands().build_cloudflare_config(*args, **kwargs),
+        build_dc_endpoint_overrides=lambda *args, **kwargs: _commands().build_dc_endpoint_overrides(*args, **kwargs),
         load_page_initial_state=lambda *args, **kwargs: _commands().load_page_initial_state(*args, **kwargs),
         save_settings_action=lambda *args, **kwargs: _commands().save_settings_action(*args, **kwargs),
         check_relay_reachable=lambda *args, **kwargs: _commands().check_relay_reachable(*args, **kwargs),

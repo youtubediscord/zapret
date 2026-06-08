@@ -26,15 +26,29 @@ def _get_proxy_module_path() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def build_service_args(port: int = 1353, mode: str = "socks5", mtproxy_secret: str = "") -> str:
+def build_service_args(
+    port: int = 1353,
+    mode: str = "socks5",
+    mtproxy_secret: str = "",
+    dc_ip: object = (),
+) -> str:
+    from telegram_proxy.proxy.dc_map import parse_dc_endpoint_overrides
+
     args = f"-m telegram_proxy --port {int(port)} --mode {str(mode or 'socks5')}"
     secret = str(mtproxy_secret or "").strip()
     if str(mode or "").strip().lower() == "mtproxy" and secret:
         args += f" --secret {secret}"
+    for dc, ip in parse_dc_endpoint_overrides(dc_ip).items():
+        args += f" --dc-ip {dc}:{ip}"
     return args
 
 
-def create_tg_proxy_service(port: int = 1353, mode: str = "socks5", mtproxy_secret: str = "") -> bool:
+def create_tg_proxy_service(
+    port: int = 1353,
+    mode: str = "socks5",
+    mtproxy_secret: str = "",
+    dc_ip: object = (),
+) -> bool:
     """Create a Windows service for the Telegram proxy.
 
     Uses NSSM if available, falls back to native Windows API.
@@ -42,7 +56,7 @@ def create_tg_proxy_service(port: int = 1353, mode: str = "socks5", mtproxy_secr
     try:
         python_exe = _get_python_exe()
         # Service runs: python.exe -m telegram_proxy --port PORT --mode MODE
-        args = build_service_args(port=port, mode=mode, mtproxy_secret=mtproxy_secret)
+        args = build_service_args(port=port, mode=mode, mtproxy_secret=mtproxy_secret, dc_ip=dc_ip)
         work_dir = os.path.dirname(_get_proxy_module_path())
 
         # Try NSSM first (better restart handling)

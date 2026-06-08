@@ -114,6 +114,7 @@ def default_telegram_proxy() -> dict[str, Any]:
         "cloudflare_worker_enabled": False,
         "cloudflare_worker_domains": [],
         "mtproxy_secret": "",
+        "dc_ip": [],
     }
 
 

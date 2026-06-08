@@ -24,6 +24,7 @@ class TelegramProxyStartConfig:
     upstream_config: object | None
     cloudflare_config: object | None
     mtproxy_secret: str
+    dc_endpoint_overrides: dict[int, str]
 
 
 def get_proxy_manager():
@@ -40,7 +41,7 @@ def start_proxy_if_enabled_async() -> bool:
 
 def get_start_config() -> TelegramProxyStartConfig:
     from settings.store import get_tg_proxy_host, get_tg_proxy_mode, get_tg_proxy_mtproxy_secret, get_tg_proxy_port
-    from telegram_proxy.config.settings import build_cloudflare_config, build_upstream_config
+    from telegram_proxy.config.settings import build_cloudflare_config, build_dc_endpoint_overrides, build_upstream_config
 
     return TelegramProxyStartConfig(
         host=str(get_tg_proxy_host() or "127.0.0.1"),
@@ -49,6 +50,7 @@ def get_start_config() -> TelegramProxyStartConfig:
         upstream_config=build_upstream_config(),
         cloudflare_config=build_cloudflare_config(),
         mtproxy_secret=str(get_tg_proxy_mtproxy_secret() or ""),
+        dc_endpoint_overrides=build_dc_endpoint_overrides(),
     )
 
 
@@ -62,6 +64,12 @@ def build_cloudflare_config():
     from telegram_proxy.config.settings import build_cloudflare_config as _build_cloudflare_config
 
     return _build_cloudflare_config()
+
+
+def build_dc_endpoint_overrides():
+    from telegram_proxy.config.settings import build_dc_endpoint_overrides as _build_dc_endpoint_overrides
+
+    return _build_dc_endpoint_overrides()
 
 
 def copy_text(text: str, *, success_title: str, success_content: str, success_log: str = "") -> TelegramProxyActionResult:
@@ -136,6 +144,8 @@ def save_settings_action(
         return telegram_proxy_settings.set_proxy_mode(value)
     if action_name == "mtproxy_secret":
         return telegram_proxy_settings.set_mtproxy_secret(str(value or ""))
+    if action_name == "dc_ip":
+        return telegram_proxy_settings.set_dc_ip(value)
     if action_name == "upstream_enabled":
         return telegram_proxy_settings.set_upstream_enabled(enabled)
     if action_name == "upstream_fields":

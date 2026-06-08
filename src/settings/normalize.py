@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ipaddress import IPv4Address
 from typing import Any
 
 from settings import schema
@@ -131,6 +132,37 @@ def unique_domain_list(value: object) -> list[str]:
         seen.add(domain)
         result.append(domain)
     return result
+
+
+def unique_dc_ip_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        raw_items = value.replace(",", " ").replace(";", " ").split()
+    elif isinstance(value, (list, tuple, set)):
+        raw_items = []
+        for item in value:
+            if isinstance(item, str):
+                raw_items.extend(item.replace(",", " ").replace(";", " ").split())
+    else:
+        raw_items = []
+
+    by_dc: dict[int, str] = {}
+    order: list[int] = []
+    for item in raw_items:
+        text = item.strip()
+        if ":" not in text:
+            continue
+        dc_text, ip_text = text.split(":", 1)
+        try:
+            dc = int(dc_text.strip())
+            ip = str(IPv4Address(ip_text.strip()))
+        except Exception:
+            continue
+        if dc not in {1, 2, 3, 4, 5, 203}:
+            continue
+        if dc not in by_dc:
+            order.append(dc)
+        by_dc[dc] = ip
+    return [f"{dc}:{by_dc[dc]}" for dc in order]
 
 
 def unique_int_list(value: object) -> list[int]:
@@ -274,6 +306,7 @@ def normalize_telegram_proxy(data: object) -> dict[str, Any]:
         ),
         "cloudflare_worker_domains": unique_domain_list(raw.get("cloudflare_worker_domains")),
         "mtproxy_secret": normalize_hex_secret(raw.get("mtproxy_secret")),
+        "dc_ip": unique_dc_ip_list(raw.get("dc_ip")),
     }
 
 

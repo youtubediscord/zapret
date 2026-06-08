@@ -32,7 +32,7 @@ from telegram_proxy.proxy.dc_map import (
     WSS_DOMAINS,
     WSS_RELAY_IP,
     WSS_PATH,
-    TCP_ENDPOINTS,
+    dc_to_tcp_endpoint,
     # TRANSPARENT_PORT_BASE,  # Transparent mode removed
 )
 from telegram_proxy.proxy import socks5
@@ -103,6 +103,7 @@ class TelegramWSProxy:
         upstream_config: Optional[UpstreamProxyConfig] = None,
         cloudflare_config: Optional[CloudflareFallbackConfig] = None,
         mtproxy_secret: str = "",
+        dc_endpoint_overrides: Optional[dict[int, str]] = None,
     ):
         self._port = port
         self._mode = mode
@@ -112,6 +113,7 @@ class TelegramWSProxy:
         self._cloudflare = cloudflare_config or CloudflareFallbackConfig()
         self._cloudflare_domain_balancer = CloudflareDomainBalancer()
         self._mtproxy_secret = normalize_secret(mtproxy_secret)
+        self._dc_endpoint_overrides = dict(dc_endpoint_overrides or {})
         self._servers: list[asyncio.Server] = []
         self._tasks: set[asyncio.Task] = set()
         self._running = False
@@ -380,7 +382,7 @@ class TelegramWSProxy:
             relay_init = generate_relay_init(parsed.proto_tag, dc=dc, is_media=is_media)
             crypto = build_crypto_context(parsed.client_prekey_iv, self._mtproxy_secret, relay_init)
 
-            target_host, target_port = TCP_ENDPOINTS.get(dc, TCP_ENDPOINTS[2])
+            target_host, target_port = dc_to_tcp_endpoint(dc, self._dc_endpoint_overrides)
             media_tag = " media" if is_media else ""
             self._log(f"[{label}] MTProxy DC{dc}{media_tag} -> {target_host}:{target_port}")
 

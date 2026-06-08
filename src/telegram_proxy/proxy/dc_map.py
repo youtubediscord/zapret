@@ -262,8 +262,40 @@ def ws_domains_for_dc(dc: int, is_media: bool = False) -> list[str]:
     return result
 
 
-def dc_to_tcp_endpoint(dc: int) -> tuple[str, int]:
+def parse_dc_endpoint_overrides(value: object) -> dict[int, str]:
+    """Parse user DC -> IP overrides like "2:149.154.167.220"."""
+    if isinstance(value, str):
+        raw_items = value.replace(",", " ").replace(";", " ").split()
+    elif isinstance(value, (list, tuple, set)):
+        raw_items = []
+        for item in value:
+            if isinstance(item, str):
+                raw_items.extend(item.replace(",", " ").replace(";", " ").split())
+    else:
+        raw_items = []
+
+    overrides: dict[int, str] = {}
+    for item in raw_items:
+        text = item.strip()
+        if ":" not in text:
+            continue
+        dc_text, ip_text = text.split(":", 1)
+        try:
+            dc = int(dc_text.strip())
+            ip = str(IPv4Address(ip_text.strip()))
+        except Exception:
+            continue
+        if dc not in {1, 2, 3, 4, 5, 203}:
+            continue
+        overrides[dc] = ip
+    return overrides
+
+
+def dc_to_tcp_endpoint(dc: int, overrides: dict[int, str] | None = None) -> tuple[str, int]:
     """Get direct TCP endpoint for a datacenter (fallback)."""
+    override_ip = (overrides or {}).get(int(dc))
+    if override_ip:
+        return override_ip, 443
     return TCP_ENDPOINTS.get(dc, TCP_ENDPOINTS[2])
 
 

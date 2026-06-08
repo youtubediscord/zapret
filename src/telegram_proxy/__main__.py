@@ -4,6 +4,7 @@
 Usage:
     python -m telegram_proxy --port 1353 --mode socks5
     python -m telegram_proxy --port 1443 --mode mtproxy --secret HEX_SECRET
+    python -m telegram_proxy --mode mtproxy --dc-ip 2:149.154.167.220
     python -m telegram_proxy --port 1353
 """
 
@@ -14,6 +15,7 @@ import signal
 import sys
 
 from telegram_proxy.wss_proxy import TelegramWSProxy
+from telegram_proxy.proxy.dc_map import parse_dc_endpoint_overrides
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -31,6 +33,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--secret", default="",
         help="MTProxy secret: 32 hex characters",
+    )
+    parser.add_argument(
+        "--dc-ip",
+        action="append",
+        default=[],
+        help="MTProxy target IP for a DC, for example: --dc-ip 2:149.154.167.220",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
@@ -55,6 +63,7 @@ def main():
         port=args.port,
         mode=args.mode,
         mtproxy_secret=args.secret,
+        dc_endpoint_overrides=parse_dc_endpoint_overrides(args.dc_ip),
         on_log=lambda msg: print(f"[TG-PROXY] {msg}"),
     )
 

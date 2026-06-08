@@ -60,7 +60,8 @@ class TelegramProxyManager(QThread):
     def start_proxy(self, port: int = 1353, mode: str = "socks5", host: str = "127.0.0.1",
                     upstream_config: Optional[UpstreamProxyConfig] = None,
                     cloudflare_config: Optional[CloudflareFallbackConfig] = None,
-                    mtproxy_secret: str = "") -> bool:
+                    mtproxy_secret: str = "",
+                    dc_endpoint_overrides: Optional[dict[int, str]] = None) -> bool:
         """Start the proxy. Thread-safe, non-blocking."""
         if self.is_running:
             return False
@@ -73,6 +74,7 @@ class TelegramProxyManager(QThread):
             upstream_config=upstream_config,
             cloudflare_config=cloudflare_config,
             mtproxy_secret=mtproxy_secret,
+            dc_endpoint_overrides=dc_endpoint_overrides,
         )
         ok = self._runtime.start()
         if ok:
@@ -104,7 +106,8 @@ class TelegramProxyManager(QThread):
     def restart_proxy(self, port: int = 1353, mode: str = "socks5", host: str = "127.0.0.1",
                       upstream_config: Optional[UpstreamProxyConfig] = None,
                       cloudflare_config: Optional[CloudflareFallbackConfig] = None,
-                      mtproxy_secret: str = "") -> bool:
+                      mtproxy_secret: str = "",
+                      dc_endpoint_overrides: Optional[dict[int, str]] = None) -> bool:
         """Restart with new config."""
         self.stop_proxy()
         return self.start_proxy(
@@ -114,6 +117,7 @@ class TelegramProxyManager(QThread):
             upstream_config=upstream_config,
             cloudflare_config=cloudflare_config,
             mtproxy_secret=mtproxy_secret,
+            dc_endpoint_overrides=dc_endpoint_overrides,
         )
 
     def cleanup(self) -> None:
@@ -154,6 +158,15 @@ def build_cloudflare_proxy_config_from_settings() -> CloudflareFallbackConfig:
         return CloudflareFallbackConfig()
 
 
+def build_dc_endpoint_overrides_from_settings() -> dict[int, str]:
+    try:
+        import telegram_proxy.config.settings as telegram_proxy_settings
+
+        return telegram_proxy_settings.build_dc_endpoint_overrides()
+    except Exception:
+        return {}
+
+
 def start_proxy_if_enabled_async() -> bool:
     try:
         from settings.store import (
@@ -180,6 +193,7 @@ def start_proxy_if_enabled_async() -> bool:
         mtproxy_secret = get_tg_proxy_mtproxy_secret()
         upstream_config = build_upstream_proxy_config_from_settings()
         cloudflare_config = build_cloudflare_proxy_config_from_settings()
+        dc_endpoint_overrides = build_dc_endpoint_overrides_from_settings()
 
         def _start() -> None:
             try:
@@ -190,6 +204,7 @@ def start_proxy_if_enabled_async() -> bool:
                     upstream_config=upstream_config,
                     cloudflare_config=cloudflare_config,
                     mtproxy_secret=mtproxy_secret,
+                    dc_endpoint_overrides=dc_endpoint_overrides,
                 )
             except Exception:
                 pass

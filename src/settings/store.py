@@ -28,6 +28,7 @@ from settings.normalize import (
     normalize_hex_secret as _normalize_hex_secret,
     normalize_settings as _normalize_settings,
     normalize_lookup_key as _normalize_lookup_key,
+    unique_dc_ip_list as _unique_dc_ip_list,
     unique_domain_list as _unique_domain_list,
     unique_int_list as _unique_int_list,
     unique_str_list as _unique_str_list,
@@ -208,6 +209,11 @@ def _get_str_list(path: tuple[str, ...]) -> list[str]:
 
 def _set_str_list(path: tuple[str, ...], value: object) -> bool:
     _update_settings(lambda data: _set_path_value(data, path, _unique_domain_list(value)))
+    return True
+
+
+def _set_dc_ip_list(path: tuple[str, ...], value: object) -> bool:
+    _update_settings(lambda data: _set_path_value(data, path, _unique_dc_ip_list(value)))
     return True
 
 
@@ -978,6 +984,14 @@ def set_tg_proxy_mtproxy_secret(value: str) -> bool:
     return _set_str(("telegram_proxy", "mtproxy_secret"), _normalize_hex_secret(value))
 
 
+def get_tg_proxy_dc_ip() -> list[str]:
+    return _get_str_list(("telegram_proxy", "dc_ip"))
+
+
+def set_tg_proxy_dc_ip(value: object) -> bool:
+    return _set_dc_ip_list(("telegram_proxy", "dc_ip"), value)
+
+
 def get_orchestra_strict_detection() -> bool:
     return _get_bool(("orchestra", "settings", "strict_detection"), True)
 
@@ -1285,6 +1299,7 @@ __all__ = [
     "get_tg_proxy_cloudflare_enabled",
     "get_tg_proxy_cloudflare_worker_domains",
     "get_tg_proxy_cloudflare_worker_enabled",
+    "get_tg_proxy_dc_ip",
     "get_tg_proxy_enabled",
     "get_tg_proxy_host",
     "get_tg_proxy_mode",
@@ -1375,6 +1390,7 @@ __all__ = [
     "set_tg_proxy_cloudflare_enabled",
     "set_tg_proxy_cloudflare_worker_domains",
     "set_tg_proxy_cloudflare_worker_enabled",
+    "set_tg_proxy_dc_ip",
     "set_tg_proxy_enabled",
     "set_tg_proxy_host",
     "set_tg_proxy_mode",

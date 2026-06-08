@@ -54,10 +54,12 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
                 host="127.0.0.1",
                 upstream_config=None,
                 cloudflare_config=None,
+                dc_endpoint_overrides={},
             )),
             set_enabled=Mock(),
             build_upstream_config=Mock(),
             build_cloudflare_config=Mock(),
+            build_dc_endpoint_overrides=Mock(return_value={}),
             load_page_initial_state=Mock(),
             save_settings_action=Mock(),
             check_relay_reachable=Mock(),
@@ -324,6 +326,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             set_enabled=lambda value: enabled_values.append(bool(value)),
             build_upstream_config=Mock(),
             build_cloudflare_config=Mock(),
+            build_dc_endpoint_overrides=Mock(return_value={}),
             load_page_initial_state=Mock(),
             save_settings_action=Mock(),
             check_relay_reachable=Mock(),
@@ -492,6 +495,7 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
             upstream_config=upstream_config,
             cloudflare_config=cloudflare_config,
             mtproxy_secret="",
+            dc_endpoint_overrides={},
         )
 
     def test_external_links_are_queued_while_worker_runs(self) -> None:

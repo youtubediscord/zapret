@@ -41,17 +41,33 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
 
         self.assertIn("mtproxy", VALID_TG_PROXY_MODES)
         self.assertIn("mtproxy_secret", defaults)
+        self.assertIn("dc_ip", defaults)
         self.assertEqual(default_state().mtproxy_secret, "")
 
         normalized = normalize_telegram_proxy(
             {
                 "mode": "mtproxy",
                 "mtproxy_secret": "  AABBCCDDEEFF00112233445566778899  ",
+                "dc_ip": [
+                    "2:149.154.167.220",
+                    "bad",
+                    "4:999.1.1.1",
+                    "4:149.154.167.220",
+                    "203:91.105.192.100",
+                ],
             }
         )
 
         self.assertEqual(normalized["mode"], "mtproxy")
         self.assertEqual(normalized["mtproxy_secret"], "aabbccddeeff00112233445566778899")
+        self.assertEqual(
+            normalized["dc_ip"],
+            [
+                "2:149.154.167.220",
+                "4:149.154.167.220",
+                "203:91.105.192.100",
+            ],
+        )
 
         invalid = normalize_telegram_proxy({"mtproxy_secret": "bad"})
         self.assertEqual(invalid["mtproxy_secret"], "")
@@ -220,6 +236,7 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
             patch("settings.store.get_tg_proxy_port", return_value=1443),
             patch("settings.store.get_tg_proxy_mode", return_value="mtproxy"),
             patch("settings.store.get_tg_proxy_mtproxy_secret", return_value="aabbccddeeff00112233445566778899"),
+            patch("settings.store.get_tg_proxy_dc_ip", return_value=["4:149.154.167.220"]),
             patch("telegram_proxy.config.settings.build_upstream_config", return_value=None),
             patch("telegram_proxy.config.settings.build_cloudflare_config", return_value=None),
         ):
@@ -227,6 +244,20 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
 
         self.assertEqual(config.mode, "mtproxy")
         self.assertEqual(config.mtproxy_secret, "aabbccddeeff00112233445566778899")
+        self.assertEqual(config.dc_endpoint_overrides, {4: "149.154.167.220"})
+
+    def test_mtproxy_dc_endpoint_override_changes_tcp_target(self) -> None:
+        import inspect
+
+        import telegram_proxy.wss_proxy as wss_proxy
+        from telegram_proxy.proxy.dc_map import dc_to_tcp_endpoint, parse_dc_endpoint_overrides
+
+        overrides = parse_dc_endpoint_overrides(["4:149.154.167.220"])
+
+        self.assertEqual(overrides, {4: "149.154.167.220"})
+        self.assertEqual(dc_to_tcp_endpoint(4, overrides), ("149.154.167.220", 443))
+        self.assertIn("dc_to_tcp_endpoint(dc, self._dc_endpoint_overrides)", inspect.getsource(wss_proxy.TelegramWSProxy._handle_mtproxy_client))
+        self.assertNotIn("TCP_ENDPOINTS.get(dc", inspect.getsource(wss_proxy.TelegramWSProxy._handle_mtproxy_client))
 
     def test_standalone_cli_accepts_mtproxy_mode_and_secret(self) -> None:
         from telegram_proxy.__main__ import build_arg_parser
@@ -240,12 +271,17 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
                 "mtproxy",
                 "--secret",
                 "aabbccddeeff00112233445566778899",
+                "--dc-ip",
+                "2:149.154.167.220",
+                "--dc-ip",
+                "4:149.154.167.220",
             ]
         )
 
         self.assertEqual(args.port, 1443)
         self.assertEqual(args.mode, "mtproxy")
         self.assertEqual(args.secret, "aabbccddeeff00112233445566778899")
+        self.assertEqual(args.dc_ip, ["2:149.154.167.220", "4:149.154.167.220"])
 
     def test_windows_service_command_can_pass_mtproxy_secret(self) -> None:
         from telegram_proxy.service import build_service_args
@@ -254,11 +290,12 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
             port=1443,
             mode="mtproxy",
             mtproxy_secret="aabbccddeeff00112233445566778899",
+            dc_ip=["2:149.154.167.220", "4:149.154.167.220"],
         )
 
         self.assertEqual(
             args,
-            "-m telegram_proxy --port 1443 --mode mtproxy --secret aabbccddeeff00112233445566778899",
+            "-m telegram_proxy --port 1443 --mode mtproxy --secret aabbccddeeff00112233445566778899 --dc-ip 2:149.154.167.220 --dc-ip 4:149.154.167.220",
         )
 
     def test_page_links_follow_selected_local_proxy_mode(self) -> None:

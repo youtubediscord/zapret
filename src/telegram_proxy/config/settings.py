@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from telegram_proxy.config.upstream_catalog import UpstreamCatalog
 from telegram_proxy.proxy.cloudflare import AUTO_CLOUDFLARE_DOMAINS, CloudflareFallbackConfig, normalize_domain_list
+from telegram_proxy.proxy.dc_map import parse_dc_endpoint_overrides
 from telegram_proxy.proxy.mtproxy import build_mtproxy_link, generate_secret, normalize_secret
 
 
@@ -24,6 +25,7 @@ class TelegramProxySettingsState:
     cloudflare_worker_enabled: bool
     cloudflare_worker_domains: tuple[str, ...]
     mtproxy_secret: str
+    dc_ip: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -53,6 +55,7 @@ def default_state() -> TelegramProxySettingsState:
         cloudflare_worker_enabled=False,
         cloudflare_worker_domains=(),
         mtproxy_secret="",
+        dc_ip=(),
     )
 
 def validate_host(host: str) -> bool:
@@ -119,6 +122,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
     cloudflare_domains = normalize_domain_list(raw.get("cloudflare_domains"))
     cloudflare_worker_domains = normalize_domain_list(raw.get("cloudflare_worker_domains"))
     mtproxy_secret = normalize_secret(raw.get("mtproxy_secret"))
+    dc_ip = tuple(f"{dc}:{ip}" for dc, ip in parse_dc_endpoint_overrides(raw.get("dc_ip")).items())
 
     return TelegramProxySettingsState(
         host=normalize_host(raw.get("host")),
@@ -141,6 +145,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
         cloudflare_worker_enabled=bool(raw.get("cloudflare_worker_enabled", False)),
         cloudflare_worker_domains=cloudflare_worker_domains,
         mtproxy_secret=mtproxy_secret,
+        dc_ip=dc_ip,
     )
 
 
@@ -205,6 +210,18 @@ def set_mtproxy_secret(secret: str) -> str:
     except Exception:
         pass
     return normalized
+
+
+def set_dc_ip(value: object) -> tuple[str, ...]:
+    overrides = parse_dc_endpoint_overrides(value)
+    result = tuple(f"{dc}:{ip}" for dc, ip in overrides.items())
+    try:
+        from settings.store import set_tg_proxy_dc_ip
+
+        set_tg_proxy_dc_ip(list(result))
+    except Exception:
+        pass
+    return result
 
 def set_upstream_enabled(enabled: bool) -> None:
     try:
@@ -301,6 +318,15 @@ def build_cloudflare_config() -> CloudflareFallbackConfig:
         )
     except Exception:
         return CloudflareFallbackConfig()
+
+
+def build_dc_endpoint_overrides() -> dict[int, str]:
+    try:
+        from settings.store import get_tg_proxy_dc_ip
+
+        return parse_dc_endpoint_overrides(get_tg_proxy_dc_ip())
+    except Exception:
+        return {}
 
 
 def load_upstream_test_target() -> tuple[str, int] | None:
