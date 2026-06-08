@@ -285,6 +285,10 @@ def update_sidebar_search_suggestions(window) -> None:
     for match in matches:
         title, location = format_search_result(match.entry, language=session.ui_language)
         item = QStandardItem(f"{title} - {location}")
+        item.setData(
+            f"Результат поиска: {title}, место: {location}",
+            int(Qt.ItemDataRole.AccessibleTextRole),
+        )
         item.setData(match.entry.page_name.name, _PAGE_ROLE)
         item.setData(match.entry.tab_key or "", _TAB_ROLE)
         item.setData(match.entry.query_text or "", _QUERY_ROLE)

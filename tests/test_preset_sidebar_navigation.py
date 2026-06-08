@@ -1302,6 +1302,50 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         session.sidebar_search_profile_loader.assert_called_once_with(ZAPRET2_MODE)
         session.sidebar_search_preset_loader.assert_called_once_with(ZAPRET2_MODE)
 
+    def test_sidebar_search_suggestions_expose_screen_reader_text(self) -> None:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QStandardItemModel
+
+        from app.page_names import PageName
+        from app.search_index import SearchEntry, SearchMatch
+        import ui.navigation.search as sidebar_search
+
+        class _Completer:
+            def popup(self):
+                return SimpleNamespace(hide=Mock())
+
+        entry = SearchEntry(
+            "runtime.profile.discord",
+            PageName.ZAPRET2_PRESET_SETUP,
+            title="Discord Voice",
+            location="Готовые стратегии",
+            query_text="Discord Voice",
+        )
+        model = QStandardItemModel()
+        session = SimpleNamespace(
+            nav_search_query="Discord",
+            ui_language="ru",
+            sidebar_search_model=model,
+            sidebar_search_completer=_Completer(),
+            sidebar_search_nav_widget=SimpleNamespace(isVisible=lambda: False),
+        )
+        window = SimpleNamespace(ui_session=session)
+
+        with (
+            patch.object(sidebar_search, "get_sidebar_search_pages", return_value={PageName.ZAPRET2_PRESET_SETUP}),
+            patch.object(sidebar_search, "_build_runtime_search_entries", return_value=()),
+            patch.object(sidebar_search, "find_search_entries", return_value=(SearchMatch(entry, 10),)),
+        ):
+            sidebar_search.update_sidebar_search_suggestions(window)
+
+        item = model.item(0)
+
+        self.assertEqual(item.text(), "Discord Voice - Готовые стратегии")
+        self.assertEqual(
+            item.data(Qt.ItemDataRole.AccessibleTextRole),
+            "Результат поиска: Discord Voice, место: Готовые стратегии",
+        )
+
     def test_sidebar_search_reuses_runtime_entries_cache_while_typing(self) -> None:
         from settings.mode import ZAPRET2_MODE
         import ui.navigation.search as sidebar_search
