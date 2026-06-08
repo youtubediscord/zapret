@@ -3,15 +3,53 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtCore import QPoint, QTimer, Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import QListView, QVBoxLayout, QWidget
 
+from log.log import log
+from profile.list_view_state import build_profile_list_view_state
 from profile.ui.profile_list_delegate import ProfileListDelegate
 from profile.ui.profile_list_model import ProfileListModel
 from profile.ui.profile_list_view import ProfileListView
 from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
+from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.smooth_scroll import apply_page_smooth_scroll_preference, apply_smooth_scroll_mode
 from ui.widgets.fluent_scrollbar import install_fluent_scrollbars
+
+
+class ProfileListViewStateWorker(QThread):
+    loaded = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        items: tuple[Any, ...],
+        active_profile_types: set[str],
+        search_query: str,
+        group_expanded: dict[str, bool],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._items = tuple(items or ())
+        self._active_profile_types = set(active_profile_types or {"all"})
+        self._search_query = str(search_query or "")
+        self._group_expanded = dict(group_expanded or {})
+
+    def run(self) -> None:
+        try:
+            state = build_profile_list_view_state(
+                self._items,
+                active_profile_types=self._active_profile_types,
+                search_query=self._search_query,
+                group_expanded=self._group_expanded,
+            )
+        except Exception as exc:
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.loaded.emit(self._request_id, state)
 
 
 class ProfilesList(QWidget):
@@ -28,6 +66,9 @@ class ProfilesList(QWidget):
         super().__init__(parent)
         self._active_profile_types: set[str] = {"all"}
         self._search_query = ""
+        self._view_state_runtime = OneShotWorkerRuntime()
+        self._view_state_runtime_worker = None
+        self._view_state_rebuild_pending = False
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -180,7 +221,7 @@ class ProfilesList(QWidget):
         if self._search_query == value:
             return
         self._search_query = value
-        self._model.set_search_query(self._search_query)
+        self._request_view_state_rebuild()
 
     def _on_view_clicked(self, index) -> None:
         if not index.isValid():
@@ -206,7 +247,69 @@ class ProfilesList(QWidget):
         if self._active_profile_types == active:
             return
         self._active_profile_types = active
-        self._model.set_active_profile_types(self._active_profile_types)
+        self._request_view_state_rebuild()
+
+    def _request_view_state_rebuild(self) -> None:
+        runtime = self.__dict__.get("_view_state_runtime")
+        if runtime is None:
+            runtime = OneShotWorkerRuntime()
+            self._view_state_runtime = runtime
+        if runtime.is_running():
+            self._view_state_rebuild_pending = True
+            return
+        self._start_view_state_worker()
+
+    def _start_view_state_worker(self) -> None:
+        runtime = self.__dict__.get("_view_state_runtime")
+        if runtime is None:
+            runtime = OneShotWorkerRuntime()
+            self._view_state_runtime = runtime
+        options = self._model.view_state_options()
+        items = tuple(options.get("items") or ())
+        group_expanded = dict(options.get("group_expanded") or {})
+        active_profile_types = set(self._active_profile_types or {"all"})
+        search_query = str(self._search_query or "")
+
+        _request_id, worker = runtime.start_qthread_worker(
+            worker_factory=lambda request_id: ProfileListViewStateWorker(
+                request_id,
+                items=items,
+                active_profile_types=active_profile_types,
+                search_query=search_query,
+                group_expanded=group_expanded,
+                parent=self,
+            ),
+            on_loaded=self._on_view_state_loaded,
+            on_failed=self._on_view_state_failed,
+            on_finished=self._on_view_state_worker_finished,
+        )
+        self._view_state_runtime_worker = worker
+
+    def _on_view_state_loaded(self, request_id: int, state) -> None:
+        runtime = self.__dict__.get("_view_state_runtime")
+        if runtime is None or not runtime.is_current(request_id):
+            return
+        if self.__dict__.get("_view_state_rebuild_pending", False):
+            return
+        self.apply_view_state(state)
+
+    def _on_view_state_failed(self, request_id: int, error: str) -> None:
+        runtime = self.__dict__.get("_view_state_runtime")
+        if runtime is None or not runtime.is_current(request_id):
+            return
+        log(f"ProfilesList: не удалось подготовить фильтр profile-списка: {error}", "ERROR")
+
+    def _on_view_state_worker_finished(self, worker) -> None:
+        if worker is not self.__dict__.get("_view_state_runtime_worker"):
+            return
+        self._view_state_runtime_worker = None
+        if not self.__dict__.get("_view_state_rebuild_pending", False):
+            return
+        self._view_state_rebuild_pending = False
+        try:
+            QTimer.singleShot(0, self._start_view_state_worker)
+        except Exception:
+            self._start_view_state_worker()
 
     def _group_keys(self) -> tuple[str, ...]:
         keys: list[str] = []

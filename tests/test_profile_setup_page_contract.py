@@ -605,6 +605,20 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         profiles_list._model.set_search_query.assert_not_called()
 
+    def test_profile_list_search_requests_worker_view_state_rebuild(self) -> None:
+        profiles_list = ProfilesList.__new__(ProfilesList)
+        profiles_list._search_query = ""
+        profiles_list._model = SimpleNamespace(
+            set_search_query=Mock(side_effect=AssertionError("search rows must be built in worker"))
+        )
+        profiles_list._request_view_state_rebuild = Mock()
+
+        ProfilesList.set_search_query(profiles_list, "youtube")
+
+        self.assertEqual(profiles_list._search_query, "youtube")
+        profiles_list._model.set_search_query.assert_not_called()
+        profiles_list._request_view_state_rebuild.assert_called_once()
+
     def test_profile_list_skips_duplicate_type_filter(self) -> None:
         profiles_list = ProfilesList.__new__(ProfilesList)
         profiles_list._active_profile_types = {"all"}
@@ -613,6 +627,20 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         ProfilesList._apply_profile_type_filter(profiles_list, {"all"})
 
         profiles_list._model.set_active_profile_types.assert_not_called()
+
+    def test_profile_list_type_filter_requests_worker_view_state_rebuild(self) -> None:
+        profiles_list = ProfilesList.__new__(ProfilesList)
+        profiles_list._active_profile_types = {"all"}
+        profiles_list._model = SimpleNamespace(
+            set_active_profile_types=Mock(side_effect=AssertionError("type filter rows must be built in worker"))
+        )
+        profiles_list._request_view_state_rebuild = Mock()
+
+        ProfilesList._apply_profile_type_filter(profiles_list, {"tcp"})
+
+        self.assertEqual(profiles_list._active_profile_types, {"tcp"})
+        profiles_list._model.set_active_profile_types.assert_not_called()
+        profiles_list._request_view_state_rebuild.assert_called_once()
 
     def test_profile_list_apply_view_state_syncs_widget_filters(self) -> None:
         profiles_list = ProfilesList.__new__(ProfilesList)

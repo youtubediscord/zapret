@@ -115,6 +115,7 @@ class ProfileListModel(QAbstractListModel):
 
     def view_state_options(self) -> dict[str, Any]:
         return {
+            "items": tuple(self._all_items or ()),
             "active_profile_types": set(self._active_profile_types or {"all"}),
             "search_query": str(self._search_query or ""),
             "group_expanded": dict(self._group_expanded or {}),

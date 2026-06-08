@@ -1806,6 +1806,21 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._service.list_profiles", run_source)
         self.assertNotIn("self._profile.list_profiles", run_source)
 
+    def test_profile_list_filter_rebuild_runs_through_worker_runtime(self) -> None:
+        import profile.ui.profiles_list as profiles_list_module
+
+        list_source = inspect.getsource(ProfilesList)
+        search_source = inspect.getsource(ProfilesList.set_search_query)
+        type_source = inspect.getsource(ProfilesList._apply_profile_type_filter)
+        worker_source = inspect.getsource(profiles_list_module.ProfileListViewStateWorker.run)
+
+        self.assertIn("OneShotWorkerRuntime", list_source)
+        self.assertIn("_request_view_state_rebuild", search_source)
+        self.assertIn("_request_view_state_rebuild", type_source)
+        self.assertNotIn("self._model.set_search_query", search_source)
+        self.assertNotIn("self._model.set_active_profile_types", type_source)
+        self.assertIn("build_profile_list_view_state", worker_source)
+
     def test_profile_feature_warms_profile_list_worker_result(self) -> None:
         source = inspect.getsource(ProfileFeature.warm_profile_list)
 
