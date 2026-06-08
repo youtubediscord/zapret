@@ -940,7 +940,11 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
     def test_watched_preset_files_sync_runs_in_small_gui_batches(self) -> None:
         from pathlib import Path
 
-        from presets.user_presets_runtime_service import UserPresetsRuntimeAdapter, UserPresetsRuntimeService
+        from presets.user_presets_runtime_service import (
+            UserPresetsRuntimeAdapter,
+            UserPresetsRuntimeService,
+            UserPresetsWatcherSyncPlan,
+        )
 
         import presets.user_presets_runtime_service as runtime_service
 
@@ -961,6 +965,7 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
         service.attach_page(page, adapter)
         service._file_watcher = _Watcher()
         service._watched_preset_files_sync_batch_size = 2
+        service._watched_preset_files_sync_plan_request_id = 7
         callbacks = []
 
         with patch.object(
@@ -968,9 +973,19 @@ class UserPresetsMetadataLoadQueueTests(unittest.TestCase):
             "QTimer",
             SimpleNamespace(singleShot=lambda _delay, callback: callbacks.append(callback)),
         ):
-            service.sync_watched_preset_files(
+            service._on_watched_preset_files_sync_plan_loaded(
+                7,
+                UserPresetsWatcherSyncPlan(
+                    remove_paths=[],
+                    add_paths=[
+                        str(presets_dir / "Alpha.txt"),
+                        str(presets_dir / "Beta.txt"),
+                        str(presets_dir / "Gamma.txt"),
+                        str(presets_dir / "Omega.txt"),
+                        str(presets_dir / "Zeta.txt"),
+                    ],
+                ),
                 page,
-                {"Alpha.txt", "Beta.txt", "Gamma.txt", "Omega.txt", "Zeta.txt"},
             )
 
             self.assertEqual(

@@ -99,6 +99,22 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
 
         self.assertNotIn("Path(path).exists()", source)
 
+    def test_watcher_sync_builds_path_plan_in_worker(self) -> None:
+        import presets.user_presets_runtime_service as runtime_service
+
+        self.assertTrue(hasattr(runtime_service, "UserPresetsWatcherSyncPlanWorker"))
+        sync_source = inspect.getsource(runtime_service.UserPresetsRuntimeService.sync_watched_preset_files)
+        request_source = inspect.getsource(runtime_service.UserPresetsRuntimeService._request_watched_preset_files_sync_plan)
+        worker_source = inspect.getsource(runtime_service.UserPresetsWatcherSyncPlanWorker.run)
+
+        self.assertIn("_request_watched_preset_files_sync_plan", sync_source)
+        self.assertIn("UserPresetsWatcherSyncPlanWorker", request_source)
+        self.assertIn("start_qthread_worker", request_source)
+        self.assertNotIn("current_paths - desired_paths", sync_source)
+        self.assertNotIn("desired_paths - current_paths", sync_source)
+        self.assertIn("current_paths - desired_paths", worker_source)
+        self.assertIn("desired_paths - current_paths", worker_source)
+
     def test_watcher_start_does_not_create_preset_dirs_on_gui_thread(self) -> None:
         import presets.commands as commands
         import presets.user_presets_runtime_service as runtime_service

@@ -25,6 +25,12 @@ class UserPresetsRuntimeAdapter:
     apply_rows_plan: Callable[[object, float | None], None]
 
 
+@dataclass(slots=True)
+class UserPresetsWatcherSyncPlan:
+    remove_paths: list[str]
+    add_paths: list[str]
+
+
 class UserPresetsMetadataLoadWorker(QThread):
     loaded = pyqtSignal(int, dict, dict, float)
     failed = pyqtSignal(int, str)
@@ -124,6 +130,47 @@ class UserPresetsRowsPlanWorker(QThread):
         self.loaded.emit(self._request_id, plan, self._started_at)
 
 
+class UserPresetsWatcherSyncPlanWorker(QThread):
+    loaded = pyqtSignal(int, object)
+    failed = pyqtSignal(int, str)
+
+    def __init__(
+        self,
+        request_id: int,
+        *,
+        presets_dir: Path,
+        file_names: set[str],
+        current_paths: set[str],
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._request_id = int(request_id)
+        self._presets_dir = Path(presets_dir)
+        self._file_names = {
+            str(file_name or "").strip()
+            for file_name in (file_names or set())
+            if str(file_name or "").strip()
+        }
+        self._current_paths = {str(path or "").strip() for path in (current_paths or set()) if str(path or "").strip()}
+
+    def run(self) -> None:
+        try:
+            desired_paths = {
+                str(self._presets_dir / file_name)
+                for file_name in self._file_names
+                if file_name
+            }
+            current_paths = set(self._current_paths)
+            plan = UserPresetsWatcherSyncPlan(
+                remove_paths=sorted(current_paths - desired_paths),
+                add_paths=sorted(desired_paths - current_paths),
+            )
+        except Exception as exc:
+            self.failed.emit(self._request_id, str(exc))
+            return
+        self.loaded.emit(self._request_id, plan)
+
+
 class UserPresetsRuntimeService:
     def __init__(self, *, scope_key: str = "") -> None:
         self._scope_key = str(scope_key or "").strip()
@@ -154,6 +201,9 @@ class UserPresetsRuntimeService:
         self._watched_preset_files_sync_batch_pending: tuple[object, list[str], list[str]] | None = None
         self._watched_preset_files_sync_batch_scheduled = False
         self._watched_preset_files_sync_batch_size = 64
+        self._watched_preset_files_sync_plan_request_id = 0
+        self._watched_preset_files_sync_plan_runtime = OneShotWorkerRuntime()
+        self._watched_preset_files_sync_plan_pending: tuple[object, set[str] | None] | None = None
 
     def is_ui_dirty(self) -> bool:
         return bool(self._ui_dirty)
@@ -614,10 +664,13 @@ class UserPresetsRuntimeService:
         self._watched_preset_files_sync_pending = None
         self._watched_preset_files_sync_batch_pending = None
         self._watched_preset_files_sync_batch_scheduled = False
+        self._watched_preset_files_sync_plan_request_id += 1
+        self._watched_preset_files_sync_plan_pending = None
         for attr, warning_prefix in (
             ("_metadata_load_runtime", "user presets metadata load worker"),
             ("_single_metadata_runtime", "user presets single metadata worker"),
             ("_rows_plan_runtime", "user presets rows plan worker"),
+            ("_watched_preset_files_sync_plan_runtime", "user presets watcher sync plan worker"),
         ):
             runtime = getattr(self, attr, None)
             if runtime is not None:
@@ -682,19 +735,75 @@ class UserPresetsRuntimeService:
                     if str(file_name or "").strip()
                 }
 
-            desired_paths = {
-                str(presets_dir / file_name)
-                for file_name in file_names
-                if file_name
-            }
             current_paths = set(watcher.files() or [])
-
-            remove_paths = sorted(current_paths - desired_paths)
-            add_paths = sorted(desired_paths - current_paths)
-
-            self._start_watched_preset_files_sync_batches(page, remove_paths, add_paths)
+            self._request_watched_preset_files_sync_plan(
+                page,
+                presets_dir=presets_dir,
+                file_names=file_names,
+                current_paths=current_paths,
+            )
         except Exception as e:
             log(f"Ошибка синхронизации watcher файлов пресетов: {e}", "DEBUG")
+
+    def _request_watched_preset_files_sync_plan(
+        self,
+        page,
+        *,
+        presets_dir: Path,
+        file_names: set[str],
+        current_paths: set[str],
+    ) -> None:
+        if self._watched_preset_files_sync_plan_runtime.is_running():
+            self._watched_preset_files_sync_plan_pending = (page, set(file_names or set()))
+            return
+
+        def bind_worker(worker) -> None:
+            worker.loaded.connect(
+                lambda rid, plan, p=page: self._on_watched_preset_files_sync_plan_loaded(rid, plan, p)
+            )
+            worker.failed.connect(
+                lambda rid, error, p=page: self._on_watched_preset_files_sync_plan_failed(rid, error, p)
+            )
+
+        request_id, _worker = self._watched_preset_files_sync_plan_runtime.start_qthread_worker(
+            worker_factory=lambda request_id: UserPresetsWatcherSyncPlanWorker(
+                request_id,
+                presets_dir=presets_dir,
+                file_names=set(file_names or set()),
+                current_paths=set(current_paths or set()),
+                parent=page,
+            ),
+            bind_worker=bind_worker,
+            on_finished=self._on_watched_preset_files_sync_plan_worker_finished,
+        )
+        self._watched_preset_files_sync_plan_request_id = request_id
+
+    def _on_watched_preset_files_sync_plan_loaded(self, request_id: int, plan, page=None) -> None:
+        if request_id != self._watched_preset_files_sync_plan_request_id:
+            return
+        if self.__dict__.get("_watched_preset_files_sync_plan_pending") is not None:
+            return
+        page = self._resolve_page(page)
+        self._start_watched_preset_files_sync_batches(
+            page,
+            list(getattr(plan, "remove_paths", []) or []),
+            list(getattr(plan, "add_paths", []) or []),
+        )
+
+    def _on_watched_preset_files_sync_plan_failed(self, request_id: int, error: str, _page=None) -> None:
+        if request_id != self._watched_preset_files_sync_plan_request_id:
+            return
+        log(f"Ошибка подготовки watcher файлов пресетов: {error}", "DEBUG")
+
+    def _on_watched_preset_files_sync_plan_worker_finished(self, worker: UserPresetsWatcherSyncPlanWorker) -> None:
+        if not self._is_current_worker_finish(worker, "_watched_preset_files_sync_plan_request_id"):
+            return
+        pending = self.__dict__.get("_watched_preset_files_sync_plan_pending")
+        self._watched_preset_files_sync_plan_pending = None
+        if pending is None:
+            return
+        page, file_names = pending
+        self._schedule_watched_preset_files_sync(page, file_names)
 
     def _start_watched_preset_files_sync_batches(self, page, remove_paths: list[str], add_paths: list[str]) -> None:
         self._watched_preset_files_sync_batch_pending = (page, list(remove_paths or []), list(add_paths or []))
@@ -1106,6 +1215,7 @@ class UserPresetsRuntimeService:
                 "_metadata_load_request_id": "_metadata_load_runtime",
                 "_single_metadata_request_id": "_single_metadata_runtime",
                 "_rows_plan_request_id": "_rows_plan_runtime",
+                "_watched_preset_files_sync_plan_request_id": "_watched_preset_files_sync_plan_runtime",
             }.get(str(request_attr or ""))
             current_runtime = getattr(self, str(runtime_attr or ""), None)
             current_worker = getattr(current_runtime, "worker", None)
