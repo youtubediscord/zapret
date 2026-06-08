@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -29,6 +30,15 @@ class _Page(ControlPageActionMixin):
 
 
 class ControlExternalOpenUrlQueueTests(unittest.TestCase):
+    def test_external_open_url_queue_uses_shared_worker_state(self) -> None:
+        mixin_source = inspect.getsource(ControlPageActionMixin)
+        ensure_source = inspect.getsource(ControlPageActionMixin._ensure_external_open_url_runtime)
+
+        self.assertIn("QueuedWorkerState", mixin_source)
+        self.assertIn("_external_open_url_state_obj", mixin_source)
+        self.assertNotIn("self._external_open_url_pending = []", ensure_source)
+        self.assertNotIn("self._external_open_url_start_scheduled = False", ensure_source)
+
     def test_external_open_url_keeps_all_pending_requests(self) -> None:
         page = _Page()
         page._external_open_url_runtime = _Runtime(running=True)

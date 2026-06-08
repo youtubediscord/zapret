@@ -5,6 +5,7 @@ from PyQt6.QtCore import QTimer
 from typing import TYPE_CHECKING, Callable
 
 from presets.ui.control.control_page_runtime_shared import set_toggle_checked
+from ui.queued_worker_state import QueuedWorkerState
 
 if TYPE_CHECKING:
     from app.state_store import MainWindowStateStore
@@ -168,26 +169,23 @@ class ControlPageActionMixin:
 
             runtime = OneShotWorkerRuntime()
             self._external_open_url_runtime = runtime
-            self._external_open_url_pending = []
-            self._external_open_url_start_scheduled = False
-        elif self.__dict__.get("_external_open_url_pending") is None:
-            self._external_open_url_pending = []
+        self._external_open_url_state_obj()
         return runtime
 
     def _request_external_open_url(self, url: str, *, error_title: str, error_default: str) -> None:
-        runtime = self._ensure_external_open_url_runtime()
+        self._ensure_external_open_url_runtime()
         request = (str(url or "").strip(), str(error_title), str(error_default))
-        if runtime.is_running() or self.__dict__.get("_external_open_url_start_scheduled", False):
-            self._queue_external_open_url_request(request)
-            return
-        self._start_external_open_url_worker(*request)
+        self._external_open_url_state_obj().start_or_queue(
+            request,
+            lambda value: self._start_external_open_url_worker(*value),
+            self._queue_external_open_url_request,
+        )
 
-    def _queue_external_open_url_request(self, request: tuple[str, str, str]) -> None:
-        pending = self.__dict__.setdefault("_external_open_url_pending", [])
-        queued = tuple(request)
-        if queued in pending:
-            return
-        pending.append(queued)
+    def _queue_external_open_url_request(self, request: tuple[str, str, str]) -> bool:
+        return self._external_open_url_state_obj().append_unique(
+            tuple(request),
+            key=lambda queued: queued,
+        )
 
     def _start_external_open_url_worker(self, url: str, error_title: str, error_default: str) -> None:
         runtime = self._ensure_external_open_url_runtime()
@@ -219,7 +217,7 @@ class ControlPageActionMixin:
         runtime = self._ensure_external_open_url_runtime()
         if not runtime.is_current(request_id, cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False))):
             return
-        if self.__dict__.get("_external_open_url_pending"):
+        if self._external_open_url_state_obj().has_pending():
             return
         if getattr(result, "ok", False):
             return
@@ -240,30 +238,33 @@ class ControlPageActionMixin:
         runtime = self._ensure_external_open_url_runtime()
         if not runtime.is_current(request_id, cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False))):
             return
-        if self.__dict__.get("_external_open_url_pending"):
+        if self._external_open_url_state_obj().has_pending():
             return
         self._show_external_open_url_error(error_title, error_default, str(error))
 
     def _on_external_open_url_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_external_open_url_runtime"), _worker):
-            return
-        pending = self.__dict__.get("_external_open_url_pending") or []
-        if pending and not bool(getattr(self, "_cleanup_in_progress", False)):
-            self._schedule_external_open_url_worker_start(pending.pop(0))
+        next_request = self._external_open_url_state_obj().pop_next_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            cleanup_in_progress=bool(getattr(self, "_cleanup_in_progress", False)),
+        )
+        if next_request is not None:
+            self._schedule_external_open_url_worker_start(next_request)
 
     def _schedule_external_open_url_worker_start(self, request: tuple[str, str, str]) -> None:
         pending = tuple(request)
-        if self.__dict__.get("_external_open_url_start_scheduled", False):
+        state = self._external_open_url_state_obj()
+        if state.start_scheduled:
             self._queue_external_open_url_request(pending)
             return
-        self._external_open_url_start_scheduled = True
+        state.start_scheduled = True
         try:
             QTimer.singleShot(0, lambda: self._run_scheduled_external_open_url_worker_start(pending))
         except Exception:
             self._run_scheduled_external_open_url_worker_start(pending)
 
     def _run_scheduled_external_open_url_worker_start(self, request: tuple[str, str, str]) -> None:
-        self._external_open_url_start_scheduled = False
+        self._external_open_url_state_obj().start_scheduled = False
         if bool(getattr(self, "_cleanup_in_progress", False)):
             return
         self._start_external_open_url_worker(*request)
@@ -274,12 +275,43 @@ class ControlPageActionMixin:
         InfoBar.warning(title=title, content=default.format(error=error), parent=self.window())
 
     def _stop_external_open_url_worker(self) -> None:
-        self.__dict__.setdefault("_external_open_url_pending", []).clear()
-        self._external_open_url_start_scheduled = False
+        self._external_open_url_state_obj().reset()
         runtime = self.__dict__.get("_external_open_url_runtime")
         if runtime is not None:
             runtime.stop(blocking=False, warning_prefix="External open url worker")
             runtime.cancel()
+
+    def _external_open_url_state_obj(self) -> QueuedWorkerState[tuple[str, str, str]]:
+        state = self.__dict__.get("_external_open_url_state")
+        runtime = self.__dict__.get("_external_open_url_runtime")
+        if state is None:
+            pending = self.__dict__.pop("_external_open_url_pending", None)
+            start_scheduled = bool(self.__dict__.pop("_external_open_url_start_scheduled", False))
+            state = QueuedWorkerState(
+                runtime,
+                pending=list(pending or []),
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_external_open_url_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _external_open_url_pending(self):
+        return self._external_open_url_state_obj().pending
+
+    @_external_open_url_pending.setter
+    def _external_open_url_pending(self, value) -> None:
+        self._external_open_url_state_obj().pending = list(value or [])
+
+    @property
+    def _external_open_url_start_scheduled(self) -> bool:
+        return bool(self._external_open_url_state_obj().start_scheduled)
+
+    @_external_open_url_start_scheduled.setter
+    def _external_open_url_start_scheduled(self, value: bool) -> None:
+        self._external_open_url_state_obj().start_scheduled = bool(value)
 
     def _set_toggle_checked(self, toggle, checked: bool) -> None:
         set_toggle_checked(toggle, checked)
