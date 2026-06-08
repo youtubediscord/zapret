@@ -52,6 +52,19 @@ def normalize_pool_size(value: object) -> int:
     return max(0, min(32, number))
 
 
+def _websocket_is_unusable(ws: RawWebSocket) -> bool:
+    if getattr(ws, "_closed", False):
+        return True
+    transport = getattr(getattr(ws, "writer", None), "transport", None)
+    is_closing = getattr(transport, "is_closing", None)
+    if not callable(is_closing):
+        return False
+    try:
+        return bool(is_closing())
+    except Exception:
+        return True
+
+
 class WsPool:
     """Pre-opened WebSocket connection pool."""
 
@@ -74,7 +87,7 @@ class WsPool:
         while bucket:
             ws, created = bucket.pop(0)
             age = now - created
-            if age > WS_POOL_MAX_AGE or ws._closed:
+            if age > WS_POOL_MAX_AGE or _websocket_is_unusable(ws):
                 asyncio.create_task(self._quiet_close(ws))
                 continue
             self._stats.pool_hits += 1
@@ -189,7 +202,7 @@ class CloudflareWorkerPool:
         while bucket:
             ws, created = bucket.pop(0)
             age = now - created
-            if age > WS_POOL_MAX_AGE or getattr(ws, "_closed", False):
+            if age > WS_POOL_MAX_AGE or _websocket_is_unusable(ws):
                 asyncio.create_task(self._quiet_close(ws))
                 continue
             self._stats.cloudflare_worker_pool_hits += 1

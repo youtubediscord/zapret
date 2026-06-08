@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import inspect
 from pathlib import Path
+import time
 import unittest
 
 import telegram_proxy.manager as telegram_manager
@@ -11,6 +12,45 @@ import telegram_proxy.runtime.plans as telegram_plans
 
 
 class TelegramProxyActionsArchitectureTests(unittest.TestCase):
+    def test_wss_pools_skip_websockets_with_closing_transport(self) -> None:
+        import asyncio
+
+        from telegram_proxy.proxy.pool import CloudflareWorkerPool, WsPool
+        from telegram_proxy.proxy.stats import ProxyStats
+
+        class _Transport:
+            def is_closing(self) -> bool:
+                return True
+
+        class _Writer:
+            transport = _Transport()
+
+        class _WebSocket:
+            _closed = False
+            writer = _Writer()
+
+            async def close(self) -> None:
+                self._closed = True
+
+        async def run_check() -> None:
+            stats = ProxyStats()
+
+            ws_pool = WsPool(stats, pool_size=0)
+            ws_pool._idle[(2, False)] = [(_WebSocket(), time.monotonic())]
+            self.assertIsNone(await ws_pool.get(2, False, "149.154.167.220", ["kws2.web.telegram.org"]))
+            self.assertEqual(stats.pool_hits, 0)
+            self.assertEqual(stats.pool_misses, 1)
+
+            worker_pool = CloudflareWorkerPool(stats, pool_size=0)
+            worker_pool._idle[(2, "worker.example.dev", "149.154.167.51")] = [
+                (_WebSocket(), time.monotonic())
+            ]
+            self.assertIsNone(await worker_pool.get(2, "worker.example.dev", "149.154.167.51"))
+            self.assertEqual(stats.cloudflare_worker_pool_hits, 0)
+            self.assertEqual(stats.cloudflare_worker_pool_misses, 1)
+
+        asyncio.run(run_check())
+
     def test_external_open_actions_live_in_commands_not_actions(self) -> None:
         commands_source = inspect.getsource(telegram_commands)
         plans_source = inspect.getsource(telegram_plans)
