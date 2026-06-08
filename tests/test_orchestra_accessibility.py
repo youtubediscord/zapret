@@ -10,7 +10,7 @@ from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, LineEdit, PushButt
 
 from orchestra.ui.blocked_page import BlockedDomainRow, OrchestraBlockedPage
 from orchestra.ui.locked_page import LockedDomainRow, OrchestraLockedPage
-from orchestra.ui.page_build import build_orchestra_log_card
+from orchestra.ui.page_build import build_orchestra_log_card, build_orchestra_log_history_card
 from orchestra.ui.page_runtime_helpers import protocol_filter_items, set_protocol_filter_items
 from orchestra.ui.ratings_page import OrchestraRatingsPage
 from orchestra.ui.whitelist_page import OrchestraWhitelistPage, WhitelistDomainRow
@@ -133,6 +133,35 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             widgets.log_protocol_filter.accessibleName(),
             "Фильтр лога Оркестратора по протоколу, выбрано: HTTP",
         )
+
+    def test_log_history_controls_are_named_for_screen_reader(self) -> None:
+        def create_card(title: str):
+            card = QWidget()
+            layout = QVBoxLayout(card)
+            title_label = BodyLabel(title, card)
+            layout.addWidget(title_label)
+            return card, layout, title_label
+
+        widgets = build_orchestra_log_history_card(
+            create_card=create_card,
+            tr_fn=lambda _key, default, **kwargs: default.format(**kwargs) if kwargs else default,
+            max_logs=10,
+            list_widget_cls=QListWidget,
+            caption_label_cls=CaptionLabel,
+            fluent_push_button_cls=PushButton,
+            on_view_log_history=lambda *_args: None,
+            on_delete_log_history=lambda *_args: None,
+            on_clear_all_log_history=lambda: None,
+        )
+        self.addCleanup(widgets.card.deleteLater)
+
+        self.assertEqual(widgets.desc_label.accessibleName(), "Описание истории логов Оркестратора")
+        self.assertIn("каждый запуск", widgets.desc_label.accessibleDescription().lower())
+        self.assertEqual(widgets.log_history_list.accessibleName(), "История логов Оркестратора")
+        self.assertIn("выберите лог", widgets.log_history_list.accessibleDescription().lower())
+        self.assertEqual(widgets.view_log_btn.accessibleName(), "Просмотреть выбранный лог Оркестратора")
+        self.assertEqual(widgets.delete_log_btn.accessibleName(), "Удалить выбранный лог Оркестратора")
+        self.assertEqual(widgets.clear_all_logs_btn.accessibleName(), "Очистить всю историю логов Оркестратора")
 
     def test_log_history_items_expose_screen_reader_text(self) -> None:
         from orchestra.ui.page_runtime_helpers import update_log_history_view
