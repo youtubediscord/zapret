@@ -940,6 +940,49 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertEqual(hidden_item.set_visible_calls, [])
         self.assertEqual(header.set_visible_calls, [])
 
+    def test_nav_visibility_filter_keeps_mode_items_hidden_when_state_is_missing(self) -> None:
+        from app.page_names import PageName
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        class FakeNavItem:
+            def __init__(self, visible: bool) -> None:
+                self.visible = bool(visible)
+
+            def isVisible(self) -> bool:
+                return self.visible
+
+            def setVisible(self, visible: bool) -> None:
+                self.visible = bool(visible)
+
+        z2_item = FakeNavItem(True)
+        z1_item = FakeNavItem(False)
+        dns_item = FakeNavItem(True)
+        session = SimpleNamespace(
+            nav_items={
+                PageName.ZAPRET2_MODE_CONTROL: z2_item,
+                PageName.ZAPRET1_MODE_CONTROL: z1_item,
+                PageName.NETWORK: dns_item,
+            },
+            nav_labels={
+                PageName.ZAPRET2_MODE_CONTROL: "Управление Zapret 2",
+                PageName.ZAPRET1_MODE_CONTROL: "Управление Zapret 1",
+                PageName.NETWORK: "Настройка DNS",
+            },
+            nav_headers=[],
+            nav_search_query="",
+            nav_mode_visibility={
+                PageName.ZAPRET2_MODE_CONTROL: True,
+            },
+            ui_language="ru",
+        )
+        window = SimpleNamespace(ui_session=session)
+
+        sidebar_builder.apply_nav_visibility_filter(window)
+
+        self.assertTrue(z2_item.visible)
+        self.assertFalse(z1_item.visible)
+        self.assertTrue(dns_item.visible)
+
     def test_mode_switch_reorders_existing_sidebar_items_for_new_mode(self) -> None:
         from app.page_names import PageName
         from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE

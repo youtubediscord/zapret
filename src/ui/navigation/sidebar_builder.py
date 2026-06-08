@@ -720,13 +720,24 @@ def apply_nav_visibility_filter(window) -> None:
         return
 
     from ui.navigation.text_sync import get_nav_label
+    from ui.navigation.schema import get_nav_visibility
 
     search_query = (session.nav_search_query or "").casefold()
     mode_visibility = session.nav_mode_visibility or {}
+    try:
+        current_method = window.get_launch_method()
+    except Exception:
+        current_method = None
+    fallback_mode_visibility = get_nav_visibility(current_method)
     visible_by_page: dict[PageName, bool] = {}
 
     for page_name, item in session.nav_items.items():
-        mode_visible = bool(mode_visibility.get(page_name, True))
+        mode_visible = bool(
+            mode_visibility.get(
+                page_name,
+                fallback_mode_visibility.get(page_name, True),
+            )
+        )
         label = get_nav_label(window, page_name)
         matches_query = not search_query or (search_query in label.casefold())
         final_visible = mode_visible and matches_query
