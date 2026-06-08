@@ -368,6 +368,27 @@ class ControlStatusDotPulseTests(unittest.TestCase):
         message_dot.set_color.assert_not_called()
         message_dot.stop_pulse.assert_not_called()
 
+    def test_last_status_message_sets_screen_reader_dot_state_text(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import apply_last_status_message
+
+        message_dot = _StatusDot()
+
+        apply_last_status_message(
+            "Пресет успешно применён",
+            message_label=_TextTarget(),
+            message_dot=message_dot,
+            empty_text="Нет сообщений",
+        )
+
+        self.assertEqual(
+            message_dot.accessible_name,
+            "Индикатор последнего сообщения: Пресет успешно применён",
+        )
+        self.assertEqual(
+            message_dot.properties.get("screenReaderStateText"),
+            "Индикатор последнего сообщения: Пресет успешно применён",
+        )
+
     def test_set_toggle_checked_skips_duplicate_state(self) -> None:
         from presets.ui.control.control_page_runtime_shared import set_toggle_checked
 
