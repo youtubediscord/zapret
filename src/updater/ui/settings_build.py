@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ui.accessibility import set_state_text
 from ui.theme import get_themed_qta_icon
 
 
@@ -21,6 +22,14 @@ class ServersTelegramWidgets:
     card: object
     info_label: object | None
     button: object
+
+
+def _label_text(label) -> str:
+    try:
+        value = label.text()
+    except Exception:
+        value = getattr(label, "text", "")
+    return " ".join(str(value or "").strip().split())
 
 
 def build_servers_settings_section(
@@ -61,6 +70,7 @@ def build_servers_settings_section(
             channel=channel,
         )
     )
+    set_state_text(version_info_label, f"Версия ZapretGUI: {_label_text(version_info_label)}")
     toggle_label = None
 
     return ServersSettingsWidgets(

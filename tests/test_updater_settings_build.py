@@ -38,6 +38,20 @@ class _FakeCard:
 class _FakeLabel:
     def __init__(self, text):
         self.text = text
+        self._accessible_name = ""
+        self.properties = {}
+
+    def setAccessibleName(self, value):  # noqa: N802
+        self._accessible_name = value
+
+    def accessibleName(self):  # noqa: N802
+        return self._accessible_name
+
+    def setProperty(self, name, value):  # noqa: N802
+        self.properties[name] = value
+
+    def property(self, name):
+        return self.properties.get(name)
 
 
 class _FakeLayout:
@@ -74,6 +88,28 @@ class UpdaterSettingsBuildTests(unittest.TestCase):
         self.assertEqual(len(widgets.card.rows), 1)
         self.assertIs(widgets.card.rows[0], widgets.auto_check_card)
         self.assertEqual(widgets.version_info_label.text, "v21.0.0.142 · dev")
+
+    def test_version_label_exposes_screen_reader_state(self) -> None:
+        widgets = build_servers_settings_section(
+            content_parent=object(),
+            tr_fn=lambda _key, default: default,
+            accent_hex="#22dddd",
+            auto_check_enabled=False,
+            app_version="21.0.0.142",
+            channel="dev",
+            setting_card_group_cls=_FakeSettingsGroup,
+            settings_card_cls=_FakeCard,
+            win11_toggle_row_cls=_FakeToggleRow,
+            caption_label_cls=_FakeLabel,
+            qhbox_layout_cls=_FakeLayout,
+            on_auto_check_toggled=lambda _value: None,
+        )
+
+        self.assertEqual(widgets.version_info_label.accessibleName(), "Версия ZapretGUI: v21.0.0.142 · dev")
+        self.assertEqual(
+            widgets.version_info_label.property("screenReaderStateText"),
+            "Версия ZapretGUI: v21.0.0.142 · dev",
+        )
 
 
 if __name__ == "__main__":
