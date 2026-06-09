@@ -1913,7 +1913,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             "_user_profile_delete_runtime",
         ):
             self.assertIn(attr, source)
-        self.assertIn("_profile_folder_action_pending.clear()", source)
+        self.assertIn("_profile_folder_action_state_obj().reset()", source)
         self.assertIn(".stop(", source)
         self.assertIn(".cancel()", source)
 
