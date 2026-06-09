@@ -10,6 +10,7 @@ class _Widget:
         self.accessible_description = ""
         self.tooltip = ""
         self.properties: dict[str, object] = {}
+        self.property_calls: list[tuple[str, object]] = []
 
     def text(self) -> str:
         return self._text
@@ -39,6 +40,7 @@ class _Widget:
         return self.properties.get(str(name))
 
     def setProperty(self, name: str, value) -> None:  # noqa: N802
+        self.property_calls.append((str(name), value))
         self.properties[str(name)] = value
 
 
@@ -87,6 +89,17 @@ class AccessibilityHelpersTests(unittest.TestCase):
 
         self.assertEqual(widget.accessible_name, "Запущено")
         self.assertEqual(widget.properties["screenReaderStateText"], "Запущено")
+
+    def test_set_state_text_skips_duplicate_property_write(self) -> None:
+        from ui.accessibility import set_state_text
+
+        widget = _Widget()
+        widget.accessible_name = "Запущено"
+        widget.properties["screenReaderStateText"] = "Запущено"
+
+        set_state_text(widget, "Запущено")
+
+        self.assertEqual(widget.property_calls, [])
 
     def test_set_item_accessible_text_sets_item_roles(self) -> None:
         from PyQt6.QtCore import Qt

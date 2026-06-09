@@ -684,6 +684,11 @@ def _strategy_status_parts(state, *, is_current: bool, include_unselected: bool)
     return status_parts
 
 
+def _set_strategy_feedback_button_state(button, *, action_name: str, selected: bool) -> None:
+    state_text = "выбрана" if selected else "не выбрана"
+    set_state_text(button, f"{action_name}. Оценка стратегии: {state_text}.")
+
+
 def _strategy_screen_reader_text(
     *,
     name: str,
@@ -3143,9 +3148,21 @@ class ProfileSetupPageBase(BasePage):
                 description="Добавляет текущую готовую стратегию в избранное или убирает её оттуда.",
             )
         if self._work_button is not None:
-            set_widget_property_if_changed(self._work_button, "selected", state.rating == "work")
+            work_selected = state.rating == "work"
+            set_widget_property_if_changed(self._work_button, "selected", work_selected)
+            _set_strategy_feedback_button_state(
+                self._work_button,
+                action_name="Отметить стратегию как рабочую",
+                selected=work_selected,
+            )
         if self._notwork_button is not None:
-            set_widget_property_if_changed(self._notwork_button, "selected", state.rating == "notwork")
+            notwork_selected = state.rating == "notwork"
+            set_widget_property_if_changed(self._notwork_button, "selected", notwork_selected)
+            _set_strategy_feedback_button_state(
+                self._notwork_button,
+                action_name="Отметить стратегию как нерабочую",
+                selected=notwork_selected,
+            )
 
     def _apply_editable_settings(self, payload) -> None:
         is_preset_mode = is_preset_launch_method(self.launch_method)

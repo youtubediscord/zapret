@@ -75,6 +75,11 @@ def set_state_text(widget, text: object) -> None:
         return
     set_accessible_name(widget, value)
     try:
+        if _clean_text(widget.property("screenReaderStateText")) == value:
+            return
+    except Exception:
+        pass
+    try:
         widget.setProperty("screenReaderStateText", value)
     except Exception:
         pass

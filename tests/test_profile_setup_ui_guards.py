@@ -63,6 +63,7 @@ class _PropertyWidget(_BoolWidget):
         super().__init__(checked=checked, enabled=enabled, visible=visible)
         self._properties = dict(properties or {})
         self._text = ""
+        self._accessible_name = ""
         self.text_calls: list[str] = []
         self.property_calls: list[tuple[str, object]] = []
 
@@ -73,6 +74,12 @@ class _PropertyWidget(_BoolWidget):
         value = str(text)
         self.text_calls.append(value)
         self._text = value
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text)
 
     def property(self, name: str):  # noqa: A003
         return self._properties.get(str(name))
@@ -383,8 +390,22 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         from profile.ui.profile_setup_page import ProfileSetupPageBase
 
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
-        page._work_button = _PropertyWidget(enabled=True, properties={"selected": True})
-        page._notwork_button = _PropertyWidget(enabled=True, properties={"selected": False})
+        page._work_button = _PropertyWidget(
+            enabled=True,
+            properties={
+                "selected": True,
+                "screenReaderStateText": "Отметить стратегию как рабочую. Оценка стратегии: выбрана.",
+            },
+        )
+        page._work_button._accessible_name = "Отметить стратегию как рабочую. Оценка стратегии: выбрана."
+        page._notwork_button = _PropertyWidget(
+            enabled=True,
+            properties={
+                "selected": False,
+                "screenReaderStateText": "Отметить стратегию как нерабочую. Оценка стратегии: не выбрана.",
+            },
+        )
+        page._notwork_button._accessible_name = "Отметить стратегию как нерабочую. Оценка стратегии: не выбрана."
         page._favorite_button = _PropertyWidget(enabled=True)
         page._favorite_button._text = "Убрать из избранного"
         page._clear_feedback_button = _PropertyWidget(enabled=True)
@@ -404,6 +425,41 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._notwork_button.property_calls, [])
         self.assertEqual(page._favorite_button.text_calls, [])
         self.assertEqual(page._favorite_button._text, "Убрать из избранного")
+
+    def test_feedback_buttons_expose_selected_state_to_screen_reader(self) -> None:
+        from types import SimpleNamespace
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._work_button = _PropertyWidget(enabled=True, properties={"selected": False})
+        page._notwork_button = _PropertyWidget(enabled=True, properties={"selected": False})
+        page._favorite_button = _PropertyWidget(enabled=True)
+        page._clear_feedback_button = _PropertyWidget(enabled=True)
+
+        payload = SimpleNamespace(
+            item=SimpleNamespace(in_preset=True, enabled=True, strategy_id="tls_fake"),
+            current_strategy_state=SimpleNamespace(favorite=False, rating="work"),
+        )
+
+        ProfileSetupPageBase._apply_feedback_buttons(page, payload)
+
+        self.assertEqual(
+            page._work_button.accessibleName(),
+            "Отметить стратегию как рабочую. Оценка стратегии: выбрана.",
+        )
+        self.assertEqual(
+            page._work_button.property("screenReaderStateText"),
+            "Отметить стратегию как рабочую. Оценка стратегии: выбрана.",
+        )
+        self.assertEqual(
+            page._notwork_button.accessibleName(),
+            "Отметить стратегию как нерабочую. Оценка стратегии: не выбрана.",
+        )
+        self.assertEqual(
+            page._notwork_button.property("screenReaderStateText"),
+            "Отметить стратегию как нерабочую. Оценка стратегии: не выбрана.",
+        )
 
     def test_user_profile_buttons_skip_duplicate_enabled_state(self) -> None:
         from profile.ui.profile_setup_page import ProfileSetupPageBase
