@@ -134,6 +134,23 @@ class WindowGeometryWorkerTests(unittest.TestCase):
 
         geometry_runtime._start_geometry_save_worker.assert_called_once_with(((10, 20, 800, 600), True))
 
+    def test_empty_geometry_save_queue_does_not_start_worker(self) -> None:
+        import ui.window_geometry_runtime as runtime
+
+        geometry_runtime = runtime.WindowGeometryRuntime.__new__(runtime.WindowGeometryRuntime)
+        geometry_runtime._cleanup_in_progress = False
+        geometry_runtime._geometry_save_runtime = SimpleNamespace(request_id=1)
+        geometry_runtime._geometry_save_state = runtime.LatestValueWorkerState(
+            geometry_runtime._geometry_save_runtime,
+            empty_value=None,
+        )
+        geometry_runtime._geometry_save_state.start_scheduled = True
+        geometry_runtime._start_geometry_save_worker = Mock()
+
+        runtime.WindowGeometryRuntime._run_scheduled_geometry_save_worker_start(geometry_runtime)
+
+        geometry_runtime._start_geometry_save_worker.assert_not_called()
+
     def test_stale_geometry_save_worker_finished_does_not_restart_pending_save(self) -> None:
         import ui.window_geometry_runtime as runtime
 

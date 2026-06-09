@@ -4,14 +4,19 @@ from dataclasses import dataclass
 
 
 _NO_PENDING_UPDATE = object()
+_DEFAULT_PENDING = object()
 
 
 @dataclass(slots=True)
 class LatestValueWorkerState:
     runtime: object
     empty_value: object = ""
-    pending: object = ""
+    pending: object = _DEFAULT_PENDING
     start_scheduled: bool = False
+
+    def __post_init__(self) -> None:
+        if self.pending is _DEFAULT_PENDING:
+            self.pending = self.empty_value
 
     def is_busy(self) -> bool:
         if self.start_scheduled:
