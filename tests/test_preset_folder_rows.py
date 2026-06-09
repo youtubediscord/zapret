@@ -53,6 +53,8 @@ class PresetFolderRowsTests(unittest.TestCase):
             if row.get("kind") == "preset"
         ][:2]
         self.assertEqual(common_items, ["Manual.txt", "Default.txt"])
+        default_row = next(row for row in rows if row.get("file_name") == "Default.txt")
+        self.assertEqual(default_row["folder_name"], "Общие")
 
     def test_search_shows_only_matching_folder_rows(self) -> None:
         folder_state = build_default_preset_folders()

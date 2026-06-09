@@ -417,8 +417,10 @@ def build_preset_folder_rows(
         query=query,
     )
     rows: list[dict[str, Any]] = []
+    current_folder_name = ""
     for row in folder_rows:
         if row.get("kind") == "folder":
+            current_folder_name = str(row.get("name") or "")
             rows.append(
                 {
                     "kind": "folder",
@@ -449,6 +451,7 @@ def build_preset_folder_rows(
                 "icon_color": str(preset.get("icon_color") or ""),
                 "depth": 1,
                 "folder_key": str(row.get("folder_key") or ""),
+                "folder_name": current_folder_name,
                 "is_pinned": bool(meta.get("pinned", False)),
                 "rating": int(meta.get("rating", 0) or 0),
             }

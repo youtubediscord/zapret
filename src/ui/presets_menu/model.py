@@ -217,14 +217,14 @@ class PresetListModel(QAbstractListModel):
 
         row = self._rows[row_index]
         role_map = {
-            "name": [int(Qt.ItemDataRole.DisplayRole), self.NameRole],
-            "description": [self.DescriptionRole],
+            "name": [int(Qt.ItemDataRole.DisplayRole), self.NameRole, int(Qt.ItemDataRole.AccessibleTextRole)],
+            "description": [self.DescriptionRole, int(Qt.ItemDataRole.AccessibleTextRole)],
             "date": [self.DateRole],
-            "is_active": [self.ActiveRole],
+            "is_active": [self.ActiveRole, int(Qt.ItemDataRole.AccessibleTextRole)],
             "icon_color": [self.IconColorRole],
-            "is_builtin": [self.BuiltinRole],
-            "is_pinned": [self.PinnedRole],
-            "rating": [self.RatingRole],
+            "is_builtin": [self.BuiltinRole, int(Qt.ItemDataRole.AccessibleTextRole)],
+            "is_pinned": [self.PinnedRole, int(Qt.ItemDataRole.AccessibleTextRole)],
+            "rating": [self.RatingRole, int(Qt.ItemDataRole.AccessibleTextRole)],
         }
 
         changed_roles: set[int] = set()
@@ -413,7 +413,11 @@ class PresetListModel(QAbstractListModel):
         self._active_preset_file_names = set(next_active_files)
         for row_index in changed_rows:
             model_index = self.index(row_index, 0)
-            self.dataChanged.emit(model_index, model_index, [self.ActiveRole])
+            self.dataChanged.emit(
+                model_index,
+                model_index,
+                [self.ActiveRole, int(Qt.ItemDataRole.AccessibleTextRole)],
+            )
 
         return bool(changed_rows)
 
@@ -666,8 +670,11 @@ def _preset_accessible_text(row: dict[str, object]) -> str:
     if kind == "preset":
         name = str(row.get("name") or row.get("file_name") or "").strip()
         parts = [name]
-        parts.append("активный preset" if bool(row.get("is_active", False)) else "не активный preset")
+        parts.append("активный пресет" if bool(row.get("is_active", False)) else "не активный пресет")
         parts.append("встроенный" if bool(row.get("is_builtin", False)) else "пользовательский")
+        folder_name = str(row.get("folder_name") or "").strip()
+        if folder_name:
+            parts.append(f"папка: {folder_name}")
         if bool(row.get("is_pinned", False)):
             parts.append("закреплённый")
         rating = _safe_int(row.get("rating"))

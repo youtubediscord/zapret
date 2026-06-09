@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from PyQt6.QtCore import Qt
+
 from ui.presets_menu.model import PresetListModel
 
 
@@ -85,6 +87,38 @@ class PresetListModelGuardTests(unittest.TestCase):
         self.assertTrue(model.update_preset_row("A.txt", rating=7))
 
         self.assertEqual(model.preset_rating("A.txt"), 7)
+
+    def test_update_preset_row_emits_screen_reader_role_for_spoken_state(self) -> None:
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {"kind": "preset", "file_name": "A.txt", "name": "A", "rating": 2},
+            ]
+        )
+        changed_roles: list[list[int]] = []
+        model.dataChanged.connect(
+            lambda _top_left, _bottom_right, roles: changed_roles.append([int(role) for role in roles])
+        )
+
+        self.assertTrue(model.update_preset_row("A.txt", rating=7))
+
+        self.assertIn(int(Qt.ItemDataRole.AccessibleTextRole), changed_roles[-1])
+
+    def test_set_active_preset_emits_screen_reader_role_for_spoken_state(self) -> None:
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {"kind": "preset", "file_name": "A.txt", "name": "A", "is_active": False},
+            ]
+        )
+        changed_roles: list[list[int]] = []
+        model.dataChanged.connect(
+            lambda _top_left, _bottom_right, roles: changed_roles.append([int(role) for role in roles])
+        )
+
+        self.assertTrue(model.set_active_preset("A.txt"))
+
+        self.assertIn(int(Qt.ItemDataRole.AccessibleTextRole), changed_roles[-1])
 
 
 if __name__ == "__main__":

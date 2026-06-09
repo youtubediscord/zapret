@@ -78,6 +78,7 @@ class ListAccessibilityModelTests(unittest.TestCase):
                     "is_active": True,
                     "is_builtin": True,
                     "is_pinned": True,
+                    "folder_name": "Общие",
                     "rating": 9,
                 }
             ]
@@ -85,7 +86,7 @@ class ListAccessibilityModelTests(unittest.TestCase):
 
         text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
 
-        self.assertEqual(text, "Default, активный preset, встроенный, закреплённый, оценка 9")
+        self.assertEqual(text, "Default, активный пресет, встроенный, папка: Общие, закреплённый, оценка 9")
 
     def test_preset_folder_rows_expose_screen_reader_text(self) -> None:
         from ui.presets_menu.model import PresetListModel
