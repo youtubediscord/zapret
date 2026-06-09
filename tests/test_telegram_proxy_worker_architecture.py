@@ -152,6 +152,26 @@ class TelegramProxyWorkerArchitectureTests(unittest.TestCase):
         self.assertEqual(saved_enabled_values, [True])
         check_relay_after_start.assert_called_once_with()
 
+    def test_relay_check_resyncs_status_button_before_relay_status_text(self) -> None:
+        from telegram_proxy.ui.page import TelegramProxyPage
+
+        manager = SimpleNamespace(is_running=True, host="127.0.0.1", port=1353)
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._relay_check_state = SimpleNamespace(pending=True)
+        page._proxy_manager = Mock(return_value=manager)
+        page._on_status_changed = Mock()
+        page._relay_check_gen = 0
+        page._status_label = Mock()
+        page._get_zapret_running = Mock(return_value=False)
+        page._telegram_proxy = SimpleNamespace(create_relay_check_worker=Mock())
+        page._on_relay_check_worker_finished = Mock()
+
+        with patch("telegram_proxy.ui.page.start_relay_check") as start_relay_check_mock:
+            TelegramProxyPage._start_relay_check_worker(page)
+
+        page._on_status_changed.assert_called_once_with(True)
+        start_relay_check_mock.assert_called_once()
+
     def test_page_receives_zapret_running_callable_not_runtime_feature(self) -> None:
         from app.page_names import PageName
         from telegram_proxy.ui.page import TelegramProxyPage

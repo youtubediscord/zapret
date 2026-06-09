@@ -1306,6 +1306,7 @@ class TelegramProxyPage(BasePage):
     def _start_relay_check_worker(self) -> None:
         self._worker_state("_relay_check_state", "_relay_check_runtime").pending = False
         mgr = self._proxy_manager()
+        self._on_status_changed(bool(mgr.is_running))
         start_relay_check(
             page=self,
             manager=mgr,
