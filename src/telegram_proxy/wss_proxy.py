@@ -146,6 +146,30 @@ class TelegramWSProxy:
             except Exception:
                 pass
 
+    def _record_route(
+        self,
+        *,
+        dc: int,
+        is_media: bool,
+        route: str,
+        status: str,
+        reason: str = "",
+    ) -> None:
+        self.stats.record_route_event(
+            dc=dc,
+            is_media=is_media,
+            route=route,
+            status=status,
+            reason=reason,
+        )
+
+    @staticmethod
+    def _route_error(exc: Exception) -> str:
+        text = str(exc)
+        if text:
+            return f"{type(exc).__name__}: {text}"
+        return type(exc).__name__
+
     @property
     def is_running(self) -> bool:
         return self._running
@@ -298,6 +322,13 @@ class TelegramWSProxy:
                 # "always" mode: even HTTP goes through upstream
                 if should_route_upstream(self._upstream, mode="always"):
                     self._log(f"[{label}] HTTP transport -> upstream (always mode)")
+                    self._record_route(
+                        dc=0,
+                        is_media=False,
+                        route="внешний SOCKS5",
+                        status="пропуск",
+                        reason="HTTP transport, режим весь трафик",
+                    )
                     await self._upstream_proxy_connect(
                         reader, writer, target_host, target_port,
                         init, label, dc=0, is_media=False,
@@ -346,6 +377,13 @@ class TelegramWSProxy:
             # skip WSS entirely. This is the "Весь трафик через прокси" toggle.
             if should_route_upstream(self._upstream, mode="always"):
                 self._log(f"[{label}] DC{dc} -> upstream (always mode)")
+                self._record_route(
+                    dc=dc,
+                    is_media=is_media,
+                    route="WSS",
+                    status="пропуск",
+                    reason="весь трафик через внешний SOCKS5",
+                )
                 await self._upstream_proxy_connect(
                     reader, writer, target_host, target_port,
                     init, label, dc, is_media,
@@ -357,6 +395,13 @@ class TelegramWSProxy:
             # Port 80 fallback tested: DC1 partial, DC5 dead. Not reliable.
             if dc not in WSS_DOMAINS:
                 self._log(f"[{label}] DC{dc} -> TCP (no WSS relay for this DC)")
+                self._record_route(
+                    dc=dc,
+                    is_media=is_media,
+                    route="WSS",
+                    status="пропуск",
+                    reason="для этого DC нет WSS relay",
+                )
                 if await self._cloudflare_fallback(
                     reader, writer, target_host, target_port,
                     init, init_patched, label, dc, is_media,
@@ -490,6 +535,13 @@ class TelegramWSProxy:
         # Check WS blacklist
         if dc_key in self._ws_blacklist:
             log.debug("[%s] DC%d%s WS blacklisted -> TCP", label, dc, media_tag)
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="пропуск",
+                reason="раньше были только 302 redirect",
+            )
             if await self._cloudflare_fallback(
                 client_reader, client_writer, target_host, target_port,
                 init, init_patched, label, dc, is_media,
@@ -506,6 +558,13 @@ class TelegramWSProxy:
         if now < fail_until:
             log.debug("[%s] DC%d%s WS cooldown (%.0fs) -> TCP",
                       label, dc, media_tag, fail_until - now)
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="пропуск",
+                reason=f"пауза после ошибки {fail_until - now:.0f}s",
+            )
             if await self._cloudflare_fallback(
                 client_reader, client_writer, target_host, target_port,
                 init, init_patched, label, dc, is_media,
@@ -529,6 +588,7 @@ class TelegramWSProxy:
         # If pool miss, try fresh WebSocket connection
         all_redirects = True
         any_redirect = False
+        ws_failure_reason = "нет доступного WSS"
 
         sem = _get_wss_semaphore()
         for domain in domains if ws is None else []:
@@ -548,16 +608,19 @@ class TelegramWSProxy:
             except WsHandshakeError as exc:
                 if exc.is_redirect:
                     any_redirect = True
+                    ws_failure_reason = f"{domain}: HTTP {exc.status_code} redirect"
                     log.warning("[%s] DC%d%s got %d from %s -> %s",
                                 label, dc, media_tag, exc.status_code,
                                 domain, exc.location or "?")
                     continue
                 else:
                     all_redirects = False
+                    ws_failure_reason = f"{domain}: {exc.status_line}"
                     log.warning("[%s] DC%d%s WS handshake: %s",
                                 label, dc, media_tag, exc.status_line)
             except Exception as exc:
                 all_redirects = False
+                ws_failure_reason = f"{domain}: {self._route_error(exc)}"
                 log.warning("[%s] DC%d%s WS connect failed: %s",
                             label, dc, media_tag, exc)
 
@@ -570,6 +633,13 @@ class TelegramWSProxy:
             else:
                 self._dc_cooldown[dc_key] = now + DC_FAIL_COOLDOWN
                 self._log(f"[{label}] DC{dc}{media_tag} WS failed, cooldown {DC_FAIL_COOLDOWN:.0f}s")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="ошибка",
+                reason=ws_failure_reason,
+            )
 
             # "always" mode: skip TCP fallback, go straight to upstream
             if should_route_upstream(self._upstream, mode="always"):
@@ -594,6 +664,7 @@ class TelegramWSProxy:
         # WS success
         self._dc_cooldown.pop(dc_key, None)
         self.stats.wss_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="WSS", status="OK")
         self._log(f"[{label}] DC{dc}{media_tag} WSS connected")
 
         # Create splitter ONLY for patched inits (mobile clients with random DC bytes).
@@ -636,6 +707,13 @@ class TelegramWSProxy:
 
         if should_route_upstream(self._upstream, mode="always"):
             self._log(f"[{label}] MTProxy DC{dc}{media_tag} -> upstream (always mode)")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="пропуск",
+                reason="весь трафик через внешний SOCKS5",
+            )
             await self._mtproxy_upstream_proxy_connect(
                 client_reader,
                 client_writer,
@@ -651,6 +729,13 @@ class TelegramWSProxy:
 
         if dc not in WSS_DOMAINS:
             self._log(f"[{label}] MTProxy DC{dc}{media_tag} -> fallback (no own WSS relay)")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="пропуск",
+                reason="для этого DC нет WSS relay",
+            )
             if await self._cloudflare_fallback(
                 client_reader,
                 client_writer,
@@ -670,6 +755,14 @@ class TelegramWSProxy:
             return
 
         if dc_key in self._ws_blacklist or now < self._dc_cooldown.get(dc_key, 0):
+            reason = "раньше были только 302 redirect" if dc_key in self._ws_blacklist else "пауза после ошибки"
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="пропуск",
+                reason=reason,
+            )
             if await self._cloudflare_fallback(
                 client_reader,
                 client_writer,
@@ -695,6 +788,7 @@ class TelegramWSProxy:
 
         all_redirects = True
         any_redirect = False
+        ws_failure_reason = "нет доступного WSS"
         sem = _get_wss_semaphore()
         for domain in domains if ws is None else []:
             relay_ip = _relay_ip_for_domain(domain)
@@ -713,16 +807,26 @@ class TelegramWSProxy:
             except WsHandshakeError as exc:
                 if exc.is_redirect:
                     any_redirect = True
+                    ws_failure_reason = f"{domain}: HTTP {exc.status_code} redirect"
                     continue
                 all_redirects = False
+                ws_failure_reason = f"{domain}: {exc.status_line}"
             except Exception:
                 all_redirects = False
+                ws_failure_reason = f"{domain}: WSS connect failed"
 
         if ws is None:
             if any_redirect and all_redirects:
                 self._ws_blacklist.add(dc_key)
             else:
                 self._dc_cooldown[dc_key] = now + DC_FAIL_COOLDOWN
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="ошибка",
+                reason=ws_failure_reason,
+            )
             if await self._cloudflare_fallback(
                 client_reader,
                 client_writer,
@@ -743,6 +847,7 @@ class TelegramWSProxy:
 
         self._dc_cooldown.pop(dc_key, None)
         self.stats.wss_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="WSS", status="OK")
         await ws.send(relay_init)
         await relay_mtproxy_wss(
             client_reader=client_reader,
@@ -805,6 +910,13 @@ class TelegramWSProxy:
                         )
                     self.stats.cloudflare_connections += 1
                     self.stats.cloudflare_worker_connections += 1
+                    self._record_route(
+                        dc=dc,
+                        is_media=is_media,
+                        route="Cloudflare Worker",
+                        status="OK",
+                        reason=worker_domain,
+                    )
                     await ws.send(init)
                     if relay_wss_fn is None:
                         await self._relay_wss(client_reader, client_writer, ws, splitter, label, dc=dc)
@@ -828,6 +940,13 @@ class TelegramWSProxy:
                         worker_domain,
                         exc,
                     )
+                    self._record_route(
+                        dc=dc,
+                        is_media=is_media,
+                        route="Cloudflare Worker",
+                        status="ошибка",
+                        reason=f"{worker_domain}: {self._route_error(exc)}",
+                    )
 
         if self._cloudflare.enabled and self._cloudflare.domains:
             for domain in build_cloudflare_domains(
@@ -846,6 +965,13 @@ class TelegramWSProxy:
                     )
                     self.stats.cloudflare_connections += 1
                     self._cloudflare_domain_balancer.record_success(dc, domain)
+                    self._record_route(
+                        dc=dc,
+                        is_media=is_media,
+                        route="Cloudflare",
+                        status="OK",
+                        reason=domain,
+                    )
                     await ws.send(init)
                     if relay_wss_fn is None:
                         await self._relay_wss(client_reader, client_writer, ws, splitter, label, dc=dc)
@@ -869,8 +995,22 @@ class TelegramWSProxy:
                         domain,
                         exc,
                     )
+                    self._record_route(
+                        dc=dc,
+                        is_media=is_media,
+                        route="Cloudflare",
+                        status="ошибка",
+                        reason=f"{domain}: {self._route_error(exc)}",
+                    )
 
         self.stats.cloudflare_failures += 1
+        self._record_route(
+            dc=dc,
+            is_media=is_media,
+            route="Cloudflare",
+            status="ошибка",
+            reason="нет рабочего Worker или домена",
+        )
         return False
 
     async def _mtproxy_tcp_fallback(
@@ -896,6 +1036,13 @@ class TelegramWSProxy:
         except Exception as exc:
             self.stats.failed_connections += 1
             self._log(f"[{label}] MTProxy TCP fallback failed: {type(exc).__name__}")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="TCP",
+                status="ошибка",
+                reason=self._route_error(exc),
+            )
             if self._upstream.enabled:
                 self._log(f"[{label}] MTProxy DC{dc}{media_tag} TCP failed -> trying upstream")
                 await self._mtproxy_upstream_proxy_connect(
@@ -912,6 +1059,7 @@ class TelegramWSProxy:
             return
 
         self.stats.tcp_fallback_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="TCP", status="OK")
         rw.write(relay_init)
         await rw.drain()
         await relay_mtproxy_tcp(
@@ -965,11 +1113,19 @@ class TelegramWSProxy:
                 f"[{label}] MTProxy DC{dc}{media_tag} upstream connect failed "
                 f"({elapsed:.1f}s): {type(exc).__name__}: {exc}"
             )
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="внешний SOCKS5",
+                status="ошибка",
+                reason=self._route_error(exc),
+            )
             return False
 
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] MTProxy DC{dc}{media_tag} upstream connected ({elapsed:.1f}s)")
         self.stats.upstream_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="внешний SOCKS5", status="OK")
         rw.write(relay_init)
         await rw.drain()
         await relay_mtproxy_tcp(
@@ -1007,6 +1163,13 @@ class TelegramWSProxy:
         if ((dc, is_media) in self._dc_upstream_required
                 and should_route_upstream(self._upstream, mode="fallback")):
             self._log(f"[{label}] DC{dc}{media_tag} learned-blocked -> upstream proxy")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="TCP",
+                status="пропуск",
+                reason="раньше был recv=0",
+            )
             ok = await self._upstream_proxy_connect(
                 client_reader, client_writer,
                 target_host, target_port, init, label, dc, is_media,
@@ -1028,6 +1191,13 @@ class TelegramWSProxy:
             elapsed = time.monotonic() - t_connect
             self.stats.failed_connections += 1
             self._log(f"[{label}] TCP fallback failed ({elapsed:.1f}s): {type(exc).__name__}")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="TCP",
+                status="ошибка",
+                reason=self._route_error(exc),
+            )
             # TCP connect failed — try upstream if available
             if self._upstream.enabled:
                 self._dc_upstream_required.add((dc, is_media))
@@ -1041,6 +1211,7 @@ class TelegramWSProxy:
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] DC{dc}{media_tag} TCP connected ({elapsed:.1f}s)")
         self.stats.tcp_fallback_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="TCP", status="OK")
         # Forward the buffered init packet
         rw.write(init)
         await rw.drain()
@@ -1054,6 +1225,13 @@ class TelegramWSProxy:
         if watchdog_fired and recv_total == 0 and self._upstream.enabled:
             self._dc_upstream_required.add((dc, is_media))
             self._log(f"[{label}] DC{dc}{media_tag} recv=0 (watchdog) -> marked for upstream routing")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="TCP",
+                status="ошибка",
+                reason="recv=0 watchdog",
+            )
 
     async def _upstream_proxy_connect(
         self,
@@ -1095,11 +1273,19 @@ class TelegramWSProxy:
                 f"[{label}] DC{dc}{media_tag} upstream connect failed "
                 f"({elapsed:.1f}s): {type(exc).__name__}: {exc}"
             )
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="внешний SOCKS5",
+                status="ошибка",
+                reason=self._route_error(exc),
+            )
             return False
 
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] DC{dc}{media_tag} upstream connected ({elapsed:.1f}s)")
         self.stats.upstream_connections += 1
+        self._record_route(dc=dc, is_media=is_media, route="внешний SOCKS5", status="OK")
         # Forward the buffered init packet
         rw.write(init)
         await rw.drain()

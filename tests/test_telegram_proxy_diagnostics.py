@@ -4,6 +4,7 @@ import unittest
 from types import SimpleNamespace
 
 from telegram_proxy.diagnostics import _build_summary
+from telegram_proxy.proxy.stats import ProxyStats
 from telegram_proxy.ui.page_runtime import build_relay_result_plan, build_stats_plan
 
 
@@ -78,6 +79,41 @@ class TelegramProxyDiagnosticsTests(unittest.TestCase):
         self.assertIn("ошибки 1", plan.stats_text)
         self.assertIn("Пул: WSS 7/2", plan.stats_text)
         self.assertIn("Worker 5/1", plan.stats_text)
+
+    def test_stats_plan_shows_recent_media_route_errors(self) -> None:
+        stats = ProxyStats(
+            active_connections=1,
+            total_connections=2,
+            bytes_sent=1024,
+            bytes_received=2048,
+        )
+        stats.record_route_event(
+            dc=4,
+            is_media=True,
+            route="WSS",
+            status="ошибка",
+            reason="TimeoutError",
+        )
+        stats.record_route_event(
+            dc=4,
+            is_media=True,
+            route="TCP",
+            status="ошибка",
+            reason="recv=0 watchdog",
+        )
+
+        plan = build_stats_plan(
+            stats=stats,
+            prev_sent=0,
+            prev_recv=0,
+            speed_hist_up=(),
+            speed_hist_down=(),
+            interval=2.0,
+        )
+
+        self.assertIn("Последнее:", plan.stats_text)
+        self.assertIn("DC4 media WSS ошибка: TimeoutError", plan.stats_text)
+        self.assertIn("DC4 media TCP ошибка: recv=0 watchdog", plan.stats_text)
 
 
 if __name__ == "__main__":

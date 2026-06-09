@@ -725,6 +725,13 @@ class TelegramProxyMTProxyCoreTests(unittest.TestCase):
             )
 
         self.assertEqual(upstream.call_count, 1)
+        self.assertEqual(
+            [
+                (event.dc, event.is_media, event.route, event.status, event.reason)
+                for event in proxy.stats.route_events
+            ],
+            [(5, False, "TCP", "ошибка", "OSError: blocked")],
+        )
 
 
 if __name__ == "__main__":
