@@ -528,6 +528,20 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
             "Убрать оценку стратегии. Текущая оценка: работает.",
         )
 
+    def test_enabled_checkbox_exposes_state_text_to_screen_reader(self) -> None:
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._enabled_checkbox = _PropertyWidget(checked=True)
+
+        ProfileSetupPageBase._update_profile_setup_accessibility(page)
+
+        self.assertEqual(page._enabled_checkbox.accessibleName(), "Profile, включено")
+        self.assertEqual(
+            page._enabled_checkbox.property("screenReaderStateText"),
+            "Profile, включено",
+        )
+
     def test_user_profile_buttons_skip_duplicate_enabled_state(self) -> None:
         from profile.ui.profile_setup_page import ProfileSetupPageBase
 

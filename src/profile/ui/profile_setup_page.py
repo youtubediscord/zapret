@@ -1405,11 +1405,13 @@ class ProfileSetupPageBase(BasePage):
         checkbox = self.__dict__.get("_enabled_checkbox")
         if checkbox is not None:
             state = "включено" if checkbox.isChecked() else "выключено"
+            state_text = f"Profile, {state}"
             set_control_accessibility(
                 checkbox,
-                name=f"Profile, {state}",
+                name=state_text,
                 description="Включает или отключает этот profile в текущем preset.",
             )
+            set_state_text(checkbox, state_text)
         self._update_combo_accessibility(
             self.__dict__.get("_filter_combo"),
             name="Тип списка profile",

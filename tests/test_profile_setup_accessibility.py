@@ -42,6 +42,7 @@ class ProfileSetupAccessibilityTests(unittest.TestCase):
         page._ensure_match_tab_built()
 
         self.assertEqual(page._enabled_checkbox.accessibleName(), "Profile, выключено")
+        self.assertEqual(page._enabled_checkbox.property("screenReaderStateText"), "Profile, выключено")
         self.assertIn("Включает или отключает", page._enabled_checkbox.accessibleDescription())
         self.assertEqual(page._filter_combo.accessibleName(), "Тип списка profile, выбрано: Hostlist")
         self.assertEqual(page._filter_value.accessibleName(), "Файл списка profile")
