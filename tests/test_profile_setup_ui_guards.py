@@ -414,7 +414,13 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         )
         page._favorite_button._accessible_name = "Убрать стратегию из избранного. Избранное: включено."
         page._favorite_button._text = "Убрать из избранного"
-        page._clear_feedback_button = _PropertyWidget(enabled=True)
+        page._clear_feedback_button = _PropertyWidget(
+            enabled=True,
+            properties={
+                "screenReaderStateText": "Убрать оценку стратегии. Текущая оценка: работает.",
+            },
+        )
+        page._clear_feedback_button._accessible_name = "Убрать оценку стратегии. Текущая оценка: работает."
 
         payload = SimpleNamespace(
             item=SimpleNamespace(in_preset=True, enabled=True, strategy_id="tls_fake"),
@@ -429,6 +435,7 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._clear_feedback_button.enabled_calls, [])
         self.assertEqual(page._work_button.property_calls, [])
         self.assertEqual(page._notwork_button.property_calls, [])
+        self.assertEqual(page._clear_feedback_button.property_calls, [])
         self.assertEqual(page._favorite_button.text_calls, [])
         self.assertEqual(page._favorite_button._text, "Убрать из избранного")
 
@@ -492,6 +499,33 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(
             page._favorite_button.property("screenReaderStateText"),
             "Добавить стратегию в избранное. Избранное: не включено.",
+        )
+
+    def test_clear_feedback_button_exposes_current_rating_to_screen_reader(self) -> None:
+        from types import SimpleNamespace
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._work_button = _PropertyWidget(enabled=True)
+        page._notwork_button = _PropertyWidget(enabled=True)
+        page._favorite_button = _PropertyWidget(enabled=True)
+        page._clear_feedback_button = _PropertyWidget(enabled=True)
+
+        payload = SimpleNamespace(
+            item=SimpleNamespace(in_preset=True, enabled=True, strategy_id="tls_fake"),
+            current_strategy_state=SimpleNamespace(favorite=False, rating="work"),
+        )
+
+        ProfileSetupPageBase._apply_feedback_buttons(page, payload)
+
+        self.assertEqual(
+            page._clear_feedback_button.accessibleName(),
+            "Убрать оценку стратегии. Текущая оценка: работает.",
+        )
+        self.assertEqual(
+            page._clear_feedback_button.property("screenReaderStateText"),
+            "Убрать оценку стратегии. Текущая оценка: работает.",
         )
 
     def test_user_profile_buttons_skip_duplicate_enabled_state(self) -> None:
