@@ -1042,7 +1042,10 @@ class ProfileSetupPageBase(BasePage):
         self._raw_profile_save_runtime = OneShotWorkerRuntime()
         self._raw_profile_save_request_id = 0
         self._raw_profile_save_runtime_worker = None
-        self._pending_raw_profile_save: tuple[str, str | None] | None = None
+        self._raw_profile_save_state = LatestValueWorkerState(
+            self._raw_profile_save_runtime,
+            empty_value=None,
+        )
         self._enabled_save_runtime = OneShotWorkerRuntime()
         self._enabled_save_request_id = 0
         self._enabled_save_runtime_worker = None
@@ -3567,7 +3570,7 @@ class ProfileSetupPageBase(BasePage):
         if not profile_key:
             return
         if self._profile_setup_write_is_running():
-            self._pending_raw_profile_save = (profile_key, raw_text)
+            self._raw_profile_save_state_obj().pending = (profile_key, raw_text)
             self._queue_profile_setup_write_operation(
                 {"kind": "raw_profile_save", "profile_key": profile_key, "text": raw_text}
             )
@@ -3598,7 +3601,7 @@ class ProfileSetupPageBase(BasePage):
     def _on_raw_profile_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
         if request_id != self._raw_profile_save_request_id:
             return
-        if self.__dict__.get("_pending_raw_profile_save"):
+        if self._raw_profile_save_state_obj().has_pending():
             return
         payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
         old_key = str(self._profile_key or "").strip()
@@ -3623,7 +3626,7 @@ class ProfileSetupPageBase(BasePage):
     def _on_raw_profile_save_failed(self, request_id: int, error: str) -> None:
         if request_id != self._raw_profile_save_request_id:
             return
-        if self.__dict__.get("_pending_raw_profile_save"):
+        if self._raw_profile_save_state_obj().has_pending():
             return
         if self._raw_profile_save_button is not None:
             set_widget_enabled_if_changed(self._raw_profile_save_button, True)
@@ -3639,8 +3642,8 @@ class ProfileSetupPageBase(BasePage):
             return
         if self._start_next_profile_setup_write_operation():
             return
-        pending = self.__dict__.get("_pending_raw_profile_save")
-        self._pending_raw_profile_save = None
+        pending = self._raw_profile_save_state_obj().pending
+        self._raw_profile_save_state_obj().pending = None
         if pending:
             profile_key, raw_text = pending
             self._schedule_profile_setup_write_operation_start(
@@ -3650,6 +3653,29 @@ class ProfileSetupPageBase(BasePage):
                     "text": raw_text,
                 }
             )
+
+    def _raw_profile_save_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_raw_profile_save_state")
+        runtime = self.__dict__.get("_raw_profile_save_runtime")
+        if state is None:
+            pending = self.__dict__.pop("_pending_raw_profile_save", None)
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=None,
+                pending=pending,
+            )
+            self.__dict__["_raw_profile_save_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _pending_raw_profile_save(self):
+        return self._raw_profile_save_state_obj().pending
+
+    @_pending_raw_profile_save.setter
+    def _pending_raw_profile_save(self, value) -> None:
+        self._raw_profile_save_state_obj().pending = value
 
     def _on_enabled_changed(self, state: int) -> None:
         if self._loading or not self._profile_key:
@@ -4188,6 +4214,7 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_load_state_obj().reset()
         self._list_file_validation_state_obj().reset()
         self._list_file_save_state_obj().reset()
+        self._raw_profile_save_state_obj().reset()
         self._enabled_save_start_scheduled = False
         self._strategy_feedback_save_start_scheduled = False
         self._profile_setup_payload_apply_scheduled = False
