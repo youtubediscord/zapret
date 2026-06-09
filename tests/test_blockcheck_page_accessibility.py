@@ -28,6 +28,15 @@ class BlockcheckPageAccessibilityTests(unittest.TestCase):
             )
         self.addCleanup(page.deleteLater)
 
+        self.assertEqual(page._tabs_pivot.accessibleName(), "Раздел BlockCheck, выбрано: BlockCheck")
+        self.assertIn("BlockCheck, Подбор стратегии, Диагностика или DNS подмена", page._tabs_pivot.accessibleDescription())
+        page._tabs_pivot.setCurrentItem(page.TAB_STRATEGY_SCAN)
+        self.assertEqual(page._tabs_pivot.accessibleName(), "Раздел BlockCheck, выбрано: Подбор стратегии")
+        self.assertEqual(
+            page._tabs_pivot.property("screenReaderStateText"),
+            "Раздел BlockCheck, выбрано: Подбор стратегии",
+        )
+
         self.assertEqual(page._mode_combo.accessibleName(), "Режим BlockCheck, выбрано: Полная")
         self.assertIn("Выберите глубину проверки", page._mode_combo.accessibleDescription())
         self.assertEqual(page._skip_failed_cb.accessibleName(), "Пропускать проблемные домены, выключено")

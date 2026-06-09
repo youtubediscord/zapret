@@ -59,6 +59,32 @@ from log.log import log
 
 logger = logging.getLogger(__name__)
 
+
+def update_blockcheck_tabs_accessibility(pivot, *, current: object | None = None, language: str = "ru") -> None:
+    if pivot is None:
+        return
+    labels = {
+        "blockcheck": tr_catalog("page.blockcheck.tab.blockcheck", language=language, default="BlockCheck"),
+        "strategy_scan": tr_catalog("page.blockcheck.tab.strategy_scan", language=language, default="Подбор стратегии"),
+        "diagnostics": tr_catalog("page.blockcheck.tab.diagnostics", language=language, default="Диагностика"),
+        "dns_spoofing": tr_catalog("page.blockcheck.tab.dns_spoofing", language=language, default="DNS подмена"),
+    }
+    key = str(current or "").strip() if isinstance(current, str) else ""
+    if not key:
+        try:
+            key = str(pivot.currentRouteKey() or "").strip()
+        except Exception:
+            key = ""
+    selected = labels.get(key, key or "BlockCheck")
+    state = f"Раздел BlockCheck, выбрано: {selected}"
+    set_state_text(pivot, state)
+    set_control_accessibility(
+        pivot,
+        name=state,
+        description="Выберите раздел BlockCheck: BlockCheck, Подбор стратегии, Диагностика или DNS подмена.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
@@ -238,6 +264,8 @@ class BlockcheckPage(BasePage):
         )
         self._tabs_pivot.setCurrentItem(self.TAB_BLOCKCHECK)
         self._tabs_pivot.setItemFontSize(13)
+        self._update_tabs_accessibility(self.TAB_BLOCKCHECK)
+        self._tabs_pivot.currentItemChanged.connect(self._update_tabs_accessibility)
         self.add_widget(self._tabs_pivot)
         self._log_ui_timing("blockcheck_ui.tabs.build", section_started_at)
 
@@ -531,6 +559,13 @@ class BlockcheckPage(BasePage):
         self._pending_tab_key = None
         self._switch_tab(self.TAB_ORDER.index(normalized))
 
+    def _update_tabs_accessibility(self, current: object | None = None) -> None:
+        update_blockcheck_tabs_accessibility(
+            self._tabs_pivot,
+            current=current,
+            language=self.__dict__.get("_ui_language", "ru"),
+        )
+
     def request_diagnostics_start_focus(self) -> None:
         self._pending_diagnostics_start_focus = True
         if not self.is_page_ready():
@@ -573,6 +608,7 @@ class BlockcheckPage(BasePage):
                 self._tabs_pivot.setCurrentItem(tab_key)
             except Exception:
                 pass
+            self._update_tabs_accessibility(tab_key)
 
         if tab_key == self.TAB_STRATEGY_SCAN:
             self._ensure_strategy_tab()
@@ -1330,6 +1366,7 @@ class BlockcheckPage(BasePage):
                     self.TAB_DNS_SPOOFING,
                     tr_catalog("page.blockcheck.tab.dns_spoofing", language=language, default="DNS подмена"),
                 )
+                self._update_tabs_accessibility()
             self._control_card.set_title(tr_catalog("page.blockcheck.control", language=language, default="Управление"))
             self._domains_card.set_title(tr_catalog("page.blockcheck.custom_domains", language=language, default="Пользовательские домены"))
             self._results_card.set_title(tr_catalog("page.blockcheck.results", language=language, default="Результаты"))
