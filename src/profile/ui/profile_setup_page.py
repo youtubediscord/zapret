@@ -1038,7 +1038,10 @@ class ProfileSetupPageBase(BasePage):
         self._settings_save_runtime = OneShotWorkerRuntime()
         self._settings_save_request_id = 0
         self._settings_save_runtime_worker = None
-        self._pending_settings_save = None
+        self._settings_save_state = LatestValueWorkerState(
+            self._settings_save_runtime,
+            empty_value=None,
+        )
         self._raw_profile_save_runtime = OneShotWorkerRuntime()
         self._raw_profile_save_request_id = 0
         self._raw_profile_save_runtime_worker = None
@@ -3479,9 +3482,10 @@ class ProfileSetupPageBase(BasePage):
     def _request_settings_save(self, request: dict) -> None:
         request = dict(request)
         if self._profile_setup_write_is_running():
-            if self.__dict__.get("_pending_settings_save") == dict(request):
+            state = self._settings_save_state_obj()
+            if state.pending == dict(request):
                 return
-            self._pending_settings_save = request
+            state.pending = request
             self._queue_profile_setup_write_operation({"kind": "settings_save", "request": request})
             return
         self._start_settings_save_worker(request)
@@ -3510,7 +3514,7 @@ class ProfileSetupPageBase(BasePage):
     def _on_settings_save_finished(self, request_id: int, profile_key: str, payload=None) -> None:
         if request_id != self._settings_save_request_id:
             return
-        if self._pending_settings_save:
+        if self._settings_save_state_obj().has_pending():
             return
         payload, apply_signature = _profile_setup_payload_and_apply_signature(payload)
         new_key = str(profile_key or "").strip()
@@ -3530,7 +3534,7 @@ class ProfileSetupPageBase(BasePage):
     def _on_settings_save_failed(self, request_id: int, error: str) -> None:
         if request_id != self._settings_save_request_id:
             return
-        if self._pending_settings_save:
+        if self._settings_save_state_obj().has_pending():
             return
         log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {error}", "ERROR")
 
@@ -3539,12 +3543,35 @@ class ProfileSetupPageBase(BasePage):
             return
         if self._start_next_profile_setup_write_operation():
             return
-        pending = self._pending_settings_save
-        self._pending_settings_save = None
+        pending = self._settings_save_state_obj().pending
+        self._settings_save_state_obj().pending = None
         if pending:
             self._schedule_profile_setup_write_operation_start(
                 {"kind": "settings_save", "request": dict(pending)}
             )
+
+    def _settings_save_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_settings_save_state")
+        runtime = self.__dict__.get("_settings_save_runtime")
+        if state is None:
+            pending = self.__dict__.pop("_pending_settings_save", None)
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=None,
+                pending=pending,
+            )
+            self.__dict__["_settings_save_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _pending_settings_save(self):
+        return self._settings_save_state_obj().pending
+
+    @_pending_settings_save.setter
+    def _pending_settings_save(self, value) -> None:
+        self._settings_save_state_obj().pending = value
 
     def _on_raw_profile_save_clicked(self) -> None:
         if self._loading or not self._profile_key or self._raw_profile_text is None:
@@ -4250,6 +4277,7 @@ class ProfileSetupPageBase(BasePage):
         self._list_file_load_state_obj().reset()
         self._list_file_validation_state_obj().reset()
         self._list_file_save_state_obj().reset()
+        self._settings_save_state_obj().reset()
         self._raw_profile_save_state_obj().reset()
         self._enabled_save_state_obj().reset()
         self._strategy_feedback_save_start_scheduled = False
