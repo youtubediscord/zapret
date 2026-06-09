@@ -135,6 +135,14 @@ def set_profile_list_status_text(label, text: str) -> bool:
     return changed
 
 
+def set_profile_list_error_text(label, text: str) -> bool:
+    changed = set_widget_text_if_changed(label, text)
+    value = " ".join(str(text or "").strip().split())
+    if value:
+        set_state_text(label, f"Ошибка списка profile: {value}")
+    return changed
+
+
 def set_widget_style_sheet_if_changed(widget, style: str) -> bool:
     value = str(style or "")
     try:
@@ -3087,11 +3095,11 @@ class ProfileSetupPageBase(BasePage):
             ]
             if len(invalid_lines) > 5:
                 lines.append(f"И ещё ошибок: {len(invalid_lines) - 5}")
-            set_widget_text_if_changed(self._list_file_error_label, "Неверные строки:\n" + "\n".join(lines))
+            set_profile_list_error_text(self._list_file_error_label, "Неверные строки:\n" + "\n".join(lines))
             set_widget_visible_if_changed(self._list_file_error_label, True)
             return
         if fallback_error:
-            set_widget_text_if_changed(self._list_file_error_label, fallback_error)
+            set_profile_list_error_text(self._list_file_error_label, fallback_error)
             set_widget_visible_if_changed(self._list_file_error_label, True)
             return
         set_widget_text_if_changed(self._list_file_error_label, "")

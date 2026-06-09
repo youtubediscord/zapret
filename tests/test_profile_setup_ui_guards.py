@@ -1420,6 +1420,23 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         self.assertEqual(page._list_file_error_label.show_calls, 0)
         page._refresh_list_file_editor_style.assert_called_once_with(has_error=True)
 
+    def test_list_file_error_label_exposes_screen_reader_state(self) -> None:
+        from unittest.mock import Mock
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._list_file_text = _PlainTextWidget("bad value")
+        page._refresh_list_file_editor_style = Mock()
+        page._list_file_error_label = _LabelWidget("", visible=False)
+
+        ProfileSetupPageBase._render_list_file_validation(page, ((1, "bad value"),))
+
+        expected = "Ошибка списка profile: Неверные строки: Строка 1: bad value"
+
+        self.assertEqual(page._list_file_error_label.accessibleName(), expected)
+        self.assertEqual(page._list_file_error_label.property("screenReaderStateText"), expected)
+
     def test_list_file_editor_style_skips_duplicate_stylesheet_updates(self) -> None:
         from types import SimpleNamespace
         from unittest.mock import patch
