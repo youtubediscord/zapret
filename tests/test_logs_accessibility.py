@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import inspect
+import os
 import unittest
 from types import SimpleNamespace
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PyQt6.QtWidgets import QApplication
 
 import log.ui.logs_build as logs_build
 import log.ui.page as logs_page
@@ -66,6 +71,28 @@ class _FakeLogCombo:
 
 
 class LogsAccessibilityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_tabs_read_current_section_for_screen_reader(self) -> None:
+        page = logs_page.LogsPage(
+            logs_feature=SimpleNamespace(get_current_log_file=lambda: ""),
+            orchestra_feature=SimpleNamespace(),
+        )
+        self.addCleanup(page.deleteLater)
+
+        self.assertEqual(page.tabs_pivot.accessibleName(), "Вкладки страницы логов, выбрано: Логи")
+        self.assertIn("Логи или Поддержка", page.tabs_pivot.accessibleDescription())
+
+        page.tabs_pivot.setCurrentItem("send")
+
+        self.assertEqual(page.tabs_pivot.accessibleName(), "Вкладки страницы логов, выбрано: Поддержка")
+        self.assertEqual(
+            page.tabs_pivot.property("screenReaderStateText"),
+            "Вкладки страницы логов, выбрано: Поддержка",
+        )
+
     def test_logs_build_assigns_screen_reader_names_to_core_controls(self) -> None:
         source = inspect.getsource(logs_build.build_logs_primary_tab_ui)
         secondary_source = inspect.getsource(logs_build.build_logs_secondary_panels_ui)

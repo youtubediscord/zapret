@@ -79,6 +79,29 @@ EXCLUDE_PATTERNS = [
 ]
 
 
+def update_logs_tabs_accessibility(pivot, *, current: object | None = None, language: str = "ru") -> None:
+    if pivot is None:
+        return
+    labels = {
+        "logs": tr_catalog("page.logs.tab.logs", language=language, default="ЛОГИ").strip().title(),
+        "send": tr_catalog("page.logs.tab.send", language=language, default="ОТПРАВКА").strip().title(),
+    }
+    key = str(current or "").strip() if isinstance(current, str) else ""
+    if not key:
+        try:
+            key = str(pivot.currentRouteKey() or "").strip()
+        except Exception:
+            key = ""
+    selected = labels.get(key, key or "Логи")
+    state = f"Вкладки страницы логов, выбрано: {selected}"
+    set_state_text(pivot, state)
+    set_control_accessibility(
+        pivot,
+        name=state,
+        description="Выберите раздел страницы логов: Логи или Поддержка.",
+    )
+
+
 class LogsPage(BasePage):
     """Страница просмотра логов"""
     
@@ -324,14 +347,8 @@ class LogsPage(BasePage):
         )
         self.tabs_pivot.setCurrentItem("logs")
         self.tabs_pivot.setItemFontSize(13)
-        set_control_accessibility(
-            self.tabs_pivot,
-            name=tr_catalog("page.logs.accessibility.tabs.name", default="Вкладки страницы логов"),
-            description=tr_catalog(
-                "page.logs.accessibility.tabs.description",
-                default="Переключение между просмотром логов и подготовкой обращения в поддержку.",
-            ),
-        )
+        self._update_tabs_accessibility("logs")
+        self.tabs_pivot.currentItemChanged.connect(self._update_tabs_accessibility)
         self.add_widget(self.tabs_pivot)
 
         # ═══════════════════════════════════════════════════════════
@@ -380,10 +397,18 @@ class LogsPage(BasePage):
             self.tabs_pivot.setCurrentItem(key)
         except Exception:
             pass
+        self._update_tabs_accessibility(key)
 
         if index == 1:
             # Обновляем видимость индикатора оркестратора
             self._update_orchestra_indicator()
+
+    def _update_tabs_accessibility(self, current: object | None = None) -> None:
+        update_logs_tabs_accessibility(
+            self.tabs_pivot,
+            current=current,
+            language=self.__dict__.get("_ui_language", "ru"),
+        )
 
     def set_ui_language(self, language: str) -> None:
         super().set_ui_language(language)
@@ -394,6 +419,7 @@ class LogsPage(BasePage):
         try:
             self.tabs_pivot.setItemText("logs", logs_text)
             self.tabs_pivot.setItemText("send", send_text)
+            self._update_tabs_accessibility()
         except Exception:
             pass
 
