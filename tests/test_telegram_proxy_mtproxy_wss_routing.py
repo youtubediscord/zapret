@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 
 class TelegramProxyMtproxyWssRoutingTests(unittest.TestCase):
-    def test_mtproxy_cdn_dc_tries_fallback_wss_relays_before_tcp(self) -> None:
+    def test_mtproxy_cdn_dc_skips_unsafe_cross_dc_wss_relays(self) -> None:
         from telegram_proxy.wss_proxy import TelegramWSProxy
 
         class _Pool:
@@ -17,34 +17,16 @@ class TelegramProxyMtproxyWssRoutingTests(unittest.TestCase):
                 self.calls.append((dc, is_media, target_ip, tuple(domains)))
                 return None
 
-        class _Ws:
-            def __init__(self) -> None:
-                self.sent = []
-
-            async def send(self, data):
-                self.sent.append(data)
-
-        async def fake_relay_mtproxy_wss(**_kwargs):
-            return None
-
         async def fake_tcp_fallback(*args, **_kwargs):
             tcp_calls.append(args)
 
-        connect_calls = []
         tcp_calls = []
         pool = _Pool()
         proxy = TelegramWSProxy()
         proxy._ws_pool = pool
         proxy._mtproxy_tcp_fallback = fake_tcp_fallback
 
-        async def fake_connect(host, domain, path="/apiws", timeout=10.0, **_kwargs):
-            connect_calls.append((host, domain, path, timeout))
-            return _Ws()
-
-        with (
-            patch("telegram_proxy.wss_proxy.RawWebSocket.connect", side_effect=fake_connect),
-            patch("telegram_proxy.wss_proxy.relay_mtproxy_wss", side_effect=fake_relay_mtproxy_wss),
-        ):
+        with patch("telegram_proxy.wss_proxy.RawWebSocket.connect") as connect:
             asyncio.run(
                 proxy._tunnel_mtproxy_via_wss(
                     None,
@@ -60,12 +42,11 @@ class TelegramProxyMtproxyWssRoutingTests(unittest.TestCase):
                 )
             )
 
-        self.assertTrue(pool.calls, "DC203 should reach fallback WSS relay selection")
-        self.assertEqual(pool.calls[0][0], 203)
-        self.assertIn("kws2.web.telegram.org", pool.calls[0][3])
-        self.assertEqual(connect_calls[0][1], "kws2.web.telegram.org")
-        self.assertEqual(tcp_calls, [])
-        self.assertEqual(proxy.stats.wss_connections, 1)
+        self.assertEqual(pool.calls, [])
+        connect.assert_not_called()
+        self.assertEqual(len(tcp_calls), 1)
+        self.assertEqual(tcp_calls[0][-2:], (203, False))
+        self.assertEqual(proxy.stats.wss_connections, 0)
 
 
 if __name__ == "__main__":

@@ -727,6 +727,33 @@ class TelegramWSProxy:
             )
             return
 
+        if dc not in WSS_DOMAINS:
+            self._log(f"[{label}] MTProxy DC{dc}{media_tag} -> fallback (no own WSS relay)")
+            self._record_route(
+                dc=dc,
+                is_media=is_media,
+                route="WSS",
+                status="пропуск",
+                reason="для этого DC нет WSS relay",
+            )
+            if await self._cloudflare_fallback(
+                client_reader,
+                client_writer,
+                target_host,
+                target_port,
+                relay_init,
+                False,
+                label,
+                dc,
+                is_media,
+                relay_wss_fn=lambda **kwargs: relay_mtproxy_wss(crypto=crypto, splitter=splitter, **kwargs),
+            ):
+                return
+            await self._mtproxy_tcp_fallback(
+                client_reader, client_writer, target_host, target_port, relay_init, crypto, label, dc, is_media
+            )
+            return
+
         if dc_key in self._ws_blacklist or now < self._dc_cooldown.get(dc_key, 0):
             reason = "раньше были только 302 redirect" if dc_key in self._ws_blacklist else "пауза после ошибки"
             self._record_route(
