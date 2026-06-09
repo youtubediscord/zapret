@@ -80,6 +80,71 @@ class ForceDnsBuildTests(unittest.TestCase):
         self.assertEqual(widgets.reset_button.accessibleName(), "Сбросить DNS на DHCP")
         self.assertIn("Отключить Force DNS", widgets.reset_button.accessibleDescription())
 
+    def test_force_dns_long_text_is_row_description_not_group_title(self) -> None:
+        parent = QWidget()
+
+        _active, widgets = build_force_dns_card_ui(
+            parent=parent,
+            content_parent=parent,
+            add_section_title_fn=lambda **_kwargs: None,
+            tr_fn=lambda _key, default: default,
+            add_widget_fn=lambda _widget: None,
+            get_theme_tokens_fn=get_theme_tokens,
+            get_force_dns_status_fn=lambda: False,
+            setting_card_group_cls=SettingCardGroup,
+            caption_label_cls=CaptionLabel,
+            action_button_cls=PushButton,
+            win11_toggle_row_cls=Win11ToggleRow,
+            qwidget_cls=QWidget,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qt_namespace=Qt,
+            insert_widget_into_setting_card_group_fn=insert_widget_into_setting_card_group,
+            enable_setting_card_group_auto_height_fn=enable_setting_card_group_auto_height,
+            on_toggle=lambda _checked: None,
+            on_confirm_reset=lambda: None,
+        )
+
+        long_text = "Принудительно прописывает Google DNS + OpenDNS для обхода блокировок"
+        title_label = getattr(widgets.card, "titleLabel", None)
+        description_label = getattr(widgets.toggle, "contentLabel", None)
+
+        self.assertIsNotNone(title_label)
+        self.assertNotEqual(title_label.text(), long_text)
+        self.assertIsNotNone(description_label)
+        self.assertEqual(description_label.text(), long_text)
+
+    def test_reset_button_is_aligned_with_force_dns_block_actions(self) -> None:
+        parent = QWidget()
+
+        _active, widgets = build_force_dns_card_ui(
+            parent=parent,
+            content_parent=parent,
+            add_section_title_fn=lambda **_kwargs: None,
+            tr_fn=lambda _key, default: default,
+            add_widget_fn=lambda _widget: None,
+            get_theme_tokens_fn=get_theme_tokens,
+            get_force_dns_status_fn=lambda: True,
+            setting_card_group_cls=SettingCardGroup,
+            caption_label_cls=CaptionLabel,
+            action_button_cls=PushButton,
+            win11_toggle_row_cls=Win11ToggleRow,
+            qwidget_cls=QWidget,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qt_namespace=Qt,
+            insert_widget_into_setting_card_group_fn=insert_widget_into_setting_card_group,
+            enable_setting_card_group_auto_height_fn=enable_setting_card_group_auto_height,
+            on_toggle=lambda _checked: None,
+            on_confirm_reset=lambda: None,
+        )
+
+        layout = widgets.reset_row.layout()
+
+        self.assertIsNotNone(layout)
+        self.assertIsNotNone(layout.itemAt(0).spacerItem())
+        self.assertIs(layout.itemAt(1).widget(), widgets.reset_button)
+
 
 if __name__ == "__main__":
     unittest.main()

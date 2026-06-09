@@ -281,31 +281,18 @@ class NetworkPage(BasePage):
 
         if hasattr(self, "force_dns_card"):
             try:
-                self.force_dns_card.set_title(
-                    self._tr(
-                        "page.network.force_dns.card.title",
-                        "Принудительно прописывает Google DNS + OpenDNS для обхода блокировок",
-                    )
-                )
-            except Exception:
-                pass
-            try:
                 title_label = getattr(self.force_dns_card, "titleLabel", None)
                 if title_label is not None:
-                    title_label.setText(
-                        self._tr(
-                            "page.network.force_dns.card.title",
-                            "Принудительно прописывает Google DNS + OpenDNS для обхода блокировок",
-                        )
-                    )
+                    title_label.setText("")
+                    title_label.hide()
             except Exception:
                 pass
         if hasattr(self, "force_dns_toggle"):
             self.force_dns_toggle.set_texts(
                 self._tr("page.network.force_dns.toggle.title", "Принудительный DNS"),
                 self._tr(
-                    "page.network.force_dns.toggle.description",
-                    "Устанавливает Google DNS + OpenDNS на активные адаптеры",
+                    "page.network.force_dns.card.title",
+                    "Принудительно прописывает Google DNS + OpenDNS для обхода блокировок",
                 ),
             )
         if hasattr(self, "force_dns_reset_dhcp_btn"):

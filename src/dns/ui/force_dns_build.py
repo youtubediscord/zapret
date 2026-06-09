@@ -46,22 +46,26 @@ def build_force_dns_card_ui(
 
     add_section_title_fn(text_key="page.network.section.force_dns")
 
-    title_text = tr_fn(
+    force_dns_description = tr_fn(
         "page.network.force_dns.card.title",
         "Принудительно прописывает Google DNS + OpenDNS для обхода блокировок",
     )
     _ = parent
     _ = qvbox_layout_cls
-    force_dns_card = setting_card_group_cls(title_text, content_parent)
+    force_dns_card = setting_card_group_cls("", content_parent)
+    title_label = getattr(force_dns_card, "titleLabel", None)
+    if title_label is not None:
+        try:
+            title_label.setText("")
+            title_label.hide()
+        except Exception:
+            pass
     dns_layout = None
 
     force_dns_toggle = win11_toggle_row_cls(
         "fa5s.shield-alt",
         tr_fn("page.network.force_dns.toggle.title", "Принудительный DNS"),
-        tr_fn(
-            "page.network.force_dns.toggle.description",
-            "Устанавливает Google DNS + OpenDNS на активные адаптеры",
-        ),
+        force_dns_description,
         tokens.accent_hex,
     )
     force_dns_toggle.setChecked(force_dns_active)
@@ -106,8 +110,8 @@ def build_force_dns_card_ui(
         reset_row_layout = qhbox_layout_cls(reset_row)
         reset_row_layout.setContentsMargins(0, 4, 0, 0)
         reset_row_layout.setSpacing(8)
-        reset_row_layout.addWidget(force_dns_reset_dhcp_btn, 0, qt_namespace.AlignmentFlag.AlignLeft)
         reset_row_layout.addStretch()
+        reset_row_layout.addWidget(force_dns_reset_dhcp_btn, 0, qt_namespace.AlignmentFlag.AlignRight)
         insert_widget_into_setting_card_group_fn(force_dns_card, 2, reset_row)
         enable_setting_card_group_auto_height_fn(force_dns_card)
     else:
