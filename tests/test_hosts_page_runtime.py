@@ -91,9 +91,10 @@ class HostsPageRuntimeTests(unittest.TestCase):
 
         self.assertIn("self._hosts = deps.hosts_feature", init_source)
         self.assertIn("_selection_save_runtime", init_source)
+        self.assertIn("_selection_save_state = LatestValueWorkerState", init_source)
         self.assertIn("start_qthread_worker", request_source)
-        self.assertIn("_selection_save_pending", request_source)
-        self.assertIn("_selection_save_pending", finished_source)
+        self.assertIn("_selection_save_state_obj", request_source)
+        self.assertIn("_selection_save_state_obj", finished_source)
         self.assertIn("self._hosts.create_selection_save_worker", request_source)
         self.assertIn("_save_user_selection", worker_source)
         self.assertNotIn("hosts.commands", worker_source)
@@ -111,6 +112,21 @@ class HostsPageRuntimeTests(unittest.TestCase):
             source = inspect.getsource(getattr(HostsPage, method_name))
             self.assertIn("_request_user_selection_save", source)
             self.assertNotIn("_controller.save_user_selection", source)
+
+    def test_user_selection_save_queue_uses_shared_latest_worker_state(self) -> None:
+        from hosts.ui.page import HostsPage
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        page = HostsPage.__new__(HostsPage)
+        page._selection_save_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+
+        init_source = inspect.getsource(HostsPage.__init__)
+
+        self.assertTrue(hasattr(HostsPage, "_selection_save_state_obj"))
+        self.assertIsInstance(page._selection_save_state_obj(), LatestValueWorkerState)
+        self.assertIn("_selection_save_state = LatestValueWorkerState", init_source)
+        self.assertNotIn("self._selection_save_pending = None", init_source)
+        self.assertNotIn("self._selection_save_start_scheduled = False", init_source)
 
     def test_user_selection_save_pending_restarts_after_event_loop_turn(self) -> None:
         import hosts.ui.page as hosts_page

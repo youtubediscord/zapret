@@ -156,8 +156,7 @@ class HostsPage(BasePage):
         self._selection_load_show_access_errors = False
         self._selection_load_state = LatestValueWorkerState(self._selection_load_runtime, empty_value=False)
         self._selection_save_runtime = OneShotWorkerRuntime()
-        self._selection_save_pending = None
-        self._selection_save_start_scheduled = False
+        self._selection_save_state = LatestValueWorkerState(self._selection_save_runtime, empty_value=None)
         self._state_load_runtime = OneShotWorkerRuntime()
         self._state_load_pending = {"show_access_errors": False, "update_status": False}
         self._state_load_request_context = {"show_access_errors": False, "update_status": False}
@@ -1108,8 +1107,9 @@ class HostsPage(BasePage):
 
     def _request_user_selection_save(self, selection: dict[str, str]) -> None:
         payload = dict(selection or {})
-        if self._selection_save_runtime.is_running() or self.__dict__.get("_selection_save_start_scheduled", False):
-            self._selection_save_pending = payload
+        state = self._selection_save_state_obj()
+        if state.is_busy():
+            state.pending = payload
             return
         self._selection_save_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._hosts.create_selection_save_worker(
@@ -1128,7 +1128,7 @@ class HostsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
-        if self.__dict__.get("_selection_save_pending") is not None:
+        if self._selection_save_state_obj().has_pending():
             return
         if not saved:
             log("Hosts: выбор профилей не был сохранён", "WARNING")
@@ -1139,7 +1139,7 @@ class HostsPage(BasePage):
             cleanup_in_progress=self._cleanup_in_progress,
         ):
             return
-        if self.__dict__.get("_selection_save_pending") is not None:
+        if self._selection_save_state_obj().has_pending():
             return
         log(f"Hosts: ошибка сохранения выбора профилей: {error}", "ERROR")
 
@@ -1148,27 +1148,57 @@ class HostsPage(BasePage):
             return
         if self._cleanup_in_progress:
             return
-        pending = self._selection_save_pending
-        if pending is not None:
+        if self._selection_save_state_obj().has_pending():
             self._schedule_user_selection_save_start()
 
     def _schedule_user_selection_save_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_selection_save_start_scheduled", False):
-            return
-        self._selection_save_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_user_selection_save_start)
+        self._selection_save_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_user_selection_save_start,
+        )
 
     def _run_scheduled_user_selection_save_start(self) -> None:
-        self._selection_save_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        selection = self.__dict__.get("_selection_save_pending")
-        self._selection_save_pending = None
+        selection = self._selection_save_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
         if selection is None:
             return
         self._request_user_selection_save(selection)
+
+    def _selection_save_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_selection_save_state")
+        runtime = self.__dict__.get("_selection_save_runtime")
+        if state is None:
+            pending = self.__dict__.pop("_selection_save_pending", None)
+            start_scheduled = bool(self.__dict__.pop("_selection_save_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=None,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_selection_save_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _selection_save_pending(self):
+        return self._selection_save_state_obj().pending
+
+    @_selection_save_pending.setter
+    def _selection_save_pending(self, value) -> None:
+        self._selection_save_state_obj().pending = value
+
+    @property
+    def _selection_save_start_scheduled(self) -> bool:
+        return bool(self._selection_save_state_obj().start_scheduled)
+
+    @_selection_save_start_scheduled.setter
+    def _selection_save_start_scheduled(self, value: bool) -> None:
+        self._selection_save_state_obj().start_scheduled = bool(value)
 
     def _on_operation_complete(self, success: bool, message: str):
         if self._cleanup_in_progress:
