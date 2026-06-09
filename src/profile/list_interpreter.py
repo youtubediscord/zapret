@@ -20,7 +20,7 @@ def build_profile_list_sources(
 ) -> tuple[ProfileListSource, ...]:
     groups: list[list[ProfileListSource]] = []
     group_aliases: list[set[str]] = []
-    alias_to_group: dict[str, int] = {}
+    alias_to_groups: dict[str, set[int]] = {}
 
     for profile in preset_profiles:
         source = ProfileListSource(
@@ -29,7 +29,7 @@ def build_profile_list_sources(
             in_preset=True,
             order=profile.index,
         )
-        _add_source_to_groups(source, groups, group_aliases, alias_to_group)
+        _add_preset_source_to_groups(source, groups, group_aliases, alias_to_groups)
 
     template_order = len(preset_profiles)
     for template_id, profile in templates.items():
@@ -40,27 +40,58 @@ def build_profile_list_sources(
             order=template_order + profile.index,
             user_template_key=f"template:{template_id}" if str(template_id).startswith("user:") else "",
         )
-        _add_source_to_groups(source, groups, group_aliases, alias_to_group)
+        _add_template_source_to_groups(source, groups, group_aliases, alias_to_groups)
 
     selected = [_select_source(candidates) for candidates in groups if candidates]
     selected.sort(key=lambda source: (source.order, source.profile.display_name.lower(), source.key))
     return tuple(selected)
 
 
+def _add_preset_source_to_groups(
+    source: ProfileListSource,
+    groups: list[list[ProfileListSource]],
+    group_aliases: list[set[str]],
+    alias_to_groups: dict[str, set[int]],
+) -> None:
+    aliases = _logical_profile_keys(source.profile)
+    group_index = len(groups)
+    groups.append([source])
+    group_aliases.append(set(aliases))
+    for alias in aliases:
+        alias_to_groups.setdefault(alias, set()).add(group_index)
+
+
+def _add_template_source_to_groups(
+    source: ProfileListSource,
+    groups: list[list[ProfileListSource]],
+    group_aliases: list[set[str]],
+    alias_to_groups: dict[str, set[int]],
+) -> None:
+    aliases = _logical_profile_keys(source.profile)
+    existing = sorted({group_index for alias in aliases for group_index in alias_to_groups.get(alias, set())})
+    preset_existing = [group_index for group_index in existing if _group_has_preset_source(groups[group_index])]
+    if preset_existing:
+        for group_index in preset_existing:
+            groups[group_index].append(source)
+            _remember_group_aliases(group_index, aliases, group_aliases, alias_to_groups)
+        return
+    _add_source_to_groups(source, groups, group_aliases, alias_to_groups)
+
+
 def _add_source_to_groups(
     source: ProfileListSource,
     groups: list[list[ProfileListSource]],
     group_aliases: list[set[str]],
-    alias_to_group: dict[str, int],
+    alias_to_groups: dict[str, set[int]],
 ) -> None:
     aliases = _logical_profile_keys(source.profile)
-    existing = sorted({alias_to_group[alias] for alias in aliases if alias in alias_to_group})
+    existing = sorted({group_index for alias in aliases for group_index in alias_to_groups.get(alias, set())})
     if not existing:
         group_index = len(groups)
         groups.append([source])
         group_aliases.append(set(aliases))
         for alias in aliases:
-            alias_to_group[alias] = group_index
+            alias_to_groups.setdefault(alias, set()).add(group_index)
         return
 
     target = existing[0]
@@ -76,7 +107,22 @@ def _add_source_to_groups(
         group_aliases[other] = set()
 
     for alias in group_aliases[target]:
-        alias_to_group[alias] = target
+        alias_to_groups.setdefault(alias, set()).add(target)
+
+
+def _group_has_preset_source(group: list[ProfileListSource]) -> bool:
+    return any(source.in_preset for source in group)
+
+
+def _remember_group_aliases(
+    group_index: int,
+    aliases: tuple[str, ...],
+    group_aliases: list[set[str]],
+    alias_to_groups: dict[str, set[int]],
+) -> None:
+    group_aliases[group_index].update(aliases)
+    for alias in group_aliases[group_index]:
+        alias_to_groups.setdefault(alias, set()).add(group_index)
 
 
 def _logical_profile_keys(profile: Profile) -> tuple[str, ...]:
