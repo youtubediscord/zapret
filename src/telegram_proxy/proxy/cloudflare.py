@@ -91,8 +91,25 @@ _DNS_RECORD_BY_DC = {record.dc: record for record in CLOUDFLARE_DNS_RECORDS}
 _CFWORKER_CODE = """\
 import { connect } from "cloudflare:sockets";
 
+function toBytes(data) {
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+  if (typeof data === "string") {
+    return new TextEncoder().encode(data);
+  }
+  if (data && typeof data.arrayBuffer === "function") {
+    return data.arrayBuffer().then((ab) => new Uint8Array(ab));
+  }
+  return new Uint8Array();
+}
+
 export default {
   async fetch(request) {
+    if ((request.headers.get("Upgrade") || "").toLowerCase() !== "websocket") {
+      return new Response("Expected websocket", { status: 426 });
+    }
+
     const url = new URL(request.url);
     if (url.pathname !== "/apiws") {
       return new Response("Not found", { status: 404 });
@@ -109,31 +126,38 @@ export default {
     server.accept();
 
     const socket = connect({ hostname: dst, port: 443 });
-    const writer = socket.writable.getWriter();
-    const reader = socket.readable.getReader();
+    const tcpWriter = socket.writable.getWriter();
+    const tcpReader = socket.readable.getReader();
 
-    server.addEventListener("message", async event => {
-      const data = event.data instanceof ArrayBuffer
-        ? new Uint8Array(event.data)
-        : new TextEncoder().encode(String(event.data));
-      await writer.write(data);
+    server.addEventListener("message", async (event) => {
+      try {
+        await tcpWriter.write(await toBytes(event.data));
+      } catch {
+        try { server.close(1011, "tcp write failed"); } catch {}
+      }
     });
 
-    server.addEventListener("close", () => {
-      try { writer.close(); } catch (_) {}
+    server.addEventListener("close", async () => {
+      try { await tcpWriter.close(); } catch {}
+      try { socket.close(); } catch {}
     });
 
     (async () => {
       try {
         for (;;) {
-          const { value, done } = await reader.read();
+          const { value, done } = await tcpReader.read();
           if (done) {
             break;
           }
-          server.send(value);
+          if (value) {
+            server.send(value);
+          }
         }
+      } catch {
       } finally {
-        try { server.close(); } catch (_) {}
+        try { server.close(); } catch {}
+        try { tcpReader.releaseLock(); } catch {}
+        try { socket.close(); } catch {}
       }
     })();
 

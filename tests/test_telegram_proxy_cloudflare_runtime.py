@@ -155,7 +155,12 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
         self.assertIn("kws203", dns_text)
         self.assertIn("91.105.192.100", dns_text)
         self.assertIn('url.pathname !== "/apiws"', worker_code)
+        self.assertIn('request.headers.get("Upgrade")', worker_code)
+        self.assertIn("function toBytes(data)", worker_code)
         self.assertIn("connect({ hostname: dst, port: 443 })", worker_code)
+        self.assertIn("await tcpWriter.write(await toBytes(event.data))", worker_code)
+        self.assertIn("tcpReader.releaseLock()", worker_code)
+        self.assertIn("socket.close()", worker_code)
 
     def test_cloudflare_connectivity_check_builds_domain_and_worker_probes(self) -> None:
         from telegram_proxy.proxy.cloudflare import check_cloudflare_connectivity
