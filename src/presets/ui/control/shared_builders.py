@@ -10,6 +10,7 @@ from qfluentwidgets import CardWidget, FluentIcon
 
 from ui.pulsing_dot import PulsingDot
 from ui.accessibility import set_control_accessibility
+from ui.theme import get_themed_qta_icon
 
 
 @dataclass(slots=True)
@@ -130,7 +131,7 @@ def build_mode_management_section_common(
 
     stop_winws_btn = stop_button_cls(
         tr_fn(stop_key, stop_default),
-        icon=FluentIcon.CANCEL,
+        icon=get_themed_qta_icon("fa5s.stop"),
     )
     set_control_accessibility(
         stop_winws_btn,
