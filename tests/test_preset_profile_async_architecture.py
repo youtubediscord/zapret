@@ -1830,11 +1830,17 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
     def test_profile_list_filter_rebuild_runs_through_worker_runtime(self) -> None:
         import profile.ui.profiles_list as profiles_list_module
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
+        page = ProfilesList.__new__(ProfilesList)
+        page._view_state_runtime = Mock()
         list_source = inspect.getsource(ProfilesList)
+        init_source = inspect.getsource(ProfilesList.__init__)
         build_source = inspect.getsource(ProfilesList.build_profiles)
         update_source = inspect.getsource(ProfilesList.update_profiles)
         search_source = inspect.getsource(ProfilesList.set_search_query)
+        request_source = inspect.getsource(ProfilesList._request_view_state_rebuild)
+        finished_source = inspect.getsource(ProfilesList._on_view_state_worker_finished)
         type_source = inspect.getsource(ProfilesList._apply_profile_type_filter)
         toggle_source = inspect.getsource(ProfilesList._on_delegate_action)
         expand_source = inspect.getsource(ProfilesList.expand_all)
@@ -1848,6 +1854,14 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         worker_source = inspect.getsource(profiles_list_module.ProfileListViewStateWorker.run)
 
         self.assertIn("OneShotWorkerRuntime", list_source)
+        self.assertIn("LatestValueWorkerState", list_source)
+        self.assertTrue(hasattr(ProfilesList, "_view_state_state_obj"))
+        self.assertIsInstance(page._view_state_state_obj(), LatestValueWorkerState)
+        self.assertIn("_view_state_state = LatestValueWorkerState", init_source)
+        self.assertNotIn("_view_state_runtime_worker = None", init_source)
+        self.assertNotIn("_view_state_rebuild_pending = False", init_source)
+        self.assertIn("_view_state_state_obj()", request_source)
+        self.assertIn("_view_state_state_obj()", finished_source)
         self.assertIn("_request_view_state_rebuild", build_source)
         self.assertIn("_request_view_state_rebuild", update_source)
         self.assertIn("_request_view_state_rebuild", search_source)

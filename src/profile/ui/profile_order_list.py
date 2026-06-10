@@ -13,6 +13,7 @@ from profile.order_view_state import build_profile_order_list_view_state, move_p
 from profile.ui.profile_list_delegate import ProfileListDelegate
 from profile.ui.profile_list_model import ProfileListModel
 from profile.ui.profile_list_view import ProfileListView
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.smooth_scroll import apply_page_smooth_scroll_preference
 from ui.widgets.fluent_scrollbar import install_fluent_scrollbars
@@ -241,8 +242,7 @@ class ProfileOrderList(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._view_state_runtime = OneShotWorkerRuntime()
-        self._view_state_runtime_worker = None
-        self._view_state_rebuild_pending = False
+        self._view_state_state = LatestValueWorkerState(self._view_state_runtime, empty_value=False)
         self._view_state_items: tuple[Any, ...] | None = None
         self._view_state_preserve_order = False
         layout = QVBoxLayout(self)
@@ -305,8 +305,9 @@ class ProfileOrderList(QWidget):
         if runtime is None:
             runtime = OneShotWorkerRuntime()
             self._view_state_runtime = runtime
-        if runtime.is_running():
-            self._view_state_rebuild_pending = True
+        state = self._view_state_state_obj()
+        if state.is_busy():
+            state.pending = True
             return
         self._start_view_state_worker()
 
@@ -319,7 +320,7 @@ class ProfileOrderList(QWidget):
         items = tuple(self.__dict__.get("_view_state_items") or options.get("items") or ())
         preserve_order = bool(self.__dict__.get("_view_state_preserve_order", False))
 
-        _request_id, worker = runtime.start_qthread_worker(
+        runtime.start_qthread_worker(
             worker_factory=lambda request_id: ProfileOrderListViewStateWorker(
                 request_id,
                 items=items,
@@ -330,7 +331,18 @@ class ProfileOrderList(QWidget):
             on_failed=self._on_view_state_failed,
             on_finished=self._on_view_state_worker_finished,
         )
-        self._view_state_runtime_worker = worker
+
+    def _view_state_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_view_state_state")
+        runtime = self.__dict__.get("_view_state_runtime")
+        if state is None:
+            if runtime is None:
+                runtime = OneShotWorkerRuntime()
+                self._view_state_runtime = runtime
+            pending = bool(self.__dict__.pop("_view_state_rebuild_pending", False))
+            state = LatestValueWorkerState(runtime, empty_value=False, pending=pending)
+            self.__dict__["_view_state_state"] = state
+        return state
 
     def _current_view_state_items(self) -> tuple[Any, ...]:
         pending = self.__dict__.get("_view_state_items")
@@ -346,7 +358,7 @@ class ProfileOrderList(QWidget):
         runtime = self.__dict__.get("_view_state_runtime")
         if runtime is None or not runtime.is_current(request_id):
             return
-        if self.__dict__.get("_view_state_rebuild_pending", False):
+        if self._view_state_state_obj().has_pending():
             return
         self.apply_view_state(state)
 
@@ -357,16 +369,30 @@ class ProfileOrderList(QWidget):
         log(f"ProfileOrderList: не удалось подготовить порядок profile-ов: {error}", "ERROR")
 
     def _on_view_state_worker_finished(self, worker) -> None:
-        if worker is not self.__dict__.get("_view_state_runtime_worker"):
-            return
-        self._view_state_runtime_worker = None
-        if not self.__dict__.get("_view_state_rebuild_pending", False):
-            return
-        self._view_state_rebuild_pending = False
+        state = self._view_state_state_obj()
+        state.schedule_pending_after_finish(
+            worker,
+            is_current_worker_finish=self._is_current_view_state_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_view_state_worker_start,
+        )
+
+    def _is_current_view_state_worker_finish(self, runtime, worker) -> bool:
         try:
-            QTimer.singleShot(0, self._start_view_state_worker)
-        except Exception:
-            self._start_view_state_worker()
+            return int(getattr(worker, "_request_id", -1)) == int(getattr(runtime, "request_id", -2))
+        except (TypeError, ValueError):
+            return False
+
+    def _run_scheduled_view_state_worker_start(self) -> None:
+        state = self._view_state_state_obj()
+        pending = state.take_pending_for_scheduled_start()
+        if not pending:
+            return
+        runtime = self.__dict__.get("_view_state_runtime")
+        if runtime is not None and runtime.is_running():
+            state.pending = True
+            return
+        self._start_view_state_worker()
 
 
 def _profile_order_identity(item: Any) -> str:

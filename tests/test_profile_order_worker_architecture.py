@@ -64,11 +64,26 @@ class ProfileOrderWorkerArchitectureTests(unittest.TestCase):
     def test_profile_order_list_rebuilds_visible_rows_through_worker(self) -> None:
         import profile.ui.profile_order_list as order_list_module
         from profile.ui.profile_order_list import ProfileOrderList
+        from ui.latest_value_worker_state import LatestValueWorkerState
 
+        page = ProfileOrderList.__new__(ProfileOrderList)
+        page._view_state_runtime = Mock()
+        list_source = inspect.getsource(ProfileOrderList)
+        init_source = inspect.getsource(ProfileOrderList.__init__)
         set_source = inspect.getsource(ProfileOrderList.set_profiles)
         move_source = inspect.getsource(ProfileOrderList.move_profile_item)
+        request_source = inspect.getsource(ProfileOrderList._request_view_state_rebuild)
+        finished_source = inspect.getsource(ProfileOrderList._on_view_state_worker_finished)
         worker_source = inspect.getsource(order_list_module.ProfileOrderListViewStateWorker.run)
 
+        self.assertIn("LatestValueWorkerState", list_source)
+        self.assertTrue(hasattr(ProfileOrderList, "_view_state_state_obj"))
+        self.assertIsInstance(page._view_state_state_obj(), LatestValueWorkerState)
+        self.assertIn("_view_state_state = LatestValueWorkerState", init_source)
+        self.assertNotIn("_view_state_runtime_worker = None", init_source)
+        self.assertNotIn("_view_state_rebuild_pending = False", init_source)
+        self.assertIn("_view_state_state_obj()", request_source)
+        self.assertIn("_view_state_state_obj()", finished_source)
         self.assertIn("_request_view_state_rebuild", set_source)
         self.assertIn("_request_view_state_rebuild", move_source)
         self.assertNotIn("self._model.set_profiles", set_source)
