@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
+from ui.accessibility import set_state_text
+
 
 def set_force_dns_toggle(toggle_row, checked: bool, *, text: str | None = None) -> None:
     try:
@@ -40,6 +42,8 @@ def update_force_dns_status_label(
     )
     label.setText(plan.text)
     label.setVisible(bool(str(plan.text).strip()))
+    if str(plan.text).strip():
+        set_state_text(label, f"Статус принудительного DNS: {plan.text}")
     try:
         parent = label.parentWidget()
         refresh = getattr(parent, "_refresh_minimum_height", None)
