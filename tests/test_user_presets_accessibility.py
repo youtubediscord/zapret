@@ -108,9 +108,17 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertIn("Например Игры", dialog.nameEdit.accessibleDescription())
         if hasattr(dialog, "_source_seg"):
             self.assertEqual(dialog._source_seg.accessibleName(), "Основа нового пресета, выбрано: Текущий пресет")
+            self.assertEqual(
+                dialog._source_seg.property("screenReaderStateText"),
+                "Основа нового пресета, выбрано: Текущий пресет",
+            )
             self.assertIn("Выберите", dialog._source_seg.accessibleDescription())
             dialog._source_seg.setCurrentItem("standard")
             self.assertEqual(dialog._source_seg.accessibleName(), "Основа нового пресета, выбрано: Встроенный пресет")
+            self.assertEqual(
+                dialog._source_seg.property("screenReaderStateText"),
+                "Основа нового пресета, выбрано: Встроенный пресет",
+            )
         self.assertEqual(dialog.yesButton.accessibleName(), "Создать пресет")
         self.assertIn("Сохраняет текущие настройки", dialog.yesButton.accessibleDescription())
         self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить создание пресета")

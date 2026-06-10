@@ -153,10 +153,12 @@ class CreatePresetDialog(PresetDialogTextMixin, MessageBoxBase):
             "current": "Текущий пресет",
             "standard": "Встроенный пресет",
         }.get(str(self._source or "").strip(), "не выбрано")
+        state_text = f"Основа нового пресета, выбрано: {selected}"
         set_control_accessibility(
             self._source_seg,
-            name=f"Основа нового пресета, выбрано: {selected}",
+            name=state_text,
         )
+        set_state_text(self._source_seg, state_text)
 
     def _show_warning(self, text: str) -> None:
         self.warningLabel.setText(text)
