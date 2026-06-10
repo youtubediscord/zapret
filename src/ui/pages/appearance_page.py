@@ -110,6 +110,23 @@ def update_tinted_intensity_slider_accessibility(slider, *, language: str = "ru"
     )
 
 
+def update_tinted_intensity_value_label_accessibility(label, *, value: object | None = None, maximum: object = 30) -> None:
+    if label is None:
+        return
+    try:
+        current_value = int(value)
+    except Exception:
+        try:
+            current_value = int(str(label.text() or "").strip())
+        except Exception:
+            current_value = 15
+    try:
+        max_value = int(maximum)
+    except Exception:
+        max_value = 30
+    set_state_text(label, f"Текущее значение интенсивности тонировки: {current_value} из {max_value}")
+
+
 class AppearancePage(BasePage):
     """Страница настроек оформления"""
 
@@ -616,6 +633,7 @@ class AppearancePage(BasePage):
         self._tinted_intensity_slider.setValue(15)
         self._tinted_intensity_value_label = CaptionLabel("15")
         self._update_tinted_intensity_slider_accessibility(15)
+        update_tinted_intensity_value_label_accessibility(self._tinted_intensity_value_label, value=15, maximum=30)
         self._tinted_intensity_slider.valueChanged.connect(
             lambda value: self._update_tinted_intensity_slider_accessibility(value)
         )
@@ -1454,6 +1472,11 @@ class AppearancePage(BasePage):
 
         if self._tinted_intensity_value_label is not None:
             self._tinted_intensity_value_label.setText(str(plan.tinted_intensity))
+            update_tinted_intensity_value_label_accessibility(
+                self._tinted_intensity_value_label,
+                value=plan.tinted_intensity,
+                maximum=30,
+            )
 
         if self._tinted_intensity_container is not None:
             self._tinted_intensity_container.setVisible(plan.tinted_background)
@@ -1609,6 +1632,11 @@ class AppearancePage(BasePage):
         self._request_appearance_save("tinted_intensity", int(value))
         if self._tinted_intensity_value_label is not None:
             self._tinted_intensity_value_label.setText(str(value))
+            update_tinted_intensity_value_label_accessibility(
+                self._tinted_intensity_value_label,
+                value=value,
+                maximum=30,
+            )
         self._update_tinted_intensity_slider_accessibility(value)
         self._schedule_background_refresh()
 

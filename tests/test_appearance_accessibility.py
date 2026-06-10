@@ -334,6 +334,11 @@ class AppearanceAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(slider.accessibleName(), "Интенсивность тонировки, значение: 22 из 30")
         self.assertIn("силу окрашивания фона", slider.accessibleDescription())
+        self.assertEqual(value_label.accessibleName(), "Текущее значение интенсивности тонировки: 22 из 30")
+        self.assertEqual(
+            value_label.property("screenReaderStateText"),
+            "Текущее значение интенсивности тонировки: 22 из 30",
+        )
 
         AppearancePage._on_tinted_intensity_changed(page, 9)
 
@@ -341,6 +346,11 @@ class AppearanceAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             slider.property("screenReaderStateText"),
             "Интенсивность тонировки, значение: 9 из 30",
+        )
+        self.assertEqual(value_label.accessibleName(), "Текущее значение интенсивности тонировки: 9 из 30")
+        self.assertEqual(
+            value_label.property("screenReaderStateText"),
+            "Текущее значение интенсивности тонировки: 9 из 30",
         )
 
     def test_saved_sidebar_icon_style_refreshes_screen_reader_state(self) -> None:
