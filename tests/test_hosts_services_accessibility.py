@@ -40,11 +40,13 @@ class HostsServicesAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(widgets.control.accessibleName(), "Adobe, выключено")
+        self.assertEqual(widgets.control.property("screenReaderStateText"), "Adobe, выключено")
         self.assertIn("Включает или отключает hosts-запись", widgets.control.accessibleDescription())
 
         widgets.control.setChecked(True)
 
         self.assertEqual(widgets.control.accessibleName(), "Adobe, включено")
+        self.assertEqual(widgets.control.property("screenReaderStateText"), "Adobe, включено")
 
     def test_profile_combo_reads_selected_profile(self) -> None:
         widgets = build_hosts_service_row(
@@ -68,11 +70,13 @@ class HostsServicesAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(widgets.control.accessibleName(), "YouTube, выбран профиль Zapret DNS")
+        self.assertEqual(widgets.control.property("screenReaderStateText"), "YouTube, выбран профиль Zapret DNS")
         self.assertIn("Выберите профиль hosts", widgets.control.accessibleDescription())
 
         widgets.control.setCurrentIndex(0)
 
         self.assertEqual(widgets.control.accessibleName(), "YouTube, отключено")
+        self.assertEqual(widgets.control.property("screenReaderStateText"), "YouTube, отключено")
 
     def test_group_chips_read_bulk_action(self) -> None:
         widgets = build_hosts_services_group(

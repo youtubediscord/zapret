@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
 from qfluentwidgets import ScrollArea
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import SettingsCard
 from ui.theme import get_theme_tokens
 
@@ -230,9 +230,11 @@ def build_hosts_service_row(
 
 def _update_direct_service_accessibility(control, *, service_name: str, checked: bool) -> None:
     state = "включено" if bool(checked) else "выключено"
+    state_text = f"{service_name}, {state}"
+    set_state_text(control, state_text)
     set_control_accessibility(
         control,
-        name=f"{service_name}, {state}",
+        name=state_text,
         description=f"Включает или отключает hosts-запись для сервиса {service_name}.",
     )
 
@@ -243,9 +245,11 @@ def _update_profile_service_accessibility(control, *, service_name: str, off_lab
         state = "отключено"
     else:
         state = f"выбран профиль {selected_text}"
+    state_text = f"{service_name}, {state}"
+    set_state_text(control, state_text)
     set_control_accessibility(
         control,
-        name=f"{service_name}, {state}",
+        name=state_text,
         description=f"Выберите профиль hosts для сервиса {service_name}.",
     )
 
