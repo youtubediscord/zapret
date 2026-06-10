@@ -295,6 +295,47 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
             ],
         )
 
+    def test_cloudflare_failures_are_written_to_user_log_with_next_route(self) -> None:
+        from telegram_proxy.proxy.cloudflare import CloudflareFallbackConfig
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        logs: list[str] = []
+
+        async def fake_connect(*_args, **_kwargs):
+            raise TimeoutError()
+
+        proxy = TelegramWSProxy(
+            on_log=logs.append,
+            cloudflare_config=CloudflareFallbackConfig(
+                enabled=True,
+                domains=("first.example.com",),
+            ),
+        )
+
+        with patch("telegram_proxy.wss_proxy.RawWebSocket.connect", side_effect=fake_connect):
+            ok = asyncio.run(
+                proxy._cloudflare_fallback(
+                    None,
+                    None,
+                    "91.105.192.100",
+                    443,
+                    b"x" * 64,
+                    False,
+                    "test",
+                    203,
+                    False,
+                )
+            )
+
+        self.assertFalse(ok)
+        joined = "\n".join(logs)
+        self.assertIn("route=Cloudflare", joined)
+        self.assertIn("dc=203", joined)
+        self.assertIn("target=91.105.192.100:443", joined)
+        self.assertIn("result=error", joined)
+        self.assertIn("TimeoutError", joined)
+        self.assertIn("next=try next Cloudflare domain or TCP fallback", joined)
+
     def test_wss_proxy_uses_cloudflare_worker_pool_before_fresh_connect(self) -> None:
         from telegram_proxy.proxy.cloudflare import CloudflareFallbackConfig
         from telegram_proxy.wss_proxy import TelegramWSProxy

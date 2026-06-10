@@ -170,6 +170,36 @@ class TelegramWSProxy:
             return f"{type(exc).__name__}: {text}"
         return type(exc).__name__
 
+    def _log_route_detail(
+        self,
+        label: str,
+        *,
+        route: str,
+        dc: int,
+        is_media: bool,
+        target: str = "",
+        result: str,
+        reason: str = "",
+        next_step: str = "",
+        elapsed: float | None = None,
+    ) -> None:
+        parts = [
+            f"[{label}] route={route}",
+            f"mode={'MTProxy' if self._mode == 'mtproxy' else 'SOCKS5'}",
+            f"dc={int(dc)}",
+            f"media={'yes' if is_media else 'no'}",
+        ]
+        if target:
+            parts.append(f"target={target}")
+        parts.append(f"result={result}")
+        if reason:
+            parts.append(f"reason={reason}")
+        if next_step:
+            parts.append(f"next={next_step}")
+        if elapsed is not None:
+            parts.append(f"elapsed={elapsed:.1f}s")
+        self._log(" ".join(parts))
+
     @property
     def is_running(self) -> bool:
         return self._running
@@ -336,6 +366,7 @@ class TelegramWSProxy:
                     return
                 self.stats.passthrough_connections += 1
                 self._log(f"[{label}] HTTP transport -> direct TCP")
+                t_connect = time.monotonic()
                 try:
                     rr, rw = await asyncio.wait_for(
                         asyncio.open_connection(target_host, target_port),
@@ -343,8 +374,31 @@ class TelegramWSProxy:
                     )
                     apply_socket_options(rw.transport, self._buffer_size)
                 except Exception as exc:
+                    elapsed = time.monotonic() - t_connect
                     self._log(f"[{label}] HTTP TCP failed: {type(exc).__name__}")
+                    self._log_route_detail(
+                        label,
+                        route="HTTP direct TCP",
+                        dc=0,
+                        is_media=False,
+                        target=f"{target_host}:{target_port}",
+                        result="error",
+                        reason=self._route_error(exc),
+                        next_step="none; HTTP transport cannot use WSS",
+                        elapsed=elapsed,
+                    )
                     return
+                elapsed = time.monotonic() - t_connect
+                self._log_route_detail(
+                    label,
+                    route="HTTP direct TCP",
+                    dc=0,
+                    is_media=False,
+                    target=f"{target_host}:{target_port}",
+                    result="connected",
+                    reason="HTTP transport cannot use WSS",
+                    elapsed=elapsed,
+                )
                 rw.write(init)
                 await rw.drain()
                 await self._relay_tcp(reader, writer, rr, rw)
@@ -604,6 +658,14 @@ class TelegramWSProxy:
                         buffer_size=self._buffer_size,
                     )
                 all_redirects = False
+                self._log_route_detail(
+                    label,
+                    route="WSS",
+                    dc=dc,
+                    is_media=is_media,
+                    target=f"{domain}{WSS_PATH} via {relay_ip}",
+                    result="connected",
+                )
                 break
             except WsHandshakeError as exc:
                 if exc.is_redirect:
@@ -612,17 +674,47 @@ class TelegramWSProxy:
                     log.warning("[%s] DC%d%s got %d from %s -> %s",
                                 label, dc, media_tag, exc.status_code,
                                 domain, exc.location or "?")
+                    self._log_route_detail(
+                        label,
+                        route="WSS",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{domain}{WSS_PATH} via {relay_ip}",
+                        result="redirect",
+                        reason=f"HTTP {exc.status_code} -> {exc.location or '?'}",
+                        next_step="try next WSS domain",
+                    )
                     continue
                 else:
                     all_redirects = False
                     ws_failure_reason = f"{domain}: {exc.status_line}"
                     log.warning("[%s] DC%d%s WS handshake: %s",
                                 label, dc, media_tag, exc.status_line)
+                    self._log_route_detail(
+                        label,
+                        route="WSS",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{domain}{WSS_PATH} via {relay_ip}",
+                        result="error",
+                        reason=exc.status_line,
+                        next_step="try next WSS domain or fallback",
+                    )
             except Exception as exc:
                 all_redirects = False
                 ws_failure_reason = f"{domain}: {self._route_error(exc)}"
                 log.warning("[%s] DC%d%s WS connect failed: %s",
                             label, dc, media_tag, exc)
+                self._log_route_detail(
+                    label,
+                    route="WSS",
+                    dc=dc,
+                    is_media=is_media,
+                    target=f"{domain}{WSS_PATH} via {relay_ip}",
+                    result="error",
+                    reason=self._route_error(exc),
+                    next_step="try next WSS domain or fallback",
+                )
 
         # WS failed
         if ws is None:
@@ -803,17 +895,55 @@ class TelegramWSProxy:
                         buffer_size=self._buffer_size,
                     )
                 all_redirects = False
+                self._log_route_detail(
+                    label,
+                    route="WSS",
+                    dc=dc,
+                    is_media=is_media,
+                    target=f"{domain}{WSS_PATH} via {relay_ip}",
+                    result="connected",
+                )
                 break
             except WsHandshakeError as exc:
                 if exc.is_redirect:
                     any_redirect = True
                     ws_failure_reason = f"{domain}: HTTP {exc.status_code} redirect"
+                    self._log_route_detail(
+                        label,
+                        route="WSS",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{domain}{WSS_PATH} via {relay_ip}",
+                        result="redirect",
+                        reason=f"HTTP {exc.status_code} -> {exc.location or '?'}",
+                        next_step="try next WSS domain",
+                    )
                     continue
                 all_redirects = False
                 ws_failure_reason = f"{domain}: {exc.status_line}"
+                self._log_route_detail(
+                    label,
+                    route="WSS",
+                    dc=dc,
+                    is_media=is_media,
+                    target=f"{domain}{WSS_PATH} via {relay_ip}",
+                    result="error",
+                    reason=exc.status_line,
+                    next_step="try next WSS domain or fallback",
+                )
             except Exception:
                 all_redirects = False
                 ws_failure_reason = f"{domain}: WSS connect failed"
+                self._log_route_detail(
+                    label,
+                    route="WSS",
+                    dc=dc,
+                    is_media=is_media,
+                    target=f"{domain}{WSS_PATH} via {relay_ip}",
+                    result="error",
+                    reason="WSS connect failed",
+                    next_step="try next WSS domain or fallback",
+                )
 
         if ws is None:
             if any_redirect and all_redirects:
@@ -876,6 +1006,16 @@ class TelegramWSProxy:
     ) -> bool:
         """Try Cloudflare Worker/domain fallback before plain TCP fallback."""
         if not should_try_cloudflare(self._cloudflare):
+            self._log_route_detail(
+                label,
+                route="Cloudflare",
+                dc=dc,
+                is_media=is_media,
+                target=f"{target_host}:{target_port}",
+                result="skip",
+                reason="no Cloudflare Worker or domain configured",
+                next_step="TCP fallback",
+            )
             return False
 
         media_tag = " media" if is_media else ""
@@ -889,6 +1029,7 @@ class TelegramWSProxy:
         if self._cloudflare.worker_enabled and self._cloudflare.worker_domains:
             path = build_worker_path(target_host, dc)
             for worker_domain in self._cloudflare.worker_domains:
+                t_connect = time.monotonic()
                 try:
                     ws = await self._cloudflare_worker_pool.get(dc, worker_domain, target_host)
                     if ws is not None:
@@ -908,6 +1049,16 @@ class TelegramWSProxy:
                             timeout=CONNECT_TIMEOUT,
                             buffer_size=self._buffer_size,
                         )
+                    elapsed = time.monotonic() - t_connect
+                    self._log_route_detail(
+                        label,
+                        route="Cloudflare Worker",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{worker_domain}{path} -> {target_host}:{target_port}",
+                        result="connected",
+                        elapsed=elapsed,
+                    )
                     self.stats.cloudflare_connections += 1
                     self.stats.cloudflare_worker_connections += 1
                     self._record_route(
@@ -940,6 +1091,18 @@ class TelegramWSProxy:
                         worker_domain,
                         exc,
                     )
+                    elapsed = time.monotonic() - t_connect
+                    self._log_route_detail(
+                        label,
+                        route="Cloudflare Worker",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{worker_domain}{path} -> {target_host}:{target_port}",
+                        result="error",
+                        reason=self._route_error(exc),
+                        next_step="try next Worker domain or Cloudflare domain",
+                        elapsed=elapsed,
+                    )
                     self._record_route(
                         dc=dc,
                         is_media=is_media,
@@ -954,6 +1117,7 @@ class TelegramWSProxy:
                 self._cloudflare,
                 balancer=self._cloudflare_domain_balancer,
             ):
+                t_connect = time.monotonic()
                 try:
                     self._log(f"[{label}] DC{dc}{media_tag} -> Cloudflare wss://{domain}{WSS_PATH}")
                     ws = await RawWebSocket.connect(
@@ -962,6 +1126,16 @@ class TelegramWSProxy:
                         path=WSS_PATH,
                         timeout=CONNECT_TIMEOUT,
                         buffer_size=self._buffer_size,
+                    )
+                    elapsed = time.monotonic() - t_connect
+                    self._log_route_detail(
+                        label,
+                        route="Cloudflare",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{domain}{WSS_PATH} -> {target_host}:{target_port}",
+                        result="connected",
+                        elapsed=elapsed,
                     )
                     self.stats.cloudflare_connections += 1
                     self._cloudflare_domain_balancer.record_success(dc, domain)
@@ -995,6 +1169,18 @@ class TelegramWSProxy:
                         domain,
                         exc,
                     )
+                    elapsed = time.monotonic() - t_connect
+                    self._log_route_detail(
+                        label,
+                        route="Cloudflare",
+                        dc=dc,
+                        is_media=is_media,
+                        target=f"{target_host}:{target_port}",
+                        result="error",
+                        reason=self._route_error(exc),
+                        next_step="try next Cloudflare domain or TCP fallback",
+                        elapsed=elapsed,
+                    )
                     self._record_route(
                         dc=dc,
                         is_media=is_media,
@@ -1010,6 +1196,16 @@ class TelegramWSProxy:
             route="Cloudflare",
             status="ошибка",
             reason="нет рабочего Worker или домена",
+        )
+        self._log_route_detail(
+            label,
+            route="Cloudflare",
+            dc=dc,
+            is_media=is_media,
+            target=f"{target_host}:{target_port}",
+            result="exhausted",
+            reason="no working Worker or domain",
+            next_step="TCP fallback",
         )
         return False
 
@@ -1036,6 +1232,16 @@ class TelegramWSProxy:
         except Exception as exc:
             self.stats.failed_connections += 1
             self._log(f"[{label}] MTProxy TCP fallback failed: {type(exc).__name__}")
+            self._log_route_detail(
+                label,
+                route="TCP fallback",
+                dc=dc,
+                is_media=is_media,
+                target=f"{target_host}:{target_port}",
+                result="error",
+                reason=self._route_error(exc),
+                next_step="upstream SOCKS5" if self._upstream.enabled else "none",
+            )
             self._record_route(
                 dc=dc,
                 is_media=is_media,
@@ -1059,6 +1265,14 @@ class TelegramWSProxy:
             return
 
         self.stats.tcp_fallback_connections += 1
+        self._log_route_detail(
+            label,
+            route="TCP fallback",
+            dc=dc,
+            is_media=is_media,
+            target=f"{target_host}:{target_port}",
+            result="connected",
+        )
         self._record_route(dc=dc, is_media=is_media, route="TCP", status="OK")
         rw.write(relay_init)
         await rw.drain()
@@ -1191,6 +1405,17 @@ class TelegramWSProxy:
             elapsed = time.monotonic() - t_connect
             self.stats.failed_connections += 1
             self._log(f"[{label}] TCP fallback failed ({elapsed:.1f}s): {type(exc).__name__}")
+            self._log_route_detail(
+                label,
+                route="TCP fallback",
+                dc=dc,
+                is_media=is_media,
+                target=f"{target_host}:{target_port}",
+                result="error",
+                reason=self._route_error(exc),
+                next_step="upstream SOCKS5" if self._upstream.enabled else "none",
+                elapsed=elapsed,
+            )
             self._record_route(
                 dc=dc,
                 is_media=is_media,
@@ -1210,6 +1435,15 @@ class TelegramWSProxy:
 
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] DC{dc}{media_tag} TCP connected ({elapsed:.1f}s)")
+        self._log_route_detail(
+            label,
+            route="TCP fallback",
+            dc=dc,
+            is_media=is_media,
+            target=f"{target_host}:{target_port}",
+            result="connected",
+            elapsed=elapsed,
+        )
         self.stats.tcp_fallback_connections += 1
         self._record_route(dc=dc, is_media=is_media, route="TCP", status="OK")
         # Forward the buffered init packet
@@ -1225,6 +1459,16 @@ class TelegramWSProxy:
         if watchdog_fired and recv_total == 0 and self._upstream.enabled:
             self._dc_upstream_required.add((dc, is_media))
             self._log(f"[{label}] DC{dc}{media_tag} recv=0 (watchdog) -> marked for upstream routing")
+            self._log_route_detail(
+                label,
+                route="TCP fallback",
+                dc=dc,
+                is_media=is_media,
+                target=f"{target_host}:{target_port}",
+                result="error",
+                reason="recv=0 watchdog",
+                next_step="future connections use upstream SOCKS5",
+            )
             self._record_route(
                 dc=dc,
                 is_media=is_media,
