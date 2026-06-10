@@ -1151,12 +1151,29 @@ class ProfileSetupPageBase(BasePage):
 
     def _accept_current_profile_setup_worker_finished(self, request_attr: str, worker) -> bool:
         request_id = getattr(worker, "_request_id", None)
-        if request_id is None:
+        if request_id is not None:
+            try:
+                return int(request_id) == int(self.__dict__.get(request_attr, 0) or 0)
+            except (TypeError, ValueError):
+                return False
+
+        worker_attr = str(request_attr or "").removesuffix("_request_id") + "_runtime_worker"
+        missing = object()
+        current_worker = self.__dict__.get(worker_attr, missing)
+        if current_worker is missing:
+            if str(request_attr or "") in {
+                "_user_profile_update_request_id",
+                "_user_profile_delete_request_id",
+            }:
+                return True
+            try:
+                return int(self.__dict__.get(request_attr, 0) or 0) <= 0
+            except (TypeError, ValueError):
+                return True
+        if worker is not current_worker:
             return False
-        try:
-            return int(request_id) == int(self.__dict__.get(request_attr, 0) or 0)
-        except (TypeError, ValueError):
-            return False
+        setattr(self, worker_attr, None)
+        return True
 
     def _profile_setup_write_is_running(self) -> bool:
         if self._profile_setup_write_state_obj().start_scheduled:
@@ -3119,7 +3136,14 @@ class ProfileSetupPageBase(BasePage):
         request = dict(request or {})
         raw_text = request.get("text")
         if raw_text is None:
-            text = str(self.__dict__.get("_list_file_text_snapshot", "") or "")
+            if "_list_file_text_snapshot" in self.__dict__:
+                text = str(self.__dict__.get("_list_file_text_snapshot", "") or "")
+            else:
+                editor = self.__dict__.get("_list_file_text")
+                try:
+                    text = str(editor.toPlainText() if editor is not None else "")
+                except Exception:
+                    text = ""
         else:
             text = str(raw_text or "")
         self._list_file_text_snapshot = text
@@ -3784,7 +3808,13 @@ class ProfileSetupPageBase(BasePage):
         cached = self.__dict__.get("_raw_profile_text_cache")
         if cached is not None:
             return str(cached or "")
-        return ""
+        editor = self.__dict__.get("_raw_profile_text")
+        try:
+            text = str(editor.toPlainText() if editor is not None else "")
+        except Exception:
+            text = ""
+        self._raw_profile_text_cache = text
+        return text
 
     def _request_raw_profile_save(self, profile_key: str, raw_text: str | None) -> None:
         profile_key = str(profile_key or "").strip()
