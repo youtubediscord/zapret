@@ -10,7 +10,7 @@ from ui.fluent_widgets import InfoBarHelper
 from app.ui_texts import tr as tr_catalog
 import blockcheck.strategy_scan_run_workflow as strategy_scan_run_workflow
 from qfluentwidgets import FluentIcon
-from ui.accessibility import set_control_accessibility, set_item_accessible_text
+from ui.accessibility import set_control_accessibility, set_item_accessible_text, set_state_text
 from ui.widgets.fluent_item_tooltip import set_fluent_item_tooltip
 
 
@@ -35,7 +35,7 @@ def apply_strategy_started_progress(
         progress_bar.setRange(0, progress_plan.total)
     if progress_bar.value() < scan_cursor:
         progress_bar.setValue(scan_cursor)
-    status_label.setText(progress_plan.status_text)
+    _set_strategy_scan_status(status_label, progress_plan.status_text)
 
 
 def append_scan_log(*, log_edit, message: str) -> None:
@@ -43,7 +43,7 @@ def append_scan_log(*, log_edit, message: str) -> None:
 
 
 def apply_phase_change(*, status_label, phase: str) -> None:
-    status_label.setText(phase)
+    _set_strategy_scan_status(status_label, phase)
 
 
 def add_strategy_result_row(
@@ -121,6 +121,13 @@ def _strategy_result_accessible_text(row_plan) -> str:
     return f"Стратегия {name}, статус {status}, время {time_text}"
 
 
+def _set_strategy_scan_status(status_label, text: object) -> None:
+    value = str(text or "").strip()
+    status_label.setText(value)
+    if value:
+        set_state_text(status_label, f"Статус подбора стратегии: {value}")
+
+
 def apply_finished_scan(
     *,
     blockcheck_feature,
@@ -137,7 +144,7 @@ def apply_finished_scan(
     if finish_plan.total_available > 0:
         progress_bar.setRange(0, finish_plan.total_available)
 
-    status_label.setText(finish_plan.status_text)
+    _set_strategy_scan_status(status_label, finish_plan.status_text)
     progress_bar.setValue(min(finish_plan.total_count, progress_bar.maximum()))
     if finish_plan.support_status_code == "ready_after_error":
         set_support_status(
@@ -209,7 +216,7 @@ def apply_force_stop_status(
             "page.blockcheck_public.stopping_slow",
             default="Остановка занимает больше времени, ждём завершения фонового сканирования...",
         )
-        status_label.setText(warning_text)
+        _set_strategy_scan_status(status_label, warning_text)
         strategy_scan_run_workflow.record_strategy_scan_force_stop_warning(
             worker=worker,
             warning_text=warning_text,

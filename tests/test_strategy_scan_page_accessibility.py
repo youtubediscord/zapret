@@ -4,9 +4,11 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
+from qfluentwidgets import CaptionLabel
 
 from blockcheck import public as blockcheck_public
 from blockcheck.ui.strategy_scan_page import StrategyScanPage
+from blockcheck.ui.strategy_scan_page_results_workflow import apply_phase_change
 
 
 class _BlockcheckFeatureStub:
@@ -56,6 +58,17 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page._log_edit.accessibleName(), "Подробный лог подбора стратегии")
         self.assertEqual(page._expand_log_btn.accessibleName(), "Развернуть лог подбора стратегии")
         self.assertEqual(page._prepare_support_btn.accessibleName(), "Подготовить обращение по подбору стратегии")
+
+    def test_runtime_status_updates_state_text_for_screen_reader(self) -> None:
+        label = CaptionLabel("Готово к сканированию")
+
+        apply_phase_change(status_label=label, phase="Проверяется стратегия TLS fake")
+
+        self.assertEqual(label.text(), "Проверяется стратегия TLS fake")
+        self.assertEqual(
+            label.property("screenReaderStateText"),
+            "Статус подбора стратегии: Проверяется стратегия TLS fake",
+        )
 
 
 if __name__ == "__main__":
