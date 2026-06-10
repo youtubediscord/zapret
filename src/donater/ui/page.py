@@ -207,22 +207,26 @@ class PremiumPage(BasePage):
             self.days_label.setText(
                 self._tr("page.premium.days_label.normal", "Осталось дней: {days}", days=days)
             )
+            set_state_text(self.days_label, f"Осталось дней Premium: {days}")
             self.days_label.setStyleSheet(f"color: {semantic.success};")
             return
         if kind == "warning":
             self.days_label.setText(
                 self._tr("page.premium.days_label.warning", "⚠️ Осталось дней: {days}", days=days)
             )
+            set_state_text(self.days_label, f"Осталось дней Premium: {days}")
             self.days_label.setStyleSheet(f"color: {semantic.warning};")
             return
         if kind == "urgent":
             self.days_label.setText(
                 self._tr("page.premium.days_label.urgent", "⚠️ Срочно продлите! Осталось: {days}", days=days)
             )
+            set_state_text(self.days_label, f"Premium срочно нужно продлить, осталось дней: {days}")
             self.days_label.setStyleSheet(f"color: {semantic.error};")
             return
 
         self.days_label.setText("")
+        set_state_text(self.days_label, "Premium-подписка не активна")
         self.days_label.setStyleSheet("")
 
     def _set_activation_status(

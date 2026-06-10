@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from qfluentwidgets import SubtitleLabel
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from donater.ui.build import (
@@ -248,6 +249,37 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
             activation.activation_status.property("screenReaderStateText"),
             "Статус Premium-активации: Код создан: ABCD12EF",
         )
+
+    def test_premium_days_label_exposes_state_text(self) -> None:
+        page = SimpleNamespace(
+            days_label=SubtitleLabel(""),
+            _tr=lambda _key, default, **kwargs: default.format(**kwargs),
+        )
+        self.addCleanup(page.days_label.deleteLater)
+
+        page._days_state_kind = "normal"
+        page._days_state_value = 40
+        PremiumPage._render_days_label(page)
+
+        self.assertEqual(page.days_label.accessibleName(), "Осталось дней Premium: 40")
+        self.assertEqual(page.days_label.property("screenReaderStateText"), "Осталось дней Premium: 40")
+
+        page._days_state_kind = "urgent"
+        page._days_state_value = 3
+        PremiumPage._render_days_label(page)
+
+        self.assertEqual(page.days_label.accessibleName(), "Premium срочно нужно продлить, осталось дней: 3")
+        self.assertEqual(
+            page.days_label.property("screenReaderStateText"),
+            "Premium срочно нужно продлить, осталось дней: 3",
+        )
+
+        page._days_state_kind = "none"
+        page._days_state_value = 0
+        PremiumPage._render_days_label(page)
+
+        self.assertEqual(page.days_label.accessibleName(), "Premium-подписка не активна")
+        self.assertEqual(page.days_label.property("screenReaderStateText"), "Premium-подписка не активна")
 
     def test_premium_status_card_exposes_state_text(self) -> None:
         card = StatusCard()
