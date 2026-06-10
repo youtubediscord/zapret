@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from .base_page import BasePage
 import about.plans as about_page_plans
 from ui.pages.about_page_accessibility import apply_about_buttons_accessibility
-from ui.pages.about_page_about_build import build_about_page_about_content
+from ui.pages.about_page_about_build import build_about_page_about_content, set_subscription_status_accessibility
 from ui.pages.about_page_help_build import build_about_page_help_content
 from ui.pages.about_page_kvn_build import build_about_page_kvn_content
 from ui.pages.about_page_support_build import build_about_page_support_content
@@ -343,6 +343,7 @@ class AboutPage(BasePage):
         )
         self.sub_status_icon.setPixmap(get_cached_qta_pixmap(plan.icon_name, color=plan.icon_color, size=18))
         self.sub_status_label.setText(plan.label_text)
+        set_subscription_status_accessibility(self.sub_status_label, plan.label_text)
 
     def _current_subscription_state(self) -> tuple[bool, int | None]:
         store = self._ui_state_store

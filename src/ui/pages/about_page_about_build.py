@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from PyQt6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout
 
+from ui.accessibility import set_state_text
 from ui.pages.about_page_accessibility import apply_about_buttons_accessibility
 from ui.fluent_widgets import SettingsCard
 from qfluentwidgets import CaptionLabel, FluentIcon, PrimaryPushButton, PushButton, StrongBodyLabel, SubtitleLabel
@@ -24,6 +25,13 @@ class AboutPageAboutWidgets:
     sub_status_label: object
     sub_desc_label: object
     premium_btn: object
+
+
+def set_subscription_status_accessibility(label, text: object) -> None:
+    value = " ".join(str(text or "").strip().split())
+    if not value:
+        return
+    set_state_text(label, f"Статус подписки: {value}")
 
 
 def build_about_page_about_content(
@@ -94,6 +102,7 @@ def build_about_page_about_content(
     sub_status_label = StrongBodyLabel(
         tr_fn("page.about.subscription.free", "Free версия")
     )
+    set_subscription_status_accessibility(sub_status_label, sub_status_label.text())
     sub_status_layout.addWidget(sub_status_label, 1)
     sub_layout.addLayout(sub_status_layout)
 

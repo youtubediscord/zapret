@@ -34,8 +34,28 @@ class AboutPageAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(widgets.update_btn.accessibleName(), "Открыть настройки обновлений")
         self.assertIn("автоматической проверки", widgets.update_btn.accessibleDescription())
+        self.assertEqual(widgets.sub_status_label.accessibleName(), "Статус подписки: Free версия")
+        self.assertEqual(
+            widgets.sub_status_label.property("screenReaderStateText"),
+            "Статус подписки: Free версия",
+        )
         self.assertEqual(widgets.premium_btn.accessibleName(), "Открыть Premium и VPN")
         self.assertIn("Premium", widgets.premium_btn.accessibleDescription())
+
+    def test_subscription_status_update_reads_state_for_screen_reader(self) -> None:
+        page = AboutPage.__new__(AboutPage)
+        page._ui_language = "ru"
+        page.sub_status_icon = _IconWidget()
+        page.sub_status_label = _TextWidget()
+
+        AboutPage.update_subscription_status(page, True, 5)
+
+        self.assertEqual(page.sub_status_label.text(), "Premium (осталось 5 дней)")
+        self.assertEqual(page.sub_status_label.accessible_name, "Статус подписки: Premium (осталось 5 дней)")
+        self.assertEqual(
+            page.sub_status_label.property("screenReaderStateText"),
+            "Статус подписки: Premium (осталось 5 дней)",
+        )
 
     def test_about_tabs_read_current_section_for_screen_reader(self) -> None:
         widgets = build_about_page_tabs(
@@ -81,6 +101,7 @@ class _TextWidget:
         self.text_value = ""
         self.accessible_name = ""
         self.accessible_description = ""
+        self.properties = {}
 
     def setText(self, text: str) -> None:  # noqa: N802
         self.text_value = str(text)
@@ -99,6 +120,20 @@ class _TextWidget:
 
     def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
         self.accessible_description = str(text)
+
+    def property(self, name: str) -> object:
+        return self.properties.get(name)
+
+    def setProperty(self, name: str, value: object) -> None:  # noqa: N802
+        self.properties[name] = value
+
+
+class _IconWidget:
+    def __init__(self) -> None:
+        self.pixmap = None
+
+    def setPixmap(self, pixmap) -> None:  # noqa: N802
+        self.pixmap = pixmap
 
 
 if __name__ == "__main__":
