@@ -59,6 +59,90 @@ def _tls_app_data(payload: bytes) -> bytes:
 
 
 class TelegramProxyMTProxyCoreTests(unittest.TestCase):
+    def test_mtproxy_no_init_connections_are_summarized_without_log_spam(self) -> None:
+        import asyncio
+        from unittest.mock import patch
+
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _Writer:
+            def get_extra_info(self, name, default=None):
+                if name == "peername":
+                    return ("127.0.0.1", 13579)
+                return default
+
+            def close(self):
+                return None
+
+            async def wait_closed(self):
+                return None
+
+        async def no_init(*_args, **_kwargs):
+            return None
+
+        logs: list[str] = []
+        proxy = TelegramWSProxy(
+            mode="mtproxy",
+            mtproxy_secret="aabbccddeeff00112233445566778899",
+            on_log=logs.append,
+        )
+
+        with patch("telegram_proxy.wss_proxy.read_mtproxy_client_init", side_effect=no_init):
+            for _ in range(6):
+                asyncio.run(proxy._handle_mtproxy_client(object(), _Writer()))
+
+        self.assertEqual(proxy.stats.mtproxy_invalid_init_count, 6)
+        joined = "\n".join(logs)
+        self.assertEqual(joined.count("MTProxy init packet не получен"), 2)
+        self.assertIn("повторов: 1", joined)
+        self.assertIn("повторов: 5", joined)
+        self.assertIn("проверьте тип прокси", joined)
+        self.assertNotIn("no MTProxy init packet", joined)
+
+    def test_mtproxy_bad_handshake_points_to_secret_or_secret_type(self) -> None:
+        import asyncio
+        from unittest.mock import patch
+
+        from telegram_proxy.proxy.fake_tls import FakeTlsClientInit
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _Writer:
+            def get_extra_info(self, name, default=None):
+                if name == "peername":
+                    return ("127.0.0.1", 24680)
+                return default
+
+            def close(self):
+                return None
+
+            async def wait_closed(self):
+                return None
+
+        client = FakeTlsClientInit(
+            init=b"x" * 64,
+            reader=object(),
+            writer=_Writer(),
+            label="127.0.0.1:24680",
+        )
+        logs: list[str] = []
+        proxy = TelegramWSProxy(
+            mode="mtproxy",
+            mtproxy_secret="aabbccddeeff00112233445566778899",
+            on_log=logs.append,
+        )
+
+        with (
+            patch("telegram_proxy.wss_proxy.read_mtproxy_client_init", return_value=client),
+            patch("telegram_proxy.wss_proxy.parse_client_init", return_value=None),
+        ):
+            asyncio.run(proxy._handle_mtproxy_client(object(), _Writer()))
+
+        self.assertEqual(proxy.stats.mtproxy_bad_handshake_count, 1)
+        joined = "\n".join(logs)
+        self.assertIn("MTProxy init получен, но не расшифровался", joined)
+        self.assertIn("secret", joined)
+        self.assertIn("dd/ee", joined)
+
     def test_mtproxy_settings_are_normalized_in_settings_json_shape(self) -> None:
         from settings.normalize import normalize_telegram_proxy
         from settings.schema import VALID_TG_PROXY_MODES, default_telegram_proxy

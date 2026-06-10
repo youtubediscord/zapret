@@ -115,6 +115,49 @@ class TelegramProxyDiagnosticsTests(unittest.TestCase):
         self.assertIn("DC4 media WSS ошибка: TimeoutError", plan.stats_text)
         self.assertIn("DC4 media TCP ошибка: recv=0 watchdog", plan.stats_text)
 
+    def test_stats_plan_explains_mtproxy_init_problems_for_user(self) -> None:
+        stats = SimpleNamespace(
+            active_connections=0,
+            total_connections=12,
+            bytes_sent=0,
+            bytes_received=0,
+            uptime_seconds=5,
+            wss_connections=0,
+            tcp_fallback_connections=0,
+            cloudflare_connections=0,
+            cloudflare_worker_connections=0,
+            upstream_connections=0,
+            passthrough_connections=0,
+            failed_connections=0,
+            pool_hits=0,
+            pool_misses=0,
+            cloudflare_worker_pool_hits=0,
+            cloudflare_worker_pool_misses=0,
+            recv_zero_count=0,
+            recv_zero_per_dc={},
+            route_events=[],
+            mtproxy_invalid_init_count=6,
+            mtproxy_bad_handshake_count=1,
+            mtproxy_last_problem=(
+                "init есть, но secret или тип secret dd/ee не подошёл"
+            ),
+        )
+
+        plan = build_stats_plan(
+            stats=stats,
+            prev_sent=0,
+            prev_recv=0,
+            speed_hist_up=(),
+            speed_hist_down=(),
+            interval=2.0,
+        )
+
+        self.assertIn("MTProxy:", plan.stats_text)
+        self.assertIn("не MTProxy 6", plan.stats_text)
+        self.assertIn("secret 1", plan.stats_text)
+        self.assertIn("проверьте тип прокси и secret", plan.stats_text)
+        self.assertIn("dd/ee", plan.stats_text)
+
 
 if __name__ == "__main__":
     unittest.main()

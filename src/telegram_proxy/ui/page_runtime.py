@@ -346,6 +346,23 @@ def build_stats_plan(
         pool_parts.append(f"Worker {worker_pool_hits}/{worker_pool_misses}")
     pool_str = f"  |  Пул: {', '.join(pool_parts)}" if pool_parts else ""
 
+    mtproxy_problem_parts: list[str] = []
+    mtproxy_invalid_init_count = int(getattr(stats, "mtproxy_invalid_init_count", 0) or 0)
+    mtproxy_bad_handshake_count = int(getattr(stats, "mtproxy_bad_handshake_count", 0) or 0)
+    if mtproxy_invalid_init_count > 0:
+        mtproxy_problem_parts.append(f"не MTProxy {mtproxy_invalid_init_count}")
+    if mtproxy_bad_handshake_count > 0:
+        mtproxy_problem_parts.append(f"secret {mtproxy_bad_handshake_count}")
+    mtproxy_problem_str = ""
+    if mtproxy_problem_parts:
+        last_problem = str(getattr(stats, "mtproxy_last_problem", "") or "").strip()
+        mtproxy_problem_str = (
+            f"  |  MTProxy: {', '.join(mtproxy_problem_parts)} — "
+            "проверьте тип прокси и secret"
+        )
+        if last_problem:
+            mtproxy_problem_str = f"{mtproxy_problem_str}; последнее: {last_problem}"
+
     recent_route_parts: list[str] = []
     for event in list(getattr(stats, "route_events", ()) or ())[-3:]:
         dc = int(getattr(event, "dc", 0) or 0)
@@ -364,7 +381,8 @@ def build_stats_plan(
         f"{getattr(stats, 'total_connections', 0)} всего  |  "
         f"↑ {_fmt_bytes(now_sent)} ({_fmt_speed(avg_sent, interval)})  "
         f"↓ {_fmt_bytes(now_recv)} ({_fmt_speed(avg_recv, interval)})  |  "
-        f"Uptime: {uptime_str}{routes_str}{pool_str}{recv_zero_str}{recent_routes_str}"
+        f"Uptime: {uptime_str}{routes_str}{pool_str}{recv_zero_str}"
+        f"{mtproxy_problem_str}{recent_routes_str}"
     )
 
     return TelegramProxyStatsPlan(

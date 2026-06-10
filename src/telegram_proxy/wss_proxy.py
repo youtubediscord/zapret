@@ -137,6 +137,8 @@ class TelegramWSProxy:
         self._dc_cooldown: dict[tuple[int, bool], float] = {}
         # DCs that should use upstream (learned from consecutive recv=0 failures)
         self._dc_upstream_required: set[tuple[int, bool]] = set()
+        self._mtproxy_invalid_init_log_marks = {1, 5, 20, 50}
+        self._mtproxy_bad_handshake_log_marks = {1, 5, 20, 50}
 
     def _log(self, msg: str) -> None:
         log.info(msg)
@@ -161,6 +163,41 @@ class TelegramWSProxy:
             route=route,
             status=status,
             reason=reason,
+        )
+
+    @staticmethod
+    def _should_log_mtproxy_problem(count: int, marks: set[int]) -> bool:
+        return int(count) in marks or (int(count) > 0 and int(count) % 100 == 0)
+
+    def _record_mtproxy_invalid_init(self, label: str) -> None:
+        self.stats.mtproxy_invalid_init_count += 1
+        count = int(self.stats.mtproxy_invalid_init_count)
+        self.stats.mtproxy_last_problem = (
+            "нет MTProxy init packet: проверьте тип прокси, старые записи, "
+            "Fake TLS/secret или авто-проверку Telegram"
+        )
+        if not self._should_log_mtproxy_problem(count, self._mtproxy_invalid_init_log_marks):
+            return
+        self._log(
+            f"[{label}] MTProxy init packet не получен; повторов: {count}. "
+            "Что это значит: Telegram подключился к MTProxy-порту, но не прислал "
+            "первый MTProxy-пакет. Что делать: проверьте тип прокси в Telegram, "
+            "удалите старые записи 127.0.0.1, проверьте secret/Fake TLS; "
+            "одиночные проверки клиента могут закрываться сами."
+        )
+
+    def _record_mtproxy_bad_handshake(self, label: str) -> None:
+        self.stats.mtproxy_bad_handshake_count += 1
+        count = int(self.stats.mtproxy_bad_handshake_count)
+        self.stats.mtproxy_last_problem = (
+            "init есть, но secret или тип secret dd/ee не подошёл"
+        )
+        if not self._should_log_mtproxy_problem(count, self._mtproxy_bad_handshake_log_marks):
+            return
+        self._log(
+            f"[{label}] MTProxy init получен, но не расшифровался; повторов: {count}. "
+            "Чаще всего это неверный secret, старый прокси в Telegram или mismatch "
+            "типа secret dd/ee."
         )
 
     @staticmethod
@@ -533,7 +570,7 @@ class TelegramWSProxy:
                 proxy_protocol=self._proxy_protocol,
             )
             if client is None:
-                self._log(f"[{label}] no MTProxy init packet")
+                self._record_mtproxy_invalid_init(label)
                 return
             client_init = client.init
             client_reader = client.reader
@@ -543,7 +580,7 @@ class TelegramWSProxy:
             parsed = parse_client_init(client_init, self._mtproxy_secret)
             if parsed is None:
                 self.stats.failed_connections += 1
-                self._log(f"[{label}] bad MTProxy handshake")
+                self._record_mtproxy_bad_handshake(label)
                 return
 
             dc = parsed.dc

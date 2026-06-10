@@ -38,6 +38,9 @@ class ProxyStats:
     recv_zero_count: int = 0
     recv_zero_per_dc: dict = field(default_factory=dict)
     http_rejected: int = 0
+    mtproxy_invalid_init_count: int = 0
+    mtproxy_bad_handshake_count: int = 0
+    mtproxy_last_problem: str = ""
     route_events: list[ProxyRouteEvent] = field(default_factory=list)
     start_time: float = field(default_factory=time.monotonic)
 
