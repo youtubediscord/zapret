@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 from qfluentwidgets import CaptionLabel
 
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE, normalize_launch_method
+from ui.accessibility import set_state_text
 from ui.fluent_widgets import set_tooltip
 from ui.theme import get_theme_tokens
 from ui.widgets.win11_spinner import Win11Spinner
@@ -121,6 +122,11 @@ def set_style_sheet_if_changed(widget, style: str) -> bool:
     return True
 
 
+def _preset_status_state_text(text: str) -> str:
+    value = str(text or "").strip()
+    return f"Статус пресета: {value}" if value else "Статус пресета"
+
+
 class PresetStatusBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -171,6 +177,9 @@ class PresetStatusBar(QWidget):
                 self.check_label.setVisible(indicator == "check")
 
         set_text_if_changed(self.text_label, normalized_plan.text)
+        state_text = _preset_status_state_text(normalized_plan.text)
+        set_state_text(self, state_text)
+        set_state_text(self.text_label, state_text)
         self._apply_mode_style(mode)
 
     def _apply_mode_style(self, mode: str) -> None:
@@ -239,6 +248,7 @@ class PresetStatusIcon(QWidget):
                 self.check_label.setVisible(indicator == "check")
 
         set_tooltip(self, normalized_plan.text)
+        set_state_text(self, _preset_status_state_text(normalized_plan.text))
         if indicator_changed:
             self.setVisible(indicator in {"spinner", "check"})
         self._apply_mode_style(mode)
