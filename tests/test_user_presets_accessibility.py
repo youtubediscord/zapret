@@ -88,6 +88,7 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
             presets_info_btn=widgets.presets_info_btn,
             info_btn=widgets.info_btn,
             preset_search_input=widgets.preset_search_input,
+            presets_list=widgets.presets_list,
             presets_delegate=widgets.presets_delegate,
             ui_language="ru",
             viewport=parent.viewport(),
@@ -156,6 +157,7 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
             widgets.presets_info_btn: ("Открыть вики по пресетам", "Вики по пресетам"),
             widgets.info_btn: ("Показать справку о пресетах", "Что это такое"),
             widgets.preset_search_input: ("Поиск пресетов", "Поиск пресетов по имени"),
+            widgets.presets_list: ("Список пользовательских пресетов", "Стрелки выбирают пресет, Enter делает выбранный пресет активным"),
         }
         for widget, (name, description) in expected.items():
             with self.subTest(name=name):

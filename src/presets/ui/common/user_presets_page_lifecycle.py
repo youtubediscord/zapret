@@ -250,6 +250,7 @@ def apply_user_presets_language(
     presets_info_btn,
     info_btn,
     preset_search_input,
+    presets_list,
     presets_delegate,
     ui_language: str,
     viewport,
@@ -319,6 +320,7 @@ def apply_user_presets_language(
         presets_info_btn=presets_info_btn,
         info_btn=info_btn,
         preset_search_input=preset_search_input,
+        presets_list=presets_list,
     )
 
     if presets_delegate is not None:

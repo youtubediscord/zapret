@@ -2697,6 +2697,7 @@ class UserPresetsPageBase(BasePage):
             presets_info_btn=self.presets_info_btn,
             info_btn=self.info_btn,
             preset_search_input=self._preset_search_input,
+            presets_list=self.presets_list,
             presets_delegate=self._presets_delegate,
             ui_language=self._ui_language,
             viewport=self.viewport(),

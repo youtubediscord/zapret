@@ -17,8 +17,9 @@ def apply_user_presets_accessibility(
     presets_info_btn=None,
     info_btn=None,
     preset_search_input=None,
+    presets_list=None,
 ) -> None:
-    """Задаёт понятные имена кнопкам пользовательских пресетов для экранного диктора."""
+    """Задаёт понятные имена элементам пользовательских пресетов для экранного диктора."""
 
     set_control_accessibility(
         get_configs_btn,
@@ -65,6 +66,14 @@ def apply_user_presets_accessibility(
         preset_search_input,
         name=tr_fn(f"{tr_prefix}.search.accessible_name", "Поиск пресетов"),
         description=tr_fn(f"{tr_prefix}.search.placeholder", "Поиск пресетов по имени..."),
+    )
+    set_control_accessibility(
+        presets_list,
+        name=tr_fn(f"{tr_prefix}.list.accessible_name", "Список пользовательских пресетов"),
+        description=tr_fn(
+            f"{tr_prefix}.list.accessible_description",
+            "Стрелки выбирают пресет, Enter делает выбранный пресет активным",
+        ),
     )
 
 
