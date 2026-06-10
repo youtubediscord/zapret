@@ -11,6 +11,16 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 from app.ui_texts import normalize_language, tr as tr_catalog
 from qfluentwidgets import SegmentedWidget
+from ui.accessibility import set_control_accessibility, set_state_text
+
+
+def _join_tab_labels(labels: list[str]) -> str:
+    clean_labels = [str(label or "").strip() for label in labels if str(label or "").strip()]
+    if not clean_labels:
+        return ""
+    if len(clean_labels) == 1:
+        return clean_labels[0]
+    return f"{', '.join(clean_labels[:-1])} или {clean_labels[-1]}"
 
 
 class OrchestraSettingsPage(QWidget):
@@ -51,6 +61,8 @@ class OrchestraSettingsPage(QWidget):
                 self.pivot.addItem(key, label, lambda *_, idx=i: self._switch_tab(idx))
             self.pivot.setCurrentItem("locked")
             self.pivot.setItemFontSize(13)
+            self._update_tabs_accessibility("locked")
+            self.pivot.currentItemChanged.connect(self._update_tabs_accessibility)
 
         # Layout: pivot bar with margins aligned with BasePage content
         main_layout = QVBoxLayout(self)
@@ -148,6 +160,7 @@ class OrchestraSettingsPage(QWidget):
             try:
                 for key, label in zip(self.TAB_KEYS, self._get_tab_labels()):
                     self.pivot.setItemText(key, label)
+                self._update_tabs_accessibility()
             except Exception:
                 pass
 
@@ -170,11 +183,40 @@ class OrchestraSettingsPage(QWidget):
         self.stacked.setCurrentIndex(index)
         if self.pivot is not None and 0 <= index < len(self.TAB_KEYS):
             self.pivot.setCurrentItem(self.TAB_KEYS[index])
+            self._update_tabs_accessibility(self.TAB_KEYS[index])
 
     def switch_to_tab(self, key: str) -> None:
         """External API: switch to the named tab."""
         if key in self.TAB_KEYS:
             self._switch_tab(self.TAB_KEYS.index(key))
+
+    def _update_tabs_accessibility(self, current: object | None = None) -> None:
+        if self.pivot is None:
+            return
+        labels = self._get_tab_labels()
+        key = str(current or "").strip()
+        if not key:
+            try:
+                key = str(self.pivot.currentRouteKey() or "").strip()
+            except Exception:
+                key = ""
+        if key in self.TAB_KEYS:
+            label = labels[self.TAB_KEYS.index(key)]
+        else:
+            label = labels[0] if labels else ""
+        state = f"Настройки Оркестратора, выбрано: {label}"
+        description_labels = _join_tab_labels(labels)
+        description = (
+            f"Выберите раздел настроек Оркестратора: {description_labels}."
+            if description_labels
+            else "Выберите раздел настроек Оркестратора."
+        )
+        set_state_text(self.pivot, state)
+        set_control_accessibility(
+            self.pivot,
+            name=state,
+            description=description,
+        )
 
     # ------------------------------------------------------------------
     # Cleanup
