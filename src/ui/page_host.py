@@ -97,7 +97,13 @@ class WindowPageHost:
             return False
         return page_name in session.nav_items
 
-    def set_stacked_widget_current_page(self, page: QWidget | None, *, animate: bool = True) -> bool:
+    def set_stacked_widget_current_page(
+        self,
+        page: QWidget | None,
+        *,
+        animate: bool = True,
+        page_name: PageName | None = None,
+    ) -> bool:
         stack = self._window.stackedWidget
         if page is None:
             return False
@@ -112,10 +118,12 @@ class WindowPageHost:
         previous_animation_enabled = getattr(stack, "isAnimationEnabled", None)
         animation_flag_known = isinstance(previous_animation_enabled, bool)
         if animation_flag_known:
+            step_started_at = time.perf_counter()
             try:
                 stack.isAnimationEnabled = False
             except Exception:
                 animation_flag_known = False
+            self._log_optional_switch_step(page_name, "show.switch.disable_animation", step_started_at)
 
         updates_were_enabled = True
         updates_toggled = False
@@ -126,22 +134,27 @@ class WindowPageHost:
             except Exception:
                 updates_were_enabled = True
             if updates_were_enabled:
+                step_started_at = time.perf_counter()
                 try:
                     set_updates_enabled(False)
                     updates_toggled = True
                 except Exception:
                     updates_toggled = False
+                self._log_optional_switch_step(page_name, "show.switch.disable_updates", step_started_at)
 
         try:
+            step_started_at = time.perf_counter()
             try:
                 stack.setCurrentWidget(page, False)
             except TypeError:
                 stack.setCurrentWidget(page)
+            self._log_optional_switch_step(page_name, "show.switch.set_current", step_started_at)
             return True
         except Exception:
             return False
         finally:
             if updates_toggled:
+                step_started_at = time.perf_counter()
                 try:
                     set_updates_enabled(True)
                     update = getattr(stack, "update", None)
@@ -149,11 +162,19 @@ class WindowPageHost:
                         update()
                 except Exception:
                     pass
+                self._log_optional_switch_step(page_name, "show.switch.restore_updates", step_started_at)
             if animation_flag_known:
+                step_started_at = time.perf_counter()
                 try:
                     stack.isAnimationEnabled = bool(previous_animation_enabled)
                 except Exception:
                     pass
+                self._log_optional_switch_step(page_name, "show.switch.restore_animation", step_started_at)
+
+    def _log_optional_switch_step(self, page_name: PageName | None, stage: str, started_at: float) -> None:
+        if page_name is None:
+            return
+        self._log_step_timing(page_name, stage, started_at)
 
     def ensure_page_in_stacked_widget(self, page: QWidget | None) -> None:
         stack = self._window.stackedWidget
@@ -256,7 +277,7 @@ class WindowPageHost:
         self._log_step_timing(page_name, "show.stack", step_started_at)
         use_nav_route = self.has_nav_item(page_name)
         step_started_at = _time.perf_counter()
-        switched = self.set_stacked_widget_current_page(page, animate=False)
+        switched = self.set_stacked_widget_current_page(page, animate=False, page_name=page_name)
         self._log_step_timing(page_name, "show.switch", step_started_at)
         if not switched:
             return False

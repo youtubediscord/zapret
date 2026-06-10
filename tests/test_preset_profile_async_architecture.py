@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import importlib
 import importlib.util
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -4212,6 +4213,41 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
                 ("update", None),
             ],
         )
+
+    def test_page_host_logs_slow_direct_switch_substeps(self) -> None:
+        class _FakeStack:
+            def __init__(self) -> None:
+                self.isAnimationEnabled = True
+                self.updates_enabled = True
+
+            def setUpdatesEnabled(self, enabled):  # noqa: N802
+                self.updates_enabled = bool(enabled)
+
+            def updatesEnabled(self):  # noqa: N802
+                return self.updates_enabled
+
+            def setCurrentWidget(self, page, need_pop_out=False):
+                _ = page
+                _ = need_pop_out
+                time.sleep(0.02)
+
+            def update(self):
+                pass
+
+        stack = _FakeStack()
+        host = WindowPageHost(window=type("Window", (), {"stackedWidget": stack})(), page_factory=None)
+        events: list[str] = []
+
+        with patch("ui.page_host.log_page_metric", side_effect=lambda _page, stage, *_args, **_kwargs: events.append(stage)):
+            self.assertTrue(
+                host.set_stacked_widget_current_page(
+                    object(),
+                    animate=False,
+                    page_name=PageName.ZAPRET2_USER_PRESETS,
+                )
+            )
+
+        self.assertIn("show.switch.set_current", events)
 
     def test_telegram_proxy_builds_secondary_tabs_lazily(self) -> None:
         setup_source = inspect.getsource(TelegramProxyPage._setup_ui)
