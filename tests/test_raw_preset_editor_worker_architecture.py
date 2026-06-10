@@ -102,6 +102,11 @@ class RawPresetEditorWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("_raw_load_state_obj()", finished_source)
         self.assertIn("_raw_load_state_obj()", scheduled_source)
         self.assertIn("_raw_load_state_obj().reset()", cleanup_source)
+        self.assertIn("_raw_load_runtime_request_id", request_source)
+        self.assertNotIn("_raw_load_runtime_worker", init_source)
+        self.assertNotIn("_raw_load_runtime_worker", request_source)
+        self.assertNotIn("_raw_load_runtime_worker", finished_source)
+        self.assertNotIn("_raw_load_runtime_worker", cleanup_source)
         self.assertNotIn("self._raw_load_pending = False", init_source)
         self.assertNotIn("self._raw_load_start_scheduled = False", init_source)
 

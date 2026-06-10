@@ -119,10 +119,10 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
     def test_pending_raw_preset_load_restarts_after_worker_signal(self) -> None:
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
 
-        worker = object()
+        worker = SimpleNamespace(_request_id=4)
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._cleanup_in_progress = False
-        page._raw_load_runtime_worker = worker
+        page._raw_load_runtime_request_id = 4
         page._raw_load_pending = True
         page._raw_load_start_scheduled = False
         page._request_raw_preset_text = Mock()
@@ -147,11 +147,11 @@ class PresetSubpageUiGuardTests(unittest.TestCase):
 
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._cleanup_in_progress = False
-        page._raw_load_runtime_worker = object()
+        page._raw_load_runtime_request_id = 4
         page._raw_load_pending = True
         page._schedule_pending_raw_preset_load_start = Mock()
 
-        PresetRawEditorPage._on_raw_preset_worker_finished(page, object())
+        PresetRawEditorPage._on_raw_preset_worker_finished(page, SimpleNamespace(_request_id=3))
 
         page._schedule_pending_raw_preset_load_start.assert_not_called()
 

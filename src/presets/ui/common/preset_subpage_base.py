@@ -273,7 +273,7 @@ class PresetRawEditorPage(BasePage):
         self._is_loading = False
         self._raw_load_runtime = OneShotWorkerRuntime()
         self._raw_load_request_id = 0
-        self._raw_load_runtime_worker = None
+        self._raw_load_runtime_request_id = 0
         self._raw_load_state = LatestValueWorkerState(
             self._raw_load_runtime,
             empty_value=False,
@@ -798,7 +798,7 @@ class PresetRawEditorPage(BasePage):
         request_id = self._raw_load_request_id
         self._is_loading = True
         self._set_footer("Загрузка...")
-        _request_id, worker = runtime.start_qthread_worker(
+        runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_raw_preset_load_worker(
                 request_id,
                 self._preset_file_name,
@@ -808,7 +808,7 @@ class PresetRawEditorPage(BasePage):
             on_failed=self._on_raw_preset_text_failed,
             on_finished=self._on_raw_preset_worker_finished,
         )
-        self._raw_load_runtime_worker = worker
+        self._raw_load_runtime_request_id = request_id
 
     def _on_raw_preset_text_loaded(self, request_id: int, result) -> None:
         if request_id != self._raw_load_request_id:
@@ -885,14 +885,24 @@ class PresetRawEditorPage(BasePage):
 
         state.schedule_pending_after_finish(
             _worker,
-            is_current_worker_finish=lambda _runtime, worker: self._accept_current_raw_write_worker_finished(
-                "_raw_load_runtime_worker",
-                worker,
-            ),
+            is_current_worker_finish=lambda _runtime, worker: self._accept_current_raw_preset_load_finished(worker),
             single_shot=_single_shot,
             run_scheduled=self._run_scheduled_raw_preset_load_start,
             cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
         )
+
+    def _accept_current_raw_preset_load_finished(self, worker) -> bool:
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
+            return False
+        try:
+            current_request_id = int(self.__dict__.get("_raw_load_runtime_request_id", 0) or 0)
+            if int(request_id) != current_request_id:
+                return False
+        except (TypeError, ValueError):
+            return False
+        self._raw_load_runtime_request_id = 0
+        return True
 
     def _schedule_pending_raw_preset_load_start(self) -> None:
         state = self._raw_load_state_obj()
@@ -1821,7 +1831,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_preset_write_state_obj().reset()
         self._raw_preset_save_state_obj().reset()
         self._raw_preset_activation_state_obj().reset()
-        self._raw_load_runtime_worker = None
+        self._raw_load_runtime_request_id = 0
         self._raw_save_runtime_worker = None
         self._raw_activate_runtime_worker = None
         self._raw_action_runtime_worker = None
