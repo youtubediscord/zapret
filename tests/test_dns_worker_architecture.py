@@ -141,12 +141,14 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
     def test_dns_apply_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
+        page._dns_apply_runtime = SimpleNamespace(request_id=1, is_running=Mock(return_value=False))
+        page._force_dns_action_runtime = SimpleNamespace(is_running=Mock(return_value=False))
         page._dns_apply_pending = [{"action": "auto", "adapters": ["Ethernet"]}]
         page._start_dns_apply_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_dns_apply_worker_finished(page, object())
+            NetworkPage._on_dns_apply_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -167,6 +169,17 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
         page._start_next_dns_mutation_action.assert_not_called()
 
+    def test_unknown_dns_apply_worker_finished_does_not_restart_pending_action(self) -> None:
+        page = NetworkPage.__new__(NetworkPage)
+        page._cleanup_in_progress = False
+        page._dns_apply_runtime = SimpleNamespace(request_id=3)
+        page._dns_apply_pending = [{"action": "auto", "adapters": ["Ethernet"]}]
+        page._start_next_dns_mutation_action = Mock()
+
+        NetworkPage._on_dns_apply_worker_finished(page, object())
+
+        page._start_next_dns_mutation_action.assert_not_called()
+
     def test_stale_dns_apply_worker_object_finished_does_not_restart_pending_action(self) -> None:
         old_worker = object()
         current_worker = object()
@@ -182,6 +195,8 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
     def test_dns_apply_scheduled_start_uses_latest_pending_request(self) -> None:
         class _Runtime:
+            request_id = 1
+
             def is_running(self) -> bool:
                 return False
 
@@ -194,7 +209,7 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_dns_apply_worker_finished(page, object())
+            NetworkPage._on_dns_apply_worker_finished(page, SimpleNamespace(_request_id=1))
             NetworkPage._request_dns_apply(
                 page,
                 "provider",
@@ -294,6 +309,8 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
     def test_force_dns_restarts_after_dns_apply_worker_finished(self) -> None:
         class _Runtime:
+            request_id = 1
+
             def is_running(self) -> bool:
                 return False
 
@@ -309,7 +326,7 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_dns_apply_worker_finished(page, object())
+            NetworkPage._on_dns_apply_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page._start_force_dns_action_worker.assert_not_called()
         single_shot.assert_called_once()
@@ -320,6 +337,8 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
     def test_dns_apply_restarts_after_force_dns_worker_finished(self) -> None:
         class _Runtime:
+            request_id = 1
+
             def is_running(self) -> bool:
                 return False
 
@@ -335,7 +354,7 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_force_dns_action_worker_finished(page, object())
+            NetworkPage._on_force_dns_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page._start_dns_apply_worker.assert_not_called()
         single_shot.assert_called_once()
@@ -346,6 +365,8 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
     def test_dns_mutation_queue_preserves_cross_action_order(self) -> None:
         class _Runtime:
+            request_id = 1
+
             def __init__(self, running: bool) -> None:
                 self._running = running
 
@@ -370,7 +391,7 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         page._dns_apply_runtime._running = False
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_dns_apply_worker_finished(page, object())
+            NetworkPage._on_dns_apply_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         single_shot.call_args.args[1]()
@@ -464,12 +485,14 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
     def test_force_dns_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
+        page._dns_apply_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+        page._force_dns_action_runtime = SimpleNamespace(request_id=1, is_running=Mock(return_value=False))
         page._force_dns_action_pending = [{"action": "toggle", "enabled": True}]
         page._start_force_dns_action_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_force_dns_action_worker_finished(page, object())
+            NetworkPage._on_force_dns_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -505,6 +528,8 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
     def test_force_dns_scheduled_toggle_uses_latest_pending_value(self) -> None:
         class _Runtime:
+            request_id = 1
+
             def is_running(self) -> bool:
                 return False
 
@@ -517,7 +542,7 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_force_dns_action_worker_finished(page, object())
+            NetworkPage._on_force_dns_action_worker_finished(page, SimpleNamespace(_request_id=1))
             NetworkPage._request_force_dns_action(page, "toggle", enabled=False)
 
         page._start_force_dns_action_worker.assert_not_called()
@@ -571,12 +596,13 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
     def test_dns_flush_cache_pending_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
+        page._dns_flush_cache_runtime = SimpleNamespace(request_id=1)
         page._dns_flush_cache_pending = True
         page._start_dns_flush_cache_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot)):
-            NetworkPage._on_dns_flush_cache_worker_finished(page, object())
+            NetworkPage._on_dns_flush_cache_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -670,13 +696,14 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
     def test_pending_network_page_load_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
+        page._page_load_runtime = SimpleNamespace(request_id=1)
         page._page_load_pending = True
         page._page_load_start_scheduled = False
         page._start_loading = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            NetworkPage._on_page_load_worker_finished(page, object())
+            NetworkPage._on_page_load_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -737,13 +764,14 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
     def test_pending_isp_warning_plan_restarts_after_event_loop_turn(self) -> None:
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
+        page._isp_warning_runtime = SimpleNamespace(request_id=1)
         page._isp_warning_pending = True
         page._isp_warning_start_scheduled = False
         page._request_isp_dns_warning_plan = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            NetworkPage._on_isp_dns_warning_worker_finished(page, object())
+            NetworkPage._on_isp_dns_warning_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -824,13 +852,14 @@ class DnsWorkerArchitectureTests(unittest.TestCase):
 
         page = NetworkPage.__new__(NetworkPage)
         page._cleanup_in_progress = False
+        page._connectivity_test_runtime = SimpleNamespace(request_id=1)
         page._connectivity_test_pending = True
         page._connectivity_test_start_scheduled = False
         page._test_connection = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(network_page_module, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            NetworkPage._on_connectivity_test_worker_finished(page, object())
+            NetworkPage._on_connectivity_test_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)

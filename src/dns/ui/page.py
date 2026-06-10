@@ -1532,7 +1532,7 @@ class NetworkPage(BasePage):
             current_worker = getattr(runtime, "worker", None)
             if current_worker is not None:
                 return worker is current_worker
-            return True
+            return False
         try:
             return int(request_id) == int(getattr(runtime, "request_id", -1))
         except (TypeError, ValueError):
