@@ -384,9 +384,26 @@ class TelegramWSProxy:
                         target=f"{target_host}:{target_port}",
                         result="error",
                         reason=self._route_error(exc),
-                        next_step="none; HTTP transport cannot use WSS",
+                        next_step=(
+                            "upstream SOCKS5 fallback"
+                            if should_route_upstream(self._upstream, mode="fallback")
+                            else "none; HTTP transport cannot use WSS"
+                        ),
                         elapsed=elapsed,
                     )
+                    if should_route_upstream(self._upstream, mode="fallback"):
+                        self._log(f"[{label}] HTTP TCP failed -> trying upstream SOCKS5 fallback")
+                        self._record_route(
+                            dc=0,
+                            is_media=False,
+                            route="HTTP TCP",
+                            status="ошибка",
+                            reason=self._route_error(exc),
+                        )
+                        await self._upstream_proxy_connect(
+                            reader, writer, target_host, target_port,
+                            init, label, dc=0, is_media=False,
+                        )
                     return
                 elapsed = time.monotonic() - t_connect
                 self._log_route_detail(
@@ -1327,6 +1344,17 @@ class TelegramWSProxy:
                 f"[{label}] MTProxy DC{dc}{media_tag} upstream connect failed "
                 f"({elapsed:.1f}s): {type(exc).__name__}: {exc}"
             )
+            self._log_route_detail(
+                label,
+                route="upstream SOCKS5",
+                dc=dc,
+                is_media=is_media,
+                target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+                result="error",
+                reason=self._route_error(exc),
+                next_step="none",
+                elapsed=elapsed,
+            )
             self._record_route(
                 dc=dc,
                 is_media=is_media,
@@ -1338,6 +1366,15 @@ class TelegramWSProxy:
 
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] MTProxy DC{dc}{media_tag} upstream connected ({elapsed:.1f}s)")
+        self._log_route_detail(
+            label,
+            route="upstream SOCKS5",
+            dc=dc,
+            is_media=is_media,
+            target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+            result="connected",
+            elapsed=elapsed,
+        )
         self.stats.upstream_connections += 1
         self._record_route(dc=dc, is_media=is_media, route="внешний SOCKS5", status="OK")
         rw.write(relay_init)
@@ -1517,6 +1554,17 @@ class TelegramWSProxy:
                 f"[{label}] DC{dc}{media_tag} upstream connect failed "
                 f"({elapsed:.1f}s): {type(exc).__name__}: {exc}"
             )
+            self._log_route_detail(
+                label,
+                route="upstream SOCKS5",
+                dc=dc,
+                is_media=is_media,
+                target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+                result="error",
+                reason=self._route_error(exc),
+                next_step="none",
+                elapsed=elapsed,
+            )
             self._record_route(
                 dc=dc,
                 is_media=is_media,
@@ -1528,6 +1576,15 @@ class TelegramWSProxy:
 
         elapsed = time.monotonic() - t_connect
         self._log(f"[{label}] DC{dc}{media_tag} upstream connected ({elapsed:.1f}s)")
+        self._log_route_detail(
+            label,
+            route="upstream SOCKS5",
+            dc=dc,
+            is_media=is_media,
+            target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+            result="connected",
+            elapsed=elapsed,
+        )
         self.stats.upstream_connections += 1
         self._record_route(dc=dc, is_media=is_media, route="внешний SOCKS5", status="OK")
         # Forward the buffered init packet
