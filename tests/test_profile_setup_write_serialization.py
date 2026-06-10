@@ -36,6 +36,29 @@ class _Runtime:
 
 
 class ProfileSetupWriteSerializationTests(unittest.TestCase):
+    def test_profile_setup_write_queue_lives_in_queued_worker_state(self) -> None:
+        import inspect
+        from ui.queued_worker_state import QueuedWorkerState
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        module_source = inspect.getsource(
+            __import__("profile.ui.profile_setup_page", fromlist=[""])
+        )
+        init_source = inspect.getsource(ProfileSetupPageBase.__init__)
+        queue_source = inspect.getsource(ProfileSetupPageBase._queue_profile_setup_write_operation)
+        start_next_source = inspect.getsource(ProfileSetupPageBase._start_next_profile_setup_write_operation)
+        schedule_source = inspect.getsource(ProfileSetupPageBase._schedule_profile_setup_write_operation_start)
+        cleanup_source = inspect.getsource(ProfileSetupPageBase.cleanup)
+
+        self.assertIsInstance(ProfileSetupPageBase._profile_setup_write_state_obj(page), QueuedWorkerState)
+        self.assertIn("from ui.queued_worker_state import QueuedWorkerState", module_source)
+        self.assertIn("_profile_setup_write_state = QueuedWorkerState", init_source)
+        self.assertIn("_profile_setup_write_state_obj()", queue_source)
+        self.assertIn("state.pop_next()", start_next_source)
+        self.assertIn("state.start_scheduled", schedule_source)
+        self.assertIn("_profile_setup_write_state_obj().reset()", cleanup_source)
+        self.assertNotIn("self._pending_profile_setup_write_operations: list", init_source)
+
     def test_user_profile_write_queue_lives_in_queued_worker_state(self) -> None:
         import inspect
         from ui.queued_worker_state import QueuedWorkerState

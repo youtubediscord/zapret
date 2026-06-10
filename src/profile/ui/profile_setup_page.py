@@ -1088,8 +1088,9 @@ class ProfileSetupPageBase(BasePage):
             empty_value=None,
         )
         self._scheduled_profile_setup_write_operation = None
-        self._pending_profile_setup_write_operations: list[dict[str, object]] = []
-        self._profile_setup_write_operation_start_scheduled = False
+        self._profile_setup_write_state = QueuedWorkerState[dict[str, object]](
+            self._settings_save_runtime,
+        )
         self._strategy_feedback_save_runtime = OneShotWorkerRuntime()
         self._strategy_feedback_save_request_id = 0
         self._strategy_feedback_save_runtime_worker = None
@@ -1170,7 +1171,7 @@ class ProfileSetupPageBase(BasePage):
         return True
 
     def _profile_setup_write_is_running(self) -> bool:
-        if self.__dict__.get("_profile_setup_write_operation_start_scheduled", False):
+        if self._profile_setup_write_state_obj().start_scheduled:
             return True
         for attr in (
             "_list_file_save_runtime",
@@ -1192,13 +1193,13 @@ class ProfileSetupPageBase(BasePage):
         queued = dict(operation)
         scheduled = self.__dict__.get("_scheduled_profile_setup_write_operation")
         if (
-            self.__dict__.get("_profile_setup_write_operation_start_scheduled", False)
+            self._profile_setup_write_state_obj().start_scheduled
             and isinstance(scheduled, dict)
             and scheduled.get("kind") == queued.get("kind")
         ):
             self._scheduled_profile_setup_write_operation = queued
             return
-        pending = self.__dict__.setdefault("_pending_profile_setup_write_operations", [])
+        pending = self._profile_setup_write_state_obj().pending
         if pending and pending[-1] == queued:
             return
         if pending and pending[-1].get("kind") == queued.get("kind"):
@@ -1211,29 +1212,30 @@ class ProfileSetupPageBase(BasePage):
             return False
         if self._profile_setup_write_is_running():
             return False
-        pending = self.__dict__.setdefault("_pending_profile_setup_write_operations", [])
-        if not pending:
+        state = self._profile_setup_write_state_obj()
+        operation = state.pop_next()
+        if not operation:
             return False
-        operation = dict(pending.pop(0))
-        self._schedule_profile_setup_write_operation_start(operation)
+        self._schedule_profile_setup_write_operation_start(dict(operation))
         return True
 
     def _schedule_profile_setup_write_operation_start(self, operation: dict[str, object]) -> None:
         queued = dict(operation or {})
         if self.__dict__.get("_cleanup_in_progress"):
             return
-        if self.__dict__.get("_profile_setup_write_operation_start_scheduled", False):
+        state = self._profile_setup_write_state_obj()
+        if state.start_scheduled:
             self._queue_profile_setup_write_operation(queued)
             return
         self._scheduled_profile_setup_write_operation = queued
-        self._profile_setup_write_operation_start_scheduled = True
+        state.start_scheduled = True
         try:
             QTimer.singleShot(0, self._run_profile_setup_write_operation)
         except Exception:
             self._run_profile_setup_write_operation()
 
     def _run_profile_setup_write_operation(self, operation: dict[str, object] | None = None) -> bool:
-        self._profile_setup_write_operation_start_scheduled = False
+        self._profile_setup_write_state_obj().start_scheduled = False
         if operation is None:
             operation = self.__dict__.get("_scheduled_profile_setup_write_operation")
         self._scheduled_profile_setup_write_operation = None
@@ -1275,6 +1277,44 @@ class ProfileSetupPageBase(BasePage):
             )
             return True
         return False
+
+    def _profile_setup_write_state_obj(self) -> QueuedWorkerState[dict[str, object]]:
+        state = self.__dict__.get("_profile_setup_write_state")
+        runtime = self.__dict__.get("_settings_save_runtime")
+        if state is None:
+            pending = [
+                dict(operation or {})
+                for operation in list(self.__dict__.pop("_pending_profile_setup_write_operations", []) or [])
+            ]
+            start_scheduled = bool(self.__dict__.pop("_profile_setup_write_operation_start_scheduled", False))
+            state = QueuedWorkerState(
+                runtime,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_profile_setup_write_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _pending_profile_setup_write_operations(self) -> list[dict[str, object]]:
+        return self._profile_setup_write_state_obj().pending
+
+    @_pending_profile_setup_write_operations.setter
+    def _pending_profile_setup_write_operations(self, value: list[dict[str, object]]) -> None:
+        self._profile_setup_write_state_obj().pending = [
+            dict(operation or {})
+            for operation in list(value or [])
+        ]
+
+    @property
+    def _profile_setup_write_operation_start_scheduled(self) -> bool:
+        return bool(self._profile_setup_write_state_obj().start_scheduled)
+
+    @_profile_setup_write_operation_start_scheduled.setter
+    def _profile_setup_write_operation_start_scheduled(self, value: bool) -> None:
+        self._profile_setup_write_state_obj().start_scheduled = bool(value)
 
     def _build_content(self) -> None:
         if self.title_label is not None:
@@ -4516,9 +4556,8 @@ class ProfileSetupPageBase(BasePage):
         self._strategy_apply_state_obj().reset()
         self._strategy_feedback_save_state_obj().reset()
         self._user_profile_write_state_obj().reset()
+        self._profile_setup_write_state_obj().reset()
         self._profile_setup_payload_apply_scheduled = False
-        self._profile_setup_write_operation_start_scheduled = False
-        self.__dict__.setdefault("_pending_profile_setup_write_operations", []).clear()
         for attr in (
             "_setup_load_request_id",
             "_list_file_load_request_id",
