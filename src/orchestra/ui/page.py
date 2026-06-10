@@ -39,6 +39,7 @@ from orchestra.ui.page_log_context_workflow import (
     show_log_context_menu,
 )
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.queued_worker_state import QueuedWorkerState
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from app.ui_texts import tr as tr_catalog
@@ -98,8 +99,10 @@ class OrchestraPage(BasePage):
         self._clear_learned_pending_worker = False
         self._clear_learned_start_scheduled = False
         self._log_history_runtime = OneShotWorkerRuntime()
-        self._log_history_pending = False
-        self._log_history_start_scheduled = False
+        self._log_history_state = LatestValueWorkerState(
+            self._log_history_runtime,
+            empty_value=False,
+        )
         self._log_history_action_runtime = OneShotWorkerRuntime()
         self._log_history_action_state = QueuedWorkerState[tuple[str, str]](
             self._log_history_action_runtime,
@@ -656,13 +659,10 @@ class OrchestraPage(BasePage):
         return self._orchestra.create_log_history_load_worker(request_id, self)
 
     def _request_log_history_load(self) -> None:
-        if (
-            self._log_history_runtime.is_running()
-            or self.__dict__.get("_log_history_start_scheduled", False)
-        ):
-            self._log_history_pending = True
+        if self._log_history_state_obj().is_busy():
+            self._log_history_state_obj().pending = True
             return
-        self._log_history_pending = False
+        self._log_history_state_obj().pending = False
         self._start_log_history_load_worker()
 
     def _start_log_history_load_worker(self) -> None:
@@ -696,25 +696,57 @@ class OrchestraPage(BasePage):
     def _on_log_history_worker_finished(self, worker) -> None:
         if not self._is_current_worker_finish(self.__dict__.get("_log_history_runtime"), worker):
             return
-        pending = bool(self._log_history_pending)
-        self._log_history_pending = False
-        if pending and not self._cleanup_in_progress:
+        if self._log_history_state_obj().has_pending() and not self._cleanup_in_progress:
             self._schedule_log_history_load_worker_start()
 
     def _schedule_log_history_load_worker_start(self) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if self.__dict__.get("_log_history_start_scheduled", False):
-            self._log_history_pending = True
-            return
-        self._log_history_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_log_history_load_worker_start)
+        self._log_history_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_log_history_load_worker_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+            pending_when_already_scheduled=True,
+        )
 
     def _run_scheduled_log_history_load_worker_start(self) -> None:
-        self._log_history_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
+        pending = self._log_history_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
+        if pending is False:
             return
         self._start_log_history_load_worker()
+
+    def _log_history_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_log_history_state")
+        runtime = self.__dict__.get("_log_history_runtime")
+        if state is None:
+            pending = bool(self.__dict__.pop("_log_history_pending", False))
+            start_scheduled = bool(self.__dict__.pop("_log_history_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=False,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_log_history_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _log_history_pending(self) -> bool:
+        return bool(self._log_history_state_obj().pending)
+
+    @_log_history_pending.setter
+    def _log_history_pending(self, value: bool) -> None:
+        self._log_history_state_obj().pending = bool(value)
+
+    @property
+    def _log_history_start_scheduled(self) -> bool:
+        return bool(self._log_history_state_obj().start_scheduled)
+
+    @_log_history_start_scheduled.setter
+    def _log_history_start_scheduled(self, value: bool) -> None:
+        self._log_history_state_obj().start_scheduled = bool(value)
 
     def create_log_history_action_worker(self, request_id: int, *, action: str, log_id: str):
         return self._orchestra.create_log_history_action_worker(
@@ -887,8 +919,7 @@ class OrchestraPage(BasePage):
             log_fn=log,
             warning_prefix="Orchestra clear learned worker",
         )
-        self._log_history_pending = False
-        self._log_history_start_scheduled = False
+        self._log_history_state_obj().reset()
         self._log_history_runtime.stop(
             blocking=False,
             log_fn=log,

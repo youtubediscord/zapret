@@ -124,7 +124,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("create_log_history_action_worker", page_source)
         self.assertIn("start_qthread_worker", start_source)
         self.assertIn("_queue_log_history_action", request_source)
-        self.assertIn("_log_history_action_pending", queue_source)
+        self.assertIn("_log_history_action_state_obj().append_unique", queue_source)
         self.assertIn("create_log_history_action_worker", feature_source)
         self.assertIn("run_log_history_action", feature_source)
 
@@ -252,7 +252,7 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("create_log_context_action_worker", page_source)
         self.assertIn("start_qthread_worker", start_source)
         self.assertIn("_queue_log_context_action", request_source)
-        self.assertIn("_log_context_action_pending", queue_source)
+        self.assertIn("_log_context_action_state_obj().append_unique", queue_source)
         self.assertIn("create_log_context_action_worker", feature_source)
         self.assertIn("run_log_context_action", feature_source)
 
@@ -437,6 +437,26 @@ class OrchestraWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("build_learned_data_plan_from_runner", learned_source)
         self.assertNotIn("get_learned_data", learned_source)
         self.assertNotIn("_get_runner", learned_source)
+
+    def test_orchestra_log_history_load_uses_shared_latest_worker_state(self) -> None:
+        from orchestra.ui.page import OrchestraPage
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        page = OrchestraPage.__new__(OrchestraPage)
+        page._log_history_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+
+        init_source = inspect.getsource(OrchestraPage.__init__)
+        request_source = inspect.getsource(OrchestraPage._request_log_history_load)
+        finished_source = inspect.getsource(OrchestraPage._on_log_history_worker_finished)
+        schedule_source = inspect.getsource(OrchestraPage._schedule_log_history_load_worker_start)
+        cleanup_source = inspect.getsource(OrchestraPage.cleanup)
+
+        self.assertIsInstance(OrchestraPage._log_history_state_obj(page), LatestValueWorkerState)
+        self.assertIn("_log_history_state = LatestValueWorkerState", init_source)
+        self.assertIn("_log_history_state_obj().is_busy()", request_source)
+        self.assertIn("_log_history_state_obj().has_pending()", finished_source)
+        self.assertIn("_log_history_state_obj().schedule_start", schedule_source)
+        self.assertIn("_log_history_state_obj().reset()", cleanup_source)
 
     def test_orchestra_log_history_pending_load_restarts_after_event_loop_turn(self) -> None:
         import orchestra.ui.page as orchestra_page
