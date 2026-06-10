@@ -16,6 +16,7 @@ from qfluentwidgets import (
 )
 
 from ui.pages.base_page import BasePage
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.widgets.win11_controls import Win11ToggleRow
 from ui.accessibility import set_control_accessibility, set_state_text
@@ -130,8 +131,10 @@ class NetworkPage(BasePage):
         self._scheduled_force_dns_action_request = None
         self._force_dns_action_start_scheduled = False
         self._dns_flush_cache_runtime = OneShotWorkerRuntime()
-        self._dns_flush_cache_pending = False
-        self._dns_flush_cache_start_scheduled = False
+        self._dns_flush_cache_state = LatestValueWorkerState(
+            self._dns_flush_cache_runtime,
+            empty_value=False,
+        )
         self._dns_apply_runtime = OneShotWorkerRuntime()
         self._dns_apply_pending: list[dict[str, object]] = []
         self._scheduled_dns_apply_request = None
@@ -1173,8 +1176,9 @@ class NetworkPage(BasePage):
         )
 
     def _request_dns_flush_cache(self) -> None:
-        if self._dns_flush_cache_runtime.is_running() or self.__dict__.get("_dns_flush_cache_start_scheduled", False):
-            self._dns_flush_cache_pending = True
+        state = self._dns_flush_cache_state_obj()
+        if state.is_busy():
+            state.pending = True
             return
         self._start_dns_flush_cache_worker()
 
@@ -1222,24 +1226,58 @@ class NetworkPage(BasePage):
     def _on_dns_flush_cache_worker_finished(self, _worker) -> None:
         if not self._is_current_worker_finish(self.__dict__.get("_dns_flush_cache_runtime"), _worker):
             return
-        if self._dns_flush_cache_pending and not self._cleanup_in_progress:
-            self._dns_flush_cache_pending = False
+        if self._dns_flush_cache_state_obj().has_pending() and not self._cleanup_in_progress:
+            self._dns_flush_cache_state_obj().pending = False
             self._schedule_dns_flush_cache_worker_start()
 
     def _schedule_dns_flush_cache_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_dns_flush_cache_start_scheduled", False):
-            self._dns_flush_cache_pending = True
+        state = self._dns_flush_cache_state_obj()
+        if state.start_scheduled:
+            state.pending = True
             return
-        self._dns_flush_cache_start_scheduled = True
+        state.start_scheduled = True
         QTimer.singleShot(0, self._run_scheduled_dns_flush_cache_worker_start)
 
     def _run_scheduled_dns_flush_cache_worker_start(self) -> None:
-        self._dns_flush_cache_start_scheduled = False
+        self._dns_flush_cache_state_obj().start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         self._start_dns_flush_cache_worker()
+
+    def _dns_flush_cache_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_dns_flush_cache_state")
+        runtime = self.__dict__.get("_dns_flush_cache_runtime")
+        if state is None:
+            pending = bool(self.__dict__.pop("_dns_flush_cache_pending", False))
+            start_scheduled = bool(self.__dict__.pop("_dns_flush_cache_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=False,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_dns_flush_cache_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _dns_flush_cache_pending(self) -> bool:
+        return bool(self._dns_flush_cache_state_obj().pending)
+
+    @_dns_flush_cache_pending.setter
+    def _dns_flush_cache_pending(self, value: bool) -> None:
+        self._dns_flush_cache_state_obj().pending = bool(value)
+
+    @property
+    def _dns_flush_cache_start_scheduled(self) -> bool:
+        return bool(self._dns_flush_cache_state_obj().start_scheduled)
+
+    @_dns_flush_cache_start_scheduled.setter
+    def _dns_flush_cache_start_scheduled(self, value: bool) -> None:
+        self._dns_flush_cache_state_obj().start_scheduled = bool(value)
     
     def _set_force_dns_toggle(self, checked: bool):
         """Устанавливает состояние переключателя без триггера сигналов"""
@@ -1602,8 +1640,7 @@ class NetworkPage(BasePage):
         self._force_dns_action_pending.clear()
         self._scheduled_force_dns_action_request = None
         self._force_dns_action_start_scheduled = False
-        self._dns_flush_cache_pending = False
-        self._dns_flush_cache_start_scheduled = False
+        self._dns_flush_cache_state_obj().reset()
         self._dns_apply_pending.clear()
         self._scheduled_dns_apply_request = None
         self._dns_apply_start_scheduled = False
