@@ -32,6 +32,28 @@ def _label_text(label) -> str:
     return " ".join(str(value or "").strip().split())
 
 
+def set_auto_check_accessibility(
+    widget,
+    *,
+    title: str,
+    description: str,
+    checked: bool | None = None,
+) -> None:
+    title_value = str(title or "").strip()
+    if checked is None:
+        try:
+            checked = bool(widget.isChecked())
+        except Exception:
+            checked = None
+    if checked is None:
+        name = title_value
+    else:
+        state = "включено" if bool(checked) else "выключено"
+        name = f"{title_value}, {state}".strip(", ")
+    set_control_accessibility(widget, name=name, description=description)
+    set_state_text(widget, name)
+
+
 def build_servers_settings_section(
     *,
     content_parent,
@@ -49,16 +71,24 @@ def build_servers_settings_section(
 ) -> ServersSettingsWidgets:
     settings_card = setting_card_group_cls(tr_fn("page.servers.settings.title", "Настройки"), content_parent)
 
+    auto_check_title = tr_fn("page.servers.settings.auto_check", "Проверять обновления при запуске")
+    auto_check_description = tr_fn(
+        "page.servers.settings.auto_check.description",
+        "Автоматически проверять наличие обновлений при старте приложения.",
+    )
     auto_check_card = win11_toggle_row_cls(
         "fa5s.sync-alt",
-        tr_fn("page.servers.settings.auto_check", "Проверять обновления при запуске"),
-        tr_fn(
-            "page.servers.settings.auto_check.description",
-            "Автоматически проверять наличие обновлений при старте приложения.",
-        ),
+        auto_check_title,
+        auto_check_description,
         accent_hex,
     )
     auto_check_card.setChecked(auto_check_enabled, block_signals=True)
+    set_auto_check_accessibility(
+        auto_check_card,
+        title=auto_check_title,
+        description=auto_check_description,
+        checked=auto_check_enabled,
+    )
     auto_check_card.toggled.connect(on_auto_check_toggled)
     auto_check_toggle = auto_check_card
     settings_card.addSettingCard(auto_check_card)

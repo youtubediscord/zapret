@@ -15,10 +15,31 @@ class _FakeToggleRow:
     def __init__(self, *args):
         self.args = args
         self.toggled = _FakeSignal()
+        self._accessible_name = ""
+        self._accessible_description = ""
+        self.properties = {}
 
     def setChecked(self, value, *, block_signals=False):  # noqa: N802
         self.checked = bool(value)
         self.block_signals = bool(block_signals)
+
+    def accessibleName(self):  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, value):  # noqa: N802
+        self._accessible_name = value
+
+    def accessibleDescription(self):  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, value):  # noqa: N802
+        self._accessible_description = value
+
+    def property(self, name):
+        return self.properties.get(name)
+
+    def setProperty(self, name, value):  # noqa: N802
+        self.properties[name] = value
 
 
 class _FakeSettingsGroup:
@@ -156,6 +177,54 @@ class UpdaterSettingsBuildTests(unittest.TestCase):
         self.assertEqual(
             widgets.version_info_label.property("screenReaderStateText"),
             "Версия ZapretGUI: v21.0.0.142 · dev",
+        )
+
+    def test_auto_check_toggle_exposes_screen_reader_state(self) -> None:
+        enabled_widgets = build_servers_settings_section(
+            content_parent=object(),
+            tr_fn=lambda _key, default: default,
+            accent_hex="#22dddd",
+            auto_check_enabled=True,
+            app_version="21.0.0.142",
+            channel="dev",
+            setting_card_group_cls=_FakeSettingsGroup,
+            settings_card_cls=_FakeCard,
+            win11_toggle_row_cls=_FakeToggleRow,
+            caption_label_cls=_FakeLabel,
+            qhbox_layout_cls=_FakeLayout,
+            on_auto_check_toggled=lambda _value: None,
+        )
+        disabled_widgets = build_servers_settings_section(
+            content_parent=object(),
+            tr_fn=lambda _key, default: default,
+            accent_hex="#22dddd",
+            auto_check_enabled=False,
+            app_version="21.0.0.142",
+            channel="dev",
+            setting_card_group_cls=_FakeSettingsGroup,
+            settings_card_cls=_FakeCard,
+            win11_toggle_row_cls=_FakeToggleRow,
+            caption_label_cls=_FakeLabel,
+            qhbox_layout_cls=_FakeLayout,
+            on_auto_check_toggled=lambda _value: None,
+        )
+
+        self.assertEqual(
+            enabled_widgets.auto_check_card.accessibleName(),
+            "Проверять обновления при запуске, включено",
+        )
+        self.assertEqual(
+            enabled_widgets.auto_check_card.property("screenReaderStateText"),
+            "Проверять обновления при запуске, включено",
+        )
+        self.assertIn("Автоматически проверять", enabled_widgets.auto_check_card.accessibleDescription())
+        self.assertEqual(
+            disabled_widgets.auto_check_card.accessibleName(),
+            "Проверять обновления при запуске, выключено",
+        )
+        self.assertEqual(
+            disabled_widgets.auto_check_card.property("screenReaderStateText"),
+            "Проверять обновления при запуске, выключено",
         )
 
     def test_telegram_card_and_button_expose_screen_reader_action(self) -> None:

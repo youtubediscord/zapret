@@ -67,12 +67,33 @@ class _Stateful:
     def __init__(self):
         self.language = ""
         self.texts = ()
+        self._accessible_name = ""
+        self._accessible_description = ""
+        self.properties = {}
 
     def set_ui_language(self, language):
         self.language = language
 
     def set_texts(self, *texts):
         self.texts = texts
+
+    def accessibleName(self):  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, value):  # noqa: N802
+        self._accessible_name = value
+
+    def accessibleDescription(self):  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, value):  # noqa: N802
+        self._accessible_description = value
+
+    def property(self, name):
+        return self.properties.get(name)
+
+    def setProperty(self, name, value):  # noqa: N802
+        self.properties[name] = value
 
 
 class _Breadcrumb:
@@ -155,6 +176,34 @@ class UpdaterLanguageAccessibilityTests(unittest.TestCase):
             legend_active_label.property("screenReaderStateText"),
             expected,
         )
+
+    def test_language_refresh_updates_auto_check_screen_reader_state(self) -> None:
+        auto_check_card = _Stateful()
+
+        apply_servers_page_language(
+            tr_fn=lambda _key, default, **_kwargs: default,
+            ui_language="ru",
+            update_card=_Stateful(),
+            changelog_card=_Stateful(),
+            breadcrumb=_Breadcrumb(),
+            page_title_label=_TextTarget(),
+            servers_title_label=_TextTarget(),
+            legend_active_label=_TextTarget(),
+            servers_table=_Table(),
+            settings_card=_Card(),
+            toggle_label=None,
+            auto_check_card=auto_check_card,
+            version_info_label=_TextTarget(),
+            telegram_card=_Card(),
+            telegram_info_label=None,
+            telegram_button=_TextTarget(),
+            refresh_server_rows=lambda: None,
+        )
+
+        expected = "Проверять обновления при запуске"
+        self.assertEqual(auto_check_card.accessibleName(), expected)
+        self.assertEqual(auto_check_card.property("screenReaderStateText"), expected)
+        self.assertIn("Автоматически проверять", auto_check_card.accessibleDescription())
 
     def test_language_refresh_updates_telegram_screen_reader_action(self) -> None:
         telegram_card = _Card()

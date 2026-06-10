@@ -6,6 +6,7 @@ from config.build_info import APP_VERSION, CHANNEL
 
 
 from updater.ui.main_build import set_active_server_legend_accessibility
+from updater.ui.settings_build import set_auto_check_accessibility
 from updater.ui.table_view import apply_server_table_headers
 from ui.accessibility import set_control_accessibility, set_state_text
 
@@ -66,12 +67,19 @@ def apply_servers_page_language(
         )
 
     if auto_check_card is not None:
+        auto_check_title = tr_fn("page.servers.settings.auto_check", "Проверять обновления при запуске")
+        auto_check_description = tr_fn(
+            "page.servers.settings.auto_check.description",
+            "Автоматически проверять наличие обновлений при старте приложения.",
+        )
         auto_check_card.set_texts(
-            tr_fn("page.servers.settings.auto_check", "Проверять обновления при запуске"),
-            tr_fn(
-                "page.servers.settings.auto_check.description",
-                "Автоматически проверять наличие обновлений при старте приложения.",
-            ),
+            auto_check_title,
+            auto_check_description,
+        )
+        set_auto_check_accessibility(
+            auto_check_card,
+            title=auto_check_title,
+            description=auto_check_description,
         )
 
     version_info_label.setText(
