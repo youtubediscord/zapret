@@ -38,8 +38,16 @@ class BlockcheckPageAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(page._mode_combo.accessibleName(), "Режим BlockCheck, выбрано: Полная")
+        self.assertEqual(
+            page._mode_combo.property("screenReaderStateText"),
+            "Режим BlockCheck, выбрано: Полная",
+        )
         self.assertIn("Выберите глубину проверки", page._mode_combo.accessibleDescription())
         self.assertEqual(page._skip_failed_cb.accessibleName(), "Пропускать проблемные домены, выключено")
+        self.assertEqual(
+            page._skip_failed_cb.property("screenReaderStateText"),
+            "Пропускать проблемные домены, выключено",
+        )
         self.assertIn("DNS-заглушкой", page._skip_failed_cb.accessibleDescription())
         self.assertEqual(page._start_btn.accessibleName(), "Запустить BlockCheck")
         self.assertIn("анализ блокировок", page._start_btn.accessibleDescription())

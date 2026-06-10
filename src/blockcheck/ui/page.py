@@ -861,17 +861,21 @@ class BlockcheckPage(BasePage):
 
     def _update_mode_combo_accessibility(self, *_args) -> None:
         text = str(self._mode_combo.currentText() or "").strip() or "не выбрано"
+        state_text = f"Режим BlockCheck, выбрано: {text}"
+        set_state_text(self._mode_combo, state_text)
         set_control_accessibility(
             self._mode_combo,
-            name=f"Режим BlockCheck, выбрано: {text}",
+            name=state_text,
             description="Выберите глубину проверки BlockCheck.",
         )
 
     def _update_skip_failed_accessibility(self, *_args) -> None:
         state = "включено" if self._skip_failed_cb.isChecked() else "выключено"
+        state_text = f"Пропускать проблемные домены, {state}"
+        set_state_text(self._skip_failed_cb, state_text)
         set_control_accessibility(
             self._skip_failed_cb,
-            name=f"Пропускать проблемные домены, {state}",
+            name=state_text,
             description="Если включено, домены с DNS-заглушкой или ошибкой провайдера будут пропущены.",
         )
 
