@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import inspect
+import os
 import unittest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PyQt6.QtWidgets import QApplication
 
 from profile.ui.profile_setup_page import ProfileStrategyListWidget
 
 
 class StrategyListAccessibilityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
     def test_strategy_list_is_keyboard_focusable_and_named(self) -> None:
         source = inspect.getsource(ProfileStrategyListWidget.__init__)
 
@@ -16,6 +25,16 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         self.assertIn("set_control_accessibility(", source)
         self.assertIn('name="Список готовых стратегий"', source)
         self.assertIn("стрелками вверх и вниз", source)
+
+    def test_strategy_search_explains_keyboard_path_to_results(self) -> None:
+        widget = ProfileStrategyListWidget()
+        self.addCleanup(widget.deleteLater)
+
+        self.assertEqual(widget._search.accessibleName(), "Поиск готовых стратегий")
+        description = widget._search.accessibleDescription()
+        self.assertIn("перейдите в список клавишей Tab", description)
+        self.assertIn("выберите стратегию стрелками", description)
+        self.assertIn("нажмите Enter", description)
 
 
 if __name__ == "__main__":

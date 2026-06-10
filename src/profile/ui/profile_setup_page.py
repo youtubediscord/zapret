@@ -388,6 +388,15 @@ class ProfileStrategyListWidget(QWidget):
             self._search,
             "Поиск по названию, параметрам --lua-desync и описанию готовой стратегии.",
         )
+        set_control_accessibility(
+            self._search,
+            name="Поиск готовых стратегий",
+            description=(
+                "Поиск по названию, параметрам --lua-desync и описанию готовой стратегии. "
+                "После ввода перейдите в список клавишей Tab, выберите стратегию стрелками вверх и вниз, "
+                "затем нажмите Enter."
+            ),
+        )
         self._search.textChanged.connect(self._apply_filter)
         top_layout.addWidget(self._search, 1)
 
