@@ -42,6 +42,8 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         self.assertIn("_raw_preset_write_state_obj().pending", queue_source)
         self.assertIn("state.pop_next()", start_source)
         self.assertIn("state.start_scheduled", schedule_source)
+        self.assertNotIn("self._pending_raw_preset_actions: list", init_source)
+        self.assertNotIn("_pending_raw_preset_actions", inspect.getsource(PresetRawEditorPage.cleanup))
 
     def test_raw_preset_action_waits_while_activation_runs(self) -> None:
         worker = object()

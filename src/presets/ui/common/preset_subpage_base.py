@@ -299,7 +299,6 @@ class PresetRawEditorPage(BasePage):
         self._raw_action_runtime = OneShotWorkerRuntime()
         self._raw_action_request_id = 0
         self._raw_action_runtime_worker = None
-        self._pending_raw_preset_actions: list[dict[str, object]] = []
         self._raw_preset_write_state = QueuedWorkerState[dict[str, object]](object())
         self._cleanup_in_progress = False
         self._ui_state_store = None
@@ -1820,7 +1819,6 @@ class PresetRawEditorPage(BasePage):
         self._pending_raw_text_apply = None
         self._raw_text_apply_scheduled = False
         self._raw_preset_write_state_obj().reset()
-        self.__dict__.setdefault("_pending_raw_preset_actions", []).clear()
         self._raw_preset_save_state_obj().reset()
         self._raw_preset_activation_state_obj().reset()
         self._raw_load_runtime_worker = None
