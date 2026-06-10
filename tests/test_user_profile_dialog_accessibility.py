@@ -25,6 +25,10 @@ class UserProfileDialogAccessibilityTests(unittest.TestCase):
         self.assertEqual(dialog.nameEdit.accessibleName(), "Название пользовательского profile")
         self.assertIn("Например YouTube или Discord", dialog.nameEdit.accessibleDescription())
         self.assertEqual(dialog.protocolCombo.accessibleName(), "Тип пользовательского profile, выбрано: UDP")
+        self.assertEqual(
+            dialog.protocolCombo.property("screenReaderStateText"),
+            "Тип пользовательского profile, выбрано: UDP",
+        )
         self.assertIn("TCP, UDP или L7", dialog.protocolCombo.accessibleDescription())
         self.assertEqual(dialog.portsEdit.accessibleName(), "Порты или L7 для пользовательского profile")
         self.assertIn("Например 80,443 или stun,discord", dialog.portsEdit.accessibleDescription())
@@ -44,6 +48,10 @@ class UserProfileDialogAccessibilityTests(unittest.TestCase):
         dialog.protocolCombo.setCurrentIndex(2)
 
         self.assertEqual(dialog.protocolCombo.accessibleName(), "Тип пользовательского profile, выбрано: L7")
+        self.assertEqual(
+            dialog.protocolCombo.property("screenReaderStateText"),
+            "Тип пользовательского profile, выбрано: L7",
+        )
 
     def test_validation_warning_has_text_state_for_screen_reader(self) -> None:
         parent = QWidget()

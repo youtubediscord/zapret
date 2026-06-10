@@ -110,10 +110,12 @@ class CreateUserProfileDialog(MessageBoxBase):
 
     def _update_protocol_accessibility(self) -> None:
         selected = str(self.protocolCombo.currentText() or "").strip() or "не выбрано"
+        state_text = f"Тип пользовательского profile, выбрано: {selected}"
         set_control_accessibility(
             self.protocolCombo,
-            name=f"Тип пользовательского profile, выбрано: {selected}",
+            name=state_text,
         )
+        set_state_text(self.protocolCombo, state_text)
 
     def validate(self) -> bool:
         name, _protocol, ports = self.values()
