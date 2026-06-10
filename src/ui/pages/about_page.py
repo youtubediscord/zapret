@@ -12,7 +12,11 @@ from PyQt6.QtWidgets import (
 from .base_page import BasePage
 import about.plans as about_page_plans
 from ui.pages.about_page_accessibility import apply_about_buttons_accessibility
-from ui.pages.about_page_about_build import build_about_page_about_content, set_subscription_status_accessibility
+from ui.pages.about_page_about_build import (
+    build_about_page_about_content,
+    set_about_version_accessibility,
+    set_subscription_status_accessibility,
+)
 from ui.pages.about_page_help_build import build_about_page_help_content
 from ui.pages.about_page_kvn_build import build_about_page_kvn_content
 from ui.pages.about_page_support_build import build_about_page_support_content
@@ -243,15 +247,20 @@ class AboutPage(BasePage):
             self.about_section_version_label.setText(
                 tr_catalog("page.about.section.version", language=self._ui_language, default="Версия")
             )
-            self.about_app_name_label.setText(
-                tr_catalog("page.about.app_name", language=self._ui_language, default="Zapret 2 GUI")
-            )
+            about_app_name = tr_catalog("page.about.app_name", language=self._ui_language, default="Zapret 2 GUI")
+            self.about_app_name_label.setText(about_app_name)
             self.about_version_value_label.setText(
                 tr_catalog(
                     "page.about.version.value_template",
                     language=self._ui_language,
                     default="Версия {version}",
                 ).format(version=APP_VERSION)
+            )
+            set_about_version_accessibility(
+                self.about_app_name_label,
+                self.about_version_value_label,
+                app_name=about_app_name,
+                app_version=APP_VERSION,
             )
             self.update_btn.setText(
                 tr_catalog("page.about.button.update_settings", language=self._ui_language, default="Настройка обновлений")

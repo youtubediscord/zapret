@@ -34,6 +34,15 @@ def set_subscription_status_accessibility(label, text: object) -> None:
     set_state_text(label, f"Статус подписки: {value}")
 
 
+def set_about_version_accessibility(app_name_label, version_label, *, app_name: object, app_version: object) -> None:
+    app_name_value = " ".join(str(app_name or "").strip().split())
+    app_version_value = " ".join(str(app_version or "").strip().split())
+    if app_name_value:
+        set_state_text(app_name_label, f"Название программы: {app_name_value}")
+    if app_version_value:
+        set_state_text(version_label, f"Версия программы: {app_version_value}")
+
+
 def build_about_page_about_content(
     layout: QVBoxLayout,
     *,
@@ -60,11 +69,16 @@ def build_about_page_about_content(
 
     text_layout = QVBoxLayout()
     text_layout.setSpacing(2)
-    about_app_name_label = SubtitleLabel(
-        tr_fn("page.about.app_name", "Zapret 2 GUI")
-    )
+    app_name_text = tr_fn("page.about.app_name", "Zapret 2 GUI")
+    about_app_name_label = SubtitleLabel(app_name_text)
     about_version_value_label = CaptionLabel(
         tr_fn("page.about.version.value_template", "Версия {version}").format(version=app_version)
+    )
+    set_about_version_accessibility(
+        about_app_name_label,
+        about_version_value_label,
+        app_name=app_name_text,
+        app_version=app_version,
     )
     text_layout.addWidget(about_app_name_label)
     text_layout.addWidget(about_version_value_label)
