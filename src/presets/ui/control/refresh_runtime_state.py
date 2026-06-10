@@ -12,7 +12,10 @@ class ModeControlRefreshRuntime:
             self.additional_settings_load_runtime,
             empty_value=False,
         )
-        self.additional_settings_reload_after_preset_switch_scheduled = False
+        self.additional_settings_preset_switch_reload_state = LatestValueWorkerState(
+            None,
+            empty_value=False,
+        )
         self.additional_settings_reload_after_preset_apply_pending = False
         self.additional_settings_save_runtime = OneShotWorkerRuntime()
         self.additional_settings_save_state = QueuedWorkerState[tuple[str, bool, str]](
@@ -23,7 +26,10 @@ class ModeControlRefreshRuntime:
         self.additional_settings_dirty = True
         self.top_summary_runtime = OneShotWorkerRuntime()
         self.top_summary_state = LatestValueWorkerState(self.top_summary_runtime, empty_value=False)
-        self.top_summary_reload_after_preset_switch_scheduled = False
+        self.top_summary_preset_switch_reload_state = LatestValueWorkerState(
+            None,
+            empty_value=False,
+        )
         self.top_summary_reload_after_preset_apply_pending = False
         self.top_summary_request_id = 0
         self.program_settings_load_runtime = OneShotWorkerRuntime()
@@ -110,6 +116,14 @@ class ModeControlRefreshRuntime:
         self.additional_settings_load_state.start_scheduled = bool(value)
 
     @property
+    def additional_settings_reload_after_preset_switch_scheduled(self) -> bool:
+        return bool(self.additional_settings_preset_switch_reload_state.start_scheduled)
+
+    @additional_settings_reload_after_preset_switch_scheduled.setter
+    def additional_settings_reload_after_preset_switch_scheduled(self, value: bool) -> None:
+        self.additional_settings_preset_switch_reload_state.start_scheduled = bool(value)
+
+    @property
     def additional_settings_save_pending(self) -> list[tuple[str, bool, str]]:
         return self.additional_settings_save_state.pending
 
@@ -143,6 +157,14 @@ class ModeControlRefreshRuntime:
     @top_summary_start_scheduled.setter
     def top_summary_start_scheduled(self, value: bool) -> None:
         self.top_summary_state.start_scheduled = bool(value)
+
+    @property
+    def top_summary_reload_after_preset_switch_scheduled(self) -> bool:
+        return bool(self.top_summary_preset_switch_reload_state.start_scheduled)
+
+    @top_summary_reload_after_preset_switch_scheduled.setter
+    def top_summary_reload_after_preset_switch_scheduled(self, value: bool) -> None:
+        self.top_summary_preset_switch_reload_state.start_scheduled = bool(value)
 
     @property
     def program_settings_load_pending(self) -> bool:
@@ -205,11 +227,11 @@ class ModeControlRefreshRuntime:
 
     def stop_workers(self, *, log_fn=None) -> None:
         self.additional_settings_load_start_scheduled = False
-        self.additional_settings_reload_after_preset_switch_scheduled = False
+        self.additional_settings_preset_switch_reload_state.reset()
         self.additional_settings_reload_after_preset_apply_pending = False
         self.additional_settings_save_start_scheduled = False
         self.top_summary_start_scheduled = False
-        self.top_summary_reload_after_preset_switch_scheduled = False
+        self.top_summary_preset_switch_reload_state.reset()
         self.top_summary_reload_after_preset_apply_pending = False
         self.program_settings_load_start_scheduled = False
         self.program_settings_save_start_scheduled = False

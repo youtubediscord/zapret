@@ -60,7 +60,8 @@ class ControlTopSummaryWorkerArchitectureTests(unittest.TestCase):
                 self.assertIn("start_qthread_worker", source)
                 self.assertNotIn("worker.start()", source)
 
-            self.assertIn("_schedule_top_summary_worker_start", top_summary_finished_source)
+            self.assertIn("schedule_pending_after_finish", top_summary_finished_source)
+            self.assertIn("_run_scheduled_top_summary_worker_start", top_summary_finished_source)
             self.assertNotIn("self._request_top_summary_worker()", top_summary_finished_source)
             self.assertNotIn("runtime.top_summary_worker", page_source)
             self.assertNotIn("runtime.additional_settings_worker", page_source)

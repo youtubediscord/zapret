@@ -209,20 +209,28 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
 
     def _schedule_top_summary_reload_after_preset_switch(self) -> None:
         runtime = self._refresh_runtime
-        if bool(getattr(runtime, "top_summary_reload_after_preset_switch_scheduled", False)):
-            return
-        runtime.top_summary_reload_after_preset_switch_scheduled = True
+        state = runtime.top_summary_preset_switch_reload_state
+        state.pending = True
+
+        def _single_shot(_delay: int, callback) -> None:
+            QTimer.singleShot(TOP_SUMMARY_PRESET_SWITCH_RELOAD_DELAY_MS, callback)
+
         try:
-            QTimer.singleShot(
-                TOP_SUMMARY_PRESET_SWITCH_RELOAD_DELAY_MS,
+            state.schedule_start(
+                _single_shot,
                 self._run_scheduled_top_summary_reload_after_preset_switch,
+                pending_when_already_scheduled=True,
             )
         except Exception:
             self._run_scheduled_top_summary_reload_after_preset_switch()
 
     def _run_scheduled_top_summary_reload_after_preset_switch(self) -> None:
         runtime = self._refresh_runtime
-        runtime.top_summary_reload_after_preset_switch_scheduled = False
+        pending = runtime.top_summary_preset_switch_reload_state.take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
+        if not pending:
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if not self.isVisible():
@@ -588,20 +596,28 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
     def _schedule_additional_settings_reload_after_preset_switch(self) -> None:
         runtime = self._refresh_runtime
         runtime.additional_settings_dirty = True
-        if bool(getattr(runtime, "additional_settings_reload_after_preset_switch_scheduled", False)):
-            return
-        runtime.additional_settings_reload_after_preset_switch_scheduled = True
+        state = runtime.additional_settings_preset_switch_reload_state
+        state.pending = True
+
+        def _single_shot(_delay: int, callback) -> None:
+            QTimer.singleShot(ADDITIONAL_SETTINGS_PRESET_SWITCH_RELOAD_DELAY_MS, callback)
+
         try:
-            QTimer.singleShot(
-                ADDITIONAL_SETTINGS_PRESET_SWITCH_RELOAD_DELAY_MS,
+            state.schedule_start(
+                _single_shot,
                 self._run_scheduled_additional_settings_reload_after_preset_switch,
+                pending_when_already_scheduled=True,
             )
         except Exception:
             self._run_scheduled_additional_settings_reload_after_preset_switch()
 
     def _run_scheduled_additional_settings_reload_after_preset_switch(self) -> None:
         runtime = self._refresh_runtime
-        runtime.additional_settings_reload_after_preset_switch_scheduled = False
+        pending = runtime.additional_settings_preset_switch_reload_state.take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
+        if not pending:
+            return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         if not runtime.additional_settings_dirty:

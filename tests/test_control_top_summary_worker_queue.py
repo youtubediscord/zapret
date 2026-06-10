@@ -20,6 +20,32 @@ class ControlTopSummaryWorkerQueueTests(unittest.TestCase):
         self.assertNotIn("self.top_summary_pending = False", init_source)
         self.assertNotIn("self.top_summary_start_scheduled = False", init_source)
 
+    def test_preset_switch_delayed_reloads_use_shared_latest_worker_state(self) -> None:
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        runtime = create_refresh_runtime()
+        runtime_source = inspect.getsource(ModeControlRefreshRuntime.__init__)
+        cleanup_source = inspect.getsource(ModeControlRefreshRuntime.stop_workers)
+
+        self.assertIsInstance(runtime.top_summary_preset_switch_reload_state, LatestValueWorkerState)
+        self.assertIsInstance(runtime.additional_settings_preset_switch_reload_state, LatestValueWorkerState)
+        self.assertIn("top_summary_preset_switch_reload_state = LatestValueWorkerState", runtime_source)
+        self.assertIn("additional_settings_preset_switch_reload_state = LatestValueWorkerState", runtime_source)
+        self.assertIn("top_summary_preset_switch_reload_state.reset()", cleanup_source)
+        self.assertIn("additional_settings_preset_switch_reload_state.reset()", cleanup_source)
+
+        for page_cls in (Zapret1ModeControlPage, Zapret2ModeControlPage):
+            with self.subTest(page=page_cls.__name__):
+                top_summary_source = inspect.getsource(page_cls._schedule_top_summary_reload_after_preset_switch)
+                additional_source = inspect.getsource(page_cls._schedule_additional_settings_reload_after_preset_switch)
+
+                self.assertIn("top_summary_preset_switch_reload_state", top_summary_source)
+                self.assertIn("schedule_start", top_summary_source)
+                self.assertNotIn("top_summary_reload_after_preset_switch_scheduled = True", top_summary_source)
+                self.assertIn("additional_settings_preset_switch_reload_state", additional_source)
+                self.assertIn("schedule_start", additional_source)
+                self.assertNotIn("additional_settings_reload_after_preset_switch_scheduled = True", additional_source)
+
     def test_pending_top_summary_replay_is_scheduled_after_worker_finish(self) -> None:
         for page_cls in (Zapret1ModeControlPage, Zapret2ModeControlPage):
             with self.subTest(page=page_cls.__name__):
