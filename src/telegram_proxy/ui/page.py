@@ -942,6 +942,14 @@ class TelegramProxyPage(BasePage):
     def create_open_log_file_worker(self, path: str):
         return self._telegram_proxy.create_open_log_file_worker(path=path, parent=self)
 
+    @staticmethod
+    def _mark_worker_request_id(worker, request_id: int):
+        try:
+            worker._request_id = int(request_id)
+        except Exception:
+            pass
+        return worker
+
     def _start_open_log_file_worker(self, path: str) -> None:
         state = self._queued_worker_state("_open_log_file_state", "_open_log_file_runtime")
         if state.is_busy():
@@ -953,7 +961,10 @@ class TelegramProxyPage(BasePage):
             worker.failed.connect(self._on_open_log_file_failed)
 
         self._open_log_file_runtime.start_qthread_worker(
-            worker_factory=lambda _request_id: self.create_open_log_file_worker(path),
+            worker_factory=lambda request_id: self._mark_worker_request_id(
+                self.create_open_log_file_worker(path),
+                request_id,
+            ),
             bind_worker=bind_worker,
             on_finished=self._on_open_log_file_worker_finished,
         )
@@ -1961,10 +1972,13 @@ class TelegramProxyPage(BasePage):
             worker.failed.connect(self._on_external_link_failed)
 
         self._external_link_runtime.start_qthread_worker(
-            worker_factory=lambda _request_id: self.create_external_link_worker(
-                url=url,
-                success_log=success_log,
-                error_prefix=error_prefix,
+            worker_factory=lambda request_id: self._mark_worker_request_id(
+                self.create_external_link_worker(
+                    url=url,
+                    success_log=success_log,
+                    error_prefix=error_prefix,
+                ),
+                request_id,
             ),
             bind_worker=bind_worker,
             on_finished=self._on_external_link_worker_finished,
@@ -2111,7 +2125,7 @@ class TelegramProxyPage(BasePage):
             current_worker = getattr(runtime, "worker", None)
             if current_worker is not None:
                 return worker is current_worker
-            return True
+            return False
         try:
             return int(request_id) == int(getattr(runtime, "request_id", -1))
         except (TypeError, ValueError):

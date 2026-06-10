@@ -13,6 +13,14 @@ def _page_runtime(page, attr: str):
     return getattr(page, attr)
 
 
+def _mark_worker_request_id(worker, request_id: int):
+    try:
+        worker._request_id = int(request_id)
+    except Exception:
+        pass
+    return worker
+
+
 def handle_toggle_proxy(
     *,
     manager,
@@ -67,7 +75,10 @@ def restart_proxy_if_running(
     if runtime.is_running():
         return
     runtime.start_qthread_worker(
-        worker_factory=lambda _request_id: create_stop_runtime_worker(manager=manager, parent=page),
+        worker_factory=lambda request_id: _mark_worker_request_id(
+            create_stop_runtime_worker(manager=manager, parent=page),
+            request_id,
+        ),
         on_loaded=lambda _request_id: QMetaObject.invokeMethod(
             page,
             "_finish_restart",
@@ -122,19 +133,22 @@ def start_proxy_runtime(
     if runtime.is_running():
         return
     runtime.start_qthread_worker(
-        worker_factory=lambda _request_id: create_start_worker(
-            manager=manager,
-            port=port,
-            mode=str(mode or "socks5"),
-            host=host,
-            upstream_config=upstream_config,
-            cloudflare_config=cloudflare_config,
-            mtproxy_secret=str(mtproxy_secret or ""),
-            pool_size=int(pool_size),
-            buffer_kb=int(buffer_kb),
-            fake_tls_domain=str(fake_tls_domain or ""),
-            proxy_protocol=bool(proxy_protocol),
-            parent=page,
+        worker_factory=lambda request_id: _mark_worker_request_id(
+            create_start_worker(
+                manager=manager,
+                port=port,
+                mode=str(mode or "socks5"),
+                host=host,
+                upstream_config=upstream_config,
+                cloudflare_config=cloudflare_config,
+                mtproxy_secret=str(mtproxy_secret or ""),
+                pool_size=int(pool_size),
+                buffer_kb=int(buffer_kb),
+                fake_tls_domain=str(fake_tls_domain or ""),
+                proxy_protocol=bool(proxy_protocol),
+                parent=page,
+            ),
+            request_id,
         ),
         on_loaded=lambda _request_id, ok: _finish_proxy_start_worker(page, ok),
         on_finished=on_finished,
@@ -208,10 +222,13 @@ def start_relay_check(
         worker.warning.connect(log_warning)
 
     runtime.start_qthread_worker(
-        worker_factory=lambda _request_id: create_relay_check_worker(
-            generation=gen,
-            get_zapret_running=get_zapret_running,
-            parent=page,
+        worker_factory=lambda request_id: _mark_worker_request_id(
+            create_relay_check_worker(
+                generation=gen,
+                get_zapret_running=get_zapret_running,
+                parent=page,
+            ),
+            request_id,
         ),
         bind_worker=_bind_worker,
         on_finished=on_finished,
@@ -262,10 +279,13 @@ def stop_proxy_runtime(*, page, manager, create_stop_runtime_worker, on_finished
         return
 
     runtime.start_qthread_worker(
-        worker_factory=lambda _request_id: create_stop_runtime_worker(
-            manager=manager,
-            emit_status=True,
-            parent=page,
+        worker_factory=lambda request_id: _mark_worker_request_id(
+            create_stop_runtime_worker(
+                manager=manager,
+                emit_status=True,
+                parent=page,
+            ),
+            request_id,
         ),
         on_loaded=lambda _request_id: QMetaObject.invokeMethod(
             page,

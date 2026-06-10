@@ -261,12 +261,12 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
     def test_auto_deeplink_pending_restarts_after_event_loop_turn(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        _set_state(page, "auto_deeplink", pending=True)
+        _set_state(page, "auto_deeplink", runtime=SimpleNamespace(request_id=1), pending=True)
         page._start_auto_deeplink_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            TelegramProxyPage._on_auto_deeplink_worker_finished(page, object())
+            TelegramProxyPage._on_auto_deeplink_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -286,6 +286,17 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
         TelegramProxyPage._on_auto_deeplink_worker_finished(page, SimpleNamespace(_request_id=2))
 
         page._schedule_auto_deeplink_worker_start.assert_not_called()
+
+    def test_unknown_auto_deeplink_worker_finished_does_not_restart_pending_check(self) -> None:
+        page = TelegramProxyPage.__new__(TelegramProxyPage)
+        page._cleanup_in_progress = False
+        state = _set_state(page, "auto_deeplink", runtime=SimpleNamespace(request_id=3), pending=True)
+        page._schedule_auto_deeplink_worker_start = Mock()
+
+        TelegramProxyPage._on_auto_deeplink_worker_finished(page, object())
+
+        page._schedule_auto_deeplink_worker_start.assert_not_called()
+        self.assertTrue(state.pending)
 
     def test_scheduled_auto_deeplink_start_coalesces_duplicate_request(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
@@ -323,12 +334,12 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
     def test_restart_pending_restarts_after_event_loop_turn(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        _set_state(page, "restart_stop", pending=True)
+        _set_state(page, "restart_stop", runtime=SimpleNamespace(request_id=1), pending=True)
         page._restart_if_running = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            TelegramProxyPage._on_restart_stop_worker_finished(page, object())
+            TelegramProxyPage._on_restart_stop_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -375,12 +386,12 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
     def test_proxy_start_pending_restarts_after_event_loop_turn(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        _set_state(page, "proxy_start", pending=True)
+        _set_state(page, "proxy_start", runtime=SimpleNamespace(request_id=1), pending=True)
         page._start_proxy_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            TelegramProxyPage._on_proxy_start_worker_finished(page, object())
+            TelegramProxyPage._on_proxy_start_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
@@ -429,12 +440,12 @@ class TelegramProxyWorkerQueueTests(unittest.TestCase):
     def test_proxy_stop_pending_restarts_after_event_loop_turn(self) -> None:
         page = TelegramProxyPage.__new__(TelegramProxyPage)
         page._cleanup_in_progress = False
-        _set_state(page, "proxy_stop", pending=True)
+        _set_state(page, "proxy_stop", runtime=SimpleNamespace(request_id=1), pending=True)
         page._start_proxy_stop_worker = Mock()
         single_shot = Mock(side_effect=lambda _delay, _callback: None)
 
         with patch.object(telegram_proxy_page, "QTimer", SimpleNamespace(singleShot=single_shot), create=True):
-            TelegramProxyPage._on_proxy_stop_worker_finished(page, object())
+            TelegramProxyPage._on_proxy_stop_worker_finished(page, SimpleNamespace(_request_id=1))
 
         single_shot.assert_called_once()
         self.assertEqual(single_shot.call_args.args[0], 0)
