@@ -13,6 +13,7 @@ from telegram_proxy.ui.build import (
     build_telegram_proxy_shell,
 )
 from telegram_proxy.ui.proxy_runtime_workflow import apply_status_changed
+from telegram_proxy.ui.proxy_runtime_workflow import restart_proxy_if_running
 
 
 class _AccessibleStatusDot:
@@ -132,6 +133,30 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertEqual(status_dot.accessibleName(), "Индикатор Telegram Proxy: Работает на 127.0.0.1:1353")
         self.assertEqual(btn_toggle.accessibleName(), "Остановить Telegram Proxy")
         self.assertIn("Останавливает", btn_toggle.accessibleDescription())
+
+    def test_restart_status_sets_screen_reader_state_text(self) -> None:
+        status_label = QLabel()
+        runtime = SimpleNamespace(
+            is_running=lambda: False,
+            start_qthread_worker=lambda **_kwargs: None,
+        )
+        page = SimpleNamespace(_restart_stop_runtime=runtime)
+
+        restart_proxy_if_running(
+            page=page,
+            manager=SimpleNamespace(is_running=True),
+            restarting=False,
+            set_restarting=lambda _value: None,
+            status_label=status_label,
+            create_stop_runtime_worker=lambda **_kwargs: object(),
+        )
+
+        self.assertEqual(status_label.text(), "Перезапуск прокси...")
+        self.assertEqual(status_label.accessibleName(), "Статус Telegram Proxy: Перезапуск прокси...")
+        self.assertEqual(
+            status_label.property("screenReaderStateText"),
+            "Статус Telegram Proxy: Перезапуск прокси...",
+        )
 
 
 if __name__ == "__main__":

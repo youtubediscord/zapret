@@ -61,6 +61,7 @@ def restart_proxy_if_running(
 
     set_restarting(True)
     status_label.setText(plan.status_text)
+    set_state_text(status_label, f"Статус Telegram Proxy: {plan.status_text}")
 
     runtime = _page_runtime(page, "_restart_stop_runtime")
     if runtime.is_running():
