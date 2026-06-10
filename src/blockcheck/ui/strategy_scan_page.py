@@ -1004,9 +1004,11 @@ class StrategyScanPage(BasePage):
         if combo is None:
             return
         selected = str(combo.currentText() or "").strip() or "не выбрано"
+        state_text = f"{name}, выбрано: {selected}"
+        set_state_text(combo, state_text)
         set_control_accessibility(
             combo,
-            name=f"{name}, выбрано: {selected}",
+            name=state_text,
             description=description,
         )
 

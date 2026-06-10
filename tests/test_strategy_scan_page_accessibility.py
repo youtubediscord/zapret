@@ -29,10 +29,22 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
         self.addCleanup(page.deleteLater)
 
         self.assertEqual(page._protocol_combo.accessibleName(), "Протокол подбора стратегии, выбрано: TCP/HTTPS")
+        self.assertEqual(
+            page._protocol_combo.property("screenReaderStateText"),
+            "Протокол подбора стратегии, выбрано: TCP/HTTPS",
+        )
         self.assertIn("тип соединения", page._protocol_combo.accessibleDescription())
         self.assertEqual(page._games_scope_combo.accessibleName(), "Охват UDP, выбрано: Все ipset (по умолчанию)")
+        self.assertEqual(
+            page._games_scope_combo.property("screenReaderStateText"),
+            "Охват UDP, выбрано: Все ipset (по умолчанию)",
+        )
         self.assertIn("UDP Games", page._games_scope_combo.accessibleDescription())
         self.assertEqual(page._mode_combo.accessibleName(), "Режим подбора стратегии, выбрано: Быстрый (30)")
+        self.assertEqual(
+            page._mode_combo.property("screenReaderStateText"),
+            "Режим подбора стратегии, выбрано: Быстрый (30)",
+        )
         self.assertIn("сколько стратегий", page._mode_combo.accessibleDescription())
         self.assertEqual(page._target_input.accessibleName(), "Цель подбора стратегии")
         self.assertIn("домен или STUN-цель", page._target_input.accessibleDescription())
