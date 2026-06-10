@@ -73,7 +73,10 @@ def _get_sidebar_search_nav_widget_cls():
             self._completion_timer.setSingleShot(True)
             self._completion_timer.timeout.connect(self._show_completions_deferred)
             self._search.setPlaceholderText(tr_catalog("sidebar.search.placeholder"))
-            search_description = "Ищет страницу, preset или profile. Введите текст и выберите результат стрелками."
+            search_description = (
+                "Ищет страницу, preset или profile. Введите текст, выберите результат стрелками. "
+                "Enter открывает выбранный результат."
+            )
             set_control_accessibility(
                 self,
                 name="Глобальный поиск по ZapretGUI",
