@@ -8,6 +8,7 @@ from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.pages.base_page import BasePage
+from ui.queued_worker_state import QueuedWorkerState
 from app.ui_texts import tr as tr_catalog
 
 
@@ -46,8 +47,7 @@ class ProfileOrderPageBase(BasePage):
         self._order_payload_apply_scheduled = False
         self._pending_order_payload_apply = None
         self._order_move_runtime = OneShotWorkerRuntime()
-        self._pending_profile_order_moves: list[dict[str, str]] = []
-        self._order_move_start_scheduled = False
+        self._order_move_state = QueuedWorkerState[dict[str, str]](self._order_move_runtime)
         self._order_move_reload_required = False
         self._breadcrumb = None
         self._cleanup_in_progress = False
@@ -247,7 +247,7 @@ class ProfileOrderPageBase(BasePage):
         source_profile_key = str(source_profile_key or "").strip()
         if not source_profile_key:
             return
-        if self._order_move_runtime.is_running() or self.__dict__.get("_order_move_start_scheduled", False):
+        if self._order_move_state_obj().is_busy():
             self._queue_profile_order_move(
                 action,
                 source_profile_key,
@@ -270,18 +270,13 @@ class ProfileOrderPageBase(BasePage):
         source = str(source_profile_key or "").strip()
         if not source:
             return
-        pending_moves = self.__dict__.setdefault("_pending_profile_order_moves", [])
-        pending_moves[:] = [
-            pending
-            for pending in pending_moves
-            if str(pending.get("source_profile_key") or "").strip() != source
-        ]
-        pending_moves.append(
+        self._order_move_state_obj().replace_by_key(
             {
                 "action": str(action or ""),
                 "source_profile_key": source,
                 "destination_profile_key": str(destination_profile_key or ""),
-            }
+            },
+            key=lambda pending: str(pending.get("source_profile_key") or "").strip(),
         )
 
     def _start_profile_order_move_worker(
@@ -345,7 +340,7 @@ class ProfileOrderPageBase(BasePage):
                 source_profile_key,
                 destination_profile_key=destination_profile_key,
             )
-        if self.__dict__.get("_pending_profile_order_moves"):
+        if self._order_move_state_obj().has_pending():
             if result and not applied_locally:
                 self._order_move_reload_required = True
             return
@@ -364,37 +359,36 @@ class ProfileOrderPageBase(BasePage):
             cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
         ):
             return
-        if self.__dict__.get("_pending_profile_order_moves"):
+        if self._order_move_state_obj().has_pending():
             return
         log(f"{self.__class__.__name__}: не удалось переместить profile в порядке preset: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
-        if self.__dict__.get("_order_move_reload_required", False) and not self.__dict__.get(
-            "_pending_profile_order_moves"
-        ):
+        if self.__dict__.get("_order_move_reload_required", False) and not self._order_move_state_obj().has_pending():
             self._order_move_reload_required = False
             self._reload_order_profiles(force=True)
 
     def _on_profile_order_move_worker_finished(self, _worker) -> None:
         if not self._is_current_worker_finish(self.__dict__.get("_order_move_runtime"), _worker):
             return
-        if self.__dict__.get("_pending_profile_order_moves") and not bool(
+        if self._order_move_state_obj().has_pending() and not bool(
             self.__dict__.get("_cleanup_in_progress", False)
         ):
             self._schedule_next_profile_order_move_start()
 
     def _schedule_next_profile_order_move_start(self) -> None:
-        if self.__dict__.get("_order_move_start_scheduled", False):
+        state = self._order_move_state_obj()
+        if state.start_scheduled:
             return
-        self._order_move_start_scheduled = True
+        state.start_scheduled = True
         try:
             QTimer.singleShot(0, self._run_scheduled_profile_order_move_start)
         except Exception:
             self._run_scheduled_profile_order_move_start()
 
     def _run_scheduled_profile_order_move_start(self) -> None:
-        self._order_move_start_scheduled = False
-        pending_moves = self.__dict__.setdefault("_pending_profile_order_moves", [])
-        pending = pending_moves.pop(0) if pending_moves else None
+        state = self._order_move_state_obj()
+        state.start_scheduled = False
+        pending = state.pop_next()
         if pending is None or bool(self.__dict__.get("_cleanup_in_progress", False)):
             return
         self._start_profile_order_move_worker(
@@ -402,6 +396,38 @@ class ProfileOrderPageBase(BasePage):
             str(pending.get("source_profile_key") or ""),
             destination_profile_key=str(pending.get("destination_profile_key") or ""),
         )
+
+    def _order_move_state_obj(self) -> QueuedWorkerState[dict[str, str]]:
+        state = self.__dict__.get("_order_move_state")
+        runtime = self.__dict__.get("_order_move_runtime")
+        if state is None:
+            pending = list(self.__dict__.pop("_pending_profile_order_moves", []) or [])
+            start_scheduled = bool(self.__dict__.pop("_order_move_start_scheduled", False))
+            state = QueuedWorkerState(
+                runtime,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_order_move_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _pending_profile_order_moves(self) -> list[dict[str, str]]:
+        return self._order_move_state_obj().pending
+
+    @_pending_profile_order_moves.setter
+    def _pending_profile_order_moves(self, value: list[dict[str, str]]) -> None:
+        self._order_move_state_obj().pending = list(value or [])
+
+    @property
+    def _order_move_start_scheduled(self) -> bool:
+        return bool(self._order_move_state_obj().start_scheduled)
+
+    @_order_move_start_scheduled.setter
+    def _order_move_start_scheduled(self, value: bool) -> None:
+        self._order_move_state_obj().start_scheduled = bool(value)
 
     def _is_current_worker_finish(self, runtime, worker) -> bool:
         if self.__dict__.get("_cleanup_in_progress", False):
@@ -438,9 +464,8 @@ class ProfileOrderPageBase(BasePage):
         self._order_load_state_obj().reset()
         self._pending_order_payload_apply = None
         self._order_payload_apply_scheduled = False
-        self._order_move_start_scheduled = False
+        self._order_move_state_obj().reset()
         self._order_move_reload_required = False
-        self.__dict__.setdefault("_pending_profile_order_moves", []).clear()
         self._order_load_runtime.stop(
             blocking=False,
             warning_prefix="Profile order load worker",

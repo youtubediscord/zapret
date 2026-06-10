@@ -98,6 +98,31 @@ class ProfileOrderWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._order_load_dirty = False", init_source)
         self.assertNotIn("self._order_load_restart_scheduled = False", init_source)
 
+    def test_profile_order_move_queue_uses_shared_queued_worker_state(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.queued_worker_state import QueuedWorkerState
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._order_move_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+
+        init_source = inspect.getsource(ProfileOrderPageBase.__init__)
+        request_source = inspect.getsource(ProfileOrderPageBase._request_profile_order_move)
+        queue_source = inspect.getsource(ProfileOrderPageBase._queue_profile_order_move)
+        finished_source = inspect.getsource(ProfileOrderPageBase._on_profile_order_move_worker_finished)
+        scheduled_source = inspect.getsource(ProfileOrderPageBase._run_scheduled_profile_order_move_start)
+        cleanup_source = inspect.getsource(ProfileOrderPageBase.cleanup)
+
+        self.assertTrue(hasattr(ProfileOrderPageBase, "_order_move_state_obj"))
+        self.assertIsInstance(page._order_move_state_obj(), QueuedWorkerState)
+        self.assertIn("_order_move_state = QueuedWorkerState", init_source)
+        self.assertIn("_order_move_state_obj()", request_source)
+        self.assertIn("_order_move_state_obj()", queue_source)
+        self.assertIn("_order_move_state_obj()", finished_source)
+        self.assertIn("_order_move_state_obj()", scheduled_source)
+        self.assertIn("_order_move_state_obj().reset()", cleanup_source)
+        self.assertNotIn("self._pending_profile_order_moves", init_source)
+        self.assertNotIn("self._order_move_start_scheduled = False", init_source)
+
 
 if __name__ == "__main__":
     unittest.main()
