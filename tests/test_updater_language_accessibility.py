@@ -126,6 +126,36 @@ class UpdaterLanguageAccessibilityTests(unittest.TestCase):
             expected,
         )
 
+    def test_language_refresh_updates_active_legend_screen_reader_state(self) -> None:
+        legend_active_label = _TextTarget("old")
+
+        apply_servers_page_language(
+            tr_fn=lambda _key, default, **_kwargs: default,
+            ui_language="ru",
+            update_card=_Stateful(),
+            changelog_card=_Stateful(),
+            breadcrumb=_Breadcrumb(),
+            page_title_label=_TextTarget(),
+            servers_title_label=_TextTarget(),
+            legend_active_label=legend_active_label,
+            servers_table=_Table(),
+            settings_card=_Card(),
+            toggle_label=None,
+            auto_check_card=_Stateful(),
+            version_info_label=_TextTarget(),
+            telegram_card=_Card(),
+            telegram_info_label=None,
+            telegram_button=_TextTarget(),
+            refresh_server_rows=lambda: None,
+        )
+
+        expected = "Легенда серверов обновлений: активный сервер"
+        self.assertEqual(legend_active_label.accessibleName(), expected)
+        self.assertEqual(
+            legend_active_label.property("screenReaderStateText"),
+            expected,
+        )
+
     def test_language_refresh_updates_telegram_screen_reader_action(self) -> None:
         telegram_card = _Card()
         telegram_button = _TextTarget()

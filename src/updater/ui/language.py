@@ -5,6 +5,7 @@ from __future__ import annotations
 from config.build_info import APP_VERSION, CHANNEL
 
 
+from updater.ui.main_build import set_active_server_legend_accessibility
 from updater.ui.table_view import apply_server_table_headers
 from ui.accessibility import set_control_accessibility, set_state_text
 
@@ -50,6 +51,7 @@ def apply_servers_page_language(
     page_title_label.setText(tr_fn("page.servers.title", "Серверы"))
     servers_title_label.setText(tr_fn("page.servers.section.update_servers", "Серверы обновлений"))
     legend_active_label.setText(tr_fn("page.servers.legend.active", "⭐ активный"))
+    set_active_server_legend_accessibility(legend_active_label)
     apply_server_table_headers(servers_table, tr_fn=tr_fn)
 
     settings_title = tr_fn("page.servers.settings.title", "Настройки")

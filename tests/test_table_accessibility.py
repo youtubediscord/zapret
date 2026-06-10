@@ -7,7 +7,7 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QTableWidget
+from PyQt6.QtWidgets import QApplication, QTableWidget, QWidget
 from qfluentwidgets import PushButton
 
 
@@ -78,6 +78,25 @@ class TableAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(table.accessibleName(), "Серверы обновлений")
         self.assertIn("статус и версии", table.accessibleDescription())
+
+    def test_updater_active_server_legend_has_screen_reader_text(self) -> None:
+        from updater.ui.main_build import build_servers_header_widgets
+
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+
+        widgets = build_servers_header_widgets(
+            tr_fn=lambda _key, default: default,
+            parent=parent,
+            on_about_clicked=lambda: None,
+        )
+
+        expected = "Легенда серверов обновлений: активный сервер"
+        self.assertEqual(widgets.legend_active_label.accessibleName(), expected)
+        self.assertEqual(
+            widgets.legend_active_label.property("screenReaderStateText"),
+            expected,
+        )
 
     def test_blockcheck_tcp_result_row_has_screen_reader_text(self) -> None:
         from blockcheck.models import SingleTestResult, TargetResult, TestStatus, TestType

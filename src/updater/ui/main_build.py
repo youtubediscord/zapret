@@ -14,7 +14,12 @@ from qfluentwidgets import (
     TitleLabel,
 )
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
+
+
+def set_active_server_legend_accessibility(label) -> None:
+    text = "Легенда серверов обновлений: активный сервер"
+    set_state_text(label, text)
 
 
 @dataclass(slots=True)
@@ -50,6 +55,7 @@ def build_servers_header_widgets(*, tr_fn, parent, on_about_clicked) -> ServersH
     servers_header.addStretch()
 
     legend_active_label = CaptionLabel(tr_fn("page.servers.legend.active", "⭐ активный"))
+    set_active_server_legend_accessibility(legend_active_label)
     servers_header.addWidget(legend_active_label)
 
     servers_header_widget = QWidget()
