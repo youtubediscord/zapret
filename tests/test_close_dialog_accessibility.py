@@ -25,6 +25,7 @@ class CloseDialogAccessibilityTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
 
         self.assertEqual(dialog.bodyLabel.accessibleName(), "Описание закрытия: DPI запущен")
+        self.assertEqual(dialog.bodyLabel.property("screenReaderStateText"), "Описание закрытия: DPI запущен")
         self.assertIn("продолжит работать", dialog.bodyLabel.accessibleDescription())
         self.assertEqual(dialog.trayButton.accessibleName(), "Свернуть ZapretGUI в трей")
         self.assertIn("оставляет окно доступным из трея", dialog.trayButton.accessibleDescription())
@@ -39,6 +40,7 @@ class CloseDialogAccessibilityTests(unittest.TestCase):
         self.addCleanup(dialog.deleteLater)
 
         self.assertEqual(dialog.bodyLabel.accessibleName(), "Описание закрытия: DPI не запущен")
+        self.assertEqual(dialog.bodyLabel.property("screenReaderStateText"), "Описание закрытия: DPI не запущен")
         self.assertEqual(dialog.stopDpiButton.accessibleName(), "Закрыть ZapretGUI и остановить DPI, недоступно")
         self.assertEqual(
             dialog.stopDpiButton.property("screenReaderStateText"),

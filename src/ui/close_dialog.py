@@ -114,6 +114,7 @@ class CloseDialog(MessageBoxBase):
             name=body_name,
             description=description,
         )
+        set_state_text(self.bodyLabel, body_name)
         set_control_accessibility(
             self.trayButton,
             name="Свернуть ZapretGUI в трей",
