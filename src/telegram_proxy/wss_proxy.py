@@ -428,15 +428,15 @@ class TelegramWSProxy:
                         ),
                         elapsed=elapsed,
                     )
+                    self._record_route(
+                        dc=0,
+                        is_media=False,
+                        route="HTTP direct TCP",
+                        status="ошибка",
+                        reason=self._route_error(exc),
+                    )
                     if should_route_upstream(self._upstream, mode="fallback"):
                         self._log(f"[{label}] HTTP TCP failed -> trying upstream SOCKS5 fallback")
-                        self._record_route(
-                            dc=0,
-                            is_media=False,
-                            route="HTTP TCP",
-                            status="ошибка",
-                            reason=self._route_error(exc),
-                        )
                         await self._upstream_proxy_connect(
                             reader, writer, target_host, target_port,
                             init, label, dc=0, is_media=False,
