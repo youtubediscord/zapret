@@ -10,6 +10,7 @@ class _TextTarget:
         self.text = ""
         self.accessible_name = ""
         self.accessible_description = ""
+        self.properties: dict[str, str] = {}
 
     def setText(self, text: str) -> None:  # noqa: N802
         self.text = text
@@ -25,6 +26,12 @@ class _TextTarget:
 
     def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
         self.accessible_description = str(text)
+
+    def property(self, name: str) -> object:
+        return self.properties.get(name)
+
+    def setProperty(self, name: str, value: object) -> None:  # noqa: N802
+        self.properties[str(name)] = str(value)
 
 
 class _VisibleTarget:
@@ -110,12 +117,26 @@ class _ProgressTarget:
     def __init__(self) -> None:
         self.started = 0
         self.stopped = 0
+        self.accessible_name = ""
+        self.properties: dict[str, str] = {}
 
     def start(self) -> None:
         self.started += 1
 
     def stop(self) -> None:
         self.stopped += 1
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self.accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self.accessible_name = str(text)
+
+    def property(self, name: str) -> object:
+        return self.properties.get(name)
+
+    def setProperty(self, name: str, value: object) -> None:  # noqa: N802
+        self.properties[str(name)] = str(value)
 
 
 class ControlStatusDotPulseTests(unittest.TestCase):
@@ -477,6 +498,23 @@ class ControlStatusDotPulseTests(unittest.TestCase):
 
         self.assertEqual(progress.started, 1)
         self.assertEqual(progress.stopped, 1)
+        self.assertEqual(progress.accessibleName(), "Ход запуска Zapret: не выполняется")
+        self.assertEqual(progress.property("screenReaderStateText"), "Ход запуска Zapret: не выполняется")
+
+    def test_loading_status_text_updates_screen_reader_state(self) -> None:
+        from presets.ui.control.control_page_runtime_shared import set_loading_status_accessibility
+
+        label = _TextTarget()
+
+        set_loading_status_accessibility(label, active=True, text="Запуск winws...")
+
+        self.assertEqual(label.accessibleName(), "Статус запуска Zapret: Запуск winws...")
+        self.assertEqual(label.property("screenReaderStateText"), "Статус запуска Zapret: Запуск winws...")
+
+        set_loading_status_accessibility(label, active=False, text="")
+
+        self.assertEqual(label.accessibleName(), "Статус запуска Zapret: нет активного запуска")
+        self.assertEqual(label.property("screenReaderStateText"), "Статус запуска Zapret: нет активного запуска")
 
     def test_running_status_pulses_for_both_control_modes(self) -> None:
         from presets.ui.control import control_runtime

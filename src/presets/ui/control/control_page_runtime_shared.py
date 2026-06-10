@@ -60,11 +60,19 @@ def set_progress_active_if_changed(progress, active: bool) -> bool:
     if getattr(progress, "_last_control_progress_active", None) == next_active:
         return False
     setattr(progress, "_last_control_progress_active", next_active)
+    state_text = "выполняется" if next_active else "не выполняется"
+    set_state_text(progress, f"Ход запуска Zapret: {state_text}")
     if next_active:
         progress.start()
     else:
         progress.stop()
     return True
+
+
+def set_loading_status_accessibility(label, *, active: bool, text: object) -> None:
+    value = str(text or "").strip() if active else ""
+    state = f"Статус запуска Zapret: {value}" if value else "Статус запуска Zapret: нет активного запуска"
+    set_state_text(label, state)
 
 
 def set_toggle_checked(toggle, checked: bool) -> None:

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QHBoxLayout, QVBoxLayout
 from qfluentwidgets import CardWidget, FluentIcon
 
 from ui.pulsing_dot import PulsingDot
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.theme import get_themed_qta_icon
 
 
@@ -158,10 +158,17 @@ def build_mode_management_section_common(
 
     progress_bar = indeterminate_progress_bar_cls(parent)
     progress_bar.setVisible(False)
+    set_control_accessibility(
+        progress_bar,
+        name="Ход запуска Zapret: не выполняется",
+        description="Показывает, что запуск или остановка Zapret выполняется.",
+    )
+    set_state_text(progress_bar, "Ход запуска Zapret: не выполняется")
     content_layout.addWidget(progress_bar)
 
     loading_label = caption_label_cls("")
     loading_label.setVisible(False)
+    set_state_text(loading_label, "Статус запуска Zapret: нет активного запуска")
     content_layout.addWidget(loading_label)
 
     return control_card, start_btn, stop_winws_btn, stop_and_exit_btn, progress_bar, loading_label

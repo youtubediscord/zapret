@@ -30,6 +30,7 @@ from presets.ui.control.control_page_shared import (
 from presets.ui.control.control_page_runtime_shared import (
     apply_last_status_message,
     set_enabled_if_changed,
+    set_loading_status_accessibility,
     set_progress_active_if_changed,
     set_text_if_changed,
     set_visible_if_changed,
@@ -764,6 +765,7 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         set_visible_if_changed(self.progress_bar, loading)
         set_visible_if_changed(self.loading_label, loading and bool(text))
         set_text_if_changed(self.loading_label, text)
+        set_loading_status_accessibility(self.loading_label, active=loading, text=text)
 
         set_enabled_if_changed(self.start_btn, not loading)
         set_enabled_if_changed(self.stop_winws_btn, not loading)

@@ -19,7 +19,7 @@ class ControlAccessibilityTests(unittest.TestCase):
     def test_management_buttons_have_screen_reader_names_and_descriptions(self) -> None:
         from presets.ui.control.shared_builders import build_mode_management_section_common
 
-        _card, start_btn, stop_btn, stop_exit_btn, _progress, _loading = build_mode_management_section_common(
+        _card, start_btn, stop_btn, stop_exit_btn, progress, loading = build_mode_management_section_common(
             tr_fn=lambda _key, default: default,
             caption_label_cls=CaptionLabel,
             indeterminate_progress_bar_cls=IndeterminateProgressBar,
@@ -43,6 +43,11 @@ class ControlAccessibilityTests(unittest.TestCase):
         self.assertIn("Останавливает", stop_btn.accessibleDescription())
         self.assertEqual(stop_exit_btn.accessibleName(), "Остановить и закрыть")
         self.assertIn("закрывает программу", stop_exit_btn.accessibleDescription())
+        self.assertEqual(progress.accessibleName(), "Ход запуска Zapret: не выполняется")
+        self.assertEqual(progress.property("screenReaderStateText"), "Ход запуска Zapret: не выполняется")
+        self.assertIn("Показывает", progress.accessibleDescription())
+        self.assertEqual(loading.accessibleName(), "Статус запуска Zapret: нет активного запуска")
+        self.assertEqual(loading.property("screenReaderStateText"), "Статус запуска Zapret: нет активного запуска")
 
     def test_stop_button_uses_square_stop_icon(self) -> None:
         from presets.ui.control.shared_builders import build_mode_management_section_common
