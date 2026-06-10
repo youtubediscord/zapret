@@ -22,6 +22,27 @@ class _Runtime:
 
 
 class RawPresetWriteSerializationTests(unittest.TestCase):
+    def test_raw_preset_write_queue_state_lives_in_queued_worker_state(self) -> None:
+        import inspect
+        from ui.queued_worker_state import QueuedWorkerState
+
+        page = PresetRawEditorPage.__new__(PresetRawEditorPage)
+        module_source = inspect.getsource(
+            __import__("presets.ui.common.preset_subpage_base", fromlist=[""])
+        )
+        init_source = inspect.getsource(PresetRawEditorPage.__init__)
+        queue_source = inspect.getsource(PresetRawEditorPage._queue_raw_preset_write_operation)
+        start_source = inspect.getsource(PresetRawEditorPage._start_next_raw_preset_write_operation)
+        schedule_source = inspect.getsource(PresetRawEditorPage._schedule_next_raw_preset_write_operation_start)
+
+        self.assertTrue(hasattr(PresetRawEditorPage, "_raw_preset_write_state_obj"))
+        self.assertIsInstance(PresetRawEditorPage._raw_preset_write_state_obj(page), QueuedWorkerState)
+        self.assertIn("from ui.queued_worker_state import QueuedWorkerState", module_source)
+        self.assertIn("_raw_preset_write_state = QueuedWorkerState", init_source)
+        self.assertIn("_raw_preset_write_state_obj().pending", queue_source)
+        self.assertIn("state.pop_next()", start_source)
+        self.assertIn("state.start_scheduled", schedule_source)
+
     def test_raw_preset_action_waits_while_activation_runs(self) -> None:
         worker = object()
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)

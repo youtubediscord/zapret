@@ -13,6 +13,7 @@ from ui.fluent_widgets import set_tooltip, style_semantic_caption_label
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.latest_value_worker_state import LatestValueWorkerState
+from ui.queued_worker_state import QueuedWorkerState
 from ui.popup_menu import exec_popup_menu
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
 from presets.ui.common.preset_status_bar import (
@@ -299,8 +300,7 @@ class PresetRawEditorPage(BasePage):
         self._raw_action_request_id = 0
         self._raw_action_runtime_worker = None
         self._pending_raw_preset_actions: list[dict[str, object]] = []
-        self._pending_raw_preset_write_operations: list[dict[str, object]] = []
-        self._raw_preset_write_operation_start_scheduled = False
+        self._raw_preset_write_state = QueuedWorkerState[dict[str, object]](object())
         self._cleanup_in_progress = False
         self._ui_state_store = None
         self._ui_state_unsubscribe = None
@@ -357,7 +357,7 @@ class PresetRawEditorPage(BasePage):
         return True
 
     def _raw_preset_write_is_running(self) -> bool:
-        if self.__dict__.get("_raw_preset_write_operation_start_scheduled", False):
+        if self._raw_preset_write_state_obj().start_scheduled:
             return True
         if self._raw_preset_save_state_obj().start_scheduled:
             return True
@@ -370,7 +370,7 @@ class PresetRawEditorPage(BasePage):
         return False
 
     def _queue_raw_preset_write_operation(self, operation: dict[str, object]) -> None:
-        pending = self.__dict__.setdefault("_pending_raw_preset_write_operations", [])
+        pending = self._raw_preset_write_state_obj().pending
         queued = dict(operation)
         if pending and pending[-1] == queued:
             return
@@ -388,10 +388,10 @@ class PresetRawEditorPage(BasePage):
             return False
         if self._raw_preset_write_is_running():
             return False
-        pending = self.__dict__.setdefault("_pending_raw_preset_write_operations", [])
-        if not pending:
+        state = self._raw_preset_write_state_obj()
+        if not state.has_pending():
             return False
-        operation = dict(pending.pop(0))
+        operation = dict(state.pop_next() or {})
         kind = str(operation.get("kind") or "")
         if kind == "activate":
             self._raw_preset_activation_state_obj().pending = ""
@@ -419,11 +419,12 @@ class PresetRawEditorPage(BasePage):
             return False
         if self._raw_preset_write_is_running():
             return True
-        if not self.__dict__.get("_pending_raw_preset_write_operations"):
+        state = self._raw_preset_write_state_obj()
+        if not state.has_pending():
             return False
-        if self.__dict__.get("_raw_preset_write_operation_start_scheduled", False):
+        if state.start_scheduled:
             return True
-        self._raw_preset_write_operation_start_scheduled = True
+        state.start_scheduled = True
         try:
             QTimer.singleShot(0, self._run_scheduled_raw_preset_write_operation_start)
         except Exception:
@@ -431,8 +432,35 @@ class PresetRawEditorPage(BasePage):
         return True
 
     def _run_scheduled_raw_preset_write_operation_start(self) -> None:
-        self._raw_preset_write_operation_start_scheduled = False
+        self._raw_preset_write_state_obj().start_scheduled = False
         self._start_next_raw_preset_write_operation()
+
+    def _raw_preset_write_state_obj(self) -> QueuedWorkerState[dict[str, object]]:
+        state = self.__dict__.get("_raw_preset_write_state")
+        if state is None:
+            pending = self.__dict__.pop("_pending_raw_preset_write_operations", None)
+            start_scheduled = bool(self.__dict__.pop("_raw_preset_write_operation_start_scheduled", False))
+            state = QueuedWorkerState[dict[str, object]](object())
+            state.pending = list(pending or [])
+            state.start_scheduled = start_scheduled
+            self.__dict__["_raw_preset_write_state"] = state
+        return state
+
+    @property
+    def _pending_raw_preset_write_operations(self):
+        return self._raw_preset_write_state_obj().pending
+
+    @_pending_raw_preset_write_operations.setter
+    def _pending_raw_preset_write_operations(self, value) -> None:
+        self._raw_preset_write_state_obj().pending = list(value or [])
+
+    @property
+    def _raw_preset_write_operation_start_scheduled(self) -> bool:
+        return bool(self._raw_preset_write_state_obj().start_scheduled)
+
+    @_raw_preset_write_operation_start_scheduled.setter
+    def _raw_preset_write_operation_start_scheduled(self, value: bool) -> None:
+        self._raw_preset_write_state_obj().start_scheduled = bool(value)
 
     def _default_title(self) -> str:
         return self._title
@@ -1562,7 +1590,7 @@ class PresetRawEditorPage(BasePage):
     def _on_raw_preset_action_finished(self, request_id: int, action: str, result, payload) -> None:
         if request_id != self._raw_action_request_id:
             return
-        if self.__dict__.get("_pending_raw_preset_write_operations"):
+        if self._raw_preset_write_state_obj().has_pending():
             return
         if action == "rename":
             updated, path = result
@@ -1604,7 +1632,7 @@ class PresetRawEditorPage(BasePage):
     def _on_raw_preset_action_failed(self, request_id: int, _action: str, error: str, _payload) -> None:
         if request_id != self._raw_action_request_id:
             return
-        if self.__dict__.get("_pending_raw_preset_write_operations"):
+        if self._raw_preset_write_state_obj().has_pending():
             return
         self._show_error(str(error))
 
@@ -1791,9 +1819,8 @@ class PresetRawEditorPage(BasePage):
         self._raw_load_state_obj().reset()
         self._pending_raw_text_apply = None
         self._raw_text_apply_scheduled = False
-        self.__dict__.setdefault("_pending_raw_preset_write_operations", []).clear()
+        self._raw_preset_write_state_obj().reset()
         self.__dict__.setdefault("_pending_raw_preset_actions", []).clear()
-        self._raw_preset_write_operation_start_scheduled = False
         self._raw_preset_save_state_obj().reset()
         self._raw_preset_activation_state_obj().reset()
         self._raw_load_runtime_worker = None
