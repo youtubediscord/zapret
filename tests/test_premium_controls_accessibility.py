@@ -44,6 +44,7 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(activation.activate_btn.accessibleName(), "Создать код привязки Premium")
+        self.assertEqual(activation.activate_btn.property("screenReaderStateText"), "Создать код привязки Premium")
         self.assertIn("Telegram", activation.activate_btn.accessibleDescription())
         self.assertEqual(device.open_bot_btn.accessibleName(), "Открыть Premium-бота")
         self.assertIn("Telegram", device.open_bot_btn.accessibleDescription())
@@ -52,6 +53,7 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         self.assertEqual(actions.change_key_btn.accessibleName(), "Сбросить Premium-активацию")
         self.assertIn("Удаляет токен", actions.change_key_btn.accessibleDescription())
         self.assertEqual(actions.test_btn.accessibleName(), "Проверить соединение Premium")
+        self.assertEqual(actions.test_btn.property("screenReaderStateText"), "Проверить соединение Premium")
         self.assertIn("Premium backend", actions.test_btn.accessibleDescription())
         self.assertEqual(actions.extend_btn.accessibleName(), "Продлить Premium-подписку")
         self.assertIn("Telegram-бота", actions.extend_btn.accessibleDescription())
@@ -96,7 +98,9 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(activation.activate_btn.accessibleName(), "Создание кода привязки Premium")
+        self.assertEqual(activation.activate_btn.property("screenReaderStateText"), "Создание кода привязки Premium")
         self.assertEqual(actions.test_btn.accessibleName(), "Проверка соединения Premium выполняется")
+        self.assertEqual(actions.test_btn.property("screenReaderStateText"), "Проверка соединения Premium выполняется")
         self.assertEqual(actions.refresh_btn.accessibleName(), "Обновить Premium-статус")
         self.assertEqual(actions.extend_btn.accessibleName(), "Продлить Premium-подписку")
         self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: пока не создан")
@@ -132,7 +136,9 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(activation.activate_btn.accessibleName(), "Создание кода привязки Premium")
+        self.assertEqual(activation.activate_btn.property("screenReaderStateText"), "Создание кода привязки Premium")
         self.assertEqual(actions.test_btn.accessibleName(), "Проверка соединения Premium выполняется")
+        self.assertEqual(actions.test_btn.property("screenReaderStateText"), "Проверка соединения Premium выполняется")
         self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: пока не создан")
 
         apply_pair_code_result_ui(

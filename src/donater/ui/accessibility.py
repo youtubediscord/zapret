@@ -46,8 +46,12 @@ def apply_premium_button_accessibility(
 ) -> None:
     """Задаёт понятные имена Premium-кнопок для экранного диктора."""
 
+    def _set_button(widget, *, name: str, description: str) -> None:
+        set_control_accessibility(widget, name=name, description=description)
+        set_state_text(widget, name)
+
     if activate_btn is not None:
-        set_control_accessibility(
+        _set_button(
             activate_btn,
             name=tr_fn(
                 "page.premium.action.create_code.accessible_name_loading"
@@ -61,7 +65,7 @@ def apply_premium_button_accessibility(
             ),
         )
     if open_bot_btn is not None:
-        set_control_accessibility(
+        _set_button(
             open_bot_btn,
             name=tr_fn("page.premium.action.open_bot.accessible_name", "Открыть Premium-бота"),
             description=tr_fn(
@@ -70,7 +74,7 @@ def apply_premium_button_accessibility(
             ),
         )
     if refresh_btn is not None:
-        set_control_accessibility(
+        _set_button(
             refresh_btn,
             name=tr_fn("page.premium.action.refresh_status.accessible_name", "Обновить Premium-статус"),
             description=tr_fn(
@@ -79,7 +83,7 @@ def apply_premium_button_accessibility(
             ),
         )
     if change_key_btn is not None:
-        set_control_accessibility(
+        _set_button(
             change_key_btn,
             name=tr_fn("page.premium.action.reset_activation.accessible_name", "Сбросить Premium-активацию"),
             description=tr_fn(
@@ -88,7 +92,7 @@ def apply_premium_button_accessibility(
             ),
         )
     if test_btn is not None:
-        set_control_accessibility(
+        _set_button(
             test_btn,
             name=tr_fn(
                 "page.premium.action.test_connection.accessible_name_loading"
@@ -102,7 +106,7 @@ def apply_premium_button_accessibility(
             ),
         )
     if extend_btn is not None:
-        set_control_accessibility(
+        _set_button(
             extend_btn,
             name=tr_fn("page.premium.action.extend.accessible_name", "Продлить Premium-подписку"),
             description=tr_fn(
