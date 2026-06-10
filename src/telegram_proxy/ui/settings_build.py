@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from qfluentwidgets import FluentIcon
 
+from ui.accessibility import set_control_accessibility
 from ui.fluent_widgets import (
     SettingsCard,
     QuickActionsBar,
@@ -411,10 +412,20 @@ def build_telegram_proxy_advanced_settings_panel(
     mtproxy_secret_edit.setPlaceholderText("32 символа: 0-9 и a-f")
     mtproxy_secret_edit.setClearButtonEnabled(True)
     set_tooltip(mtproxy_secret_edit, "Секрет MTProxy. Telegram использует его как ключ подключения.")
+    set_control_accessibility(
+        mtproxy_secret_edit,
+        name="Secret MTProxy",
+        description="Секрет MTProxy. Telegram использует его как ключ подключения.",
+    )
     mtproxy_secret_layout.addWidget(mtproxy_secret_edit)
     mtproxy_generate_btn = push_button_cls("Создать", icon=FluentIcon.SYNC)
     mtproxy_generate_btn.setMinimumWidth(120)
     set_tooltip(mtproxy_generate_btn, "Создать новый случайный secret для MTProxy.")
+    set_control_accessibility(
+        mtproxy_generate_btn,
+        name="Создать secret MTProxy",
+        description="Создать новый случайный secret для MTProxy.",
+    )
     mtproxy_generate_btn.clicked.connect(on_generate_mtproxy_secret)
     mtproxy_secret_layout.addWidget(mtproxy_generate_btn)
     mtproxy_secret_layout.addStretch()
@@ -432,10 +443,20 @@ def build_telegram_proxy_advanced_settings_panel(
     fake_tls_domain_edit.setPlaceholderText("front.example.com")
     fake_tls_domain_edit.setClearButtonEnabled(True)
     set_tooltip(fake_tls_domain_edit, "Домен для MTProxy Fake TLS. Оставьте пустым, если Fake TLS не нужен.")
+    set_control_accessibility(
+        fake_tls_domain_edit,
+        name="Домен MTProxy Fake TLS",
+        description="Домен для MTProxy Fake TLS. Оставьте пустым, если Fake TLS не нужен.",
+    )
     fake_tls_domain_layout.addWidget(fake_tls_domain_edit)
     fake_tls_nginx_btn = push_button_cls("Nginx", icon=FluentIcon.COPY)
     fake_tls_nginx_btn.setMinimumWidth(96)
     set_tooltip(fake_tls_nginx_btn, "Скопировать stream-конфиг Nginx для MTProxy Fake TLS.")
+    set_control_accessibility(
+        fake_tls_nginx_btn,
+        name="Скопировать Nginx-конфиг MTProxy Fake TLS",
+        description="Скопировать stream-конфиг Nginx для MTProxy Fake TLS.",
+    )
     fake_tls_nginx_btn.clicked.connect(on_copy_fake_tls_nginx_config)
     fake_tls_domain_layout.addWidget(fake_tls_nginx_btn)
     fake_tls_domain_layout.addStretch()
@@ -492,6 +513,11 @@ def build_telegram_proxy_advanced_settings_panel(
     upstream_host_edit.setMinimumWidth(250)
     upstream_host_edit.setPlaceholderText("192.168.1.100 или proxy.example.com")
     upstream_host_edit.setClearButtonEnabled(True)
+    set_control_accessibility(
+        upstream_host_edit,
+        name="Хост upstream-прокси Telegram Proxy",
+        description="Введите IP-адрес или домен upstream-прокси для Telegram Proxy.",
+    )
     upstream_hp_row.addWidget(upstream_host_edit)
     upstream_hp_row.addSpacing(16)
     upstream_port_label = body_label_cls("Порт:")
@@ -500,6 +526,11 @@ def build_telegram_proxy_advanced_settings_panel(
     upstream_port_spin.setRange(1, 65535)
     upstream_port_spin.setValue(1080)
     upstream_port_spin.setFixedWidth(140)
+    set_control_accessibility(
+        upstream_port_spin,
+        name="Порт upstream-прокси Telegram Proxy",
+        description="Введите порт upstream-прокси для Telegram Proxy.",
+    )
     upstream_hp_row.addWidget(upstream_port_spin)
     upstream_hp_row.addStretch()
     manual_layout.addLayout(upstream_hp_row)
@@ -510,6 +541,11 @@ def build_telegram_proxy_advanced_settings_panel(
     upstream_user_edit = line_edit_cls()
     upstream_user_edit.setMinimumWidth(200)
     upstream_user_edit.setPlaceholderText("username")
+    set_control_accessibility(
+        upstream_user_edit,
+        name="Логин upstream-прокси Telegram Proxy",
+        description="Введите логин upstream-прокси, если он нужен.",
+    )
     upstream_auth_row.addWidget(upstream_user_edit)
     upstream_auth_row.addSpacing(16)
     upstream_pass_label = body_label_cls("Пароль:")
@@ -517,6 +553,11 @@ def build_telegram_proxy_advanced_settings_panel(
     upstream_pass_edit = password_line_edit_cls()
     upstream_pass_edit.setMinimumWidth(200)
     upstream_pass_edit.setPlaceholderText("password")
+    set_control_accessibility(
+        upstream_pass_edit,
+        name="Пароль upstream-прокси Telegram Proxy",
+        description="Введите пароль upstream-прокси, если он нужен.",
+    )
     upstream_auth_row.addWidget(upstream_pass_edit)
     upstream_auth_row.addStretch()
     manual_layout.addLayout(upstream_auth_row)
@@ -527,6 +568,11 @@ def build_telegram_proxy_advanced_settings_panel(
     mtproxy_action_btn = push_button_cls("Открыть", icon=FluentIcon.SEND)
     mtproxy_action_btn.setMinimumWidth(132)
     set_tooltip(mtproxy_action_btn, "MTProxy настраивается в Telegram напрямую. Нажмите для добавления.")
+    set_control_accessibility(
+        mtproxy_action_btn,
+        name="Открыть MTProxy в Telegram",
+        description="Открывает ссылку для добавления MTProxy в Telegram.",
+    )
     mtproxy_action_btn.clicked.connect(on_open_mtproxy)
     mtproxy_action_widget = mtproxy_action_btn
     mtproxy_action_widget.setVisible(False)

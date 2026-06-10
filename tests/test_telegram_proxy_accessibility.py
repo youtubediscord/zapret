@@ -5,15 +5,28 @@ from types import SimpleNamespace
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QLabel, QSpinBox, QVBoxLayout, QWidget
-from qfluentwidgets import CaptionLabel, LineEdit, PrimaryPushButton, PushButton, SegmentedWidget
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    LineEdit,
+    PasswordLineEdit,
+    PrimaryPushButton,
+    PushButton,
+    SegmentedWidget,
+    SettingCardGroup,
+    SpinBox,
+    StrongBodyLabel,
+)
 
 from telegram_proxy.ui.build import (
     build_telegram_proxy_diag_panel,
     build_telegram_proxy_logs_panel,
     build_telegram_proxy_shell,
 )
+from telegram_proxy.ui.settings_build import build_telegram_proxy_advanced_settings_panel
 from telegram_proxy.ui.proxy_runtime_workflow import apply_status_changed
 from telegram_proxy.ui.proxy_runtime_workflow import restart_proxy_if_running
+from ui.widgets.win11_controls import Win11ComboRow, Win11ToggleRow
 
 
 class _AccessibleStatusDot:
@@ -104,6 +117,47 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertIn("копирует результат", widgets.btn_copy_diag.accessibleDescription().lower())
         self.assertEqual(widgets.diag_edit.accessibleName(), "Результат диагностики Telegram Proxy")
         self.assertIn("подробный результат", widgets.diag_edit.accessibleDescription())
+
+    def test_advanced_settings_fields_are_named_for_screen_reader(self) -> None:
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        layout = QVBoxLayout(parent)
+
+        widgets = build_telegram_proxy_advanced_settings_panel(
+            layout,
+            content_parent=parent,
+            strong_body_label_cls=StrongBodyLabel,
+            caption_label_cls=CaptionLabel,
+            body_label_cls=BodyLabel,
+            push_button_cls=PushButton,
+            setting_card_group_cls=SettingCardGroup,
+            line_edit_cls=LineEdit,
+            spin_box_cls=SpinBox,
+            password_line_edit_cls=PasswordLineEdit,
+            win11_toggle_row_cls=Win11ToggleRow,
+            win11_combo_row_cls=Win11ComboRow,
+            on_open_mtproxy=lambda: None,
+            on_generate_mtproxy_secret=lambda: None,
+            on_copy_fake_tls_nginx_config=lambda: None,
+            on_test_cloudflare=lambda: None,
+            on_copy_cloudflare_dns=lambda: None,
+            on_test_cloudflare_worker=lambda: None,
+            on_copy_cloudflare_worker_code=lambda: None,
+            upstream_catalog={"manual": "Manual"},
+        )
+
+        self.assertEqual(widgets.mtproxy_secret_edit.accessibleName(), "Secret MTProxy")
+        self.assertIn("ключ подключения", widgets.mtproxy_secret_edit.accessibleDescription())
+        self.assertEqual(widgets.mtproxy_generate_btn.accessibleName(), "Создать secret MTProxy")
+        self.assertIn("случайный secret", widgets.mtproxy_generate_btn.accessibleDescription())
+        self.assertEqual(widgets.fake_tls_domain_edit.accessibleName(), "Домен MTProxy Fake TLS")
+        self.assertIn("Fake TLS", widgets.fake_tls_domain_edit.accessibleDescription())
+        self.assertEqual(widgets.fake_tls_nginx_btn.accessibleName(), "Скопировать Nginx-конфиг MTProxy Fake TLS")
+        self.assertEqual(widgets.upstream_host_edit.accessibleName(), "Хост upstream-прокси Telegram Proxy")
+        self.assertEqual(widgets.upstream_port_spin.accessibleName(), "Порт upstream-прокси Telegram Proxy")
+        self.assertEqual(widgets.upstream_user_edit.accessibleName(), "Логин upstream-прокси Telegram Proxy")
+        self.assertEqual(widgets.upstream_pass_edit.accessibleName(), "Пароль upstream-прокси Telegram Proxy")
+        self.assertEqual(widgets.mtproxy_action_btn.accessibleName(), "Открыть MTProxy в Telegram")
 
     def test_status_change_sets_screen_reader_state_text(self) -> None:
         status_dot = _AccessibleStatusDot()
