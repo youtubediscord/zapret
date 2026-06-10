@@ -76,6 +76,7 @@ def _update_test_combo_accessibility(combo) -> None:
     name = "Сценарий диагностики"
     if selected:
         name = f"{name}, выбрано: {selected}"
+    set_state_text(combo, name)
     set_control_accessibility(
         combo,
         name=name,

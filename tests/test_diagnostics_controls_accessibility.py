@@ -57,11 +57,19 @@ class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
             combo.accessibleName(),
             "Сценарий диагностики, выбрано: Все тесты (Discord + YouTube)",
         )
+        self.assertEqual(
+            combo.property("screenReaderStateText"),
+            "Сценарий диагностики, выбрано: Все тесты (Discord + YouTube)",
+        )
         self.assertIn("Discord и YouTube", combo.accessibleDescription())
 
         combo.setCurrentIndex(1)
 
         self.assertEqual(combo.accessibleName(), "Сценарий диагностики, выбрано: Только Discord")
+        self.assertEqual(
+            combo.property("screenReaderStateText"),
+            "Сценарий диагностики, выбрано: Только Discord",
+        )
 
     def test_status_text_is_exposed_as_screen_reader_state(self) -> None:
         status_label = CaptionLabel()
