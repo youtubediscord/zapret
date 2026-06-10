@@ -143,7 +143,6 @@ class PresetSetupPageBase(BasePage):
         self._user_profile_delete_request_id = 0
         self._user_profile_delete_runtime = OneShotWorkerRuntime()
         self._user_profile_delete_runtime_worker = None
-        self._pending_user_profile_operations: list[dict[str, str]] = []
         self._profile_payload_loaded_once = False
         self._profile_payload_dirty = True
         self._profile_load_refresh_pending = False
@@ -665,15 +664,6 @@ class PresetSetupPageBase(BasePage):
                         and str(pending.get("profile_id") or "") == profile_id_to_replace
                     )
                 ]
-                pending_user_profiles = self.__dict__.setdefault("_pending_user_profile_operations", [])
-                pending_user_profiles[:] = [
-                    pending
-                    for pending in pending_user_profiles
-                    if not (
-                        str(pending.get("action") or "") == "update"
-                        and str(pending.get("profile_id") or "") == profile_id_to_replace
-                    )
-                ]
         if operation["kind"] == "context" and operation["action"] == "set_enabled":
             profile_key_to_replace = str(operation["profile_key"] or "")
             pending_operations = self._profile_preset_write_state_obj().pending
@@ -730,16 +720,6 @@ class PresetSetupPageBase(BasePage):
                     "destination_group_key": operation["destination_group_key"],
                 }
             )
-        elif operation["kind"] == "user_profile":
-            self.__dict__.setdefault("_pending_user_profile_operations", []).append(
-                {
-                    "action": operation["action"],
-                    "profile_id": str(operation.get("profile_id") or ""),
-                    "name": str(operation.get("name") or ""),
-                    "protocol": str(operation.get("protocol") or ""),
-                    "ports": str(operation.get("ports") or ""),
-                }
-            )
 
     def _pop_next_profile_preset_write_operation(self) -> dict[str, object] | None:
         pending_operations = self._profile_preset_write_state_obj().pending
@@ -753,10 +733,6 @@ class PresetSetupPageBase(BasePage):
                 pending_moves = self.__dict__.setdefault("_pending_profile_moves", [])
                 if pending_moves:
                     pending_moves.pop(0)
-            elif operation.get("kind") == "user_profile":
-                pending_user_profiles = self.__dict__.setdefault("_pending_user_profile_operations", [])
-                if pending_user_profiles:
-                    pending_user_profiles.pop(0)
             return operation
         pending_context = self.__dict__.setdefault("_pending_profile_context_actions", [])
         if pending_context:
@@ -782,22 +758,6 @@ class PresetSetupPageBase(BasePage):
                 "destination_profile_key": str(pending.get("destination_profile_key") or ""),
                 "destination_group_key": str(pending.get("destination_group_key") or ""),
             }
-        pending_user_profiles = self.__dict__.setdefault("_pending_user_profile_operations", [])
-        if pending_user_profiles:
-            pending = dict(pending_user_profiles.pop(0))
-            return {
-                "kind": "user_profile",
-                "action": str(pending.get("action") or ""),
-                "profile_key": str(pending.get("profile_id") or ""),
-                "enabled": None,
-                "source_profile_key": "",
-                "destination_profile_key": "",
-                "destination_group_key": "",
-                "profile_id": str(pending.get("profile_id") or ""),
-                "name": str(pending.get("name") or ""),
-                "protocol": str(pending.get("protocol") or ""),
-                "ports": str(pending.get("ports") or ""),
-            }
         return None
 
     def _has_pending_profile_preset_write_operation(self) -> bool:
@@ -806,9 +766,11 @@ class PresetSetupPageBase(BasePage):
             for attr in (
                 "_pending_profile_context_actions",
                 "_pending_profile_moves",
-                "_pending_user_profile_operations",
             )
         ) or self._profile_preset_write_state_obj().has_pending()
+
+    def _has_pending_user_profile_operation(self) -> bool:
+        return bool(self._pending_user_profile_operations)
 
     def _schedule_next_profile_preset_write_operation_start(self) -> bool:
         if self._profile_preset_write_operation_running():
@@ -835,6 +797,10 @@ class PresetSetupPageBase(BasePage):
         runtime = self.__dict__.get("_profile_context_action_runtime")
         if state is None:
             pending = list(self.__dict__.pop("_pending_profile_preset_write_operations", []) or [])
+            pending.extend(
+                self._profile_preset_write_operation_from_user_profile_operation(operation)
+                for operation in list(self.__dict__.pop("_pending_user_profile_operations", []) or [])
+            )
             start_scheduled = bool(self.__dict__.pop("_profile_preset_write_operation_start_scheduled", False))
             state = QueuedWorkerState(
                 runtime,
@@ -861,6 +827,59 @@ class PresetSetupPageBase(BasePage):
     @_profile_preset_write_operation_start_scheduled.setter
     def _profile_preset_write_operation_start_scheduled(self, value: bool) -> None:
         self._profile_preset_write_state_obj().start_scheduled = bool(value)
+
+    @staticmethod
+    def _profile_preset_write_operation_from_user_profile_operation(operation) -> dict[str, object]:
+        pending = dict(operation or {})
+        profile_id = str(pending.get("profile_id") or "")
+        return {
+            "kind": "user_profile",
+            "action": str(pending.get("action") or ""),
+            "profile_key": profile_id,
+            "enabled": None,
+            "source_profile_key": "",
+            "destination_profile_key": "",
+            "destination_group_key": "",
+            "profile_id": profile_id,
+            "name": str(pending.get("name") or ""),
+            "protocol": str(pending.get("protocol") or ""),
+            "ports": str(pending.get("ports") or ""),
+        }
+
+    @staticmethod
+    def _user_profile_operation_from_profile_preset_write_operation(operation) -> dict[str, str] | None:
+        pending = dict(operation or {})
+        if str(pending.get("kind") or "") != "user_profile":
+            return None
+        return {
+            "action": str(pending.get("action") or ""),
+            "profile_id": str(pending.get("profile_id") or pending.get("profile_key") or ""),
+            "name": str(pending.get("name") or ""),
+            "protocol": str(pending.get("protocol") or ""),
+            "ports": str(pending.get("ports") or ""),
+        }
+
+    @property
+    def _pending_user_profile_operations(self) -> list[dict[str, str]]:
+        operations: list[dict[str, str]] = []
+        for operation in self._profile_preset_write_state_obj().pending:
+            user_profile_operation = self._user_profile_operation_from_profile_preset_write_operation(operation)
+            if user_profile_operation is not None:
+                operations.append(user_profile_operation)
+        return operations
+
+    @_pending_user_profile_operations.setter
+    def _pending_user_profile_operations(self, value: list[dict[str, str]]) -> None:
+        state = self._profile_preset_write_state_obj()
+        state.pending[:] = [
+            operation
+            for operation in state.pending
+            if str(operation.get("kind") or "") != "user_profile"
+        ]
+        state.pending.extend(
+            self._profile_preset_write_operation_from_user_profile_operation(operation)
+            for operation in list(value or [])
+        )
 
     def _start_next_profile_preset_write_operation(self) -> bool:
         if self._profile_preset_write_operation_running():
@@ -1215,7 +1234,7 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_create_finished(self, request_id: int, _profile_id: str, profile_item=None) -> None:
         if request_id != int(getattr(self, "_user_profile_create_request_id", 0) or 0):
             return
-        if self.__dict__.get("_pending_user_profile_operations"):
+        if self._has_pending_user_profile_operation():
             return
         InfoBar.success(
             title="Profile добавлен",
@@ -1238,7 +1257,7 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_create_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_user_profile_create_request_id", 0) or 0):
             return
-        if self.__dict__.get("_pending_user_profile_operations"):
+        if self._has_pending_user_profile_operation():
             return
         log(f"{self.__class__.__name__}: не удалось создать пользовательский profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -1296,7 +1315,7 @@ class PresetSetupPageBase(BasePage):
     ) -> None:
         if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
             return
-        if self.__dict__.get("_pending_user_profile_operations"):
+        if self._has_pending_user_profile_operation():
             return
         InfoBar.success(
             title="Profile изменён",
@@ -1319,7 +1338,7 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_update_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_user_profile_update_request_id", 0) or 0):
             return
-        if self.__dict__.get("_pending_user_profile_operations"):
+        if self._has_pending_user_profile_operation():
             return
         log(f"{self.__class__.__name__}: не удалось изменить пользовательский profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -1365,7 +1384,7 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_delete_finished(self, request_id: int, _profile_id: str, changed: int) -> None:
         if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
             return
-        if self.__dict__.get("_pending_user_profile_operations"):
+        if self._has_pending_user_profile_operation():
             return
         InfoBar.success(
             title="Profile удалён",
@@ -1388,7 +1407,7 @@ class PresetSetupPageBase(BasePage):
     def _on_user_profile_delete_failed(self, request_id: int, error: str) -> None:
         if request_id != int(getattr(self, "_user_profile_delete_request_id", 0) or 0):
             return
-        if self.__dict__.get("_pending_user_profile_operations"):
+        if self._has_pending_user_profile_operation():
             return
         log(f"{self.__class__.__name__}: не удалось удалить пользовательский profile: {error}", "ERROR")
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
@@ -1859,7 +1878,6 @@ class PresetSetupPageBase(BasePage):
         self.__dict__.setdefault("_pending_profile_context_actions", []).clear()
         self.__dict__.setdefault("_pending_profile_moves", []).clear()
         self._profile_preset_write_state_obj().reset()
-        self.__dict__.setdefault("_pending_user_profile_operations", []).clear()
         self._pending_profile_payload_apply = None
         self._profile_payload_apply_scheduled = False
         self._profile_folder_action_state_obj().reset()

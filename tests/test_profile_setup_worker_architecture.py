@@ -584,6 +584,48 @@ class ProfileSetupWorkerArchitectureTests(unittest.TestCase):
         ):
             self.assertNotIn(attr, page_source)
 
+    def test_user_profile_write_queue_uses_shared_profile_preset_queued_state(self) -> None:
+        from profile.ui.preset_setup_page import PresetSetupPageBase
+        from ui.queued_worker_state import QueuedWorkerState
+
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profile_context_action_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+
+        init_source = inspect.getsource(PresetSetupPageBase.__init__)
+        queue_source = inspect.getsource(PresetSetupPageBase._queue_profile_preset_write_operation)
+        pop_source = inspect.getsource(PresetSetupPageBase._pop_next_profile_preset_write_operation)
+        has_pending_source = inspect.getsource(PresetSetupPageBase._has_pending_profile_preset_write_operation)
+        schedule_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_start)
+        cleanup_source = inspect.getsource(PresetSetupPageBase.cleanup)
+
+        self.assertIsInstance(page._profile_preset_write_state_obj(), QueuedWorkerState)
+        page._pending_user_profile_operations = [
+            {
+                "action": "update",
+                "profile_id": "user-1",
+                "name": "Latest",
+                "protocol": "udp",
+                "ports": "443",
+            }
+        ]
+        self.assertEqual(
+            [
+                (
+                    operation.get("kind"),
+                    operation.get("action"),
+                    operation.get("profile_id"),
+                )
+                for operation in page._profile_preset_write_state_obj().pending
+            ],
+            [("user_profile", "update", "user-1")],
+        )
+        self.assertIn("_profile_preset_write_state_obj()", queue_source)
+        self.assertIn("_profile_preset_write_state_obj()", pop_source)
+        self.assertIn("_profile_preset_write_state_obj()", has_pending_source)
+        self.assertIn("_profile_preset_write_state_obj()", schedule_source)
+        self.assertIn("_profile_preset_write_state_obj().reset()", cleanup_source)
+        self.assertNotIn("self._pending_user_profile_operations", init_source)
+
     def test_profile_folder_action_waits_while_restart_is_scheduled(self) -> None:
         from profile.ui.preset_setup_page import PresetSetupPageBase
 
