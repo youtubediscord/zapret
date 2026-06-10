@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from qfluentwidgets import FluentIcon
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import QuickActionsBar, set_tooltip
 
 
@@ -69,6 +69,7 @@ def build_force_dns_card_ui(
     force_dns_btn = action_button_cls(force_dns_button_text, icon=FluentIcon.POWER_BUTTON)
     force_dns_btn.clicked.connect(lambda _checked=False: on_toggle())
     set_tooltip(force_dns_btn, force_dns_button_description)
+    set_state_text(force_dns_btn, force_dns_button_text)
     set_control_accessibility(
         force_dns_btn,
         name=force_dns_button_text,
@@ -85,9 +86,11 @@ def build_force_dns_card_ui(
         "DNS будет снова получаться автоматически от роутера или провайдера через DHCP. Это полезно, если интернет работает нестабильно после ручной настройки DNS.",
     )
     set_tooltip(force_dns_reset_dhcp_btn, reset_description)
+    reset_name = tr_fn("page.network.force_dns.reset.accessible_name", "Вернуть DNS автоматически")
+    set_state_text(force_dns_reset_dhcp_btn, reset_name)
     set_control_accessibility(
         force_dns_reset_dhcp_btn,
-        name=tr_fn("page.network.force_dns.reset.accessible_name", "Вернуть DNS автоматически"),
+        name=reset_name,
         description=reset_description,
     )
 

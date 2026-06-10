@@ -18,7 +18,7 @@ from qfluentwidgets import (
 from ui.pages.base_page import BasePage
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.widgets.win11_controls import Win11ToggleRow
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import (
     SettingsCard,
     QuickActionsBar,
@@ -1282,6 +1282,7 @@ class NetworkPage(BasePage):
         except Exception:
             pass
         set_tooltip(button, description)
+        set_state_text(button, text)
         set_control_accessibility(button, name=text, description=description)
     
     def _update_force_dns_status(
