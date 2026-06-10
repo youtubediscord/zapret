@@ -36,6 +36,7 @@ from ui.fluent_widgets import (
 )
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+from ui.queued_worker_state import QueuedWorkerState
 from app.state_store import AppUiState, MainWindowStateStore
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.accessibility import set_control_accessibility, set_state_text
@@ -195,8 +196,9 @@ class AppearancePage(BasePage):
         self._background_refresh_queued = False
         self._cleanup_in_progress = False
         self._appearance_save_runtime = OneShotWorkerRuntime()
-        self._appearance_save_pending: list[dict[str, object]] = []
-        self._appearance_save_start_scheduled = False
+        self._appearance_save_state = QueuedWorkerState[dict[str, object]](
+            self._appearance_save_runtime
+        )
         self._initial_state_load_runtime = OneShotWorkerRuntime()
         self._initial_state_load_state = LatestValueWorkerState(
             self._initial_state_load_runtime,
@@ -885,29 +887,65 @@ class AppearancePage(BasePage):
             "value": value,
             "context_extra": dict(context_extra or {}),
         }
-        if self._appearance_save_runtime.is_running() or self.__dict__.get("_appearance_save_start_scheduled", False):
-            self._queue_appearance_save_payload(payload)
-            self._coalesce_appearance_save_pending()
-            return
-        self._start_appearance_save_worker(payload)
+        state = self._appearance_save_state_obj()
+        state.start_or_queue(
+            payload,
+            self._start_appearance_save_worker,
+            self._queue_appearance_save_payload,
+        )
 
     def _queue_appearance_save_payload(self, payload: dict[str, object]) -> None:
-        self._appearance_save_pending.append(payload)
+        queued = dict(payload or {})
+        action = str(queued.get("action") or "")
+        pending = self._appearance_save_state_obj().pending
+        for index, existing in enumerate(tuple(pending)):
+            if str((existing or {}).get("action") or "") == action:
+                pending[index] = queued
+                return
+        pending.append(queued)
 
     def _coalesce_appearance_save_pending(self) -> None:
         latest_by_action: dict[str, dict[str, object]] = {}
         order: list[str] = []
-        for payload in self._appearance_save_pending:
+        state = self._appearance_save_state_obj()
+        for payload in state.pending:
             action = str(payload.get("action") or "")
             if action not in latest_by_action:
                 order.append(action)
             latest_by_action[action] = payload
-        self._appearance_save_pending = [latest_by_action[action] for action in order]
+        state.pending[:] = [latest_by_action[action] for action in order]
 
     def _has_pending_appearance_save_action(self, action: str) -> bool:
         action = str(action or "")
-        pending_payloads = self.__dict__.get("_appearance_save_pending", [])
+        pending_payloads = self._appearance_save_state_obj().pending
         return any(str(payload.get("action") or "") == action for payload in pending_payloads)
+
+    def _appearance_save_state_obj(self) -> QueuedWorkerState[dict[str, object]]:
+        state = self.__dict__.get("_appearance_save_state")
+        if state is None:
+            runtime = self.__dict__.get("_appearance_save_runtime")
+            if runtime is None:
+                runtime = OneShotWorkerRuntime()
+                self.__dict__["_appearance_save_runtime"] = runtime
+            state = QueuedWorkerState[dict[str, object]](runtime)
+            self.__dict__["_appearance_save_state"] = state
+        return state
+
+    @property
+    def _appearance_save_pending(self):
+        return self._appearance_save_state_obj().pending
+
+    @_appearance_save_pending.setter
+    def _appearance_save_pending(self, value) -> None:
+        self._appearance_save_state_obj().pending = list(value or [])
+
+    @property
+    def _appearance_save_start_scheduled(self) -> bool:
+        return bool(self._appearance_save_state_obj().start_scheduled)
+
+    @_appearance_save_start_scheduled.setter
+    def _appearance_save_start_scheduled(self, value: bool) -> None:
+        self._appearance_save_state_obj().start_scheduled = bool(value)
 
     def _start_appearance_save_worker(self, payload: dict[str, object]) -> None:
         self._appearance_save_runtime.start_qthread_worker(
@@ -988,25 +1026,27 @@ class AppearancePage(BasePage):
     def _on_appearance_save_worker_finished(self, _worker) -> None:
         if not self._is_current_worker_finish(self.__dict__.get("_appearance_save_runtime"), _worker):
             return
-        if self._appearance_save_pending and not self._cleanup_in_progress:
+        if self._appearance_save_state_obj().has_pending() and not self._cleanup_in_progress:
             self._schedule_appearance_save_worker_start()
 
     def _schedule_appearance_save_worker_start(self) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_appearance_save_start_scheduled", False):
+        state = self._appearance_save_state_obj()
+        if state.start_scheduled:
             return
-        self._appearance_save_start_scheduled = True
+        state.start_scheduled = True
         QTimer.singleShot(0, self._run_scheduled_appearance_save_worker_start)
 
     def _run_scheduled_appearance_save_worker_start(self) -> None:
-        self._appearance_save_start_scheduled = False
+        state = self._appearance_save_state_obj()
+        state.start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         self._coalesce_appearance_save_pending()
-        if not self._appearance_save_pending:
+        if not state.has_pending():
             return
-        payload = self._appearance_save_pending.pop(0)
+        payload = state.pop_next()
         self._start_appearance_save_worker(dict(payload or {}))
 
     def _on_display_mode_changed(self, mode: str):
@@ -1755,8 +1795,7 @@ class AppearancePage(BasePage):
             except Exception:
                 pass
 
-        self._appearance_save_pending.clear()
-        self._appearance_save_start_scheduled = False
+        self._appearance_save_state_obj().reset()
         self._initial_state_load_state_obj().reset()
         self._windows_accent_load_state_obj().reset()
         self._rkn_background_options_state_obj().reset()
