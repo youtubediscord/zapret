@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -14,8 +15,9 @@ from donater.ui.build import (
 )
 from donater.ui.page_plans import build_connection_test_start_plan
 from donater.ui.pairing_workflow import apply_pair_code_result_ui, apply_pair_code_start_ui
-from donater.ui.page_lifecycle import apply_premium_language
-from donater.ui.status_workflow import apply_connection_test_plan
+from donater.ui.page_lifecycle import apply_premium_language, render_activation_status_label
+from donater.ui.status_workflow import apply_connection_test_plan, render_server_status_label
+from donater.ui.page import PremiumPage
 
 
 class PremiumControlsAccessibilityTests(unittest.TestCase):
@@ -154,6 +156,64 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: ABCD12EF")
         self.assertEqual(activation.key_input.property("screenReaderStateText"), "Код привязки Premium: ABCD12EF")
+
+    def test_premium_status_labels_expose_state_text(self) -> None:
+        activation = build_premium_activation_section(
+            tr=lambda _key, default: default,
+            on_create_pair_code=lambda: None,
+        )
+        device = build_premium_device_info_section(
+            tr=lambda _key, default, **kwargs: default.format(**kwargs),
+            on_open_bot=lambda: None,
+        )
+
+        render_activation_status_label(
+            activation_status_state={
+                "text_key": "page.premium.activation.created",
+                "text_default": "Код создан: {code}",
+                "text_kwargs": {"code": "ABCD12EF"},
+            },
+            tr_fn=lambda _key, default, **kwargs: default.format(**kwargs),
+            activation_status_label=activation.activation_status,
+        )
+        render_server_status_label(
+            device.server_status_label,
+            tr=lambda _key, default, **kwargs: default.format(**kwargs),
+            mode="result",
+            message="соединение работает",
+            success=True,
+        )
+
+        self.assertEqual(
+            activation.activation_status.property("screenReaderStateText"),
+            "Статус Premium-активации: Код создан: ABCD12EF",
+        )
+        self.assertEqual(
+            device.server_status_label.property("screenReaderStateText"),
+            "Статус Premium-сервера: соединение работает",
+        )
+
+    def test_premium_page_activation_status_updates_state_text(self) -> None:
+        activation = build_premium_activation_section(
+            tr=lambda _key, default: default,
+            on_create_pair_code=lambda: None,
+        )
+        page = SimpleNamespace(
+            activation_status=activation.activation_status,
+            _tr=lambda _key, default, **kwargs: default.format(**kwargs),
+        )
+
+        PremiumPage._set_activation_status(
+            page,
+            text_key="page.premium.activation.created",
+            text_default="Код создан: {code}",
+            text_kwargs={"code": "ABCD12EF"},
+        )
+
+        self.assertEqual(
+            activation.activation_status.property("screenReaderStateText"),
+            "Статус Premium-активации: Код создан: ABCD12EF",
+        )
 
 
 if __name__ == "__main__":

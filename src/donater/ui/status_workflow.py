@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import donater.ui.page_plans as premium_page_plans
 from donater.ui.accessibility import apply_premium_button_accessibility
+from ui.accessibility import set_state_text
 
 
 def render_server_status_label(
@@ -20,16 +21,19 @@ def render_server_status_label(
         label.setText(
             tr("page.premium.connection.progress.testing", "🔄 Проверка соединения...")
         )
+        set_state_text(label, "Статус Premium-сервера: Проверка соединения...")
         return
     if mode == "idle":
         label.setText(
             tr("page.premium.label.server.idle", "Сервер: нажмите «Проверить соединение»")
         )
+        set_state_text(label, "Статус Premium-сервера: нажмите Проверить соединение")
         return
     if mode == "init_error":
         label.setText(
             tr("page.premium.activation.error.init", "❌ Ошибка инициализации")
         )
+        set_state_text(label, "Статус Premium-сервера: Ошибка инициализации")
         return
     if mode == "result":
         icon = "✅" if success else "❌"
@@ -41,6 +45,7 @@ def render_server_status_label(
                 message=message,
             )
         )
+        set_state_text(label, f"Статус Premium-сервера: {message}")
         return
     if mode == "error":
         label.setText(
@@ -50,9 +55,11 @@ def render_server_status_label(
                 error=message,
             )
         )
+        set_state_text(label, f"Статус Premium-сервера: Ошибка: {message}")
         return
 
     label.setText(tr("page.premium.label.server.checking", "Сервер: проверка..."))
+    set_state_text(label, "Статус Premium-сервера: проверка...")
 
 
 def build_status_check_hints(*, tr: Callable[[str, str], str]) -> tuple[str, str]:

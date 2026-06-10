@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from donater.ui.accessibility import apply_premium_button_accessibility, apply_premium_pair_code_accessibility
+from ui.accessibility import set_state_text
 from ui.fluent_widgets import set_tooltip
 
 
@@ -42,15 +43,16 @@ def render_activation_status_label(
 ) -> None:
     text_key = activation_status_state.get("text_key")
     if text_key:
-        activation_status_label.setText(
-            tr_fn(
-                text_key,
-                activation_status_state.get("text_default") or "",
-                **(activation_status_state.get("text_kwargs") or {}),
-            )
+        text = tr_fn(
+            text_key,
+            activation_status_state.get("text_default") or "",
+            **(activation_status_state.get("text_kwargs") or {}),
         )
-        return
-    activation_status_label.setText(activation_status_state.get("text") or "")
+    else:
+        text = activation_status_state.get("text") or ""
+    activation_status_label.setText(text)
+    if text:
+        set_state_text(activation_status_label, f"Статус Premium-активации: {text}")
 
 
 def bind_premium_subscription_state_store(

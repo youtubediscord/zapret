@@ -52,6 +52,7 @@ from donater.ui.status_workflow import (
 from app.state_store import AppUiState, MainWindowStateStore
 from ui.theme_semantic import get_semantic_palette
 from app.ui_texts import tr as tr_catalog
+from ui.accessibility import set_state_text
 
 
 def _premium_action_runtime_running(page) -> bool:
@@ -249,6 +250,8 @@ class PremiumPage(BasePage):
             "text_kwargs": dict(plan.text_kwargs),
         }
         self.activation_status.setText(resolved_text)
+        if resolved_text:
+            set_state_text(self.activation_status, f"Статус Premium-активации: {resolved_text}")
 
     def bind_subscription_state_store(self, store: MainWindowStateStore) -> None:
         bind_premium_subscription_state_store(
