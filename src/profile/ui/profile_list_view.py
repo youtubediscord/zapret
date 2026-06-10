@@ -255,7 +255,38 @@ class ProfileListView(ListView):
                     self.profile_activated.emit(profile_key)
                     event.accept()
                     return
+        if event.key() == Qt.Key.Key_Menu or (
+            event.key() == Qt.Key.Key_F10 and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        ):
+            if self._emit_context_requested_for_current_index():
+                event.accept()
+                return
         super().keyPressEvent(event)
+
+    def _emit_context_requested_for_current_index(self) -> bool:
+        index = self.currentIndex()
+        if not index.isValid():
+            return False
+        kind = str(index.data(ProfileListModel.KindRole) or "")
+        if kind not in {"profile", "folder"}:
+            return False
+        rect = self.visualRect(index)
+        if rect.isValid():
+            point = rect.center()
+        else:
+            point = QPoint(0, 0)
+        global_point = self.viewport().mapToGlobal(point)
+        if kind == "profile":
+            profile_key = str(index.data(ProfileListModel.ProfileKeyRole) or "")
+            if not profile_key:
+                return False
+            self.profile_context_requested.emit(profile_key, global_point)
+            return True
+        group_key = str(index.data(ProfileListModel.GroupRole) or "")
+        if not group_key:
+            return False
+        self.folder_context_requested.emit(group_key, global_point)
+        return True
 
     def dragEnterEvent(self, event):  # noqa: N802
         if event.mimeData().hasFormat(ProfileListModel.MIME_TYPE):

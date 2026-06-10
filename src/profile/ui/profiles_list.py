@@ -92,7 +92,10 @@ class ProfilesList(QWidget):
 
         self._model = ProfileListModel(self)
         self._view = ProfileListView(self)
-        profile_list_description = "Выберите profile стрелками вверх и вниз. Enter открывает выбранный profile."
+        profile_list_description = (
+            "Выберите profile стрелками вверх и вниз. Enter открывает выбранный profile, "
+            "клавиша меню открывает действия."
+        )
         set_control_accessibility(self, name="Список профилей", description=profile_list_description)
         set_control_accessibility(self._view, name="Список профилей", description=profile_list_description)
         self._view.setModel(self._model)
