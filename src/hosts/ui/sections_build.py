@@ -233,8 +233,10 @@ def build_hosts_adobe_section(
 
 def _update_adobe_switch_accessibility(switch, *, title: str, description: str, checked: bool) -> None:
     state = "включено" if bool(checked) else "выключено"
+    state_text = f"{title}, {state}"
+    set_state_text(switch, state_text)
     set_control_accessibility(
         switch,
-        name=f"{title}, {state}",
+        name=state_text,
         description=description,
     )

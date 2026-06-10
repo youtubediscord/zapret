@@ -61,11 +61,13 @@ class HostsStatusAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(widgets.switch.accessibleName(), "Блокировка Adobe, выключено")
+        self.assertEqual(widgets.switch.property("screenReaderStateText"), "Блокировка Adobe, выключено")
         self.assertIn("Блокирует серверы проверки активации Adobe", widgets.switch.accessibleDescription())
 
         widgets.switch.setChecked(True)
 
         self.assertEqual(widgets.switch.accessibleName(), "Блокировка Adobe, включено")
+        self.assertEqual(widgets.switch.property("screenReaderStateText"), "Блокировка Adobe, включено")
 
 
 if __name__ == "__main__":
