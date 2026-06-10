@@ -189,7 +189,7 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
             widgets.preset_search_input: ("Поиск пресетов", "Поиск пресетов по имени"),
             widgets.presets_list: (
                 "Список пользовательских пресетов",
-                "Стрелки выбирают пресет, Enter делает выбранный пресет активным, клавиша меню открывает действия",
+                "Стрелки выбирают пресет, Enter делает выбранный пресет активным, PageUp и PageDown перемещают пресет, клавиша меню открывает действия",
             ),
         }
         for widget, (name, description) in expected.items():
