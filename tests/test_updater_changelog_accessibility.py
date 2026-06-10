@@ -41,6 +41,16 @@ class UpdaterChangelogAccessibilityTests(unittest.TestCase):
             card.progress_label.property("screenReaderStateText"),
             "Ход скачивания обновления: 0%",
         )
+        self.assertEqual(card._progress_indeterminate.accessibleName(), "Подготовка скачивания обновления")
+        self.assertEqual(
+            card._progress_indeterminate.property("screenReaderStateText"),
+            "Подготовка скачивания обновления",
+        )
+        self.assertEqual(card.progress_bar.accessibleName(), "Прогресс скачивания обновления: 0%")
+        self.assertEqual(
+            card.progress_bar.property("screenReaderStateText"),
+            "Прогресс скачивания обновления: 0%",
+        )
         self.assertEqual(card.speed_label.accessibleName(), "Скорость скачивания обновления: Скорость: —")
         self.assertEqual(
             card.speed_label.property("screenReaderStateText"),

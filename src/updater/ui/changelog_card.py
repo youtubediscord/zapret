@@ -199,6 +199,8 @@ class ChangelogCard(CardWidget):
         self._set_label_state(self.progress_label, "Ход скачивания обновления")
         self._set_label_state(self.speed_label, "Скорость скачивания обновления")
         self._set_label_state(self.eta_label, "Осталось до завершения обновления")
+        set_state_text(self._progress_indeterminate, "Подготовка скачивания обновления")
+        self._set_label_state(self.progress_bar, "Прогресс скачивания обновления")
 
     def _set_label_state(self, label, prefix: str) -> None:
         try:
