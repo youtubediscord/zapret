@@ -794,7 +794,12 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         if self._cleanup_in_progress:
             return
         changed = set(changed_fields or ())
+        runtime = self.__dict__.get("_refresh_runtime")
         presets_changed = "active_preset_revision" in changed
+        preset_apply_busy = bool(
+            getattr(state, "launch_busy", False)
+            and "Применяем пресет" in str(getattr(state, "launch_busy_text", "") or "")
+        )
         top_summary_data_changed = (
             not changed
             or "current_strategy_summary" in changed
@@ -819,15 +824,21 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self._refresh_top_summary(state)
         elif top_summary_premium_changed:
             self._apply_top_summary_premium(state)
-        if presets_changed:
-            try:
-                self._schedule_top_summary_reload_after_preset_switch()
-            except Exception:
-                pass
-            self._refresh_runtime.additional_settings_dirty = True
+        if presets_changed and runtime is not None:
+            if preset_apply_busy:
+                runtime.top_summary_reload_after_preset_apply_pending = True
+            else:
+                try:
+                    self._schedule_top_summary_reload_after_preset_switch()
+                except Exception:
+                    pass
+            runtime.additional_settings_dirty = True
             if not self.isVisible():
                 self.run_when_page_ready(self._apply_pending_mode_refresh_if_ready)
-            self._schedule_additional_settings_reload_after_preset_switch()
+            if preset_apply_busy:
+                runtime.additional_settings_reload_after_preset_apply_pending = True
+            else:
+                self._schedule_additional_settings_reload_after_preset_switch()
         if not changed or "last_status_message" in changed:
             self._refresh_last_status_message(state)
         if runtime_status_changed:
@@ -836,6 +847,16 @@ class Zapret2ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
                 state.launch_phase or ("running" if state.launch_running else "stopped"),
                 str(state.launch_last_error or ""),
             )
+            if runtime is not None and not preset_apply_busy:
+                if bool(getattr(runtime, "top_summary_reload_after_preset_apply_pending", False)):
+                    runtime.top_summary_reload_after_preset_apply_pending = False
+                    try:
+                        self._schedule_top_summary_reload_after_preset_switch()
+                    except Exception:
+                        pass
+                if bool(getattr(runtime, "additional_settings_reload_after_preset_apply_pending", False)):
+                    runtime.additional_settings_reload_after_preset_apply_pending = False
+                    self._schedule_additional_settings_reload_after_preset_switch()
         if strategy_changed:
             self.update_strategy(str(state.current_strategy_summary or ""))
 

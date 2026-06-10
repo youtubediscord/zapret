@@ -111,6 +111,63 @@ class ControlTopSummaryRefreshGuardTests(unittest.TestCase):
 
                 page._request_top_summary_worker.assert_called_once_with()
 
+    def test_control_pages_wait_until_preset_apply_finishes_before_top_summary_reload(self) -> None:
+        from presets.ui.control.refresh_runtime_state import ModeControlRefreshRuntime
+        from presets.ui.control.zapret1.page import Zapret1ModeControlPage
+        from presets.ui.control.zapret2.page import Zapret2ModeControlPage
+
+        for page_cls, module_name in (
+            (Zapret1ModeControlPage, "presets.ui.control.zapret1.page"),
+            (Zapret2ModeControlPage, "presets.ui.control.zapret2.page"),
+        ):
+            with self.subTest(page_cls=page_cls.__name__):
+                runtime = ModeControlRefreshRuntime()
+                page = page_cls.__new__(page_cls)
+                page._cleanup_in_progress = False
+                page._refresh_runtime = runtime
+                page.isVisible = Mock(return_value=True)
+                page.run_when_page_ready = Mock()
+                page._request_top_summary_worker = Mock()
+                page._schedule_additional_settings_reload_after_preset_switch = Mock()
+                page.set_loading = Mock()
+                page.update_status = Mock()
+                page.update_strategy = Mock()
+                page._refresh_last_status_message = Mock()
+
+                callbacks = []
+                with patch(
+                    f"{module_name}.QTimer.singleShot",
+                    side_effect=lambda delay_ms, callback: callbacks.append((delay_ms, callback)),
+                ):
+                    page_cls._on_ui_state_changed(
+                        page,
+                        AppUiState(
+                            current_strategy_summary="Профили",
+                            launch_busy=True,
+                            launch_busy_text="Применяем пресет...",
+                        ),
+                        frozenset({"active_preset_revision", "launch_busy", "launch_busy_text"}),
+                    )
+
+                page._request_top_summary_worker.assert_not_called()
+                self.assertEqual(callbacks, [])
+                self.assertTrue(runtime.top_summary_reload_after_preset_apply_pending)
+
+                with patch(
+                    f"{module_name}.QTimer.singleShot",
+                    side_effect=lambda delay_ms, callback: callbacks.append((delay_ms, callback)),
+                ):
+                    page_cls._on_ui_state_changed(
+                        page,
+                        AppUiState(current_strategy_summary="Профили", launch_busy=False),
+                        frozenset({"launch_busy", "launch_busy_text"}),
+                    )
+
+                self.assertFalse(runtime.top_summary_reload_after_preset_apply_pending)
+                self.assertEqual(len(callbacks), 1)
+                callbacks[0][1]()
+                page._request_top_summary_worker.assert_called_once_with()
+
 
 if __name__ == "__main__":
     unittest.main()

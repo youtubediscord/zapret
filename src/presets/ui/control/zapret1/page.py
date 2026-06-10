@@ -742,10 +742,19 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
         if self._cleanup_in_progress:
             return
         changed = set(changed_fields or ())
-        if "active_preset_revision" in changed:
-            self._refresh_runtime.additional_settings_dirty = True
-            self._schedule_top_summary_reload_after_preset_switch()
-            self._schedule_additional_settings_reload_after_preset_switch()
+        runtime = self.__dict__.get("_refresh_runtime")
+        preset_apply_busy = bool(
+            getattr(state, "launch_busy", False)
+            and "Применяем пресет" in str(getattr(state, "launch_busy_text", "") or "")
+        )
+        if "active_preset_revision" in changed and runtime is not None:
+            runtime.additional_settings_dirty = True
+            if preset_apply_busy:
+                runtime.top_summary_reload_after_preset_apply_pending = True
+                runtime.additional_settings_reload_after_preset_apply_pending = True
+            else:
+                self._schedule_top_summary_reload_after_preset_switch()
+                self._schedule_additional_settings_reload_after_preset_switch()
         top_summary_data_changed = (
             not changed
             or "current_strategy_summary" in changed
@@ -772,6 +781,13 @@ class Zapret1ModeControlPage(ControlPageWindowsFeatureMixin, ControlPageActionMi
             self._apply_top_summary_premium(state)
         if runtime_status_changed:
             self.set_loading(bool(state.launch_busy), str(state.launch_busy_text or ""))
+            if runtime is not None and not preset_apply_busy:
+                if bool(getattr(runtime, "top_summary_reload_after_preset_apply_pending", False)):
+                    runtime.top_summary_reload_after_preset_apply_pending = False
+                    self._schedule_top_summary_reload_after_preset_switch()
+                if bool(getattr(runtime, "additional_settings_reload_after_preset_apply_pending", False)):
+                    runtime.additional_settings_reload_after_preset_apply_pending = False
+                    self._schedule_additional_settings_reload_after_preset_switch()
         if not changed or "last_status_message" in changed:
             self._refresh_last_status_message(state)
         if runtime_status_changed:

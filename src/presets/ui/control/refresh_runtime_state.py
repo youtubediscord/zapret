@@ -13,6 +13,7 @@ class ModeControlRefreshRuntime:
             empty_value=False,
         )
         self.additional_settings_reload_after_preset_switch_scheduled = False
+        self.additional_settings_reload_after_preset_apply_pending = False
         self.additional_settings_save_runtime = OneShotWorkerRuntime()
         self.additional_settings_save_state = QueuedWorkerState[tuple[str, bool, str]](
             self.additional_settings_save_runtime,
@@ -23,6 +24,7 @@ class ModeControlRefreshRuntime:
         self.top_summary_runtime = OneShotWorkerRuntime()
         self.top_summary_state = LatestValueWorkerState(self.top_summary_runtime, empty_value=False)
         self.top_summary_reload_after_preset_switch_scheduled = False
+        self.top_summary_reload_after_preset_apply_pending = False
         self.top_summary_request_id = 0
         self.program_settings_load_runtime = OneShotWorkerRuntime()
         self.program_settings_load_state = LatestValueWorkerState(
@@ -204,9 +206,11 @@ class ModeControlRefreshRuntime:
     def stop_workers(self, *, log_fn=None) -> None:
         self.additional_settings_load_start_scheduled = False
         self.additional_settings_reload_after_preset_switch_scheduled = False
+        self.additional_settings_reload_after_preset_apply_pending = False
         self.additional_settings_save_start_scheduled = False
         self.top_summary_start_scheduled = False
         self.top_summary_reload_after_preset_switch_scheduled = False
+        self.top_summary_reload_after_preset_apply_pending = False
         self.program_settings_load_start_scheduled = False
         self.program_settings_save_start_scheduled = False
         for runtime, label in (
