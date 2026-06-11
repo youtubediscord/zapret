@@ -138,8 +138,15 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
         self.assertIn("проверяет соединения", widgets.btn_run_diag.accessibleDescription().lower())
         self.assertEqual(widgets.btn_copy_diag.accessibleName(), "Копировать результат диагностики Telegram Proxy")
         self.assertIn("копирует результат", widgets.btn_copy_diag.accessibleDescription().lower())
-        self.assertEqual(widgets.diag_edit.accessibleName(), "Результат диагностики Telegram Proxy")
+        self.assertEqual(
+            widgets.diag_edit.accessibleName(),
+            "Результат диагностики Telegram Proxy: диагностика пока не запускалась",
+        )
         self.assertIn("подробный результат", widgets.diag_edit.accessibleDescription())
+        self.assertEqual(
+            widgets.diag_edit.property("screenReaderStateText"),
+            "Результат диагностики Telegram Proxy: диагностика пока не запускалась",
+        )
 
     def test_advanced_settings_fields_are_named_for_screen_reader(self) -> None:
         parent = QWidget()

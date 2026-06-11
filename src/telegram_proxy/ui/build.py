@@ -227,6 +227,7 @@ def build_telegram_proxy_diag_panel(
         name="Результат диагностики Telegram Proxy",
         description="Показывает подробный результат диагностики Telegram Proxy.",
     )
+    set_state_text(diag_edit, "Результат диагностики Telegram Proxy: диагностика пока не запускалась")
     apply_text_line_limit(diag_edit, TELEGRAM_PROXY_DIAG_VIEW_MAX_LINES)
     layout.addWidget(diag_edit)
 
