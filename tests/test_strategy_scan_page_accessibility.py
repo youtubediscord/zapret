@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import CaptionLabel
 
@@ -69,6 +70,26 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page._log_edit.accessibleName(), "Подробный лог подбора стратегии")
         self.assertEqual(page._expand_log_btn.accessibleName(), "Развернуть лог подбора стратегии")
         self.assertEqual(page._prepare_support_btn.accessibleName(), "Подготовить обращение по подбору стратегии")
+
+    def test_protocol_combo_menu_items_are_named_for_screen_reader(self) -> None:
+        page = StrategyScanPage(
+            blockcheck_feature=_BlockcheckFeatureStub(),
+            create_strategy_scan_worker=lambda *_args, **_kwargs: None,
+        )
+        self.addCleanup(page.deleteLater)
+        create_menu = getattr(page._protocol_combo, "_create_accessible_combo_menu", None)
+        self.assertIsNotNone(create_menu)
+
+        menu = create_menu()
+
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Протокол подбора стратегии: TCP/HTTPS, выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Протокол подбора стратегии: STUN Voice (Discord/Telegram), не выбран",
+        )
 
     def test_runtime_status_updates_state_text_for_screen_reader(self) -> None:
         label = CaptionLabel("Готово к сканированию")

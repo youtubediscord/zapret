@@ -39,6 +39,7 @@ from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.popup_menu import exec_popup_menu
 from ui.accessibility import set_control_accessibility, set_state_text
+from ui.combo_accessibility import set_combo_items_accessibility
 from app.ui_texts import tr as tr_catalog
 from qfluentwidgets import (
     ComboBox,
@@ -1142,6 +1143,7 @@ class StrategyScanPage(BasePage):
             name=state_text,
             description=description,
         )
+        set_combo_items_accessibility(combo, name=name)
 
     def _update_control_accessibility(self, *_args) -> None:
         self._update_combo_accessibility(
