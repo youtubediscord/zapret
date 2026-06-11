@@ -30,14 +30,23 @@ class PostStartupHost:
 
     def confirm_update_install(self, version: str) -> bool:
         from qfluentwidgets import MessageBox
+        from ui.message_box_accessibility import set_message_box_button_accessibility
 
+        body = f"Выпущена версия {version}. Скачать и установить сейчас?"
         box = MessageBox(
             "Доступно обновление",
-            f"Выпущена версия {version}. Скачать и установить сейчас?",
+            body,
             self._window,
         )
         box.yesButton.setText("Скачать и установить")
         box.cancelButton.setText("Позже")
+        set_message_box_button_accessibility(
+            box,
+            yes_name="Скачать и установить обновление",
+            yes_description=body,
+            cancel_name="Отложить установку обновления",
+            cancel_description="Закрывает диалог без установки обновления сейчас.",
+        )
         return bool(box.exec())
 
     def show_page(self, page_name) -> None:
