@@ -3056,6 +3056,39 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             (("profile-1", "profile-2"), "Default.txt", "Default", 1, 2, "state"),
         )
 
+    def test_profile_list_load_result_signature_does_not_keep_profile_objects(self) -> None:
+        from profile.profile_list_loader import ProfileListLoadResult
+
+        item = SimpleNamespace(
+            key="profile:1",
+            persistent_key="p1",
+            profile_index=1,
+            display_name="YouTube",
+            enabled=True,
+            in_preset=True,
+            strategy_id="none",
+            strategy_name="Стратегия не выбрана",
+            match_lines=("--filter-tcp=443", "--hostlist=lists/youtube.txt"),
+            list_type="hostlist",
+            rating="",
+            favorite=False,
+            group="video",
+            group_name="Video",
+            order=2,
+            order_is_manual=False,
+            group_collapsed=False,
+        )
+        payload = SimpleNamespace(
+            items=(item,),
+            selected_preset_file_name="Default.txt",
+            selected_preset_name="Default",
+        )
+
+        result = ProfileListLoadResult(payload=payload)
+
+        self.assertIsNot(result.apply_signature_base[0][0], item)
+        self.assertEqual(result.apply_signature_base[0][0][0], "profile:1")
+
     def test_pending_profile_payload_apply_is_ignored_after_refresh_is_requested(self) -> None:
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page._profile_load_request_id = 8
