@@ -1812,13 +1812,16 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         create_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_create_worker_finished)
         update_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_update_worker_finished)
         delete_finished = inspect.getsource(PresetSetupPageBase._on_user_profile_delete_worker_finished)
+        helper_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_after_finish)
         schedule_source = inspect.getsource(PresetSetupPageBase._schedule_next_profile_preset_write_operation_start)
         run_source = inspect.getsource(PresetSetupPageBase._run_scheduled_profile_preset_write_operation_start)
 
         for source in (context_finished, move_finished, create_finished, update_finished, delete_finished):
-            self.assertIn("_schedule_next_profile_preset_write_operation_start", source)
+            self.assertIn("_schedule_next_profile_preset_write_operation_after_finish", source)
             self.assertNotIn("_start_next_profile_preset_write_operation()", source)
 
+        self.assertIn("schedule_next_after_finish", helper_source)
+        self.assertIn("_accept_current_preset_setup_worker_finished", helper_source)
         self.assertIn("QTimer.singleShot", schedule_source)
         self.assertIn("_run_scheduled_profile_preset_write_operation_start", schedule_source)
         self.assertIn("_start_next_profile_preset_write_operation", run_source)

@@ -806,6 +806,51 @@ class PresetSetupPageBase(BasePage):
             return
         self._start_next_profile_preset_write_operation()
 
+    def _queue_profile_preset_write_operation_from_dict(self, operation: dict[str, object]) -> bool:
+        pending = dict(operation or {})
+        self._queue_profile_preset_write_operation(
+            str(pending.get("kind") or ""),
+            action=str(pending.get("action") or ""),
+            profile_key=str(pending.get("profile_key") or ""),
+            enabled=pending.get("enabled"),
+            source_profile_key=str(pending.get("source_profile_key") or ""),
+            destination_profile_key=str(pending.get("destination_profile_key") or ""),
+            destination_group_key=str(pending.get("destination_group_key") or ""),
+            profile_id=str(pending.get("profile_id") or ""),
+            name=str(pending.get("name") or ""),
+            protocol=str(pending.get("protocol") or ""),
+            ports=str(pending.get("ports") or ""),
+        )
+        return True
+
+    def _schedule_next_profile_preset_write_operation_after_finish(
+        self,
+        request_attr: str,
+        worker,
+    ) -> tuple[bool, bool]:
+        accepted = False
+
+        def _is_current_worker_finish(_runtime, finished_worker) -> bool:
+            nonlocal accepted
+            accepted = self._accept_current_preset_setup_worker_finished(request_attr, finished_worker)
+            return accepted
+
+        def _single_shot(delay: int, callback) -> None:
+            try:
+                QTimer.singleShot(delay, callback)
+            except Exception:
+                callback()
+
+        operation = self._profile_preset_write_state_obj().schedule_next_after_finish(
+            worker,
+            is_current_worker_finish=_is_current_worker_finish,
+            single_shot=_single_shot,
+            start=lambda pending: self._run_profile_preset_write_operation(dict(pending or {})),
+            queue_item=self._queue_profile_preset_write_operation_from_dict,
+            is_cleanup_in_progress=lambda: bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
+        return accepted, operation is not None
+
     def _profile_load_refresh_state_obj(self) -> LatestValueWorkerState:
         state = self.__dict__.get("_profile_load_refresh_state")
         runtime = self.__dict__.get("_profile_load_runtime")
@@ -1036,6 +1081,15 @@ class PresetSetupPageBase(BasePage):
         pending = self._pop_next_profile_preset_write_operation()
         if not pending:
             return False
+        return self._run_profile_preset_write_operation(pending)
+
+    def _run_profile_preset_write_operation(self, pending: dict[str, object] | None) -> bool:
+        pending = dict(pending or {})
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        if self._profile_preset_write_operation_running():
+            self._queue_profile_preset_write_operation_from_dict(pending)
+            return False
         if pending.get("kind") == "context":
             self._start_profile_context_action_worker(
                 str(pending.get("action") or ""),
@@ -1155,9 +1209,10 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_profile_context_action_worker_finished(self, worker) -> None:
-        if not self._accept_current_preset_setup_worker_finished("_profile_context_action_request_id", worker):
-            return
-        self._schedule_next_profile_preset_write_operation_start()
+        self._schedule_next_profile_preset_write_operation_after_finish(
+            "_profile_context_action_request_id",
+            worker,
+        )
 
     def _create_profile_context_action_worker(
         self,
@@ -1483,9 +1538,13 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_user_profile_create_worker_finished(self, worker) -> None:
-        if not self._accept_current_preset_setup_worker_finished("_user_profile_create_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_preset_write_operation_after_finish(
+            "_user_profile_create_request_id",
+            worker,
+        )
+        if not accepted:
             return
-        if self._schedule_next_profile_preset_write_operation_start():
+        if scheduled:
             return
         if not self._user_profile_operation_running():
             self._set_user_profile_actions_enabled(True)
@@ -1563,9 +1622,13 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_user_profile_update_worker_finished(self, worker) -> None:
-        if not self._accept_current_preset_setup_worker_finished("_user_profile_update_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_preset_write_operation_after_finish(
+            "_user_profile_update_request_id",
+            worker,
+        )
+        if not accepted:
             return
-        if self._schedule_next_profile_preset_write_operation_start():
+        if scheduled:
             return
         if not self._user_profile_operation_running():
             self._set_user_profile_actions_enabled(True)
@@ -1631,9 +1694,13 @@ class PresetSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_user_profile_delete_worker_finished(self, worker) -> None:
-        if not self._accept_current_preset_setup_worker_finished("_user_profile_delete_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_preset_write_operation_after_finish(
+            "_user_profile_delete_request_id",
+            worker,
+        )
+        if not accepted:
             return
-        if self._schedule_next_profile_preset_write_operation_start():
+        if scheduled:
             return
         if not self._user_profile_operation_running():
             self._set_user_profile_actions_enabled(True)
@@ -1763,9 +1830,10 @@ class PresetSetupPageBase(BasePage):
         self.refresh_from_preset_switch()
 
     def _on_profile_move_worker_finished(self, worker) -> None:
-        if not self._accept_current_preset_setup_worker_finished("_profile_move_request_id", worker):
-            return
-        self._schedule_next_profile_preset_write_operation_start()
+        self._schedule_next_profile_preset_write_operation_after_finish(
+            "_profile_move_request_id",
+            worker,
+        )
 
     def _apply_profile_move_locally(
         self,
