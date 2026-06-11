@@ -4,6 +4,7 @@ import os
 import unittest
 from datetime import datetime
 from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -25,6 +26,41 @@ from donater.ui.page_lifecycle import apply_premium_language, render_activation_
 from donater.ui.status_workflow import apply_connection_test_plan, render_server_status_label
 from donater.ui.page import PremiumPage
 from donater.ui.status_card import StatusCard
+
+
+class _DialogButton:
+    def __init__(self) -> None:
+        self._accessible_name = ""
+        self._accessible_description = ""
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self._accessible_description = str(text)
+
+
+class _MessageBox:
+    instances: list["_MessageBox"] = []
+
+    def __init__(self, title: str, body: str, parent=None) -> None:
+        self.title = title
+        self.body = body
+        self.parent = parent
+        self.yesButton = _DialogButton()
+        self.cancelButton = _DialogButton()
+        self.exec_called = False
+        _MessageBox.instances.append(self)
+
+    def exec(self) -> bool:
+        self.exec_called = True
+        return False
 
 
 class PremiumControlsAccessibilityTests(unittest.TestCase):
@@ -68,6 +104,23 @@ class PremiumControlsAccessibilityTests(unittest.TestCase):
         self.assertIn("Telegram-бота", actions.extend_btn.accessibleDescription())
         self.assertEqual(activation.key_input.accessibleName(), "Код привязки Premium: пока не создан")
         self.assertIn("код, который нужно отправить", activation.key_input.accessibleDescription())
+
+    def test_reset_activation_dialog_buttons_are_named_for_screen_reader(self) -> None:
+        page = PremiumPage.__new__(PremiumPage)
+        page._request_reset_storage = Mock()
+        page._tr = lambda _key, default, **kwargs: default.format(**kwargs) if kwargs else default
+        page.window = lambda: None
+        _MessageBox.instances = []
+
+        with patch("donater.ui.page.MessageBox", _MessageBox):
+            PremiumPage._change_key(page)
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Сбросить Premium-активацию")
+        self.assertIn("Будут удалены device token", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить сброс Premium-активации")
+        self.assertTrue(dialog.exec_called)
+        page._request_reset_storage.assert_not_called()
 
     def test_premium_device_info_labels_expose_state_text(self) -> None:
         device = build_premium_device_info_section(

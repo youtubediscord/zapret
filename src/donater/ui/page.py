@@ -30,6 +30,7 @@ from donater.pairing_workflow import (
 )
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from donater.ui.page_lifecycle import (
     activate_premium_page,
     apply_premium_language,
@@ -1072,13 +1073,21 @@ class PremiumPage(BasePage):
 
     def _change_key(self):
         if MessageBox:
+            body = self._tr(
+                "page.premium.dialog.reset.body",
+                "Сбросить активацию на этом устройстве?\nБудут удалены device token, offline-кэш и код привязки.\nДля восстановления потребуется повторная привязка в боте.",
+            )
             box = MessageBox(
                 self._tr("page.premium.dialog.reset.title", "Подтверждение"),
-                self._tr(
-                    "page.premium.dialog.reset.body",
-                    "Сбросить активацию на этом устройстве?\nБудут удалены device token, offline-кэш и код привязки.\nДля восстановления потребуется повторная привязка в боте.",
-                ),
+                body,
                 self.window(),
+            )
+            set_message_box_button_accessibility(
+                box,
+                yes_name="Сбросить Premium-активацию",
+                yes_description=body,
+                cancel_name="Отменить сброс Premium-активации",
+                cancel_description="Закрывает диалог без сброса Premium-активации.",
             )
             if not box.exec():
                 return
