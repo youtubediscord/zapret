@@ -491,6 +491,108 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
         self.assertIn("TimeoutError", joined)
         self.assertIn("next=none", joined)
 
+    def test_upstream_replaces_telegram_ipv6_media_target_with_same_dc_ipv4(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _RemoteWriter:
+            def __init__(self):
+                self.transport = None
+
+            def write(self, _data):
+                return None
+
+            async def drain(self):
+                return None
+
+        class _ClientReader:
+            pass
+
+        class _ClientWriter:
+            pass
+
+        async def fake_connect(*args, **_kwargs):
+            seen.append(args)
+            return object(), _RemoteWriter()
+
+        async def fake_relay(*_args, **_kwargs):
+            return (0, False)
+
+        seen: list[tuple] = []
+        proxy = TelegramWSProxy(
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host="127.0.0.1",
+                port=1080,
+                mode="fallback",
+            ),
+        )
+        proxy._relay_tcp = fake_relay
+
+        with patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", side_effect=fake_connect):
+            ok = asyncio.run(
+                proxy._upstream_proxy_connect(
+                    _ClientReader(),
+                    _ClientWriter(),
+                    "2001:b28:f23d:f001:0:0:0:7",
+                    443,
+                    b"x" * 64,
+                    "test",
+                    1,
+                    True,
+                )
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual(seen[0][2:4], ("149.154.175.52", 443))
+
+    def test_upstream_socks5_client_sends_ipv6_address_type(self) -> None:
+        from telegram_proxy.proxy import socks5
+
+        class _Reader:
+            def __init__(self):
+                self._chunks = [
+                    b"\x05\x00",
+                    b"\x05\x00\x00\x04",
+                    b"\x00" * 18,
+                ]
+
+            async def readexactly(self, _size):
+                return self._chunks.pop(0)
+
+        class _Writer:
+            def __init__(self):
+                self.writes: list[bytes] = []
+
+            def write(self, data):
+                self.writes.append(bytes(data))
+
+            async def drain(self):
+                return None
+
+            def close(self):
+                return None
+
+        async def fake_open_connection(*_args, **_kwargs):
+            writer = _Writer()
+            opened.append(writer)
+            return _Reader(), writer
+
+        opened: list[_Writer] = []
+        with patch("telegram_proxy.proxy.socks5.asyncio.open_connection", side_effect=fake_open_connection):
+            asyncio.run(
+                socks5.connect_via_socks5(
+                    "127.0.0.1",
+                    1080,
+                    "2001:b28:f23d:f001:0:0:0:7",
+                    443,
+                )
+            )
+
+        request = opened[0].writes[1]
+        self.assertEqual(request[:4], b"\x05\x01\x00\x04")
+        self.assertEqual(len(request), 4 + 16 + 2)
+
     def test_wss_proxy_uses_cloudflare_worker_pool_before_fresh_connect(self) -> None:
         from telegram_proxy.proxy.cloudflare import CloudflareFallbackConfig
         from telegram_proxy.wss_proxy import TelegramWSProxy

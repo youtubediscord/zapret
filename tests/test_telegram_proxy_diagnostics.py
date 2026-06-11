@@ -223,6 +223,66 @@ class TelegramProxyDiagnosticsTests(unittest.TestCase):
         self.assertIn("включите внешний SOCKS5", plan.stats_text)
         self.assertIn("WSS/Worker этот путь не спасают", plan.stats_text)
 
+    def test_stats_plan_says_auto_reserve_is_used_when_upstream_already_works(self) -> None:
+        stats = ProxyStats(
+            active_connections=1,
+            total_connections=5,
+            bytes_sent=1024,
+            bytes_received=2048,
+            upstream_connections=2,
+        )
+        stats.record_route_event(
+            dc=0,
+            is_media=False,
+            route="HTTP direct TCP",
+            status="ошибка",
+            reason="TimeoutError",
+        )
+        stats.record_route_event(
+            dc=0,
+            is_media=False,
+            route="внешний SOCKS5",
+            status="OK",
+        )
+
+        plan = build_stats_plan(
+            stats=stats,
+            prev_sent=0,
+            prev_recv=0,
+            speed_hist_up=(),
+            speed_hist_down=(),
+            interval=2.0,
+        )
+
+        self.assertIn("авто-резерв уже используется", plan.stats_text)
+        self.assertNotIn("включите внешний SOCKS5", plan.stats_text)
+
+    def test_stats_plan_explains_upstream_ipv6_reject(self) -> None:
+        stats = ProxyStats(
+            active_connections=1,
+            total_connections=5,
+            bytes_sent=1024,
+            bytes_received=2048,
+        )
+        stats.record_route_event(
+            dc=1,
+            is_media=True,
+            route="внешний SOCKS5",
+            status="ошибка",
+            reason="Socks5Error: Upstream proxy CONNECT failed (REP=0x04)",
+        )
+
+        plan = build_stats_plan(
+            stats=stats,
+            prev_sent=0,
+            prev_recv=0,
+            speed_hist_up=(),
+            speed_hist_down=(),
+            interval=2.0,
+        )
+
+        self.assertIn("IPv6 Telegram отклонён внешним SOCKS5", plan.stats_text)
+
     def test_stats_plan_tells_user_what_to_do_when_cloudflare_and_tcp_fail(self) -> None:
         stats = ProxyStats(
             active_connections=1,

@@ -368,6 +368,8 @@ def build_stats_plan(
     http_direct_failed = False
     cloudflare_failed = False
     tcp_fallback_failed = False
+    upstream_used = int(getattr(stats, "upstream_connections", 0) or 0) > 0
+    upstream_ipv6_rejected = False
     for event in list(getattr(stats, "route_events", ()) or ())[-3:]:
         dc = int(getattr(event, "dc", 0) or 0)
         is_media = bool(getattr(event, "is_media", False))
@@ -377,12 +379,18 @@ def build_stats_plan(
         reason = str(getattr(event, "reason", "") or "")
         route_lower = route.lower()
         status_lower = status.lower()
+        reason_lower = reason.lower()
         is_error = (
             "ошиб" in status_lower
             or "error" in status_lower
             or "fail" in status_lower
             or "exhaust" in status_lower
         )
+        is_upstream = "внеш" in route_lower or "upstream" in route_lower
+        if is_upstream and not is_error:
+            upstream_used = True
+        if is_upstream and is_error and "rep=0x04" in reason_lower:
+            upstream_ipv6_rejected = True
         if is_error and route_lower.startswith("http"):
             http_direct_failed = True
         if is_error and "cloudflare" in route_lower:
@@ -404,7 +412,22 @@ def build_stats_plan(
         recent_route_parts.append(text)
     recent_routes_str = f"  |  Последнее: {'; '.join(recent_route_parts)}" if recent_route_parts else ""
     user_hint_str = ""
-    if http_direct_failed:
+    if upstream_ipv6_rejected:
+        user_hint_str = (
+            "  |  Что происходит: IPv6 Telegram отклонён внешним SOCKS5; "
+            "программа пробует IPv4 того же DC"
+        )
+    elif http_direct_failed and upstream_used:
+        user_hint_str = (
+            "  |  Что происходит: авто-резерв уже используется; "
+            "прямой HTTP/80 Telegram не прошёл, часть трафика пошла через внешний SOCKS5"
+        )
+    elif media_or_cdn_fallback_failed and upstream_used:
+        user_hint_str = (
+            "  |  Что происходит: авто-резерв уже используется; "
+            "смайлики/медиа ушли через внешний SOCKS5 после ошибки прямого пути"
+        )
+    elif http_direct_failed:
         user_hint_str = (
             "  |  Что сделать: HTTP/80 Telegram не проходит; "
             "включите внешний SOCKS5. WSS/Worker этот путь не спасают"

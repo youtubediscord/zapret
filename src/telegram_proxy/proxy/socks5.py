@@ -11,6 +11,7 @@ import asyncio
 import struct
 import logging
 import ssl
+from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Optional
 
 log = logging.getLogger("tg_proxy.socks5")
@@ -156,7 +157,7 @@ async def connect_via_socks5(
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """Connect to target through a SOCKS5 proxy. Returns (reader, writer) to target.
 
-    Supports both IPv4 addresses and domain names as target_host.
+    Supports IPv4, IPv6 and domain names as target_host.
     Supports no-auth (0x00) and username/password auth (0x02, RFC 1929).
     Raises Socks5Error on any SOCKS5 protocol failure.
     """
@@ -215,13 +216,17 @@ async def connect_via_socks5(
             raise Socks5Error(f"Upstream proxy selected unsupported method 0x{method:02X}")
 
         # Phase 2: CONNECT request
-        # Determine address type
-        is_ipv4 = all(c.isdigit() or c == "." for c in target_host) and "." in target_host
-        if is_ipv4:
-            parts = target_host.split(".")
-            addr_bytes = struct.pack("!BBBB", *[int(p) for p in parts])
+        try:
+            target_addr = ip_address(str(target_host))
+        except ValueError:
+            target_addr = None
+
+        if isinstance(target_addr, IPv4Address):
             req = struct.pack("!BBB", SOCKS_VER, CMD_CONNECT, 0x00)
-            req += struct.pack("!B", ATYP_IPV4) + addr_bytes
+            req += struct.pack("!B", ATYP_IPV4) + target_addr.packed
+        elif isinstance(target_addr, IPv6Address):
+            req = struct.pack("!BBB", SOCKS_VER, CMD_CONNECT, 0x00)
+            req += struct.pack("!B", ATYP_IPV6) + target_addr.packed
         else:
             # Domain name
             domain_bytes = target_host.encode("ascii")

@@ -1348,6 +1348,12 @@ class TelegramWSProxy:
             return False
 
         media_tag = " media" if is_media else ""
+        upstream_host, upstream_port = self._upstream_target(target_host, target_port, dc, is_media)
+        if upstream_host != target_host or upstream_port != target_port:
+            self._log(
+                f"[{label}] MTProxy DC{dc}{media_tag} upstream target "
+                f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
+            )
         self._log(
             f"[{label}] MTProxy DC{dc}{media_tag} upstream proxy "
             f"-> {self._upstream.host}:{self._upstream.port}"
@@ -1357,8 +1363,8 @@ class TelegramWSProxy:
             rr, rw = await socks5.connect_via_socks5(
                 self._upstream.host,
                 self._upstream.port,
-                target_host,
-                target_port,
+                upstream_host,
+                upstream_port,
                 username=self._upstream.username,
                 password=self._upstream.password,
                 timeout=CONNECT_TIMEOUT,
@@ -1379,7 +1385,7 @@ class TelegramWSProxy:
                 route="upstream SOCKS5",
                 dc=dc,
                 is_media=is_media,
-                target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+                target=f"{upstream_host}:{upstream_port} via {self._upstream.host}:{self._upstream.port}",
                 result="error",
                 reason=self._route_error(exc),
                 next_step="none",
@@ -1401,7 +1407,7 @@ class TelegramWSProxy:
             route="upstream SOCKS5",
             dc=dc,
             is_media=is_media,
-            target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+            target=f"{upstream_host}:{upstream_port} via {self._upstream.host}:{self._upstream.port}",
             result="connected",
             elapsed=elapsed,
         )
@@ -1561,6 +1567,12 @@ class TelegramWSProxy:
             return False
 
         media_tag = " media" if is_media else ""
+        upstream_host, upstream_port = self._upstream_target(target_host, target_port, dc, is_media)
+        if upstream_host != target_host or upstream_port != target_port:
+            self._log(
+                f"[{label}] DC{dc}{media_tag} upstream target "
+                f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
+            )
         self._log(
             f"[{label}] DC{dc}{media_tag} upstream proxy "
             f"-> {self._upstream.host}:{self._upstream.port}"
@@ -1570,8 +1582,8 @@ class TelegramWSProxy:
             rr, rw = await socks5.connect_via_socks5(
                 self._upstream.host,
                 self._upstream.port,
-                target_host,
-                target_port,
+                upstream_host,
+                upstream_port,
                 username=self._upstream.username,
                 password=self._upstream.password,
                 timeout=CONNECT_TIMEOUT,
@@ -1592,7 +1604,7 @@ class TelegramWSProxy:
                 route="upstream SOCKS5",
                 dc=dc,
                 is_media=is_media,
-                target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+                target=f"{upstream_host}:{upstream_port} via {self._upstream.host}:{self._upstream.port}",
                 result="error",
                 reason=self._route_error(exc),
                 next_step="none",
@@ -1614,7 +1626,7 @@ class TelegramWSProxy:
             route="upstream SOCKS5",
             dc=dc,
             is_media=is_media,
-            target=f"{target_host}:{target_port} via {self._upstream.host}:{self._upstream.port}",
+            target=f"{upstream_host}:{upstream_port} via {self._upstream.host}:{self._upstream.port}",
             result="connected",
             elapsed=elapsed,
         )
@@ -1625,6 +1637,19 @@ class TelegramWSProxy:
         await rw.drain()
         await self._relay_tcp(client_reader, client_writer, rr, rw, label, dc=dc)
         return True
+
+    def _upstream_target(
+        self,
+        target_host: str,
+        target_port: int,
+        dc: int,
+        is_media: bool,
+    ) -> tuple[str, int]:
+        if ":" not in str(target_host) or int(dc or 0) <= 0 or int(target_port or 0) != 443:
+            return target_host, target_port
+        if not is_telegram_ip(str(target_host)):
+            return target_host, target_port
+        return dc_to_tcp_endpoint(dc, self._dc_endpoint_overrides, is_media=is_media)
 
     async def _relay_wss(
         self,
