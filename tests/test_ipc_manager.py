@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import QCoreApplication
 
@@ -48,6 +50,26 @@ class IPCManagerTests(unittest.TestCase):
         manager._handle_exit_request(stop_dpi=True)
 
         self.assertEqual(window.requests, [False, True])
+
+    def test_show_request_uses_common_window_adapter_without_tray_manager(self) -> None:
+        from startup.ipc_manager import IPCManager
+
+        manager = IPCManager()
+        window = SimpleNamespace(
+            visual_state=SimpleNamespace(tray_manager=None),
+            showNormal=Mock(),
+            activateWindow=Mock(),
+            raise_=Mock(),
+        )
+        manager.window = window
+
+        with patch("ui.window_adapter.show_window") as show_window:
+            manager._handle_show_window()
+
+        show_window.assert_called_once_with(window)
+        window.showNormal.assert_not_called()
+        window.activateWindow.assert_not_called()
+        window.raise_.assert_not_called()
 
     def test_send_exit_command_uses_expected_wire_command(self) -> None:
         from startup.ipc_manager import (

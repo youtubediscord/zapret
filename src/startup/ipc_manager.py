@@ -78,9 +78,9 @@ class IPCManager(QObject):
             if tray_manager is not None:
                 tray_manager.show_window()
             else:
-                self.window.showNormal()
-                self.window.activateWindow()
-                self.window.raise_()
+                from ui.window_adapter import show_window
+
+                show_window(self.window)
             log("Окно показано по запросу от другого экземпляра", "INFO")
 
     def _handle_exit_request(self, *, stop_dpi: bool):
