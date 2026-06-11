@@ -16,8 +16,10 @@ class _Worker:
     failed = _Signal()
     finished = _Signal()
 
-    def __init__(self, *, running: bool = False) -> None:
+    def __init__(self, *, running: bool = False, request_id=None) -> None:
         self._running = running
+        if request_id is not None:
+            self._request_id = request_id
         self.start = Mock()
         self.deleteLater = Mock()
 
@@ -26,11 +28,26 @@ class _Worker:
 
 
 class _Runtime:
-    def __init__(self, *, running: bool = False) -> None:
+    def __init__(self, *, running: bool = False, worker=None) -> None:
         self._running = running
+        self.worker = worker
+        self.request_id = 0
 
     def is_running(self) -> bool:
         return self._running
+
+    def next_request_id(self) -> int:
+        self.request_id += 1
+        return self.request_id
+
+    def start_qthread_worker(self, *, worker_factory, bind_worker=None, **_kwargs):
+        request_id = self.next_request_id()
+        worker = worker_factory(request_id)
+        if bind_worker is not None:
+            bind_worker(worker)
+        self.worker = worker
+        worker.start()
+        return request_id, worker
 
 
 class ProfileContextActionQueueTests(unittest.TestCase):
@@ -110,9 +127,9 @@ class ProfileContextActionQueueTests(unittest.TestCase):
         page = PresetSetupPageBase.__new__(PresetSetupPageBase)
         page.launch_method = "zapret2_mode"
         page._cleanup_in_progress = False
-        old_worker = _Worker(running=False)
+        old_worker = _Worker(running=False, request_id=0)
         next_worker = _Worker(running=False)
-        page._profile_context_action_worker = old_worker
+        page._profile_context_action_runtime = _Runtime(running=False, worker=old_worker)
         page._profile_context_action_request_id = 0
         page._create_profile_context_action_worker = Mock(return_value=next_worker)
         page._profile_context_action_enabled_by_request = {}
