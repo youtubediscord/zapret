@@ -325,6 +325,35 @@ class PresetStatusBarPlanTests(unittest.TestCase):
         set_status.assert_not_called()
         maybe_restart.assert_not_called()
 
+    def test_stale_preset_switch_worker_skips_snapshot_before_fast_switch(self) -> None:
+        from winws_runtime.runtime.control_workers import PresetSwitchWorker
+
+        presets_feature = SimpleNamespace(
+            get_launch_snapshot=Mock(
+                side_effect=AssertionError("stale preset switch must not prepare launch snapshot")
+            )
+        )
+        worker = PresetSwitchWorker(
+            presets_feature,
+            ZAPRET2_MODE,
+            6,
+            lambda generation: int(generation) == 7,
+        )
+        finished: list[tuple[bool, str, int, str, bool]] = []
+        progress: list[str] = []
+        worker.finished.connect(
+            lambda success, error, generation, launch_method, skipped: finished.append(
+                (bool(success), str(error), int(generation), str(launch_method), bool(skipped))
+            )
+        )
+        worker.progress.connect(lambda message: progress.append(str(message)))
+
+        worker.run()
+
+        presets_feature.get_launch_snapshot.assert_not_called()
+        self.assertEqual(finished, [(True, "", 6, ZAPRET2_MODE, True)])
+        self.assertEqual(progress, [])
+
     def test_current_preset_switch_finish_clears_busy_and_sets_status(self) -> None:
         from unittest.mock import patch
         from winws_runtime.runtime.restart_flow import handle_presets_switch_finished

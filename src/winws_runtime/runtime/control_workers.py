@@ -127,6 +127,10 @@ class PresetSwitchWorker(QObject):
                 )
                 return
 
+            if not bool(self._is_generation_current(self.generation)):
+                self.finished.emit(True, "", self.generation, self.launch_method, True)
+                return
+
             self.progress.emit("Применяем пресет...")
 
             from winws_runtime.runners.runner_factory import get_strategy_runner
