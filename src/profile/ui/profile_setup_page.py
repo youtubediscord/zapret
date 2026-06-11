@@ -1524,7 +1524,7 @@ class ProfileSetupPageBase(BasePage):
         settings_layout.setContentsMargins(0, 0, 0, 0)
         settings_layout.setSpacing(10)
 
-        self._filter_combo = ComboBox()
+        self._filter_combo = CompactDisplayComboBox()
         self._filter_combo.setMinimumWidth(120)
         self._filter_combo.addItem(tr_catalog("page.winws2_profile_setup.filter.hostlist", language=self._ui_language, default="Hostlist"), userData="hostlist")
         self._filter_combo.addItem(tr_catalog("page.winws2_profile_setup.filter.ipset", language=self._ui_language, default="IPset"), userData="ipset")
