@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont, QTextCursor
 
 from ui.pages.base_page import BasePage, ScrollBlockingTextEdit
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 import dns.dns_check_plans as dns_check_page_plans
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
@@ -43,8 +44,10 @@ class DNSCheckPage(BasePage):
         self._dns = dns_feature
         self._cleanup_in_progress = False
         self._check_runtime = OneShotWorkerRuntime()
-        self._check_pending = False
-        self._check_start_scheduled = False
+        self._check_state = LatestValueWorkerState(
+            self._check_runtime,
+            empty_value=False,
+        )
         self._save_runtime = OneShotWorkerRuntime()
         self._save_results_pending: dict[str, str] | None = None
         self._save_results_start_scheduled = False
@@ -302,10 +305,11 @@ class DNSCheckPage(BasePage):
 
     def start_check(self):
         """Начинает полную проверку DNS."""
-        if self._check_runtime.is_running() or self.__dict__.get("_check_start_scheduled", False):
-            self._check_pending = True
+        state = self._check_state_obj()
+        if state.is_busy():
+            state.pending = True
             return
-        self._check_pending = False
+        state.pending = False
         self._cleanup_in_progress = False
         
         self.result_text.clear()
@@ -384,25 +388,58 @@ class DNSCheckPage(BasePage):
             return
         if self.__dict__.get("_cleanup_in_progress", False):
             return
-        if self.__dict__.get("_check_pending", False):
+        if self._check_state_obj().has_pending():
             self._schedule_full_dns_check_start()
 
     def _schedule_full_dns_check_start(self) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if self.__dict__.get("_check_start_scheduled", False):
-            return
-        self._check_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_full_dns_check_start)
+        self._check_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_full_dns_check_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
 
     def _run_scheduled_full_dns_check_start(self) -> None:
-        self._check_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
+        pending = bool(
+            self._check_state_obj().take_pending_for_scheduled_start(
+                cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+            )
+        )
+        if not pending:
             return
-        if not self.__dict__.get("_check_pending", False):
-            return
-        self._check_pending = False
         self.start_check()
+
+    def _check_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_check_state")
+        runtime = self.__dict__.get("_check_runtime")
+        if state is None:
+            pending = bool(self.__dict__.pop("_check_pending", False))
+            start_scheduled = bool(self.__dict__.pop("_check_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=False,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_check_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _check_pending(self) -> bool:
+        return bool(self._check_state_obj().pending)
+
+    @_check_pending.setter
+    def _check_pending(self, value: bool) -> None:
+        self._check_state_obj().pending = bool(value)
+
+    @property
+    def _check_start_scheduled(self) -> bool:
+        return bool(self._check_state_obj().start_scheduled)
+
+    @_check_start_scheduled.setter
+    def _check_start_scheduled(self, value: bool) -> None:
+        self._check_state_obj().start_scheduled = bool(value)
     
     def quick_dns_check(self):
         """Выполняет быструю проверку только системного DNS."""
@@ -608,8 +645,7 @@ class DNSCheckPage(BasePage):
 
         try:
             self._cleanup_in_progress = True
-            self._check_pending = False
-            self._check_start_scheduled = False
+            self._check_state_obj().reset()
             self._save_results_pending = None
             self._save_results_start_scheduled = False
             self._quick_check_pending = False
