@@ -26,6 +26,7 @@ from telegram_proxy.ui.build import (
 from telegram_proxy.ui.settings_build import build_telegram_proxy_advanced_settings_panel
 from telegram_proxy.ui.proxy_runtime_workflow import apply_status_changed
 from telegram_proxy.ui.proxy_runtime_workflow import restart_proxy_if_running
+from telegram_proxy.ui.runtime_helpers import refresh_status_texts
 from ui.widgets.win11_controls import Win11ComboRow, Win11ToggleRow
 
 
@@ -196,6 +197,27 @@ class TelegramProxyAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(status_label.accessibleName(), "Статус Telegram Proxy: Работает на 127.0.0.1:1353")
         self.assertEqual(status_dot.accessibleName(), "Индикатор Telegram Proxy: Работает на 127.0.0.1:1353")
+        self.assertEqual(btn_toggle.accessibleName(), "Остановить Telegram Proxy")
+        self.assertIn("Останавливает", btn_toggle.accessibleDescription())
+
+    def test_refresh_status_texts_sets_screen_reader_state_text(self) -> None:
+        status_label = QLabel()
+        btn_toggle = PushButton("Запустить")
+
+        refresh_status_texts(
+            manager=SimpleNamespace(is_running=True, host="127.0.0.1", port=1353),
+            status_label=status_label,
+            btn_toggle=btn_toggle,
+            restarting=False,
+            starting=False,
+        )
+
+        self.assertEqual(status_label.text(), "Работает на 127.0.0.1:1353")
+        self.assertEqual(status_label.accessibleName(), "Статус Telegram Proxy: Работает на 127.0.0.1:1353")
+        self.assertEqual(
+            status_label.property("screenReaderStateText"),
+            "Статус Telegram Proxy: Работает на 127.0.0.1:1353",
+        )
         self.assertEqual(btn_toggle.accessibleName(), "Остановить Telegram Proxy")
         self.assertIn("Останавливает", btn_toggle.accessibleDescription())
 

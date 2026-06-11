@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import telegram_proxy.ui.page_runtime as telegram_proxy_page_runtime
 from qfluentwidgets import FluentIcon
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import set_tooltip
 from telegram_proxy.ui.build import update_telegram_proxy_pivot_accessibility
 from telegram_proxy.ui.text_plan import TELEGRAM_PROXY_SETTINGS_TEXT
@@ -31,11 +32,24 @@ def refresh_status_texts(*, manager, status_label, btn_toggle, restarting: bool,
 
     if status_label is not None:
         status_label.setText(plan.status_text)
+        set_state_text(status_label, f"Статус Telegram Proxy: {plan.status_text}")
 
     if btn_toggle is not None:
         btn_toggle.setText(plan.toggle_text)
         btn_toggle.setIcon(FluentIcon.CANCEL if "Останов" in plan.toggle_text else FluentIcon.PLAY)
         btn_toggle.setMinimumWidth(140)
+        if "Останов" in plan.toggle_text:
+            set_control_accessibility(
+                btn_toggle,
+                name="Остановить Telegram Proxy",
+                description="Останавливает локальный Telegram Proxy.",
+            )
+        else:
+            set_control_accessibility(
+                btn_toggle,
+                name="Запустить Telegram Proxy",
+                description="Запускает локальный Telegram Proxy.",
+            )
 
 
 def apply_upstream_preset_ui(
