@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 from blockcheck.page_run_workflow import reset_blockcheck_running_ui, start_blockcheck_page_run
@@ -66,6 +67,29 @@ class BlockcheckPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page._log_edit.accessibleName(), "Подробный лог BlockCheck")
         self.assertEqual(page._expand_log_btn.accessibleName(), "Развернуть лог BlockCheck")
         self.assertEqual(page._prepare_support_btn.accessibleName(), "Подготовить обращение по BlockCheck")
+
+    def test_mode_combo_menu_items_are_named_for_screen_reader(self) -> None:
+        with patch.object(BlockcheckPage, "_request_page_initial_state_load", lambda self: None):
+            page = BlockcheckPage(
+                blockcheck_feature=_FeatureStub(),
+                diagnostics_feature=_FeatureStub(),
+                dns_feature=_FeatureStub(),
+                create_strategy_scan_worker=lambda *_args, **_kwargs: None,
+            )
+        self.addCleanup(page.deleteLater)
+        create_menu = getattr(page._mode_combo, "_create_accessible_combo_menu", None)
+        self.assertIsNotNone(create_menu)
+
+        menu = create_menu()
+
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим BlockCheck: Быстрая, не выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим BlockCheck: Полная, выбран",
+        )
 
     def test_run_progress_bar_reads_running_state_for_screen_reader(self) -> None:
         progress_bar = _FakeProgressBar()
