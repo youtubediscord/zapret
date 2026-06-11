@@ -52,6 +52,7 @@ from ui.pages.base_page import BasePage
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import set_tooltip
 from ui.latest_value_worker_state import LatestValueWorkerState
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.queued_worker_state import QueuedWorkerState
 from app.ui_texts import tr as tr_catalog
@@ -2113,14 +2114,24 @@ class ProfileSetupPageBase(BasePage):
         profile_id = _user_profile_id_from_payload(self._profile_key, self._payload)
         if not profile_id:
             return
+        body = (
+            "Пользовательский profile будет удалён из библиотеки, его файлы списков будут удалены, "
+            "а profile-ы с таким же --name будут убраны из preset-ов."
+        )
         dialog = MessageBox(
             "Удалить profile",
-            "Пользовательский profile будет удалён из библиотеки, его файлы списков будут удалены, "
-            "а profile-ы с таким же --name будут убраны из preset-ов.",
+            body,
             self,
         )
         dialog.yesButton.setText("Удалить")
         dialog.cancelButton.setText("Отмена")
+        set_message_box_button_accessibility(
+            dialog,
+            yes_name="Удалить пользовательский profile",
+            yes_description=body,
+            cancel_name="Отменить удаление пользовательского profile",
+            cancel_description="Закрывает диалог без удаления пользовательского profile.",
+        )
         if not dialog.exec():
             return
         self._request_user_profile_delete(profile_id)

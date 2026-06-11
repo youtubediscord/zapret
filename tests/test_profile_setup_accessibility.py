@@ -1,15 +1,60 @@
 import os
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
 
+from profile.ui.preset_setup_page import PresetSetupPageBase
 from profile.ui.profile_setup_page import ProfileSetupPageBase
 
 
 def _worker_stub(*_args, **_kwargs):
     return None
+
+
+class _DialogButton:
+    def __init__(self) -> None:
+        self._text = ""
+        self._accessible_name = ""
+        self._accessible_description = ""
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self._text = str(text)
+
+    def text(self) -> str:
+        return self._text
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self._accessible_description = str(text)
+
+
+class _MessageBox:
+    instances: list["_MessageBox"] = []
+
+    def __init__(self, title: str, body: str, parent=None) -> None:
+        self.title = title
+        self.body = body
+        self.parent = parent
+        self.yesButton = _DialogButton()
+        self.cancelButton = _DialogButton()
+        self.exec_called = False
+        _MessageBox.instances.append(self)
+
+    def exec(self) -> bool:
+        self.exec_called = True
+        return False
 
 
 class ProfileSetupAccessibilityTests(unittest.TestCase):
@@ -90,6 +135,56 @@ class ProfileSetupAccessibilityTests(unittest.TestCase):
             page._strategy_tabs.property("screenReaderStateText"),
             "Разделы profile, выбрано: Когда применяется",
         )
+
+    def test_delete_user_profile_dialog_buttons_are_named_for_screen_reader(self) -> None:
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._profile_key = "template:user:user-1"
+        page._payload = SimpleNamespace(item=SimpleNamespace(user_profile_id=""))
+        page._request_user_profile_delete = Mock()
+        _MessageBox.instances = []
+
+        with patch("profile.ui.profile_setup_page.MessageBox", _MessageBox):
+            ProfileSetupPageBase._on_delete_user_profile_clicked(page)
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Удалить пользовательский profile")
+        self.assertIn("будет удалён из библиотеки", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить удаление пользовательского profile")
+        self.assertTrue(dialog.exec_called)
+        page._request_user_profile_delete.assert_not_called()
+
+    def test_delete_profile_from_preset_dialog_buttons_are_named_for_screen_reader(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._request_profile_context_action = Mock()
+        _MessageBox.instances = []
+
+        with patch("profile.ui.preset_setup_page.MessageBox", _MessageBox):
+            PresetSetupPageBase._delete_profile_from_menu(page, "profile-1")
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Удалить profile из текущего preset")
+        self.assertIn("только из текущего preset", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить удаление profile из preset")
+        self.assertTrue(dialog.exec_called)
+        page._request_profile_context_action.assert_not_called()
+
+    def test_delete_user_profile_from_preset_dialog_buttons_are_named_for_screen_reader(self) -> None:
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        page._profiles_list = SimpleNamespace(
+            profile_item_for_key=lambda _profile_key: SimpleNamespace(user_profile_id="")
+        )
+        page._request_user_profile_delete = Mock()
+        _MessageBox.instances = []
+
+        with patch("profile.ui.preset_setup_page.MessageBox", _MessageBox):
+            PresetSetupPageBase._delete_user_profile_from_menu(page, "template:user:user-1")
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Удалить пользовательский profile")
+        self.assertIn("будет удалён из библиотеки", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить удаление пользовательского profile")
+        self.assertTrue(dialog.exec_called)
+        page._request_user_profile_delete.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
 from ui.pages.base_page import BasePage
 from app.ui_texts import tr as tr_catalog
 from ui.latest_value_worker_state import LatestValueWorkerState
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.queued_worker_state import QueuedWorkerState
 
@@ -614,13 +615,21 @@ class PresetSetupPageBase(BasePage):
         self._request_profile_context_action("duplicate", profile_key)
 
     def _delete_profile_from_menu(self, profile_key: str) -> None:
+        body = "Profile будет убран только из текущего preset. Файлы списков и пользовательский шаблон не удаляются."
         dialog = MessageBox(
             "Удалить profile из preset",
-            "Profile будет убран только из текущего preset. Файлы списков и пользовательский шаблон не удаляются.",
+            body,
             self,
         )
         dialog.yesButton.setText("Удалить")
         dialog.cancelButton.setText("Отмена")
+        set_message_box_button_accessibility(
+            dialog,
+            yes_name="Удалить profile из текущего preset",
+            yes_description=body,
+            cancel_name="Отменить удаление profile из preset",
+            cancel_description="Закрывает диалог без удаления profile из текущего preset.",
+        )
         if not dialog.exec():
             return
         self._request_profile_context_action("delete", profile_key)
@@ -1286,14 +1295,24 @@ class PresetSetupPageBase(BasePage):
         profile_id = _user_profile_id_from_item(profile_key, item)
         if not profile_id:
             return
+        body = (
+            "Profile будет удалён из библиотеки, его файлы списков будут удалены, "
+            "а profile-ы с таким же --name будут убраны из preset-ов."
+        )
         dialog = MessageBox(
             "Удалить пользовательский profile",
-            "Profile будет удалён из библиотеки, его файлы списков будут удалены, "
-            "а profile-ы с таким же --name будут убраны из preset-ов.",
+            body,
             self,
         )
         dialog.yesButton.setText("Удалить")
         dialog.cancelButton.setText("Отмена")
+        set_message_box_button_accessibility(
+            dialog,
+            yes_name="Удалить пользовательский profile",
+            yes_description=body,
+            cancel_name="Отменить удаление пользовательского profile",
+            cancel_description="Закрывает диалог без удаления пользовательского profile.",
+        )
         if not dialog.exec():
             return
         self._request_user_profile_delete(profile_id)
