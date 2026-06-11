@@ -206,3 +206,23 @@ class ThemeRefreshBinding(QObject):
                 pass
 
         self._target = None
+
+
+def flush_pending_theme_refreshes(root) -> int:
+    """Сбрасывает отложенные theme-refresh привязки внутри видимого окна."""
+    if root is None:
+        return 0
+
+    try:
+        bindings = list(root.findChildren(ThemeRefreshBinding))
+    except Exception:
+        bindings = []
+
+    flushed = 0
+    for binding in bindings:
+        try:
+            binding.flush_pending()
+            flushed += 1
+        except Exception:
+            pass
+    return flushed

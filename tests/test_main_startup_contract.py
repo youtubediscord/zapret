@@ -3157,6 +3157,11 @@ class WindowLifecycleEarlyEventTests(unittest.TestCase):
                 side_effect=lambda current_window: calls.append("sync_nav"),
             ) as sync_nav_visibility,
             patch(
+                "ui.theme_refresh.flush_pending_theme_refreshes",
+                side_effect=lambda current_window: calls.append("flush_theme"),
+                create=True,
+            ) as flush_theme_refreshes,
+            patch(
                 "ui.window_adapter.QTimer",
                 SimpleNamespace(
                     singleShot=lambda delay, callback: scheduled.append((int(delay), callback)),
@@ -3184,7 +3189,9 @@ class WindowLifecycleEarlyEventTests(unittest.TestCase):
             self.assertEqual(scheduled[0][0], 0)
 
             scheduled.pop(0)[1]()
+            flush_theme_refreshes.assert_called_once_with(window)
             sync_nav_visibility.assert_called_once_with(window)
+            self.assertEqual(calls[-2:], ["flush_theme", "sync_nav"])
 
 
 class WindowsSessionShutdownTests(unittest.TestCase):

@@ -99,7 +99,14 @@ def hide_window(window) -> None:
     window.hide()
 
 
-def _sync_nav_visibility_after_show(window) -> None:
+def _refresh_window_after_show(window) -> None:
+    try:
+        from ui.theme_refresh import flush_pending_theme_refreshes
+
+        flush_pending_theme_refreshes(window)
+    except Exception:
+        pass
+
     try:
         from ui.navigation.sidebar_builder import sync_nav_visibility
 
@@ -123,7 +130,7 @@ def show_window(window) -> None:
     )
     window.raise_()
     window.activateWindow()
-    QTimer.singleShot(0, lambda current_window=window: _sync_nav_visibility_after_show(current_window))
+    QTimer.singleShot(0, lambda current_window=window: _refresh_window_after_show(current_window))
 
 
 def request_exit(window, *, stop_dpi: bool) -> None:

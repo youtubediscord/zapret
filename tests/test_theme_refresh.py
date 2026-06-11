@@ -41,6 +41,36 @@ class ThemeRefreshBindingTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertTrue(calls[0][1])
 
+    def test_flush_pending_theme_refreshes_walks_window_children(self) -> None:
+        import ui.theme_refresh as theme_refresh
+
+        window = QWidget()
+        child = QWidget(window)
+        self.addCleanup(window.deleteLater)
+        calls: list[tuple[object, bool]] = []
+
+        binding = theme_refresh.ThemeRefreshBinding(
+            child,
+            lambda tokens=None, force=False: calls.append((tokens, bool(force))),
+        )
+
+        binding.request_refresh(force=True)
+        self.assertEqual(calls, [])
+
+        with patch.object(
+            theme_refresh.QTimer,
+            "singleShot",
+            side_effect=lambda _delay_ms, callback: callback(),
+        ):
+            window.show()
+            child.show()
+            self._app.processEvents()
+            flushed = theme_refresh.flush_pending_theme_refreshes(window)
+
+        self.assertEqual(flushed, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertTrue(calls[0][1])
+
 
 if __name__ == "__main__":
     unittest.main()
