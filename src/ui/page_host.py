@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QWidget
 
 from log.log import log
@@ -154,15 +155,7 @@ class WindowPageHost:
             return False
         finally:
             if updates_toggled:
-                step_started_at = time.perf_counter()
-                try:
-                    set_updates_enabled(True)
-                    update = getattr(stack, "update", None)
-                    if callable(update):
-                        update()
-                except Exception:
-                    pass
-                self._log_optional_switch_step(page_name, "show.switch.restore_updates", step_started_at)
+                self._schedule_stack_updates_restore(stack, set_updates_enabled, page_name)
             if animation_flag_known:
                 step_started_at = time.perf_counter()
                 try:
@@ -175,6 +168,26 @@ class WindowPageHost:
         if page_name is None:
             return
         self._log_step_timing(page_name, stage, started_at)
+
+    def _restore_stack_updates_after_switch(self, stack, set_updates_enabled, page_name: PageName | None) -> None:
+        step_started_at = time.perf_counter()
+        try:
+            set_updates_enabled(True)
+            update = getattr(stack, "update", None)
+            if callable(update):
+                update()
+        except Exception:
+            pass
+        self._log_optional_switch_step(page_name, "show.switch.restore_updates", step_started_at)
+
+    def _schedule_stack_updates_restore(self, stack, set_updates_enabled, page_name: PageName | None) -> None:
+        try:
+            QTimer.singleShot(
+                0,
+                lambda: self._restore_stack_updates_after_switch(stack, set_updates_enabled, page_name),
+            )
+        except Exception:
+            self._restore_stack_updates_after_switch(stack, set_updates_enabled, page_name)
 
     def ensure_page_in_stacked_widget(self, page: QWidget | None) -> None:
         stack = self._window.stackedWidget

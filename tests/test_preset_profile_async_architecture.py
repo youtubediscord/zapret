@@ -4226,7 +4226,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         self.assertEqual(window.stackedWidget.switch_count, 0)
 
-    def test_page_host_defers_stack_repaint_during_direct_switch(self) -> None:
+    def test_page_host_defers_stack_repaint_restore_during_direct_switch(self) -> None:
         class _FakeStack:
             def __init__(self) -> None:
                 self.isAnimationEnabled = True
@@ -4249,9 +4249,26 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         stack = _FakeStack()
         host = WindowPageHost(window=type("Window", (), {"stackedWidget": stack})(), page_factory=None)
+        scheduled: list[tuple[int, object]] = []
 
-        self.assertTrue(host.set_stacked_widget_current_page(object(), animate=False))
+        with patch("ui.page_host.QTimer.singleShot", side_effect=lambda delay, callback: scheduled.append((delay, callback))):
+            self.assertTrue(host.set_stacked_widget_current_page(object(), animate=False))
+
         self.assertFalse(stack.updates_seen_during_switch)
+        self.assertFalse(stack.updates_enabled)
+        self.assertEqual(
+            stack.calls,
+            [
+                ("updates", False),
+                ("switch", False),
+            ],
+        )
+        self.assertEqual(len(scheduled), 1)
+        delay_ms, callback = scheduled[0]
+        self.assertEqual(delay_ms, 0)
+
+        callback()
+
         self.assertTrue(stack.updates_enabled)
         self.assertEqual(
             stack.calls,
