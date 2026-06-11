@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QTableWidgetItem
 
 import updater.update_page_plans as update_page_plans
-from ui.accessibility import set_item_accessible_text
+from ui.accessibility import set_item_accessible_text, set_state_text
+
+
+_SERVER_TABLE_ACCESSIBILITY_INSTALLED = "updaterServerTableAccessibilityInstalled"
 
 
 def apply_server_table_headers(table, *, tr_fn) -> None:
@@ -28,6 +32,7 @@ def render_server_row(
     language: str,
     accent_hex: str,
 ) -> None:
+    ensure_server_table_current_row_accessibility(table)
     plan = update_page_plans.build_server_row_plan(
         row_server_name=server_name,
         status=status,
@@ -53,6 +58,48 @@ def render_server_row(
     extra_item = QTableWidgetItem(plan.extra_text)
     set_item_accessible_text(extra_item, row_accessible_text)
     table.setItem(row, 3, extra_item)
+    if table.currentRow() == row:
+        _update_server_table_current_row_accessibility(table, row, table.currentColumn())
+
+
+def ensure_server_table_current_row_accessibility(table) -> None:
+    if table is None:
+        return
+    try:
+        if bool(table.property(_SERVER_TABLE_ACCESSIBILITY_INSTALLED)):
+            return
+    except Exception:
+        pass
+    try:
+        table.currentCellChanged.connect(
+            lambda current_row, current_column, _previous_row, _previous_column, current_table=table: (
+                _update_server_table_current_row_accessibility(current_table, current_row, current_column)
+            )
+        )
+        table.setProperty(_SERVER_TABLE_ACCESSIBILITY_INSTALLED, True)
+    except Exception:
+        pass
+
+
+def _update_server_table_current_row_accessibility(table, row: int, column: int) -> None:
+    if table is None:
+        return
+    row_text = ""
+    try:
+        item = table.item(int(row), int(column))
+        if item is not None:
+            row_text = str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip()
+    except Exception:
+        row_text = ""
+    if not row_text:
+        try:
+            item = table.item(int(row), 0)
+            if item is not None:
+                row_text = str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip()
+        except Exception:
+            row_text = ""
+    if row_text:
+        set_state_text(table, row_text)
 
 
 def _server_row_accessible_text(plan) -> str:
