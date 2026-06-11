@@ -754,6 +754,24 @@ class StartupRuntimeSetupTests(unittest.TestCase):
 
         self.assertTrue(result.ok, result.errors)
 
+    def test_startup_log_contract_accepts_hidden_tray_start_before_first_show(self) -> None:
+        from main.startup_log_contract import validate_startup_log_contract
+
+        result = validate_startup_log_contract(
+            "\n".join(
+                (
+                    "[12:00:01] [⏱ STARTUP] ⏱ Startup StartupInteractive: 5400ms | ui_ready",
+                    "[12:00:01] [TRAY] Запуск приложения скрыто в трее",
+                    "[12:00:02] [⏱ STARTUP] ⏱ Startup StartupRuntimeInitQueued: 5500ms | 0ms gaps",
+                    "[12:00:03] [⏱ STARTUP] ⏱ Startup StartupCoreReady: 6400ms | startup_coordinator",
+                    "[12:00:03] [⏱ STARTUP] ⏱ Startup StartupPostInit: 6500ms | post_init_scheduled",
+                    "[12:05:49] [⏱ STARTUP] ⏱ Startup StartupTTFF: 352855ms | first showEvent",
+                )
+            )
+        )
+
+        self.assertTrue(result.ok, result.errors)
+
     def test_startup_log_contract_rejects_runtime_before_interactive(self) -> None:
         from main.startup_log_contract import validate_startup_log_contract
 

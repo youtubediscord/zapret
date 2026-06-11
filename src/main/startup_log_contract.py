@@ -9,6 +9,7 @@ from pathlib import Path
 _STARTUP_METRIC_RE = re.compile(r"\bStartup (?P<marker>Startup[A-Za-z0-9]+):\s+(?P<ms>\d+)ms\b")
 _PAGE_LIFECYCLE_WARMUP_RE = re.compile(r"\bPageLifecycle:\s+(?P<page>[A-Z0-9_]+)\s+warmup\s+(?P<ms>\d+)ms\b")
 _STARTUP_PAGE_WARMUP_MARKER_RE = re.compile(r"^StartupPage[A-Za-z0-9]+WarmupQueued$")
+_HIDDEN_TRAY_LAUNCH_MARKER = "Запуск приложения скрыто в трее"
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,9 +92,11 @@ def _must_start_after_interactive(marker: str) -> bool:
 
 
 def validate_startup_log_contract(text: str) -> StartupLogContractResult:
+    log_text = str(text or "")
     metrics = parse_startup_metrics(text)
     errors: list[str] = []
     warnings: list[str] = []
+    hidden_tray_launch = _HIDDEN_TRAY_LAUNCH_MARKER in log_text
 
     if not metrics:
         return StartupLogContractResult(
@@ -101,7 +104,7 @@ def validate_startup_log_contract(text: str) -> StartupLogContractResult:
             errors=("В логе не найдены startup-метрики формата 'Startup <marker>: <ms>'.",),
         )
 
-    for line_number, line in enumerate(str(text or "").splitlines(), start=1):
+    for line_number, line in enumerate(log_text.splitlines(), start=1):
         match = _PAGE_LIFECYCLE_WARMUP_RE.search(line)
         if match is None:
             continue
@@ -114,12 +117,21 @@ def validate_startup_log_contract(text: str) -> StartupLogContractResult:
     ttff = _first_metric(metrics, "StartupTTFF")
     interactive = _first_metric(metrics, "StartupInteractive")
 
-    if ttff is None:
+    if ttff is None and hidden_tray_launch:
+        warnings.append(
+            "StartupTTFF не найден: приложение стартовало скрыто в трее, окно могли ещё не открывать."
+        )
+    elif ttff is None:
         errors.append("Не найдена метрика StartupTTFF: непонятно, когда окно впервые показалось.")
     if interactive is None:
         errors.append("Не найдена метрика StartupInteractive: непонятно, когда UI стал готов к кликам.")
 
-    if ttff is not None and interactive is not None and interactive.elapsed_ms < ttff.elapsed_ms:
+    if (
+        not hidden_tray_launch
+        and ttff is not None
+        and interactive is not None
+        and interactive.elapsed_ms < ttff.elapsed_ms
+    ):
         errors.append(
             "StartupInteractive раньше StartupTTFF: UI не может считаться готовым до первого показа окна "
             f"({interactive.elapsed_ms}ms < {ttff.elapsed_ms}ms)."
