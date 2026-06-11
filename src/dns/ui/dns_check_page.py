@@ -86,6 +86,8 @@ class DNSCheckPage(BasePage):
         self.quick_check_button.setEnabled(quick_enabled)
         self.save_button.setEnabled(save_enabled)
         self.progress_bar.setVisible(progress_visible)
+        progress_state = "выполняется" if progress_visible else "не выполняется"
+        set_state_text(self.progress_bar, f"Ход проверки DNS: {progress_state}")
         if progress_visible:
             self.progress_bar.start()
         else:
@@ -137,6 +139,7 @@ class DNSCheckPage(BasePage):
         # Прогресс бар
         self.progress_bar = IndeterminateProgressBar(self)
         self.progress_bar.setVisible(False)
+        set_state_text(self.progress_bar, "Ход проверки DNS: не выполняется")
         self.control_card.add_widget(self.progress_bar)
         
         # Статус

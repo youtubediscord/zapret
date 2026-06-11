@@ -31,6 +31,29 @@ class DNSCheckPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page.result_text.accessibleName(), "Результаты проверки DNS")
         self.assertIn("отчёт DNS-проверки", page.result_text.accessibleDescription())
 
+    def test_progress_bar_exposes_screen_reader_state(self) -> None:
+        page = DNSCheckPage(dns_feature=_DnsFeatureStub())
+        self.addCleanup(page.deleteLater)
+
+        self.assertEqual(page.progress_bar.accessibleName(), "Ход проверки DNS: не выполняется")
+        self.assertEqual(
+            page.progress_bar.property("screenReaderStateText"),
+            "Ход проверки DNS: не выполняется",
+        )
+
+        page._apply_interaction_state(
+            check_enabled=False,
+            quick_enabled=False,
+            save_enabled=False,
+            progress_visible=True,
+        )
+
+        self.assertEqual(page.progress_bar.accessibleName(), "Ход проверки DNS: выполняется")
+        self.assertEqual(
+            page.progress_bar.property("screenReaderStateText"),
+            "Ход проверки DNS: выполняется",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
