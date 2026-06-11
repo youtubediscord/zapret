@@ -546,7 +546,10 @@ class OrchestraBlockedPage(BasePage):
         set_control_accessibility(
             self.search_input,
             name="Поиск по заблокированным доменам",
-            description="Фильтрует чёрный список по введённому тексту.",
+            description=(
+                "Фильтрует чёрный список по введённому тексту. "
+                "После ввода перейдите к списку клавишей Tab."
+            ),
         )
         set_control_accessibility(
             self.refresh_btn,

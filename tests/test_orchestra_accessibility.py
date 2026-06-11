@@ -167,6 +167,10 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         )
         self.assertEqual(page.block_btn.accessibleName(), "Заблокировать стратегию для домена")
         self.assertEqual(page.search_input.accessibleName(), "Поиск по заблокированным доменам")
+        self.assertIn(
+            "После ввода перейдите к списку клавишей Tab",
+            page.search_input.accessibleDescription(),
+        )
         self.assertEqual(page.refresh_btn.accessibleName(), "Обновить чёрный список стратегий")
         self.assertEqual(page.unblock_all_btn.accessibleName(), "Очистить пользовательские блокировки")
 
