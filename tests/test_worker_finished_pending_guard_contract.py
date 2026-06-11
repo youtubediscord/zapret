@@ -16,6 +16,8 @@ FRESHNESS_GUARD_MARKERS = (
     "current_worker",
     "_runtime_worker",
     "request_id !=",
+    "_schedule_next_profile_setup_write_operation_after_finish",
+    "_schedule_next_user_profile_write_operation_after_finish",
 )
 
 

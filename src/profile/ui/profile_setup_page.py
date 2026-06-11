@@ -1575,6 +1575,34 @@ class ProfileSetupPageBase(BasePage):
         self._schedule_profile_setup_write_operation_start(dict(operation))
         return True
 
+    def _schedule_next_profile_setup_write_operation_after_finish(
+        self,
+        request_attr: str,
+        worker,
+    ) -> tuple[bool, bool]:
+        accepted = False
+
+        def _is_current_worker_finish(_runtime, finished_worker) -> bool:
+            nonlocal accepted
+            accepted = self._accept_current_profile_setup_worker_finished(request_attr, finished_worker)
+            return accepted
+
+        def _single_shot(delay: int, callback) -> None:
+            try:
+                QTimer.singleShot(delay, callback)
+            except Exception:
+                callback()
+
+        operation = self._profile_setup_write_state_obj().schedule_next_after_finish(
+            worker,
+            is_current_worker_finish=_is_current_worker_finish,
+            single_shot=_single_shot,
+            start=lambda pending: self._run_profile_setup_write_operation(dict(pending or {})),
+            queue_item=self._queue_profile_setup_write_operation,
+            is_cleanup_in_progress=lambda: bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
+        return accepted, operation is not None
+
     def _schedule_profile_setup_write_operation_start(self, operation: dict[str, object]) -> None:
         queued = dict(operation or {})
         if self.__dict__.get("_cleanup_in_progress"):
@@ -2716,6 +2744,15 @@ class ProfileSetupPageBase(BasePage):
         pending = self._pop_next_pending_user_profile_write_operation()
         if not pending:
             return False
+        return self._run_user_profile_write_operation(pending)
+
+    def _run_user_profile_write_operation(self, pending: dict[str, str] | None) -> bool:
+        pending = self._user_profile_write_operation_from_pending_operation(pending or {})
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return False
+        if self._user_profile_write_operation_running():
+            self._queue_user_profile_write_operation_from_dict(pending)
+            return False
         if pending.get("action") == "update":
             self._start_user_profile_update_worker(
                 str(pending.get("profile_id") or ""),
@@ -2728,6 +2765,45 @@ class ProfileSetupPageBase(BasePage):
             self._start_user_profile_delete_worker(str(pending.get("profile_id") or ""))
             return True
         return self._start_next_pending_user_profile_write_operation()
+
+    def _queue_user_profile_write_operation_from_dict(self, operation: dict[str, str]) -> bool:
+        pending = self._user_profile_write_operation_from_pending_operation(operation)
+        self._queue_user_profile_write_operation(
+            str(pending.get("action") or ""),
+            profile_id=str(pending.get("profile_id") or ""),
+            name=str(pending.get("name") or ""),
+            protocol=str(pending.get("protocol") or ""),
+            ports=str(pending.get("ports") or ""),
+        )
+        return True
+
+    def _schedule_next_user_profile_write_operation_after_finish(
+        self,
+        request_attr: str,
+        worker,
+    ) -> tuple[bool, bool]:
+        accepted = False
+
+        def _is_current_worker_finish(_runtime, finished_worker) -> bool:
+            nonlocal accepted
+            accepted = self._accept_current_profile_setup_worker_finished(request_attr, finished_worker)
+            return accepted
+
+        def _single_shot(delay: int, callback) -> None:
+            try:
+                QTimer.singleShot(delay, callback)
+            except Exception:
+                callback()
+
+        operation = self._user_profile_write_state_obj().schedule_next_after_finish(
+            worker,
+            is_current_worker_finish=_is_current_worker_finish,
+            single_shot=_single_shot,
+            start=self._run_user_profile_write_operation,
+            queue_item=self._queue_user_profile_write_operation_from_dict,
+            is_cleanup_in_progress=lambda: bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
+        return accepted, operation is not None
 
     def _start_user_profile_update_worker(self, profile_id: str, *, name: str, protocol: str, ports: str) -> None:
         runtime = self._worker_runtime("_user_profile_update_runtime")
@@ -2794,9 +2870,13 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _on_user_profile_update_worker_finished(self, _worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_user_profile_update_request_id", _worker):
+        accepted, scheduled = self._schedule_next_user_profile_write_operation_after_finish(
+            "_user_profile_update_request_id",
+            _worker,
+        )
+        if not accepted:
             return
-        if self._schedule_next_pending_user_profile_write_operation_start():
+        if scheduled:
             return
         self._set_user_profile_buttons_enabled(True)
 
@@ -2866,9 +2946,13 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _on_user_profile_delete_worker_finished(self, _worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_user_profile_delete_request_id", _worker):
+        accepted, scheduled = self._schedule_next_user_profile_write_operation_after_finish(
+            "_user_profile_delete_request_id",
+            _worker,
+        )
+        if not accepted:
             return
-        if self._schedule_next_pending_user_profile_write_operation_start():
+        if scheduled:
             return
         self._set_user_profile_buttons_enabled(True)
 
@@ -3745,9 +3829,13 @@ class ProfileSetupPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_list_file_save_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_list_file_save_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
+            "_list_file_save_request_id",
+            worker,
+        )
+        if not accepted:
             return
-        if self._start_next_profile_setup_write_operation():
+        if scheduled:
             return
         if self._list_file_save_state_obj().has_pending():
             self._schedule_pending_list_file_save_start()
@@ -4142,9 +4230,13 @@ class ProfileSetupPageBase(BasePage):
         log(f"{self.__class__.__name__}: не удалось сохранить настройки профиля: {error}", "ERROR")
 
     def _on_settings_save_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_settings_save_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
+            "_settings_save_request_id",
+            worker,
+        )
+        if not accepted:
             return
-        if self._start_next_profile_setup_write_operation():
+        if scheduled:
             return
         pending = self._settings_save_state_obj().pending
         self._settings_save_state_obj().pending = None
@@ -4261,9 +4353,13 @@ class ProfileSetupPageBase(BasePage):
         )
 
     def _on_raw_profile_save_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_raw_profile_save_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
+            "_raw_profile_save_request_id",
+            worker,
+        )
+        if not accepted:
             return
-        if self._start_next_profile_setup_write_operation():
+        if scheduled:
             return
         pending = self._raw_profile_save_state_obj().pending
         self._raw_profile_save_state_obj().pending = None
@@ -4404,10 +4500,14 @@ class ProfileSetupPageBase(BasePage):
         log(f"{self.__class__.__name__}: не удалось изменить состояние профиля: {error}", "ERROR")
 
     def _on_enabled_save_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_enabled_save_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
+            "_enabled_save_request_id",
+            worker,
+        )
+        if not accepted:
             return
         self._enabled_save_runtime_enabled = None
-        if self._start_next_profile_setup_write_operation():
+        if scheduled:
             return
         pending = self._enabled_save_state_obj().pending
         self._enabled_save_state_obj().pending = None
@@ -4599,11 +4699,15 @@ class ProfileSetupPageBase(BasePage):
         self.reload_current_profile()
 
     def _on_strategy_apply_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_setup_worker_finished("_strategy_apply_request_id", worker):
+        accepted, scheduled = self._schedule_next_profile_setup_write_operation_after_finish(
+            "_strategy_apply_request_id",
+            worker,
+        )
+        if not accepted:
             return
         self._strategy_apply_runtime_strategy_id = ""
         self._strategy_apply_runtime_branch_id = ""
-        if self._start_next_profile_setup_write_operation():
+        if scheduled:
             return
         pending = self._strategy_apply_state_obj().pending
         self._strategy_apply_state_obj().pending = None

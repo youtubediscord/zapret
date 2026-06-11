@@ -3664,12 +3664,46 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         run_source = inspect.getsource(ProfileSetupPageBase._run_scheduled_user_profile_write_operation_start)
 
         for source in (update_finished, delete_finished):
-            self.assertIn("_schedule_next_pending_user_profile_write_operation_start", source)
+            self.assertIn("_schedule_next_user_profile_write_operation_after_finish", source)
             self.assertNotIn("_start_next_pending_user_profile_write_operation()", source)
 
         self.assertIn("QTimer.singleShot", schedule_source)
         self.assertIn("_run_scheduled_user_profile_write_operation_start", schedule_source)
         self.assertIn("_start_next_pending_user_profile_write_operation", run_source)
+
+    def test_profile_setup_write_finished_uses_queued_state_finish_guard(self) -> None:
+        profile_write_helper = inspect.getsource(
+            ProfileSetupPageBase._schedule_next_profile_setup_write_operation_after_finish
+        )
+        user_profile_write_helper = inspect.getsource(
+            ProfileSetupPageBase._schedule_next_user_profile_write_operation_after_finish
+        )
+
+        for source in (profile_write_helper, user_profile_write_helper):
+            self.assertIn("schedule_next_after_finish", source)
+            self.assertIn("_accept_current_profile_setup_worker_finished", source)
+            self.assertIn("is_current_worker_finish", source)
+
+        for handler in (
+            ProfileSetupPageBase._on_list_file_save_worker_finished,
+            ProfileSetupPageBase._on_settings_save_worker_finished,
+            ProfileSetupPageBase._on_raw_profile_save_worker_finished,
+            ProfileSetupPageBase._on_enabled_save_worker_finished,
+            ProfileSetupPageBase._on_strategy_apply_worker_finished,
+        ):
+            self.assertIn(
+                "_schedule_next_profile_setup_write_operation_after_finish",
+                inspect.getsource(handler),
+            )
+
+        for handler in (
+            ProfileSetupPageBase._on_user_profile_update_worker_finished,
+            ProfileSetupPageBase._on_user_profile_delete_worker_finished,
+        ):
+            self.assertIn(
+                "_schedule_next_user_profile_write_operation_after_finish",
+                inspect.getsource(handler),
+            )
 
     def test_user_profile_delete_starts_worker_without_deleting_in_gui_thread(self) -> None:
         class _Signal:
