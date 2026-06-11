@@ -14,6 +14,9 @@ from ui.accessibility import set_control_accessibility, set_item_accessible_text
 from ui.widgets.fluent_item_tooltip import set_fluent_item_tooltip
 
 
+_STRATEGY_RESULT_TABLE_ACCESSIBILITY_INSTALLED = "strategyResultTableAccessibilityInstalled"
+
+
 def apply_strategy_started_progress(
     *,
     blockcheck_feature,
@@ -57,6 +60,7 @@ def add_strategy_result_row(
     push_button_cls,
     on_apply_strategy,
 ) -> dict:
+    ensure_strategy_result_table_current_row_accessibility(table)
     row_plan = blockcheck_feature.build_result_presentation(
         result,
         scan_cursor=scan_cursor,
@@ -112,7 +116,49 @@ def add_strategy_result_row(
         table.setCellWidget(row_idx, 4, apply_btn)
 
     table.scrollToBottom()
+    if table.currentRow() == row_idx:
+        _update_strategy_result_table_current_row_accessibility(table, row_idx, table.currentColumn())
     return row_plan.stored_row
+
+
+def ensure_strategy_result_table_current_row_accessibility(table) -> None:
+    if table is None:
+        return
+    try:
+        if bool(table.property(_STRATEGY_RESULT_TABLE_ACCESSIBILITY_INSTALLED)):
+            return
+    except Exception:
+        pass
+    try:
+        table.currentCellChanged.connect(
+            lambda current_row, current_column, _previous_row, _previous_column, current_table=table: (
+                _update_strategy_result_table_current_row_accessibility(current_table, current_row, current_column)
+            )
+        )
+        table.setProperty(_STRATEGY_RESULT_TABLE_ACCESSIBILITY_INSTALLED, True)
+    except Exception:
+        pass
+
+
+def _update_strategy_result_table_current_row_accessibility(table, row: int, column: int) -> None:
+    if table is None:
+        return
+    row_text = ""
+    try:
+        item = table.item(int(row), int(column))
+        if item is not None:
+            row_text = str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip()
+    except Exception:
+        row_text = ""
+    if not row_text:
+        try:
+            item = table.item(int(row), 1)
+            if item is not None:
+                row_text = str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip()
+        except Exception:
+            row_text = ""
+    if row_text:
+        set_state_text(table, row_text)
 
 
 def _strategy_result_accessible_text(row_plan) -> str:

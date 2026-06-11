@@ -16,7 +16,7 @@ class TableAccessibilityTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication([])
 
-    def test_strategy_scan_result_row_has_screen_reader_text(self) -> None:
+    def _add_strategy_scan_result_row(self, table: QTableWidget) -> None:
         from blockcheck.ui.strategy_scan_page_results_workflow import add_strategy_result_row
 
         class _Feature:
@@ -34,8 +34,6 @@ class TableAccessibilityTests(unittest.TestCase):
                     stored_row={"strategy": "TLS fake"},
                 )
 
-        table = QTableWidget(0, 5)
-
         add_strategy_result_row(
             blockcheck_feature=_Feature(),
             table=table,
@@ -46,11 +44,26 @@ class TableAccessibilityTests(unittest.TestCase):
             on_apply_strategy=lambda _args, _name: None,
         )
 
+    def test_strategy_scan_result_row_has_screen_reader_text(self) -> None:
+        table = QTableWidget(0, 5)
+
+        self._add_strategy_scan_result_row(table)
+
         expected = "Строка 1. Стратегия TLS fake, статус OK, время 120 ms. Доступно действие: применить."
         self.assertEqual(table.item(0, 1).data(Qt.ItemDataRole.AccessibleTextRole), expected)
         self.assertEqual(table.item(0, 2).data(Qt.ItemDataRole.AccessibleTextRole), expected)
         self.assertEqual(table.item(0, 3).data(Qt.ItemDataRole.AccessibleTextRole), expected)
         self.assertEqual(table.cellWidget(0, 4).accessibleName(), "Применить стратегию TLS fake")
+
+    def test_strategy_scan_table_reports_current_row_to_screen_reader(self) -> None:
+        table = QTableWidget(0, 5)
+
+        self._add_strategy_scan_result_row(table)
+        row_text = table.item(0, 1).data(Qt.ItemDataRole.AccessibleTextRole)
+
+        table.setCurrentCell(0, 2)
+
+        self.assertEqual(table.property("screenReaderStateText"), row_text)
 
     def test_updater_server_row_has_screen_reader_text(self) -> None:
         from updater.ui.table_view import render_server_row
