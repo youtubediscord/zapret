@@ -28,8 +28,15 @@ class DNSCheckPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(page.save_button.accessibleName(), "Сохранить результаты проверки DNS")
         self.assertIn("текстовый файл", page.save_button.accessibleDescription())
         self.assertEqual(page.status_label.accessibleName(), "Статус проверки DNS: Готово к проверке")
-        self.assertEqual(page.result_text.accessibleName(), "Результаты проверки DNS")
+        self.assertEqual(
+            page.result_text.accessibleName(),
+            "Результаты проверки DNS: проверка ещё не запускалась",
+        )
         self.assertIn("отчёт DNS-проверки", page.result_text.accessibleDescription())
+        self.assertEqual(
+            page.result_text.property("screenReaderStateText"),
+            "Результаты проверки DNS: проверка ещё не запускалась",
+        )
 
     def test_progress_bar_exposes_screen_reader_state(self) -> None:
         page = DNSCheckPage(dns_feature=_DnsFeatureStub())

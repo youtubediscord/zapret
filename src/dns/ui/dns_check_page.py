@@ -223,6 +223,7 @@ class DNSCheckPage(BasePage):
             name="Результаты проверки DNS",
             description="Здесь появляется текстовый отчёт DNS-проверки.",
         )
+        set_state_text(self.result_text, "Результаты проверки DNS: проверка ещё не запускалась")
         self.result_text.setStyleSheet(
             f"""
             QTextEdit {{
