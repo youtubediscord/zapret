@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 from app.ui_texts import normalize_language, tr as tr_catalog
 from qfluentwidgets import SegmentedWidget
 from ui.accessibility import set_control_accessibility, set_state_text
+from ui.segmented_accessibility import set_segmented_items_accessibility
 
 
 def _join_tab_labels(labels: list[str]) -> str:
@@ -216,6 +217,11 @@ class OrchestraSettingsPage(QWidget):
             self.pivot,
             name=state,
             description=description,
+        )
+        set_segmented_items_accessibility(
+            self.pivot,
+            name="Настройки Оркестратора",
+            labels=dict(zip(self.TAB_KEYS, labels)),
         )
 
     # ------------------------------------------------------------------

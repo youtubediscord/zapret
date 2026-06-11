@@ -16,6 +16,7 @@ from orchestra.ui.page import OrchestraPage
 from orchestra.ui.page_build import build_orchestra_log_card, build_orchestra_log_history_card, build_orchestra_status_card
 from orchestra.ui.page_runtime_helpers import protocol_filter_items, set_protocol_filter_items
 from orchestra.ui.ratings_page import OrchestraRatingsPage
+from orchestra.ui.settings_page import OrchestraSettingsPage
 from orchestra.ui.whitelist_page import OrchestraWhitelistPage, WhitelistDomainRow
 
 
@@ -62,6 +63,30 @@ class OrchestraAccessibilityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
+
+    def test_settings_tabs_items_read_name_and_selection_for_screen_reader(self) -> None:
+        page = OrchestraSettingsPage(orchestra_feature=_OrchestraFeatureStub())
+        self.addCleanup(page.deleteLater)
+
+        self.assertEqual(
+            page.pivot.items["locked"].accessibleName(),
+            "Настройки Оркестратора: Залоченные, выбрано",
+        )
+        self.assertEqual(
+            page.pivot.items["blocked"].accessibleName(),
+            "Настройки Оркестратора: Заблокированные, не выбрано",
+        )
+
+        page.pivot.setCurrentItem("blocked")
+
+        self.assertEqual(
+            page.pivot.items["locked"].accessibleName(),
+            "Настройки Оркестратора: Залоченные, не выбрано",
+        )
+        self.assertEqual(
+            page.pivot.items["blocked"].accessibleName(),
+            "Настройки Оркестратора: Заблокированные, выбрано",
+        )
 
     def test_locked_page_main_controls_are_named_for_screen_reader(self) -> None:
         page = OrchestraLockedPage(orchestra_feature=_OrchestraFeatureStub())
