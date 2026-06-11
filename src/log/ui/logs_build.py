@@ -219,6 +219,14 @@ def build_logs_primary_tab_ui(
             default="Текст выбранного файла лога. Поле только для чтения.",
         ),
     )
+    set_state_text(
+        log_text,
+        tr_catalog_fn(
+            "page.logs.accessibility.log_text.initial_state",
+            language=ui_language,
+            default="Содержимое текущего лога: лог пока не загружен",
+        ),
+    )
     log_layout.addWidget(log_text)
 
     stats_label = caption_label_cls()

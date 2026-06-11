@@ -188,6 +188,10 @@ class LogsAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.log_combo.accessibleName(), "Выбор файла лога")
         self.assertIn("выберите файл стрелками вверх и вниз", widgets.log_combo.accessibleDescription())
         self.assertEqual(
+            widgets.log_text.property("screenReaderStateText"),
+            "Содержимое текущего лога: лог пока не загружен",
+        )
+        self.assertEqual(
             widgets.info_label.property("screenReaderStateText"),
             "Сообщение страницы логов: пока нет сообщений",
         )
