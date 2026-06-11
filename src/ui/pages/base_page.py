@@ -257,12 +257,18 @@ class BasePage(_FluentScrollArea):
         )
 
     def _flush_page_theme_refresh(self) -> None:
+        started_at = _time.perf_counter()
         try:
             if self._page_theme_refresh is None:
                 return
             self._page_theme_refresh.flush_pending()
         except Exception:
             pass
+        finally:
+            self._log_show_step_timing("show.event.theme_flush", started_at)
+
+    def _schedule_page_theme_refresh_flush(self) -> None:
+        QTimer.singleShot(0, self._flush_page_theme_refresh)
 
     def _sync_content_width_to_viewport(self) -> None:
         """Не даёт странице становиться шире видимой области."""
@@ -289,8 +295,8 @@ class BasePage(_FluentScrollArea):
         is_spontaneous = bool(event is not None and event.spontaneous())
         if is_spontaneous:
             step_started_at = _time.perf_counter()
-            self._flush_page_theme_refresh()
-            self._log_show_step_timing("show.event.theme_flush", step_started_at)
+            self._schedule_page_theme_refresh_flush()
+            self._log_show_step_timing("show.event.schedule_theme_flush", step_started_at)
             return
         step_started_at = _time.perf_counter()
         self._flush_ready_callbacks()
@@ -299,8 +305,8 @@ class BasePage(_FluentScrollArea):
         self._schedule_activation()
         self._log_show_step_timing("show.event.schedule_activation", step_started_at)
         step_started_at = _time.perf_counter()
-        self._flush_page_theme_refresh()
-        self._log_show_step_timing("show.event.theme_flush", step_started_at)
+        self._schedule_page_theme_refresh_flush()
+        self._log_show_step_timing("show.event.schedule_theme_flush", step_started_at)
 
     def resizeEvent(self, event):  # noqa: N802 (Qt override)
         super().resizeEvent(event)

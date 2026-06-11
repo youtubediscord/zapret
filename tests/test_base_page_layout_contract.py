@@ -22,12 +22,18 @@ class BasePageLayoutContractTests(unittest.TestCase):
 
     def test_base_page_show_event_logs_internal_timing_steps(self) -> None:
         show = inspect.getsource(BasePage.showEvent)
+        schedule_theme = inspect.getsource(BasePage._schedule_page_theme_refresh_flush)
+        flush_theme = inspect.getsource(BasePage._flush_page_theme_refresh)
 
         self.assertIn("_log_show_step_timing", show)
         self.assertIn("show.event.sync_width", show)
         self.assertIn("show.event.ready_callbacks", show)
         self.assertIn("show.event.schedule_activation", show)
-        self.assertIn("show.event.theme_flush", show)
+        self.assertIn("show.event.schedule_theme_flush", show)
+        self.assertIn("_schedule_page_theme_refresh_flush", show)
+        self.assertNotIn("_flush_page_theme_refresh()", show)
+        self.assertIn("QTimer.singleShot(0, self._flush_page_theme_refresh)", schedule_theme)
+        self.assertIn("show.event.theme_flush", flush_theme)
 
 
 if __name__ == "__main__":
