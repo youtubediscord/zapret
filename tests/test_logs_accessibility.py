@@ -191,6 +191,10 @@ class LogsAccessibilityTests(unittest.TestCase):
             widgets.info_label.property("screenReaderStateText"),
             "Сообщение страницы логов: пока нет сообщений",
         )
+        self.assertEqual(
+            widgets.stats_label.property("screenReaderStateText"),
+            "Статистика логов: пока нет данных",
+        )
 
     def test_send_status_initial_state_is_text_for_screen_reader(self) -> None:
         parent = QWidget()

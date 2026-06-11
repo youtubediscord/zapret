@@ -231,6 +231,14 @@ def build_logs_primary_tab_ui(
             default="Краткая статистика по файлам логов.",
         ),
     )
+    set_state_text(
+        stats_label,
+        tr_catalog_fn(
+            "page.logs.accessibility.stats.initial_state",
+            language=ui_language,
+            default="Статистика логов: пока нет данных",
+        ),
+    )
     log_layout.addWidget(stats_label)
 
     log_card.add_layout(log_layout)
