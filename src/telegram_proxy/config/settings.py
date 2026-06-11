@@ -473,13 +473,27 @@ def load_upstream_test_target() -> tuple | None:
             return None
 
         preset_id = str(get_tg_proxy_upstream_preset_id() or "").strip()
-        target = UpstreamPresetResolver.load_from_runtime().test_target_by_id(preset_id) if preset_id else None
+        resolver = UpstreamPresetResolver.load_from_runtime()
+        target = resolver.test_target_by_id(preset_id) if preset_id else None
         if target is not None:
             return target
 
         host = str(get_tg_proxy_upstream_host() or "").strip()
         port = normalize_upstream_port(get_tg_proxy_upstream_port())
-        if not host or port <= 0:
+        if not host:
+            preset = resolver.first_socks5()
+            if preset is None:
+                return None
+            return (
+                str(preset["host"]),
+                normalize_upstream_port(preset["port"]),
+                str(preset["username"]),
+                str(preset["password"]),
+                bool(preset.get("tls", False)),
+                str(preset.get("tls_server_name") or ""),
+                bool(preset.get("tls_verify", False)),
+            )
+        if port <= 0:
             return None
         return (
             host,
@@ -510,7 +524,8 @@ def build_upstream_config():
             return None
 
         preset_id = str(get_tg_proxy_upstream_preset_id() or "").strip()
-        preset = UpstreamPresetResolver.load_from_runtime().socks5_by_id(preset_id) if preset_id else None
+        resolver = UpstreamPresetResolver.load_from_runtime()
+        preset = resolver.socks5_by_id(preset_id) if preset_id else None
         if preset is not None:
             host = str(preset["host"])
             port = normalize_upstream_port(preset["port"])
@@ -527,6 +542,17 @@ def build_upstream_config():
             tls = False
             tls_server_name = ""
             tls_verify = False
+            if not host:
+                preset = resolver.first_socks5()
+                if preset is None:
+                    return None
+                host = str(preset["host"])
+                port = normalize_upstream_port(preset["port"])
+                username = str(preset["username"])
+                password = str(preset["password"])
+                tls = bool(preset.get("tls", False))
+                tls_server_name = str(preset.get("tls_server_name") or "")
+                tls_verify = bool(preset.get("tls_verify", False))
 
         if not host or port <= 0:
             return None

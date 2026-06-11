@@ -189,6 +189,61 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
             ],
         )
 
+    def test_empty_enabled_upstream_uses_first_bundled_socks_proxy(self) -> None:
+        from telegram_proxy.config.settings import (
+            DEFAULT_UPSTREAM_PORT,
+            build_upstream_config,
+            load_upstream_test_target,
+        )
+        from telegram_proxy.config.upstream_catalog import UpstreamPresetResolver
+
+        catalog_fixture = [
+            {
+                "id": "first",
+                "name": "Первый прокси",
+                "type": "socks5",
+                "host": "203.0.113.10",
+                "port": 443,
+                "username": "preset_user",
+                "password": "preset_password",
+                "tls": True,
+            }
+        ]
+        data = {
+            "telegram_proxy": {
+                "upstream_enabled": True,
+                "upstream_preset_id": "",
+                "upstream_host": "",
+                "upstream_port": DEFAULT_UPSTREAM_PORT,
+                "upstream_user": "",
+                "upstream_pass": "",
+                "upstream_mode": "always",
+            }
+        }
+
+        from unittest.mock import patch
+
+        with (
+            patch(
+                "telegram_proxy.config.settings.UpstreamPresetResolver.load_from_runtime",
+                return_value=UpstreamPresetResolver(catalog_fixture),
+            ),
+            patch("settings.store.read_settings", return_value=data),
+        ):
+            upstream = build_upstream_config()
+            test_target = load_upstream_test_target()
+
+        self.assertIsNotNone(upstream)
+        self.assertEqual(upstream.host, "203.0.113.10")
+        self.assertEqual(upstream.port, 443)
+        self.assertEqual(upstream.username, "preset_user")
+        self.assertEqual(upstream.password, "preset_password")
+        self.assertTrue(upstream.tls)
+        self.assertEqual(
+            test_target,
+            ("203.0.113.10", 443, "preset_user", "preset_password", True, "", False),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

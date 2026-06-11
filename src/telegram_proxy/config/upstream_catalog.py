@@ -244,6 +244,15 @@ class UpstreamPresetResolver:
         preset = self._by_id.get(str(preset_id or "").strip())
         if preset is None or preset.get("type") != "socks5":
             return None
+        return self._socks5_from_preset(preset)
+
+    def first_socks5(self) -> dict | None:
+        for preset in self._presets:
+            if preset.get("type") == "socks5":
+                return self._socks5_from_preset(preset)
+        return None
+
+    def _socks5_from_preset(self, preset: dict) -> dict | None:
         host = str(preset.get("host") or "").strip()
         port = _coerce_port(preset.get("port"))
         if not host or port <= 0:
