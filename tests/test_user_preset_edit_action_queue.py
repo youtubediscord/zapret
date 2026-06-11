@@ -61,6 +61,7 @@ class UserPresetEditActionQueueTests(unittest.TestCase):
     def test_edit_action_worker_finished_starts_pending_request(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         old_worker = _Worker(running=False)
+        old_worker._request_id = 1
         next_worker = _Worker(running=False)
         page._preset_edit_action_runtime = OneShotWorkerRuntime()
         page._preset_edit_action_request_id = 1

@@ -136,6 +136,7 @@ class UserPresetStorageQueueTests(unittest.TestCase):
     def test_storage_action_worker_finished_starts_pending_action(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         old_worker = _Worker(running=False)
+        old_worker._request_id = 0
         next_worker = _Worker(running=False)
         page._preset_storage_action_request_id = 0
         page.create_preset_storage_action_worker = Mock(return_value=next_worker)

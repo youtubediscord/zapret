@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 
@@ -70,7 +71,7 @@ class UserPresetBulkActionQueueTests(unittest.TestCase):
             "presets.ui.common.user_presets_page.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            UserPresetsPageBase._on_preset_bulk_action_worker_finished(page, object())
+            UserPresetsPageBase._on_preset_bulk_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page.create_preset_bulk_action_worker.assert_not_called()
         self.assertEqual(len(callbacks), 1)
