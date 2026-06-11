@@ -10,6 +10,7 @@ Supports only what Telegram needs:
 import asyncio
 import struct
 import logging
+import ssl
 from typing import Optional
 
 log = logging.getLogger("tg_proxy.socks5")
@@ -149,6 +150,9 @@ async def connect_via_socks5(
     username: str = "",
     password: str = "",
     timeout: float = 10.0,
+    tls: bool = False,
+    tls_server_name: str = "",
+    tls_verify: bool = False,
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """Connect to target through a SOCKS5 proxy. Returns (reader, writer) to target.
 
@@ -156,8 +160,22 @@ async def connect_via_socks5(
     Supports no-auth (0x00) and username/password auth (0x02, RFC 1929).
     Raises Socks5Error on any SOCKS5 protocol failure.
     """
+    ssl_context = None
+    server_hostname = None
+    if tls:
+        ssl_context = ssl.create_default_context()
+        if not tls_verify:
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+        server_hostname = str(tls_server_name or proxy_host or "").strip() or None
+
     reader, writer = await asyncio.wait_for(
-        asyncio.open_connection(proxy_host, proxy_port),
+        asyncio.open_connection(
+            proxy_host,
+            proxy_port,
+            ssl=ssl_context,
+            server_hostname=server_hostname,
+        ),
         timeout=timeout,
     )
 

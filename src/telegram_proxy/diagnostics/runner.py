@@ -405,7 +405,15 @@ def _test_proxy_liveness(host: str, port: int) -> dict:
         result["error"] = str(exc)
         return result
 
-def _test_upstream_proxy(host: str, port: int) -> dict:
+def _test_upstream_proxy(
+    host: str,
+    port: int,
+    username: str = "",
+    password: str = "",
+    tls: bool = False,
+    tls_server_name: str = "",
+    tls_verify: bool = False,
+) -> dict:
     result = {
         "host": host,
         "port": port,
@@ -416,12 +424,32 @@ def _test_upstream_proxy(host: str, port: int) -> dict:
     try:
         t0 = time.monotonic()
         sock = socket.create_connection((host, port), timeout=5.0)
+        if tls:
+            context = ssl.create_default_context()
+            if not tls_verify:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+            sock = context.wrap_socket(sock, server_hostname=tls_server_name or host)
         result["tcp_ms"] = (time.monotonic() - t0) * 1000
 
         t1 = time.monotonic()
-        sock.sendall(b"\x05\x01\x00")
+        if username:
+            sock.sendall(b"\x05\x02\x00\x02")
+        else:
+            sock.sendall(b"\x05\x01\x00")
         reply = sock.recv(2)
-        if len(reply) == 2 and reply[0] == 5 and reply[1] == 0:
+        if len(reply) == 2 and reply[0] == 5 and reply[1] == 2 and username:
+            user_bytes = username.encode("utf-8")
+            pass_bytes = password.encode("utf-8")
+            sock.sendall(b"\x01" + bytes([len(user_bytes)]) + user_bytes + bytes([len(pass_bytes)]) + pass_bytes)
+            auth_reply = sock.recv(2)
+            if len(auth_reply) == 2 and auth_reply[0] == 1 and auth_reply[1] == 0:
+                result["handshake_ms"] = (time.monotonic() - t1) * 1000
+                result["status"] = "OK"
+            else:
+                result["status"] = "SOCKS_ERROR"
+                result["error"] = f"Bad auth reply: {auth_reply.hex()}"
+        elif len(reply) == 2 and reply[0] == 5 and reply[1] == 0:
             result["handshake_ms"] = (time.monotonic() - t1) * 1000
             result["status"] = "OK"
         else:

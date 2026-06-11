@@ -1372,6 +1372,9 @@ class TelegramWSProxy:
                 username=self._upstream.username,
                 password=self._upstream.password,
                 timeout=CONNECT_TIMEOUT,
+                tls=self._upstream.tls,
+                tls_server_name=self._upstream.tls_server_name,
+                tls_verify=self._upstream.tls_verify,
             )
             apply_socket_options(rw.transport, self._buffer_size)
         except Exception as exc:
@@ -1582,6 +1585,9 @@ class TelegramWSProxy:
                 username=self._upstream.username,
                 password=self._upstream.password,
                 timeout=CONNECT_TIMEOUT,
+                tls=self._upstream.tls,
+                tls_server_name=self._upstream.tls_server_name,
+                tls_verify=self._upstream.tls_verify,
             )
             apply_socket_options(rw.transport, self._buffer_size)
         except Exception as exc:

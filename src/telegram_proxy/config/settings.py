@@ -458,13 +458,15 @@ def build_dc_endpoint_overrides() -> dict[int, str]:
         return {}
 
 
-def load_upstream_test_target() -> tuple[str, int] | None:
+def load_upstream_test_target() -> tuple | None:
     try:
         from settings.store import (
             get_tg_proxy_upstream_enabled,
             get_tg_proxy_upstream_host,
+            get_tg_proxy_upstream_pass,
             get_tg_proxy_upstream_preset_id,
             get_tg_proxy_upstream_port,
+            get_tg_proxy_upstream_user,
         )
 
         if not get_tg_proxy_upstream_enabled():
@@ -479,7 +481,15 @@ def load_upstream_test_target() -> tuple[str, int] | None:
         port = normalize_upstream_port(get_tg_proxy_upstream_port())
         if not host or port <= 0:
             return None
-        return host, port
+        return (
+            host,
+            port,
+            str(get_tg_proxy_upstream_user() or "").strip(),
+            str(get_tg_proxy_upstream_pass() or ""),
+            False,
+            "",
+            False,
+        )
     except Exception:
         return None
 
@@ -506,11 +516,17 @@ def build_upstream_config():
             port = normalize_upstream_port(preset["port"])
             username = str(preset["username"])
             password = str(preset["password"])
+            tls = bool(preset.get("tls", False))
+            tls_server_name = str(preset.get("tls_server_name") or "")
+            tls_verify = bool(preset.get("tls_verify", False))
         else:
             host = str(get_tg_proxy_upstream_host() or "").strip()
             port = normalize_upstream_port(get_tg_proxy_upstream_port())
             username = str(get_tg_proxy_upstream_user() or "").strip()
             password = str(get_tg_proxy_upstream_pass() or "")
+            tls = False
+            tls_server_name = ""
+            tls_verify = False
 
         if not host or port <= 0:
             return None
@@ -522,6 +538,9 @@ def build_upstream_config():
             mode=str(get_tg_proxy_upstream_mode() or "fallback"),
             username=username,
             password=password,
+            tls=tls,
+            tls_server_name=tls_server_name,
+            tls_verify=tls_verify,
         )
     except Exception:
         return None

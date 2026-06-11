@@ -61,12 +61,15 @@ def _normalize_upstream_preset(
             "port": port,
             "username": str(raw.get("username") or "").strip(),
             "password": str(raw.get("password") or ""),
+            "tls": bool(raw.get("tls", False)),
+            "tls_server_name": str(raw.get("tls_server_name") or "").strip(),
+            "tls_verify": bool(raw.get("tls_verify", False)),
         }
     )
     return preset
 
 
-def _preset_identity_key(preset: dict) -> tuple[str, int, str, str] | str | None:
+def _preset_identity_key(preset: dict) -> tuple[str, int, str, str, bool, str, bool] | str | None:
     preset_type = preset.get("type") or "socks5"
     if preset_type == "mtproxy":
         return f"mtproxy:{str(preset.get('link') or '').strip()}"
@@ -77,6 +80,9 @@ def _preset_identity_key(preset: dict) -> tuple[str, int, str, str] | str | None
         _coerce_port(preset.get("port")),
         str(preset.get("username") or "").strip(),
         str(preset.get("password") or ""),
+        bool(preset.get("tls", False)),
+        str(preset.get("tls_server_name") or "").strip().lower(),
+        bool(preset.get("tls_verify", False)),
     )
 
 
@@ -132,7 +138,7 @@ def _load_build_upstream_presets() -> list[dict]:
 
 def _build_choice_list(build_presets: list[dict]) -> list[dict]:
     choices = []
-    seen: set[tuple[str, int, str, str] | str] = set()
+    seen: set[tuple[str, int, str, str, bool, str, bool] | str] = set()
 
     for preset in build_presets:
         normalized = _normalize_upstream_preset(
@@ -224,6 +230,7 @@ class UpstreamCatalog:
         preset = self.preset_at(index)
         return bool(preset and preset.get("type") == "mtproxy")
 
+
 class UpstreamPresetResolver:
     def __init__(self, build_presets: list[dict] | None = None):
         self._presets = _build_choice_private_presets(list(build_presets or []))
@@ -246,6 +253,9 @@ class UpstreamPresetResolver:
             "port": port,
             "username": str(preset.get("username") or "").strip(),
             "password": str(preset.get("password") or ""),
+            "tls": bool(preset.get("tls", False)),
+            "tls_server_name": str(preset.get("tls_server_name") or "").strip(),
+            "tls_verify": bool(preset.get("tls_verify", False)),
         }
 
     def mtproxy_link_by_id(self, preset_id: object) -> str:
@@ -254,16 +264,24 @@ class UpstreamPresetResolver:
             return ""
         return str(preset.get("link") or "").strip()
 
-    def test_target_by_id(self, preset_id: object) -> tuple[str, int] | None:
+    def test_target_by_id(self, preset_id: object) -> tuple[str, int, str, str, bool, str, bool] | None:
         preset = self.socks5_by_id(preset_id)
         if preset is None:
             return None
-        return str(preset["host"]), int(preset["port"])
+        return (
+            str(preset["host"]),
+            int(preset["port"]),
+            str(preset["username"]),
+            str(preset["password"]),
+            bool(preset.get("tls", False)),
+            str(preset.get("tls_server_name") or ""),
+            bool(preset.get("tls_verify", False)),
+        )
 
 
 def _build_choice_private_presets(build_presets: list[dict]) -> list[dict]:
     presets = []
-    seen: set[tuple[str, int, str, str] | str] = set()
+    seen: set[tuple[str, int, str, str, bool, str, bool] | str] = set()
     for preset in build_presets:
         normalized = _normalize_upstream_preset(
             preset,

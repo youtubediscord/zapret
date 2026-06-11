@@ -14,6 +14,8 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
                 "port": 443,
                 "username": "preset_user",
                 "password": "preset_password",
+                "tls": True,
+                "tls_server_name": "proxy.example.test",
             }
         ]
         catalog = UpstreamCatalog(build_presets=catalog_fixture)
@@ -39,6 +41,8 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
                 "port": 443,
                 "username": "preset_user",
                 "password": "preset_password",
+                "tls": True,
+                "tls_server_name": "proxy.example.test",
             }
         ]
         catalog = UpstreamCatalog(build_presets=catalog_fixture)
@@ -77,6 +81,8 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
                 "port": 443,
                 "username": "preset_user",
                 "password": "preset_password",
+                "tls": True,
+                "tls_server_name": "proxy.example.test",
             }
         ]
         catalog = UpstreamCatalog(build_presets=catalog_fixture)
@@ -113,6 +119,9 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
         self.assertEqual(upstream.port, 443)
         self.assertEqual(upstream.username, "preset_user")
         self.assertEqual(upstream.password, "preset_password")
+        self.assertTrue(upstream.tls)
+        self.assertEqual(upstream.tls_server_name, "proxy.example.test")
+        self.assertFalse(upstream.tls_verify)
 
         saved = []
 
@@ -146,7 +155,18 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
             ),
             patch("settings.store.read_settings", return_value=data),
         ):
-            self.assertEqual(load_upstream_test_target(), ("203.0.113.10", 443))
+            self.assertEqual(
+                load_upstream_test_target(),
+                (
+                    "203.0.113.10",
+                    443,
+                    "preset_user",
+                    "preset_password",
+                    True,
+                    "proxy.example.test",
+                    False,
+                ),
+            )
 
         saved = []
         with (

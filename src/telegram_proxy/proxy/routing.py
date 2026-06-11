@@ -21,6 +21,9 @@ class UpstreamProxyConfig:
     mode: str = "always"
     username: str = ""
     password: str = ""
+    tls: bool = False
+    tls_server_name: str = ""
+    tls_verify: bool = False
 
 
 def check_relay_reachable(
