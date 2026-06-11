@@ -55,6 +55,15 @@ class _FakeLogCombo:
     def addItem(self, display: str, userData: str = "") -> None:  # noqa: N802
         self.items.append((display, userData))
 
+    def count(self) -> int:
+        return len(self.items)
+
+    def itemData(self, index: int) -> str:  # noqa: N802
+        return self.items[index][1]
+
+    def itemText(self, index: int) -> str:  # noqa: N802
+        return self.items[index][0]
+
     def setCurrentIndex(self, index: int) -> None:  # noqa: N802
         self.current_index = int(index)
 
@@ -141,6 +150,25 @@ class LogsAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             page.log_combo.property("screenReaderStateText"),
             "Выбор файла лога, выбрано: current.log",
+        )
+
+    def test_log_combo_accessible_name_updates_after_keyboard_selection(self) -> None:
+        page = logs_page.LogsPage.__new__(logs_page.LogsPage)
+        page._ui_language = "ru"
+        page.current_log_file = "C:/Zapret/Dev/logs/old.log"
+        page.log_combo = _FakeLogCombo()
+        page.log_combo.addItem("old.log", "C:/Zapret/Dev/logs/old.log")
+        page.log_combo.addItem("new.log", "C:/Zapret/Dev/logs/new.log")
+        page._start_tail_worker = lambda: None
+
+        logs_page.LogsPage._on_log_selected(page, 1)
+
+        self.assertEqual(page.current_log_file, "C:/Zapret/Dev/logs/new.log")
+        self.assertEqual(page.log_combo.accessible_name, "Выбор файла лога, выбрано: new.log")
+        self.assertEqual(page.log_combo.accessible_description, "Доступных файлов логов: 2.")
+        self.assertEqual(
+            page.log_combo.property("screenReaderStateText"),
+            "Выбор файла лога, выбрано: new.log",
         )
 
     def test_send_status_label_updates_screen_reader_state(self) -> None:

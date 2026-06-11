@@ -949,26 +949,30 @@ class LogsPage(BasePage):
                     current_index = entry["index"]
                     current_display = str(entry.get("display") or "")
                 self.log_combo.addItem(entry["display"], userData=entry["path"])
-            combo_name = tr_catalog(
-                "page.logs.accessibility.log_combo.name",
-                language=self._ui_language,
-                default="Выбор файла лога",
-            )
-            if current_display:
-                combo_name = f"{combo_name}, выбрано: {current_display}"
-            set_state_text(self.log_combo, combo_name)
-            set_control_accessibility(
-                self.log_combo,
-                name=combo_name,
-                description=tr_catalog(
-                    "page.logs.accessibility.log_combo.count_description",
-                    language=self._ui_language,
-                    default="Доступных файлов логов: {count}.",
-                ).format(count=len(state.entries)),
-            )
+            self._update_log_combo_accessibility(current_display, count=len(state.entries))
             self.log_combo.setCurrentIndex(current_index)
         finally:
             self.log_combo.blockSignals(False)
+
+    def _update_log_combo_accessibility(self, selected_display: str, *, count: int) -> None:
+        combo_name = tr_catalog(
+            "page.logs.accessibility.log_combo.name",
+            language=self._ui_language,
+            default="Выбор файла лога",
+        )
+        selected_display = str(selected_display or "").strip()
+        if selected_display:
+            combo_name = f"{combo_name}, выбрано: {selected_display}"
+        set_state_text(self.log_combo, combo_name)
+        set_control_accessibility(
+            self.log_combo,
+            name=combo_name,
+            description=tr_catalog(
+                "page.logs.accessibility.log_combo.count_description",
+                language=self._ui_language,
+                default="Доступных файлов логов: {count}.",
+            ).format(count=max(0, int(count))),
+        )
 
     def _apply_logs_stats_state(self, stats) -> None:
         plan = self._logs.build_stats_text_plan(stats, language=self._ui_language)
@@ -1037,6 +1041,10 @@ class LogsPage(BasePage):
         log_path = self.log_combo.itemData(index)
         if log_path and log_path != self.current_log_file:
             self.current_log_file = log_path
+            self._update_log_combo_accessibility(
+                self.log_combo.itemText(index),
+                count=self.log_combo.count(),
+            )
             self._start_tail_worker()
             
     def _start_tail_worker(self):
