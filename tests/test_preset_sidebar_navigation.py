@@ -1402,7 +1402,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertEqual(item.text(), "Discord Voice - Готовые стратегии")
         self.assertEqual(
             item.data(Qt.ItemDataRole.AccessibleTextRole),
-            "Результат поиска: Discord Voice, место: Готовые стратегии",
+            "Результат поиска: Discord Voice, место: Готовые стратегии. Нажмите Enter, чтобы открыть.",
         )
 
     def test_sidebar_search_reuses_runtime_entries_cache_while_typing(self) -> None:

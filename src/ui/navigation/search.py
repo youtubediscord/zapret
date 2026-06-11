@@ -286,7 +286,7 @@ def update_sidebar_search_suggestions(window) -> None:
         title, location = format_search_result(match.entry, language=session.ui_language)
         item = QStandardItem(f"{title} - {location}")
         item.setData(
-            f"Результат поиска: {title}, место: {location}",
+            f"Результат поиска: {title}, место: {location}. Нажмите Enter, чтобы открыть.",
             int(Qt.ItemDataRole.AccessibleTextRole),
         )
         item.setData(match.entry.page_name.name, _PAGE_ROLE)
