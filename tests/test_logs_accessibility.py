@@ -230,6 +230,39 @@ class LogsAccessibilityTests(unittest.TestCase):
             "Статус подготовки обращения: пока обращение не подготовлено",
         )
 
+    def test_errors_text_initial_state_is_text_for_screen_reader(self) -> None:
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        layout = QVBoxLayout(parent)
+
+        widgets = logs_build.build_logs_secondary_panels_ui(
+            parent_layout=layout,
+            ui_language="ru",
+            tr_catalog_fn=lambda _key, language, default, **_kwargs: default,
+            settings_card_cls=SettingsCard,
+            qvbox_layout_cls=QVBoxLayout,
+            qhbox_layout_cls=QHBoxLayout,
+            qlabel_cls=QLabel,
+            caption_label_cls=CaptionLabel,
+            strong_body_label_cls=StrongBodyLabel,
+            fluent_push_button_cls=PushButton,
+            text_edit_cls=QTextEdit,
+            qfont_cls=QFont,
+            errors_text_min_height=52,
+            errors_text_max_height=140,
+            on_clear_errors=lambda: None,
+            on_update_errors_height=lambda: None,
+        )
+
+        self.assertEqual(
+            widgets.errors_text.accessibleName(),
+            "Найденные ошибки и предупреждения: пока нет записей",
+        )
+        self.assertEqual(
+            widgets.errors_text.property("screenReaderStateText"),
+            "Найденные ошибки и предупреждения: пока нет записей",
+        )
+
     def test_log_page_routes_info_text_through_screen_reader_state(self) -> None:
         source = inspect.getsource(logs_page.LogsPage)
 

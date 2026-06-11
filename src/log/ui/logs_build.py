@@ -349,6 +349,14 @@ def build_logs_secondary_panels_ui(
             default="Список строк лога, которые программа распознала как ошибки или предупреждения.",
         ),
     )
+    set_state_text(
+        errors_text,
+        tr_catalog_fn(
+            "page.logs.accessibility.errors_text.initial_state",
+            language=ui_language,
+            default="Найденные ошибки и предупреждения: пока нет записей",
+        ),
+    )
     errors_text.document().contentsChanged.connect(on_update_errors_height)
     errors_layout.addWidget(errors_text)
 
