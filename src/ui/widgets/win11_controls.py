@@ -6,6 +6,7 @@ from PyQt6.QtGui import QPainter, QColor, QPainterPath, QIcon
 import qtawesome as qta
 
 from ui.accessibility import set_control_accessibility, set_state_text
+from ui.combo_accessibility import set_combo_items_accessibility
 from ui.theme import (
     get_cached_qta_pixmap,
     get_card_gradient_qss,
@@ -890,6 +891,7 @@ class Win11ComboRow(FluentSettingCard):
         if combo is not None:
             set_control_accessibility(combo, name=name, description=description)
             set_state_text(combo, name)
+            set_combo_items_accessibility(combo, name=title)
 
 
 __all__ = [

@@ -158,6 +158,30 @@ class Win11ToggleRowTests(unittest.TestCase):
 
         self.assertEqual(events, [True])
 
+    def test_combo_row_menu_items_are_named_for_screen_reader(self) -> None:
+        from ui.widgets.win11_controls import Win11ComboRow
+
+        row = Win11ComboRow(
+            "fa5s.sliders-h",
+            "Режим запуска",
+            "Выберите режим запуска DPI",
+            items=[("Авто", "auto"), ("Ручной", "manual")],
+        )
+        self.addCleanup(row.deleteLater)
+        create_menu = getattr(row.combo, "_create_accessible_combo_menu", None)
+        self.assertIsNotNone(create_menu)
+
+        menu = create_menu()
+
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим запуска: Авто, выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим запуска: Ручной, не выбран",
+        )
+
     def test_toggle_row_has_screen_reader_text_for_switch_state(self) -> None:
         from ui.widgets.win11_controls import Win11ToggleRow
 
