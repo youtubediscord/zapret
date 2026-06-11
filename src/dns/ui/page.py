@@ -21,6 +21,7 @@ from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.queued_worker_state import QueuedWorkerState
 from ui.widgets.win11_controls import Win11ToggleRow
 from ui.accessibility import set_control_accessibility, set_state_text
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.fluent_widgets import (
     SettingsCard,
     QuickActionsBar,
@@ -211,10 +212,19 @@ class NetworkPage(BasePage):
         if MessageBox is None:
             return True
         try:
+            title = self._tr(title_key, title_default)
+            body = self._tr(confirm_key, confirm_default)
             box = MessageBox(
-                self._tr(title_key, title_default),
-                self._tr(confirm_key, confirm_default),
+                title,
+                body,
                 self.window(),
+            )
+            set_message_box_button_accessibility(
+                box,
+                yes_name=title,
+                yes_description=body,
+                cancel_name=f"Отменить действие: {title}",
+                cancel_description="Закрывает диалог без изменения DNS.",
             )
             return bool(box.exec())
         except Exception:
