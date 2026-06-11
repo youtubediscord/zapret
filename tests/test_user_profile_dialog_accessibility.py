@@ -3,6 +3,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from profile.ui.user_profile_dialog import CreateUserProfileDialog
@@ -51,6 +52,28 @@ class UserProfileDialogAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             dialog.protocolCombo.property("screenReaderStateText"),
             "Тип пользовательского profile, выбрано: L7",
+        )
+
+    def test_protocol_combo_menu_items_are_named_for_screen_reader(self) -> None:
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        parent.resize(640, 480)
+        parent.show()
+
+        dialog = CreateUserProfileDialog(parent, protocol="udp")
+        self.addCleanup(dialog.deleteLater)
+        create_menu = getattr(dialog.protocolCombo, "_create_accessible_combo_menu", None)
+        self.assertIsNotNone(create_menu)
+
+        menu = create_menu()
+
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Тип пользовательского profile: TCP, не выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Тип пользовательского profile: UDP, выбран",
         )
 
     def test_validation_warning_has_text_state_for_screen_reader(self) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from qfluentwidgets import BodyLabel, CaptionLabel, ComboBox, LineEdit, MessageBoxBase, SubtitleLabel
 
 from ui.accessibility import set_accessible_description, set_control_accessibility, set_state_text
+from ui.combo_accessibility import set_combo_items_accessibility
 from ui.fluent_widgets import style_semantic_caption_label
 
 
@@ -116,6 +117,7 @@ class CreateUserProfileDialog(MessageBoxBase):
             name=state_text,
         )
         set_state_text(self.protocolCombo, state_text)
+        set_combo_items_accessibility(self.protocolCombo, name="Тип пользовательского profile")
 
     def validate(self) -> bool:
         name, _protocol, ports = self.values()
