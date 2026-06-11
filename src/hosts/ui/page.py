@@ -15,6 +15,7 @@ from ui.pages.base_page import BasePage
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.accessibility import set_state_text
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from hosts.ui.sections_build import (
     build_hosts_adobe_section,
     build_hosts_browser_warning,
@@ -1066,13 +1067,21 @@ class HostsPage(BasePage):
         if self._applying:
             return
         if MessageBox is not None:
+            body = self._tr(
+                "page.hosts.dialog.clear.body",
+                "Будет удалён только блок записей ZapretGUI. Ручные записи в файле hosts останутся на месте.",
+            )
             box = MessageBox(
                 self._tr("page.hosts.dialog.clear.title", "Очистить записи ZapretGUI?"),
-                self._tr(
-                    "page.hosts.dialog.clear.body",
-                    "Будет удалён только блок записей ZapretGUI. Ручные записи в файле hosts останутся на месте.",
-                ),
+                body,
                 self.window(),
+            )
+            set_message_box_button_accessibility(
+                box,
+                yes_name="Очистить записи ZapretGUI из hosts",
+                yes_description=body,
+                cancel_name="Отменить очистку hosts",
+                cancel_description="Закрывает диалог без очистки hosts.",
             )
             if not box.exec():
                 return

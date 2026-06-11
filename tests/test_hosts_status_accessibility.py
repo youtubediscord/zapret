@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -13,6 +13,48 @@ from hosts.ui.page import HostsPage
 from hosts.ui.sections_build import build_hosts_status_section
 from hosts.ui.sections_build import build_hosts_adobe_section
 from qfluentwidgets import SwitchButton
+
+
+class _DialogButton:
+    def __init__(self) -> None:
+        self._text = ""
+        self._accessible_name = ""
+        self._accessible_description = ""
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self._text = str(text)
+
+    def text(self) -> str:
+        return self._text
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self._accessible_description = str(text)
+
+
+class _MessageBox:
+    instances: list["_MessageBox"] = []
+
+    def __init__(self, title: str, body: str, parent=None) -> None:
+        self.title = title
+        self.body = body
+        self.parent = parent
+        self.yesButton = _DialogButton()
+        self.cancelButton = _DialogButton()
+        self.exec_called = False
+        _MessageBox.instances.append(self)
+
+    def exec(self) -> bool:
+        self.exec_called = True
+        return False
 
 
 class HostsStatusAccessibilityTests(unittest.TestCase):
@@ -100,6 +142,24 @@ class HostsStatusAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(widgets.switch.accessibleName(), "Блокировка Adobe, включено")
         self.assertEqual(widgets.switch.property("screenReaderStateText"), "Блокировка Adobe, включено")
+
+    def test_clear_hosts_confirmation_buttons_are_named_for_screen_reader(self) -> None:
+        page = HostsPage.__new__(HostsPage)
+        page._applying = False
+        page._clear_hosts = Mock()
+        page._tr = lambda _key, default, **kwargs: default.format(**kwargs) if kwargs else default
+        page.window = lambda: None
+        _MessageBox.instances = []
+
+        with patch("hosts.ui.page.MessageBox", _MessageBox):
+            HostsPage._on_clear_clicked(page)
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Очистить записи ZapretGUI из hosts")
+        self.assertIn("Будет удалён только блок записей ZapretGUI", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить очистку hosts")
+        self.assertTrue(dialog.exec_called)
+        page._clear_hosts.assert_not_called()
 
 
 if __name__ == "__main__":
