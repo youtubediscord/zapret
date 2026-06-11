@@ -219,6 +219,43 @@ class ProfileOrderPageTests(unittest.TestCase):
 
         page._reload_order_profiles.assert_not_called()
 
+    def test_order_page_clean_activation_restores_heavy_list_after_show(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+
+        class _List:
+            def __init__(self) -> None:
+                self.visible_calls: list[bool] = []
+
+            def setVisible(self, value: bool) -> None:  # noqa: N802
+                self.visible_calls.append(bool(value))
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        order_list = _List()
+        page._order_list = order_list
+        page._order_payload_loaded_once = True
+        page._order_payload_dirty = False
+        page._order_list_show_scheduled = False
+        page._cleanup_in_progress = False
+        page._reload_order_profiles = Mock(
+            side_effect=AssertionError("clean order activation must not reload payload")
+        )
+        scheduled: list[object] = []
+
+        with patch(
+            "profile.ui.profile_order_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled.append(callback),
+        ):
+            ProfileOrderPageBase.on_page_hidden(page)
+            ProfileOrderPageBase.on_page_activated(page)
+
+        self.assertEqual(order_list.visible_calls, [False])
+        page._reload_order_profiles.assert_not_called()
+        self.assertEqual(len(scheduled), 1)
+
+        scheduled[0]()
+
+        self.assertEqual(order_list.visible_calls, [False, True])
+
     def test_order_page_ui_state_change_marks_payload_dirty(self) -> None:
         from app.state_store import MainWindowStateStore
         from profile.ui.profile_order_page import ProfileOrderPageBase

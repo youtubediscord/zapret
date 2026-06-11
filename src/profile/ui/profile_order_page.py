@@ -52,6 +52,7 @@ class ProfileOrderPageBase(BasePage):
         self._pending_order_payload_apply = None
         self._order_payload_loaded_once = False
         self._order_payload_dirty = True
+        self._order_list_show_scheduled = False
         self._order_reload_after_preset_switch_scheduled = False
         self._order_move_runtime = OneShotWorkerRuntime()
         self._order_move_state = QueuedWorkerState[dict[str, str]](self._order_move_runtime)
@@ -69,6 +70,46 @@ class ProfileOrderPageBase(BasePage):
             True,
         ):
             self._reload_order_profiles()
+            return
+        self._schedule_order_list_show_after_page_switch()
+
+    def on_page_hidden(self) -> None:
+        self._hide_order_list_for_next_switch()
+
+    def _hide_order_list_for_next_switch(self) -> None:
+        order_list = self.__dict__.get("_order_list")
+        if order_list is None:
+            return
+        try:
+            order_list.setVisible(False)
+        except Exception:
+            pass
+        self._order_list_show_scheduled = False
+
+    def _schedule_order_list_show_after_page_switch(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_order_list") is None:
+            return
+        if self.__dict__.get("_order_list_show_scheduled", False):
+            return
+        self._order_list_show_scheduled = True
+        try:
+            QTimer.singleShot(0, self._show_order_list_after_page_switch)
+        except Exception:
+            self._show_order_list_after_page_switch()
+
+    def _show_order_list_after_page_switch(self) -> None:
+        self._order_list_show_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        order_list = self.__dict__.get("_order_list")
+        if order_list is None:
+            return
+        try:
+            order_list.setVisible(True)
+        except Exception:
+            pass
 
     def bind_ui_state_store(self, store) -> None:
         if self.__dict__.get("_ui_state_store") is store:
@@ -226,6 +267,7 @@ class ProfileOrderPageBase(BasePage):
         self._rebuild_breadcrumb()
         self._order_payload_loaded_once = True
         self._order_payload_dirty = False
+        self._schedule_order_list_show_after_page_switch()
 
     def _on_order_profiles_failed(self, request_id: int, error: str) -> None:
         if not self._order_load_runtime.is_current(
@@ -553,6 +595,7 @@ class ProfileOrderPageBase(BasePage):
         self._order_load_state_obj().reset()
         self._pending_order_payload_apply = None
         self._order_payload_apply_scheduled = False
+        self._order_list_show_scheduled = False
         self._order_reload_after_preset_switch_scheduled = False
         self._order_move_state_obj().reset()
         self._order_move_reload_required = False
