@@ -13,6 +13,7 @@ from ui.fluent_widgets import set_tooltip, style_semantic_caption_label
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.latest_value_worker_state import LatestValueWorkerState
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.queued_worker_state import QueuedWorkerState
 from ui.popup_menu import exec_popup_menu
 from ui.smooth_scroll import apply_editor_smooth_scroll_preference
@@ -1744,15 +1745,25 @@ class PresetRawEditorPage(BasePage):
         if not self._run_after_raw_preset_save(self._reset_preset):
             return
         if MessageBox is not None:
-            box = MessageBox(
-                "Вернуть встроенный пресет?",
+            body = (
                 f"Будет удалён ваш изменённый файл пресета «{self._preset_name}».\n"
                 "После этого снова появится встроенный пресет с тем же именем файла.\n"
-                "Изменения в этом файле будут потеряны.",
+                "Изменения в этом файле будут потеряны."
+            )
+            box = MessageBox(
+                "Вернуть встроенный пресет?",
+                body,
                 self.window(),
             )
             box.yesButton.setText("Вернуть встроенный")
             box.cancelButton.setText("Отмена")
+            set_message_box_button_accessibility(
+                box,
+                yes_name="Вернуть встроенный пресет",
+                yes_description=body,
+                cancel_name="Отменить возврат встроенного пресета",
+                cancel_description="Закрывает диалог без возврата встроенного пресета.",
+            )
             if not box.exec():
                 return
         self._request_raw_preset_action(
@@ -1767,14 +1778,24 @@ class PresetRawEditorPage(BasePage):
         if not self._run_after_raw_preset_save(self._delete_preset):
             return
         if MessageBox is not None:
+            body = (
+                f"Пользовательский пресет «{self._preset_name}» будет удалён.\n"
+                "Изменения в нём будут потеряны."
+            )
             box = MessageBox(
                 "Удалить пресет?",
-                f"Пользовательский пресет «{self._preset_name}» будет удалён.\n"
-                "Изменения в нём будут потеряны.",
+                body,
                 self.window(),
             )
             box.yesButton.setText("Удалить")
             box.cancelButton.setText("Отмена")
+            set_message_box_button_accessibility(
+                box,
+                yes_name="Удалить пользовательский пресет",
+                yes_description=body,
+                cancel_name="Отменить удаление пользовательского пресета",
+                cancel_description="Закрывает диалог без удаления пользовательского пресета.",
+            )
             if not box.exec():
                 return
         self._request_raw_preset_action(

@@ -81,6 +81,7 @@ from ui.presets_menu.model import PresetListModel
 from ui.presets_menu.toolbar import PresetsToolbarLayout
 from ui.presets_menu.common import tr_text as _tr_text
 from ui.latest_value_worker_state import LatestValueWorkerState
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.queued_worker_state import QueuedWorkerState
 
@@ -2298,19 +2299,27 @@ class UserPresetsPageBase(BasePage):
     def _on_reset_preset(self, name: str):
         display_name = self._resolve_display_name(name)
         if MessageBox:
+            body = self._tr(
+                f"{self._config.tr_prefix}.dialog.reset_single.body",
+                "Будет удалён ваш изменённый файл пресета «{name}».\n"
+                "После этого снова появится встроенный пресет с тем же именем файла.\n"
+                "Изменения в этом файле будут потеряны.",
+                name=display_name,
+            )
             box = MessageBox(
                 self._tr(f"{self._config.tr_prefix}.dialog.reset_single.title", "Вернуть встроенный пресет?"),
-                self._tr(
-                    f"{self._config.tr_prefix}.dialog.reset_single.body",
-                    "Будет удалён ваш изменённый файл пресета «{name}».\n"
-                    "После этого снова появится встроенный пресет с тем же именем файла.\n"
-                    "Изменения в этом файле будут потеряны.",
-                    name=display_name,
-                ),
+                body,
                 self.window(),
             )
             box.yesButton.setText(self._tr(f"{self._config.tr_prefix}.dialog.reset_single.button", "Вернуть встроенный"))
             box.cancelButton.setText(self._tr(f"{self._config.tr_prefix}.dialog.button.cancel", "Отмена"))
+            set_message_box_button_accessibility(
+                box,
+                yes_name="Вернуть встроенный пресет",
+                yes_description=body,
+                cancel_name="Отменить возврат встроенного пресета",
+                cancel_description="Закрывает диалог без возврата встроенного пресета.",
+            )
             if not box.exec():
                 return
         self._request_preset_item_action(
@@ -2322,19 +2331,27 @@ class UserPresetsPageBase(BasePage):
     def _on_delete_preset(self, name: str):
         display_name = self._resolve_display_name(name)
         if not self._is_builtin_preset_file(name) and MessageBox:
+            body = self._tr(
+                f"{self._config.tr_prefix}.dialog.delete_single.body",
+                "Пользовательский пресет «{name}» будет удалён.\n"
+                "Изменения в нём будут потеряны.\n"
+                "Вернуть его можно только создав новый пресет или импортировав txt-файл.",
+                name=display_name,
+            )
             box = MessageBox(
                 self._tr(f"{self._config.tr_prefix}.dialog.delete_single.title", "Удалить пресет?"),
-                self._tr(
-                    f"{self._config.tr_prefix}.dialog.delete_single.body",
-                    "Пользовательский пресет «{name}» будет удалён.\n"
-                    "Изменения в нём будут потеряны.\n"
-                    "Вернуть его можно только создав новый пресет или импортировав txt-файл.",
-                    name=display_name,
-                ),
+                body,
                 self.window(),
             )
             box.yesButton.setText(self._tr(f"{self._config.tr_prefix}.dialog.delete_single.button", "Удалить"))
             box.cancelButton.setText(self._tr(f"{self._config.tr_prefix}.dialog.button.cancel", "Отмена"))
+            set_message_box_button_accessibility(
+                box,
+                yes_name="Удалить пользовательский пресет",
+                yes_description=body,
+                cancel_name="Отменить удаление пользовательского пресета",
+                cancel_description="Закрывает диалог без удаления пользовательского пресета.",
+            )
             if not box.exec():
                 return
         self._request_preset_item_action(
