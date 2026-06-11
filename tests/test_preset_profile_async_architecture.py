@@ -2659,7 +2659,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(plan.settings.upstream_user, "u")
         self.assertEqual(plan.settings.upstream_password, "p")
         self.assertEqual(plan.settings.upstream_mode, "always")
-        self.assertEqual(plan.settings.upstream_preset_index, 1)
+        self.assertEqual(plan.settings.upstream_preset_index, 0)
 
     def test_telegram_proxy_log_lines_write_through_worker(self) -> None:
         append_source = inspect.getsource(TelegramProxyPage._append_log_line)

@@ -1980,6 +1980,15 @@ class TelegramProxyPage(BasePage):
             ),
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
             current_index=self._upstream_preset_row.combo.currentIndex(),
+            upstream_catalog=self._upstream_catalog,
+            request_upstream_fields_save=lambda host, port, user, password: self._request_settings_save(
+                "upstream_fields",
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                restart="now",
+            ),
         )
 
     def _on_upstream_preset_changed(self, index: int):

@@ -20,9 +20,24 @@ def handle_upstream_toggle(
     request_upstream_enabled,
     apply_upstream_preset_ui,
     current_index: int,
+    upstream_catalog=None,
+    request_upstream_fields_save=None,
 ) -> None:
     request_upstream_enabled(checked)
     apply_upstream_preset_ui(current_index)
+    if not checked or upstream_catalog is None or request_upstream_fields_save is None:
+        return
+
+    preset = upstream_catalog.preset_at(current_index)
+    if preset is None or upstream_catalog.is_manual(current_index) or upstream_catalog.is_mtproxy(current_index):
+        return
+
+    request_upstream_fields_save(
+        preset.get("host", ""),
+        preset.get("port", 0),
+        preset.get("username", ""),
+        preset.get("password", ""),
+    )
 
 
 def handle_upstream_preset_changed(

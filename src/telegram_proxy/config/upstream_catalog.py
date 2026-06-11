@@ -125,18 +125,7 @@ def _load_build_upstream_presets() -> list[dict]:
 
 
 def _build_choice_list(build_presets: list[dict]) -> list[dict]:
-    choices = [
-        {
-            "id": MANUAL_PRESET_ID,
-            "name": "Ручной ввод",
-            "type": "socks5",
-            "source": "manual",
-            "host": "",
-            "port": 0,
-            "username": "",
-            "password": "",
-        }
-    ]
+    choices = []
     seen: set[tuple[str, int, str, str] | str] = set()
 
     for preset in build_presets:
@@ -153,6 +142,19 @@ def _build_choice_list(build_presets: list[dict]) -> list[dict]:
             continue
         seen.add(key)
         choices.append(normalized)
+
+    choices.append(
+        {
+            "id": MANUAL_PRESET_ID,
+            "name": "Ручной ввод",
+            "type": "socks5",
+            "source": "manual",
+            "host": "",
+            "port": 0,
+            "username": "",
+            "password": "",
+        }
+    )
 
     return choices
 
