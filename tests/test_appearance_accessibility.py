@@ -65,6 +65,33 @@ class AppearanceAccessibilityTests(unittest.TestCase):
         self.assertIn("выбрано:", widgets.combo.accessibleName())
         self.assertIn("Выберите язык", widgets.combo.accessibleDescription())
 
+    def test_language_selector_menu_items_read_selected_state(self) -> None:
+        widgets = build_language_section(
+            tr_language="ru",
+            add_section_title=lambda **_kwargs: None,
+            settings_card_cls=SettingsCard,
+            caption_label_cls=CaptionLabel,
+            body_label_cls=BodyLabel,
+            combo_cls=ComboBox,
+            on_ui_language_changed=lambda _index: None,
+        )
+        self.addCleanup(widgets.card.deleteLater)
+
+        create_menu = getattr(widgets.combo, "_create_accessible_combo_menu", None)
+
+        self.assertIsNotNone(create_menu)
+
+        menu = create_menu()
+        self.addCleanup(menu.deleteLater)
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Язык интерфейса: Русский, выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Язык интерфейса: English, не выбран",
+        )
+
     def test_background_controls_read_state_and_premium_limit(self) -> None:
         widgets = build_background_section(
             tr_language="ru",

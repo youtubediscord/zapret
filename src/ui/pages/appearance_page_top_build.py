@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from ui.fluent_widgets import SettingsCard, build_premium_badge
 from app.ui_texts import LANGUAGE_OPTIONS, tr as tr_catalog
 from ui.accessibility import set_control_accessibility, set_state_text
+from ui.combo_accessibility import set_combo_items_accessibility
 
 
 @dataclass(slots=True)
@@ -314,6 +315,7 @@ def update_language_combo_accessibility(combo) -> None:
         name=state,
         description="Выберите язык интерфейса программы.",
     )
+    set_combo_items_accessibility(combo, name="Язык интерфейса")
 
 
 def _update_background_radio_accessibility(standard, amoled, rkn) -> None:
