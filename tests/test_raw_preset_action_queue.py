@@ -76,7 +76,7 @@ class RawPresetActionQueueTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, object())
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page.create_raw_preset_action_worker.assert_not_called()
         self.assertEqual(runtime.started, [])

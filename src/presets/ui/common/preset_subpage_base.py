@@ -282,7 +282,6 @@ class PresetRawEditorPage(BasePage):
         self._pending_raw_text_apply = None
         self._raw_save_runtime = OneShotWorkerRuntime()
         self._raw_save_request_id = 0
-        self._raw_save_runtime_worker = None
         self._raw_preset_save_state = LatestValueWorkerState(
             self._raw_save_runtime,
             empty_value=None,
@@ -291,14 +290,12 @@ class PresetRawEditorPage(BasePage):
         self._raw_save_succeeded = True
         self._raw_activate_runtime = OneShotWorkerRuntime()
         self._raw_activate_request_id = 0
-        self._raw_activate_runtime_worker = None
         self._raw_preset_activation_state = LatestValueWorkerState(
             self._raw_activate_runtime,
             empty_value="",
         )
         self._raw_action_runtime = OneShotWorkerRuntime()
         self._raw_action_request_id = 0
-        self._raw_action_runtime_worker = None
         self._raw_preset_write_state = QueuedWorkerState[dict[str, object]](object())
         self._cleanup_in_progress = False
         self._ui_state_store = None
@@ -344,16 +341,14 @@ class PresetRawEditorPage(BasePage):
             return False
         return bool(runtime.is_running())
 
-    def _accept_current_raw_write_worker_finished(self, attr: str, worker) -> bool:
-        missing = object()
-        current_worker = self.__dict__.get(attr, missing)
-        if current_worker is missing:
-            setattr(self, attr, None)
-            return True
-        if worker is not current_worker:
+    def _accept_current_raw_write_worker_finished(self, request_attr: str, worker) -> bool:
+        request_id = getattr(worker, "_request_id", None)
+        if request_id is None:
             return False
-        setattr(self, attr, None)
-        return True
+        try:
+            return int(request_id) == int(self.__dict__.get(request_attr, 0) or 0)
+        except (TypeError, ValueError):
+            return False
 
     def _raw_preset_write_is_running(self) -> bool:
         if self._raw_preset_write_state_obj().start_scheduled:
@@ -1070,7 +1065,7 @@ class PresetRawEditorPage(BasePage):
         source_text = self._resolve_raw_preset_save_text(source_text)
         self._raw_save_succeeded = False
         self._set_footer("Сохранение...")
-        _request_id, worker = runtime.start_qthread_worker(
+        runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_raw_preset_save_worker(
                 request_id,
                 file_name=str(file_name or "").strip(),
@@ -1083,7 +1078,6 @@ class PresetRawEditorPage(BasePage):
             on_finished=self._on_raw_preset_save_worker_finished,
             loaded_signal_name="saved",
         )
-        self._raw_save_runtime_worker = worker
 
     def _resolve_raw_preset_save_text(self, source_text) -> str:
         if source_text is not None:
@@ -1131,7 +1125,7 @@ class PresetRawEditorPage(BasePage):
         self._show_error(str(error))
 
     def _on_raw_preset_save_worker_finished(self, worker) -> None:
-        if not self._accept_current_raw_write_worker_finished("_raw_save_runtime_worker", worker):
+        if not self._accept_current_raw_write_worker_finished("_raw_save_request_id", worker):
             return
         save_state = self._raw_preset_save_state_obj()
         pending = save_state.pending
@@ -1461,7 +1455,7 @@ class PresetRawEditorPage(BasePage):
         request_id = self._raw_activate_request_id
         if self.activateButton is not None:
             set_enabled_if_changed(self.activateButton, False)
-        _request_id, worker = runtime.start_qthread_worker(
+        runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_raw_preset_activate_worker(
                 request_id,
                 str(file_name or "").strip(),
@@ -1472,7 +1466,6 @@ class PresetRawEditorPage(BasePage):
             on_finished=self._on_preset_activation_worker_finished,
             loaded_signal_name="activated",
         )
-        self._raw_activate_runtime_worker = worker
 
     def _on_preset_activation_finished(self, request_id: int, activated: bool) -> None:
         if request_id != self._raw_activate_request_id:
@@ -1495,7 +1488,7 @@ class PresetRawEditorPage(BasePage):
         self._show_error(str(error))
 
     def _on_preset_activation_worker_finished(self, worker) -> None:
-        if not self._accept_current_raw_write_worker_finished("_raw_activate_runtime_worker", worker):
+        if not self._accept_current_raw_write_worker_finished("_raw_activate_request_id", worker):
             return
         if self._schedule_next_raw_preset_write_operation_start():
             return
@@ -1582,7 +1575,7 @@ class PresetRawEditorPage(BasePage):
         runtime = self._raw_worker_runtime("_raw_action_runtime")
         self._raw_action_request_id += 1
         request_id = self._raw_action_request_id
-        _request_id, worker = runtime.start_qthread_worker(
+        runtime.start_qthread_worker(
             worker_factory=lambda _runtime_request_id: self.create_raw_preset_action_worker(
                 request_id,
                 action=action,
@@ -1594,7 +1587,6 @@ class PresetRawEditorPage(BasePage):
             on_finished=self._on_raw_preset_action_worker_finished,
             loaded_signal_name="completed",
         )
-        self._raw_action_runtime_worker = worker
 
     def _on_raw_preset_action_finished(self, request_id: int, action: str, result, payload) -> None:
         if request_id != self._raw_action_request_id:
@@ -1646,7 +1638,7 @@ class PresetRawEditorPage(BasePage):
         self._show_error(str(error))
 
     def _on_raw_preset_action_worker_finished(self, worker) -> None:
-        if not self._accept_current_raw_write_worker_finished("_raw_action_runtime_worker", worker):
+        if not self._accept_current_raw_write_worker_finished("_raw_action_request_id", worker):
             return
         if self._schedule_next_raw_preset_write_operation_start():
             return
@@ -1832,9 +1824,6 @@ class PresetRawEditorPage(BasePage):
         self._raw_preset_save_state_obj().reset()
         self._raw_preset_activation_state_obj().reset()
         self._raw_load_runtime_request_id = 0
-        self._raw_save_runtime_worker = None
-        self._raw_activate_runtime_worker = None
-        self._raw_action_runtime_worker = None
         self._stop_raw_worker_runtimes()
         unsubscribe = self._ui_state_unsubscribe
         if callable(unsubscribe):

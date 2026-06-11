@@ -43,12 +43,16 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         self.assertIn("state.pop_next()", start_source)
         self.assertIn("state.start_scheduled", schedule_source)
         self.assertNotIn("self._pending_raw_preset_actions: list", init_source)
+        self.assertNotIn("_raw_save_runtime_worker", init_source)
+        self.assertNotIn("_raw_activate_runtime_worker", init_source)
+        self.assertNotIn("_raw_action_runtime_worker", init_source)
         self.assertNotIn("_pending_raw_preset_actions", inspect.getsource(PresetRawEditorPage.cleanup))
 
     def test_raw_preset_action_waits_while_activation_runs(self) -> None:
         worker = object()
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._raw_activate_runtime = _Runtime(running=True)
+        page._raw_activate_request_id = 1
         page._raw_action_runtime = _Runtime(running=False)
         page._raw_action_request_id = 0
         page._pending_raw_preset_activation = ""
@@ -76,7 +80,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_preset_activation_worker_finished(page, object())
+            PresetRawEditorPage._on_preset_activation_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page.create_raw_preset_action_worker.assert_not_called()
         self.assertEqual(page._raw_action_runtime.started, [])
@@ -96,6 +100,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         worker = object()
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._raw_action_runtime = _Runtime(running=True)
+        page._raw_action_request_id = 1
         page._raw_activate_runtime = _Runtime(running=False)
         page._raw_activate_request_id = 0
         page._preset_file_name = "Next.txt"
@@ -119,7 +124,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, object())
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page.create_raw_preset_activate_worker.assert_not_called()
         self.assertEqual(page._raw_activate_runtime.started, [])
@@ -131,10 +136,8 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         self.assertEqual(page._raw_activate_runtime.started, [worker])
 
     def test_stale_raw_preset_action_worker_finished_does_not_start_pending_activation(self) -> None:
-        old_worker = object()
-        current_worker = object()
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
-        page._raw_action_runtime_worker = current_worker
+        page._raw_action_request_id = 2
         page._raw_action_runtime = _Runtime(running=False)
         page._raw_activate_runtime = _Runtime(running=False)
         page._raw_save_runtime = _Runtime(running=False)
@@ -150,9 +153,8 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, old_worker)
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
-        self.assertIs(page._raw_action_runtime_worker, current_worker)
         self.assertEqual(callbacks, [])
         page.create_raw_preset_activate_worker.assert_not_called()
         self.assertEqual(
@@ -160,10 +162,9 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             [{"kind": "activate", "file_name": "Next.txt"}],
         )
 
-    def test_cleared_raw_preset_action_worker_finished_does_not_start_pending_activation(self) -> None:
-        old_worker = object()
+    def test_worker_finished_without_request_id_does_not_start_pending_activation(self) -> None:
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
-        page._raw_action_runtime_worker = None
+        page._raw_action_request_id = 4
         page._pending_raw_preset_write_operations = [{"kind": "activate", "file_name": "Next.txt"}]
         page.create_raw_preset_activate_worker = Mock()
         callbacks = []
@@ -172,9 +173,8 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, old_worker)
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, object())
 
-        self.assertIsNone(page._raw_action_runtime_worker)
         self.assertEqual(callbacks, [])
         page.create_raw_preset_activate_worker.assert_not_called()
         self.assertEqual(
@@ -187,7 +187,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         page = PresetRawEditorPage.__new__(PresetRawEditorPage)
         page._raw_action_runtime = _Runtime(running=True)
         page._raw_activate_runtime = _Runtime(running=False)
-        page._raw_action_request_id = 0
+        page._raw_action_request_id = 1
         page._pending_raw_preset_activation = ""
         page._pending_raw_preset_actions = []
         page._pending_raw_preset_write_operations = []
@@ -222,8 +222,8 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, object())
-            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, object())
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, SimpleNamespace(_request_id=1))
+            PresetRawEditorPage._on_raw_preset_action_worker_finished(page, SimpleNamespace(_request_id=1))
 
         page.create_raw_preset_action_worker.assert_not_called()
         self.assertEqual(page._raw_action_runtime.started, [])
@@ -232,7 +232,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         callbacks[0]()
 
         page.create_raw_preset_action_worker.assert_called_once_with(
-            1,
+            2,
             action="export",
             payload={"file_name": "Default.txt"},
             parent=page,
@@ -377,7 +377,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         page._raw_save_runtime = _Runtime(running=False)
         page._raw_action_runtime = _Runtime(running=False)
         page._raw_activate_runtime = _Runtime(running=False)
-        page._raw_save_request_id = 0
+        page._raw_save_request_id = 1
         page._pending_raw_preset_save = ("Default.txt", "--new\nold", False)
         page._pending_raw_preset_write_operations = []
         page._after_raw_preset_save = None
@@ -390,7 +390,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
             "presets.ui.common.preset_subpage_base.QTimer.singleShot",
             side_effect=lambda _delay, callback: callbacks.append(callback),
         ):
-            PresetRawEditorPage._on_raw_preset_save_worker_finished(page, object())
+            PresetRawEditorPage._on_raw_preset_save_worker_finished(page, SimpleNamespace(_request_id=1))
             PresetRawEditorPage._request_raw_preset_save(
                 page,
                 file_name="Default.txt",
@@ -404,7 +404,7 @@ class RawPresetWriteSerializationTests(unittest.TestCase):
         callbacks[0]()
 
         page.create_raw_preset_save_worker.assert_called_once_with(
-            1,
+            2,
             file_name="Default.txt",
             source_text="--new\nlatest",
             publish_content_changed=True,
