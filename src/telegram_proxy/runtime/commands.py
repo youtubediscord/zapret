@@ -157,6 +157,7 @@ def save_settings_action(
     port: int = 0,
     user: str = "",
     password: str = "",
+    preset_id: str = "",
     enabled: bool = False,
     value: object = "",
 ):
@@ -186,7 +187,7 @@ def save_settings_action(
     if action_name == "upstream_enabled":
         return telegram_proxy_settings.set_upstream_enabled(enabled)
     if action_name == "upstream_fields":
-        return telegram_proxy_settings.set_upstream_fields(host, port, user, password)
+        return telegram_proxy_settings.set_upstream_fields(host, port, user, password, preset_id)
     if action_name == "upstream_mode":
         return telegram_proxy_settings.set_upstream_mode(enabled)
     if action_name == "cloudflare_enabled":

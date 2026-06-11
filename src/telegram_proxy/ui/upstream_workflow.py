@@ -35,8 +35,9 @@ def handle_upstream_toggle(
     request_upstream_fields_save(
         preset.get("host", ""),
         preset.get("port", 0),
-        preset.get("username", ""),
-        preset.get("password", ""),
+        "",
+        "",
+        str(preset.get("id") or "").strip(),
     )
 
 
@@ -67,7 +68,7 @@ def handle_upstream_preset_changed(
         upstream_port_spin.blockSignals(False)
         upstream_user_edit.clear()
         upstream_pass_edit.clear()
-        request_upstream_fields_save("", 1080, "", "")
+        request_upstream_fields_save("", 1080, "", "", "")
         return ""
 
     if is_mtproxy:
@@ -77,12 +78,13 @@ def handle_upstream_preset_changed(
     upstream_port_spin.blockSignals(True)
     upstream_port_spin.setValue(preset.get("port", 1080))
     upstream_port_spin.blockSignals(False)
-    upstream_user_edit.setText(preset.get("username", ""))
-    upstream_pass_edit.setText(preset.get("password", ""))
+    upstream_user_edit.clear()
+    upstream_pass_edit.clear()
     request_upstream_fields_save(
         preset.get("host", ""),
         preset.get("port", 0),
-        preset.get("username", ""),
-        preset.get("password", ""),
+        "",
+        "",
+        str(preset.get("id") or "").strip(),
     )
     return ""

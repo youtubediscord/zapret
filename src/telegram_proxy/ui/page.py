@@ -1235,6 +1235,7 @@ class TelegramProxyPage(BasePage):
         port: int = 0,
         user: str = "",
         password: str = "",
+        preset_id: str = "",
         enabled: bool = False,
         value: object = "",
         restart: str = "",
@@ -1253,6 +1254,8 @@ class TelegramProxyPage(BasePage):
                 "update_manual": bool(update_manual),
             },
         }
+        if preset_id:
+            payload["preset_id"] = str(preset_id or "")
         state = self._queued_worker_state("_settings_save_state", "_settings_save_runtime")
         state.start_or_queue(payload, self._start_settings_save_worker, self._queue_settings_save_payload)
 
@@ -1277,6 +1280,7 @@ class TelegramProxyPage(BasePage):
                 port=int(payload.get("port") or 0),
                 user=str(payload.get("user") or ""),
                 password=str(payload.get("password") or ""),
+                preset_id=str(payload.get("preset_id") or ""),
                 enabled=bool(payload.get("enabled")),
                 value=payload.get("value", ""),
                 context_extra=dict(payload.get("context_extra") or {}),
@@ -1981,12 +1985,13 @@ class TelegramProxyPage(BasePage):
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
             current_index=self._upstream_preset_row.combo.currentIndex(),
             upstream_catalog=self._upstream_catalog,
-            request_upstream_fields_save=lambda host, port, user, password: self._request_settings_save(
+            request_upstream_fields_save=lambda host, port, user, password, preset_id="": self._request_settings_save(
                 "upstream_fields",
                 host=host,
                 port=port,
                 user=user,
                 password=password,
+                preset_id=preset_id,
                 restart="now",
             ),
         )
@@ -2001,12 +2006,13 @@ class TelegramProxyPage(BasePage):
             upstream_port_spin=self._upstream_port_spin,
             upstream_user_edit=self._upstream_user_edit,
             upstream_pass_edit=self._upstream_pass_edit,
-            request_upstream_fields_save=lambda host, port, user, password: self._request_settings_save(
+            request_upstream_fields_save=lambda host, port, user, password, preset_id="": self._request_settings_save(
                 "upstream_fields",
                 host=host,
                 port=port,
                 user=user,
                 password=password,
+                preset_id=preset_id,
                 restart="now",
             ),
         )

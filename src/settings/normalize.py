@@ -307,6 +307,7 @@ def normalize_telegram_proxy(data: object) -> dict[str, Any]:
             minimum=1,
             maximum=65535,
         ),
+        "upstream_preset_id": as_clean_str(raw.get("upstream_preset_id"), defaults["upstream_preset_id"]),
         "upstream_mode": as_str_in(
             raw.get("upstream_mode"),
             schema.VALID_TG_PROXY_UPSTREAM_MODES,

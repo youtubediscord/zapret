@@ -17,6 +17,7 @@ class TelegramProxySettingsState:
     upstream_enabled: bool
     upstream_host: str
     upstream_port: int
+    upstream_preset_id: str
     upstream_user: str
     upstream_password: str
     upstream_mode: str
@@ -51,6 +52,7 @@ def default_state() -> TelegramProxySettingsState:
         upstream_enabled=False,
         upstream_host="",
         upstream_port=DEFAULT_UPSTREAM_PORT,
+        upstream_preset_id="",
         upstream_user="",
         upstream_password="",
         upstream_mode="fallback",
@@ -154,6 +156,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
     mode = normalize_proxy_mode(raw.get("mode"))
     upstream_host = str(raw.get("upstream_host") or "").strip()
     upstream_port = normalize_upstream_port(raw.get("upstream_port"))
+    upstream_preset_id = str(raw.get("upstream_preset_id") or "").strip()
     upstream_user = str(raw.get("upstream_user") or "").strip()
     upstream_password = str(raw.get("upstream_pass") or "")
     upstream_mode = str(raw.get("upstream_mode") or "fallback").strip().lower() or "fallback"
@@ -173,6 +176,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
         upstream_enabled=bool(raw.get("upstream_enabled", False)),
         upstream_host=upstream_host,
         upstream_port=upstream_port,
+        upstream_preset_id=upstream_preset_id,
         upstream_user=upstream_user,
         upstream_password=upstream_password,
         upstream_mode=upstream_mode,
@@ -181,6 +185,7 @@ def _settings_state_from_data(data: dict, upstream_catalog: UpstreamCatalog) -> 
             port=upstream_port,
             username=upstream_user,
             password=upstream_password,
+            preset_id=upstream_preset_id,
         ),
         cloudflare_enabled=bool(raw.get("cloudflare_enabled", False)),
         cloudflare_domains=cloudflare_domains,
@@ -341,17 +346,25 @@ def set_upstream_mode(always_enabled: bool) -> None:
     except Exception:
         pass
 
-def set_upstream_fields(host: str, port: int, user: str, password: str) -> None:
+def set_upstream_fields(host: str, port: int, user: str, password: str, preset_id: str = "") -> None:
     try:
         from settings.store import (
             set_tg_proxy_upstream_host,
             set_tg_proxy_upstream_pass,
+            set_tg_proxy_upstream_preset_id,
             set_tg_proxy_upstream_port,
             set_tg_proxy_upstream_user,
         )
 
+        normalized_preset_id = str(preset_id or "").strip()
         set_tg_proxy_upstream_host(str(host or "").strip())
         set_tg_proxy_upstream_port(normalize_upstream_port(port))
+        set_tg_proxy_upstream_preset_id(normalized_preset_id)
+        if normalized_preset_id:
+            set_tg_proxy_upstream_user("")
+            set_tg_proxy_upstream_pass("")
+            return
+
         set_tg_proxy_upstream_user(str(user or "").strip())
         set_tg_proxy_upstream_pass(str(password or ""))
     except Exception:
@@ -458,6 +471,7 @@ def build_upstream_config():
             get_tg_proxy_upstream_host,
             get_tg_proxy_upstream_mode,
             get_tg_proxy_upstream_pass,
+            get_tg_proxy_upstream_preset_id,
             get_tg_proxy_upstream_port,
             get_tg_proxy_upstream_user,
         )
@@ -465,8 +479,19 @@ def build_upstream_config():
         if not get_tg_proxy_upstream_enabled():
             return None
 
-        host = str(get_tg_proxy_upstream_host() or "").strip()
-        port = normalize_upstream_port(get_tg_proxy_upstream_port())
+        preset_id = str(get_tg_proxy_upstream_preset_id() or "").strip()
+        preset = UpstreamCatalog.load_from_runtime().preset_by_id(preset_id) if preset_id else None
+        if preset is not None and preset.get("type") == "socks5":
+            host = str(preset.get("host") or "").strip()
+            port = normalize_upstream_port(preset.get("port"))
+            username = str(preset.get("username") or "").strip()
+            password = str(preset.get("password") or "")
+        else:
+            host = str(get_tg_proxy_upstream_host() or "").strip()
+            port = normalize_upstream_port(get_tg_proxy_upstream_port())
+            username = str(get_tg_proxy_upstream_user() or "").strip()
+            password = str(get_tg_proxy_upstream_pass() or "")
+
         if not host or port <= 0:
             return None
 
@@ -475,8 +500,8 @@ def build_upstream_config():
             host=host,
             port=port,
             mode=str(get_tg_proxy_upstream_mode() or "fallback"),
-            username=str(get_tg_proxy_upstream_user() or "").strip(),
-            password=str(get_tg_proxy_upstream_pass() or ""),
+            username=username,
+            password=password,
         )
     except Exception:
         return None

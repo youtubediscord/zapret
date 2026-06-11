@@ -192,6 +192,15 @@ class UpstreamCatalog:
             return self.choices[index]
         return None
 
+    def preset_by_id(self, preset_id: object) -> dict | None:
+        target_id = str(preset_id or "").strip()
+        if not target_id:
+            return None
+        for preset in self.choices:
+            if str(preset.get("id") or "").strip() == target_id:
+                return preset
+        return None
+
     def find_choice_index(
         self,
         *,
@@ -199,7 +208,14 @@ class UpstreamCatalog:
         port: int,
         username: str = "",
         password: str = "",
+        preset_id: str = "",
     ) -> int:
+        target_id = str(preset_id or "").strip()
+        if target_id:
+            for index, preset in enumerate(self.choices):
+                if str(preset.get("id") or "").strip() == target_id:
+                    return index
+
         target = (
             str(host or "").strip().lower(),
             _coerce_port(port),

@@ -106,6 +106,7 @@ def default_telegram_proxy() -> dict[str, Any]:
         "upstream_enabled": False,
         "upstream_host": "",
         "upstream_port": DEFAULT_TG_PROXY_UPSTREAM_PORT,
+        "upstream_preset_id": "",
         "upstream_mode": "fallback",
         "upstream_user": "",
         "upstream_pass": "",

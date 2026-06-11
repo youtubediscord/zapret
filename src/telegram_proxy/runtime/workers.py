@@ -354,6 +354,7 @@ class TelegramProxySettingsSaveWorker(QThread):
         port: int = 0,
         user: str = "",
         password: str = "",
+        preset_id: str = "",
         enabled: bool = False,
         value: object = "",
         context_extra: dict | None = None,
@@ -367,6 +368,7 @@ class TelegramProxySettingsSaveWorker(QThread):
         self._port = int(port or 0)
         self._user = str(user or "").strip()
         self._password = str(password or "")
+        self._preset_id = str(preset_id or "").strip()
         self._enabled = bool(enabled)
         self._value = value
         self._context_extra = dict(context_extra or {})
@@ -377,6 +379,7 @@ class TelegramProxySettingsSaveWorker(QThread):
             "port": self._port,
             "user": self._user,
             "password": self._password,
+            "preset_id": self._preset_id,
             "enabled": self._enabled,
             "value": self._value,
         }
@@ -388,6 +391,7 @@ class TelegramProxySettingsSaveWorker(QThread):
                 port=self._port,
                 user=self._user,
                 password=self._password,
+                preset_id=self._preset_id,
                 enabled=self._enabled,
                 value=self._value,
             )
