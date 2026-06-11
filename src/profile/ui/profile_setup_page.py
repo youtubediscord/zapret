@@ -593,7 +593,9 @@ class ProfileStrategyListWidget(QWidget):
             self._list.addItem(item)
             visible += 1
 
-        set_widget_text_if_changed(self._summary, f"{visible} из {len(self._entries)}")
+        summary_text = f"{visible} из {len(self._entries)}"
+        set_widget_text_if_changed(self._summary, summary_text)
+        set_state_text(self._summary, f"Показано готовых стратегий: {summary_text}")
         if current_item is not None:
             self._list.setCurrentItem(current_item)
             current_item.setSelected(True)

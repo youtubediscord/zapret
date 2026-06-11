@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import os
+from types import SimpleNamespace
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -35,6 +36,33 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         self.assertIn("перейдите в список клавишей Tab", description)
         self.assertIn("выберите стратегию стрелками", description)
         self.assertIn("нажмите Enter", description)
+
+    def test_strategy_summary_reads_visible_count(self) -> None:
+        widget = ProfileStrategyListWidget()
+        self.addCleanup(widget.deleteLater)
+
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="none",
+        )
+
+        self.assertEqual(widget._summary.text(), "2 из 2")
+        self.assertEqual(
+            widget._summary.property("screenReaderStateText"),
+            "Показано готовых стратегий: 2 из 2",
+        )
+
+        widget._search.setText("Alpha")
+
+        self.assertEqual(widget._summary.text(), "1 из 2")
+        self.assertEqual(
+            widget._summary.property("screenReaderStateText"),
+            "Показано готовых стратегий: 1 из 2",
+        )
 
 
 if __name__ == "__main__":
