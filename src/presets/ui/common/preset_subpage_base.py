@@ -1668,9 +1668,13 @@ class PresetRawEditorPage(BasePage):
     def _open_menu(self) -> None:
         if RoundMenu is not None and Action is not None:
             menu = RoundMenu(parent=self)
+            action_map: dict[object, str] = {}
             duplicate_action = _make_menu_action("Дублировать", icon=_fluent_icon("COPY"), parent=menu)
             export_action = _make_menu_action("Экспорт", icon=_fluent_icon("SHARE"), parent=menu)
             reset_action = _make_menu_action("Вернуть встроенный", icon=_fluent_icon("SYNC"), parent=menu)
+            action_map[duplicate_action] = "duplicate"
+            action_map[export_action] = "export"
+            action_map[reset_action] = "reset"
             rename_action = None
             delete_action = None
             if not self._is_current_builtin():
@@ -1678,11 +1682,8 @@ class PresetRawEditorPage(BasePage):
                 delete_action = _make_menu_action("Удалить", icon=_fluent_icon("DELETE"), parent=menu)
                 if self._is_current_selected_file() and hasattr(delete_action, "setEnabled"):
                     delete_action.setEnabled(False)
-                rename_action.triggered.connect(self._rename_preset)
-                delete_action.triggered.connect(self._delete_preset)
-            duplicate_action.triggered.connect(self._duplicate_preset)
-            export_action.triggered.connect(self._export_preset)
-            reset_action.triggered.connect(self._reset_preset)
+                action_map[rename_action] = "rename"
+                action_map[delete_action] = "delete"
             if rename_action is not None:
                 menu.addAction(rename_action)
             menu.addAction(duplicate_action)
@@ -1690,11 +1691,23 @@ class PresetRawEditorPage(BasePage):
             menu.addAction(reset_action)
             if delete_action is not None:
                 menu.addAction(delete_action)
-            exec_popup_menu(
+            chosen = exec_popup_menu(
                 menu,
                 self.menuButton.mapToGlobal(self.menuButton.rect().bottomLeft()),
                 owner=self,
+                capture_action=True,
             )
+            command = action_map.get(chosen, "")
+            if command == "rename":
+                self._rename_preset()
+            elif command == "delete":
+                self._delete_preset()
+            elif command == "duplicate":
+                self._duplicate_preset()
+            elif command == "export":
+                self._export_preset()
+            elif command == "reset":
+                self._reset_preset()
 
     def _rename_preset(self) -> None:
         if self._is_current_builtin():

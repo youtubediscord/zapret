@@ -110,6 +110,17 @@ class RawPresetEditorWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._raw_load_pending = False", init_source)
         self.assertNotIn("self._raw_load_start_scheduled = False", init_source)
 
+    def test_raw_preset_actions_menu_dispatches_after_popup_closes(self) -> None:
+        from presets.ui.common.preset_subpage_base import PresetRawEditorPage
+
+        source = inspect.getsource(PresetRawEditorPage._open_menu)
+
+        self.assertIn("exec_popup_menu", source)
+        self.assertIn("capture_action=True", source)
+        self.assertIn("action_map", source)
+        self.assertNotIn("menu.exec(", source)
+        self.assertNotIn("triggered.connect", source)
+
     def test_raw_preset_save_queue_uses_shared_latest_worker_state(self) -> None:
         from presets.ui.common.preset_subpage_base import PresetRawEditorPage
         from ui.latest_value_worker_state import LatestValueWorkerState
