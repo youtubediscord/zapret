@@ -445,7 +445,10 @@ class OrchestraLockedPage(BasePage):
         set_control_accessibility(
             self.search_input,
             name="Поиск по залоченным доменам",
-            description="Фильтрует список залоченных доменов по введённому тексту.",
+            description=(
+                "Фильтрует список залоченных доменов по введённому тексту. "
+                "После ввода перейдите к списку клавишей Tab."
+            ),
         )
         set_control_accessibility(
             self.refresh_btn,
