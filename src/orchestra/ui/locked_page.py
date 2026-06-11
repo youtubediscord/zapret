@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 
 from ui.pages.base_page import BasePage
 from ui.accessibility import set_control_accessibility, set_state_text
+from ui.combo_accessibility import set_combo_items_accessibility
 from ui.fluent_widgets import set_tooltip
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.message_box_accessibility import set_message_box_button_accessibility
@@ -478,6 +479,7 @@ class OrchestraLockedPage(BasePage):
             self.proto_combo,
             name=proto_state,
         )
+        set_combo_items_accessibility(self.proto_combo, name="Протокол залочки стратегии")
         set_control_accessibility(
             self.strat_spin,
             name=strategy_state,

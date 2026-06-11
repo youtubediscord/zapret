@@ -75,6 +75,18 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             "Протокол залочки стратегии, выбрано: TCP",
         )
         self.assertIn("TCP или UDP", page.proto_combo.accessibleDescription())
+        create_menu = getattr(page.proto_combo, "_create_accessible_combo_menu", None)
+        self.assertIsNotNone(create_menu)
+        menu = create_menu()
+        self.addCleanup(menu.deleteLater)
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Протокол залочки стратегии: TCP, выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Протокол залочки стратегии: UDP, не выбран",
+        )
         self.assertEqual(page.strat_spin.accessibleName(), "Номер стратегии для залочки, выбрано: 1")
         self.assertEqual(
             page.strat_spin.property("screenReaderStateText"),
@@ -109,6 +121,18 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             page.proto_combo.property("screenReaderStateText"),
             "Протокол блокировки стратегии, выбрано: TCP",
+        )
+        create_menu = getattr(page.proto_combo, "_create_accessible_combo_menu", None)
+        self.assertIsNotNone(create_menu)
+        menu = create_menu()
+        self.addCleanup(menu.deleteLater)
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Протокол блокировки стратегии: TCP, выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Протокол блокировки стратегии: UDP, не выбран",
         )
         self.assertEqual(page.strat_spin.accessibleName(), "Номер блокируемой стратегии, выбрано: 1")
         self.assertEqual(
