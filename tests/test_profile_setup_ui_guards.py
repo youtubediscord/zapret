@@ -641,7 +641,11 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
 
         self.assertEqual(len(widget._list.items), 1)
         accessible_text = widget._list.items[0].data(Qt.ItemDataRole.AccessibleTextRole)
-        self.assertEqual(accessible_text, "TLS fake, выбрана, в избранном, работает, Fake, Подмена TLS")
+        self.assertEqual(
+            accessible_text,
+            "TLS fake, выбрана, в избранном, работает, Fake, Подмена TLS. "
+            "Нажмите Enter, чтобы выбрать стратегию.",
+        )
 
     def test_strategy_item_refresh_updates_screen_reader_text(self) -> None:
         from types import SimpleNamespace
@@ -660,7 +664,10 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
                 ProfileStrategyListWidget._ROLE_IS_ACTIVE: False,
                 ProfileStrategyListWidget._ROLE_VISUAL_LABEL_TEXT: "Fake",
                 ProfileStrategyListWidget._ROLE_VISUAL_DESCRIPTION: "Подмена TLS",
-                Qt.ItemDataRole.AccessibleTextRole: "TLS fake, не выбрана, Fake, Подмена TLS",
+                Qt.ItemDataRole.AccessibleTextRole: (
+                    "TLS fake, не выбрана, Fake, Подмена TLS. "
+                    "Нажмите Enter, чтобы выбрать стратегию."
+                ),
             },
             selected=False,
         )
@@ -668,7 +675,10 @@ class ProfileSetupUiGuardTests(unittest.TestCase):
         ProfileStrategyListWidget._refresh_strategy_item(widget, item, "tls_fake", is_current=True)
 
         self.assertIn(
-            (Qt.ItemDataRole.AccessibleTextRole, "TLS fake, выбрана, Fake, Подмена TLS"),
+            (
+                Qt.ItemDataRole.AccessibleTextRole,
+                "TLS fake, выбрана, Fake, Подмена TLS. Нажмите Enter, чтобы выбрать стратегию.",
+            ),
             item.data_calls,
         )
 

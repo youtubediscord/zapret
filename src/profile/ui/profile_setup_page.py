@@ -746,7 +746,8 @@ def _strategy_screen_reader_text(
         for part in (visual_label, visual_description)
         if str(part or "").strip()
     )
-    return ", ".join(part for part in parts if part)
+    text = ", ".join(part for part in parts if part)
+    return f"{text}. Нажмите Enter, чтобы выбрать стратегию." if text else ""
 
 
 def _lower_first(text: str) -> str:
