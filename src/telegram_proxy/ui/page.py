@@ -157,6 +157,7 @@ class TelegramProxyPage(BasePage):
         self._built_panel_indexes: set[int] = set()
         self._advanced_settings_built = False
         self._advanced_signals_connected = False
+        self._initial_advanced_build_scheduled = False
         self._initial_state = telegram_proxy_settings.TelegramProxyPageInitialStatePlan(
             upstream_catalog=telegram_proxy_settings.UpstreamCatalog(),
             settings=telegram_proxy_settings.default_state(),
@@ -789,9 +790,30 @@ class TelegramProxyPage(BasePage):
         advanced_should_open = self._advanced_settings_should_open(state)
         self._advanced_toggle.setChecked(advanced_should_open, block_signals=True)
         if advanced_should_open:
-            self._ensure_advanced_settings_built()
+            self._schedule_initial_advanced_settings_build()
         self._apply_advanced_settings_state(state)
         self._log_ui_timing("telegram_proxy_ui.settings.apply", started_at)
+
+    def _schedule_initial_advanced_settings_build(self) -> None:
+        if self.__dict__.get("_advanced_settings_built", False):
+            return
+        if self.__dict__.get("_initial_advanced_build_scheduled", False):
+            return
+        self._initial_advanced_build_scheduled = True
+        QTimer.singleShot(150, self._run_initial_advanced_settings_build)
+
+    def _run_initial_advanced_settings_build(self) -> None:
+        self._initial_advanced_build_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        try:
+            advanced = bool(self._advanced_toggle.isChecked())
+        except Exception:
+            advanced = False
+        if not advanced:
+            return
+        self._ensure_advanced_settings_built()
+        self._apply_advanced_settings_state(self._current_settings_state)
 
     def _apply_advanced_settings_state(self, state: telegram_proxy_settings.TelegramProxySettingsState) -> None:
         if not self.__dict__.get("_advanced_settings_built", False):

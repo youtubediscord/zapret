@@ -4425,9 +4425,22 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertNotIn("build_telegram_proxy_advanced_settings_panel(", setup_source)
         self.assertNotIn("advanced_card = setting_card_group_cls", settings_build_source)
         self.assertIn("build_telegram_proxy_advanced_settings_panel", ensure_source)
-        self.assertIn("_ensure_advanced_settings_built", initial_apply_source)
+        self.assertIn("_schedule_initial_advanced_settings_build", initial_apply_source)
+        self.assertNotIn("_ensure_advanced_settings_built()", initial_apply_source)
         self.assertIn("_ensure_advanced_settings_built", advanced_toggle_source)
         self.assertIn("advanced_card = setting_card_group_cls", advanced_build_source)
+
+    def test_telegram_proxy_defers_initial_advanced_settings_build(self) -> None:
+        apply_source = inspect.getsource(TelegramProxyPage._apply_initial_settings_state)
+        schedule_source = inspect.getsource(TelegramProxyPage._schedule_initial_advanced_settings_build)
+        run_source = inspect.getsource(TelegramProxyPage._run_initial_advanced_settings_build)
+
+        self.assertIn("_schedule_initial_advanced_settings_build", apply_source)
+        self.assertNotIn("_ensure_advanced_settings_built()", apply_source)
+        self.assertIn("QTimer.singleShot", schedule_source)
+        self.assertIn("_run_initial_advanced_settings_build", schedule_source)
+        self.assertIn("_ensure_advanced_settings_built()", run_source)
+        self.assertIn("_apply_advanced_settings_state", run_source)
 
     def test_user_presets_hide_keeps_clean_cache_clean(self) -> None:
         source = inspect.getsource(UserPresetsPageBase.on_page_hidden)
