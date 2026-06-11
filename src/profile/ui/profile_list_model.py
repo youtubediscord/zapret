@@ -934,7 +934,8 @@ def _profile_accessible_text(row: dict[str, Any]) -> str:
             parts.append("работает")
         elif rating == "notwork":
             parts.append("не работает")
-        return ", ".join(part for part in parts if part)
+        text = ", ".join(part for part in parts if part)
+        return f"{text}. Нажмите Enter, чтобы открыть profile." if text else ""
 
     group_name = str(row.get("group_name") or row.get("display_name") or "").strip()
     if group_name:

@@ -25,7 +25,11 @@ class ListAccessibilityModelTests(unittest.TestCase):
 
         text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
 
-        self.assertEqual(text, "YouTube, включён, есть в preset, стратегия: TLS fake, в избранном, работает")
+        self.assertEqual(
+            text,
+            "YouTube, включён, есть в preset, стратегия: TLS fake, в избранном, работает. "
+            "Нажмите Enter, чтобы открыть profile.",
+        )
 
     def test_profile_folder_rows_expose_screen_reader_text(self) -> None:
         from profile.ui.profile_list_model import ProfileListModel
