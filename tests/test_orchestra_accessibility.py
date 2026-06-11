@@ -468,8 +468,15 @@ class OrchestraAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(widgets.desc_label.accessibleName(), "Описание истории логов Оркестратора")
         self.assertIn("каждый запуск", widgets.desc_label.accessibleDescription().lower())
-        self.assertEqual(widgets.log_history_list.accessibleName(), "История логов Оркестратора")
+        self.assertEqual(
+            widgets.log_history_list.accessibleName(),
+            "История логов Оркестратора: список пока не загружен",
+        )
         self.assertIn("выберите лог", widgets.log_history_list.accessibleDescription().lower())
+        self.assertEqual(
+            widgets.log_history_list.property("screenReaderStateText"),
+            "История логов Оркестратора: список пока не загружен",
+        )
         self.assertEqual(widgets.view_log_btn.accessibleName(), "Просмотреть выбранный лог Оркестратора")
         self.assertEqual(widgets.delete_log_btn.accessibleName(), "Удалить выбранный лог Оркестратора")
         self.assertEqual(widgets.clear_all_logs_btn.accessibleName(), "Очистить всю историю логов Оркестратора")

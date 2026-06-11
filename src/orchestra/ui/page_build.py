@@ -280,6 +280,7 @@ def build_orchestra_log_history_card(
             "Выберите лог стрелками и нажмите Просмотреть или Удалить.",
         ),
     )
+    set_state_text(log_history_list, "История логов Оркестратора: список пока не загружен")
     log_history_list.itemDoubleClicked.connect(on_view_log_history)
     log_history_layout.addWidget(log_history_list)
 
