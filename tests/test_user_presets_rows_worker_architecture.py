@@ -165,6 +165,51 @@ class UserPresetsRowsWorkerArchitectureTests(unittest.TestCase):
         self.assertIn("current_paths - desired_paths", worker_source)
         self.assertIn("desired_paths - current_paths", worker_source)
 
+    def test_watcher_sync_uses_shared_worker_state_helpers(self) -> None:
+        import presets.user_presets_runtime_service as runtime_service
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        service = runtime_service.UserPresetsRuntimeService()
+        init_source = inspect.getsource(runtime_service.UserPresetsRuntimeService.__init__)
+        schedule_source = inspect.getsource(
+            runtime_service.UserPresetsRuntimeService._schedule_watched_preset_files_sync
+        )
+        run_scheduled_source = inspect.getsource(
+            runtime_service.UserPresetsRuntimeService._run_scheduled_watched_preset_files_sync
+        )
+        plan_request_source = inspect.getsource(
+            runtime_service.UserPresetsRuntimeService._request_watched_preset_files_sync_plan
+        )
+        plan_finished_source = inspect.getsource(
+            runtime_service.UserPresetsRuntimeService._on_watched_preset_files_sync_plan_worker_finished
+        )
+        batch_source = "\n".join(
+            (
+                inspect.getsource(runtime_service.UserPresetsRuntimeService._start_watched_preset_files_sync_batches),
+                inspect.getsource(runtime_service.UserPresetsRuntimeService._run_next_watched_preset_files_sync_batch),
+                inspect.getsource(runtime_service.UserPresetsRuntimeService._schedule_watched_preset_files_sync_batch),
+            )
+        )
+        cleanup_source = inspect.getsource(runtime_service.UserPresetsRuntimeService._stop_metadata_workers)
+
+        self.assertTrue(hasattr(service, "_watched_preset_files_sync_state_obj"))
+        self.assertTrue(hasattr(service, "_watched_preset_files_sync_plan_state_obj"))
+        self.assertTrue(hasattr(service, "_watched_preset_files_sync_batch_state_obj"))
+        self.assertIsInstance(service._watched_preset_files_sync_state_obj(), LatestValueWorkerState)
+        self.assertIsInstance(service._watched_preset_files_sync_plan_state_obj(), LatestValueWorkerState)
+        self.assertIsInstance(service._watched_preset_files_sync_batch_state_obj(), LatestValueWorkerState)
+        self.assertIn("_watched_preset_files_sync_state = LatestValueWorkerState", init_source)
+        self.assertIn("_watched_preset_files_sync_plan_state = LatestValueWorkerState", init_source)
+        self.assertIn("_watched_preset_files_sync_batch_state = LatestValueWorkerState", init_source)
+        self.assertIn("_watched_preset_files_sync_state_obj()", schedule_source)
+        self.assertIn("_watched_preset_files_sync_state_obj()", run_scheduled_source)
+        self.assertIn("_watched_preset_files_sync_plan_state_obj()", plan_request_source)
+        self.assertIn("_watched_preset_files_sync_plan_state_obj()", plan_finished_source)
+        self.assertIn("_watched_preset_files_sync_batch_state_obj()", batch_source)
+        self.assertIn("_watched_preset_files_sync_state_obj().reset()", cleanup_source)
+        self.assertIn("_watched_preset_files_sync_plan_state_obj().reset()", cleanup_source)
+        self.assertIn("_watched_preset_files_sync_batch_state_obj().reset()", cleanup_source)
+
     def test_watcher_start_does_not_create_preset_dirs_on_gui_thread(self) -> None:
         import presets.commands as commands
         import presets.user_presets_runtime_service as runtime_service

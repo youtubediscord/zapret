@@ -221,14 +221,16 @@ class UserPresetsRuntimeService:
         self._rows_plan_state = LatestValueWorkerState(self._rows_plan_runtime, empty_value=None, pending=None)
         self._rows_plan_apply_scheduled = False
         self._pending_rows_plan_apply: tuple[object, float | None, object] | None = None
-        self._watched_preset_files_sync_scheduled = False
-        self._watched_preset_files_sync_pending: tuple[object, set[str] | None] | None = None
-        self._watched_preset_files_sync_batch_pending: tuple[object, list[str], list[str]] | None = None
-        self._watched_preset_files_sync_batch_scheduled = False
+        self._watched_preset_files_sync_state = LatestValueWorkerState(None, empty_value=None, pending=None)
+        self._watched_preset_files_sync_batch_state = LatestValueWorkerState(None, empty_value=None, pending=None)
         self._watched_preset_files_sync_batch_size = 64
         self._watched_preset_files_sync_plan_request_id = 0
         self._watched_preset_files_sync_plan_runtime = OneShotWorkerRuntime()
-        self._watched_preset_files_sync_plan_pending: tuple[object, set[str] | None] | None = None
+        self._watched_preset_files_sync_plan_state = LatestValueWorkerState(
+            self._watched_preset_files_sync_plan_runtime,
+            empty_value=None,
+            pending=None,
+        )
 
     def is_ui_dirty(self) -> bool:
         return bool(self._ui_dirty)
@@ -725,12 +727,10 @@ class UserPresetsRuntimeService:
         self._rows_plan_state_obj().reset()
         self._rows_plan_apply_scheduled = False
         self._pending_rows_plan_apply = None
-        self._watched_preset_files_sync_scheduled = False
-        self._watched_preset_files_sync_pending = None
-        self._watched_preset_files_sync_batch_pending = None
-        self._watched_preset_files_sync_batch_scheduled = False
         self._watched_preset_files_sync_plan_request_id += 1
-        self._watched_preset_files_sync_plan_pending = None
+        self._watched_preset_files_sync_state_obj().reset()
+        self._watched_preset_files_sync_plan_state_obj().reset()
+        self._watched_preset_files_sync_batch_state_obj().reset()
         for attr, warning_prefix in (
             ("_metadata_load_runtime", "user presets metadata load worker"),
             ("_single_metadata_runtime", "user presets single metadata worker"),
@@ -818,8 +818,9 @@ class UserPresetsRuntimeService:
         file_names: set[str],
         current_paths: set[str],
     ) -> None:
-        if self._watched_preset_files_sync_plan_runtime.is_running():
-            self._watched_preset_files_sync_plan_pending = (page, set(file_names or set()))
+        plan_state = self._watched_preset_files_sync_plan_state_obj()
+        if plan_state.is_busy():
+            plan_state.pending = (page, set(file_names or set()))
             return
 
         def bind_worker(worker) -> None:
@@ -846,7 +847,7 @@ class UserPresetsRuntimeService:
     def _on_watched_preset_files_sync_plan_loaded(self, request_id: int, plan, page=None) -> None:
         if request_id != self._watched_preset_files_sync_plan_request_id:
             return
-        if self.__dict__.get("_watched_preset_files_sync_plan_pending") is not None:
+        if self._watched_preset_files_sync_plan_state_obj().has_pending():
             return
         page = self._resolve_page(page)
         self._start_watched_preset_files_sync_batches(
@@ -863,27 +864,30 @@ class UserPresetsRuntimeService:
     def _on_watched_preset_files_sync_plan_worker_finished(self, worker: UserPresetsWatcherSyncPlanWorker) -> None:
         if not self._is_current_worker_finish(worker, "_watched_preset_files_sync_plan_request_id"):
             return
-        pending = self.__dict__.get("_watched_preset_files_sync_plan_pending")
-        self._watched_preset_files_sync_plan_pending = None
+        plan_state = self._watched_preset_files_sync_plan_state_obj()
+        pending = plan_state.pending
+        plan_state.pending = plan_state.empty_value
         if pending is None:
             return
         page, file_names = pending
         self._schedule_watched_preset_files_sync(page, file_names)
 
     def _start_watched_preset_files_sync_batches(self, page, remove_paths: list[str], add_paths: list[str]) -> None:
-        self._watched_preset_files_sync_batch_pending = (page, list(remove_paths or []), list(add_paths or []))
-        self._watched_preset_files_sync_batch_scheduled = False
+        batch_state = self._watched_preset_files_sync_batch_state_obj()
+        batch_state.pending = (page, list(remove_paths or []), list(add_paths or []))
+        batch_state.start_scheduled = False
         self._run_next_watched_preset_files_sync_batch()
 
     def _run_next_watched_preset_files_sync_batch(self) -> None:
-        self._watched_preset_files_sync_batch_scheduled = False
-        pending = self.__dict__.get("_watched_preset_files_sync_batch_pending")
+        batch_state = self._watched_preset_files_sync_batch_state_obj()
+        batch_state.start_scheduled = False
+        pending = batch_state.pending
         if pending is None:
             return
         page, remove_paths, add_paths = pending
         watcher = self.__dict__.get("_file_watcher")
         if watcher is None:
-            self._watched_preset_files_sync_batch_pending = None
+            batch_state.pending = batch_state.empty_value
             return
 
         try:
@@ -905,23 +909,22 @@ class UserPresetsRuntimeService:
             add_paths = add_paths[len(add_batch):]
 
         if remove_paths or add_paths:
-            self._watched_preset_files_sync_batch_pending = (page, remove_paths, add_paths)
+            batch_state.pending = (page, remove_paths, add_paths)
             self._schedule_watched_preset_files_sync_batch()
             return
 
-        self._watched_preset_files_sync_batch_pending = None
+        batch_state.pending = batch_state.empty_value
 
     def _schedule_watched_preset_files_sync_batch(self) -> None:
-        if self.__dict__.get("_watched_preset_files_sync_batch_scheduled", False):
+        batch_state = self._watched_preset_files_sync_batch_state_obj()
+        if batch_state.start_scheduled:
             return
-        self._watched_preset_files_sync_batch_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_next_watched_preset_files_sync_batch)
-        except Exception:
-            self._run_next_watched_preset_files_sync_batch()
+        batch_state.start_scheduled = True
+        self._single_shot_or_run(0, self._run_next_watched_preset_files_sync_batch)
 
     def _schedule_watched_preset_files_sync(self, page=None, file_names: set[str] | None = None) -> None:
         page = self._resolve_page(page)
+        sync_state = self._watched_preset_files_sync_state_obj()
         normalized_file_names = (
             {
                 str(file_name or "").strip()
@@ -931,26 +934,21 @@ class UserPresetsRuntimeService:
             if file_names is not None
             else None
         )
-        pending = self.__dict__.get("_watched_preset_files_sync_pending")
+        pending = sync_state.pending
         if pending is not None:
             _pending_page, pending_file_names = pending
             if pending_file_names is None or normalized_file_names is None:
                 normalized_file_names = None
             else:
                 normalized_file_names = set(pending_file_names) | set(normalized_file_names)
-        self._watched_preset_files_sync_pending = (page, normalized_file_names)
-        if self._watched_preset_files_sync_scheduled:
+        sync_state.pending = (page, normalized_file_names)
+        if sync_state.start_scheduled:
             return
-        self._watched_preset_files_sync_scheduled = True
-        try:
-            QTimer.singleShot(0, self._run_scheduled_watched_preset_files_sync)
-        except Exception:
-            self._run_scheduled_watched_preset_files_sync()
+        sync_state.start_scheduled = True
+        self._single_shot_or_run(0, self._run_scheduled_watched_preset_files_sync)
 
     def _run_scheduled_watched_preset_files_sync(self) -> None:
-        pending = self._watched_preset_files_sync_pending
-        self._watched_preset_files_sync_pending = None
-        self._watched_preset_files_sync_scheduled = False
+        pending = self._watched_preset_files_sync_state_obj().take_pending_for_scheduled_start()
         if pending is None:
             return
         page, file_names = pending
@@ -1223,6 +1221,85 @@ class UserPresetsRuntimeService:
     @_rows_plan_pending.setter
     def _rows_plan_pending(self, value) -> None:
         self._rows_plan_state_obj().pending = value
+
+    def _watched_preset_files_sync_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_watched_preset_files_sync_state")
+        if state is None:
+            pending = self.__dict__.pop("_watched_preset_files_sync_pending", None)
+            start_scheduled = bool(self.__dict__.pop("_watched_preset_files_sync_scheduled", False))
+            state = LatestValueWorkerState(
+                None,
+                empty_value=None,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_watched_preset_files_sync_state"] = state
+        return state
+
+    @property
+    def _watched_preset_files_sync_pending(self):
+        return self._watched_preset_files_sync_state_obj().pending
+
+    @_watched_preset_files_sync_pending.setter
+    def _watched_preset_files_sync_pending(self, value) -> None:
+        self._watched_preset_files_sync_state_obj().pending = value
+
+    @property
+    def _watched_preset_files_sync_scheduled(self) -> bool:
+        return bool(self._watched_preset_files_sync_state_obj().start_scheduled)
+
+    @_watched_preset_files_sync_scheduled.setter
+    def _watched_preset_files_sync_scheduled(self, value: bool) -> None:
+        self._watched_preset_files_sync_state_obj().start_scheduled = bool(value)
+
+    def _watched_preset_files_sync_plan_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_watched_preset_files_sync_plan_state")
+        runtime = self.__dict__.get("_watched_preset_files_sync_plan_runtime")
+        if state is None:
+            pending = self.__dict__.pop("_watched_preset_files_sync_plan_pending", None)
+            state = LatestValueWorkerState(runtime, empty_value=None, pending=pending)
+            self.__dict__["_watched_preset_files_sync_plan_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _watched_preset_files_sync_plan_pending(self):
+        return self._watched_preset_files_sync_plan_state_obj().pending
+
+    @_watched_preset_files_sync_plan_pending.setter
+    def _watched_preset_files_sync_plan_pending(self, value) -> None:
+        self._watched_preset_files_sync_plan_state_obj().pending = value
+
+    def _watched_preset_files_sync_batch_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_watched_preset_files_sync_batch_state")
+        if state is None:
+            pending = self.__dict__.pop("_watched_preset_files_sync_batch_pending", None)
+            start_scheduled = bool(self.__dict__.pop("_watched_preset_files_sync_batch_scheduled", False))
+            state = LatestValueWorkerState(
+                None,
+                empty_value=None,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_watched_preset_files_sync_batch_state"] = state
+        return state
+
+    @property
+    def _watched_preset_files_sync_batch_pending(self):
+        return self._watched_preset_files_sync_batch_state_obj().pending
+
+    @_watched_preset_files_sync_batch_pending.setter
+    def _watched_preset_files_sync_batch_pending(self, value) -> None:
+        self._watched_preset_files_sync_batch_state_obj().pending = value
+
+    @property
+    def _watched_preset_files_sync_batch_scheduled(self) -> bool:
+        return bool(self._watched_preset_files_sync_batch_state_obj().start_scheduled)
+
+    @_watched_preset_files_sync_batch_scheduled.setter
+    def _watched_preset_files_sync_batch_scheduled(self, value: bool) -> None:
+        self._watched_preset_files_sync_batch_state_obj().start_scheduled = bool(value)
 
     def _single_shot_or_run(self, _delay: int, callback) -> None:
         try:
