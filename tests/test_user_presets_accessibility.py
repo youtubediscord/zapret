@@ -202,6 +202,53 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertTrue(event.isAccepted())
         self.assertEqual(requested, ["games"])
 
+    def test_preset_list_updates_screen_reader_text_when_current_row_changes(self) -> None:
+        from ui.presets_menu.model import PresetListModel
+        from ui.presets_menu.view import LinkedWheelListView
+
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {
+                    "kind": "preset",
+                    "name": "Default",
+                    "file_name": "Default.txt",
+                    "is_active": True,
+                    "is_builtin": True,
+                    "folder_name": "Общие",
+                    "is_pinned": True,
+                    "rating": 9,
+                },
+                {
+                    "kind": "folder",
+                    "name": "Игры",
+                    "folder_key": "games",
+                    "count": 2,
+                    "is_collapsed": True,
+                },
+            ]
+        )
+        view = LinkedWheelListView()
+        self.addCleanup(view.deleteLater)
+        view.set_screen_reader_list_name("Список пользовательских пресетов")
+        view.setModel(model)
+
+        view.setCurrentIndex(model.index(0, 0))
+
+        self.assertEqual(
+            view.property("screenReaderStateText"),
+            "Список пользовательских пресетов: Default, активный пресет, встроенный, "
+            "папка: Общие, закреплённый, оценка 9. Нажмите Enter, чтобы открыть preset.",
+        )
+
+        view.setCurrentIndex(model.index(1, 0))
+
+        self.assertEqual(
+            view.property("screenReaderStateText"),
+            "Список пользовательских пресетов: Папка Игры, 2 пресета, свернута. "
+            "Нажмите Enter, чтобы свернуть или развернуть папку.",
+        )
+
     def test_preset_page_wires_keyboard_folder_toggle_to_action_handler(self) -> None:
         requested: list[tuple[str, str]] = []
         _parent, widgets = self._build_widgets(on_preset_list_action=lambda action, name: requested.append((action, name)))

@@ -67,9 +67,10 @@ def apply_user_presets_accessibility(
         name=tr_fn(f"{tr_prefix}.search.accessible_name", "Поиск пресетов"),
         description=tr_fn(f"{tr_prefix}.search.placeholder", "Поиск пресетов по имени..."),
     )
+    list_name = tr_fn(f"{tr_prefix}.list.accessible_name", "Список пользовательских пресетов")
     set_control_accessibility(
         presets_list,
-        name=tr_fn(f"{tr_prefix}.list.accessible_name", "Список пользовательских пресетов"),
+        name=list_name,
         description=tr_fn(
             f"{tr_prefix}.list.accessible_description",
             (
@@ -79,6 +80,10 @@ def apply_user_presets_accessibility(
             ),
         ),
     )
+    try:
+        presets_list.set_screen_reader_list_name(list_name)
+    except Exception:
+        pass
 
 
 __all__ = ["apply_user_presets_accessibility"]

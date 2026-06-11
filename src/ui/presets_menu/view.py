@@ -14,7 +14,11 @@ from .common import (
     set_current_index_if_changed,
 )
 from .model import PresetListModel
+from ui.accessibility import set_state_text
 from qfluentwidgets import ListView
+
+
+SCREEN_READER_LIST_NAME_PROPERTY = "screenReaderListName"
 
 
 class LinkedWheelListView(ListView):
@@ -31,6 +35,31 @@ class LinkedWheelListView(ListView):
         self._drag_start_pos: QPoint | None = None
         self._draggable_kinds = {str(kind) for kind in (draggable_kinds or {"preset"})}
         self.set_drop_marker(-1, "")
+
+    def set_screen_reader_list_name(self, name: str) -> None:
+        value = " ".join(str(name or "").strip().split())
+        if value:
+            self.setProperty(SCREEN_READER_LIST_NAME_PROPERTY, value)
+        self._update_current_row_accessibility(self.currentIndex())
+
+    def currentChanged(self, current, previous):  # noqa: N802
+        super().currentChanged(current, previous)
+        self._update_current_row_accessibility(current)
+
+    def _update_current_row_accessibility(self, index) -> None:
+        list_name = str(self.property(SCREEN_READER_LIST_NAME_PROPERTY) or "").strip()
+        if not list_name:
+            list_name = str(self.accessibleName() or "").strip()
+        row_text = ""
+        try:
+            if index is not None and index.isValid():
+                row_text = str(index.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip()
+        except Exception:
+            row_text = ""
+        if list_name and row_text:
+            set_state_text(self, f"{list_name}: {row_text}")
+        elif list_name:
+            set_state_text(self, list_name)
 
     def set_drop_marker(self, row: int, destination_kind: str) -> None:
         marker = preset_drop_marker_for_target(row, destination_kind)
