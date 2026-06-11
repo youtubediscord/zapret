@@ -157,10 +157,24 @@ class TableAccessibilityTests(unittest.TestCase):
             table_widget_cls=QTableWidget,
         )
 
-        self.assertEqual(widgets.results_table.accessibleName(), "Результаты BlockCheck по доменам")
+        self.assertEqual(
+            widgets.results_table.accessibleName(),
+            "Результаты BlockCheck по доменам: пока нет результатов",
+        )
         self.assertIn("HTTP, TLS, DNS, DPI", widgets.results_table.accessibleDescription())
-        self.assertEqual(widgets.tcp_table.accessibleName(), "Результаты TCP 16-20KB")
+        self.assertEqual(
+            widgets.results_table.property("screenReaderStateText"),
+            "Результаты BlockCheck по доменам: пока нет результатов",
+        )
+        self.assertEqual(
+            widgets.tcp_table.accessibleName(),
+            "Результаты TCP 16-20KB: пока нет результатов",
+        )
         self.assertIn("ASN, провайдер", widgets.tcp_table.accessibleDescription())
+        self.assertEqual(
+            widgets.tcp_table.property("screenReaderStateText"),
+            "Результаты TCP 16-20KB: пока нет результатов",
+        )
 
     def test_blockcheck_tcp_result_row_has_screen_reader_text(self) -> None:
         from blockcheck.models import SingleTestResult, TargetResult, TestStatus, TestType

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QLabel
 from qfluentwidgets import FluentIcon
 
 from ui.fluent_widgets import set_tooltip
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.widgets.fluent_item_tooltip import install_fluent_item_tooltips
 
 
@@ -130,6 +130,7 @@ def build_results_section(
         name="Результаты BlockCheck по доменам",
         description="Таблица с результатами проверок HTTP, TLS, DNS, DPI, Ping и деталями по доменам.",
     )
+    set_state_text(results_table, "Результаты BlockCheck по доменам: пока нет результатов")
     install_fluent_item_tooltips(results_table)
 
     try:
@@ -168,6 +169,7 @@ def build_results_section(
         name="Результаты TCP 16-20KB",
         description="Таблица с TCP-проверкой: ID цели, ASN, провайдер, статус и детали ошибки.",
     )
+    set_state_text(tcp_table, "Результаты TCP 16-20KB: пока нет результатов")
     install_fluent_item_tooltips(tcp_table)
 
     try:
