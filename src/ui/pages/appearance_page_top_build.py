@@ -355,3 +355,4 @@ def update_rkn_background_combo_accessibility(combo) -> None:
         name=state,
         description="Выберите готовый фон РКН Тян.",
     )
+    set_combo_items_accessibility(combo, name="Фон РКН Тян")

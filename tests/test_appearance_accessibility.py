@@ -16,6 +16,7 @@ from ui.pages.appearance_page_top_build import (
     build_background_section,
     build_display_mode_section,
     build_language_section,
+    update_rkn_background_combo_accessibility,
     update_sidebar_icon_style_accessibility,
 )
 
@@ -110,6 +111,29 @@ class AppearanceAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.radio_amoled.accessibleName(), "Фон окна: AMOLED — чёрный, недоступно без Premium")
         self.assertEqual(widgets.radio_rkn_chan.accessibleName(), "Фон окна: РКН Тян, недоступно без Premium")
         self.assertEqual(widgets.rkn_background_combo.accessibleName(), "Фон РКН Тян, вариантов пока нет")
+
+    def test_rkn_background_selector_menu_items_read_selected_state(self) -> None:
+        combo = ComboBox()
+        self.addCleanup(combo.deleteLater)
+        combo.addItem("Сакура", userData="sakura.png")
+        combo.addItem("Ночь", userData="night.png")
+        combo.setCurrentIndex(1)
+
+        update_rkn_background_combo_accessibility(combo)
+        create_menu = getattr(combo, "_create_accessible_combo_menu", None)
+
+        self.assertIsNotNone(create_menu)
+
+        menu = create_menu()
+        self.addCleanup(menu.deleteLater)
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Фон РКН Тян: Сакура, не выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Фон РКН Тян: Ночь, выбран",
+        )
 
     def test_sidebar_icon_style_selector_reads_current_style(self) -> None:
         segmented = SegmentedWidget()
