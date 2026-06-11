@@ -150,6 +150,41 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
 
         page._schedule_profiles_payload_request.assert_not_called()
 
+    def test_preset_setup_clean_activation_restores_heavy_list_after_show(self) -> None:
+        class _List:
+            def __init__(self) -> None:
+                self.visible_calls: list[bool] = []
+
+            def setVisible(self, value: bool) -> None:  # noqa: N802
+                self.visible_calls.append(bool(value))
+
+        page = PresetSetupPageBase.__new__(PresetSetupPageBase)
+        profile_list = _List()
+        page._profiles_list = profile_list
+        page._profile_payload_loaded_once = True
+        page._profile_payload_dirty = False
+        page._profiles_list_show_scheduled = False
+        page._cleanup_in_progress = False
+        page._schedule_profiles_payload_request = Mock(
+            side_effect=AssertionError("clean activation must not reload profile payload")
+        )
+        scheduled: list[object] = []
+
+        with patch(
+            "profile.ui.preset_setup_page.QTimer.singleShot",
+            side_effect=lambda _delay, callback: scheduled.append(callback),
+        ):
+            PresetSetupPageBase.on_page_hidden(page)
+            PresetSetupPageBase.on_page_activated(page)
+
+        self.assertEqual(profile_list.visible_calls, [False])
+        page._schedule_profiles_payload_request.assert_not_called()
+        self.assertEqual(len(scheduled), 1)
+
+        scheduled[0]()
+
+        self.assertEqual(profile_list.visible_calls, [False, True])
+
     def test_preset_setup_page_refreshes_after_active_preset_content_change_signal(self) -> None:
         init_source = inspect.getsource(PresetSetupPageBase.__init__)
         bind_source = inspect.getsource(PresetSetupPageBase.bind_ui_state_store)

@@ -149,6 +149,7 @@ class PresetSetupPageBase(BasePage):
         self._profile_payload_reload_after_preset_switch_scheduled = False
         self._profile_payload_apply_scheduled = False
         self._pending_profile_payload_apply = None
+        self._profiles_list_show_scheduled = False
         self._profile_context_action_enabled_by_request: dict[int, bool] = {}
         self._cleanup_in_progress = False
         self._ui_state_store = None
@@ -161,8 +162,47 @@ class PresetSetupPageBase(BasePage):
             "_profile_payload_dirty",
             True,
         ):
+            self._schedule_profiles_list_show_after_page_switch()
             return
         self._schedule_profiles_payload_request()
+
+    def on_page_hidden(self) -> None:
+        self._hide_profiles_list_for_next_switch()
+
+    def _hide_profiles_list_for_next_switch(self) -> None:
+        profile_list = self.__dict__.get("_profiles_list")
+        if profile_list is None:
+            return
+        try:
+            profile_list.setVisible(False)
+        except Exception:
+            pass
+        self._profiles_list_show_scheduled = False
+
+    def _schedule_profiles_list_show_after_page_switch(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("_profiles_list") is None:
+            return
+        if self.__dict__.get("_profiles_list_show_scheduled", False):
+            return
+        self._profiles_list_show_scheduled = True
+        try:
+            QTimer.singleShot(0, self._show_profiles_list_after_page_switch)
+        except Exception:
+            self._show_profiles_list_after_page_switch()
+
+    def _show_profiles_list_after_page_switch(self) -> None:
+        self._profiles_list_show_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        profile_list = self.__dict__.get("_profiles_list")
+        if profile_list is None:
+            return
+        try:
+            profile_list.setVisible(True)
+        except Exception:
+            pass
 
     def _worker_runtime(self, attr: str) -> OneShotWorkerRuntime:
         runtime = self.__dict__.get(attr)
@@ -395,6 +435,7 @@ class PresetSetupPageBase(BasePage):
             return
         payload, view_state, apply_signature_base = pending
         self._apply_payload(payload, view_state=view_state, apply_signature_base=apply_signature_base)
+        self._schedule_profiles_list_show_after_page_switch()
 
     def _on_profile_payload_failed(self, request_id: int, error: str) -> None:
         if request_id != self._profile_load_request_id or self._cleanup_in_progress:
@@ -2105,6 +2146,7 @@ class PresetSetupPageBase(BasePage):
         self._profile_preset_write_state_obj().reset()
         self._pending_profile_payload_apply = None
         self._profile_payload_apply_scheduled = False
+        self._profiles_list_show_scheduled = False
         self._profile_load_refresh_state_obj().reset()
         self._profile_folder_action_state_obj().reset()
         self.__dict__.setdefault("_profile_folder_action_refresh_by_request", {}).clear()
