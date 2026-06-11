@@ -403,7 +403,7 @@ class TelegramProxyPage(BasePage):
         self._upstream_pass_edit = widgets.upstream_pass_edit
         self._mtproxy_action_btn = widgets.mtproxy_action_btn
         self._mtproxy_action_widget = widgets.mtproxy_action_widget
-        self._current_mtproxy_link = ""
+        self._current_mtproxy_preset_id = ""
         self._upstream_mode_toggle = widgets.upstream_mode_toggle
         self._cloudflare_toggle = widgets.cloudflare_toggle
         self._cloudflare_domains_row = widgets.cloudflare_domains_row
@@ -707,7 +707,7 @@ class TelegramProxyPage(BasePage):
     def _apply_upstream_preset_ui(self, index: int) -> None:
         if not self.__dict__.get("_advanced_settings_built", False):
             return
-        self._current_mtproxy_link = apply_upstream_preset_ui(
+        self._current_mtproxy_preset_id = apply_upstream_preset_ui(
             upstream_toggle=self._upstream_toggle,
             upstream_catalog=self._upstream_catalog,
             upstream_preset_row=self._upstream_preset_row,
@@ -1985,12 +1985,8 @@ class TelegramProxyPage(BasePage):
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
             current_index=self._upstream_preset_row.combo.currentIndex(),
             upstream_catalog=self._upstream_catalog,
-            request_upstream_fields_save=lambda host, port, user, password, preset_id="": self._request_settings_save(
-                "upstream_fields",
-                host=host,
-                port=port,
-                user=user,
-                password=password,
+            request_upstream_preset_save=lambda preset_id: self._request_settings_save(
+                "upstream_preset",
                 preset_id=preset_id,
                 restart="now",
             ),
@@ -1998,7 +1994,7 @@ class TelegramProxyPage(BasePage):
 
     def _on_upstream_preset_changed(self, index: int):
         """Handle upstream server selection."""
-        self._current_mtproxy_link = handle_upstream_preset_changed(
+        self._current_mtproxy_preset_id = handle_upstream_preset_changed(
             index=index,
             upstream_catalog=self._upstream_catalog,
             apply_upstream_preset_ui=self._apply_upstream_preset_ui,
@@ -2006,20 +2002,24 @@ class TelegramProxyPage(BasePage):
             upstream_port_spin=self._upstream_port_spin,
             upstream_user_edit=self._upstream_user_edit,
             upstream_pass_edit=self._upstream_pass_edit,
-            request_upstream_fields_save=lambda host, port, user, password, preset_id="": self._request_settings_save(
-                "upstream_fields",
+            request_upstream_preset_save=lambda preset_id: self._request_settings_save(
+                "upstream_preset",
+                preset_id=preset_id,
+                restart="now",
+            ),
+            request_manual_upstream_save=lambda host, port, user, password: self._request_settings_save(
+                "manual_upstream",
                 host=host,
                 port=port,
                 user=user,
                 password=password,
-                preset_id=preset_id,
                 restart="now",
             ),
         )
 
     def _on_upstream_host_changed(self):
         self._request_settings_save(
-            "upstream_fields",
+            "manual_upstream",
             host=self._upstream_host_edit.text(),
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
@@ -2029,7 +2029,7 @@ class TelegramProxyPage(BasePage):
 
     def _on_upstream_port_changed(self, port: int):
         self._request_settings_save(
-            "upstream_fields",
+            "manual_upstream",
             host=self._upstream_host_edit.text(),
             port=port,
             user=self._upstream_user_edit.text(),
@@ -2039,7 +2039,7 @@ class TelegramProxyPage(BasePage):
 
     def _on_upstream_user_changed(self):
         self._request_settings_save(
-            "upstream_fields",
+            "manual_upstream",
             host=self._upstream_host_edit.text(),
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
@@ -2049,7 +2049,7 @@ class TelegramProxyPage(BasePage):
 
     def _on_upstream_pass_changed(self):
         self._request_settings_save(
-            "upstream_fields",
+            "manual_upstream",
             host=self._upstream_host_edit.text(),
             port=self._upstream_port_spin.value(),
             user=self._upstream_user_edit.text(),
@@ -2062,7 +2062,8 @@ class TelegramProxyPage(BasePage):
 
     def _on_open_mtproxy(self):
         """Open MTProxy deep link in browser."""
-        link = getattr(self, '_current_mtproxy_link', '')
+        preset_id = getattr(self, '_current_mtproxy_preset_id', '')
+        link = telegram_proxy_settings.get_upstream_mtproxy_link(preset_id)
         if not link:
             return
         self._start_external_link_worker(

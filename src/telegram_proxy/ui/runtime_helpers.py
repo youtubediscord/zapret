@@ -77,7 +77,7 @@ def apply_upstream_preset_ui(
     upstream_mode_toggle.setEnabled(upstream_enabled)
 
     if preset is not None and is_mtproxy:
-        return upstream_catalog.mtproxy_link(index)
+        return str(preset.get("id") or "").strip()
     return ""
 
 

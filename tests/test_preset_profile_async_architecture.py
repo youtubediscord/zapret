@@ -2733,7 +2733,7 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertEqual(plan.settings.upstream_user, "u")
         self.assertEqual(plan.settings.upstream_password, "p")
         self.assertEqual(plan.settings.upstream_mode, "always")
-        self.assertEqual(plan.settings.upstream_preset_index, 0)
+        self.assertEqual(plan.settings.upstream_preset_index, 1)
 
     def test_telegram_proxy_log_lines_write_through_worker(self) -> None:
         append_source = inspect.getsource(TelegramProxyPage._append_log_line)
@@ -2918,7 +2918,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("set_port", command_source)
         self.assertIn("set_proxy_enabled", command_source)
         self.assertIn("set_upstream_enabled", command_source)
-        self.assertIn("set_upstream_fields", command_source)
+        self.assertIn("set_upstream_preset", command_source)
+        self.assertIn("set_manual_upstream", command_source)
         self.assertIn("set_upstream_mode", command_source)
 
     def test_telegram_proxy_relay_http_probe_is_command_not_ui_runtime(self) -> None:

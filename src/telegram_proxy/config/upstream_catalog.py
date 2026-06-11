@@ -8,8 +8,6 @@ Final contract:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 MANUAL_PRESET_ID = "manual"
 
 
@@ -82,6 +80,14 @@ def _preset_identity_key(preset: dict) -> tuple[str, int, str, str] | str | None
     )
 
 
+def _safe_choice_from_preset(preset: dict) -> dict:
+    return {
+        "id": str(preset.get("id") or "").strip(),
+        "name": _normalize_name(preset.get("name"), "Прокси"),
+        "type": str(preset.get("type") or "socks5").strip().lower() or "socks5",
+    }
+
+
 def _load_build_upstream_presets() -> list[dict]:
     presets: list[dict] = []
 
@@ -141,18 +147,13 @@ def _build_choice_list(build_presets: list[dict]) -> list[dict]:
         if key is None or key in seen:
             continue
         seen.add(key)
-        choices.append(normalized)
+        choices.append(_safe_choice_from_preset(normalized))
 
     choices.append(
         {
             "id": MANUAL_PRESET_ID,
             "name": "Ручной ввод",
             "type": "socks5",
-            "source": "manual",
-            "host": "",
-            "port": 0,
-            "username": "",
-            "password": "",
         }
     )
 
@@ -166,23 +167,16 @@ def _format_preset_label(preset: dict) -> str:
     return base_name
 
 
-@dataclass
 class UpstreamCatalog:
-    build_presets: list[dict] = field(default_factory=list)
-    choices: list[dict] = field(init=False, default_factory=list)
-
-    def __post_init__(self):
-        self.rebuild()
+    def __init__(self, build_presets: list[dict] | None = None):
+        self.choices = _build_choice_list(list(build_presets or []))
 
     @classmethod
     def load_from_runtime(cls) -> "UpstreamCatalog":
         return cls(build_presets=_load_build_upstream_presets())
 
-    def rebuild(self) -> None:
-        self.choices = _build_choice_list(self.build_presets)
-
     def has_bundled_presets(self) -> bool:
-        return any(preset.get("source") == "build" for preset in self.choices)
+        return any(preset.get("id") != MANUAL_PRESET_ID for preset in self.choices)
 
     def items(self) -> list[tuple[str, dict]]:
         return [(_format_preset_label(preset), preset) for preset in self.choices]
@@ -216,18 +210,10 @@ class UpstreamCatalog:
                 if str(preset.get("id") or "").strip() == target_id:
                     return index
 
-        target = (
-            str(host or "").strip().lower(),
-            _coerce_port(port),
-            str(username or "").strip(),
-            str(password or ""),
-        )
-        if not target[0] or target[1] <= 0:
-            return 0
-
-        for index, preset in enumerate(self.choices):
-            if _preset_identity_key(preset) == target:
-                return index
+        if str(host or "").strip():
+            for index, preset in enumerate(self.choices):
+                if str(preset.get("id") or "").strip() == MANUAL_PRESET_ID:
+                    return index
         return 0
 
     def is_manual(self, index: int) -> bool:
@@ -238,8 +224,58 @@ class UpstreamCatalog:
         preset = self.preset_at(index)
         return bool(preset and preset.get("type") == "mtproxy")
 
-    def mtproxy_link(self, index: int) -> str:
-        preset = self.preset_at(index)
-        if not preset or preset.get("type") != "mtproxy":
+class UpstreamPresetResolver:
+    def __init__(self, build_presets: list[dict] | None = None):
+        self._presets = _build_choice_private_presets(list(build_presets or []))
+        self._by_id = {str(preset.get("id") or "").strip(): preset for preset in self._presets}
+
+    @classmethod
+    def load_from_runtime(cls) -> "UpstreamPresetResolver":
+        return cls(build_presets=_load_build_upstream_presets())
+
+    def socks5_by_id(self, preset_id: object) -> dict | None:
+        preset = self._by_id.get(str(preset_id or "").strip())
+        if preset is None or preset.get("type") != "socks5":
+            return None
+        host = str(preset.get("host") or "").strip()
+        port = _coerce_port(preset.get("port"))
+        if not host or port <= 0:
+            return None
+        return {
+            "host": host,
+            "port": port,
+            "username": str(preset.get("username") or "").strip(),
+            "password": str(preset.get("password") or ""),
+        }
+
+    def mtproxy_link_by_id(self, preset_id: object) -> str:
+        preset = self._by_id.get(str(preset_id or "").strip())
+        if preset is None or preset.get("type") != "mtproxy":
             return ""
-        return str(preset.get("link") or "")
+        return str(preset.get("link") or "").strip()
+
+    def test_target_by_id(self, preset_id: object) -> tuple[str, int] | None:
+        preset = self.socks5_by_id(preset_id)
+        if preset is None:
+            return None
+        return str(preset["host"]), int(preset["port"])
+
+
+def _build_choice_private_presets(build_presets: list[dict]) -> list[dict]:
+    presets = []
+    seen: set[tuple[str, int, str, str] | str] = set()
+    for preset in build_presets:
+        normalized = _normalize_upstream_preset(
+            preset,
+            fallback_name="Прокси",
+            fallback_id=str(preset.get("id") or "build"),
+            source=str(preset.get("source") or "build"),
+        )
+        if normalized is None:
+            continue
+        key = _preset_identity_key(normalized)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        presets.append(normalized)
+    return presets

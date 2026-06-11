@@ -21,24 +21,18 @@ def handle_upstream_toggle(
     apply_upstream_preset_ui,
     current_index: int,
     upstream_catalog=None,
-    request_upstream_fields_save=None,
+    request_upstream_preset_save=None,
 ) -> None:
     request_upstream_enabled(checked)
     apply_upstream_preset_ui(current_index)
-    if not checked or upstream_catalog is None or request_upstream_fields_save is None:
+    if not checked or upstream_catalog is None or request_upstream_preset_save is None:
         return
 
     preset = upstream_catalog.preset_at(current_index)
     if preset is None or upstream_catalog.is_manual(current_index) or upstream_catalog.is_mtproxy(current_index):
         return
 
-    request_upstream_fields_save(
-        preset.get("host", ""),
-        preset.get("port", 0),
-        "",
-        "",
-        str(preset.get("id") or "").strip(),
-    )
+    request_upstream_preset_save(str(preset.get("id") or "").strip())
 
 
 def handle_upstream_preset_changed(
@@ -50,7 +44,8 @@ def handle_upstream_preset_changed(
     upstream_port_spin,
     upstream_user_edit,
     upstream_pass_edit,
-    request_upstream_fields_save,
+    request_upstream_preset_save,
+    request_manual_upstream_save,
 ) -> str:
     preset = upstream_catalog.preset_at(index)
     if preset is None:
@@ -68,23 +63,17 @@ def handle_upstream_preset_changed(
         upstream_port_spin.blockSignals(False)
         upstream_user_edit.clear()
         upstream_pass_edit.clear()
-        request_upstream_fields_save("", 1080, "", "", "")
+        request_manual_upstream_save("", 1080, "", "")
         return ""
 
     if is_mtproxy:
-        return preset.get("link", "")
+        return str(preset.get("id") or "").strip()
 
-    upstream_host_edit.setText(preset.get("host", ""))
+    upstream_host_edit.clear()
     upstream_port_spin.blockSignals(True)
-    upstream_port_spin.setValue(preset.get("port", 1080))
+    upstream_port_spin.setValue(1080)
     upstream_port_spin.blockSignals(False)
     upstream_user_edit.clear()
     upstream_pass_edit.clear()
-    request_upstream_fields_save(
-        preset.get("host", ""),
-        preset.get("port", 0),
-        "",
-        "",
-        str(preset.get("id") or "").strip(),
-    )
+    request_upstream_preset_save(str(preset.get("id") or "").strip())
     return ""

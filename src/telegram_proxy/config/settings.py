@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from telegram_proxy.config.upstream_catalog import UpstreamCatalog
+from telegram_proxy.config.upstream_catalog import UpstreamCatalog, UpstreamPresetResolver
 from telegram_proxy.proxy.cloudflare import AUTO_CLOUDFLARE_DOMAINS, CloudflareFallbackConfig, normalize_domain_list
 from telegram_proxy.proxy.dc_map import parse_dc_endpoint_overrides
 from telegram_proxy.proxy.fake_tls import normalize_fake_tls_domain
@@ -346,7 +346,7 @@ def set_upstream_mode(always_enabled: bool) -> None:
     except Exception:
         pass
 
-def set_upstream_fields(host: str, port: int, user: str, password: str, preset_id: str = "") -> None:
+def set_upstream_preset(preset_id: str) -> None:
     try:
         from settings.store import (
             set_tg_proxy_upstream_host,
@@ -358,13 +358,25 @@ def set_upstream_fields(host: str, port: int, user: str, password: str, preset_i
 
         normalized_preset_id = str(preset_id or "").strip()
         set_tg_proxy_upstream_preset_id(normalized_preset_id)
-        if normalized_preset_id:
-            set_tg_proxy_upstream_host("")
-            set_tg_proxy_upstream_port(DEFAULT_UPSTREAM_PORT)
-            set_tg_proxy_upstream_user("")
-            set_tg_proxy_upstream_pass("")
-            return
+        set_tg_proxy_upstream_host("")
+        set_tg_proxy_upstream_port(DEFAULT_UPSTREAM_PORT)
+        set_tg_proxy_upstream_user("")
+        set_tg_proxy_upstream_pass("")
+    except Exception:
+        pass
 
+
+def set_manual_upstream(host: str, port: int, user: str, password: str) -> None:
+    try:
+        from settings.store import (
+            set_tg_proxy_upstream_host,
+            set_tg_proxy_upstream_pass,
+            set_tg_proxy_upstream_preset_id,
+            set_tg_proxy_upstream_port,
+            set_tg_proxy_upstream_user,
+        )
+
+        set_tg_proxy_upstream_preset_id("")
         set_tg_proxy_upstream_host(str(host or "").strip())
         set_tg_proxy_upstream_port(normalize_upstream_port(port))
         set_tg_proxy_upstream_user(str(user or "").strip())
@@ -459,13 +471,12 @@ def load_upstream_test_target() -> tuple[str, int] | None:
             return None
 
         preset_id = str(get_tg_proxy_upstream_preset_id() or "").strip()
-        preset = UpstreamCatalog.load_from_runtime().preset_by_id(preset_id) if preset_id else None
-        if preset is not None and preset.get("type") == "socks5":
-            host = str(preset.get("host") or "").strip()
-            port = normalize_upstream_port(preset.get("port"))
-        else:
-            host = str(get_tg_proxy_upstream_host() or "").strip()
-            port = normalize_upstream_port(get_tg_proxy_upstream_port())
+        target = UpstreamPresetResolver.load_from_runtime().test_target_by_id(preset_id) if preset_id else None
+        if target is not None:
+            return target
+
+        host = str(get_tg_proxy_upstream_host() or "").strip()
+        port = normalize_upstream_port(get_tg_proxy_upstream_port())
         if not host or port <= 0:
             return None
         return host, port
@@ -489,12 +500,12 @@ def build_upstream_config():
             return None
 
         preset_id = str(get_tg_proxy_upstream_preset_id() or "").strip()
-        preset = UpstreamCatalog.load_from_runtime().preset_by_id(preset_id) if preset_id else None
-        if preset is not None and preset.get("type") == "socks5":
-            host = str(preset.get("host") or "").strip()
-            port = normalize_upstream_port(preset.get("port"))
-            username = str(preset.get("username") or "").strip()
-            password = str(preset.get("password") or "")
+        preset = UpstreamPresetResolver.load_from_runtime().socks5_by_id(preset_id) if preset_id else None
+        if preset is not None:
+            host = str(preset["host"])
+            port = normalize_upstream_port(preset["port"])
+            username = str(preset["username"])
+            password = str(preset["password"])
         else:
             host = str(get_tg_proxy_upstream_host() or "").strip()
             port = normalize_upstream_port(get_tg_proxy_upstream_port())
@@ -514,6 +525,13 @@ def build_upstream_config():
         )
     except Exception:
         return None
+
+
+def get_upstream_mtproxy_link(preset_id: str) -> str:
+    try:
+        return UpstreamPresetResolver.load_from_runtime().mtproxy_link_by_id(preset_id)
+    except Exception:
+        return ""
 
 def consume_auto_deeplink_request() -> bool:
     try:
