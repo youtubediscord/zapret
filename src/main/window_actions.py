@@ -38,9 +38,9 @@ class WindowActionsMixin:
 
     def open_folder(self) -> None:
         """Opens the DPI folder."""
-        runtime = self._open_folder_runtime()
-        if runtime.is_running() or getattr(self, "_open_folder_start_scheduled", False):
-            self._open_folder_pending = True
+        state = self._open_folder_state_obj()
+        if state.is_busy():
+            state.pending = True
             return
         self._start_open_folder_worker()
 
@@ -61,7 +61,7 @@ class WindowActionsMixin:
 
     def _start_open_folder_worker(self) -> None:
         try:
-            self._open_folder_pending = False
+            self._open_folder_state_obj().pending = False
             runtime = self._open_folder_runtime()
             started = runtime.start_qthread_worker(
                 worker_factory=lambda _request_id: self.create_open_folder_worker(),
@@ -82,23 +82,61 @@ class WindowActionsMixin:
         if current_worker is not None and worker is not current_worker:
             return
         self._open_folder_runtime_worker = None
-        if getattr(self, "_open_folder_pending", False):
+        if self._open_folder_state_obj().has_pending():
             self._schedule_open_folder_worker_start()
 
     def _schedule_open_folder_worker_start(self) -> None:
-        if getattr(self, "_open_folder_start_scheduled", False):
+        state = self._open_folder_state_obj()
+        if state.start_scheduled:
             return
-        self._open_folder_start_scheduled = True
+        state.start_scheduled = True
         try:
             QTimer.singleShot(0, self._run_scheduled_open_folder_worker_start)
         except Exception:
             self._run_scheduled_open_folder_worker_start()
 
     def _run_scheduled_open_folder_worker_start(self) -> None:
-        self._open_folder_start_scheduled = False
-        if not getattr(self, "_open_folder_pending", False):
+        pending = bool(self._open_folder_state_obj().take_pending_for_scheduled_start())
+        if not pending:
             return
         self._start_open_folder_worker()
+
+    def _open_folder_state_obj(self):
+        state = getattr(self, "_open_folder_state", None)
+        runtime = self._open_folder_runtime()
+        if state is None:
+            from ui.latest_value_worker_state import LatestValueWorkerState
+
+            pending = bool(self.__dict__.pop("_open_folder_pending", False))
+            start_scheduled = bool(
+                self.__dict__.pop("_open_folder_start_scheduled", False)
+            )
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=False,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self._open_folder_state = state
+        elif getattr(state, "runtime", None) is None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _open_folder_pending(self) -> bool:
+        return bool(self._open_folder_state_obj().pending)
+
+    @_open_folder_pending.setter
+    def _open_folder_pending(self, value: bool) -> None:
+        self._open_folder_state_obj().pending = bool(value)
+
+    @property
+    def _open_folder_start_scheduled(self) -> bool:
+        return bool(self._open_folder_state_obj().start_scheduled)
+
+    @_open_folder_start_scheduled.setter
+    def _open_folder_start_scheduled(self, value: bool) -> None:
+        self._open_folder_state_obj().start_scheduled = bool(value)
 
     def open_connection_test(self) -> None:
         """Переключает на вкладку диагностики соединений."""

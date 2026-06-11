@@ -76,6 +76,28 @@ class StatusMessageContractTests(unittest.TestCase):
         self.assertNotIn("run_hidden", worker_source)
         self.assertNotIn("explorer.exe", worker_source)
 
+    def test_window_open_folder_uses_shared_latest_worker_state(self) -> None:
+        import inspect
+
+        from main.window_actions import WindowActionsMixin
+        from ui.latest_value_worker_state import LatestValueWorkerState
+
+        class Window(WindowActionsMixin):
+            pass
+
+        window = Window()
+        window._open_folder_runtime_instance = SimpleNamespace(is_running=Mock(return_value=False))
+
+        open_source = inspect.getsource(WindowActionsMixin.open_folder)
+        schedule_source = inspect.getsource(WindowActionsMixin._schedule_open_folder_worker_start)
+        run_source = inspect.getsource(WindowActionsMixin._run_scheduled_open_folder_worker_start)
+
+        self.assertIsInstance(window._open_folder_state_obj(), LatestValueWorkerState)
+        self.assertIn("_open_folder_state_obj()", open_source)
+        self.assertIn("_open_folder_state_obj()", schedule_source)
+        self.assertIn("_open_folder_state_obj()", run_source)
+        self.assertNotIn("getattr(self, \"_open_folder_start_scheduled\"", open_source)
+
     def test_window_open_folder_pending_restarts_after_event_loop_turn(self) -> None:
         import main.window_actions as window_actions
 
