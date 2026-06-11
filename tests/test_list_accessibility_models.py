@@ -46,7 +46,10 @@ class ListAccessibilityModelTests(unittest.TestCase):
 
         text = model.index(0, 0).data(Qt.ItemDataRole.AccessibleTextRole)
 
-        self.assertEqual(text, "Группа Видео, 3 профиля, свернута")
+        self.assertEqual(
+            text,
+            "Группа Видео, 3 профиля, свернута. Нажмите Enter, чтобы свернуть или развернуть группу.",
+        )
 
     def test_profile_order_rows_expose_screen_reader_text(self) -> None:
         from profile.ui.profile_order_list import ProfileOrderListModel

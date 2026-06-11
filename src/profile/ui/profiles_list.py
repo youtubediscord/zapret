@@ -119,6 +119,9 @@ class ProfilesList(QWidget):
         self._view.profile_activated.connect(self.profile_selected)
         self._view.profile_context_requested.connect(self.profile_context_requested)
         self._view.folder_context_requested.connect(self.folder_context_requested)
+        self._view.folder_toggle_requested.connect(
+            lambda group_key: self._on_delegate_action("toggle_folder", group_key)
+        )
         self._view.profile_move_requested.connect(self.profile_move_requested)
         self._view.profile_move_after_requested.connect(self.profile_move_after_requested)
         self._view.profile_move_to_folder_requested.connect(self.profile_move_to_folder_requested)

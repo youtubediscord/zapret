@@ -941,7 +941,10 @@ def _profile_accessible_text(row: dict[str, Any]) -> str:
     if group_name:
         count = _safe_int(row.get("count"))
         expanded_text = "свернута" if bool(row.get("collapsed", False)) else "развернута"
-        return f"Группа {group_name}, {_profile_count_text(count)}, {expanded_text}"
+        return (
+            f"Группа {group_name}, {_profile_count_text(count)}, {expanded_text}. "
+            "Нажмите Enter, чтобы свернуть или развернуть группу."
+        )
     return str(row.get("display_name") or "").strip()
 
 

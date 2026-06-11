@@ -52,6 +52,31 @@ class ProfileListAccessibilityTests(unittest.TestCase):
         self.assertTrue(event.isAccepted())
         self.assertEqual(requested, ["profile-youtube"])
 
+    def test_profile_list_toggles_selected_folder_from_keyboard(self) -> None:
+        from profile.ui.profile_list_model import ProfileListModel
+        from profile.ui.profile_list_view import ProfileListView
+
+        model = ProfileListModel()
+        model._rows = [
+            {
+                "kind": "folder",
+                "group": "video",
+                "group_name": "Видео",
+            }
+        ]
+        view = ProfileListView()
+        self.addCleanup(view.deleteLater)
+        view.setModel(model)
+        view.setCurrentIndex(model.index(0, 0))
+        requested: list[str] = []
+        view.folder_toggle_requested.connect(requested.append)
+
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, int(Qt.Key.Key_Return), Qt.KeyboardModifier.NoModifier)
+        view.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(requested, ["video"])
+
 
 if __name__ == "__main__":
     unittest.main()

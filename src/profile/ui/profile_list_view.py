@@ -91,6 +91,7 @@ class ProfileListView(ListView):
     profile_activated = pyqtSignal(str)
     profile_context_requested = pyqtSignal(str, QPoint)
     folder_context_requested = pyqtSignal(str, QPoint)
+    folder_toggle_requested = pyqtSignal(str)
     profile_move_requested = pyqtSignal(str, str, str)
     profile_move_after_requested = pyqtSignal(str, str, str)
     profile_move_to_folder_requested = pyqtSignal(str, str)
@@ -253,6 +254,12 @@ class ProfileListView(ListView):
                 profile_key = str(index.data(ProfileListModel.ProfileKeyRole) or "")
                 if profile_key:
                     self.profile_activated.emit(profile_key)
+                    event.accept()
+                    return
+            if index.isValid() and str(index.data(ProfileListModel.KindRole) or "") == "folder":
+                group_key = str(index.data(ProfileListModel.GroupRole) or "")
+                if group_key:
+                    self.folder_toggle_requested.emit(group_key)
                     event.accept()
                     return
         if event.key() == Qt.Key.Key_Menu or (
