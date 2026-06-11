@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import inspect
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,25 @@ if str(PROJECT_SRC) not in sys.path:
 
 
 class DpiSettingsWorkerQueueTests(unittest.TestCase):
+    def test_dpi_settings_queue_uses_shared_queued_worker_state(self) -> None:
+        from settings.dpi.page import DpiSettingsPage
+        from ui.queued_worker_state import QueuedWorkerState
+
+        page = DpiSettingsPage.__new__(DpiSettingsPage)
+        page._dpi_settings_runtime = SimpleNamespace(is_running=Mock(return_value=False))
+
+        init_source = inspect.getsource(DpiSettingsPage.__init__)
+        request_source = inspect.getsource(DpiSettingsPage._request_dpi_settings_action)
+        schedule_source = inspect.getsource(DpiSettingsPage._schedule_dpi_settings_worker_start)
+        cleanup_source = inspect.getsource(DpiSettingsPage.cleanup)
+
+        self.assertIsInstance(DpiSettingsPage._dpi_settings_state_obj(page), QueuedWorkerState)
+        self.assertNotIn("_dpi_settings_pending: list", init_source)
+        self.assertNotIn("_dpi_settings_start_scheduled = False", init_source)
+        self.assertIn("_dpi_settings_state_obj()", request_source)
+        self.assertIn("_dpi_settings_state_obj()", schedule_source)
+        self.assertIn("_dpi_settings_state_obj().reset()", cleanup_source)
+
     def test_dpi_settings_pending_restarts_after_event_loop_turn(self) -> None:
         import settings.dpi.page as dpi_page
         from settings.dpi.page import DpiSettingsPage

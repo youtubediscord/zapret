@@ -19,6 +19,7 @@ from ui.fluent_widgets import (
     SettingsCard,
 )
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+from ui.queued_worker_state import QueuedWorkerState
 from app.ui_texts import tr as tr_catalog
 from ui.theme import get_theme_tokens
 from ui.widgets.win11_controls import (
@@ -102,8 +103,9 @@ class DpiSettingsPage(BasePage):
         self.unlock_fails_spin = None
         self._settings_loaded = False
         self._dpi_settings_runtime = OneShotWorkerRuntime()
-        self._dpi_settings_pending: list[tuple[str, str]] = []
-        self._dpi_settings_start_scheduled = False
+        self._dpi_settings_state = QueuedWorkerState[tuple[str, str]](
+            self._dpi_settings_runtime,
+        )
         self._orchestra_settings_save_runtime = OneShotWorkerRuntime()
         self._orchestra_settings_save_pending: list[tuple[str, object]] = []
         self._orchestra_settings_save_start_scheduled = False
@@ -319,8 +321,9 @@ class DpiSettingsPage(BasePage):
 
     def _request_dpi_settings_action(self, action: str, method: str = "") -> None:
         payload = (str(action or "").strip(), str(method or "").strip())
-        if self._dpi_settings_runtime.is_running() or self.__dict__.get("_dpi_settings_start_scheduled", False):
-            self._dpi_settings_pending.append(payload)
+        state = self._dpi_settings_state_obj()
+        if state.is_busy():
+            state.append(payload)
             self._coalesce_dpi_settings_pending()
             return
         self._start_dpi_settings_worker(payload)
@@ -328,14 +331,52 @@ class DpiSettingsPage(BasePage):
     def _coalesce_dpi_settings_pending(self) -> None:
         latest_load: tuple[str, str] | None = None
         latest_apply: tuple[str, str] | None = None
-        for payload in self._dpi_settings_pending:
+        for payload in self._dpi_settings_state_obj().pending:
             if payload[0] == "load_initial_state":
                 latest_load = payload
             elif payload[0] == "apply_launch_method":
                 latest_apply = payload
-        self._dpi_settings_pending = [
+        self._dpi_settings_state_obj().pending = [
             payload for payload in (latest_load, latest_apply) if payload is not None
         ]
+
+    def _dpi_settings_state_obj(self) -> QueuedWorkerState[tuple[str, str]]:
+        state = self.__dict__.get("_dpi_settings_state")
+        runtime = self.__dict__.get("_dpi_settings_runtime")
+        if state is None:
+            pending = [
+                (str(item[0] if item else ""), str(item[1] if item else ""))
+                for item in list(self.__dict__.pop("_dpi_settings_pending", []) or [])
+            ]
+            start_scheduled = bool(self.__dict__.pop("_dpi_settings_start_scheduled", False))
+            state = QueuedWorkerState[tuple[str, str]](
+                runtime,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_dpi_settings_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _dpi_settings_pending(self) -> list[tuple[str, str]]:
+        return self._dpi_settings_state_obj().pending
+
+    @_dpi_settings_pending.setter
+    def _dpi_settings_pending(self, value: list[tuple[str, str]]) -> None:
+        self._dpi_settings_state_obj().pending = [
+            (str(item[0] if item else ""), str(item[1] if item else ""))
+            for item in list(value or [])
+        ]
+
+    @property
+    def _dpi_settings_start_scheduled(self) -> bool:
+        return bool(self._dpi_settings_state_obj().start_scheduled)
+
+    @_dpi_settings_start_scheduled.setter
+    def _dpi_settings_start_scheduled(self, value: bool) -> None:
+        self._dpi_settings_state_obj().start_scheduled = bool(value)
 
     def _start_dpi_settings_worker(self, payload: tuple[str, str]) -> None:
         self._dpi_settings_runtime.start_qthread_worker(
@@ -389,23 +430,26 @@ class DpiSettingsPage(BasePage):
     def _on_dpi_settings_worker_finished(self, worker) -> None:
         if not self._is_current_worker_finish(self.__dict__.get("_dpi_settings_runtime"), worker):
             return
-        if self._dpi_settings_pending and not self._cleanup_in_progress:
-            pending = self._dpi_settings_pending.pop(0)
+        if self._cleanup_in_progress:
+            return
+        pending = self._dpi_settings_state_obj().pop_next()
+        if pending is not None:
             self._schedule_dpi_settings_worker_start(pending)
 
     def _schedule_dpi_settings_worker_start(self, payload: tuple[str, str]) -> None:
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         queued = (str(payload[0] if payload else ""), str(payload[1] if payload else ""))
-        if self.__dict__.get("_dpi_settings_start_scheduled", False):
-            self._dpi_settings_pending.append(queued)
+        state = self._dpi_settings_state_obj()
+        if state.start_scheduled:
+            state.append(queued)
             self._coalesce_dpi_settings_pending()
             return
-        self._dpi_settings_start_scheduled = True
+        state.start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_dpi_settings_worker_start(value))
 
     def _run_scheduled_dpi_settings_worker_start(self, payload: tuple[str, str]) -> None:
-        self._dpi_settings_start_scheduled = False
+        self._dpi_settings_state_obj().start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         self._start_dpi_settings_worker(payload)
@@ -699,7 +743,7 @@ class DpiSettingsPage(BasePage):
             )
 
     def cleanup(self) -> None:
-        self._dpi_settings_pending.clear()
+        self._dpi_settings_state_obj().reset()
         self._dpi_settings_runtime.stop(
             blocking=False,
             log_fn=log,
