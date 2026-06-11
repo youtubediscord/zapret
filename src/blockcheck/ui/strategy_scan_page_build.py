@@ -270,6 +270,7 @@ def build_strategy_scan_results_section(*, tr_fn, table_cls) -> StrategyScanResu
         name="Результаты подбора стратегии",
         description="Таблица со стратегиями, статусом проверки, временем и действием применения.",
     )
+    set_state_text(table, "Результаты подбора стратегии: пока нет результатов")
     table.verticalHeader().setVisible(False)
     install_fluent_item_tooltips(table)
 
