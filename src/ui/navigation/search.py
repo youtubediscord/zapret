@@ -22,6 +22,7 @@ from app.search_index import (
     format_search_result,
 )
 from settings.mode import is_preset_launch_method
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.window_ui_session import get_window_ui_session
 
 
@@ -38,6 +39,41 @@ class _SidebarSearchCompleter(QCompleter):
         if isinstance(display_text, str) and display_text:
             return display_text
         return super().pathFromIndex(index)
+
+
+def _update_sidebar_search_popup_accessibility(popup, index: QModelIndex) -> None:
+    if popup is None:
+        return
+    accessible_text = ""
+    try:
+        if index is not None and index.isValid():
+            accessible_text = str(index.data(int(Qt.ItemDataRole.AccessibleTextRole)) or "").strip()
+    except Exception:
+        accessible_text = ""
+    if accessible_text:
+        set_state_text(popup, accessible_text)
+    else:
+        set_state_text(popup, "Результаты глобального поиска")
+
+
+def _setup_sidebar_search_popup_accessibility(popup) -> None:
+    if popup is None:
+        return
+    set_control_accessibility(
+        popup,
+        name="Результаты глобального поиска",
+        description="Выберите результат стрелками вверх и вниз, затем нажмите Enter.",
+    )
+    _update_sidebar_search_popup_accessibility(popup, popup.currentIndex())
+    try:
+        popup.selectionModel().currentChanged.connect(
+            lambda current, _previous, current_popup=popup: _update_sidebar_search_popup_accessibility(
+                current_popup,
+                current,
+            )
+        )
+    except Exception:
+        pass
 
 
 @dataclass(frozen=True)
@@ -235,6 +271,7 @@ def setup_sidebar_search_completer(window) -> None:
     try:
         popup = completer.popup()
         if popup is not None:
+            _setup_sidebar_search_popup_accessibility(popup)
             popup.clicked.connect(
                 lambda index, current_window=window: on_sidebar_search_result_activated(current_window, index)
             )

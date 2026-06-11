@@ -1405,6 +1405,48 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             "Результат поиска: Discord Voice, место: Готовые стратегии. Нажмите Enter, чтобы открыть.",
         )
 
+    def test_sidebar_search_popup_reports_current_result_to_screen_reader(self) -> None:
+        import os
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+        from PyQt6.QtCore import QObject, Qt
+        from PyQt6.QtGui import QStandardItem
+        from PyQt6.QtWidgets import QApplication
+
+        import ui.navigation.search as sidebar_search
+
+        app = QApplication.instance() or QApplication([])
+        self.assertIsNotNone(app)
+
+        class _SearchWidget:
+            def __init__(self) -> None:
+                self.completer = None
+
+            def set_completer(self, completer) -> None:
+                self.completer = completer
+
+        search_widget = _SearchWidget()
+        session = SimpleNamespace(sidebar_search_nav_widget=search_widget)
+        window = QObject()
+        window.ui_session = session
+
+        sidebar_search.setup_sidebar_search_completer(window)
+        item = QStandardItem("Discord Voice - Готовые стратегии")
+        item.setData(
+            "Результат поиска: Discord Voice, место: Готовые стратегии. Нажмите Enter, чтобы открыть.",
+            int(Qt.ItemDataRole.AccessibleTextRole),
+        )
+        session.sidebar_search_model.appendRow(item)
+
+        popup = session.sidebar_search_completer.popup()
+        popup.setCurrentIndex(session.sidebar_search_model.index(0, 0))
+
+        self.assertEqual(
+            popup.property("screenReaderStateText"),
+            "Результат поиска: Discord Voice, место: Готовые стратегии. Нажмите Enter, чтобы открыть.",
+        )
+
     def test_sidebar_search_reuses_runtime_entries_cache_while_typing(self) -> None:
         from settings.mode import ZAPRET2_MODE
         import ui.navigation.search as sidebar_search
