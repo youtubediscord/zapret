@@ -825,6 +825,44 @@ class UserPresetWriteSerializationTests(unittest.TestCase):
         page._schedule_layout_resync.assert_not_called()
         log_mock.assert_not_called()
 
+    def test_move_step_result_updates_visible_row_without_full_refresh_when_context_is_known(self) -> None:
+        page = UserPresetsPageBase.__new__(UserPresetsPageBase)
+        page._preset_storage_action_request_id = 4
+        page._pending_preset_write_actions = []
+        page._pending_preset_storage_actions = []
+        page._preset_item_action_pending = []
+        page._preset_bulk_action_pending = []
+        page._preset_edit_action_pending = []
+        page._pending_preset_activation = None
+        page._preset_folder_action_pending = []
+        page._runtime_service = Mock()
+        page._apply_preset_move_locally = Mock(return_value=True)
+        page._refresh_presets_view_from_cache = Mock(
+            side_effect=AssertionError("move_step must not refresh the whole preset list")
+        )
+
+        UserPresetsPageBase._on_preset_storage_action_finished(
+            page,
+            4,
+            "move_step",
+            True,
+            {
+                "name": "Preset.txt",
+                "destination_kind": "preset_after",
+                "destination_id": "Other.txt",
+                "destination_folder_key": "common",
+                "folder_state": {"folders": {}, "items": {}},
+            },
+        )
+
+        page._apply_preset_move_locally.assert_called_once_with(
+            "Preset.txt",
+            "preset_after",
+            "Other.txt",
+            "common",
+        )
+        page._refresh_presets_view_from_cache.assert_not_called()
+
     def test_legacy_pending_edit_action_restarts_later_after_worker_finished(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         page._preset_activate_runtime = _Runtime(running=False)

@@ -1541,6 +1541,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("self._load_folder_state", worker_source)
         self.assertNotIn("storage_api.", worker_source)
         self.assertIn('self._action == "pin"', worker_source)
+        self.assertIn("destination_kind", worker_source)
+        self.assertIn("destination_folder_key", worker_source)
         self.assertIn('context["folder_state"]', worker_source)
         self.assertIn("update_cached_folder_state", finished_source)
 

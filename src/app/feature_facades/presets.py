@@ -809,6 +809,7 @@ class PresetsFeature:
         parent=None,
     ):
         from folders.defaults import classify_preset_folder
+        from folders.ordering import build_folder_rows
         from presets.folders import (
             load_preset_folder_state,
             move_preset_after,
@@ -823,7 +824,7 @@ class PresetsFeature:
 
         clean_scope = str(scope_key or "")
 
-        def _move_by_step(file_name: str, step: int, *, cached_metadata=None) -> bool:
+        def _build_move_live_items(cached_metadata=None) -> list[dict[str, object]]:
             live_items = []
             metadata = cached_metadata if isinstance(cached_metadata, dict) else {}
             for entry in tuple(list_preset_entries() or ()):
@@ -844,7 +845,61 @@ class PresetsFeature:
                         "folder_key": classify_preset_folder(item_display_name or item_file_name, clean_scope),
                     }
                 )
-            return bool(move_preset_by_step(clean_scope, file_name, step, live_items=live_items))
+            return live_items
+
+        def _move_step_destination_context(
+            file_name: str,
+            step: int,
+            *,
+            live_items: list[dict[str, object]],
+        ) -> dict[str, str]:
+            source = str(file_name or "").strip()
+            if not source:
+                return {}
+            try:
+                rows = build_folder_rows(
+                    load_preset_folder_state(clean_scope),
+                    live_items=live_items,
+                    include_pinned_folder=True,
+                )
+            except Exception:
+                return {}
+            ordered = [
+                (
+                    str(row.get("key") or "").strip(),
+                    str(row.get("folder_key") or "").strip(),
+                )
+                for row in rows
+                if row.get("kind") == "item" and str(row.get("key") or "").strip()
+            ]
+            keys = [key for key, _folder_key in ordered]
+            if source not in keys:
+                return {}
+            index = keys.index(source)
+            direction = 1 if int(step or 0) > 0 else -1
+            target_index = index + direction
+            if target_index < 0 or target_index >= len(ordered):
+                return {}
+            target_key, target_folder_key = ordered[target_index]
+            return {
+                "destination_kind": "preset_after" if direction > 0 else "preset",
+                "destination_id": target_key,
+                "destination_folder_key": target_folder_key,
+            }
+
+        def _move_by_step(file_name: str, step: int, *, cached_metadata=None):
+            live_items = _build_move_live_items(cached_metadata)
+            destination_context = _move_step_destination_context(
+                file_name,
+                step,
+                live_items=live_items,
+            )
+            moved = bool(move_preset_by_step(clean_scope, file_name, step, live_items=live_items))
+            if not moved:
+                return False
+            if destination_context:
+                return {"ok": True, **destination_context}
+            return True
 
         def _move_on_drop(
             *,

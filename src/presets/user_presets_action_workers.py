@@ -307,6 +307,11 @@ class UserPresetStorageActionWorker(QThread):
                     self._direction,
                     cached_metadata=self._cached_metadata,
                 )
+                if isinstance(result, dict):
+                    for key in ("destination_kind", "destination_id", "destination_folder_key"):
+                        if str(result.get(key) or "").strip():
+                            context[key] = str(result.get(key) or "").strip()
+                    result = bool(result.get("ok", True))
             elif self._action == "drop":
                 result = self._move_preset_on_drop(
                     source_kind=self._source_kind,

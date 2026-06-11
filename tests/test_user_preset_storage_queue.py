@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import Mock, patch
 
+from presets.user_presets_action_workers import UserPresetStorageActionWorker
 from presets.ui.common.user_presets_page import UserPresetsPageBase
 
 
@@ -34,6 +35,39 @@ class _Runtime:
 
 
 class UserPresetStorageQueueTests(unittest.TestCase):
+    def test_move_step_worker_adds_destination_context_from_result(self) -> None:
+        completed = []
+        worker = UserPresetStorageActionWorker(
+            7,
+            toggle_preset_pin=Mock(),
+            set_preset_rating=Mock(),
+            move_preset_by_step=Mock(
+                return_value={
+                    "ok": True,
+                    "destination_kind": "preset_after",
+                    "destination_id": "Other.txt",
+                    "destination_folder_key": "common",
+                }
+            ),
+            move_preset_on_drop=Mock(),
+            load_folder_state=lambda: {"folders": {}, "items": {}},
+            action="move_step",
+            name="Preset.txt",
+            direction=1,
+        )
+        worker.completed.connect(lambda request_id, action, result, context: completed.append((request_id, action, result, context)))
+
+        worker.run()
+
+        self.assertEqual(len(completed), 1)
+        request_id, action, result, context = completed[0]
+        self.assertEqual(request_id, 7)
+        self.assertEqual(action, "move_step")
+        self.assertTrue(result)
+        self.assertEqual(context["destination_kind"], "preset_after")
+        self.assertEqual(context["destination_id"], "Other.txt")
+        self.assertEqual(context["destination_folder_key"], "common")
+
     def test_storage_action_queues_pending_actions_while_worker_runs(self) -> None:
         page = UserPresetsPageBase.__new__(UserPresetsPageBase)
         page._preset_storage_action_runtime = _Runtime(running=True)

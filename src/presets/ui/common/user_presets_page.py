@@ -2049,7 +2049,18 @@ class UserPresetsPageBase(BasePage):
                     self._refresh_presets_view_from_cache()
         elif action == "move_step":
             if bool(result):
-                self._refresh_presets_view_from_cache()
+                source_id = str(context.get("name") or "")
+                destination_kind = str(context.get("destination_kind") or "")
+                destination_id = str(context.get("destination_id") or "")
+                destination_folder_key = str(context.get("destination_folder_key") or "")
+                applied_locally = self._apply_preset_move_locally(
+                    source_id,
+                    destination_kind,
+                    destination_id,
+                    destination_folder_key,
+                )
+                if not applied_locally:
+                    self._refresh_presets_view_from_cache()
         elif action == "drop" and bool(result):
             source_id = str(context.get("source_id") or "")
             destination_kind = str(context.get("destination_kind") or "")
