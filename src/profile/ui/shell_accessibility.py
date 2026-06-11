@@ -72,7 +72,14 @@ def apply_profile_shell_accessibility(
     set_control_accessibility(
         profile_search_input,
         name=tr_fn(toolbar_key("search.accessible_name"), "Поиск профиля"),
-        description=tr_fn(toolbar_key("search.placeholder"), "Поиск профиля по имени, портам и т.д."),
+        description=tr_fn(
+            toolbar_key("search.description"),
+            (
+                "Поиск профиля по имени, портам и т.д. "
+                "После ввода перейдите в список клавишей Tab, "
+                "выберите profile стрелками вверх и вниз, затем нажмите Enter."
+            ),
+        ),
     )
 
 

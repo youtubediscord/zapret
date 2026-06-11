@@ -53,6 +53,10 @@ class ProfileShellAccessibilityTests(unittest.TestCase):
                 self.assertEqual(widget.accessibleName(), name)
                 self.assertIn(description, widget.accessibleDescription())
 
+        search_description = widgets.profile_search_input.accessibleDescription()
+        self.assertIn("После ввода перейдите в список клавишей Tab", search_description)
+        self.assertIn("выберите profile стрелками вверх и вниз", search_description)
+
 
 if __name__ == "__main__":
     unittest.main()
