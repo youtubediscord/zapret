@@ -125,6 +125,11 @@ def build_results_section(
     results_table.setSelectionBehavior(table_widget_cls.SelectionBehavior.SelectRows)
     results_table.setMinimumHeight(200)
     results_table.verticalHeader().setVisible(False)
+    set_control_accessibility(
+        results_table,
+        name="Результаты BlockCheck по доменам",
+        description="Таблица с результатами проверок HTTP, TLS, DNS, DPI, Ping и деталями по доменам.",
+    )
     install_fluent_item_tooltips(results_table)
 
     try:
@@ -158,6 +163,11 @@ def build_results_section(
     tcp_table.setSelectionBehavior(table_widget_cls.SelectionBehavior.SelectRows)
     tcp_table.setMinimumHeight(180)
     tcp_table.verticalHeader().setVisible(False)
+    set_control_accessibility(
+        tcp_table,
+        name="Результаты TCP 16-20KB",
+        description="Таблица с TCP-проверкой: ID цели, ASN, провайдер, статус и детали ошибки.",
+    )
     install_fluent_item_tooltips(tcp_table)
 
     try:

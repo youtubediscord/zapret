@@ -7,7 +7,7 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QTableWidget, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QTableWidget, QWidget
 from qfluentwidgets import PushButton
 
 
@@ -99,6 +99,21 @@ class TableAccessibilityTests(unittest.TestCase):
             expected,
         )
 
+    def test_blockcheck_result_tables_have_screen_reader_names(self) -> None:
+        from blockcheck.ui.sections_build import build_results_section
+
+        widgets = build_results_section(
+            tr_fn=lambda _key, default: default,
+            settings_card_cls=_FakeSettingsCard,
+            strong_body_label_cls=QLabel,
+            table_widget_cls=QTableWidget,
+        )
+
+        self.assertEqual(widgets.results_table.accessibleName(), "Результаты BlockCheck по доменам")
+        self.assertIn("HTTP, TLS, DNS, DPI", widgets.results_table.accessibleDescription())
+        self.assertEqual(widgets.tcp_table.accessibleName(), "Результаты TCP 16-20KB")
+        self.assertIn("ASN, провайдер", widgets.tcp_table.accessibleDescription())
+
     def test_blockcheck_tcp_result_row_has_screen_reader_text(self) -> None:
         from blockcheck.models import SingleTestResult, TargetResult, TestStatus, TestType
         from blockcheck.ui.page_results_workflow import update_tcp_result_table
@@ -170,6 +185,15 @@ class TableAccessibilityTests(unittest.TestCase):
         self.assertEqual(table.item(0, 1).data(Qt.ItemDataRole.AccessibleTextRole), text)
         self.assertEqual(table.item(0, 5).data(Qt.ItemDataRole.AccessibleTextRole), text)
         self.assertEqual(table.item(0, 7).data(Qt.ItemDataRole.AccessibleTextRole), text)
+
+
+class _FakeSettingsCard:
+    def __init__(self, title: str) -> None:
+        self.title = str(title)
+        self.widgets = []
+
+    def add_widget(self, widget) -> None:
+        self.widgets.append(widget)
 
 
 if __name__ == "__main__":
