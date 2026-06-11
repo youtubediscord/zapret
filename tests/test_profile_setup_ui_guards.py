@@ -317,6 +317,54 @@ class _ValidationWorker:
 
 
 class ProfileSetupUiGuardTests(unittest.TestCase):
+    def test_strategy_tabs_items_read_name_and_selection_for_screen_reader(self) -> None:
+        import os
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+        from PyQt6.QtWidgets import QApplication
+        from qfluentwidgets import SegmentedWidget
+
+        from profile.ui.profile_setup_page import ProfileSetupPageBase
+
+        type(self)._app = QApplication.instance() or QApplication([])
+        self.assertIsNotNone(type(self)._app)
+
+        tabs = SegmentedWidget()
+        self.addCleanup(tabs.deleteLater)
+        tabs.addItem("strategies", "Готовые стратегии", lambda: None)
+        tabs.addItem("editor", "Редактор", lambda: None)
+        tabs.addItem("match", "Когда применяется", lambda: None)
+        tabs.setCurrentItem("strategies")
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._strategy_tabs = tabs
+        page._editor_tab_available = True
+        page._payload = None
+
+        ProfileSetupPageBase._update_strategy_tabs_accessibility(page, "strategies")
+
+        self.assertEqual(
+            tabs.items["strategies"].accessibleName(),
+            "Разделы profile: Готовые стратегии, выбрано",
+        )
+        self.assertEqual(
+            tabs.items["editor"].accessibleName(),
+            "Разделы profile: Редактор, не выбрано",
+        )
+
+        tabs.setCurrentItem("match")
+        ProfileSetupPageBase._update_strategy_tabs_accessibility(page, "match")
+
+        self.assertEqual(
+            tabs.items["strategies"].accessibleName(),
+            "Разделы profile: Готовые стратегии, не выбрано",
+        )
+        self.assertEqual(
+            tabs.items["match"].accessibleName(),
+            "Разделы profile: Когда применяется, выбрано",
+        )
+
     def test_text_update_skips_duplicate_value(self) -> None:
         from profile.ui.profile_setup_page import set_widget_text_if_changed
 

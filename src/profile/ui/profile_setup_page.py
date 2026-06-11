@@ -57,6 +57,7 @@ from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.queued_worker_state import QueuedWorkerState
+from ui.segmented_accessibility import set_segmented_items_accessibility
 from app.ui_texts import tr as tr_catalog
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, to_qcolor
 from ui.widgets.fluent_item_tooltip import FluentItemToolTipController
@@ -1902,6 +1903,11 @@ class ProfileSetupPageBase(BasePage):
             tabs,
             name=state,
             description=description,
+        )
+        set_segmented_items_accessibility(
+            tabs,
+            name="Разделы profile",
+            labels=labels,
         )
 
     def _switch_strategy_tab(self, index: int) -> None:
