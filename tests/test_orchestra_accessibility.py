@@ -258,11 +258,19 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             widgets.log_protocol_filter.accessibleName(),
             "Фильтр лога Оркестратора по протоколу, выбрано: Все",
         )
+        self.assertEqual(
+            widgets.log_protocol_filter.property("screenReaderStateText"),
+            "Фильтр лога Оркестратора по протоколу, выбрано: Все",
+        )
 
         widgets.log_protocol_filter.setCurrentIndex(2)
 
         self.assertEqual(
             widgets.log_protocol_filter.accessibleName(),
+            "Фильтр лога Оркестратора по протоколу, выбрано: HTTP",
+        )
+        self.assertEqual(
+            widgets.log_protocol_filter.property("screenReaderStateText"),
             "Фильтр лога Оркестратора по протоколу, выбрано: HTTP",
         )
 

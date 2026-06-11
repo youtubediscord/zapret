@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QListWidgetItem
 
 import orchestra.page_runtime as orchestra_page_runtime
 from orchestra.orchestra_runner import MAX_ORCHESTRA_LOGS
-from ui.accessibility import set_control_accessibility, set_item_accessible_text
+from ui.accessibility import set_control_accessibility, set_item_accessible_text, set_state_text
 from ui.fluent_widgets import set_tooltip
 
 
@@ -56,6 +56,7 @@ def _update_protocol_filter_accessibility(combo) -> None:
     name = "Фильтр лога Оркестратора по протоколу"
     if selected:
         name = f"{name}, выбрано: {selected}"
+    set_state_text(combo, name)
     set_control_accessibility(
         combo,
         name=name,
