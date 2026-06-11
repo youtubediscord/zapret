@@ -126,7 +126,7 @@ class TelegramWSProxy:
         self._buffer_size = max(4, min(4096, int(buffer_kb or 256))) * 1024
         self._fake_tls_domain = normalize_fake_tls_domain(fake_tls_domain)
         self._proxy_protocol = bool(proxy_protocol)
-        self._upstream_connect_semaphore = asyncio.Semaphore(max(1, self._pool_size or 1))
+        self._upstream_connect_semaphore: asyncio.Semaphore | None = None
         self._servers: list[asyncio.Server] = []
         self._tasks: set[asyncio.Task] = set()
         self._running = False
@@ -245,6 +245,13 @@ class TelegramWSProxy:
         if elapsed is not None:
             parts.append(f"elapsed={elapsed:.1f}s")
         self._log(" ".join(parts))
+
+    def _get_upstream_connect_semaphore(self) -> asyncio.Semaphore:
+        semaphore = self._upstream_connect_semaphore
+        if semaphore is None:
+            semaphore = asyncio.Semaphore(max(1, self._pool_size or 1))
+            self._upstream_connect_semaphore = semaphore
+        return semaphore
 
     def _upstream_proxy_candidates(self) -> tuple[UpstreamProxyEndpoint, ...]:
         primary = UpstreamProxyEndpoint(
@@ -394,12 +401,14 @@ class TelegramWSProxy:
         self._cloudflare_domain_balancer.reset()
         # Reset semaphore for fresh event loop
         reset_wss_semaphore()
+        self._upstream_connect_semaphore = None
 
         handler = self._handle_mtproxy_client if self._mode == "mtproxy" else self._handle_socks5_client
         server = await asyncio.start_server(
             handler,
             self._host,
             self._port,
+            start_serving=False,
         )
         self._servers.append(server)
 
@@ -1503,7 +1512,7 @@ class TelegramWSProxy:
                 f"[{label}] MTProxy DC{dc}{media_tag} upstream target "
                 f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
             )
-        async with self._upstream_connect_semaphore:
+        async with self._get_upstream_connect_semaphore():
             opened = await self._open_upstream_proxy(
                 upstream_host=upstream_host,
                 upstream_port=upstream_port,
@@ -1675,7 +1684,7 @@ class TelegramWSProxy:
                 f"[{label}] DC{dc}{media_tag} upstream target "
                 f"{target_host}:{target_port} -> {upstream_host}:{upstream_port}"
             )
-        async with self._upstream_connect_semaphore:
+        async with self._get_upstream_connect_semaphore():
             opened = await self._open_upstream_proxy(
                 upstream_host=upstream_host,
                 upstream_port=upstream_port,

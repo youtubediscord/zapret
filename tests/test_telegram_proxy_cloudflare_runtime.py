@@ -716,6 +716,63 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
 
         self.assertLessEqual(max_active_relays, 2)
 
+    def test_proxy_server_is_bound_before_explicit_single_start_serving(self) -> None:
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _Server:
+            def __init__(self):
+                self.start_serving_calls = 0
+
+            async def start_serving(self):
+                self.start_serving_calls += 1
+
+            def close(self):
+                return None
+
+            async def wait_closed(self):
+                return None
+
+        class _WsPool:
+            def __init__(self, *_args, **_kwargs):
+                return None
+
+            async def warmup(self):
+                return None
+
+            async def close_all(self):
+                return None
+
+        class _WorkerPool(_WsPool):
+            async def warmup(self, *_args, **_kwargs):
+                return None
+
+        server = _Server()
+
+        async def fake_start_server(*_args, **_kwargs):
+            return server
+
+        async def run_proxy_once():
+            proxy = TelegramWSProxy(port=0)
+            await proxy.start()
+            await proxy.stop()
+
+        with (
+            patch("telegram_proxy.wss_proxy.asyncio.start_server", side_effect=fake_start_server) as start_server,
+            patch("telegram_proxy.wss_proxy._WsPool", _WsPool),
+            patch("telegram_proxy.wss_proxy.CloudflareWorkerPool", _WorkerPool),
+        ):
+            asyncio.run(run_proxy_once())
+
+        self.assertEqual(server.start_serving_calls, 1)
+        self.assertEqual(start_server.await_args.kwargs.get("start_serving"), False)
+
+    def test_upstream_connect_limit_is_not_created_before_proxy_event_loop(self) -> None:
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        proxy = TelegramWSProxy(port=0, pool_size=2)
+
+        self.assertIsNone(proxy._upstream_connect_semaphore)
+
     def test_upstream_socks5_client_sends_ipv6_address_type(self) -> None:
         from telegram_proxy.proxy import socks5
 
