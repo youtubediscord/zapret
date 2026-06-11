@@ -28,7 +28,9 @@ from qfluentwidgets import (
 from ui.pages.base_page import BasePage
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import set_tooltip
+from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+from ui.queued_worker_state import QueuedWorkerState
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_refresh import ThemeRefreshBinding
 from app.ui_texts import tr as tr_catalog
@@ -261,11 +263,14 @@ class OrchestraBlockedPage(BasePage):
         self._refresh_loading = False
         self._cleanup_in_progress = False
         self._snapshot_load_runtime = OneShotWorkerRuntime()
-        self._snapshot_load_pending = False
-        self._snapshot_load_start_scheduled = False
+        self._snapshot_load_state = LatestValueWorkerState(
+            self._snapshot_load_runtime,
+            empty_value=False,
+        )
         self._managed_action_runtime = OneShotWorkerRuntime()
-        self._managed_action_pending: list[tuple[str, dict]] = []
-        self._managed_action_start_scheduled = False
+        self._managed_action_state = QueuedWorkerState[tuple[str, dict]](
+            self._managed_action_runtime,
+        )
 
         self._setup_ui()
         self._apply_page_theme(force=True)
@@ -614,13 +619,11 @@ class OrchestraBlockedPage(BasePage):
     def _start_snapshot_worker(self) -> None:
         if self._cleanup_in_progress:
             return
-        if (
-            self._snapshot_load_runtime.is_running()
-            or self.__dict__.get("_snapshot_load_start_scheduled", False)
-        ):
-            self._snapshot_load_pending = True
+        state = self._snapshot_load_state_obj()
+        if state.is_busy():
+            state.pending = True
             return
-        self._snapshot_load_pending = False
+        state.pending = False
         self._snapshot_load_runtime.start_qthread_worker(
             worker_factory=lambda request_id: self._orchestra.create_blocked_snapshot_load_worker(request_id, self),
             on_loaded=self._on_snapshot_loaded,
@@ -645,25 +648,57 @@ class OrchestraBlockedPage(BasePage):
             return
         if self._snapshot_load_runtime.worker is worker:
             self._snapshot_load_runtime.worker = None
-        pending = bool(self.__dict__.get("_snapshot_load_pending", False))
-        self._snapshot_load_pending = False
-        if pending and not self._cleanup_in_progress:
+        if self._snapshot_load_state_obj().has_pending() and not self._cleanup_in_progress:
             self._schedule_snapshot_load_start()
 
     def _schedule_snapshot_load_start(self) -> None:
-        if self.__dict__.get("_cleanup_in_progress", False):
-            return
-        if self.__dict__.get("_snapshot_load_start_scheduled", False):
-            self._snapshot_load_pending = True
-            return
-        self._snapshot_load_start_scheduled = True
-        QTimer.singleShot(0, self._run_scheduled_snapshot_load_start)
+        self._snapshot_load_state_obj().schedule_start(
+            QTimer.singleShot,
+            self._run_scheduled_snapshot_load_start,
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+            pending_when_already_scheduled=True,
+        )
 
     def _run_scheduled_snapshot_load_start(self) -> None:
-        self._snapshot_load_start_scheduled = False
-        if self.__dict__.get("_cleanup_in_progress", False):
+        pending = self._snapshot_load_state_obj().take_pending_for_scheduled_start(
+            cleanup_in_progress=self.__dict__.get("_cleanup_in_progress", False),
+        )
+        if pending is False:
             return
         self._start_snapshot_worker()
+
+    def _snapshot_load_state_obj(self) -> LatestValueWorkerState:
+        state = self.__dict__.get("_snapshot_load_state")
+        runtime = self.__dict__.get("_snapshot_load_runtime")
+        if state is None:
+            pending = bool(self.__dict__.pop("_snapshot_load_pending", False))
+            start_scheduled = bool(self.__dict__.pop("_snapshot_load_start_scheduled", False))
+            state = LatestValueWorkerState(
+                runtime,
+                empty_value=False,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_snapshot_load_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _snapshot_load_pending(self) -> bool:
+        return bool(self._snapshot_load_state_obj().pending)
+
+    @_snapshot_load_pending.setter
+    def _snapshot_load_pending(self, value: bool) -> None:
+        self._snapshot_load_state_obj().pending = bool(value)
+
+    @property
+    def _snapshot_load_start_scheduled(self) -> bool:
+        return bool(self._snapshot_load_state_obj().start_scheduled)
+
+    @_snapshot_load_start_scheduled.setter
+    def _snapshot_load_start_scheduled(self, value: bool) -> None:
+        self._snapshot_load_state_obj().start_scheduled = bool(value)
 
     def create_action_worker(self, request_id: int, *, action: str, **kwargs):
         return self._orchestra.create_blocked_action_worker(
@@ -677,7 +712,7 @@ class OrchestraBlockedPage(BasePage):
         if self._cleanup_in_progress:
             return
         payload = (str(action or "").strip(), dict(kwargs))
-        if self._managed_action_runtime.is_running() or self.__dict__.get("_managed_action_start_scheduled", False):
+        if self._managed_action_state_obj().is_busy():
             self._queue_managed_action(payload)
             return
         self._start_managed_action(payload)
@@ -685,10 +720,7 @@ class OrchestraBlockedPage(BasePage):
     def _queue_managed_action(self, payload: tuple[str, dict]) -> None:
         action, kwargs = payload
         queued = (str(action or "").strip(), dict(kwargs or {}))
-        pending = self.__dict__.setdefault("_managed_action_pending", [])
-        if queued in pending:
-            return
-        pending.append(queued)
+        self._managed_action_state_obj().append_unique(queued, key=lambda item: item)
 
     def _start_managed_action(self, payload: tuple[str, dict]) -> None:
         action, kwargs = payload
@@ -765,8 +797,12 @@ class OrchestraBlockedPage(BasePage):
             return
         if self._managed_action_runtime.worker is worker:
             self._managed_action_runtime.worker = None
-        if self._managed_action_pending and not self._cleanup_in_progress:
-            pending = self._managed_action_pending.pop(0)
+        pending = self._managed_action_state_obj().pop_next_after_finish(
+            worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            cleanup_in_progress=self._cleanup_in_progress,
+        )
+        if pending is not None:
             self._schedule_managed_action_start(pending)
 
     def _is_current_worker_finish(self, runtime, worker) -> bool:
@@ -788,17 +824,56 @@ class OrchestraBlockedPage(BasePage):
             return
         action, kwargs = payload
         queued = (str(action or "").strip(), dict(kwargs or {}))
-        if self.__dict__.get("_managed_action_start_scheduled", False):
+        state = self._managed_action_state_obj()
+        if state.start_scheduled:
             self._queue_managed_action(queued)
             return
-        self._managed_action_start_scheduled = True
+        state.start_scheduled = True
         QTimer.singleShot(0, lambda value=queued: self._run_scheduled_managed_action_start(value))
 
     def _run_scheduled_managed_action_start(self, payload: tuple[str, dict]) -> None:
-        self._managed_action_start_scheduled = False
+        self._managed_action_state_obj().start_scheduled = False
         if self.__dict__.get("_cleanup_in_progress", False):
             return
         self._start_managed_action(payload)
+
+    def _managed_action_state_obj(self) -> QueuedWorkerState[tuple[str, dict]]:
+        state = self.__dict__.get("_managed_action_state")
+        runtime = self.__dict__.get("_managed_action_runtime")
+        if state is None:
+            pending = [
+                (str(action or "").strip(), dict(kwargs or {}))
+                for action, kwargs in list(self.__dict__.pop("_managed_action_pending", []) or [])
+            ]
+            start_scheduled = bool(self.__dict__.pop("_managed_action_start_scheduled", False))
+            state = QueuedWorkerState(
+                runtime,
+                pending=pending,
+                start_scheduled=start_scheduled,
+            )
+            self.__dict__["_managed_action_state"] = state
+        elif getattr(state, "runtime", None) is None and runtime is not None:
+            state.runtime = runtime
+        return state
+
+    @property
+    def _managed_action_pending(self) -> list[tuple[str, dict]]:
+        return self._managed_action_state_obj().pending
+
+    @_managed_action_pending.setter
+    def _managed_action_pending(self, value) -> None:
+        self._managed_action_state_obj().pending = [
+            (str(action or "").strip(), dict(kwargs or {}))
+            for action, kwargs in list(value or [])
+        ]
+
+    @property
+    def _managed_action_start_scheduled(self) -> bool:
+        return bool(self._managed_action_state_obj().start_scheduled)
+
+    @_managed_action_start_scheduled.setter
+    def _managed_action_start_scheduled(self, value: bool) -> None:
+        self._managed_action_state_obj().start_scheduled = bool(value)
 
     def _refresh_blocked_list(self):
         """Обновляет список заблокированных стратегий"""
@@ -1001,8 +1076,7 @@ class OrchestraBlockedPage(BasePage):
     def cleanup(self) -> None:
         self._cleanup_in_progress = True
         self._refresh_loading = False
-        self._snapshot_load_pending = False
-        self._snapshot_load_start_scheduled = False
+        self._snapshot_load_state_obj().reset()
         self._snapshot_load_runtime.stop(
             blocking=False,
             log_fn=log,
@@ -1015,5 +1089,4 @@ class OrchestraBlockedPage(BasePage):
         )
         self._snapshot_load_runtime.cancel()
         self._managed_action_runtime.cancel()
-        self._managed_action_pending.clear()
-        self._managed_action_start_scheduled = False
+        self._managed_action_state_obj().reset()
