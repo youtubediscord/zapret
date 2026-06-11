@@ -58,7 +58,13 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
         self.assertEqual(saved_fields, [("203.0.113.10", 443, "", "", "bundled")])
 
     def test_bundled_socks_credentials_are_resolved_from_catalog_not_settings(self) -> None:
-        from telegram_proxy.config.settings import _settings_state_from_data, build_upstream_config
+        from telegram_proxy.config.settings import (
+            DEFAULT_UPSTREAM_PORT,
+            _settings_state_from_data,
+            build_upstream_config,
+            load_upstream_test_target,
+            set_upstream_fields,
+        )
         from telegram_proxy.config.upstream_catalog import UpstreamCatalog
 
         catalog = UpstreamCatalog(
@@ -78,8 +84,8 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
             "telegram_proxy": {
                 "upstream_enabled": True,
                 "upstream_preset_id": "bundled",
-                "upstream_host": "203.0.113.10",
-                "upstream_port": 443,
+                "upstream_host": "",
+                "upstream_port": DEFAULT_UPSTREAM_PORT,
                 "upstream_user": "",
                 "upstream_pass": "",
                 "upstream_mode": "fallback",
@@ -100,8 +106,41 @@ class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
             upstream = build_upstream_config()
 
         self.assertIsNotNone(upstream)
+        self.assertEqual(upstream.host, "203.0.113.10")
+        self.assertEqual(upstream.port, 443)
         self.assertEqual(upstream.username, "preset_user")
         self.assertEqual(upstream.password, "preset_password")
+
+        saved = []
+
+        def remember(name):
+            return lambda value: saved.append((name, value))
+
+        with (
+            patch("settings.store.set_tg_proxy_upstream_host", remember("host")),
+            patch("settings.store.set_tg_proxy_upstream_port", remember("port")),
+            patch("settings.store.set_tg_proxy_upstream_preset_id", remember("preset_id")),
+            patch("settings.store.set_tg_proxy_upstream_user", remember("user")),
+            patch("settings.store.set_tg_proxy_upstream_pass", remember("password")),
+        ):
+            set_upstream_fields("203.0.113.10", 443, "preset_user", "preset_password", preset_id="bundled")
+
+        self.assertEqual(
+            saved,
+            [
+                ("preset_id", "bundled"),
+                ("host", ""),
+                ("port", DEFAULT_UPSTREAM_PORT),
+                ("user", ""),
+                ("password", ""),
+            ],
+        )
+
+        with (
+            patch("telegram_proxy.config.upstream_catalog.UpstreamCatalog.load_from_runtime", return_value=catalog),
+            patch("settings.store.read_settings", return_value=data),
+        ):
+            self.assertEqual(load_upstream_test_target(), ("203.0.113.10", 443))
 
 
 if __name__ == "__main__":

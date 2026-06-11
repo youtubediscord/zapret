@@ -357,14 +357,16 @@ def set_upstream_fields(host: str, port: int, user: str, password: str, preset_i
         )
 
         normalized_preset_id = str(preset_id or "").strip()
-        set_tg_proxy_upstream_host(str(host or "").strip())
-        set_tg_proxy_upstream_port(normalize_upstream_port(port))
         set_tg_proxy_upstream_preset_id(normalized_preset_id)
         if normalized_preset_id:
+            set_tg_proxy_upstream_host("")
+            set_tg_proxy_upstream_port(DEFAULT_UPSTREAM_PORT)
             set_tg_proxy_upstream_user("")
             set_tg_proxy_upstream_pass("")
             return
 
+        set_tg_proxy_upstream_host(str(host or "").strip())
+        set_tg_proxy_upstream_port(normalize_upstream_port(port))
         set_tg_proxy_upstream_user(str(user or "").strip())
         set_tg_proxy_upstream_pass(str(password or ""))
     except Exception:
@@ -449,14 +451,21 @@ def load_upstream_test_target() -> tuple[str, int] | None:
         from settings.store import (
             get_tg_proxy_upstream_enabled,
             get_tg_proxy_upstream_host,
+            get_tg_proxy_upstream_preset_id,
             get_tg_proxy_upstream_port,
         )
 
         if not get_tg_proxy_upstream_enabled():
             return None
 
-        host = str(get_tg_proxy_upstream_host() or "").strip()
-        port = normalize_upstream_port(get_tg_proxy_upstream_port())
+        preset_id = str(get_tg_proxy_upstream_preset_id() or "").strip()
+        preset = UpstreamCatalog.load_from_runtime().preset_by_id(preset_id) if preset_id else None
+        if preset is not None and preset.get("type") == "socks5":
+            host = str(preset.get("host") or "").strip()
+            port = normalize_upstream_port(preset.get("port"))
+        else:
+            host = str(get_tg_proxy_upstream_host() or "").strip()
+            port = normalize_upstream_port(get_tg_proxy_upstream_port())
         if not host or port <= 0:
             return None
         return host, port
