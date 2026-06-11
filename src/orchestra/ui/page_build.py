@@ -154,7 +154,10 @@ def build_orchestra_log_card(
         name=tr_fn("page.orchestra.filter.domain.accessible_name", "Фильтр лога Оркестратора по домену"),
         description=tr_fn(
             "page.orchestra.filter.domain.accessible_description",
-            "Введите домен, например example.com, чтобы оставить в логе только подходящие строки.",
+            (
+                "Введите домен, например example.com, чтобы оставить в логе только подходящие строки. "
+                "После ввода перейдите к логу клавишей Tab."
+            ),
         ),
     )
     log_filter_input.textChanged.connect(on_apply_log_filter)

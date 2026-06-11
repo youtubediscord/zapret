@@ -393,6 +393,7 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.assertIn("строки обучения", widgets.log_text.accessibleDescription())
         self.assertEqual(widgets.log_filter_input.accessibleName(), "Фильтр лога Оркестратора по домену")
         self.assertIn("example.com", widgets.log_filter_input.accessibleDescription())
+        self.assertIn("После ввода перейдите к логу клавишей Tab", widgets.log_filter_input.accessibleDescription())
         self.assertEqual(widgets.clear_filter_btn.accessibleName(), "Сбросить фильтр лога Оркестратора")
         self.assertEqual(widgets.clear_log_btn.accessibleName(), "Очистить лог обучения Оркестратора")
         self.assertEqual(widgets.clear_learned_btn.accessibleName(), "Сбросить данные обучения Оркестратора")
