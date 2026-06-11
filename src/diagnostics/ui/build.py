@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtWidgets import QWidget, QHBoxLayout
 from qfluentwidgets import FluentIcon
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import QuickActionsBar, SettingsCard, set_tooltip
 from diagnostics.ui.components import ConnectionStatusBadge, ScrollBlockingConnectionTextEdit
 from ui.log_limits import DIAGNOSTICS_LOG_VIEW_MAX_LINES, apply_text_line_limit
@@ -226,6 +226,13 @@ def build_connection_log_viewer(*, container_layout, tr_fn):
         description=tr_fn(
             "page.connection.result.accessible_description",
             "Показывает ход и итог проверки Discord и YouTube.",
+        ),
+    )
+    set_state_text(
+        result_text,
+        tr_fn(
+            "page.connection.result.initial_state",
+            "Результат диагностики соединений: диагностика ещё не запускалась",
         ),
     )
     apply_text_line_limit(result_text, DIAGNOSTICS_LOG_VIEW_MAX_LINES)

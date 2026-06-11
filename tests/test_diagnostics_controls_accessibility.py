@@ -118,8 +118,15 @@ class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
             tr_fn=lambda _key, default: default,
         )
 
-        self.assertEqual(widgets.result_text.accessibleName(), "Результат диагностики соединений")
+        self.assertEqual(
+            widgets.result_text.accessibleName(),
+            "Результат диагностики соединений: диагностика ещё не запускалась",
+        )
         self.assertIn("ход и итог проверки Discord и YouTube", widgets.result_text.accessibleDescription())
+        self.assertEqual(
+            widgets.result_text.property("screenReaderStateText"),
+            "Результат диагностики соединений: диагностика ещё не запускалась",
+        )
 
     def test_progress_indicator_exposes_screen_reader_state(self) -> None:
         parent = QWidget()
