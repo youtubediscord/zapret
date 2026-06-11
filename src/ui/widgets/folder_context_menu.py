@@ -7,6 +7,7 @@ from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBox, Messag
 
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.fluent_widgets import style_semantic_caption_label
+from ui.message_box_accessibility import set_message_box_button_accessibility
 from ui.popup_menu import exec_popup_menu
 from ui.presets_menu.common import fluent_icon, make_menu_action
 
@@ -248,6 +249,13 @@ def _delete_folder(parent, actions: FolderMenuActions, labels: FolderMenuLabels,
     )
     box.yesButton.setText("Удалить")
     box.cancelButton.setText("Отмена")
+    set_message_box_button_accessibility(
+        box,
+        yes_name="Удалить папку",
+        yes_description=labels.delete_body,
+        cancel_name="Отменить удаление папки",
+        cancel_description="Закрывает диалог без удаления папки.",
+    )
     if not box.exec():
         return
     _run_folder_action(parent, actions, "delete", {"folder_key": folder_key}, refresh_fn, log_fn, f"не удалось удалить папку {labels.action_error_suffix}")
@@ -261,6 +269,13 @@ def _reset_folders(parent, actions: FolderMenuActions, labels: FolderMenuLabels,
     )
     box.yesButton.setText("Сбросить")
     box.cancelButton.setText("Отмена")
+    set_message_box_button_accessibility(
+        box,
+        yes_name="Сбросить папки",
+        yes_description=labels.reset_body,
+        cancel_name="Отменить сброс папок",
+        cancel_description="Закрывает диалог без сброса папок.",
+    )
     if not box.exec():
         return
     _run_folder_action(parent, actions, "reset", {}, refresh_fn, log_fn, f"не удалось сбросить папки {labels.action_error_suffix}")

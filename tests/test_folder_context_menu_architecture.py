@@ -3,12 +3,55 @@ from __future__ import annotations
 import inspect
 import os
 import unittest
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ui.widgets import folder_context_menu
+
+
+class _DialogButton:
+    def __init__(self) -> None:
+        self._text = ""
+        self._accessible_name = ""
+        self._accessible_description = ""
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        self._text = str(text)
+
+    def text(self) -> str:
+        return self._text
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self._accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self._accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self._accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self._accessible_description = str(text)
+
+
+class _MessageBox:
+    instances: list["_MessageBox"] = []
+
+    def __init__(self, title: str, body: str, parent=None) -> None:
+        self.title = title
+        self.body = body
+        self.parent = parent
+        self.yesButton = _DialogButton()
+        self.cancelButton = _DialogButton()
+        self.exec_called = False
+        _MessageBox.instances.append(self)
+
+    def exec(self) -> bool:
+        self.exec_called = True
+        return False
 
 
 class FolderContextMenuArchitectureTests(unittest.TestCase):
@@ -67,6 +110,63 @@ class FolderContextMenuArchitectureTests(unittest.TestCase):
         self.assertEqual(dialog.yesButton.accessibleName(), "Переименовать папку")
         self.assertIn("Меняет имя папки", dialog.yesButton.accessibleDescription())
         self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить переименование папки")
+
+    def test_delete_folder_dialog_buttons_are_named_for_screen_reader(self) -> None:
+        labels = folder_context_menu.FolderMenuLabels(
+            reset_title="Сбросить папки",
+            reset_body="Папки будут возвращены к стандартному виду.",
+            create_subtitle="",
+            rename_subtitle="",
+            delete_body="Папка будет удалена, элементы останутся в общем списке.",
+            action_error_suffix="preset-ов",
+        )
+        actions = folder_context_menu.FolderMenuActions(run_action=Mock())
+        _MessageBox.instances = []
+
+        with patch("ui.widgets.folder_context_menu.MessageBox", _MessageBox):
+            folder_context_menu._delete_folder(
+                self._dialog_parent(),
+                actions,
+                labels,
+                "folder-1",
+                refresh_fn=Mock(),
+                log_fn=None,
+            )
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Удалить папку")
+        self.assertIn("Папка будет удалена", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить удаление папки")
+        self.assertTrue(dialog.exec_called)
+        actions.run_action.assert_not_called()
+
+    def test_reset_folders_dialog_buttons_are_named_for_screen_reader(self) -> None:
+        labels = folder_context_menu.FolderMenuLabels(
+            reset_title="Сбросить папки",
+            reset_body="Папки будут возвращены к стандартному виду.",
+            create_subtitle="",
+            rename_subtitle="",
+            delete_body="",
+            action_error_suffix="preset-ов",
+        )
+        actions = folder_context_menu.FolderMenuActions(run_action=Mock())
+        _MessageBox.instances = []
+
+        with patch("ui.widgets.folder_context_menu.MessageBox", _MessageBox):
+            folder_context_menu._reset_folders(
+                self._dialog_parent(),
+                actions,
+                labels,
+                refresh_fn=Mock(),
+                log_fn=None,
+            )
+
+        dialog = _MessageBox.instances[0]
+        self.assertEqual(dialog.yesButton.accessibleName(), "Сбросить папки")
+        self.assertIn("Папки будут возвращены", dialog.yesButton.accessibleDescription())
+        self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить сброс папок")
+        self.assertTrue(dialog.exec_called)
+        actions.run_action.assert_not_called()
 
 
 if __name__ == "__main__":
