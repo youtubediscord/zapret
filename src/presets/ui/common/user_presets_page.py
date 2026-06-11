@@ -160,6 +160,7 @@ class UserPresetsPageBase(BasePage):
         self._layout_resync_delayed_timer = QTimer(self)
         self._layout_resync_delayed_timer.setSingleShot(True)
         self._layout_resync_delayed_timer.timeout.connect(self._resync_layout_metrics)
+        self._presets_list_show_scheduled = False
 
         self._preset_search_timer = QTimer(self)
         self._preset_search_timer.setSingleShot(True)
@@ -384,6 +385,7 @@ class UserPresetsPageBase(BasePage):
             update_presets_view_height_fn=self._update_presets_view_height,
             schedule_layout_resync_fn=self._schedule_layout_resync,
         )
+        self._schedule_presets_list_show_after_page_switch()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -393,6 +395,42 @@ class UserPresetsPageBase(BasePage):
     def on_page_hidden(self) -> None:
         self._layout_resync_timer.stop()
         self._layout_resync_delayed_timer.stop()
+        self._hide_presets_list_for_next_switch()
+
+    def _hide_presets_list_for_next_switch(self) -> None:
+        presets_list = self.__dict__.get("presets_list")
+        if presets_list is None:
+            return
+        try:
+            presets_list.setVisible(False)
+        except Exception:
+            pass
+        self._presets_list_show_scheduled = False
+
+    def _schedule_presets_list_show_after_page_switch(self) -> None:
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        if self.__dict__.get("presets_list") is None:
+            return
+        if self.__dict__.get("_presets_list_show_scheduled", False):
+            return
+        self._presets_list_show_scheduled = True
+        try:
+            QTimer.singleShot(0, self._show_presets_list_after_page_switch)
+        except Exception:
+            self._show_presets_list_after_page_switch()
+
+    def _show_presets_list_after_page_switch(self) -> None:
+        self._presets_list_show_scheduled = False
+        if self.__dict__.get("_cleanup_in_progress", False):
+            return
+        presets_list = self.__dict__.get("presets_list")
+        if presets_list is None:
+            return
+        try:
+            presets_list.setVisible(True)
+        except Exception:
+            pass
 
     def _after_ui_built(self) -> None:
         after_user_presets_ui_built(
@@ -2700,6 +2738,7 @@ class UserPresetsPageBase(BasePage):
 
     def cleanup(self) -> None:
         self._stop_action_workers_for_cleanup()
+        self._presets_list_show_scheduled = False
         cleanup_user_presets_page(
             set_cleanup_in_progress_fn=lambda value: setattr(self, "_cleanup_in_progress", value),
             layout_resync_timer=self._layout_resync_timer,
