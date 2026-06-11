@@ -318,6 +318,7 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.addCleanup(page.deleteLater)
 
         self.assertEqual(page.filter_input.accessibleName(), "Фильтр рейтингов по домену")
+        self.assertIn("После ввода перейдите к истории клавишей Tab", page.filter_input.accessibleDescription())
         self.assertEqual(page.refresh_btn.accessibleName(), "Обновить рейтинги стратегий")
         self.assertEqual(page.stats_label.accessibleName(), "Статистика рейтингов: Загрузка...")
         self.assertEqual(page.history_text.accessibleName(), "История рейтингов стратегий")

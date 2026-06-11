@@ -398,7 +398,10 @@ class OrchestraRatingsPage(BasePage):
         set_control_accessibility(
             self.filter_input,
             name="Фильтр рейтингов по домену",
-            description="Введите часть домена, чтобы оставить в истории только подходящие записи.",
+            description=(
+                "Введите часть домена, чтобы оставить в истории только подходящие записи. "
+                "После ввода перейдите к истории клавишей Tab."
+            ),
         )
         set_control_accessibility(
             self.refresh_btn,
