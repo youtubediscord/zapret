@@ -944,9 +944,62 @@ def _strategy_branch_label(branch) -> str:
     return f"{' · '.join(parts)} — {strategy_name}"
 
 
+def _combo_item_accessible_text(
+    *,
+    name: str,
+    label: str,
+    selected: bool,
+    selected_word: str = "выбран",
+    unselected_word: str = "не выбран",
+) -> str:
+    state = selected_word if selected else unselected_word
+    return f"{str(name or '').strip()}: {str(label or '').strip()}, {state}"
+
+
+def _sync_combo_items_accessibility(
+    combo,
+    *,
+    name: str,
+    selected_word: str = "выбран",
+    unselected_word: str = "не выбран",
+) -> None:
+    if combo is None:
+        return
+    try:
+        current_index = int(combo.currentIndex())
+        count = int(combo.count())
+    except Exception:
+        return
+    set_item_accessible_text = getattr(combo, "setItemAccessibleText", None)
+    if not callable(set_item_accessible_text):
+        return
+    for index in range(count):
+        try:
+            label = str(combo.itemText(index) or "").strip()
+        except Exception:
+            label = ""
+        if not label:
+            continue
+        set_item_accessible_text(
+            index,
+            _combo_item_accessible_text(
+                name=name,
+                label=label,
+                selected=index == current_index,
+                selected_word=selected_word,
+                unselected_word=unselected_word,
+            ),
+        )
+
+
 def _strategy_branch_accessible_text(label: str, *, selected: bool) -> str:
-    state = "выбрана" if selected else "не выбрана"
-    return f"Ветка готовой стратегии: {str(label or '').strip()}, {state}"
+    return _combo_item_accessible_text(
+        name="Ветка готовой стратегии",
+        label=label,
+        selected=selected,
+        selected_word="выбрана",
+        unselected_word="не выбрана",
+    )
 
 
 def _sync_strategy_branch_combo_items_accessibility(combo) -> None:
@@ -1592,6 +1645,7 @@ class ProfileSetupPageBase(BasePage):
             name=accessible_name,
             description=description,
         )
+        _sync_combo_items_accessibility(combo, name=name)
 
     def _update_profile_setup_accessibility(self, *_args) -> None:
         checkbox = self.__dict__.get("_enabled_checkbox")

@@ -174,6 +174,21 @@ class ProfileSetupAccessibilityTests(unittest.TestCase):
             "Ветка готовой стратегии: payload: http — HTTP fake, выбрана",
         )
 
+    def test_range_mode_combo_options_are_named_for_screen_reader(self) -> None:
+        page = self._make_page()
+        self.addCleanup(page.deleteLater)
+
+        menu = page._in_range_mode._create_accessible_combo_menu()
+
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим in-range: a — всегда, выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим in-range: x — никогда, не выбран",
+        )
+
     def test_delete_user_profile_dialog_buttons_are_named_for_screen_reader(self) -> None:
         page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
         page._profile_key = "template:user:user-1"
