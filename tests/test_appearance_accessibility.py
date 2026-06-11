@@ -50,6 +50,39 @@ class AppearanceAccessibilityTests(unittest.TestCase):
             "Режим отображения интерфейса, выбрано: Светлый",
         )
 
+    def test_display_mode_items_read_name_and_selection_for_screen_reader(self) -> None:
+        widgets = build_display_mode_section(
+            page=None,
+            tr_language="ru",
+            add_section_title=lambda **_kwargs: BodyLabel("Режим отображения"),
+            content_parent=QWidget(),
+            settings_card_cls=SettingsCard,
+            caption_label_cls=CaptionLabel,
+            segmented_widget_cls=SegmentedWidget,
+            on_display_mode_changed=lambda _mode: None,
+        )
+        self.addCleanup(widgets.card.deleteLater)
+
+        self.assertEqual(
+            widgets.segmented.items["dark"].accessibleName(),
+            "Режим отображения интерфейса: Тёмный, выбрано",
+        )
+        self.assertEqual(
+            widgets.segmented.items["light"].accessibleName(),
+            "Режим отображения интерфейса: Светлый, не выбрано",
+        )
+
+        widgets.segmented.setCurrentItem("light")
+
+        self.assertEqual(
+            widgets.segmented.items["dark"].accessibleName(),
+            "Режим отображения интерфейса: Тёмный, не выбрано",
+        )
+        self.assertEqual(
+            widgets.segmented.items["light"].accessibleName(),
+            "Режим отображения интерфейса: Светлый, выбрано",
+        )
+
     def test_language_selector_reads_current_language(self) -> None:
         widgets = build_language_section(
             tr_language="ru",
@@ -154,6 +187,36 @@ class AppearanceAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             segmented.property("screenReaderStateText"),
             "Стиль иконок бокового меню, выбрано: Windows 11 Fluent",
+        )
+
+    def test_sidebar_icon_style_items_read_name_and_selection_for_screen_reader(self) -> None:
+        segmented = SegmentedWidget()
+        self.addCleanup(segmented.deleteLater)
+        segmented.addItem("standard", "Стандартные", lambda: None)
+        segmented.addItem("windows11_fluent", "Windows 11 Fluent", lambda: None)
+        segmented.setCurrentItem("standard")
+
+        update_sidebar_icon_style_accessibility(segmented, style="standard")
+
+        self.assertEqual(
+            segmented.items["standard"].accessibleName(),
+            "Стиль иконок бокового меню: Стандартные, выбрано",
+        )
+        self.assertEqual(
+            segmented.items["windows11_fluent"].accessibleName(),
+            "Стиль иконок бокового меню: Windows 11 Fluent, не выбрано",
+        )
+
+        segmented.setCurrentItem("windows11_fluent")
+        update_sidebar_icon_style_accessibility(segmented, style="windows11_fluent")
+
+        self.assertEqual(
+            segmented.items["standard"].accessibleName(),
+            "Стиль иконок бокового меню: Стандартные, не выбрано",
+        )
+        self.assertEqual(
+            segmented.items["windows11_fluent"].accessibleName(),
+            "Стиль иконок бокового меню: Windows 11 Fluent, выбрано",
         )
 
     def test_opacity_slider_reads_current_percent(self) -> None:

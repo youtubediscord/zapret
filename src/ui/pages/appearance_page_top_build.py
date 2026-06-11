@@ -11,6 +11,7 @@ from ui.fluent_widgets import SettingsCard, build_premium_badge
 from app.ui_texts import LANGUAGE_OPTIONS, tr as tr_catalog
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.combo_accessibility import set_combo_items_accessibility
+from ui.segmented_accessibility import set_segmented_items_accessibility
 
 
 @dataclass(slots=True)
@@ -283,6 +284,11 @@ def update_display_mode_accessibility(widget, *, mode: object | None = None) -> 
         name=state,
         description="Выберите светлый, тёмный или автоматический режим интерфейса.",
     )
+    set_segmented_items_accessibility(
+        widget,
+        name="Режим отображения интерфейса",
+        labels=labels,
+    )
 
 
 def update_sidebar_icon_style_accessibility(widget, *, style: object | None = None) -> None:
@@ -303,6 +309,11 @@ def update_sidebar_icon_style_accessibility(widget, *, style: object | None = No
         widget,
         name=state,
         description="Выберите стиль иконок в левом боковом меню.",
+    )
+    set_segmented_items_accessibility(
+        widget,
+        name="Стиль иконок бокового меню",
+        labels=labels,
     )
 
 
