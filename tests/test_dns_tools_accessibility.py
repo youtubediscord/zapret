@@ -35,8 +35,16 @@ class DnsToolsAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(widgets.test_button.accessibleName(), "Проверить DNS и сайты")
+        self.assertEqual(
+            widgets.test_button.property("screenReaderStateText"),
+            "Проверить DNS и сайты",
+        )
         self.assertIn("популярных сайтов", widgets.test_button.accessibleDescription())
         self.assertEqual(widgets.flush_button.accessibleName(), "Сбросить DNS кэш Windows")
+        self.assertEqual(
+            widgets.flush_button.property("screenReaderStateText"),
+            "Сбросить DNS кэш Windows",
+        )
         self.assertIn("Очистить локальный кэш DNS Windows", widgets.flush_button.accessibleDescription())
 
 
