@@ -22,6 +22,8 @@ class _BlockcheckFeatureStub:
     build_protocol_ui_plan = staticmethod(blockcheck_public.build_protocol_ui_plan)
     build_udp_scope_hint_plan = staticmethod(blockcheck_public.build_udp_scope_hint_plan)
     build_idle_interaction_plan = staticmethod(blockcheck_public.build_idle_interaction_plan)
+    build_running_interaction_plan = staticmethod(blockcheck_public.build_running_interaction_plan)
+    plan_scan_start = staticmethod(blockcheck_public.plan_scan_start)
 
 
 class StrategyScanPageAccessibilityTests(unittest.TestCase):
@@ -148,10 +150,61 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(progress_bar.accessibleName(), "Ход подбора стратегии: не выполняется")
         self.assertEqual(progress_bar.property("screenReaderStateText"), "Ход подбора стратегии: не выполняется")
 
+    def test_run_start_restores_empty_result_and_log_screen_reader_states(self) -> None:
+        from ui.accessibility import set_state_text
+
+        page = StrategyScanPage(
+            blockcheck_feature=_BlockcheckFeatureStub(),
+            create_strategy_scan_worker=lambda *_args, **_kwargs: _WorkerStub(),
+        )
+        self.addCleanup(page.deleteLater)
+        page._strategy_scan_run_runtime = _RunRuntimeStub()
+        set_state_text(page._table, "Старая строка подбора стратегии")
+        set_state_text(page._log_edit, "Старый лог подбора стратегии")
+
+        page._on_start()
+
+        self.assertEqual(page._table.rowCount(), 0)
+        self.assertEqual(page._table.accessibleName(), "Результаты подбора стратегии: пока нет результатов")
+        self.assertEqual(
+            page._table.property("screenReaderStateText"),
+            "Результаты подбора стратегии: пока нет результатов",
+        )
+        self.assertEqual(page._log_edit.accessibleName(), "Подробный лог подбора стратегии: пока нет записей")
+        self.assertEqual(
+            page._log_edit.property("screenReaderStateText"),
+            "Подробный лог подбора стратегии: пока нет записей",
+        )
+
 
 class _ProgressFeatureStub:
     def build_progress_plan(self, **_kwargs):
         return SimpleNamespace(total=3, status_text="Проверяется стратегия TLS fake")
+
+
+class _SignalStub:
+    def connect(self, _callback) -> None:
+        pass
+
+
+class _WorkerStub:
+    def __init__(self) -> None:
+        self.run_log_started = _SignalStub()
+        self.strategy_started = _SignalStub()
+        self.strategy_result = _SignalStub()
+        self.scan_log = _SignalStub()
+        self.phase_changed = _SignalStub()
+        self.scan_finished = _SignalStub()
+
+
+class _RunRuntimeStub:
+    worker = None
+
+    def is_running(self) -> bool:
+        return False
+
+    def start_qobject_worker(self, *, parent, worker_factory) -> None:
+        self.worker = worker_factory(1)
 
 
 class _FakeProgressBar:

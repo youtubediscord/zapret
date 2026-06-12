@@ -551,8 +551,10 @@ class StrategyScanPage(BasePage):
 
         if not run_result.keep_current_results:
             self._table.setRowCount(0)
+            set_state_text(self._table, "Результаты подбора стратегии: пока нет результатов")
             self._result_rows.clear()
             self._log_edit.clear()
+            set_state_text(self._log_edit, "Подробный лог подбора стратегии: пока нет записей")
         self._set_support_status("")
 
         self._scan_target = run_result.target
