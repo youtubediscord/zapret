@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import os
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, QPoint, Qt
 from PyQt6.QtGui import QFocusEvent, QKeyEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -178,6 +179,104 @@ class CustomDnsDialogTests(unittest.TestCase):
 
         self.assertTrue(event.isAccepted())
         self.assertEqual(dialog.nameEdit.text(), "Cloudflare")
+
+    def test_context_menu_dispatches_quick_actions_immediately(self) -> None:
+        import dns.ui.custom_dns_dialog as custom_dns_dialog
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(
+            parent,
+            servers=[
+                {"id": "cloudflare", "name": "Cloudflare", "ipv4": ["1.1.1.1", "1.0.0.1"], "ipv6": []},
+            ],
+        )
+        dialog.serversList.setCurrentRow(0)
+        created_actions: dict[str, _FakeAction] = {}
+
+        def make_action(text: str, *, icon=None, parent=None):
+            action = _FakeAction(text)
+            created_actions[text] = action
+            return action
+
+        with (
+            patch.object(custom_dns_dialog, "RoundMenu", _FakeMenu),
+            patch.object(custom_dns_dialog, "make_menu_action", side_effect=make_action),
+            patch.object(
+                custom_dns_dialog,
+                "exec_popup_menu",
+                side_effect=lambda *_args, **_kwargs: created_actions["Создать копию"],
+            ),
+        ):
+            dialog._show_servers_context_menu(QPoint(0, 0))
+
+        self.assertEqual([server["name"] for server in dialog.servers()], ["Cloudflare", "Cloudflare копия"])
+        self.assertEqual(dialog.serversList.count(), 2)
+
+    def test_context_menu_copy_and_delete_actions_work_immediately(self) -> None:
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(
+            parent,
+            servers=[
+                {"id": "cloudflare", "name": "Cloudflare", "ipv4": ["1.1.1.1", "1.0.0.1"], "ipv6": []},
+            ],
+        )
+        dialog.serversList.setCurrentRow(0)
+
+        self.assertTrue(dialog._copy_current_dns_to_clipboard())
+        self.assertEqual(QApplication.clipboard().text(), "1.1.1.1, 1.0.0.1")
+
+        self.assertTrue(dialog._delete_current_server())
+        self.assertEqual(dialog.servers(), [])
+
+
+class _FakeMenu:
+    def __init__(self, parent=None) -> None:
+        self.parent = parent
+        self._actions = []
+        self.view = _FakeMenuView()
+
+    def addAction(self, action) -> None:  # noqa: N802
+        self._actions.append(action)
+        self.view.add_item()
+
+    def addSeparator(self) -> None:  # noqa: N802
+        self._actions.append(None)
+        self.view.add_item()
+
+    def actions(self):
+        return list(self._actions)
+
+
+class _FakeAction:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeMenuItem:
+    def __init__(self) -> None:
+        self._data = {}
+
+    def setData(self, role, value) -> None:  # noqa: N802
+        self._data[int(role)] = value
+
+
+class _FakeMenuView:
+    def __init__(self) -> None:
+        self._items: list[_FakeMenuItem] = []
+
+    def add_item(self) -> None:
+        self._items.append(_FakeMenuItem())
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def item(self, row: int):
+        return self._items[row] if 0 <= row < len(self._items) else None
 
 
 if __name__ == "__main__":

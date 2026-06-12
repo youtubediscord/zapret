@@ -6,11 +6,13 @@ from ipaddress import IPv4Address
 from uuid import uuid4
 
 from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtWidgets import QHBoxLayout, QListWidget, QListWidgetItem
-from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, PushButton, SubtitleLabel
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QListWidget, QListWidgetItem
+from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, PushButton, RoundMenu, SubtitleLabel
 
 from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
 from ui.fluent_widgets import style_semantic_caption_label
+from ui.popup_menu import exec_popup_menu
+from ui.presets_menu.common import fluent_icon, make_menu_action
 
 
 class CustomDnsDialog(MessageBoxBase):
@@ -32,7 +34,9 @@ class CustomDnsDialog(MessageBoxBase):
 
         self.serversList = QListWidget(self.widget)
         self.serversList.setMinimumHeight(140)
+        self.serversList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.serversList.currentItemChanged.connect(self._on_current_item_changed)
+        self.serversList.customContextMenuRequested.connect(self._show_servers_context_menu)
         self.serversList.installEventFilter(self)
         self.serversList.setStyleSheet(
             """
@@ -202,11 +206,124 @@ class CustomDnsDialog(MessageBoxBase):
     def _sync_servers_list_visibility(self) -> None:
         self.serversList.setVisible(self.serversList.count() > 0)
 
+    def _show_servers_context_menu(self, pos) -> None:
+        item = self.serversList.itemAt(pos)
+        if item is None:
+            item = self.serversList.currentItem()
+        if item is None:
+            return
+        self.serversList.setCurrentItem(item)
+        self._on_current_item_changed(item, None)
+
+        menu = RoundMenu(parent=self)
+        action_map: dict[object, str] = {}
+
+        def add_action(text: str, *, icon_name: str, command: str):
+            action = make_menu_action(text, icon=fluent_icon(icon_name), parent=menu)
+            menu.addAction(action)
+            menu_item = menu.view.item(menu.view.count() - 1)
+            if menu_item is not None:
+                menu_item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
+                menu_item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, text)
+            action_map[action] = command
+            return action
+
+        add_action("Редактировать", icon_name="EDIT", command="edit")
+        add_action("Создать копию", icon_name="COPY", command="duplicate")
+        add_action("Копировать DNS", icon_name="COPY", command="copy")
+        menu.addSeparator()
+        add_action("Новый DNS", icon_name="ADD", command="new")
+        menu.addSeparator()
+        add_action("Удалить", icon_name="DELETE", command="delete")
+
+        chosen = exec_popup_menu(
+            menu,
+            self.serversList.mapToGlobal(pos),
+            owner=self,
+            capture_action=True,
+        )
+        command = action_map.get(chosen, "")
+        if command == "edit":
+            self._edit_current_server()
+        elif command == "duplicate":
+            self._duplicate_current_server()
+        elif command == "copy":
+            self._copy_current_dns_to_clipboard()
+        elif command == "new":
+            self._new_server_from_context_menu()
+        elif command == "delete":
+            self._delete_current_server()
+
+    def _edit_current_server(self) -> bool:
+        item = self.serversList.currentItem()
+        if item is None:
+            return False
+        self._on_current_item_changed(item, None)
+        try:
+            self.nameEdit.setFocus(Qt.FocusReason.OtherFocusReason)
+            self.nameEdit.selectAll()
+        except Exception:
+            pass
+        return True
+
+    def _new_server_from_context_menu(self) -> bool:
+        self.serversList.setCurrentItem(None)
+        self._selected_id = ""
+        self._clear_form()
+        try:
+            self.nameEdit.setFocus(Qt.FocusReason.OtherFocusReason)
+        except Exception:
+            pass
+        return True
+
+    def _copy_current_dns_to_clipboard(self) -> bool:
+        server = self._current_server()
+        if server is None:
+            return False
+        dns_values = [str(item).strip() for item in server.get("ipv4", []) or [] if str(item).strip()]
+        if not dns_values:
+            return False
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            return False
+        clipboard.setText(", ".join(dns_values))
+        return True
+
+    def _duplicate_current_server(self) -> bool:
+        server = self._current_server()
+        if server is None:
+            return False
+        name = _unique_copy_name(
+            str(server.get("name") or "Свой DNS"),
+            [str(item.get("name") or "") for item in self._servers],
+        )
+        copy_server = _copy_server(server)
+        copy_server["id"] = f"custom-{uuid4().hex[:12]}"
+        copy_server["name"] = name
+        self._servers.append(copy_server)
+        self._selected_id = str(copy_server["id"])
+        self.warningLabel.hide()
+        self._reload_list(select_id=self._selected_id)
+        return True
+
+    def _delete_current_server(self) -> bool:
+        return self.delete_current()
+
+    def _current_server(self) -> dict | None:
+        selected_id = str(self._selected_id or "").strip()
+        if not selected_id:
+            item = self.serversList.currentItem()
+            if item is not None:
+                selected_id = str(item.data(Qt.ItemDataRole.UserRole) or "").strip()
+        if not selected_id:
+            return None
+        return next((entry for entry in self._servers if entry.get("id") == selected_id), None)
+
     def _install_accessibility(self) -> None:
         set_control_accessibility(
             self.serversList,
             name="Список своих DNS",
-            description="Выберите DNS стрелками вверх и вниз, затем нажмите Enter или Пробел, чтобы изменить его.",
+            description="Выберите DNS стрелками вверх и вниз. Правый клик или клавиша меню открывает быстрые действия.",
         )
         set_state_text(self.serversList, "Список своих DNS")
         set_control_accessibility(
@@ -263,6 +380,18 @@ class CustomDnsDialog(MessageBoxBase):
                     self._on_current_item_changed(item, None)
                     event.accept()
                     return True
+            elif event.type() == QEvent.Type.KeyPress and (
+                event.key() == Qt.Key.Key_Menu
+                or (
+                    event.key() == Qt.Key.Key_F10
+                    and bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+                )
+            ):
+                item = self.serversList.currentItem()
+                if item is not None:
+                    self._show_servers_context_menu(self.serversList.visualItemRect(item).center())
+                    event.accept()
+                    return True
         return super().eventFilter(watched, event)
 
     def _focus_first_server(self) -> None:
@@ -308,6 +437,20 @@ def _server_accessible_text(server: dict) -> str:
     if ipv4:
         return f"{name}, DNS {', '.join(ipv4)}"
     return name
+
+
+def _unique_copy_name(base_name: str, existing_names: list[str]) -> str:
+    base = str(base_name or "Свой DNS").strip() or "Свой DNS"
+    existing = {str(name or "").strip().lower() for name in existing_names}
+    first = f"{base} копия"
+    if first.lower() not in existing:
+        return first
+    index = 2
+    while True:
+        candidate = f"{first} {index}"
+        if candidate.lower() not in existing:
+            return candidate
+        index += 1
 
 
 __all__ = ["CustomDnsDialog"]
