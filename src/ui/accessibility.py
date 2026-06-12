@@ -71,6 +71,7 @@ def set_control_accessibility(
     remove_scrollbar_arrow_buttons_from_tab_order(widget)
     remove_switch_indicators_from_tab_order(widget)
     _sync_spinbox_children_accessibility(widget, name=name, description=description)
+    _enable_keyboard_click_for_button(widget)
 
 
 def set_state_text(widget, text: object) -> None:
@@ -265,6 +266,10 @@ def enable_keyboard_click(widget) -> None:
 
 
 def _activate_keyboard_click_target(widget) -> bool:
+    click = getattr(widget, "click", None)
+    if click is not None:
+        click()
+        return True
     clicked = getattr(widget, "clicked", None)
     emit = getattr(clicked, "emit", None)
     if emit is not None:
@@ -278,6 +283,17 @@ def _activate_keyboard_click_target(widget) -> bool:
         click()
         return True
     return False
+
+
+def _enable_keyboard_click_for_button(widget) -> None:
+    if widget is None:
+        return
+    if getattr(widget, "clicked", None) is None:
+        return
+    type_name = type(widget).__name__
+    if "Button" not in type_name:
+        return
+    enable_keyboard_click(widget)
 
 
 def enable_keyboard_toggle(widget) -> None:

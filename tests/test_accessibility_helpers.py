@@ -90,6 +90,28 @@ class AccessibilityHelpersTests(unittest.TestCase):
         self.assertEqual(widget.accessible_name, "Остановить Zapret")
         self.assertEqual(widget.accessible_description, "Останавливает запущенный процесс обхода блокировок.")
 
+    def test_set_control_accessibility_enables_enter_for_push_button(self) -> None:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtTest import QTest
+        from qfluentwidgets import PushButton
+
+        from ui.accessibility import set_control_accessibility
+
+        button = PushButton("Открыть")
+        self.addCleanup(button.deleteLater)
+        clicked: list[bool] = []
+        button.clicked.connect(lambda: clicked.append(True))
+
+        set_control_accessibility(button, name="Открыть логи")
+        button.show()
+        self._app.processEvents()
+        button.setFocus()
+        self._app.processEvents()
+        QTest.keyClick(button, Qt.Key.Key_Return)
+        self._app.processEvents()
+
+        self.assertEqual(clicked, [True])
+
     def test_set_control_accessibility_names_spinbox_inner_field_and_skips_buttons(self) -> None:
         from PyQt6.QtCore import Qt
         from qfluentwidgets import SpinBox
