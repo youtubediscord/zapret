@@ -952,6 +952,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             def __init__(self) -> None:
                 self._accessible_name = ""
                 self._accessible_description = ""
+                self._properties = {}
 
             def accessibleName(self):  # noqa: N802
                 return self._accessible_name
@@ -964,6 +965,12 @@ class PresetSidebarNavigationTests(unittest.TestCase):
 
             def setAccessibleDescription(self, value):  # noqa: N802
                 self._accessible_description = str(value)
+
+            def property(self, name):
+                return self._properties.get(str(name))
+
+            def setProperty(self, name, value):  # noqa: N802
+                self._properties[str(name)] = value
 
         class FakeNavigationInterface:
             def addItem(self, *, routeKey, icon, text, onClick, selectable, position):
@@ -995,6 +1002,7 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             item.accessibleDescription(),
             "Открывает раздел Настройка DNS в боковом меню.",
         )
+        self.assertEqual(item.property("screenReaderStateText"), "Открыть раздел: Настройка DNS")
 
     def test_nav_visibility_filter_keeps_mode_items_hidden_when_state_is_missing(self) -> None:
         from app.page_names import PageName

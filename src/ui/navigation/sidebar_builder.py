@@ -23,7 +23,7 @@ from ui.window_ui_session import get_window_ui_session
 from ui.navigation.sidebar_state import peek_warmed_sidebar_expanded
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 
 
 SIDEBAR_SEARCH_AFTER_INTERACTIVE_MS = 300
@@ -370,11 +370,13 @@ def _set_nav_item_accessibility(item, text: str) -> None:
     label = " ".join(str(text or "").strip().split())
     if not label:
         return
+    state_text = f"Открыть раздел: {label}"
     set_control_accessibility(
         item,
-        name=f"Открыть раздел: {label}",
+        name=state_text,
         description=f"Открывает раздел {label} в боковом меню.",
     )
+    set_state_text(item, state_text)
 
 
 def _install_sidebar_search(window) -> None:
