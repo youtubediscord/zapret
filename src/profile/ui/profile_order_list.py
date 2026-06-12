@@ -321,6 +321,8 @@ class ProfileOrderList(QWidget):
 
     def apply_view_state(self, view_state) -> None:
         self._model.apply_view_state(view_state)
+        if not self._view.currentIndex().isValid() and self._model.rowCount() > 0:
+            self._view.setCurrentIndex(self._model.index(0, 0))
         self._view_state_items = None
 
     def move_profile_item(self, source_profile_key: str, action: str, destination_profile_key: str = "") -> bool:

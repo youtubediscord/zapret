@@ -169,6 +169,20 @@ class ProfileOrderPageTests(unittest.TestCase):
         )
         self.assertIn("меняют порядок выбранного profile", order_list._view.accessibleDescription())
 
+    def test_order_list_focuses_first_loaded_profile_for_screen_reader(self) -> None:
+        from profile.order_view_state import build_profile_order_list_view_state
+        from profile.ui.profile_order_list import ProfileOrderList
+
+        order_list = ProfileOrderList()
+        self.addCleanup(order_list.deleteLater)
+
+        state = build_profile_order_list_view_state((_item("A", key="profile:a", profile_index=0),))
+        order_list.apply_view_state(state)
+
+        self.assertEqual(order_list._view.currentIndex().row(), 0)
+        self.assertIn("Позиция 1", order_list._view.property("screenReaderStateText"))
+        self.assertIn("A", order_list._view.property("screenReaderStateText"))
+
     def test_order_list_moves_selected_profile_from_keyboard(self) -> None:
         from profile.ui.profile_order_list import ProfileOrderList
 
