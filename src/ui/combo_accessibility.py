@@ -45,6 +45,43 @@ def set_combo_item_accessible_text(combo, index: int, text: object) -> None:
         pass
 
 
+def _sync_combo_items_accessibility(combo) -> None:
+    config = getattr(combo, "_accessible_combo_items_config", None)
+    if combo is None or not isinstance(config, dict):
+        return
+    name = _clean_text(config.get("name"))
+    if not name:
+        return
+    selected_word = _clean_text(config.get("selected_word")) or "выбран"
+    unselected_word = _clean_text(config.get("unselected_word")) or "не выбран"
+    clean_label = config.get("clean_label")
+    try:
+        current_index = int(combo.currentIndex())
+    except Exception:
+        current_index = -1
+    for index in range(_combo_count(combo)):
+        label = _combo_item_text(combo, index)
+        if clean_label is not None:
+            try:
+                label = _clean_text(clean_label(label))
+            except Exception:
+                label = _clean_text(label)
+        if not label:
+            continue
+        state = selected_word if index == current_index else unselected_word
+        set_combo_item_accessible_text(combo, index, f"{name}: {label}, {state}")
+
+
+def _ensure_combo_items_accessibility_signal(combo) -> None:
+    if combo is None or bool(getattr(combo, "_accessible_combo_items_signal_connected", False)):
+        return
+    try:
+        combo.currentIndexChanged.connect(lambda _index=None: _sync_combo_items_accessibility(combo))
+        setattr(combo, "_accessible_combo_items_signal_connected", True)
+    except Exception:
+        pass
+
+
 def install_accessible_combo_menu(combo) -> None:
     if combo is None or bool(getattr(combo, "_accessible_combo_menu_installed", False)):
         return
@@ -113,20 +150,20 @@ def set_combo_items_accessibility(
         return
     install_accessible_combo_menu(combo)
     try:
-        current_index = int(combo.currentIndex())
+        setattr(
+            combo,
+            "_accessible_combo_items_config",
+            {
+                "name": name,
+                "selected_word": selected_word,
+                "unselected_word": unselected_word,
+                "clean_label": clean_label,
+            },
+        )
     except Exception:
-        current_index = -1
-    for index in range(_combo_count(combo)):
-        label = _combo_item_text(combo, index)
-        if clean_label is not None:
-            try:
-                label = _clean_text(clean_label(label))
-            except Exception:
-                label = _clean_text(label)
-        if not label:
-            continue
-        state = selected_word if index == current_index else unselected_word
-        set_combo_item_accessible_text(combo, index, f"{name}: {label}, {state}")
+        pass
+    _ensure_combo_items_accessibility_signal(combo)
+    _sync_combo_items_accessibility(combo)
 
 
 __all__ = [

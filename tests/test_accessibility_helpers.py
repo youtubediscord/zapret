@@ -397,6 +397,31 @@ class AccessibilityHelpersTests(unittest.TestCase):
         self.assertTrue(enter_event.isAccepted())
         self.assertEqual(selected, ["second", "second"])
 
+    def test_combo_items_accessibility_updates_after_selection_change(self) -> None:
+        from PyQt6.QtCore import Qt
+        from qfluentwidgets import ComboBox
+
+        from ui.combo_accessibility import set_combo_items_accessibility
+
+        combo = ComboBox()
+        self.addCleanup(combo.deleteLater)
+        combo.addItem("Авто")
+        combo.addItem("Ручной")
+
+        set_combo_items_accessibility(combo, name="Режим запуска")
+
+        combo.setCurrentIndex(1)
+        menu = combo._create_accessible_combo_menu()
+
+        self.assertEqual(
+            menu.view.item(0).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим запуска: Авто, не выбран",
+        )
+        self.assertEqual(
+            menu.view.item(1).data(Qt.ItemDataRole.AccessibleTextRole),
+            "Режим запуска: Ручной, выбран",
+        )
+
     def test_set_tooltip_also_sets_accessible_description(self) -> None:
         from unittest.mock import patch
 

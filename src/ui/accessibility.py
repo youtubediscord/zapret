@@ -288,7 +288,11 @@ def _activate_keyboard_click_target(widget) -> bool:
 def _enable_keyboard_click_for_button(widget) -> None:
     if widget is None:
         return
-    if getattr(widget, "clicked", None) is None:
+    try:
+        clicked = getattr(widget, "clicked", None)
+    except Exception:
+        return
+    if clicked is None:
         return
     type_name = type(widget).__name__
     if "Button" not in type_name:
