@@ -31,7 +31,7 @@ from utils.args_resolver import resolve_args_paths
 
 
 _AGGRESSIVE_WINDIVERT_RETRY_COOLDOWN_SECONDS = 1.8
-_WINDIVERT_PRESPAWN_WAIT_SECONDS = 3.0
+_WINDIVERT_PRESPAWN_WAIT_SECONDS = 8.0
 
 
 class StrategyRunnerBase(ABC):
