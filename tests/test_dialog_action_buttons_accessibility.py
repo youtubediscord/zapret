@@ -22,6 +22,7 @@ class DialogActionButtonsAccessibilityTests(unittest.TestCase):
         button = create_dialog_action_button(parent, text="Удалить")
 
         self.assertEqual(button.accessibleName(), "Удалить")
+        self.assertEqual(button.property("screenReaderStateText"), "Удалить")
         self.assertIn("Выполняет действие диалога", button.accessibleDescription())
         self.assertIn("Удалить", button.accessibleDescription())
 
@@ -32,6 +33,7 @@ class DialogActionButtonsAccessibilityTests(unittest.TestCase):
         button = create_dialog_cancel_button(parent, text="Отмена")
 
         self.assertEqual(button.accessibleName(), "Отмена")
+        self.assertEqual(button.property("screenReaderStateText"), "Отмена")
         self.assertIn("Закрывает диалог", button.accessibleDescription())
 
 
