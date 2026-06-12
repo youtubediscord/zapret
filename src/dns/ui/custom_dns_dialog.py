@@ -60,13 +60,10 @@ class CustomDnsDialog(MessageBoxBase):
         self.secondaryEdit.setPlaceholderText("Дополнительный DNS, например 1.1.1.1")
         self.secondaryEdit.setClearButtonEnabled(True)
 
-        self.saveButton = PushButton("Добавить", self.widget)
-        self.saveButton.clicked.connect(self.save_current)
         self.deleteButton = PushButton("Удалить", self.widget)
         self.deleteButton.clicked.connect(self.delete_current)
 
         actions = QHBoxLayout()
-        actions.addWidget(self.saveButton)
         actions.addWidget(self.deleteButton)
         actions.addStretch()
 
@@ -86,7 +83,7 @@ class CustomDnsDialog(MessageBoxBase):
         self.viewLayout.addLayout(actions)
         self.viewLayout.addWidget(self.warningLabel)
 
-        self.yesButton.setText("Готово")
+        self.yesButton.setText("Добавить")
         self.cancelButton.setText("Отмена")
         self.widget.setMinimumWidth(520)
         self._install_accessibility()
@@ -97,12 +94,6 @@ class CustomDnsDialog(MessageBoxBase):
         return [_copy_server(server) for server in self._servers]
 
     def validate(self) -> bool:
-        has_draft = any(
-            field.text().strip()
-            for field in (self.nameEdit, self.primaryEdit, self.secondaryEdit)
-        )
-        if not has_draft:
-            return True
         return self.save_current()
 
     def save_current(self) -> bool:
@@ -193,18 +184,20 @@ class CustomDnsDialog(MessageBoxBase):
         self.nameEdit.setText(str(server.get("name") or ""))
         self.primaryEdit.setText(str(ipv4[0] if ipv4 else ""))
         self.secondaryEdit.setText(str(ipv4[1] if len(ipv4) > 1 else ""))
-        self.saveButton.setText("Сохранить")
+        self.yesButton.setText("Сохранить")
         self._sync_buttons()
 
     def _clear_form(self) -> None:
         self.nameEdit.clear()
         self.primaryEdit.clear()
         self.secondaryEdit.clear()
-        self.saveButton.setText("Добавить")
+        self.yesButton.setText("Добавить")
         self._sync_buttons()
 
     def _sync_buttons(self) -> None:
-        self.deleteButton.setEnabled(bool(self._selected_id))
+        is_editing = bool(self._selected_id)
+        self.deleteButton.setVisible(is_editing)
+        self.deleteButton.setEnabled(is_editing)
 
     def _sync_servers_list_visibility(self) -> None:
         self.serversList.setVisible(self.serversList.count() > 0)
@@ -234,23 +227,17 @@ class CustomDnsDialog(MessageBoxBase):
             description="Введите второй DNS сервер, если он нужен.",
         )
         remove_line_edit_buttons_from_tab_order(self.secondaryEdit)
-        set_state_text(self.saveButton, "Добавить или сохранить свой DNS")
-        set_control_accessibility(
-            self.saveButton,
-            name="Добавить или сохранить свой DNS",
-            description="Добавляет новую запись или сохраняет изменения выбранной записи.",
-        )
         set_state_text(self.deleteButton, "Удалить свой DNS")
         set_control_accessibility(
             self.deleteButton,
             name="Удалить свой DNS",
             description="Удаляет выбранный DNS из пользовательского списка.",
         )
-        set_state_text(self.yesButton, "Закрыть окно своих DNS")
+        set_state_text(self.yesButton, "Добавить или сохранить свой DNS")
         set_control_accessibility(
             self.yesButton,
-            name="Закрыть окно своих DNS",
-            description="Закрывает окно и оставляет сохранённые в нём записи.",
+            name="Добавить или сохранить свой DNS",
+            description="Сохраняет введённый DNS и закрывает окно.",
         )
         set_state_text(self.cancelButton, "Отменить изменение своих DNS")
         set_control_accessibility(

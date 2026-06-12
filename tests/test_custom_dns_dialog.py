@@ -88,6 +88,46 @@ class CustomDnsDialogTests(unittest.TestCase):
             [("Мой DNS", ["8.8.8.8"])],
         )
 
+    def test_primary_action_adds_new_dns_and_requires_fields(self) -> None:
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(parent, servers=[])
+
+        self.assertEqual(dialog.yesButton.text(), "Добавить")
+        self.assertFalse(dialog.validate())
+        self.assertIn("название", dialog.warningLabel.text().lower())
+
+    def test_existing_dns_shows_save_and_delete_actions(self) -> None:
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(
+            parent,
+            servers=[
+                {"id": "cloudflare", "name": "Cloudflare", "ipv4": ["1.1.1.1"], "ipv6": []},
+            ],
+        )
+
+        self.assertEqual(dialog.yesButton.text(), "Добавить")
+        self.assertTrue(dialog.deleteButton.isHidden())
+
+        dialog.serversList.setCurrentRow(0)
+
+        self.assertEqual(dialog.yesButton.text(), "Сохранить")
+        self.assertFalse(dialog.deleteButton.isHidden())
+
+    def test_dialog_has_no_separate_add_button(self) -> None:
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(parent, servers=[])
+
+        self.assertFalse(hasattr(dialog, "saveButton"))
+
     def test_dialog_rejects_invalid_ipv4_addresses(self) -> None:
         from dns.ui.custom_dns_dialog import CustomDnsDialog
 
