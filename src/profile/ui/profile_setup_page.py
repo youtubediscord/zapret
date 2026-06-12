@@ -401,6 +401,37 @@ class CompactDisplayComboBox(ComboBox):
             set_widget_text_if_changed(self, compact)
 
 
+class ProfileStrategyListView(QListWidget):
+    """Список стратегий, который выбирается клавиатурой так же, как DNS."""
+
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            item = self.currentItem()
+            if item is None:
+                item = self._first_selectable_item()
+                if item is not None:
+                    self.setCurrentItem(item)
+            if item is not None:
+                self.itemActivated.emit(item)
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event):  # noqa: N802
+        super().focusInEvent(event)
+        if self.currentItem() is None:
+            item = self._first_selectable_item()
+            if item is not None:
+                self.setCurrentItem(item)
+
+    def _first_selectable_item(self):
+        for row in range(self.count()):
+            item = self.item(row)
+            if item is not None and item.flags() & Qt.ItemFlag.ItemIsSelectable:
+                return item
+        return None
+
+
 class ProfileStrategyListWidget(QWidget):
     """Большой список готовых стратегий для profile."""
 
@@ -469,7 +500,7 @@ class ProfileStrategyListWidget(QWidget):
         top_layout.addWidget(self._summary)
         layout.addWidget(top_row)
 
-        self._list = QListWidget(self)
+        self._list = ProfileStrategyListView(self)
         self._list.setItemDelegate(ProfileStrategyListDelegate(self._list))
         self._list.setUniformItemSizes(True)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)

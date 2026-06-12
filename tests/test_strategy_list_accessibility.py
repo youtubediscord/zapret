@@ -7,8 +7,9 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtWidgets import QApplication, QListWidgetItem
 
 from profile.ui.profile_setup_page import ProfileStrategyListWidget
 
@@ -124,6 +125,24 @@ class StrategyListAccessibilityTests(unittest.TestCase):
             "Готовая стратегия: Alpha, не выбрана, Fake, Подмена TLS. "
             "Нажмите Enter или Пробел, чтобы выбрать стратегию.",
         )
+
+    def test_strategy_list_view_activates_current_row_from_keyboard(self) -> None:
+        from profile.ui.profile_setup_page import ProfileStrategyListView
+
+        view = ProfileStrategyListView()
+        self.addCleanup(view.deleteLater)
+        item = QListWidgetItem("TLS fake")
+        view.addItem(item)
+        view.setCurrentItem(item)
+        activated: list[str] = []
+        view.itemActivated.connect(lambda current: activated.append(current.text()))
+
+        event = QKeyEvent(QEvent.Type.KeyPress, int(Qt.Key.Key_Return), Qt.KeyboardModifier.NoModifier)
+
+        view.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(activated, ["TLS fake"])
 
 
 if __name__ == "__main__":
