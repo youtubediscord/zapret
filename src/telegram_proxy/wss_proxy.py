@@ -282,6 +282,36 @@ class TelegramWSProxy:
             return False
         return True
 
+    def _upstream_candidate_order_key(
+        self,
+        index: int,
+        endpoint: UpstreamProxyEndpoint,
+        now: float,
+    ) -> tuple[int, int]:
+        penalty = self._upstream_penalty_active(endpoint, now)
+        if not penalty and (index == 0 or endpoint.tls):
+            group = 0
+        elif penalty and endpoint.tls:
+            group = 1
+        elif not penalty:
+            group = 2
+        else:
+            group = 3
+        return group, index
+
+    def _mark_upstream_connect_failure(
+        self,
+        endpoint: UpstreamProxyEndpoint,
+        label: str,
+        exc: Exception,
+    ) -> None:
+        key = self._upstream_endpoint_key(endpoint)
+        self._upstream_penalty_until[key] = time.monotonic() + _UPSTREAM_PENALTY_SECONDS
+        self._log(
+            f"[{label}] upstream {endpoint.host}:{endpoint.port} temporarily deprioritized "
+            f"after connect {type(exc).__name__}"
+        )
+
     def _mark_upstream_zero_recv(self, endpoint: UpstreamProxyEndpoint, label: str) -> None:
         key = self._upstream_endpoint_key(endpoint)
         count = self._upstream_zero_recv_counts.get(key, 0) + 1
@@ -349,7 +379,7 @@ class TelegramWSProxy:
         return tuple(
             endpoint for _, endpoint in sorted(
                 enumerate(result),
-                key=lambda item: (self._upstream_penalty_active(item[1], now), item[0]),
+                key=lambda item: self._upstream_candidate_order_key(item[0], item[1], now),
             )
         )
 
@@ -414,6 +444,7 @@ class TelegramWSProxy:
                     status="ошибка",
                     reason=self._route_error(exc),
                 )
+                self._mark_upstream_connect_failure(endpoint, label, exc)
                 continue
 
             elapsed = time.monotonic() - t_connect
