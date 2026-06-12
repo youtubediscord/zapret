@@ -97,7 +97,13 @@ class CustomDnsDialog(MessageBoxBase):
         return [_copy_server(server) for server in self._servers]
 
     def validate(self) -> bool:
-        return True
+        has_draft = any(
+            field.text().strip()
+            for field in (self.nameEdit, self.primaryEdit, self.secondaryEdit)
+        )
+        if not has_draft:
+            return True
+        return self.save_current()
 
     def save_current(self) -> bool:
         name = self.nameEdit.text().strip()

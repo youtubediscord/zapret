@@ -72,6 +72,22 @@ class CustomDnsDialogTests(unittest.TestCase):
         self.assertTrue(dialog.save_current())
         self.assertFalse(dialog.serversList.isHidden())
 
+    def test_done_saves_typed_custom_dns_before_closing(self) -> None:
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(parent, servers=[])
+
+        dialog.nameEdit.setText("Мой DNS")
+        dialog.primaryEdit.setText("8.8.8.8")
+
+        self.assertTrue(dialog.validate())
+        self.assertEqual(
+            [(server["name"], server["ipv4"]) for server in dialog.servers()],
+            [("Мой DNS", ["8.8.8.8"])],
+        )
+
     def test_dialog_rejects_invalid_ipv4_addresses(self) -> None:
         from dns.ui.custom_dns_dialog import CustomDnsDialog
 

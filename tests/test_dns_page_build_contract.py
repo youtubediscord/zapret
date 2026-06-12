@@ -130,6 +130,30 @@ class DnsPageBuildContractTests(unittest.TestCase):
         self.assertEqual(len(page.dns_cards_container.findChildren(DNSProviderCard)), 0)
         self.assertGreater(page.dns_cards_container.count(), len(page.dns_cards))
 
+    def test_network_page_refresh_adds_saved_custom_dns_to_choice_list(self) -> None:
+        from dns.ui.page import NetworkPage
+
+        dns_feature = SimpleNamespace(
+            normalize_adapter_alias=lambda value: str(value),
+            consume_warmed_page_data=lambda: None,
+            create_page_load_worker=lambda request_id, parent=None: None,
+        )
+
+        with patch("dns.ui.page.get_custom_dns_servers", return_value=[]):
+            page = NetworkPage(deps=SimpleNamespace(dns_feature=dns_feature))
+
+        page._custom_dns_servers = [
+            {
+                "id": "my-dns",
+                "name": "Мой DNS",
+                "ipv4": ["8.8.8.8"],
+                "ipv6": [],
+            }
+        ]
+        page._refresh_custom_dns_providers()
+
+        self.assertIn("Мой DNS", page.dns_cards)
+
     def test_custom_dns_row_is_not_inserted_or_shown_by_choices_builder(self) -> None:
         class _ChoiceList:
             def __init__(self):
