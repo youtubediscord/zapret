@@ -315,11 +315,14 @@ def stop_and_delete_service_sc_fallback(service_name: str) -> bool:
 
             deadline = time.time() + 2.0
             while time.time() < deadline:
-                if not service_exists(service_name):
+                if not service_exists(service_name) and not service_registry_exists(service_name):
                     return True
+                if not service_exists(service_name) and service_registry_exists(service_name):
+                    log(f"sc.exe {action}: {service_name} исчезла из SCM, но registry-ключ ещё остался", "WARNING")
+                    break
                 time.sleep(0.2)
 
-        if not service_exists(service_name):
+        if not service_exists(service_name) and not service_registry_exists(service_name):
             return True
 
         if stop_and_delete_service_pywin32_fallback(service_name):
@@ -328,11 +331,11 @@ def stop_and_delete_service_sc_fallback(service_name: str) -> bool:
         if delete_stopped_service_registry_tree(service_name):
             deadline = time.time() + 2.0
             while time.time() < deadline:
-                if not service_exists(service_name):
+                if not service_exists(service_name) and not service_registry_exists(service_name):
                     return True
                 time.sleep(0.2)
 
-        return not service_exists(service_name)
+        return not service_exists(service_name) and not service_registry_exists(service_name)
     except Exception as e:
         log(f"Ошибка fallback-удаления службы {service_name}: {e}", "WARNING")
         return False
