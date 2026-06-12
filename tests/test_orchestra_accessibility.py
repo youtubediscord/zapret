@@ -526,6 +526,16 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.log_filter_input.accessibleName(), "Фильтр лога Оркестратора по домену")
         self.assertIn("example.com", widgets.log_filter_input.accessibleDescription())
         self.assertIn("После ввода перейдите к логу клавишей Tab", widgets.log_filter_input.accessibleDescription())
+        self.assertIn("или нажмите Стрелка вниз", widgets.log_filter_input.accessibleDescription())
+        widgets.card.show()
+        self.app.processEvents()
+        widgets.log_filter_input.setFocus()
+        self.app.processEvents()
+
+        QTest.keyClick(widgets.log_filter_input, Qt.Key.Key_Down)
+        self.app.processEvents()
+
+        self.assertIs(self.app.focusWidget(), widgets.log_text)
         self.assertEqual(widgets.clear_filter_btn.accessibleName(), "Сбросить фильтр лога Оркестратора")
         self.assertEqual(widgets.clear_log_btn.accessibleName(), "Очистить лог обучения Оркестратора")
         self.assertEqual(widgets.clear_learned_btn.accessibleName(), "Сбросить данные обучения Оркестратора")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MethodType
 
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtWidgets import QLabel, QHBoxLayout
@@ -157,11 +158,12 @@ def build_orchestra_log_card(
             "page.orchestra.filter.domain.accessible_description",
             (
                 "Введите домен, например example.com, чтобы оставить в логе только подходящие строки. "
-                "После ввода перейдите к логу клавишей Tab."
+                "После ввода перейдите к логу клавишей Tab или нажмите Стрелка вниз."
             ),
         ),
     )
     log_filter_input.textChanged.connect(on_apply_log_filter)
+    _wire_filter_arrow_down_to_log(log_filter_input, log_text)
     filter_row.addWidget(log_filter_input, 2)
 
     log_protocol_filter = combo_cls()
@@ -235,6 +237,26 @@ def build_orchestra_log_card(
         clear_log_btn=clear_log_btn,
         clear_learned_btn=clear_learned_btn,
     )
+
+
+def _wire_filter_arrow_down_to_log(log_filter_input, log_text) -> None:
+    if log_filter_input is None or log_text is None:
+        return
+    if bool(getattr(log_filter_input, "_orchestra_log_filter_keyboard_focus", False)):
+        return
+    original_key_press = getattr(log_filter_input, "keyPressEvent", None)
+
+    def _filter_key_press(self, event):
+        if event.key() == Qt.Key.Key_Down:
+            log_text.setFocus(Qt.FocusReason.OtherFocusReason)
+            event.accept()
+            return
+        if callable(original_key_press):
+            return original_key_press(event)
+        return None
+
+    log_filter_input.keyPressEvent = MethodType(_filter_key_press, log_filter_input)
+    log_filter_input._orchestra_log_filter_keyboard_focus = True
 
 
 def build_orchestra_log_history_card(
