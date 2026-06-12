@@ -681,11 +681,22 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         profiles_list._request_view_state_rebuild.assert_called_once()
 
     def test_profile_list_apply_view_state_syncs_widget_filters(self) -> None:
+        class _InvalidIndex:
+            def isValid(self) -> bool:  # noqa: N802
+                return False
+
         profiles_list = ProfilesList.__new__(ProfilesList)
         profiles_list._active_profile_types = {"all"}
         profiles_list._search_query = ""
         profiles_list._profile_type_selector = SimpleNamespace(set_active_profile_types=Mock())
-        profiles_list._model = SimpleNamespace(apply_view_state=Mock())
+        profiles_list._model = SimpleNamespace(
+            apply_view_state=Mock(),
+            rowCount=Mock(return_value=0),
+        )
+        profiles_list._view = SimpleNamespace(
+            currentIndex=Mock(return_value=_InvalidIndex()),
+            setCurrentIndex=Mock(),
+        )
         state = SimpleNamespace(active_profile_types={"tcp"}, search_query="youtube")
 
         ProfilesList.apply_view_state(profiles_list, state)
@@ -694,6 +705,7 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(profiles_list._search_query, "youtube")
         profiles_list._profile_type_selector.set_active_profile_types.assert_called_once_with({"tcp"})
         profiles_list._model.apply_view_state.assert_called_once_with(state)
+        profiles_list._view.setCurrentIndex.assert_not_called()
 
     def test_profile_list_folder_toggle_requests_worker_view_state_rebuild(self) -> None:
         profiles_list = ProfilesList.__new__(ProfilesList)
