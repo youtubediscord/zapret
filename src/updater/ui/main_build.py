@@ -101,6 +101,10 @@ def build_servers_table_widget(*, tr_fn):
             "Показывает сервер, статус и версии обновлений. Перемещайтесь по строкам стрелками.",
         ),
     )
+    set_state_text(
+        table,
+        tr_fn("page.servers.table.loading_state", "Серверы обновлений: строки пока не загружены"),
+    )
     table.setColumnCount(4)
     table.setRowCount(0)
     table.setBorderVisible(True)

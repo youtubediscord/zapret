@@ -110,7 +110,11 @@ class TableAccessibilityTests(unittest.TestCase):
 
         table = build_servers_table_widget(tr_fn=lambda _key, default: default)
 
-        self.assertEqual(table.accessibleName(), "Серверы обновлений")
+        self.assertEqual(table.accessibleName(), "Серверы обновлений: строки пока не загружены")
+        self.assertEqual(
+            table.property("screenReaderStateText"),
+            "Серверы обновлений: строки пока не загружены",
+        )
         self.assertIn("статус и версии", table.accessibleDescription())
 
     def test_updater_active_server_legend_has_screen_reader_text(self) -> None:
