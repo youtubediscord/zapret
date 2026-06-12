@@ -222,6 +222,7 @@ class _RenameDialog(MessageBoxBase):
         self.nameEdit.setText(self._current_name)
         self.nameEdit.selectAll()
         self.nameEdit.setClearButtonEnabled(True)
+        remove_line_edit_buttons_from_tab_order(self.nameEdit)
 
         self.warningLabel = CaptionLabel("", self.widget)
         style_semantic_caption_label(self.warningLabel, tone="error")

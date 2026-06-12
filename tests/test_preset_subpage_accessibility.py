@@ -159,6 +159,26 @@ class PresetSubpageAccessibilityTests(unittest.TestCase):
         self.assertEqual(dialog.warningLabel.accessibleName(), "Ошибка: Введите название.")
         self.assertEqual(dialog.warningLabel.property("screenReaderStateText"), "Ошибка: Введите название.")
 
+    def test_rename_dialog_clear_button_does_not_take_tab_focus(self) -> None:
+        parent = QWidget()
+        parent.resize(640, 480)
+        parent.show()
+        self.addCleanup(parent.deleteLater)
+
+        dialog = _RenameDialog("Default", [], parent)
+        self.addCleanup(dialog.deleteLater)
+        dialog.nameEdit.setText("Default")
+
+        buttons = [
+            child
+            for child in dialog.nameEdit.findChildren(object)
+            if str(getattr(child, "objectName", lambda: "")() or "") == "lineEditButton"
+            and hasattr(child, "setFocusPolicy")
+        ]
+
+        self.assertTrue(buttons)
+        self.assertTrue(all(button.focusPolicy() == Qt.FocusPolicy.NoFocus for button in buttons))
+
 
 if __name__ == "__main__":
     unittest.main()
