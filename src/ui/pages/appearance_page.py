@@ -4,7 +4,7 @@
 import time
 
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt6.QtGui import QColor
 
 from .base_page import BasePage
@@ -126,7 +126,7 @@ def update_tinted_intensity_value_label_accessibility(
         current_value = int(value)
     except Exception:
         try:
-            current_value = int(str(label.text() or "").strip())
+            current_value = int(str(label.text() or "").strip().rstrip("%"))
         except Exception:
             current_value = 15
     try:
@@ -626,41 +626,60 @@ class AppearancePage(BasePage):
         self._tinted_bg_cb.toggled.connect(self._on_tinted_bg_changed)
         accent_card.addSettingCard(self._tinted_bg_cb)
 
-        self._tinted_intensity_container = QWidget()
-        intensity_row_layout = QHBoxLayout(self._tinted_intensity_container)
-        intensity_row_layout.setContentsMargins(8, 0, 8, 0)
-        intensity_row_layout.setSpacing(8)
-        intensity_label = CaptionLabel(
+        self._tinted_intensity_row = SettingsCard()
+        intensity_layout = QVBoxLayout()
+        intensity_layout.setSpacing(12)
+
+        intensity_title_text = tr_catalog(
+            "page.appearance.accent.tint_intensity.label",
+            language=self._ui_language,
+            default="Интенсивность тонировки:",
+        ).strip(" :")
+        intensity_desc = CaptionLabel(
             tr_catalog(
-                "page.appearance.accent.tint_intensity.label",
+                "page.appearance.accent.tint_intensity.description",
                 language=self._ui_language,
-                default="Интенсивность тонировки:",
+                default=(
+                    "Настройка силы окрашивания фона акцентным цветом. "
+                    "При 0% фон почти не меняется, при 100% оттенок заметнее."
+                ),
             )
         )
+        intensity_desc.setWordWrap(True)
+        intensity_layout.addWidget(intensity_desc)
+
+        intensity_header_layout = QHBoxLayout()
+        intensity_header_layout.setSpacing(12)
+
+        intensity_icon = QLabel()
+        intensity_icon.setPixmap(self._get_icon_pixmap("fa5s.sliders-h", 20))
+        intensity_header_layout.addWidget(intensity_icon)
+        intensity_label = BodyLabel(intensity_title_text)
+        intensity_header_layout.addWidget(intensity_label)
+        intensity_header_layout.addStretch()
         self._tinted_intensity_label = intensity_label
+        self._tinted_intensity_value_label = CaptionLabel("15%")
+        self._tinted_intensity_value_label.setMinimumWidth(40)
+        self._tinted_intensity_value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        intensity_header_layout.addWidget(self._tinted_intensity_value_label)
+        intensity_layout.addLayout(intensity_header_layout)
+
+        self._tinted_intensity_container = QWidget()
+        intensity_row_layout = QHBoxLayout(self._tinted_intensity_container)
+        intensity_row_layout.setContentsMargins(0, 0, 0, 0)
+        intensity_row_layout.setSpacing(0)
         self._tinted_intensity_slider = Slider(Qt.Orientation.Horizontal)
         self._tinted_intensity_slider.setRange(0, TINTED_INTENSITY_MAX)
         self._tinted_intensity_slider.setValue(15)
-        self._tinted_intensity_value_label = CaptionLabel("15")
         self._update_tinted_intensity_slider_accessibility(15)
         update_tinted_intensity_value_label_accessibility(self._tinted_intensity_value_label, value=15)
         self._tinted_intensity_slider.valueChanged.connect(
             lambda value: self._update_tinted_intensity_slider_accessibility(value)
         )
         self._tinted_intensity_slider.valueChanged.connect(self._on_tinted_intensity_changed)
-        intensity_row_layout.addWidget(intensity_label)
         intensity_row_layout.addWidget(self._tinted_intensity_slider, 1)
-        intensity_row_layout.addWidget(self._tinted_intensity_value_label)
-        self._tinted_intensity_row = SettingsRow(
-            "fa5s.sliders-h",
-            tr_catalog(
-                "page.appearance.accent.tint_intensity.label",
-                language=self._ui_language,
-                default="Интенсивность тонировки:",
-            ),
-            "",
-        )
-        self._tinted_intensity_row.set_control(self._tinted_intensity_container)
+        intensity_layout.addWidget(self._tinted_intensity_container)
+        self._tinted_intensity_row.add_layout(intensity_layout)
         accent_card.addSettingCard(self._tinted_intensity_row)
 
         enable_setting_card_group_auto_height(accent_card)
@@ -1481,7 +1500,7 @@ class AppearancePage(BasePage):
             self._update_tinted_intensity_slider_accessibility(plan.tinted_intensity)
 
         if self._tinted_intensity_value_label is not None:
-            self._tinted_intensity_value_label.setText(str(plan.tinted_intensity))
+            self._tinted_intensity_value_label.setText(f"{plan.tinted_intensity}%")
             update_tinted_intensity_value_label_accessibility(
                 self._tinted_intensity_value_label,
                 value=plan.tinted_intensity,
@@ -1663,7 +1682,7 @@ class AppearancePage(BasePage):
             normalized,
         )
         if self._tinted_intensity_value_label is not None:
-            self._tinted_intensity_value_label.setText(str(normalized))
+            self._tinted_intensity_value_label.setText(f"{normalized}%")
             update_tinted_intensity_value_label_accessibility(
                 self._tinted_intensity_value_label,
                 value=normalized,

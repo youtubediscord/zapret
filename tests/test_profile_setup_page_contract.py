@@ -977,7 +977,9 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         self.assertIn("paint_profile_hover_row", source)
         self.assertIn("profile_hover_row_rect", source)
+        self.assertIn("active=False", source)
         self.assertIn("show_active_marker=False", source)
+        self.assertNotIn("active=accent_active", source)
         self.assertNotIn("_paint_profile_row_background", source)
         self.assertIn('painter.drawText(row_layout.dot_rect', source)
 

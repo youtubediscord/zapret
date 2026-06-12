@@ -114,7 +114,7 @@ def apply_appearance_language(
                 "page.appearance.accent.tint_intensity.label",
                 language=language,
                 default="Интенсивность тонировки:",
-            )
+            ).strip(" :")
         )
 
     if animations_switch is not None:

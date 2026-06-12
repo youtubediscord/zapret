@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import inspect
 import unittest
+import unittest.mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -469,6 +471,22 @@ class AppearanceAccessibilityTests(unittest.TestCase):
             value_label.property("screenReaderStateText"),
             "Текущее значение интенсивности тонировки: 55 из 100",
         )
+
+    def test_tinted_intensity_uses_full_width_settings_card(self) -> None:
+        from ui.pages.appearance_page import AppearancePage
+
+        source = inspect.getsource(AppearancePage)
+        intensity_block = source[
+            source.index("self._tinted_intensity_row = SettingsCard()") :
+            source.index("enable_setting_card_group_auto_height(accent_card)")
+        ]
+
+        self.assertIn("self._tinted_intensity_row = SettingsCard()", intensity_block)
+        self.assertIn("intensity_layout.addLayout(intensity_header_layout)", intensity_block)
+        self.assertIn("intensity_layout.addWidget(self._tinted_intensity_container)", intensity_block)
+        self.assertIn("self._tinted_intensity_value_label = CaptionLabel(\"15%\")", intensity_block)
+        self.assertNotIn("SettingsRow(", intensity_block)
+        self.assertNotIn("set_control(self._tinted_intensity_container)", intensity_block)
 
     def test_tinted_toggle_hides_intensity_row_and_refreshes_from_new_state(self) -> None:
         import settings.appearance as appearance_settings

@@ -187,7 +187,7 @@ class ProfileListDelegate(QStyledItemDelegate):
         paint_profile_hover_row(
             painter,
             rect,
-            active=accent_active,
+            active=False,
             hovered=hovered,
             show_active_marker=False,
         )
