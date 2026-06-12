@@ -26,6 +26,7 @@ class HostsServicesGroupWidgets:
     title_label: object
     chips_scroll: ScrollArea | None
     chip_buttons: list[object]
+    expand_button: object | None
 
 
 @dataclass(slots=True)
@@ -63,6 +64,10 @@ def build_hosts_services_group(
     strong_body_label_cls,
     make_chip,
     on_bulk_apply,
+    expanded: bool = True,
+    row_count: int | None = None,
+    make_expand_button=None,
+    on_toggle_expanded=None,
 ) -> HostsServicesGroupWidgets:
     card = SettingsCard()
 
@@ -135,12 +140,28 @@ def build_hosts_services_group(
     else:
         header.addStretch(1)
 
+    expand_button = None
+    if row_count is not None and make_expand_button is not None and on_toggle_expanded is not None:
+        count = max(0, int(row_count))
+        label = "Скрыть" if expanded else f"Показать {count}"
+        expand_button = make_expand_button(label)
+        action_name = "Скрыть" if expanded else "Показать"
+        set_control_accessibility(
+            expand_button,
+            name=f"{action_name} сервисы группы {group_plan.title}",
+            description=f"В группе {group_plan.title}: {count} сервисов.",
+        )
+        set_state_text(expand_button, f"{action_name} сервисы группы {group_plan.title}")
+        expand_button.clicked.connect(lambda _checked=False, t=group_plan.title: on_toggle_expanded(t))
+        header.addWidget(expand_button, 0, Qt.AlignmentFlag.AlignVCenter)
+
     card.add_layout(header)
     return HostsServicesGroupWidgets(
         card=card,
         title_label=title_label,
         chips_scroll=chips_scroll,
         chip_buttons=chip_buttons,
+        expand_button=expand_button,
     )
 
 

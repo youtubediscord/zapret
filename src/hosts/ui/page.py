@@ -2,6 +2,7 @@
 """Страница управления Hosts файлом - разблокировка сервисов"""
 
 import time
+from dataclasses import replace
 from string import Template
 from PyQt6.QtCore import Qt, QEvent, QTimer
 from PyQt6.QtWidgets import (
@@ -136,6 +137,8 @@ class HostsPage(BasePage):
         self._service_group_title_labels = []
         self._service_group_chips_scrolls = []
         self._service_group_chip_buttons = []
+        self._expanded_service_groups = set()
+        self._services_catalog_plan = None
         self.status_card = None
         self._open_hosts_button = None
         self._info_text_label = None
@@ -678,7 +681,7 @@ class HostsPage(BasePage):
         if not self._services_catalog_runtime.is_current(request_id, cleanup_in_progress=self._cleanup_in_progress):
             return
         self._catalog_sig = catalog_sig
-        self._build_services_selectors(catalog_plan)
+        self._build_services_selectors(catalog_plan, sync_selection=True)
         self._update_ui()
 
     def _on_services_catalog_failed(self, request_id: int, error: str) -> None:
@@ -881,6 +884,37 @@ class HostsPage(BasePage):
         btn.setStyleSheet(_get_fluent_chip_style())
         return btn
 
+    def _is_service_group_expanded(self, title: str) -> bool:
+        expanded = self.__dict__.setdefault("_expanded_service_groups", set())
+        return str(title or "") in expanded
+
+    def _toggle_service_group_expanded(self, title: str) -> None:
+        group_title = str(title or "")
+        if not group_title:
+            return
+        expanded = self.__dict__.setdefault("_expanded_service_groups", set())
+        if group_title in expanded:
+            expanded.remove(group_title)
+        else:
+            expanded.add(group_title)
+        catalog_plan = self.__dict__.get("_services_catalog_plan")
+        if catalog_plan is not None:
+            self._build_services_selectors(catalog_plan)
+
+    def _service_row_plan_with_current_selection(self, row_plan):
+        selected_profile = self._service_dns_selection.get(row_plan.service_name)
+        if selected_profile in row_plan.available_profiles:
+            return replace(
+                row_plan,
+                selected_profile=selected_profile,
+                toggle_checked=bool(row_plan.direct_only),
+            )
+        return replace(
+            row_plan,
+            selected_profile=None,
+            toggle_checked=False if row_plan.direct_only else row_plan.toggle_checked,
+        )
+
     def _get_building_services_ui(self) -> bool:
         return bool(getattr(self, "_building_services_ui", False))
 
@@ -915,9 +949,19 @@ class HostsPage(BasePage):
             if plan.apply_now:
                 self._apply_current_selection()
 
-    def _build_services_selectors(self, catalog_plan):
+    def _build_services_selectors(self, catalog_plan, *, sync_selection: bool = False):
+        if self._services_layout is None:
+            return
         started_at = time.perf_counter()
         OFF_LABEL = self._tr("page.hosts.services.off", "Откл.")
+        self._services_catalog_plan = catalog_plan
+        if sync_selection:
+            self._service_dns_selection = dict(catalog_plan.new_selection)
+            if catalog_plan.selection_changed:
+                self._request_user_selection_save(self._service_dns_selection)
+
+        self._clear_layout(self._services_layout)
+        self._reset_services_runtime_bindings()
 
         self._services_add_section_title(
             tr_catalog("page.hosts.section.services", language=self._ui_language, default="Сервисы")
@@ -927,20 +971,32 @@ class HostsPage(BasePage):
         try:
             groups_started_at = time.perf_counter()
             for group_plan in catalog_plan.groups:
+                group_expanded = self._is_service_group_expanded(group_plan.title)
                 group_widgets = build_hosts_services_group(
                     group_plan,
                     off_label=OFF_LABEL,
                     strong_body_label_cls=StrongBodyLabel,
                     make_chip=self._make_fluent_chip,
                     on_bulk_apply=self._bulk_apply_dns_profile,
+                    expanded=group_expanded,
+                    row_count=len(group_plan.rows),
+                    make_expand_button=self._make_fluent_chip,
+                    on_toggle_expanded=self._toggle_service_group_expanded,
                 )
                 card = group_widgets.card
                 self._service_group_title_labels.append(group_widgets.title_label)
                 if group_widgets.chips_scroll is not None:
                     self._service_group_chips_scrolls.append(group_widgets.chips_scroll)
                 self._service_group_chip_buttons.extend(group_widgets.chip_buttons)
+                if group_widgets.expand_button is not None:
+                    self._service_group_chip_buttons.append(group_widgets.expand_button)
+
+                if not group_expanded:
+                    self._services_add_widget(card)
+                    continue
 
                 for row_plan in group_plan.rows:
+                    row_plan = self._service_row_plan_with_current_selection(row_plan)
                     row_widgets = build_hosts_service_row(
                         row_plan,
                         body_label_cls=BodyLabel,
@@ -964,10 +1020,6 @@ class HostsPage(BasePage):
         finally:
             self._building_services_ui = False
             self._log_ui_timing("hosts_ui.services.build", started_at)
-
-        self._service_dns_selection = dict(catalog_plan.new_selection)
-        if catalog_plan.selection_changed:
-            self._request_user_selection_save(self._service_dns_selection)
 
     def _on_direct_toggle_changed(self, service_name: str, checked: bool) -> None:
         if getattr(self, "_building_services_ui", False):
