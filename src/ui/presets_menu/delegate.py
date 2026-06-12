@@ -283,7 +283,7 @@ class PresetListDelegate(QStyledItemDelegate):
         return rects
 
     def _action_at(self, option_rect: QRect, kind: str, is_active: bool, is_builtin: bool, depth: int, pos) -> Optional[str]:
-        pin_rect = self._pin_rect(option_rect, kind, depth)
+        pin_rect = self._pin_hit_rect(option_rect, kind, depth)
         if pin_rect is not None and pin_rect.contains(pos):
             return "pin"
 
@@ -313,6 +313,18 @@ class PresetListDelegate(QStyledItemDelegate):
             return None
         x = row_rect.left() + 12 + depth * 18
         return QRect(x, row_rect.center().y() - (self._PIN_SIZE // 2), self._PIN_SIZE, self._PIN_SIZE)
+
+    def _pin_hit_rect(self, row_rect: QRect, kind: str, depth: int) -> QRect | None:
+        visual_rect = self._pin_rect(row_rect, kind, depth)
+        if visual_rect is None:
+            return None
+        size = max(self._ACTION_SIZE, self._PIN_SIZE)
+        return QRect(
+            visual_rect.center().x() - (size // 2),
+            visual_rect.center().y() - (size // 2),
+            size,
+            size,
+        )
 
     def _paint_section_row(self, painter: QPainter, option: QStyleOptionViewItem, text: str) -> None:
         painter.save()
