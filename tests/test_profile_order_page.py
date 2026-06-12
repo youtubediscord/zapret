@@ -249,6 +249,33 @@ class ProfileOrderPageTests(unittest.TestCase):
         self.assertTrue(event.isAccepted())
         self.assertEqual(requested, [("profile:b", "profile:a")])
 
+    def test_order_list_wrapper_forwards_arrow_and_pageup_keys_to_view(self) -> None:
+        from profile.ui.profile_order_list import ProfileOrderList
+
+        order_list = ProfileOrderList()
+        self.addCleanup(order_list.deleteLater)
+        order_list._model.set_profiles(
+            (
+                _item("A", key="profile:a", profile_index=0),
+                _item("B", key="profile:b", profile_index=1),
+            )
+        )
+        order_list._view.setCurrentIndex(order_list._model.index(0, 0))
+        requested: list[tuple[str, str]] = []
+        order_list.profile_move_requested.connect(lambda source, destination: requested.append((source, destination)))
+
+        down_event = QKeyEvent(QKeyEvent.Type.KeyPress, int(Qt.Key.Key_Down), Qt.KeyboardModifier.NoModifier)
+        order_list.keyPressEvent(down_event)
+
+        self.assertTrue(down_event.isAccepted())
+        self.assertEqual(order_list._view.currentIndex().row(), 1)
+
+        page_up_event = QKeyEvent(QKeyEvent.Type.KeyPress, int(Qt.Key.Key_PageUp), Qt.KeyboardModifier.NoModifier)
+        order_list.keyPressEvent(page_up_event)
+
+        self.assertTrue(page_up_event.isAccepted())
+        self.assertEqual(requested, [("profile:b", "profile:a")])
+
     def test_order_page_explains_priority_and_uses_order_workers(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
 

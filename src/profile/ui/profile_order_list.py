@@ -292,6 +292,46 @@ class ProfileOrderList(QWidget):
                 return True
         return super().eventFilter(watched, event)
 
+    def keyPressEvent(self, event):  # noqa: N802
+        if self._handle_order_wrapper_key_event(event):
+            return
+        super().keyPressEvent(event)
+
+    def _handle_order_wrapper_key_event(self, event) -> bool:
+        if event.key() in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
+            self._view.setFocus(Qt.FocusReason.OtherFocusReason)
+            return self._handle_order_key_event(event)
+
+        if event.key() not in (
+            Qt.Key.Key_Down,
+            Qt.Key.Key_Up,
+            Qt.Key.Key_Home,
+            Qt.Key.Key_End,
+        ):
+            return False
+
+        count = self._model.rowCount()
+        if count <= 0:
+            return False
+
+        current = self._view.currentIndex()
+        row = current.row() if current.isValid() else -1
+        if row < 0:
+            row = 0
+        elif event.key() == Qt.Key.Key_Down:
+            row = min(count - 1, row + 1)
+        elif event.key() == Qt.Key.Key_Up:
+            row = max(0, row - 1)
+        elif event.key() == Qt.Key.Key_Home:
+            row = 0
+        elif event.key() == Qt.Key.Key_End:
+            row = count - 1
+
+        self._view.setFocus(Qt.FocusReason.OtherFocusReason)
+        self._view.setCurrentIndex(self._model.index(row, 0))
+        event.accept()
+        return True
+
     def _handle_order_key_event(self, event) -> bool:
         if event.key() not in (Qt.Key.Key_PageUp, Qt.Key.Key_PageDown):
             return False
