@@ -23,6 +23,7 @@ class AboutPageHelpWidgets:
     news_group: object
     telegram_card: object
     youtube_card: object
+    youtube_playlist_card: object
     mastodon_card: object
     bastyon_card: object
 
@@ -224,19 +225,35 @@ def build_about_page_help_content(
     telegram_card.clicked.connect(on_open_telegram_news)
 
     youtube_card = hyperlink_card_cls(
-        "https://www.youtube.com/@приватность",
+        "https://www.youtube.com/@%D0%9F%D1%80%D0%B8%D0%B2%D0%B0%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C/videos",
         tr_fn("page.about.help.button.open", "Открыть"),
         fluent_icon.PLAY,
-        tr_fn("page.about.help.news.youtube.title", "YouTube канал"),
-        tr_fn("page.about.help.news.youtube.desc", "Видео и обновления"),
+        tr_fn("page.about.help.news.youtube.title", "Курс и гайд по Zapret 2"),
+        tr_fn("page.about.help.news.youtube.desc", "Видео по настройке и пониманию Zapret 2"),
     )
     set_help_card_accessibility(
         youtube_card,
         action_name=tr_fn(
             "page.about.help.news.youtube.accessible_name",
-            "Открыть YouTube канал",
+            "Открыть курс и гайд по Zapret 2",
         ),
-        description=tr_fn("page.about.help.news.youtube.desc", "Видео и обновления"),
+        description=tr_fn("page.about.help.news.youtube.desc", "Видео по настройке и пониманию Zapret 2"),
+    )
+
+    youtube_playlist_card = hyperlink_card_cls(
+        "https://www.youtube.com/playlist?list=PLa6yzOvgEWW0F1PL0D8pOPI8lD_rfLL1s",
+        tr_fn("page.about.help.button.open", "Открыть"),
+        fluent_icon.PLAY,
+        tr_fn("page.about.help.news.youtube_playlist.title", "Плейлист курса по Zapret 2"),
+        tr_fn("page.about.help.news.youtube_playlist.desc", "Все видео курса одним списком"),
+    )
+    set_help_card_accessibility(
+        youtube_playlist_card,
+        action_name=tr_fn(
+            "page.about.help.news.youtube_playlist.accessible_name",
+            "Открыть плейлист курса по Zapret 2",
+        ),
+        description=tr_fn("page.about.help.news.youtube_playlist.desc", "Все видео курса одним списком"),
     )
 
     mastodon_card = hyperlink_card_cls(
@@ -271,7 +288,7 @@ def build_about_page_help_content(
         description=tr_fn("page.about.help.news.bastyon.desc", "Новости в Bastyon"),
     )
 
-    news_group.addSettingCards([telegram_card, youtube_card, mastodon_card, bastyon_card])
+    news_group.addSettingCards([telegram_card, youtube_card, youtube_playlist_card, mastodon_card, bastyon_card])
     layout.addWidget(news_group)
     layout.addStretch()
 
@@ -286,6 +303,7 @@ def build_about_page_help_content(
         news_group=news_group,
         telegram_card=telegram_card,
         youtube_card=youtube_card,
+        youtube_playlist_card=youtube_playlist_card,
         mastodon_card=mastodon_card,
         bastyon_card=bastyon_card,
     )

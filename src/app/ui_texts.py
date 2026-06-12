@@ -766,12 +766,20 @@ TEXTS: dict[str, dict[str, str]] = {
         "en": "News and updates",
     },
     "page.about.help.news.youtube.title": {
-        "ru": "YouTube канал",
-        "en": "YouTube channel",
+        "ru": "Курс и гайд по Zapret 2",
+        "en": "Zapret 2 course and guide",
     },
     "page.about.help.news.youtube.desc": {
-        "ru": "Видео и обновления",
-        "en": "Videos and updates",
+        "ru": "Видео по настройке и пониманию Zapret 2",
+        "en": "Videos about setting up and understanding Zapret 2",
+    },
+    "page.about.help.news.youtube_playlist.title": {
+        "ru": "Плейлист курса по Zapret 2",
+        "en": "Zapret 2 course playlist",
+    },
+    "page.about.help.news.youtube_playlist.desc": {
+        "ru": "Все видео курса одним списком",
+        "en": "All course videos in one playlist",
     },
     "page.about.help.news.mastodon.title": {
         "ru": "Mastodon профиль",

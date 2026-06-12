@@ -36,6 +36,9 @@ class AboutHelpAccessibilityTests(unittest.TestCase):
             on_open_telegram_news=lambda: None,
         )
 
+        playlist_card = getattr(widgets, "youtube_playlist_card", None)
+        self.assertIsNotNone(playlist_card)
+
         expected = {
             widgets.forum_card: ("Открыть сайт-форум для новичков", "Авторизация через Telegram-бота"),
             widgets.info_card: ("Открыть руководство и ответы", "Руководство и ответы на вопросы"),
@@ -43,7 +46,8 @@ class AboutHelpAccessibilityTests(unittest.TestCase):
             widgets.android_card: ("Открыть инструкцию для Android", "Открыть инструкцию на сайте"),
             widgets.github_card: ("Открыть GitHub", "Исходный код и документация"),
             widgets.telegram_card: ("Открыть Telegram канал", "Новости и обновления"),
-            widgets.youtube_card: ("Открыть YouTube канал", "Видео и обновления"),
+            widgets.youtube_card: ("Открыть курс и гайд по Zapret 2", "Видео по настройке и пониманию Zapret 2"),
+            playlist_card: ("Открыть плейлист курса по Zapret 2", "Все видео курса одним списком"),
             widgets.mastodon_card: ("Открыть Mastodon профиль", "Новости в Fediverse"),
             widgets.bastyon_card: ("Открыть Bastyon профиль", "Новости в Bastyon"),
         }
@@ -57,6 +61,15 @@ class AboutHelpAccessibilityTests(unittest.TestCase):
                     self.assertEqual(button.accessibleName(), name)
                     self.assertEqual(button.property("screenReaderStateText"), name)
                     self.assertIn(description, button.accessibleDescription())
+
+        self.assertEqual(
+            bytes(widgets.youtube_card.linkButton.getUrl().toEncoded()).decode("ascii"),
+            "https://www.youtube.com/@%D0%9F%D1%80%D0%B8%D0%B2%D0%B0%D1%82%D0%BD%D0%BE%D1%81%D1%82%D1%8C/videos",
+        )
+        self.assertEqual(
+            playlist_card.linkButton.getUrl().toString(),
+            "https://www.youtube.com/playlist?list=PLa6yzOvgEWW0F1PL0D8pOPI8lD_rfLL1s",
+        )
 
 
 if __name__ == "__main__":
