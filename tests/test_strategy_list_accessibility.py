@@ -74,6 +74,31 @@ class StrategyListAccessibilityTests(unittest.TestCase):
 
         self.assertIs(self._app.focusWidget(), widget._list)
 
+    def test_enter_from_strategy_search_activates_current_result(self) -> None:
+        widget = _make_sync_strategy_list()
+        self.addCleanup(widget.deleteLater)
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="alpha",
+        )
+        widget._list.setCurrentRow(1)
+        activated: list[str] = []
+        widget.strategy_activated.connect(activated.append)
+        widget.show()
+        self._app.processEvents()
+        widget._search.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(widget._search, Qt.Key.Key_Return)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), widget._list)
+        self.assertEqual(activated, ["beta"])
+
     def test_strategy_list_explains_enter_or_space_activation(self) -> None:
         widget = ProfileStrategyListWidget()
         self.addCleanup(widget.deleteLater)

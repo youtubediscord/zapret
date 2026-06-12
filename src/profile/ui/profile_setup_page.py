@@ -437,6 +437,19 @@ class ProfileStrategyListView(QListWidget):
         return None
 
 
+class ProfileStrategySearchLineEdit(SearchLineEdit):
+    """Поиск стратегий, где Enter выбирает текущий результат."""
+
+    activate_current_result = pyqtSignal()
+
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.activate_current_result.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
 class ProfileStrategyListWidget(QWidget):
     """Большой список готовых стратегий для profile."""
 
@@ -478,7 +491,7 @@ class ProfileStrategyListWidget(QWidget):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(10)
 
-        self._search = SearchLineEdit(self)
+        self._search = ProfileStrategySearchLineEdit(self)
         self._search.setPlaceholderText("Поиск по готовым стратегиям")
         set_control_accessibility(self._search, name="Поиск готовых стратегий")
         set_tooltip(
@@ -530,6 +543,7 @@ class ProfileStrategyListWidget(QWidget):
         self._list.currentItemChanged.connect(self._update_current_strategy_accessibility)
         self._list.itemActivated.connect(self._on_item_activated)
         self._list.itemClicked.connect(self._on_item_clicked)
+        self._search.activate_current_result.connect(self._activate_current_search_result)
         self._list.installEventFilter(self)
         self._list.setStyleSheet(
             "QListWidget { background: rgba(255, 255, 255, 0.035); border: none; border-radius: 6px; outline: none; padding: 4px 0; }"
@@ -555,6 +569,16 @@ class ProfileStrategyListWidget(QWidget):
                     event.accept()
                     return True
         return super().eventFilter(watched, event)
+
+    def _activate_current_search_result(self) -> None:
+        item = self._list.currentItem()
+        if item is None:
+            self._focus_first_strategy_row()
+            item = self._list.currentItem()
+        if item is None:
+            return
+        self._list.setFocus(Qt.FocusReason.OtherFocusReason)
+        self._on_item_activated(item)
 
     def keyPressEvent(self, event):  # noqa: N802
         if self._handle_strategy_keyboard_event(event):
