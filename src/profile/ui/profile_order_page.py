@@ -15,7 +15,7 @@ from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.pages.base_page import BasePage
 from ui.queued_worker_state import QueuedWorkerState
 from app.ui_texts import tr as tr_catalog
-from ui.accessibility import set_breadcrumb_accessibility
+from ui.accessibility import set_breadcrumb_accessibility, set_state_text
 
 
 ORDER_PAYLOAD_PRESET_SWITCH_RELOAD_DELAY_MS = 180
@@ -190,6 +190,8 @@ class ProfileOrderPageBase(BasePage):
             "Profile выше в списке имеет больший приоритет. "
             "Если два profile-а подходят к одному домену или IP, будет применён тот, который находится выше."
         )
+        self._order_priority_hint = hint
+        set_state_text(hint, f"Подсказка порядка profile: {hint.text()}")
         hint.setWordWrap(True)
         self.layout.addWidget(hint)
 

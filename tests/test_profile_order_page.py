@@ -205,6 +205,25 @@ class ProfileOrderPageTests(unittest.TestCase):
         )
         self.assertIn("меняют порядок выбранного profile", order_list._view.accessibleDescription())
 
+    def test_order_page_priority_hint_has_screen_reader_text(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+
+        page = ProfileOrderPageBase(
+            create_profile_order_load_worker=Mock(),
+            create_preset_profile_order_move_worker=Mock(),
+            open_profiles=Mock(),
+            open_root=Mock(),
+        )
+        self.addCleanup(page.deleteLater)
+
+        self.assertEqual(
+            page._order_priority_hint.property("screenReaderStateText"),
+            (
+                "Подсказка порядка profile: Profile выше в списке имеет больший приоритет. "
+                "Если два profile-а подходят к одному домену или IP, будет применён тот, который находится выше."
+            ),
+        )
+
     def test_order_list_wrapper_forwards_keyboard_focus_to_view(self) -> None:
         from profile.ui.profile_order_list import ProfileOrderList
 
