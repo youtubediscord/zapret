@@ -143,10 +143,13 @@ class ControlAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(start_btn.accessibleName(), "Запустить Zapret")
+        self.assertEqual(start_btn.property("screenReaderStateText"), "Запустить Zapret")
         self.assertIn("Запускает", start_btn.accessibleDescription())
         self.assertEqual(stop_btn.accessibleName(), "Остановить winws.exe")
+        self.assertEqual(stop_btn.property("screenReaderStateText"), "Остановить winws.exe")
         self.assertIn("Останавливает", stop_btn.accessibleDescription())
         self.assertEqual(stop_exit_btn.accessibleName(), "Остановить и закрыть")
+        self.assertEqual(stop_exit_btn.property("screenReaderStateText"), "Остановить и закрыть")
         self.assertIn("закрывает программу", stop_exit_btn.accessibleDescription())
         self.assertEqual(progress.accessibleName(), "Ход запуска Zapret: не выполняется")
         self.assertEqual(progress.property("screenReaderStateText"), "Ход запуска Zapret: не выполняется")

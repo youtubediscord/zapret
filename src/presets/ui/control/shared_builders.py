@@ -119,35 +119,41 @@ def build_mode_management_section_common(
     buttons_layout = QHBoxLayout()
     buttons_layout.setSpacing(12)
 
+    start_text = tr_fn(start_key, start_default)
     start_btn = big_action_button_cls(
-        tr_fn(start_key, start_default),
+        start_text,
         icon=FluentIcon.PLAY,
     )
     set_control_accessibility(
         start_btn,
         description="Запускает обход блокировок в выбранном режиме.",
     )
+    set_state_text(start_btn, start_text)
     start_btn.clicked.connect(on_start)
     buttons_layout.addWidget(start_btn)
 
-    stop_winws_btn = stop_button_cls(tr_fn(stop_key, stop_default))
+    stop_text = tr_fn(stop_key, stop_default)
+    stop_winws_btn = stop_button_cls(stop_text)
     set_control_accessibility(
         stop_winws_btn,
         description="Останавливает запущенный процесс обхода блокировок.",
     )
+    set_state_text(stop_winws_btn, stop_text)
     stop_winws_btn.clicked.connect(on_stop)
     stop_winws_btn.setVisible(False)
     schedule_stop_button_icon(stop_winws_btn)
     buttons_layout.addWidget(stop_winws_btn)
 
+    stop_exit_text = tr_fn(stop_exit_key, stop_exit_default)
     stop_and_exit_btn = stop_button_cls(
-        tr_fn(stop_exit_key, stop_exit_default),
+        stop_exit_text,
         icon=FluentIcon.POWER_BUTTON,
     )
     set_control_accessibility(
         stop_and_exit_btn,
         description="Останавливает обход блокировок и закрывает программу.",
     )
+    set_state_text(stop_and_exit_btn, stop_exit_text)
     stop_and_exit_btn.clicked.connect(on_stop_and_exit)
     stop_and_exit_btn.setVisible(False)
     buttons_layout.addWidget(stop_and_exit_btn)
