@@ -58,22 +58,6 @@ def collect_startup_checks_payload(*, verbose_logging_enabled: bool) -> dict:
             )
         )
 
-    try:
-        from startup.kaspersky import _check_kaspersky_antivirus, build_kaspersky_notification
-
-        kaspersky_detected = bool(_check_kaspersky_antivirus())
-        log(
-            f"Kaspersky startup check: detected={'yes' if kaspersky_detected else 'no'}",
-            "⏱ STARTUP",
-        )
-        if kaspersky_detected:
-            kaspersky_notification = build_kaspersky_notification()
-            if kaspersky_notification is not None:
-                log("Обнаружен антивирус Kaspersky", "⚠️ KASPERSKY")
-                notifications.append(kaspersky_notification)
-    except Exception:
-        pass
-
     if verbose_logging_enabled:
         from startup.admin_check_debug import debug_admin_status
 

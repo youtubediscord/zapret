@@ -5,7 +5,7 @@ import sys
 
 from app_notifications import advisory_notification, notification_action
 from config.config import MAIN_DIRECTORY
-from utils.windows_process_probe import iter_process_names_winapi, iter_uninstall_display_names
+from winws_runtime.health.kaspersky_launch_advice import detect_kaspersky_antivirus
 
 
 def _resolve_kaspersky_paths() -> tuple[str, str]:
@@ -17,33 +17,9 @@ def _resolve_kaspersky_paths() -> tuple[str, str]:
         exe_path = os.path.abspath(os.path.join(base_dir, "zapret.pyw"))
     return exe_path, base_dir
 
-_KASPERSKY_PROCESS_NAMES = frozenset(
-    {
-        "avp.exe",
-        "kavfs.exe",
-        "klnagent.exe",
-        "ksde.exe",
-        "kavfswp.exe",
-        "kavfswh.exe",
-        "kavfsslp.exe",
-    }
-)
-
-
 def _check_kaspersky_antivirus() -> bool:
     """Проверяет наличие Kaspersky через WinAPI-процессы и uninstall-реестр."""
-    try:
-        for process_name in iter_process_names_winapi():
-            if str(process_name or "").strip().casefold() in _KASPERSKY_PROCESS_NAMES:
-                return True
-
-        for product_name in iter_uninstall_display_names():
-            normalized = str(product_name or "").casefold()
-            if "kaspersky" in normalized or "каспер" in normalized:
-                return True
-        return False
-    except Exception:
-        return False
+    return bool(detect_kaspersky_antivirus())
 
 def _check_kaspersky_warning_disabled():
     """
