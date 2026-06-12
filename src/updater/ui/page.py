@@ -325,7 +325,7 @@ class ServersPage(BasePage):
         self.update_card.show()
 
     def set_update_check_enabled(self, enabled: bool) -> None:
-        self.update_card.check_btn.setEnabled(bool(enabled))
+        self.update_card.set_check_enabled(bool(enabled))
 
     def set_auto_check_toggle_checked(self, enabled: bool) -> None:
         toggle = getattr(self, "auto_check_toggle", None)

@@ -59,6 +59,28 @@ class UpdaterUpdateCardAccessibilityTests(unittest.TestCase):
         )
         self.assertIn("дождитесь завершения", card.check_btn.accessibleDescription().lower())
 
+    def test_disabled_update_check_button_reports_unavailable_state(self) -> None:
+        card = UpdateStatusCard(language="ru")
+
+        card.set_check_enabled(False)
+
+        self.assertFalse(card.check_btn.isEnabled())
+        self.assertEqual(card.check_btn.accessibleName(), "Проверить обновления, недоступно")
+        self.assertEqual(
+            card.check_btn.property("screenReaderStateText"),
+            "Проверить обновления, недоступно",
+        )
+        self.assertIn("сейчас недоступна", card.check_btn.accessibleDescription().lower())
+
+        card.set_check_enabled(True)
+
+        self.assertTrue(card.check_btn.isEnabled())
+        self.assertEqual(card.check_btn.accessibleName(), "Проверить обновления")
+        self.assertEqual(
+            card.check_btn.property("screenReaderStateText"),
+            "Проверить обновления",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -190,11 +190,22 @@ class UpdateStatusCard(CardWidget):
             set_state_text(self.check_btn, button_state)
         else:
             button_text = str(self.check_btn.text() or "").strip()
-            button_state = button_text or "Проверить обновления"
+            base_state = button_text or "Проверить обновления"
+            is_enabled = True
+            try:
+                is_enabled = bool(self.check_btn.isEnabled())
+            except Exception:
+                pass
+            button_state = base_state if is_enabled else f"{base_state}, недоступно"
+            description = (
+                "Запускает проверку доступных обновлений."
+                if is_enabled
+                else "Проверка обновлений сейчас недоступна. Дождитесь завершения текущего действия."
+            )
             set_control_accessibility(
                 self.check_btn,
                 name=button_state,
-                description="Запускает проверку доступных обновлений.",
+                description=description,
             )
             set_state_text(self.check_btn, button_state)
 
@@ -220,6 +231,11 @@ class UpdateStatusCard(CardWidget):
 
         if plan.check_enabled is not None:
             self.check_btn.setEnabled(plan.check_enabled)
+            self._update_accessibility()
+
+    def set_check_enabled(self, enabled: bool) -> None:
+        self.check_btn.setEnabled(bool(enabled))
+        self._update_accessibility()
 
     def start_checking(self):
         plan = update_page_plans.build_update_status_transition_plan(
