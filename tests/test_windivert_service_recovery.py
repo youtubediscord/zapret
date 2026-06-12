@@ -60,6 +60,46 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         self.assertEqual(state, service_manager.SERVICE_RUNNING)
         open_sc_manager.assert_called_once_with(None, None, 0x0001)
 
+    def test_stop_service_uses_minimal_sc_manager_access(self) -> None:
+        from utils import service_manager
+
+        def query_status(_service, status_ptr) -> bool:
+            status_ptr._obj.dwCurrentState = service_manager.SERVICE_STOPPED
+            return True
+
+        with (
+            patch.object(service_manager, "advapi32", object()),
+            patch.object(service_manager, "OpenSCManager", return_value=111) as open_sc_manager,
+            patch.object(service_manager, "OpenService", return_value=222),
+            patch.object(service_manager, "ControlService", Mock()),
+            patch.object(service_manager, "QueryServiceStatus", side_effect=query_status),
+            patch.object(service_manager, "CloseServiceHandle"),
+        ):
+            stopped = service_manager.stop_service("Monkey")
+
+        self.assertTrue(stopped)
+        open_sc_manager.assert_called_once_with(None, None, 0x0001)
+
+    def test_delete_service_uses_minimal_sc_manager_access(self) -> None:
+        from utils import service_manager
+
+        def query_status(_service, status_ptr) -> bool:
+            status_ptr._obj.dwCurrentState = service_manager.SERVICE_STOPPED
+            return True
+
+        with (
+            patch.object(service_manager, "advapi32", object()),
+            patch.object(service_manager, "OpenSCManager", return_value=111) as open_sc_manager,
+            patch.object(service_manager, "OpenService", return_value=222),
+            patch.object(service_manager, "QueryServiceStatus", side_effect=query_status),
+            patch.object(service_manager, "DeleteService", return_value=True),
+            patch.object(service_manager, "CloseServiceHandle"),
+        ):
+            deleted = service_manager.delete_service("Monkey")
+
+        self.assertTrue(deleted)
+        open_sc_manager.assert_called_once_with(None, None, 0x0001)
+
     def test_service_start_type_falls_back_to_registry_when_change_config_fails(self) -> None:
         import sys
         from utils import service_manager

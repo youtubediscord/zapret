@@ -105,8 +105,9 @@ def stop_service(service_name: str) -> bool:
     if advapi32 is None or OpenSCManager is None or OpenService is None or ControlService is None:
         return False
     try:
-        # Открываем Service Control Manager
-        sc_manager = OpenSCManager(None, None, SC_MANAGER_ALL_ACCESS)
+        # Для остановки конкретной службы достаточно подключиться к SCM.
+        # Лишний ALL_ACCESS может дать отказ, хотя сама служба доступна.
+        sc_manager = OpenSCManager(None, None, SC_MANAGER_CONNECT)
         if not sc_manager:
             log(f"Не удалось открыть SCManager для {service_name}", "DEBUG")
             return False
@@ -175,8 +176,9 @@ def delete_service(service_name: str) -> bool:
     if advapi32 is None or OpenSCManager is None or OpenService is None or DeleteService is None:
         return False
     try:
-        # Открываем Service Control Manager
-        sc_manager = OpenSCManager(None, None, SC_MANAGER_ALL_ACCESS)
+        # Для удаления конкретной службы достаточно подключиться к SCM.
+        # Нужные права запрашиваются уже у самой службы через OpenService.
+        sc_manager = OpenSCManager(None, None, SC_MANAGER_CONNECT)
         if not sc_manager:
             log(f"Не удалось открыть SCManager для удаления {service_name}", "DEBUG")
             return False
