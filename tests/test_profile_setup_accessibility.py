@@ -112,14 +112,30 @@ class ProfileSetupAccessibilityTests(unittest.TestCase):
             "Ветка готовой стратегии, не выбрано",
         )
         self.assertEqual(page._list_file_base_text.accessibleName(), "Базовая часть списка profile")
+        self.assertEqual(
+            page._list_file_base_text.property("screenReaderStateText"),
+            "Базовая часть списка profile",
+        )
         self.assertEqual(page._list_file_text.accessibleName(), "Ваши записи списка profile")
+        self.assertEqual(
+            page._list_file_text.property("screenReaderStateText"),
+            "Ваши записи списка profile",
+        )
         self.assertEqual(page._list_file_save_button.accessibleName(), "Сохранить список profile")
         self.assertEqual(
             page._list_file_save_button.property("screenReaderStateText"),
             "Сохранить список profile",
         )
         self.assertEqual(page._match_text.accessibleName(), "Условия применения profile")
+        self.assertEqual(
+            page._match_text.property("screenReaderStateText"),
+            "Условия применения profile",
+        )
         self.assertEqual(page._raw_profile_text.accessibleName(), "Текст profile в текущем preset")
+        self.assertEqual(
+            page._raw_profile_text.property("screenReaderStateText"),
+            "Текст profile в текущем preset",
+        )
         self.assertEqual(page._raw_profile_save_button.accessibleName(), "Сохранить текст profile")
         self.assertEqual(
             page._raw_profile_save_button.property("screenReaderStateText"),

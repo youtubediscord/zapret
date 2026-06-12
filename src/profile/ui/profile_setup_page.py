@@ -2181,6 +2181,7 @@ class ProfileSetupPageBase(BasePage):
             name="Базовая часть списка profile",
             description="Системная часть списка. Она обновляется программой и доступна только для чтения.",
         )
+        set_state_text(self._list_file_base_text, "Базовая часть списка profile")
         editor_layout.addWidget(self._list_file_base_text, 1)
 
         self._list_file_user_title = CaptionLabel("Ваши записи")
@@ -2201,6 +2202,7 @@ class ProfileSetupPageBase(BasePage):
             name="Ваши записи списка profile",
             description="Пользовательская часть списка. Эти строки можно редактировать и сохранить.",
         )
+        set_state_text(self._list_file_text, "Ваши записи списка profile")
         editor_layout.addWidget(self._list_file_text, 1)
 
         self._list_file_error_label = CaptionLabel("")
@@ -2249,6 +2251,7 @@ class ProfileSetupPageBase(BasePage):
             name="Условия применения profile",
             description="Здесь показаны условия применения profile и выбранная готовая стратегия.",
         )
+        set_state_text(self._match_text, "Условия применения profile")
         match_layout.addWidget(self._match_text, 1)
 
         match_layout.addWidget(BodyLabel("Текст profile в текущем preset"))
@@ -2264,6 +2267,7 @@ class ProfileSetupPageBase(BasePage):
             name="Текст profile в текущем preset",
             description="Сырой текст profile. Сохраняется только в текущий preset.",
         )
+        set_state_text(self._raw_profile_text, "Текст profile в текущем preset")
         self._raw_profile_text.document().contentsChange.connect(self._on_raw_profile_text_contents_changed)
         match_layout.addWidget(self._raw_profile_text)
 
