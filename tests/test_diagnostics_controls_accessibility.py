@@ -16,6 +16,7 @@ from diagnostics.ui.runtime_helpers import (
     apply_interaction_state,
     refresh_test_combo_items,
     set_connection_status,
+    start_connection_test,
 )
 
 
@@ -127,6 +128,36 @@ class DiagnosticsControlsAccessibilityTests(unittest.TestCase):
             widgets.result_text.property("screenReaderStateText"),
             "Результат диагностики соединений: диагностика ещё не запускалась",
         )
+
+    def test_start_connection_test_updates_result_screen_reader_state(self) -> None:
+        from ui.accessibility import set_state_text
+
+        parent = QWidget()
+        layout = QVBoxLayout(parent)
+        widgets = build_connection_log_viewer(
+            container_layout=layout,
+            tr_fn=lambda _key, default: default,
+        )
+        combo = ComboBox()
+        refresh_test_combo_items(combo=combo, language="ru")
+        status_badge = ConnectionStatusBadge()
+        progress_badge = ConnectionStatusBadge()
+        set_state_text(widgets.result_text, "Старый результат диагностики")
+
+        start_connection_test(
+            is_testing=False,
+            ui_language="ru",
+            test_combo=combo,
+            result_text=widgets.result_text,
+            apply_interaction_state_callback=lambda **_kwargs: None,
+            set_status_callback=lambda _text, _status: None,
+            status_badge=status_badge,
+            progress_badge=progress_badge,
+        )
+
+        expected = "Результат диагностики соединений: Запуск тестирования: Все тесты (Discord + YouTube)"
+        self.assertEqual(widgets.result_text.accessibleName(), expected)
+        self.assertEqual(widgets.result_text.property("screenReaderStateText"), expected)
 
     def test_progress_indicator_exposes_screen_reader_state(self) -> None:
         parent = QWidget()

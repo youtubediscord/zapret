@@ -131,6 +131,11 @@ def start_connection_test(
     result_text.clear()
     for line in plan.start_lines:
         result_text.append(line)
+    first_line = _clean_combo_text(
+        clean_connection_status_text(plan.start_lines[0] if plan.start_lines else "").replace("🚀", "")
+    )
+    if first_line:
+        set_state_text(result_text, f"Результат диагностики соединений: {first_line}")
 
     apply_interaction_state_callback(
         start_enabled=plan.start_enabled,
