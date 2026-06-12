@@ -81,6 +81,15 @@ class HostsServicesLazyUiTests(unittest.TestCase):
         self.assertEqual(page.service_combos, {})
         self.assertEqual(page.service_icon_labels, {})
 
+    def test_selected_services_are_built_even_when_group_is_collapsed(self) -> None:
+        page = self._make_page()
+        page._service_dns_selection = {"Service 0": "zapret_dns"}
+
+        HostsPage._build_services_selectors(page, self._make_catalog_plan())
+
+        self.assertEqual(list(page.service_combos), ["Service 0"])
+        self.assertIn("Service 0", page.service_icon_labels)
+
     def test_expanded_group_builds_service_rows(self) -> None:
         page = self._make_page()
         page._expanded_service_groups.add("Видео")

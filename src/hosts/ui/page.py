@@ -902,7 +902,7 @@ class HostsPage(BasePage):
             self._build_services_selectors(catalog_plan)
 
     def _service_row_plan_with_current_selection(self, row_plan):
-        selected_profile = self._service_dns_selection.get(row_plan.service_name)
+        selected_profile = self._service_dns_selection.get(row_plan.service_name, row_plan.selected_profile)
         if selected_profile in row_plan.available_profiles:
             return replace(
                 row_plan,
@@ -972,6 +972,16 @@ class HostsPage(BasePage):
             groups_started_at = time.perf_counter()
             for group_plan in catalog_plan.groups:
                 group_expanded = self._is_service_group_expanded(group_plan.title)
+                row_plans = [
+                    self._service_row_plan_with_current_selection(row_plan)
+                    for row_plan in group_plan.rows
+                ]
+                visible_row_plans = [
+                    row_plan
+                    for row_plan in row_plans
+                    if group_expanded or row_plan.selected_profile or row_plan.toggle_checked
+                ]
+                hidden_row_count = max(0, len(row_plans) - len(visible_row_plans))
                 group_widgets = build_hosts_services_group(
                     group_plan,
                     off_label=OFF_LABEL,
@@ -979,7 +989,7 @@ class HostsPage(BasePage):
                     make_chip=self._make_fluent_chip,
                     on_bulk_apply=self._bulk_apply_dns_profile,
                     expanded=group_expanded,
-                    row_count=len(group_plan.rows),
+                    row_count=len(group_plan.rows) if group_expanded else hidden_row_count,
                     make_expand_button=self._make_fluent_chip,
                     on_toggle_expanded=self._toggle_service_group_expanded,
                 )
@@ -991,12 +1001,11 @@ class HostsPage(BasePage):
                 if group_widgets.expand_button is not None:
                     self._service_group_chip_buttons.append(group_widgets.expand_button)
 
-                if not group_expanded:
+                if not visible_row_plans:
                     self._services_add_widget(card)
                     continue
 
-                for row_plan in group_plan.rows:
-                    row_plan = self._service_row_plan_with_current_selection(row_plan)
+                for row_plan in visible_row_plans:
                     row_widgets = build_hosts_service_row(
                         row_plan,
                         body_label_cls=BodyLabel,

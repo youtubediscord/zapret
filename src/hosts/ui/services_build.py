@@ -143,6 +143,15 @@ def build_hosts_services_group(
     expand_button = None
     if row_count is not None and make_expand_button is not None and on_toggle_expanded is not None:
         count = max(0, int(row_count))
+        if count <= 0 and not expanded:
+            card.add_layout(header)
+            return HostsServicesGroupWidgets(
+                card=card,
+                title_label=title_label,
+                chips_scroll=chips_scroll,
+                chip_buttons=chip_buttons,
+                expand_button=None,
+            )
         label = "Скрыть" if expanded else f"Показать {count}"
         expand_button = make_expand_button(label)
         action_name = "Скрыть" if expanded else "Показать"
