@@ -211,7 +211,8 @@ class PresetProfileAsyncArchitectureTests(unittest.TestCase):
         self.assertIn("refresh_state.pending = True", request_source)
         self.assertIn("_profile_load_request_id += 1", request_source)
         self.assertIn("_profile_payload_dirty = True", request_source)
-        self.assertIn("_schedule_profile_load_refresh_start", finished_source)
+        self.assertIn("schedule_pending_after_finish", finished_source)
+        self.assertIn("_accept_current_profile_load_worker_finished", finished_source)
         self.assertIn("_schedule_profiles_payload_request(force=True)", scheduled_source)
 
     def test_profile_setup_pending_load_restarts_use_shared_finish_guard(self) -> None:

@@ -454,14 +454,18 @@ class PresetSetupPageBase(BasePage):
         )
 
     def _on_profile_worker_finished(self, worker) -> None:
-        if not self._accept_current_profile_load_worker_finished(worker):
-            return
         state = self._profile_load_refresh_state_obj()
-        if not self._cleanup_in_progress and (state.has_pending() or self._profile_payload_dirty):
+        if self.__dict__.get("_profile_payload_dirty", False):
             state.pending = True
-            self._schedule_profile_load_refresh_start()
-            return
-        state.pending = False
+        state.schedule_pending_after_finish(
+            worker,
+            is_current_worker_finish=lambda _runtime, finished_worker: self._accept_current_profile_load_worker_finished(
+                finished_worker
+            ),
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_profile_load_refresh_start,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
 
     def _schedule_profile_load_refresh_start(self) -> None:
         self._profile_load_refresh_state_obj().schedule_start(
