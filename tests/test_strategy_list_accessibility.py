@@ -9,6 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QListWidgetItem
 
 from profile.ui.profile_setup_page import ProfileStrategyListWidget
@@ -51,6 +52,27 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         self.assertIn("перейдите в список клавишей Tab", description)
         self.assertIn("выберите стратегию стрелками", description)
         self.assertIn("нажмите Enter или Пробел", description)
+
+    def test_tab_from_strategy_search_moves_focus_to_strategy_list(self) -> None:
+        widget = _make_sync_strategy_list()
+        self.addCleanup(widget.deleteLater)
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="alpha",
+        )
+        widget.show()
+        self._app.processEvents()
+        widget._search.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(widget._search, Qt.Key.Key_Tab)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), widget._list)
 
     def test_strategy_list_explains_enter_or_space_activation(self) -> None:
         widget = ProfileStrategyListWidget()

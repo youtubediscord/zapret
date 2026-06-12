@@ -91,6 +91,12 @@ def set_widget_text_if_changed(widget, text: str) -> bool:
     return True
 
 
+def _remove_search_line_edit_buttons_from_tab_order(search) -> None:
+    for child in search.findChildren(QWidget):
+        if str(child.objectName() or "") == "lineEditButton":
+            child.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+
 def set_widget_checked_if_changed(widget, checked: bool) -> bool:
     value = bool(checked)
     try:
@@ -489,6 +495,7 @@ class ProfileStrategyListWidget(QWidget):
                 "затем нажмите Enter или Пробел."
             ),
         )
+        _remove_search_line_edit_buttons_from_tab_order(self._search)
         self._search.textChanged.connect(self._apply_filter)
         top_layout.addWidget(self._search, 1)
 
@@ -534,6 +541,7 @@ class ProfileStrategyListWidget(QWidget):
         )
         self._scrollbars = install_fluent_scrollbars(self._list, vertical=True, horizontal=False)
         layout.addWidget(self._list, 1)
+        QWidget.setTabOrder(self._search, self._list)
 
     def eventFilter(self, watched, event):  # noqa: N802
         if watched is self._list and event.type() == QEvent.Type.FocusIn:
