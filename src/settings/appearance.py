@@ -273,7 +273,7 @@ def store_warmed_tinted_settings(
             if tinted_background is None
             else bool(tinted_background)
         ),
-        tinted_intensity=max(0, min(30, intensity)),
+        tinted_intensity=max(0, min(schema.MAX_TINTED_INTENSITY, intensity)),
     )
     with _warmed_tinted_settings_lock:
         _warmed_tinted_settings_cache = plan
@@ -756,7 +756,7 @@ def save_tinted_background(enabled: bool) -> AppearanceTogglePlan:
     return AppearanceTogglePlan(enabled=bool(enabled))
 
 def save_tinted_background_intensity(value: int) -> AppearanceOpacityPlan:
-    normalized = int(value)
+    normalized = max(0, min(schema.MAX_TINTED_INTENSITY, int(value)))
     try:
         from settings.store import set_tinted_background_intensity
 

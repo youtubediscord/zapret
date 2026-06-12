@@ -59,6 +59,9 @@ from qfluentwidgets import (
 )
 
 
+TINTED_INTENSITY_MAX = appearance_settings.schema.MAX_TINTED_INTENSITY
+
+
 def update_accent_color_button_accessibility(button, *, language: str = "ru", color: QColor | None = None) -> None:
     if button is None:
         return
@@ -95,7 +98,7 @@ def update_tinted_intensity_slider_accessibility(slider, *, language: str = "ru"
     try:
         maximum = int(slider.maximum())
     except Exception:
-        maximum = 30
+        maximum = TINTED_INTENSITY_MAX
     title = tr_catalog(
         "page.appearance.accent.tint_intensity.label",
         language=language,
@@ -110,7 +113,12 @@ def update_tinted_intensity_slider_accessibility(slider, *, language: str = "ru"
     )
 
 
-def update_tinted_intensity_value_label_accessibility(label, *, value: object | None = None, maximum: object = 30) -> None:
+def update_tinted_intensity_value_label_accessibility(
+    label,
+    *,
+    value: object | None = None,
+    maximum: object = TINTED_INTENSITY_MAX,
+) -> None:
     if label is None:
         return
     try:
@@ -123,7 +131,7 @@ def update_tinted_intensity_value_label_accessibility(label, *, value: object | 
     try:
         max_value = int(maximum)
     except Exception:
-        max_value = 30
+        max_value = TINTED_INTENSITY_MAX
     set_state_text(label, f"Текущее значение интенсивности тонировки: {current_value} из {max_value}")
 
 
@@ -200,6 +208,7 @@ class AppearancePage(BasePage):
         self._tinted_intensity_label = None
         self._tinted_intensity_slider = None
         self._tinted_intensity_value_label = None
+        self._tinted_intensity_row = None
         self._mica_switch = None
         self._animations_switch = None
         self._smooth_scroll_switch = None
@@ -629,11 +638,11 @@ class AppearancePage(BasePage):
         )
         self._tinted_intensity_label = intensity_label
         self._tinted_intensity_slider = Slider(Qt.Orientation.Horizontal)
-        self._tinted_intensity_slider.setRange(0, 30)
+        self._tinted_intensity_slider.setRange(0, TINTED_INTENSITY_MAX)
         self._tinted_intensity_slider.setValue(15)
         self._tinted_intensity_value_label = CaptionLabel("15")
         self._update_tinted_intensity_slider_accessibility(15)
-        update_tinted_intensity_value_label_accessibility(self._tinted_intensity_value_label, value=15, maximum=30)
+        update_tinted_intensity_value_label_accessibility(self._tinted_intensity_value_label, value=15)
         self._tinted_intensity_slider.valueChanged.connect(
             lambda value: self._update_tinted_intensity_slider_accessibility(value)
         )
@@ -1475,15 +1484,22 @@ class AppearancePage(BasePage):
             update_tinted_intensity_value_label_accessibility(
                 self._tinted_intensity_value_label,
                 value=plan.tinted_intensity,
-                maximum=30,
             )
 
-        if self._tinted_intensity_container is not None:
-            self._tinted_intensity_container.setVisible(plan.tinted_background)
+        self._set_tinted_intensity_visible(plan.tinted_background)
 
         if self._color_picker_btn is not None:
             self._color_picker_btn.setEnabled(not plan.follow_windows_accent)
             self._update_accent_color_button_accessibility()
+
+    def _set_tinted_intensity_visible(self, visible: bool) -> None:
+        visible = bool(visible)
+        tinted_row = self.__dict__.get("_tinted_intensity_row")
+        if tinted_row is not None:
+            tinted_row.setVisible(visible)
+        tinted_container = self.__dict__.get("_tinted_intensity_container")
+        if tinted_container is not None:
+            tinted_container.setVisible(visible)
 
     def _on_follow_windows_accent_changed(self, state):
         """Обработчик переключения 'Акцент из Windows'."""
@@ -1621,23 +1637,34 @@ class AppearancePage(BasePage):
             return
         enabled = bool(state) if isinstance(state, bool) else state == Qt.CheckState.Checked.value
         self._request_appearance_save("tinted_background", enabled)
-        if self._tinted_intensity_container is not None:
-            self._tinted_intensity_container.setVisible(enabled)
+        current = appearance_settings.peek_warmed_tinted_settings()
+        appearance_settings.store_warmed_tinted_settings(
+            None if current is None else current.follow_windows_accent,
+            enabled,
+            None if current is None else current.tinted_intensity,
+        )
+        self._set_tinted_intensity_visible(enabled)
         self._schedule_background_refresh()
 
     def _on_tinted_intensity_changed(self, value: int):
         """Обработчик изменения интенсивности тонировки."""
         if self._is_ui_syncing():
             return
-        self._request_appearance_save("tinted_intensity", int(value))
+        normalized = max(0, min(TINTED_INTENSITY_MAX, int(value)))
+        self._request_appearance_save("tinted_intensity", normalized)
+        current = appearance_settings.peek_warmed_tinted_settings()
+        appearance_settings.store_warmed_tinted_settings(
+            None if current is None else current.follow_windows_accent,
+            None if current is None else current.tinted_background,
+            normalized,
+        )
         if self._tinted_intensity_value_label is not None:
-            self._tinted_intensity_value_label.setText(str(value))
+            self._tinted_intensity_value_label.setText(str(normalized))
             update_tinted_intensity_value_label_accessibility(
                 self._tinted_intensity_value_label,
-                value=value,
-                maximum=30,
+                value=normalized,
             )
-        self._update_tinted_intensity_slider_accessibility(value)
+        self._update_tinted_intensity_slider_accessibility(normalized)
         self._schedule_background_refresh()
 
     def set_premium_status(

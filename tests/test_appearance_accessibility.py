@@ -407,7 +407,7 @@ class AppearanceAccessibilityTests(unittest.TestCase):
         self.addCleanup(slider.deleteLater)
         self.addCleanup(value_label.deleteLater)
         self.addCleanup(container.deleteLater)
-        slider.setRange(0, 30)
+        slider.setRange(0, 100)
         slider.setValue(15)
 
         page = AppearancePage.__new__(AppearancePage)
@@ -417,6 +417,7 @@ class AppearanceAccessibilityTests(unittest.TestCase):
         page._tinted_intensity_slider = slider
         page._tinted_intensity_value_label = value_label
         page._tinted_intensity_container = container
+        page._tinted_intensity_row = None
         page._begin_ui_sync = lambda: None
         page._end_ui_sync = lambda: None
         page._is_ui_syncing = lambda: False
@@ -436,7 +437,7 @@ class AppearanceAccessibilityTests(unittest.TestCase):
                 accent_color=None,
                 follow_windows_accent=False,
                 tinted_background=True,
-                tinted_intensity=22,
+                tinted_intensity=80,
                 animations_enabled=True,
                 smooth_scroll_enabled=True,
                 editor_smooth_scroll_enabled=True,
@@ -446,26 +447,64 @@ class AppearanceAccessibilityTests(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(slider.accessibleName(), "Интенсивность тонировки, значение: 22 из 30")
+        self.assertEqual(slider.maximum(), 100)
+        self.assertEqual(slider.value(), 80)
+        self.assertEqual(slider.accessibleName(), "Интенсивность тонировки, значение: 80 из 100")
         self.assertIn("силу окрашивания фона", slider.accessibleDescription())
-        self.assertEqual(value_label.accessibleName(), "Текущее значение интенсивности тонировки: 22 из 30")
+        self.assertEqual(value_label.accessibleName(), "Текущее значение интенсивности тонировки: 80 из 100")
         self.assertEqual(
             value_label.property("screenReaderStateText"),
-            "Текущее значение интенсивности тонировки: 22 из 30",
+            "Текущее значение интенсивности тонировки: 80 из 100",
         )
 
-        AppearancePage._on_tinted_intensity_changed(page, 9)
+        AppearancePage._on_tinted_intensity_changed(page, 55)
 
-        self.assertEqual(slider.accessibleName(), "Интенсивность тонировки, значение: 9 из 30")
+        self.assertEqual(slider.accessibleName(), "Интенсивность тонировки, значение: 55 из 100")
         self.assertEqual(
             slider.property("screenReaderStateText"),
-            "Интенсивность тонировки, значение: 9 из 30",
+            "Интенсивность тонировки, значение: 55 из 100",
         )
-        self.assertEqual(value_label.accessibleName(), "Текущее значение интенсивности тонировки: 9 из 30")
+        self.assertEqual(value_label.accessibleName(), "Текущее значение интенсивности тонировки: 55 из 100")
         self.assertEqual(
             value_label.property("screenReaderStateText"),
-            "Текущее значение интенсивности тонировки: 9 из 30",
+            "Текущее значение интенсивности тонировки: 55 из 100",
         )
+
+    def test_tinted_toggle_hides_intensity_row_and_refreshes_from_new_state(self) -> None:
+        import settings.appearance as appearance_settings
+        from ui.pages.appearance_page import AppearancePage
+
+        self.addCleanup(appearance_settings.clear_warmed_tinted_settings_cache)
+
+        class _Visible:
+            def __init__(self) -> None:
+                self.values = []
+
+            def setVisible(self, value: bool) -> None:
+                self.values.append(bool(value))
+
+        row = _Visible()
+        container = _Visible()
+        saved = []
+        refreshes = []
+
+        page = AppearancePage.__new__(AppearancePage)
+        page._tinted_intensity_row = row
+        page._tinted_intensity_container = container
+        page._is_ui_syncing = lambda: False
+        page._request_appearance_save = lambda action, value: saved.append((action, value))
+        page._schedule_background_refresh = lambda: refreshes.append(appearance_settings.peek_warmed_tinted_settings())
+
+        appearance_settings.store_warmed_tinted_settings(False, True, 70)
+
+        AppearancePage._on_tinted_bg_changed(page, False)
+
+        self.assertEqual(saved, [("tinted_background", False)])
+        self.assertEqual(row.values, [False])
+        self.assertEqual(container.values, [False])
+        self.assertEqual(len(refreshes), 1)
+        self.assertFalse(refreshes[0].tinted_background)
+        self.assertEqual(refreshes[0].tinted_intensity, 70)
 
     def test_saved_sidebar_icon_style_refreshes_screen_reader_state(self) -> None:
         from ui.pages.appearance_page import AppearancePage

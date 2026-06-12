@@ -317,7 +317,7 @@ def normalize_appearance(data: object) -> dict[str, Any]:
             raw.get("tinted_background_intensity"),
             defaults["tinted_background_intensity"],
             minimum=0,
-            maximum=30,
+            maximum=schema.MAX_TINTED_INTENSITY,
         ),
         "background_preset": as_str_in(raw.get("background_preset"), schema.VALID_BACKGROUND_PRESETS, defaults["background_preset"]),
         "rkn_background": as_nullable_str(raw.get("rkn_background")),
