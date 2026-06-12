@@ -169,6 +169,15 @@ class ProfileOrderPageTests(unittest.TestCase):
         )
         self.assertIn("меняют порядок выбранного profile", order_list._view.accessibleDescription())
 
+    def test_order_list_wrapper_forwards_keyboard_focus_to_view(self) -> None:
+        from profile.ui.profile_order_list import ProfileOrderList
+
+        order_list = ProfileOrderList()
+        self.addCleanup(order_list.deleteLater)
+
+        self.assertEqual(order_list.focusPolicy(), Qt.FocusPolicy.StrongFocus)
+        self.assertIs(order_list.focusProxy(), order_list._view)
+
     def test_order_list_focuses_first_loaded_profile_for_screen_reader(self) -> None:
         from profile.order_view_state import build_profile_order_list_view_state
         from profile.ui.profile_order_list import ProfileOrderList

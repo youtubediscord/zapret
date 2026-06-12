@@ -261,6 +261,8 @@ class ProfileOrderList(QWidget):
         self._view.set_screen_reader_list_name("Порядок profile")
         self._view.setModel(self._model)
         set_state_text(self._view, "Порядок profile: список пока загружается")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocusProxy(self._view)
         self._view.setSelectionMode(QListView.SelectionMode.SingleSelection)
         self._view.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
