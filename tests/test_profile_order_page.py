@@ -152,7 +152,11 @@ class ProfileOrderPageTests(unittest.TestCase):
 
         self.assertEqual(order_list.accessibleName(), "Порядок profile")
         self.assertIn("PageUp и PageDown", order_list.accessibleDescription())
-        self.assertEqual(order_list._view.accessibleName(), "Порядок profile")
+        self.assertEqual(order_list._view.accessibleName(), "Порядок profile: список пока загружается")
+        self.assertEqual(
+            order_list._view.property("screenReaderStateText"),
+            "Порядок profile: список пока загружается",
+        )
         self.assertIn("меняют порядок выбранного profile", order_list._view.accessibleDescription())
 
     def test_order_list_moves_selected_profile_from_keyboard(self) -> None:

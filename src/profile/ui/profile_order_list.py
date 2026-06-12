@@ -16,7 +16,7 @@ from profile.ui.profile_list_view import ProfileListView
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
 from ui.smooth_scroll import apply_page_smooth_scroll_preference
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.widgets.fluent_scrollbar import install_fluent_scrollbars
 
 
@@ -259,6 +259,7 @@ class ProfileOrderList(QWidget):
         set_control_accessibility(self._view, name="Порядок profile", description=order_list_description)
         self._view.set_screen_reader_list_name("Порядок profile")
         self._view.setModel(self._model)
+        set_state_text(self._view, "Порядок profile: список пока загружается")
         self._view.setSelectionMode(QListView.SelectionMode.SingleSelection)
         self._view.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
         self._view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
