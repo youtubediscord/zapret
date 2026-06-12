@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 
 
 class ClickableCardAccessibilityTests(unittest.TestCase):
@@ -61,6 +61,32 @@ class ClickableCardAccessibilityTests(unittest.TestCase):
         self._press_key(card, Qt.Key.Key_Space)
 
         self.assertEqual(selected, ["Cloudflare"])
+
+    def test_dns_provider_card_uses_card_accent_without_indicator_widget(self) -> None:
+        from dns.ui.cards import DNSProviderCard
+
+        card = DNSProviderCard(
+            "Google DNS",
+            {
+                "desc": "надёжный",
+                "ipv4": ["8.8.8.8"],
+                "ipv6": ["2001:4860:4860::8888"],
+                "doh": "https://dns.google/dns-query",
+            },
+            show_ipv6=True,
+        )
+
+        self.assertFalse(hasattr(card, "indicator"))
+        self.assertLessEqual(len(card.findChildren(QWidget)), 5)
+
+        off_style = card.styleSheet()
+        card.set_selected(True)
+
+        self.assertTrue(card.property("selected"))
+        self.assertNotEqual(card.styleSheet(), off_style)
+        self.assertIn("background-color", card.styleSheet())
+        self.assertIn("border", card.styleSheet())
+        self.assertIn("rgba", card.styleSheet())
 
     def test_adapter_card_checkbox_works_from_keyboard(self) -> None:
         from dns.ui.cards import AdapterCard

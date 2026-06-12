@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
+    QWidget,
 )
 
 from qfluentwidgets import (
@@ -27,8 +27,8 @@ from ui.theme_refresh import ThemeRefreshBinding
 from app.ui_texts import tr as tr_catalog
 
 
-class DNSProviderCard(SettingsCard):
-    """Компактная карточка DNS-провайдера."""
+class DNSProviderCard(QWidget):
+    """Лёгкая карточка DNS-провайдера."""
 
     selected = pyqtSignal(str, dict)
 
@@ -73,6 +73,7 @@ class DNSProviderCard(SettingsCard):
         self.setProperty("selected", False)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMinimumHeight(40)
         self._setup_ui()
         self._refresh_accessibility()
         self._theme_refresh = ThemeRefreshBinding(self, self._apply_theme_refresh)
@@ -110,14 +111,9 @@ class DNSProviderCard(SettingsCard):
 
     def _setup_ui(self):
         tokens = get_theme_tokens()
-        layout = QHBoxLayout()
-        layout.setContentsMargins(10, 6, 12, 6)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 4, 12, 4)
         layout.setSpacing(10)
-
-        self.indicator = QFrame()
-        self.indicator.setFixedSize(16, 16)
-        self.indicator.setStyleSheet(self.indicator_off())
-        layout.addWidget(self.indicator)
 
         icon_color = self.data.get('color') or tokens.accent_hex
         icon_label = QLabel()
@@ -155,11 +151,11 @@ class DNSProviderCard(SettingsCard):
         self._ip_label = ip_label
         layout.addWidget(ip_label)
 
-        self.add_layout(layout)
         self._apply_theme_styles(tokens)
 
     def _apply_theme_styles(self, tokens=None) -> None:
         theme_tokens = tokens or get_theme_tokens()
+        self._apply_card_style(theme_tokens)
         try:
             if self._icon_label is not None:
                 icon_color = self.data.get('color') or theme_tokens.accent_hex
@@ -199,10 +195,36 @@ class DNSProviderCard(SettingsCard):
         except Exception:
             pass
 
+    def _apply_card_style(self, tokens=None) -> None:
+        theme_tokens = tokens or get_theme_tokens()
+        r, g, b = theme_tokens.accent_rgb
+        if self._is_selected:
+            bg = f"rgba({r}, {g}, {b}, 0.28)"
+            bg_hover = f"rgba({r}, {g}, {b}, 0.34)"
+            border = f"rgba({r}, {g}, {b}, 0.40)"
+        else:
+            bg = theme_tokens.surface_bg
+            bg_hover = theme_tokens.surface_bg_hover
+            border = theme_tokens.surface_border
+        self.setStyleSheet(
+            f"""
+            QWidget#dnsCard {{
+                background-color: {bg};
+                border: 1px solid {border};
+                border-radius: 8px;
+            }}
+            QWidget#dnsCard:hover {{
+                background-color: {bg_hover};
+                border: 1px solid {theme_tokens.surface_border_hover if not self._is_selected else border};
+            }}
+            """
+        )
+
     def set_selected(self, selected: bool):
         self._is_selected = selected
         self.setProperty("selected", bool(selected))
         self._refresh_accessibility()
+        self._apply_card_style()
         style = self.style()
         if style is not None:
             try:
@@ -211,11 +233,6 @@ class DNSProviderCard(SettingsCard):
             except Exception:
                 pass
         self.update()
-
-        if selected:
-            self.indicator.setStyleSheet(self.indicator_on())
-        else:
-            self.indicator.setStyleSheet(self.indicator_off())
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -249,10 +266,6 @@ class DNSProviderCard(SettingsCard):
     def _apply_theme_refresh(self, tokens=None, force: bool = False) -> None:
         _ = force
         self._apply_theme_styles(tokens)
-        if self._is_selected:
-            self.indicator.setStyleSheet(self.indicator_on())
-        else:
-            self.indicator.setStyleSheet(self.indicator_off())
 
 
 class AdapterCard(SettingsCard):
