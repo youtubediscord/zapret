@@ -403,6 +403,28 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertEqual(dialog.cancelButton.accessibleName(), "Отменить переименование пресета")
         self.assertEqual(dialog.cancelButton.property("screenReaderStateText"), "Отменить переименование пресета")
 
+    def test_preset_name_dialog_clear_buttons_do_not_take_tab_focus(self) -> None:
+        dialogs = [
+            CreatePresetDialog([], self._dialog_parent()),
+            RenamePresetDialog("Дом", ["Дом"], self._dialog_parent()),
+        ]
+        for dialog in dialogs:
+            self.addCleanup(dialog.deleteLater)
+            dialog.nameEdit.setText("Дом")
+            dialog.show()
+        self._app.processEvents()
+
+        for dialog in dialogs:
+            with self.subTest(name=dialog.nameEdit.accessibleName()):
+                buttons = [
+                    child
+                    for child in dialog.nameEdit.findChildren(object)
+                    if str(getattr(child, "objectName", lambda: "")() or "") == "lineEditButton"
+                    and hasattr(child, "setFocusPolicy")
+                ]
+                self.assertTrue(buttons)
+                self.assertTrue(all(button.focusPolicy() == Qt.FocusPolicy.NoFocus for button in buttons))
+
     def test_reset_presets_dialog_has_screen_reader_text(self) -> None:
         dialog = ResetAllPresetsDialog(self._dialog_parent())
         self.addCleanup(dialog.deleteLater)

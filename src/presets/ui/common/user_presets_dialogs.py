@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PyQt6.QtWidgets import QHBoxLayout
 
-from ui.accessibility import set_control_accessibility, set_state_text
+from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
 from ui.fluent_widgets import style_semantic_caption_label
 from ui.segmented_accessibility import set_segmented_items_accessibility
 from app.ui_texts import tr as tr_catalog
@@ -128,6 +128,7 @@ class CreatePresetDialog(PresetDialogTextMixin, MessageBoxBase):
             name="Название нового пресета",
             description="Например Игры, YouTube или Дом. Так пресет будет называться в списке.",
         )
+        remove_line_edit_buttons_from_tab_order(self.nameEdit)
         if hasattr(self, "_source_seg"):
             self._update_source_accessibility()
             set_control_accessibility(
@@ -254,6 +255,7 @@ class RenamePresetDialog(PresetDialogTextMixin, MessageBoxBase):
             name="Новое название пресета",
             description=f"Текущее имя: {self._current_name}. Введите новое имя для списка пресетов.",
         )
+        remove_line_edit_buttons_from_tab_order(self.nameEdit)
         set_control_accessibility(
             self.yesButton,
             name="Переименовать пресет",
