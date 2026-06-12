@@ -10,15 +10,12 @@ from profile.ui.profile_icon import profile_icon_pixmap
 from ui.theme import get_theme_tokens, to_qcolor
 from ui.widgets.fluent_item_tooltip import FluentItemToolTipController
 from ui.widgets.folder_header import FOLDER_HEADER_HEIGHT, is_folder_toggle_click, paint_folder_header_row
-from ui.widgets.hover_row import profile_hover_row_rect
+from ui.widgets.hover_row import paint_profile_hover_row, profile_hover_row_rect
 from ui.widgets.profile_row_style import (
     PROFILE_BADGE_HOSTLIST_BG,
     PROFILE_BADGE_HOSTLIST_FG,
     PROFILE_BADGE_IPSET_BG,
     PROFILE_BADGE_IPSET_FG,
-    PROFILE_ROW_BG_DARK,
-    PROFILE_ROW_BG_DARK_HOVER,
-    PROFILE_STATUS_DOT_ACTIVE,
 )
 
 from .profile_list_model import ProfileListModel
@@ -186,7 +183,12 @@ class ProfileListDelegate(QStyledItemDelegate):
             selected_rows=self._selected_rows,
         )
         active = str(index.data(ProfileListModel.StrategyIdRole) or "") not in {"", "none"}
-        _paint_profile_row_background(painter, rect, tokens, hovered=hovered, selected=False)
+        paint_profile_hover_row(
+            painter,
+            rect,
+            active=active,
+            hovered=hovered,
+        )
 
         strategy_name = str(index.data(ProfileListModel.StrategyNameRole) or "")
         rating = str(index.data(ProfileListModel.RatingRole) or "").strip().lower()
@@ -253,7 +255,7 @@ class ProfileListDelegate(QStyledItemDelegate):
             painter.setPen(to_qcolor(badge_fg, "#111111"))
             painter.drawText(row_layout.badge_rect, int(Qt.AlignmentFlag.AlignCenter), badge_text)
 
-        dot_color = _status_dot_color(active, fallback=str(tokens.fg_faint))
+        dot_color = _status_dot_color(active, active_color=tokens.accent_hex, fallback=str(tokens.fg_faint))
         painter.setFont(meta_font)
         painter.setPen(to_qcolor(dot_color, "#888888"))
         painter.drawText(row_layout.dot_rect, int(Qt.AlignmentFlag.AlignCenter), "●")
@@ -387,16 +389,8 @@ def _badge_palette(list_type: str) -> tuple[str, str]:
     return "#7d8792", "#111114"
 
 
-def _status_dot_color(active: bool, *, fallback: str = "#8f9aa6") -> str:
-    return PROFILE_STATUS_DOT_ACTIVE if active else str(fallback or "#8f9aa6")
-
-
-def _profile_row_background(tokens, *, hovered: bool, selected: bool) -> str:
-    if not bool(getattr(tokens, "is_light", False)):
-        if hovered or selected:
-            return PROFILE_ROW_BG_DARK_HOVER
-        return PROFILE_ROW_BG_DARK
-    return str(getattr(tokens, "surface_bg_hover", "") or "#f3f3f3")
+def _status_dot_color(active: bool, *, active_color: str = "#5caee8", fallback: str = "#8f9aa6") -> str:
+    return str(active_color or "#5caee8") if active else str(fallback or "#8f9aa6")
 
 
 def _profile_row_is_interactive(
@@ -416,19 +410,6 @@ def _profile_row_is_interactive(
         or int(pressed_row) == row
         or row in set(selected_rows or set())
     )
-
-
-def _paint_profile_row_background(
-    painter: QPainter,
-    rect: QRect,
-    tokens,
-    *,
-    hovered: bool,
-    selected: bool,
-) -> None:
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(to_qcolor(_profile_row_background(tokens, hovered=hovered, selected=selected), "#323232"))
-    painter.drawRoundedRect(rect, 6, 6)
 
 
 def _feedback_color(tokens, rating: str, favorite: bool) -> str:

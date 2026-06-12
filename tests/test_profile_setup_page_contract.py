@@ -964,24 +964,20 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(delegate._selected_rows, {4, 6})
 
     def test_profile_delegate_uses_one_soft_background_for_hover_press_and_selection(self) -> None:
-        from profile.ui.profile_list_delegate import _profile_row_background, _profile_row_is_interactive
-        from ui.widgets.profile_row_style import PROFILE_ROW_BG_DARK_HOVER
-
-        tokens = SimpleNamespace(is_light=False, surface_bg_hover="#383838")
+        from profile.ui.profile_list_delegate import _profile_row_is_interactive
 
         self.assertTrue(_profile_row_is_interactive(1, hovered=False, selected=False, hover_row=1, pressed_row=-1, selected_rows=set()))
         self.assertTrue(_profile_row_is_interactive(1, hovered=False, selected=False, hover_row=-1, pressed_row=1, selected_rows=set()))
         self.assertTrue(_profile_row_is_interactive(1, hovered=False, selected=False, hover_row=-1, pressed_row=-1, selected_rows={1}))
-        self.assertEqual(_profile_row_background(tokens, hovered=True, selected=False), PROFILE_ROW_BG_DARK_HOVER)
-        self.assertEqual(_profile_row_background(tokens, hovered=False, selected=True), PROFILE_ROW_BG_DARK_HOVER)
 
-    def test_profile_delegate_keeps_active_rows_visually_neutral(self) -> None:
+    def test_profile_delegate_uses_shared_accent_row_painter(self) -> None:
         from profile.ui.profile_list_delegate import ProfileListDelegate
 
         source = inspect.getsource(ProfileListDelegate._paint_profile_row)
 
-        self.assertIn("_paint_profile_row_background", source)
-        self.assertNotIn("paint_profile_hover_row", source)
+        self.assertIn("paint_profile_hover_row", source)
+        self.assertIn("profile_hover_row_rect", source)
+        self.assertNotIn("_paint_profile_row_background", source)
         self.assertIn('painter.drawText(row_layout.dot_rect', source)
 
     def test_profile_delegate_uses_soft_badge_colors(self) -> None:
@@ -991,12 +987,11 @@ class ProfileSetupPageContractTests(unittest.TestCase):
             PROFILE_BADGE_HOSTLIST_FG,
             PROFILE_BADGE_IPSET_BG,
             PROFILE_BADGE_IPSET_FG,
-            PROFILE_STATUS_DOT_ACTIVE,
         )
 
         self.assertEqual(_badge_palette("hostlist"), (PROFILE_BADGE_HOSTLIST_BG, PROFILE_BADGE_HOSTLIST_FG))
         self.assertEqual(_badge_palette("ipset"), (PROFILE_BADGE_IPSET_BG, PROFILE_BADGE_IPSET_FG))
-        self.assertEqual(_status_dot_color(True), PROFILE_STATUS_DOT_ACTIVE)
+        self.assertEqual(_status_dot_color(True, active_color="#00c2b5"), "#00c2b5")
 
         source = inspect.getsource(_badge_palette)
         self.assertNotIn("#00B900", source)
@@ -1011,16 +1006,13 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("_PROFILE_PIXMAP_CACHE", cache_source)
         self.assertIn("QPixmap(cached)", cache_source)
 
-    def test_profile_delegate_dark_rows_use_screenshot_background_colors(self) -> None:
-        from profile.ui.profile_list_delegate import _profile_row_background
-        from ui.widgets.profile_row_style import PROFILE_ROW_BG_DARK, PROFILE_ROW_BG_DARK_HOVER
+    def test_profile_delegate_no_longer_uses_fixed_dark_row_colors(self) -> None:
+        import profile.ui.profile_list_delegate as delegate_module
 
-        dark_tokens = SimpleNamespace(is_light=False, surface_bg_hover="#383838")
-        light_tokens = SimpleNamespace(is_light=True, surface_bg_hover="#eeeeee")
-
-        self.assertEqual(_profile_row_background(dark_tokens, hovered=False, selected=False), PROFILE_ROW_BG_DARK)
-        self.assertEqual(_profile_row_background(dark_tokens, hovered=True, selected=False), PROFILE_ROW_BG_DARK_HOVER)
-        self.assertEqual(_profile_row_background(light_tokens, hovered=False, selected=False), "#eeeeee")
+        self.assertFalse(hasattr(delegate_module, "_profile_row_background"))
+        source = inspect.getsource(delegate_module.ProfileListDelegate._paint_profile_row)
+        self.assertNotIn("PROFILE_ROW_BG_DARK", source)
+        self.assertNotIn("PROFILE_ROW_BG_DARK_HOVER", source)
 
     def test_profile_delegate_layout_keeps_row_parts_from_overlapping_on_narrow_width(self) -> None:
         from PyQt6.QtCore import QRect
@@ -5346,13 +5338,18 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertIn("show_text", help_event)
 
     def test_strategy_and_preset_lists_share_hover_row_painter(self) -> None:
+        from profile.ui.profile_list_delegate import ProfileListDelegate
+
         strategy_paint = inspect.getsource(ProfileStrategyListDelegate.paint)
         preset_paint = inspect.getsource(PresetListDelegate._paint_preset_row)
+        profile_paint = inspect.getsource(ProfileListDelegate._paint_profile_row)
 
         self.assertIn("paint_profile_hover_row", strategy_paint)
         self.assertIn("profile_hover_row_rect", strategy_paint)
         self.assertIn("paint_profile_hover_row", preset_paint)
         self.assertIn("profile_hover_row_rect", preset_paint)
+        self.assertIn("paint_profile_hover_row", profile_paint)
+        self.assertIn("profile_hover_row_rect", profile_paint)
 
     def test_strategy_list_uses_shared_fluent_scrollbar(self) -> None:
         init = inspect.getsource(ProfileStrategyListWidget.__init__)
