@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import RoundMenu
@@ -53,9 +53,15 @@ def show_preset_actions_menu(
     action_map: dict[object, str] = {}
     for key in action_order:
         action = _create_action(menu, key)
-        if key in disabled_action_keys and hasattr(action, "setEnabled"):
+        is_disabled = key in disabled_action_keys
+        if is_disabled and hasattr(action, "setEnabled"):
             action.setEnabled(False)
         menu.addAction(action)
+        _set_menu_item_accessibility(
+            menu,
+            text=labels[key],
+            disabled=is_disabled,
+        )
         action_map[action] = key
     chosen = exec_popup_menu(
         menu,
@@ -67,3 +73,20 @@ def show_preset_actions_menu(
     if chosen_key in disabled_action_keys:
         return None
     return chosen_key
+
+
+def _set_menu_item_accessibility(menu, *, text: str, disabled: bool) -> None:
+    menu_view = getattr(menu, "view", None)
+    if menu_view is None:
+        return
+    try:
+        item = menu_view.item(menu_view.count() - 1)
+    except Exception:
+        item = None
+    if item is None:
+        return
+    accessible_text = f"Действие preset: {str(text or '').strip()}"
+    if disabled:
+        accessible_text = f"{accessible_text}, недоступно"
+    item.setData(Qt.ItemDataRole.AccessibleTextRole, accessible_text)
+    item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, accessible_text)
