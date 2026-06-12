@@ -7,7 +7,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QVBoxLayout, QWidget
 
 
 def _profile_item(name: str, *, key: str = "profile-youtube"):
@@ -93,6 +94,60 @@ class ProfileListAccessibilityTests(unittest.TestCase):
 
         self.assertTrue(enter_event.isAccepted())
         self.assertEqual(opened, ["profile-b"])
+
+    def test_profile_search_enter_activates_current_profile(self) -> None:
+        from qfluentwidgets import SearchLineEdit
+
+        from profile.ui.shell import build_profile_shell, wire_profile_search_keyboard_activation
+        from profile.ui.profiles_list import ProfilesList
+
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        parent.resize(900, 600)
+        layout = QVBoxLayout(parent)
+        opened: list[str] = []
+        shell = build_profile_shell(
+            content_parent=parent,
+            content_layout=layout,
+            add_section_title=lambda *_args, **_kwargs: None,
+            tr_fn=lambda _key, default, **_kwargs: default,
+            engine_label="Zapret 2",
+            toolbar_title_key="page.profile.toolbar.title",
+            request_button_key="page.profile.request",
+            request_hint_key="page.profile.request.hint",
+            loading_key="page.profile.loading",
+            on_open_profile_request_form=lambda: None,
+            on_add_user_profile=lambda: None,
+            on_expand_all=lambda: None,
+            on_collapse_all=lambda: None,
+            on_open_profile_order=lambda: None,
+            on_show_info_popup=lambda: None,
+            on_profile_search_text_changed=lambda _text: None,
+        )
+        profiles_list = ProfilesList(parent)
+        shell.content_host_layout.addWidget(profiles_list)
+        profiles_list._model._rows = [
+            {
+                "kind": "profile",
+                "key": "profile-youtube",
+                "display_name": "YouTube",
+            }
+        ]
+        profiles_list._view.setCurrentIndex(profiles_list._model.index(0, 0))
+        profiles_list.profile_selected.connect(opened.append)
+        wire_profile_search_keyboard_activation(shell.profile_search_input, profiles_list)
+        parent.show()
+        self._app.processEvents()
+        shell.profile_search_input.setFocus()
+        self._app.processEvents()
+
+        self.assertIsInstance(shell.profile_search_input, SearchLineEdit)
+
+        QTest.keyClick(shell.profile_search_input, Qt.Key.Key_Return)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), profiles_list._view)
+        self.assertEqual(opened, ["profile-youtube"])
 
     def test_profile_list_focuses_first_loaded_row_for_screen_reader(self) -> None:
         from profile.list_view_state import build_profile_list_view_state

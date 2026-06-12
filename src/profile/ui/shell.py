@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MethodType
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
 from profile.ui.shell_accessibility import apply_profile_shell_accessibility
@@ -24,6 +26,27 @@ class ProfileShellWidgets:
     profile_search_input: object
     content_host: object
     content_host_layout: object
+
+
+def wire_profile_search_keyboard_activation(profile_search_input, profiles_list) -> None:
+    """Enter в поиске profile открывает текущий элемент списка."""
+
+    if profile_search_input is None or profiles_list is None:
+        return
+    if bool(getattr(profile_search_input, "_profile_search_keyboard_activation", False)):
+        return
+    original_key_press = getattr(profile_search_input, "keyPressEvent", None)
+
+    def _search_key_press(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            profiles_list.setFocus(Qt.FocusReason.OtherFocusReason)
+            profiles_list.keyPressEvent(event)
+            return
+        if callable(original_key_press):
+            original_key_press(event)
+
+    profile_search_input.keyPressEvent = MethodType(_search_key_press, profile_search_input)
+    profile_search_input._profile_search_keyboard_activation = True
 
 
 def build_profile_shell(

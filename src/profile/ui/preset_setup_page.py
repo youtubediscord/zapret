@@ -10,7 +10,7 @@ from profile.list_apply_signature import profile_payload_apply_signature
 from profile.ui.profile_context_menu import ProfileContextMenuActions, show_profile_context_menu
 from profile.ui.profile_folder_menu import show_profile_folder_menu
 from profile.ui.profiles_list import ProfilesList
-from profile.ui.shell import build_profile_shell
+from profile.ui.shell import build_profile_shell, wire_profile_search_keyboard_activation
 from profile.ui.user_profile_dialog import CreateUserProfileDialog
 from qfluentwidgets import BodyLabel, InfoBar, MessageBox
 from settings.mode import ZAPRET1_MODE, ZAPRET2_MODE
@@ -556,6 +556,7 @@ class PresetSetupPageBase(BasePage):
         profiles_list.folder_context_requested.connect(self._on_folder_context_requested)
         profiles_list.folder_toggled.connect(self._on_folder_toggled)
         profiles_list.folders_toggled.connect(self._on_folders_toggled)
+        wire_profile_search_keyboard_activation(self._profile_search_input, profiles_list)
         self._log_ui_timing("profile_ui.profile_list.create", create_started_at)
 
         started_at = time.perf_counter()
