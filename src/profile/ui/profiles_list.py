@@ -180,6 +180,8 @@ class ProfilesList(QWidget):
         except Exception:
             pass
         self._model.apply_view_state(view_state)
+        if not self._view.currentIndex().isValid() and self._model.rowCount() > 0:
+            self._view.setCurrentIndex(self._model.index(0, 0))
         self._view_state_items = None
 
     def view_state_options(self) -> dict[str, Any]:
