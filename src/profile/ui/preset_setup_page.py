@@ -433,6 +433,16 @@ class PresetSetupPageBase(BasePage):
             or self.__dict__.get("_profile_payload_request_scheduled", False)
         ):
             return
+        is_page_hidden = False
+        is_visible = getattr(self, "isVisible", None)
+        if callable(is_visible):
+            try:
+                is_page_hidden = not bool(is_visible())
+            except RuntimeError:
+                is_page_hidden = False
+        if is_page_hidden:
+            self._profile_payload_dirty = True
+            return
         payload, view_state, apply_signature_base = pending
         self._apply_payload(payload, view_state=view_state, apply_signature_base=apply_signature_base)
         self._schedule_profiles_list_show_after_page_switch()
