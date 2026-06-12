@@ -99,7 +99,8 @@ class ListAccessibilityModelTests(unittest.TestCase):
 
         self.assertEqual(
             text,
-            "Default, активный пресет, встроенный, папка: Общие, закреплённый, оценка 9. Нажмите Enter, чтобы открыть preset.",
+            "Default, активный пресет, встроенный, папка: Общие, закреплённый, оценка 9. "
+            "Нажмите Enter или Пробел, чтобы открыть preset.",
         )
 
     def test_preset_folder_rows_expose_screen_reader_text(self) -> None:
@@ -121,7 +122,7 @@ class ListAccessibilityModelTests(unittest.TestCase):
 
         self.assertEqual(
             text,
-            "Папка Общие, 5 пресетов, развернута. Нажмите Enter, чтобы свернуть или развернуть папку.",
+            "Папка Общие, 5 пресетов, развернута. Нажмите Enter или Пробел, чтобы свернуть или развернуть папку.",
         )
 
 

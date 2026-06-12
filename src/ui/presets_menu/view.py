@@ -232,20 +232,10 @@ class LinkedWheelListView(ListView):
                     self.preset_move_requested.emit(name, direction)
                     event.accept()
                     return
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            index = self.currentIndex()
-            if index.isValid() and str(index.data(PresetListModel.KindRole) or "") == "preset":
-                name = str(index.data(PresetListModel.FileNameRole) or "")
-                if name:
-                    self.preset_activated.emit(name)
-                    event.accept()
-                    return
-            if index.isValid() and str(index.data(PresetListModel.KindRole) or "") == "folder":
-                folder_key = str(index.data(PresetListModel.FolderKeyRole) or "")
-                if folder_key:
-                    self.folder_toggle_requested.emit(folder_key)
-                    event.accept()
-                    return
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            if self._activate_current_index_from_keyboard():
+                event.accept()
+                return
         if event.key() == Qt.Key.Key_Menu or (
             event.key() == Qt.Key.Key_F10 and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
@@ -253,6 +243,25 @@ class LinkedWheelListView(ListView):
                 event.accept()
                 return
         super().keyPressEvent(event)
+
+    def _activate_current_index_from_keyboard(self) -> bool:
+        index = self.currentIndex()
+        if not index.isValid():
+            return False
+        kind = str(index.data(PresetListModel.KindRole) or "")
+        if kind == "preset":
+            name = str(index.data(PresetListModel.FileNameRole) or "")
+            if not name:
+                return False
+            self.preset_activated.emit(name)
+            return True
+        if kind == "folder":
+            folder_key = str(index.data(PresetListModel.FolderKeyRole) or "")
+            if not folder_key:
+                return False
+            self.folder_toggle_requested.emit(folder_key)
+            return True
+        return False
 
     def _emit_context_requested_for_current_index(self) -> bool:
         index = self.currentIndex()

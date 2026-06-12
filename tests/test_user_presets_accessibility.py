@@ -202,6 +202,62 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertTrue(event.isAccepted())
         self.assertEqual(requested, ["games"])
 
+    def test_preset_list_activates_selected_preset_with_space(self) -> None:
+        from ui.presets_menu.model import PresetListModel
+        from ui.presets_menu.view import LinkedWheelListView
+
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {
+                    "kind": "preset",
+                    "name": "Default",
+                    "file_name": "Default.txt",
+                }
+            ]
+        )
+        view = LinkedWheelListView()
+        self.addCleanup(view.deleteLater)
+        view.setModel(model)
+        view.setCurrentIndex(model.index(0, 0))
+        requested: list[str] = []
+        view.preset_activated.connect(requested.append)
+
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, int(Qt.Key.Key_Space), Qt.KeyboardModifier.NoModifier)
+        view.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(requested, ["Default.txt"])
+
+    def test_preset_list_toggles_selected_folder_with_space(self) -> None:
+        from ui.presets_menu.model import PresetListModel
+        from ui.presets_menu.view import LinkedWheelListView
+
+        model = PresetListModel()
+        model.set_rows(
+            [
+                {
+                    "kind": "folder",
+                    "name": "Игры",
+                    "folder_key": "games",
+                    "count": 2,
+                    "is_collapsed": True,
+                }
+            ]
+        )
+        view = LinkedWheelListView()
+        self.addCleanup(view.deleteLater)
+        view.setModel(model)
+        view.setCurrentIndex(model.index(0, 0))
+        requested: list[str] = []
+        view.folder_toggle_requested.connect(requested.append)
+
+        event = QKeyEvent(QKeyEvent.Type.KeyPress, int(Qt.Key.Key_Space), Qt.KeyboardModifier.NoModifier)
+        view.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(requested, ["games"])
+
     def test_preset_list_updates_screen_reader_text_when_current_row_changes(self) -> None:
         from ui.presets_menu.model import PresetListModel
         from ui.presets_menu.view import LinkedWheelListView
@@ -238,7 +294,7 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             view.property("screenReaderStateText"),
             "Список пользовательских пресетов: Default, активный пресет, встроенный, "
-            "папка: Общие, закреплённый, оценка 9. Нажмите Enter, чтобы открыть preset.",
+            "папка: Общие, закреплённый, оценка 9. Нажмите Enter или Пробел, чтобы открыть preset.",
         )
 
         view.setCurrentIndex(model.index(1, 0))
@@ -246,7 +302,7 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             view.property("screenReaderStateText"),
             "Список пользовательских пресетов: Папка Игры, 2 пресета, свернута. "
-            "Нажмите Enter, чтобы свернуть или развернуть папку.",
+            "Нажмите Enter или Пробел, чтобы свернуть или развернуть папку.",
         )
 
     def test_preset_page_wires_keyboard_folder_toggle_to_action_handler(self) -> None:

@@ -708,7 +708,7 @@ def _preset_accessible_text(row: dict[str, object]) -> str:
         if rating:
             parts.append(f"оценка {rating}")
         text = ", ".join(part for part in parts if part)
-        return f"{text}. Нажмите Enter, чтобы открыть preset." if text else ""
+        return f"{text}. Нажмите Enter или Пробел, чтобы открыть preset." if text else ""
 
     if kind == "folder":
         name = str(row.get("name") or row.get("text") or "").strip()
@@ -716,7 +716,7 @@ def _preset_accessible_text(row: dict[str, object]) -> str:
         expanded_text = "свернута" if bool(row.get("is_collapsed", False)) else "развернута"
         return (
             f"Папка {name}, {_preset_count_text(count)}, {expanded_text}. "
-            "Нажмите Enter, чтобы свернуть или развернуть папку."
+            "Нажмите Enter или Пробел, чтобы свернуть или развернуть папку."
         )
 
     return str(row.get("text") or row.get("name") or "").strip()
