@@ -5,6 +5,8 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import PushButton
 
@@ -33,6 +35,22 @@ class DomainChipAccessibilityTests(unittest.TestCase):
         chip.removed.connect(removed.append)
 
         buttons[0].click()
+
+        self.assertEqual(removed, ["youtube.com"])
+
+    def test_domain_chip_remove_button_accepts_enter_key(self) -> None:
+        chip = DomainChip("youtube.com")
+        self.addCleanup(chip.deleteLater)
+        chip.show()
+        self._app.processEvents()
+        button = chip.findChildren(PushButton)[0]
+        removed: list[str] = []
+        chip.removed.connect(removed.append)
+
+        button.setFocus()
+        self._app.processEvents()
+        QTest.keyClick(button, Qt.Key.Key_Return)
+        self._app.processEvents()
 
         self.assertEqual(removed, ["youtube.com"])
 
