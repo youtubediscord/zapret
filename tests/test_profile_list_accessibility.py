@@ -149,6 +149,59 @@ class ProfileListAccessibilityTests(unittest.TestCase):
         self.assertIs(self._app.focusWidget(), profiles_list._view)
         self.assertEqual(opened, ["profile-youtube"])
 
+    def test_profile_search_arrow_down_moves_focus_to_profile_list(self) -> None:
+        from profile.ui.shell import build_profile_shell, wire_profile_search_keyboard_activation
+        from profile.ui.profiles_list import ProfilesList
+
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        parent.resize(900, 600)
+        layout = QVBoxLayout(parent)
+        shell = build_profile_shell(
+            content_parent=parent,
+            content_layout=layout,
+            add_section_title=lambda *_args, **_kwargs: None,
+            tr_fn=lambda _key, default, **_kwargs: default,
+            engine_label="Zapret 2",
+            toolbar_title_key="page.profile.toolbar.title",
+            request_button_key="page.profile.request",
+            request_hint_key="page.profile.request.hint",
+            loading_key="page.profile.loading",
+            on_open_profile_request_form=lambda: None,
+            on_add_user_profile=lambda: None,
+            on_expand_all=lambda: None,
+            on_collapse_all=lambda: None,
+            on_open_profile_order=lambda: None,
+            on_show_info_popup=lambda: None,
+            on_profile_search_text_changed=lambda _text: None,
+        )
+        profiles_list = ProfilesList(parent)
+        shell.content_host_layout.addWidget(profiles_list)
+        profiles_list._model._rows = [
+            {
+                "kind": "profile",
+                "key": "profile-a",
+                "display_name": "A",
+            },
+            {
+                "kind": "profile",
+                "key": "profile-b",
+                "display_name": "B",
+            },
+        ]
+        profiles_list._view.setCurrentIndex(profiles_list._model.index(0, 0))
+        wire_profile_search_keyboard_activation(shell.profile_search_input, profiles_list)
+        parent.show()
+        self._app.processEvents()
+        shell.profile_search_input.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(shell.profile_search_input, Qt.Key.Key_Down)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), profiles_list._view)
+        self.assertEqual(profiles_list._view.currentIndex().row(), 1)
+
     def test_profile_list_focuses_first_loaded_row_for_screen_reader(self) -> None:
         from profile.list_view_state import build_profile_list_view_state
         from profile.ui.profiles_list import ProfilesList

@@ -26,6 +26,10 @@ class StrategyListAccessibilityTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication([])
 
+    def tearDown(self) -> None:
+        self._app.closeAllWindows()
+        self._app.processEvents()
+
     def test_strategy_list_is_keyboard_focusable_and_named(self) -> None:
         source = inspect.getsource(ProfileStrategyListWidget.__init__)
 
@@ -99,6 +103,29 @@ class StrategyListAccessibilityTests(unittest.TestCase):
 
         self.assertIs(self._app.focusWidget(), widget._list)
         self.assertEqual(activated, ["beta"])
+
+    def test_arrow_down_from_strategy_search_moves_focus_to_strategy_list(self) -> None:
+        widget = _make_sync_strategy_list()
+        self.addCleanup(widget.deleteLater)
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="alpha",
+        )
+        widget.show()
+        self._app.processEvents()
+        widget._search.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(widget._search, Qt.Key.Key_Down)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), widget._list)
+        self.assertEqual(widget._list.currentItem().data(ProfileStrategyListWidget._ROLE_NAME_TEXT), "Beta")
+        self.assertIn("Готовая стратегия: Beta", widget._list.property("screenReaderStateText"))
 
     def test_strategy_list_explains_enter_or_space_activation(self) -> None:
         widget = ProfileStrategyListWidget()

@@ -38,7 +38,16 @@ def wire_profile_search_keyboard_activation(profile_search_input, profiles_list)
     original_key_press = getattr(profile_search_input, "keyPressEvent", None)
 
     def _search_key_press(self, event):
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+        if event.key() in (
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Down,
+            Qt.Key.Key_Up,
+            Qt.Key.Key_Home,
+            Qt.Key.Key_End,
+            Qt.Key.Key_PageDown,
+            Qt.Key.Key_PageUp,
+        ):
             profiles_list.setFocus(Qt.FocusReason.OtherFocusReason)
             profiles_list.keyPressEvent(event)
             return

@@ -410,6 +410,14 @@ class ProfileStrategyListView(QListWidget):
     """Список стратегий, который выбирается клавиатурой так же, как DNS."""
 
     def keyPressEvent(self, event):  # noqa: N802
+        navigation_keys = (
+            Qt.Key.Key_Down,
+            Qt.Key.Key_Up,
+            Qt.Key.Key_Home,
+            Qt.Key.Key_End,
+            Qt.Key.Key_PageDown,
+            Qt.Key.Key_PageUp,
+        )
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
             item = self.currentItem()
             if item is None:
@@ -421,6 +429,8 @@ class ProfileStrategyListView(QListWidget):
                 event.accept()
                 return
         super().keyPressEvent(event)
+        if event.key() in navigation_keys:
+            self.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def focusInEvent(self, event):  # noqa: N802
         super().focusInEvent(event)
