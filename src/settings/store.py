@@ -921,7 +921,7 @@ def set_tg_proxy_mode(value: str) -> bool:
 
 
 def get_tg_proxy_upstream_enabled() -> bool:
-    return _get_bool(("telegram_proxy", "upstream_enabled"), False)
+    return _get_bool(("telegram_proxy", "upstream_enabled"), True)
 
 
 def set_tg_proxy_upstream_enabled(value: bool) -> bool:

@@ -2,6 +2,40 @@ import unittest
 
 
 class TelegramProxyUpstreamCatalogTest(unittest.TestCase):
+    def test_default_settings_enable_bundled_socks_without_credentials_in_json(self) -> None:
+        from settings.normalize import normalize_telegram_proxy
+        from settings.schema import default_telegram_proxy
+        from telegram_proxy.config.settings import _settings_state_from_data, default_state
+        from telegram_proxy.config.upstream_catalog import UpstreamCatalog
+
+        catalog = UpstreamCatalog(
+            build_presets=[
+                {
+                    "id": "bundled",
+                    "name": "Готовый прокси",
+                    "type": "socks5",
+                    "host": "203.0.113.10",
+                    "port": 443,
+                    "username": "preset_user",
+                    "password": "preset_password",
+                    "tls": True,
+                }
+            ]
+        )
+
+        schema_defaults = default_telegram_proxy()
+        normalized = normalize_telegram_proxy({})
+        state = _settings_state_from_data({"telegram_proxy": {}}, catalog)
+
+        self.assertTrue(schema_defaults["upstream_enabled"])
+        self.assertTrue(normalized["upstream_enabled"])
+        self.assertTrue(default_state().upstream_enabled)
+        self.assertTrue(state.upstream_enabled)
+        self.assertEqual(schema_defaults["upstream_preset_id"], "")
+        self.assertEqual(schema_defaults["upstream_host"], "")
+        self.assertEqual(schema_defaults["upstream_user"], "")
+        self.assertEqual(schema_defaults["upstream_pass"], "")
+
     def test_bundled_socks_proxy_is_first_choice(self) -> None:
         from telegram_proxy.config.upstream_catalog import MANUAL_PRESET_ID, UpstreamCatalog
 

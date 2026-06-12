@@ -114,7 +114,7 @@ def default_telegram_proxy() -> dict[str, Any]:
         "host": DEFAULT_TG_PROXY_HOST,
         "port": DEFAULT_TG_PROXY_PORT,
         "mode": "socks5",
-        "upstream_enabled": False,
+        "upstream_enabled": True,
         "upstream_host": "",
         "upstream_port": DEFAULT_TG_PROXY_UPSTREAM_PORT,
         "upstream_preset_id": "",
