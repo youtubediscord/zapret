@@ -34,6 +34,19 @@ class CustomDnsDialog(MessageBoxBase):
         self.serversList.setMinimumHeight(140)
         self.serversList.currentItemChanged.connect(self._on_current_item_changed)
         self.serversList.installEventFilter(self)
+        self.serversList.setStyleSheet(
+            """
+            QListWidget {
+                background: transparent;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item {
+                background: transparent;
+                border: none;
+            }
+            """
+        )
 
         self.nameEdit = LineEdit(self.widget)
         self.nameEdit.setPlaceholderText("Название, например Мой DNS")
@@ -155,6 +168,7 @@ class CustomDnsDialog(MessageBoxBase):
         self.serversList.blockSignals(False)
         if selected_row >= 0:
             self.serversList.setCurrentRow(selected_row)
+        self._sync_servers_list_visibility()
         self._update_servers_list_accessibility(self.serversList.currentItem())
         self._sync_buttons()
 
@@ -185,6 +199,9 @@ class CustomDnsDialog(MessageBoxBase):
 
     def _sync_buttons(self) -> None:
         self.deleteButton.setEnabled(bool(self._selected_id))
+
+    def _sync_servers_list_visibility(self) -> None:
+        self.serversList.setVisible(self.serversList.count() > 0)
 
     def _install_accessibility(self) -> None:
         set_control_accessibility(

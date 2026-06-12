@@ -5,8 +5,9 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtGui import QFocusEvent, QKeyEvent
+from PyQt6.QtCore import QEvent, QRect, Qt
+from PyQt6.QtGui import QFocusEvent, QKeyEvent, QPainter, QPixmap
+from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 from PyQt6.QtWidgets import QApplication
 
 from dns.ui.adapters import build_adapter_cards, refresh_adapter_cards
@@ -112,6 +113,40 @@ class AdapterChoiceListTests(unittest.TestCase):
             "Список сетевых адаптеров: Сетевой адаптер Ethernet, не выбран, DNS v4 8.8.8.8. "
             "Нажмите Enter или Пробел, чтобы включить или исключить этот адаптер.",
         )
+
+    def test_adapter_checked_row_does_not_paint_active_background(self) -> None:
+        import dns.ui.adapter_list as adapter_list
+        from dns.ui.adapter_list import CHECKED_ROLE, AdapterChoiceListDelegate, AdapterChoiceListWidget
+
+        view = AdapterChoiceListWidget()
+        cards = build_adapter_cards(
+            adapters=[("Ethernet", "Intel")],
+            dns_info={"Ethernet": {"ipv4": ["8.8.8.8"], "ipv6": []}},
+            adapters_layout=view,
+            normalize_alias_fn=lambda value: value,
+            on_state_changed=lambda _state: None,
+        )
+        cards[0].item.setData(CHECKED_ROLE, True)
+        index = view.model().index(0, 0)
+        option = QStyleOptionViewItem()
+        option.rect = QRect(0, 0, 360, 38)
+        option.state = QStyle.StateFlag.State_Enabled
+        painted_states: list[dict] = []
+        original_paint = adapter_list.paint_profile_hover_row
+
+        def capture_paint(_painter, _rect, *, active=False, hovered=False, selected=False):
+            painted_states.append({"active": active, "hovered": hovered, "selected": selected})
+
+        adapter_list.paint_profile_hover_row = capture_paint
+        try:
+            pixmap = QPixmap(360, 38)
+            painter = QPainter(pixmap)
+            AdapterChoiceListDelegate(view).paint(painter, option, index)
+            painter.end()
+        finally:
+            adapter_list.paint_profile_hover_row = original_paint
+
+        self.assertEqual(painted_states, [{"active": False, "hovered": False, "selected": False}])
 
     def test_adapter_card_widget_is_removed_from_dns_cards_module(self) -> None:
         import dns.ui.cards as cards_module

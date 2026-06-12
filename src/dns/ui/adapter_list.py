@@ -247,7 +247,7 @@ class AdapterChoiceListDelegate(QStyledItemDelegate):
         paint_profile_hover_row(
             painter,
             rect,
-            active=checked,
+            active=False,
             hovered=hovered,
             selected=selected,
         )
