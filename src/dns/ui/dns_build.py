@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from qfluentwidgets import FluentIcon
 from PyQt6.QtCore import Qt
 
+from dns.ui.selection import (
+    ACCESSIBLE_BASE_PROPERTY,
+    ACCESSIBLE_DESCRIPTION_PROPERTY,
+    sync_selectable_dns_card_accessibility,
+)
 from ui.accessibility import set_control_accessibility, set_state_text
 from ui.theme import get_cached_qta_pixmap
 
@@ -27,6 +32,32 @@ class CustomDnsWidgets:
     primary_input: object
     secondary_input: object
     apply_button: object
+
+
+def _trigger_auto_dns_selection(on_select) -> None:
+    try:
+        on_select(None)
+    except TypeError:
+        on_select()
+
+
+def _make_auto_dns_key_press_handler(on_select, fallback_key_press_event):
+    def _on_key_press(event) -> None:
+        try:
+            key = event.key()
+        except Exception:
+            key = None
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            _trigger_auto_dns_selection(on_select)
+            try:
+                event.accept()
+            except Exception:
+                pass
+            return
+        if callable(fallback_key_press_event):
+            fallback_key_press_event(event)
+
+    return _on_key_press
 
 
 def build_custom_dns_ui(
@@ -133,6 +164,7 @@ def build_auto_dns_ui(
     auto_card = settings_card_cls()
     auto_card.setObjectName("dnsCard")
     auto_card.setCursor(Qt.CursorShape.PointingHandCursor)
+    auto_card.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     auto_card.setProperty("selected", False)
     auto_layout = qhbox_layout_cls()
     auto_layout.setContentsMargins(10, 6, 12, 6)
@@ -153,6 +185,20 @@ def build_auto_dns_ui(
     auto_layout.addStretch()
     auto_card.add_layout(auto_layout)
     auto_card.mousePressEvent = on_select
+    auto_accessible_name = tr_fn("page.network.dns.auto.accessible_name", "DNS автоматически (DHCP)")
+    auto_card.setProperty(ACCESSIBLE_BASE_PROPERTY, auto_accessible_name)
+    auto_card.setProperty(
+        ACCESSIBLE_DESCRIPTION_PROPERTY,
+        tr_fn(
+            "page.network.dns.auto.accessible_description",
+            "Нажмите Enter или пробел, чтобы вернуть получение DNS через DHCP.",
+        ),
+    )
+    sync_selectable_dns_card_accessibility(auto_card)
+    auto_card.keyPressEvent = _make_auto_dns_key_press_handler(
+        on_select,
+        getattr(auto_card, "keyPressEvent", None),
+    )
 
     return AutoDnsWidgets(
         card=auto_card,

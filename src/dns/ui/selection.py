@@ -2,6 +2,35 @@
 
 from __future__ import annotations
 
+from ui.accessibility import set_control_accessibility, set_state_text
+
+
+ACCESSIBLE_BASE_PROPERTY = "_dnsSelectableAccessibleBaseName"
+ACCESSIBLE_DESCRIPTION_PROPERTY = "_dnsSelectableAccessibleDescription"
+
+
+def sync_selectable_dns_card_accessibility(card) -> None:
+    if card is None:
+        return
+    try:
+        base_name = str(card.property(ACCESSIBLE_BASE_PROPERTY) or "").strip()
+    except Exception:
+        base_name = ""
+    if not base_name:
+        return
+    try:
+        selected = bool(card.property("selected"))
+    except Exception:
+        selected = False
+    state = "выбран" if selected else "не выбран"
+    text = f"{base_name}, {state}"
+    try:
+        description = str(card.property(ACCESSIBLE_DESCRIPTION_PROPERTY) or "").strip()
+    except Exception:
+        description = ""
+    set_state_text(card, text)
+    set_control_accessibility(card, name=text, description=description or None)
+
 
 def set_dns_card_selected(card, selected: bool) -> None:
     if card is None:
@@ -15,6 +44,7 @@ def set_dns_card_selected(card, selected: bool) -> None:
         card.update()
     except Exception:
         pass
+    sync_selectable_dns_card_accessibility(card)
 
 
 def clear_dns_selection(

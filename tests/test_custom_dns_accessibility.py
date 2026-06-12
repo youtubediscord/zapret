@@ -5,10 +5,13 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, LineEdit, PushButton
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QKeyEvent
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QWidget
+from qfluentwidgets import BodyLabel, LineEdit, PushButton, StrongBodyLabel
 
-from dns.ui.dns_build import build_custom_dns_ui
+from dns.ui.dns_build import build_auto_dns_ui, build_custom_dns_ui
+from dns.ui.selection import set_dns_card_selected
 
 
 class CustomDnsAccessibilityTests(unittest.TestCase):
@@ -39,6 +42,43 @@ class CustomDnsAccessibilityTests(unittest.TestCase):
             "Применить свой DNS",
         )
         self.assertIn("указанные DNS серверы", widgets.apply_button.accessibleDescription())
+
+    def test_auto_dns_card_has_keyboard_selection_and_screen_reader_state(self) -> None:
+        selected: list[str] = []
+
+        widgets = build_auto_dns_ui(
+            tr_fn=lambda _key, default: default,
+            settings_card_cls=_Card,
+            qhbox_layout_cls=QHBoxLayout,
+            qframe_cls=QFrame,
+            strong_body_label_cls=StrongBodyLabel,
+            qlabel_cls=QLabel,
+            qta_module=None,
+            icon_color="#777777",
+            indicator_off_qss="",
+            on_select=lambda _event=None: selected.append("auto"),
+        )
+
+        self.assertEqual(widgets.card.focusPolicy(), Qt.FocusPolicy.StrongFocus)
+        self.assertEqual(widgets.card.accessibleName(), "DNS автоматически (DHCP), не выбран")
+        self.assertEqual(
+            widgets.card.property("screenReaderStateText"),
+            "DNS автоматически (DHCP), не выбран",
+        )
+        self.assertIn("Enter или пробел", widgets.card.accessibleDescription())
+
+        event = QKeyEvent(QEvent.Type.KeyPress, int(Qt.Key.Key_Space), Qt.KeyboardModifier.NoModifier)
+        widgets.card.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(selected, ["auto"])
+
+        set_dns_card_selected(widgets.card, True)
+
+        self.assertEqual(
+            widgets.card.property("screenReaderStateText"),
+            "DNS автоматически (DHCP), выбран",
+        )
 
 
 class _Card(QWidget):
