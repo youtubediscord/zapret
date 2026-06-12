@@ -86,12 +86,22 @@ class DNSCheckPage(BasePage):
         self.quick_check_button.setEnabled(quick_enabled)
         self.save_button.setEnabled(save_enabled)
         self.progress_bar.setVisible(progress_visible)
+        self._update_action_button_state_text()
         progress_state = "выполняется" if progress_visible else "не выполняется"
         set_state_text(self.progress_bar, f"Ход проверки DNS: {progress_state}")
         if progress_visible:
             self.progress_bar.start()
         else:
             self.progress_bar.stop()
+
+    def _set_action_button_state_text(self, button, base_name: str) -> None:
+        state = "доступно" if bool(button.isEnabled()) else "недоступно"
+        set_state_text(button, f"{base_name}, {state}")
+
+    def _update_action_button_state_text(self) -> None:
+        self._set_action_button_state_text(self.check_button, "Начать полную проверку DNS")
+        self._set_action_button_state_text(self.quick_check_button, "Начать быструю проверку DNS")
+        self._set_action_button_state_text(self.save_button, "Сохранить результаты проверки DNS")
     
     def _build_ui(self):
         """Создаёт интерфейс страницы."""
@@ -206,6 +216,7 @@ class DNSCheckPage(BasePage):
             description=save_description,
         )
         self.save_button.setEnabled(False)
+        self._update_action_button_state_text()
         self.save_button.clicked.connect(self.save_results)
         self._actions_bar.add_button(self.save_button)
 
@@ -806,4 +817,5 @@ class DNSCheckPage(BasePage):
             name="Сохранить результаты проверки DNS",
             description=save_description,
         )
+        self._update_action_button_state_text()
         self._set_status(self.status_label.text(), tone=self._status_tone, bold=self._status_bold)
