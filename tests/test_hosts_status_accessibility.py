@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 from hosts.ui.page import HostsPage
@@ -185,6 +187,24 @@ class HostsStatusAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(widgets.switch.accessibleName(), "Блокировка Adobe, включено")
         self.assertEqual(widgets.switch.property("screenReaderStateText"), "Блокировка Adobe, включено")
+
+    def test_adobe_switch_works_from_keyboard(self) -> None:
+        events: list[bool] = []
+        widgets = build_hosts_adobe_section(
+            tr_fn=lambda _key, default, **_kwargs: default,
+            adobe_active=False,
+            on_toggle_adobe=events.append,
+            switch_button_cls=SwitchButton,
+        )
+
+        self.assertEqual(widgets.switch.focusPolicy(), Qt.FocusPolicy.StrongFocus)
+
+        event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(widgets.switch, event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(events, [True])
+        self.assertEqual(widgets.switch.accessibleName(), "Блокировка Adobe, включено")
 
     def test_clear_hosts_confirmation_buttons_are_named_for_screen_reader(self) -> None:
         page = HostsPage.__new__(HostsPage)

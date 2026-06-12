@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel, QHBoxLayout
 
-from ui.accessibility import set_control_accessibility, set_state_text
+from ui.accessibility import enable_keyboard_toggle, set_control_accessibility, set_state_text
 from ui.fluent_widgets import SettingsCard, SemanticNotice
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens
 from ui.theme_semantic import get_semantic_palette
@@ -206,6 +206,7 @@ def build_hosts_adobe_section(
     adobe_layout.addWidget(adobe_title_label, 1)
 
     adobe_switch = switch_button_cls()
+    enable_keyboard_toggle(adobe_switch)
     adobe_switch.setChecked(adobe_active)
     _update_adobe_switch_accessibility(
         adobe_switch,

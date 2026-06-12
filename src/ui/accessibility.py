@@ -191,8 +191,49 @@ def enable_keyboard_click(widget) -> None:
         pass
 
 
+def enable_keyboard_toggle(widget) -> None:
+    """Делает переключатель доступным через Tab, Enter и Пробел."""
+
+    if widget is None:
+        return
+    try:
+        widget.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    except Exception:
+        return
+    try:
+        if widget.property("_keyboardToggleEnabled"):
+            return
+        widget.setProperty("_keyboardToggleEnabled", True)
+    except Exception:
+        pass
+
+    original_key_press = getattr(widget, "keyPressEvent", None)
+
+    def _keyboard_toggle_key_press(self, event):  # noqa: ANN001
+        try:
+            key = event.key()
+        except Exception:
+            key = None
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            try:
+                self.setChecked(not bool(self.isChecked()))
+                event.accept()
+                return
+            except Exception:
+                pass
+        if original_key_press is not None:
+            return original_key_press(event)
+        return None
+
+    try:
+        widget.keyPressEvent = MethodType(_keyboard_toggle_key_press, widget)
+    except Exception:
+        pass
+
+
 __all__ = [
     "enable_keyboard_click",
+    "enable_keyboard_toggle",
     "remove_line_edit_buttons_from_tab_order",
     "set_breadcrumb_accessibility",
     "set_accessible_description",
