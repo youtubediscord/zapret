@@ -5,7 +5,8 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QApplication
 from qfluentwidgets import BodyLabel, ComboBox, PushButton, StrongBodyLabel, SwitchButton
 
@@ -48,6 +49,37 @@ class HostsServicesAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(widgets.control.accessibleName(), "Adobe, включено")
         self.assertEqual(widgets.control.property("screenReaderStateText"), "Adobe, включено")
+
+    def test_direct_toggle_works_from_keyboard(self) -> None:
+        events: list[tuple[str, bool]] = []
+        widgets = build_hosts_service_row(
+            HostsServiceRowPlan(
+                service_name="Adobe",
+                icon_name="",
+                icon_color=None,
+                direct_only=True,
+                available_profiles=[],
+                profile_items=[],
+                selected_profile=None,
+                toggle_enabled=True,
+                toggle_checked=False,
+            ),
+            body_label_cls=BodyLabel,
+            combo_cls=ComboBox,
+            toggle_cls=SwitchButton,
+            off_label="Отключено",
+            on_direct_toggle=lambda service, checked: events.append((service, checked)),
+            on_profile_changed=lambda *_args: None,
+        )
+
+        self.assertEqual(widgets.control.focusPolicy(), Qt.FocusPolicy.StrongFocus)
+
+        event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Space, Qt.KeyboardModifier.NoModifier)
+        QApplication.sendEvent(widgets.control, event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(events, [("Adobe", True)])
+        self.assertEqual(widgets.control.accessibleName(), "Adobe, включено")
 
     def test_profile_combo_reads_selected_profile(self) -> None:
         widgets = build_hosts_service_row(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MethodType
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
@@ -34,6 +35,24 @@ class HostsServicesRowWidgets:
     icon_label: QLabel
     name_label: object
     control: object
+
+
+def _enable_keyboard_toggle(control) -> None:
+    if control is None:
+        return
+    control.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    original_key_press = getattr(control, "keyPressEvent", None)
+
+    def _key_press(self, event):  # noqa: ANN001
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.setChecked(not bool(self.isChecked()))
+            event.accept()
+            return
+        if original_key_press is not None:
+            return original_key_press(event)
+        return None
+
+    control.keyPressEvent = MethodType(_key_press, control)
 
 
 def build_hosts_services_container() -> HostsServicesContainerWidgets:
@@ -167,6 +186,7 @@ def build_hosts_service_row(
 
     if row_plan.direct_only:
         control = toggle_cls()
+        _enable_keyboard_toggle(control)
         control.setEnabled(row_plan.toggle_enabled)
         control.setChecked(row_plan.toggle_checked)
         _update_direct_service_accessibility(
