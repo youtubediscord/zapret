@@ -293,3 +293,4 @@ def _set_group_chip_accessibility(button, *, group_title: str, service_names: li
         name=name,
         description=description,
     )
+    set_state_text(button, name)

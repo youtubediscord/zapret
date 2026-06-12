@@ -130,8 +130,13 @@ class HostsServicesAccessibilityTests(unittest.TestCase):
         )
 
         self.assertEqual(widgets.chip_buttons[0].accessibleName(), "Отключить группу Видео")
+        self.assertEqual(widgets.chip_buttons[0].property("screenReaderStateText"), "Отключить группу Видео")
         self.assertIn("YouTube, Twitch", widgets.chip_buttons[0].accessibleDescription())
         self.assertEqual(widgets.chip_buttons[1].accessibleName(), "Применить Zapret DNS к группе Видео")
+        self.assertEqual(
+            widgets.chip_buttons[1].property("screenReaderStateText"),
+            "Применить Zapret DNS к группе Видео",
+        )
         self.assertIn("YouTube, Twitch", widgets.chip_buttons[1].accessibleDescription())
 
 
