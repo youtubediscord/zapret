@@ -1024,10 +1024,143 @@ class ProfileListPayloadTests(unittest.TestCase):
                 moved = service.move_preset_profile_before(telegram.key, youtube.key)
                 moved_payload = service.list_preset_order_profiles()
 
-        self.assertEqual(moved, telegram.key)
+        self.assertEqual(str(moved), moved_payload.items[0].key)
+        self.assertEqual(moved.key_map[telegram.key], moved_payload.items[0].key)
         self.assertEqual([item.profile_name for item in moved_payload.items], ["Telegram", "YouTube", "Discord"])
         self.assertLess(store.text.index("--name=Telegram"), store.text.index("--name=YouTube"))
         self.assertLess(store.text.index("--name=YouTube"), store.text.index("--name=Discord"))
+
+    def test_preset_order_move_uses_exact_row_key_for_duplicate_profiles(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            store = _PresetStore(
+                "\n".join(
+                    (
+                        "--name=Same",
+                        "--filter-tcp=443",
+                        "--hostlist=lists/same.txt",
+                        "--lua-desync=pass",
+                        "",
+                        "--new",
+                        "--name=Same",
+                        "--filter-tcp=443",
+                        "--hostlist=lists/same.txt",
+                        "--lua-desync=fake",
+                        "",
+                        "--new",
+                        "--name=Other",
+                        "--filter-tcp=443",
+                        "--hostlist=lists/other.txt",
+                        "--lua-desync=pass",
+                        "",
+                    )
+                )
+            )
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                first, second, other = service.list_preset_order_profiles().items
+                moved = service.move_preset_profile_after(second.key, other.key)
+                moved_payload = service.list_preset_order_profiles()
+
+        self.assertEqual(str(moved), moved_payload.items[2].key)
+        self.assertEqual([item.profile_name for item in moved_payload.items], ["Same", "Other", "Same"])
+        self.assertIn(second.key, moved.key_map)
+        self.assertEqual(moved.key_map[second.key], moved_payload.items[2].key)
+        self.assertLess(store.text.index("--lua-desync=pass"), store.text.index("--name=Other"))
+        self.assertLess(store.text.index("--name=Other"), store.text.index("--lua-desync=fake"))
+
+    def test_preset_order_move_rejects_ambiguous_logical_key(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            source_text = "\n".join(
+                (
+                    "--name=Same",
+                    "--filter-tcp=443",
+                    "--hostlist=lists/same.txt",
+                    "--lua-desync=pass",
+                    "",
+                    "--new",
+                    "--name=Same",
+                    "--filter-tcp=443",
+                    "--hostlist=lists/same.txt",
+                    "--lua-desync=fake",
+                    "",
+                    "--new",
+                    "--name=Other",
+                    "--filter-tcp=443",
+                    "--hostlist=lists/other.txt",
+                    "--lua-desync=pass",
+                    "",
+                )
+            )
+            store = _PresetStore(source_text)
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                _first, _second, other = service.list_preset_order_profiles().items
+                moved = service.move_preset_profile_after("name:Same", other.key)
+
+        self.assertIsNone(moved)
+        self.assertEqual(store.text, source_text)
+
+    def test_profile_raw_text_update_rejects_ambiguous_logical_key(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            templates_dir = root / "profile" / "templates"
+            templates_dir.mkdir(parents=True)
+            (templates_dir / "all_profiles.txt").write_text("", encoding="utf-8")
+            source_text = "\n".join(
+                (
+                    "--name=Same",
+                    "--filter-tcp=443",
+                    "--hostlist=lists/same.txt",
+                    "--lua-desync=pass",
+                    "",
+                    "--new",
+                    "--name=Same",
+                    "--filter-tcp=443",
+                    "--hostlist=lists/same.txt",
+                    "--lua-desync=fake",
+                    "",
+                )
+            )
+            store = _PresetStore(source_text)
+            feature = SimpleNamespace(
+                _presets_feature=store,
+                _app_paths=AppPaths(user_root=root, local_root=root),
+            )
+
+            with patch("settings.store.MAIN_DIRECTORY", str(root)):
+                service = ProfilePresetService(feature, "zapret2_mode")
+                updated = service.update_profile_raw_text(
+                    "name:Same",
+                    "\n".join(
+                        (
+                            "--name=Same",
+                            "--filter-tcp=443",
+                            "--hostlist=lists/same.txt",
+                            "--lua-desync=split",
+                        )
+                    ),
+                )
+
+        self.assertIsNone(updated)
+        self.assertEqual(store.text, source_text)
 
     def test_profile_setup_reads_strategy_feedback_in_one_batch(self) -> None:
         class _StateStore:

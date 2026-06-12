@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QListView, QVBoxLayout, QWidget
 
 from log.log import log
 from profile.icons import resolve_profile_icon
+from profile.key_resolution import profile_order_row_identity, remap_profile_item_keys
 from profile.match_filters import ports_label_from_match_lines, protocol_label_from_match_lines
 from profile.order_view_state import build_profile_order_list_view_state, move_profile_order_items
 from profile.ui.profile_list_delegate import ProfileListDelegate
@@ -334,6 +335,13 @@ class ProfileOrderList(QWidget):
         self._request_view_state_rebuild(items=next_items, preserve_order=True)
         return True
 
+    def remap_profile_keys(self, key_map: dict[str, str]) -> bool:
+        next_items = remap_profile_item_keys(self._current_view_state_items(), key_map)
+        if next_items == self._current_view_state_items():
+            return False
+        self._request_view_state_rebuild(items=next_items, preserve_order=True)
+        return True
+
     def _request_view_state_rebuild(
         self,
         *,
@@ -437,7 +445,7 @@ class ProfileOrderList(QWidget):
 
 
 def _profile_order_identity(item: Any) -> str:
-    return str(getattr(item, "persistent_key", "") or getattr(item, "key", "") or "")
+    return profile_order_row_identity(item)
 
 
 def _profile_order_accessible_text(

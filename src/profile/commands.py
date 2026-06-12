@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from settings.mode import normalize_launch_method
 
+from .key_resolution import PresetProfileMoveResult
 from .service import ProfilePresetService
 
 
@@ -251,7 +252,7 @@ def move_preset_profile_before(
     launch_method: str,
     source_profile_key: str,
     destination_profile_key: str,
-) -> str | None:
+) -> PresetProfileMoveResult | None:
     return _profile_preset_service(profile_services, launch_method).move_preset_profile_before(
         source_profile_key,
         destination_profile_key,
@@ -263,14 +264,14 @@ def move_preset_profile_after(
     launch_method: str,
     source_profile_key: str,
     destination_profile_key: str,
-) -> str | None:
+) -> PresetProfileMoveResult | None:
     return _profile_preset_service(profile_services, launch_method).move_preset_profile_after(
         source_profile_key,
         destination_profile_key,
     )
 
 
-def move_preset_profile_to_end(profile_services, launch_method: str, profile_key: str) -> str | None:
+def move_preset_profile_to_end(profile_services, launch_method: str, profile_key: str) -> PresetProfileMoveResult | None:
     return _profile_preset_service(profile_services, launch_method).move_preset_profile_to_end(profile_key)
 
 

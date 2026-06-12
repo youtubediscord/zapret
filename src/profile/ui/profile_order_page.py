@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from log.log import log
+from profile.key_resolution import (
+    preset_profile_move_key_map,
+    preset_profile_move_result_key,
+    remap_profile_operation_keys,
+)
 from profile.ui.profile_order_list import ProfileOrderList
 from PyQt6.QtCore import QTimer
 from qfluentwidgets import BodyLabel, BreadcrumbBar, InfoBar
@@ -475,14 +480,17 @@ class ProfileOrderPageBase(BasePage):
         ):
             return
         applied_locally = False
-        if result:
+        result_key = preset_profile_move_result_key(result)
+        key_map = preset_profile_move_key_map(result)
+        if result_key:
             applied_locally = self._apply_profile_order_move_locally(
                 action,
                 source_profile_key,
                 destination_profile_key=destination_profile_key,
             )
+            self._remap_profile_order_after_file_rebuild(key_map)
         if self._order_move_state_obj().has_pending():
-            if result and not applied_locally:
+            if result_key and not applied_locally:
                 self._order_move_reload_required = True
             return
         if self.__dict__.get("_order_move_reload_required", False):
@@ -492,8 +500,24 @@ class ProfileOrderPageBase(BasePage):
         if applied_locally:
             self._order_payload_dirty = False
             return
-        if result:
+        if result_key:
             self._reload_order_profiles(force=True)
+
+    def _remap_profile_order_after_file_rebuild(self, key_map: dict[str, str]) -> None:
+        clean_map = dict(key_map or {})
+        if not clean_map:
+            return
+        order_list = self.__dict__.get("_order_list")
+        if order_list is not None:
+            try:
+                order_list.remap_profile_keys(clean_map)
+            except Exception:
+                pass
+        state = self._order_move_state_obj()
+        state.pending[:] = [
+            remap_profile_operation_keys(dict(operation or {}), clean_map)
+            for operation in list(state.pending or [])
+        ]
 
     def _on_profile_order_move_failed(self, request_id: int, error: str) -> None:
         if not self._order_move_runtime.is_current(

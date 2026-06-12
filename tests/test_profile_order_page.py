@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import os
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -100,6 +101,15 @@ class ProfileOrderPageTests(unittest.TestCase):
             [model.index(row, 0).data(ProfileListModel.ProfileKeyRole) for row in range(model.rowCount())],
             ["profile:b", "profile:c", "profile:a"],
         )
+
+    def test_order_model_uses_exact_row_key_for_duplicate_logical_profiles(self) -> None:
+        from profile.ui.profile_order_list import _profile_order_identity
+
+        first = replace(_item("Same", key="profile:0", profile_index=0), persistent_key="name:Same")
+        second = replace(_item("Same", key="profile:1", profile_index=1), persistent_key="name:Same")
+
+        self.assertEqual(_profile_order_identity(first), "profile:0")
+        self.assertEqual(_profile_order_identity(second), "profile:1")
 
     def test_order_model_skips_reset_when_profiles_are_unchanged(self) -> None:
         from profile.ui.profile_order_list import ProfileOrderListModel
@@ -917,6 +927,48 @@ class ProfileOrderPageTests(unittest.TestCase):
         self.assertEqual(page._order_load_runtime.request_id, 4)
         self.assertEqual(page._order_move_runtime.request_id, 6)
         self.assertFalse(page._order_load_dirty)
+
+    def test_order_page_remaps_pending_moves_after_preset_file_rebuild(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+        from ui.queued_worker_state import QueuedWorkerState
+
+        page = ProfileOrderPageBase.__new__(ProfileOrderPageBase)
+        page._order_list = Mock()
+        page._order_move_state = QueuedWorkerState(
+            Mock(),
+            pending=[
+                {
+                    "action": "before",
+                    "source_profile_key": "profile:1",
+                    "destination_profile_key": "profile:2",
+                }
+            ],
+        )
+
+        ProfileOrderPageBase._remap_profile_order_after_file_rebuild(
+            page,
+            {
+                "profile:1": "profile:2",
+                "profile:2": "profile:1",
+            },
+        )
+
+        page._order_list.remap_profile_keys.assert_called_once_with(
+            {
+                "profile:1": "profile:2",
+                "profile:2": "profile:1",
+            }
+        )
+        self.assertEqual(
+            page._order_move_state.pending,
+            [
+                {
+                    "action": "before",
+                    "source_profile_key": "profile:2",
+                    "destination_profile_key": "profile:1",
+                }
+            ],
+        )
 
     def test_order_workers_call_profile_service(self) -> None:
         from profile.profile_order_loader import ProfileOrderListLoadWorker, ProfilePresetOrderMoveWorker

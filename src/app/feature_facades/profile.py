@@ -4,6 +4,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
+from profile.key_resolution import PresetProfileMoveResult
+
 
 @dataclass(frozen=True, slots=True)
 class ProfileFeature:
@@ -658,7 +660,7 @@ class ProfileFeature:
         launch_method: str,
         source_profile_key: str,
         destination_profile_key: str,
-    ) -> str | None:
+    ) -> PresetProfileMoveResult | None:
         return self._commands().move_preset_profile_before(
             self,
             launch_method,
@@ -671,7 +673,7 @@ class ProfileFeature:
         launch_method: str,
         source_profile_key: str,
         destination_profile_key: str,
-    ) -> str | None:
+    ) -> PresetProfileMoveResult | None:
         return self._commands().move_preset_profile_after(
             self,
             launch_method,
@@ -679,7 +681,7 @@ class ProfileFeature:
             destination_profile_key,
         )
 
-    def move_preset_profile_to_end(self, launch_method: str, profile_key: str) -> str | None:
+    def move_preset_profile_to_end(self, launch_method: str, profile_key: str) -> PresetProfileMoveResult | None:
         return self._commands().move_preset_profile_to_end(self, launch_method, profile_key)
 
     def create_user_profile(self, *, name: str, protocol: str, ports: str) -> str:

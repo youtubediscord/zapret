@@ -24,6 +24,13 @@ from .folders import (
     profile_folder_for_profile,
 )
 from .list_interpreter import build_profile_list_sources
+from .key_resolution import (
+    PresetProfileMoveResult,
+    build_preset_profile_key_map,
+    find_profile_list_source,
+    resolve_preset_profile_reference_index,
+    resolve_preset_profile_row_index,
+)
 from .list_file_editor import (
     count_profile_list_entries,
     profile_list_file_exists,
@@ -400,7 +407,7 @@ class ProfilePresetService:
         preset, _manifest = self._load_selected_preset_for_revision(preset_revision, manifest, source_text)
         catalogs = load_strategy_catalogs(self._app_paths, self._engine)
         templates = self._load_profile_templates()
-        source = _find_profile_list_source(
+        source = find_profile_list_source(
             build_profile_list_sources(tuple(preset.profiles), templates),
             profile_key,
         )
@@ -496,7 +503,7 @@ class ProfilePresetService:
         filter_value: str = "",
     ) -> str | None:
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is not None:
             if bool(preset.profiles[index].enabled) == bool(enabled):
                 return preset.profiles[index].key
@@ -547,7 +554,7 @@ class ProfilePresetService:
             ):
                 return setup.item.key
             preset, _manifest = self.load_selected_preset()
-            index = _profile_index_for_key(preset, profile_key)
+            index = resolve_preset_profile_reference_index(preset, profile_key)
             if index is None:
                 return None
             preset = _with_profile_strategy_branch_lines(preset, index, branch_id, entry.args.splitlines())
@@ -570,7 +577,7 @@ class ProfilePresetService:
             if not resolved_key:
                 return None
 
-        index = _profile_index_for_key(preset, resolved_key)
+        index = resolve_preset_profile_reference_index(preset, resolved_key)
         if index is None:
             return None
         preset = with_profile_strategy_lines(preset, index, entry.args.splitlines())
@@ -642,7 +649,7 @@ class ProfilePresetService:
         out_range: str,
     ) -> str | None:
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return None
         current = read_editable_profile_settings(preset.profiles[index])
@@ -671,7 +678,7 @@ class ProfilePresetService:
 
     def update_profile_raw_text(self, profile_key: str, raw_text: str) -> str | None:
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return None
         normalized_text = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
@@ -724,7 +731,7 @@ class ProfilePresetService:
             return None
 
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return None
         profile = preset.profiles[index]
@@ -752,7 +759,7 @@ class ProfilePresetService:
 
     def delete_profile(self, profile_key: str) -> bool:
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return False
         preset = with_profile_deleted(preset, index)
@@ -761,7 +768,7 @@ class ProfilePresetService:
 
     def duplicate_profile(self, profile_key: str) -> str | None:
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is None:
             return None
         preset = with_profile_duplicated(preset, index)
@@ -777,8 +784,8 @@ class ProfilePresetService:
         destination_folder_key: str = "",
     ) -> str | None:
         sources = self._profile_sources_for_folder_order()
-        source = _find_profile_list_source(sources, source_profile_key)
-        destination = _find_profile_list_source(sources, destination_profile_key)
+        source = find_profile_list_source(sources, source_profile_key)
+        destination = find_profile_list_source(sources, destination_profile_key)
         if source is None or destination is None:
             return None
         folder_state = load_profile_folder_state()
@@ -819,8 +826,8 @@ class ProfilePresetService:
         destination_folder_key: str = "",
     ) -> str | None:
         sources = self._profile_sources_for_folder_order()
-        source = _find_profile_list_source(sources, source_profile_key)
-        destination = _find_profile_list_source(sources, destination_profile_key)
+        source = find_profile_list_source(sources, source_profile_key)
+        destination = find_profile_list_source(sources, destination_profile_key)
         if source is None or destination is None:
             return None
         folder_state = load_profile_folder_state()
@@ -855,7 +862,7 @@ class ProfilePresetService:
 
     def move_profile_to_end(self, profile_key: str) -> str | None:
         sources = self._profile_sources_for_folder_order()
-        source = _find_profile_list_source(sources, profile_key)
+        source = find_profile_list_source(sources, profile_key)
         if source is None:
             return None
         folder_state = load_profile_folder_state()
@@ -877,7 +884,7 @@ class ProfilePresetService:
 
     def move_profile_to_folder(self, profile_key: str, folder_key: str) -> str | None:
         sources = self._profile_sources_for_folder_order()
-        source = _find_profile_list_source(sources, profile_key)
+        source = find_profile_list_source(sources, profile_key)
         target_folder = str(folder_key or "").strip()
         if source is None or not target_folder:
             return None
@@ -896,23 +903,23 @@ class ProfilePresetService:
         self._invalidate_profile_list_snapshot()
         return source.key
 
-    def move_preset_profile_before(self, source_profile_key: str, destination_profile_key: str) -> str | None:
+    def move_preset_profile_before(self, source_profile_key: str, destination_profile_key: str) -> PresetProfileMoveResult | None:
         preset, _manifest = self.load_selected_preset()
-        source_index = _profile_index_for_key(preset, source_profile_key)
-        destination_index = _profile_index_for_key(preset, destination_profile_key)
+        source_index = resolve_preset_profile_row_index(preset, source_profile_key)
+        destination_index = resolve_preset_profile_row_index(preset, destination_profile_key)
         return self._move_preset_profile_to_index(preset, source_index, destination_index)
 
-    def move_preset_profile_after(self, source_profile_key: str, destination_profile_key: str) -> str | None:
+    def move_preset_profile_after(self, source_profile_key: str, destination_profile_key: str) -> PresetProfileMoveResult | None:
         preset, _manifest = self.load_selected_preset()
-        source_index = _profile_index_for_key(preset, source_profile_key)
-        destination_index = _profile_index_for_key(preset, destination_profile_key)
+        source_index = resolve_preset_profile_row_index(preset, source_profile_key)
+        destination_index = resolve_preset_profile_row_index(preset, destination_profile_key)
         if destination_index is not None:
             destination_index += 1
         return self._move_preset_profile_to_index(preset, source_index, destination_index)
 
-    def move_preset_profile_to_end(self, profile_key: str) -> str | None:
+    def move_preset_profile_to_end(self, profile_key: str) -> PresetProfileMoveResult | None:
         preset, _manifest = self.load_selected_preset()
-        source_index = _profile_index_for_key(preset, profile_key)
+        source_index = resolve_preset_profile_row_index(preset, profile_key)
         return self._move_preset_profile_to_index(preset, source_index, len(preset.profiles))
 
     def create_user_profile(self, *, name: str, protocol: str, ports: str) -> str:
@@ -921,18 +928,20 @@ class ProfilePresetService:
         self._invalidate_profile_list_snapshot()
         return profile_id
 
-    def _move_preset_profile_to_index(self, preset: Preset, source_index: int | None, destination_index: int | None) -> str | None:
+    def _move_preset_profile_to_index(self, preset: Preset, source_index: int | None, destination_index: int | None) -> PresetProfileMoveResult | None:
         if source_index is None or destination_index is None:
             return None
         if source_index < 0 or source_index >= len(preset.profiles):
             return None
         destination = max(0, min(int(destination_index), len(preset.profiles)))
         if source_index == destination or source_index + 1 == destination:
-            return preset.profiles[source_index].key
+            key = preset.profiles[source_index].key
+            return PresetProfileMoveResult(profile_key=key, key_map={key: key})
         updated = with_profile_moved(preset, source_index, destination)
-        moved_key = preset.profiles[source_index].key
+        key_map = build_preset_profile_key_map(tuple(preset.profiles), tuple(updated.profiles))
+        moved_key = str(preset.profiles[source_index].key or "")
         self.save_selected_preset(updated)
-        return moved_key
+        return PresetProfileMoveResult(profile_key=key_map.get(moved_key, moved_key), key_map=key_map)
 
     def update_user_profile(self, profile_id: str, *, name: str, protocol: str, ports: str) -> int:
         old_name, row = update_user_profile(self._app_paths, profile_id, name=name, protocol=protocol, ports=ports)
@@ -1032,7 +1041,7 @@ class ProfilePresetService:
 
     def _resolve_profile(self, profile_key: str) -> Profile | None:
         preset, _manifest = self.load_selected_preset()
-        index = _profile_index_for_key(preset, profile_key)
+        index = resolve_preset_profile_reference_index(preset, profile_key)
         if index is not None:
             return preset.profiles[index]
         if profile_key.startswith("template:"):
@@ -1243,26 +1252,6 @@ class ProfilePresetService:
 
 def _engine_for_method(launch_method: str) -> EngineName:
     return engine_for_launch_method(launch_method)  # type: ignore[return-value]
-
-
-def _profile_index_for_key(preset: Preset, profile_key: str) -> int | None:
-    key = str(profile_key or "").strip()
-    if not key:
-        return None
-    for index, profile in enumerate(preset.profiles):
-        if profile.key == key or profile.persistent_key == key:
-            return index
-    return None
-
-
-def _find_profile_list_source(sources, profile_key: str):
-    key = str(profile_key or "").strip()
-    if not key:
-        return None
-    for source in tuple(sources or ()):
-        if source.key == key or source.profile.persistent_key == key:
-            return source
-    return None
 
 
 def _profile_folder_state_revision(folder_state: dict[str, Any]) -> tuple[object, ...]:
