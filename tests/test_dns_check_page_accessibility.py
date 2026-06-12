@@ -81,6 +81,26 @@ class DNSCheckPageAccessibilityTests(unittest.TestCase):
             "Результаты проверки DNS: проверка ещё не запускалась",
         )
 
+    def test_quick_check_start_restores_empty_result_screen_reader_state(self) -> None:
+        from ui.accessibility import set_state_text
+
+        page = DNSCheckPage(dns_feature=_DnsFeatureStub())
+        self.addCleanup(page.deleteLater)
+        page._quick_runtime = _StartRuntimeStub()
+        page._quick_check_state.runtime = page._quick_runtime
+        set_state_text(page.result_text, "Старый быстрый DNS-результат")
+
+        page.quick_dns_check()
+
+        self.assertEqual(
+            page.result_text.accessibleName(),
+            "Результаты проверки DNS: проверка ещё не запускалась",
+        )
+        self.assertEqual(
+            page.result_text.property("screenReaderStateText"),
+            "Результаты проверки DNS: проверка ещё не запускалась",
+        )
+
 
 class _StartRuntimeStub:
     def __init__(self) -> None:
@@ -90,6 +110,9 @@ class _StartRuntimeStub:
         return False
 
     def start_qobject_worker(self, **_kwargs) -> None:
+        self.started = True
+
+    def start_qthread_worker(self, **_kwargs) -> None:
         self.started = True
 
 

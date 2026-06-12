@@ -458,6 +458,7 @@ class DNSCheckPage(BasePage):
             return
         state.pending = False
         self.result_text.clear()
+        set_state_text(self.result_text, "Результаты проверки DNS: проверка ещё не запускалась")
         self._clear_results_plain_text_cache()
         self._apply_interaction_state(
             check_enabled=False,
