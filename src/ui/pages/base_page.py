@@ -16,7 +16,7 @@ from qfluentwidgets import (
 )
 
 from app.ui_texts import tr as tr_catalog, normalize_language
-from ui.accessibility import remove_scrollbar_arrow_buttons_from_tab_order
+from ui.accessibility import remove_scrollbar_arrow_buttons_from_tab_order, set_state_text
 from ui.page_performance import log_page_metric
 from ui.smooth_scroll import (
     apply_editor_smooth_scroll_preference,
@@ -136,12 +136,14 @@ class BasePage(_FluentScrollArea):
         # --- Title ---
         self.title_label = TitleLabel(self.content)
         self.title_label.setText(title)
+        set_state_text(self.title_label, f"Заголовок страницы: {title}")
         self.vBoxLayout.addWidget(self.title_label)
 
         # --- Subtitle ---
         if subtitle:
             self.subtitle_label = BodyLabel(self.content)
             self.subtitle_label.setText(subtitle)
+            set_state_text(self.subtitle_label, f"Описание страницы: {subtitle}")
             self.subtitle_label.setWordWrap(True)
             self.vBoxLayout.addWidget(self.subtitle_label)
         else:
@@ -232,6 +234,7 @@ class BasePage(_FluentScrollArea):
 
         label = StrongBodyLabel(self.content)
         label.setText(text)
+        set_state_text(label, f"Раздел страницы: {text}")
         label.setProperty("tone", "primary")
         if text_key:
             self._section_title_bindings.append((label, text_key, fallback_text or text_key))
@@ -406,13 +409,13 @@ class BasePage(_FluentScrollArea):
     def _retranslate_base_texts(self) -> None:
         if self._title_key and hasattr(self, "title_label") and self.title_label is not None:
             try:
-                self.title_label.setText(
-                    tr_catalog(
-                        self._title_key,
-                        language=self._ui_language,
-                        default=self._title_fallback,
-                    )
+                title_text = tr_catalog(
+                    self._title_key,
+                    language=self._ui_language,
+                    default=self._title_fallback,
                 )
+                self.title_label.setText(title_text)
+                set_state_text(self.title_label, f"Заголовок страницы: {title_text}")
             except Exception:
                 pass
 
@@ -429,6 +432,8 @@ class BasePage(_FluentScrollArea):
                 if self._subtitle_key:
                     self.subtitle_label.setText(subtitle_text)
                 self.subtitle_label.setVisible(bool(self.subtitle_label.text().strip()))
+                if self.subtitle_label.text().strip():
+                    set_state_text(self.subtitle_label, f"Описание страницы: {self.subtitle_label.text()}")
             except Exception:
                 pass
 
@@ -438,12 +443,12 @@ class BasePage(_FluentScrollArea):
             try:
                 text_setter = getattr(label, "setText", None)
                 if callable(text_setter):
-                    text_setter(
-                        tr_catalog(
-                            text_key,
-                            language=self._ui_language,
-                            default=fallback_text,
-                        )
+                    section_text = tr_catalog(
+                        text_key,
+                        language=self._ui_language,
+                        default=fallback_text,
                     )
+                    text_setter(section_text)
+                    set_state_text(label, f"Раздел страницы: {section_text}")
             except Exception:
                 pass
