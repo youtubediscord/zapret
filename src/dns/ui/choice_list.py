@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.ui_texts import tr as tr_catalog
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.theme import get_cached_qta_pixmap, get_theme_tokens, to_qcolor
 from ui.widgets.hover_row import paint_profile_hover_row, profile_hover_row_rect
 
@@ -70,6 +71,7 @@ class DnsChoiceHandle(QObject):
         self._accessible_name = text
         self.setProperty("screenReaderStateText", text)
         self.item.setData(Qt.ItemDataRole.AccessibleTextRole, text)
+        self.view.refresh_item(self.item)
 
 
 class DnsChoiceListWidget(QListWidget):
@@ -92,6 +94,13 @@ class DnsChoiceListWidget(QListWidget):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setItemDelegate(DnsChoiceListDelegate(self))
+        set_control_accessibility(
+            self,
+            name="Список DNS-серверов",
+            description="Выберите DNS стрелками вверх и вниз, затем нажмите Enter или Пробел.",
+        )
+        set_state_text(self, "Список DNS-серверов")
+        self.currentItemChanged.connect(lambda current, _previous: self._update_current_dns_accessibility(current))
         self.itemClicked.connect(self.activate_item)
         self.itemActivated.connect(self.activate_item)
         self.setStyleSheet(
@@ -192,8 +201,29 @@ class DnsChoiceListWidget(QListWidget):
             data = item.data(PROVIDER_DATA_ROLE)
             self.provider_selected.emit(name, dict(data or {}))
 
+    def keyPressEvent(self, event):  # noqa: N802
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.activate_item(self.currentItem())
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event):  # noqa: N802
+        super().focusInEvent(event)
+        if self.currentItem() is None:
+            self._focus_first_choice()
+        self._update_current_dns_accessibility(self.currentItem())
+
     def refresh_theme(self) -> None:
         self.viewport().update()
+
+    def refresh_item(self, item: QListWidgetItem) -> None:
+        row = self.row(item)
+        if row >= 0:
+            index = self.model().index(row, 0)
+            self.viewport().update(self.visualRect(index))
+        if self.currentItem() is item:
+            self._update_current_dns_accessibility(item)
 
     def _refresh_custom_widget_selection(self, item: QListWidgetItem, selected: bool) -> None:
         if self._custom_item is None or item is not self._custom_item:
@@ -202,6 +232,23 @@ class DnsChoiceListWidget(QListWidget):
         set_selected = getattr(widget, "set_selected", None)
         if callable(set_selected):
             set_selected(selected)
+
+    def _focus_first_choice(self) -> None:
+        for row in range(self.count()):
+            item = self.item(row)
+            if item is not None and item.flags() & Qt.ItemFlag.ItemIsSelectable:
+                self.setCurrentItem(item)
+                return
+
+    def _update_current_dns_accessibility(self, item: QListWidgetItem | None) -> None:
+        text = str(item.data(Qt.ItemDataRole.AccessibleTextRole) or "").strip() if item is not None else ""
+        if text:
+            set_state_text(
+                self,
+                f"Список DNS-серверов: {text}. Нажмите Enter или Пробел, чтобы выбрать DNS.",
+            )
+            return
+        set_state_text(self, "Список DNS-серверов")
 
     def _sync_height(self) -> None:
         total = 2 * self.frameWidth()
