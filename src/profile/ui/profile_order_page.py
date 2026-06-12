@@ -284,10 +284,13 @@ class ProfileOrderPageBase(BasePage):
         InfoBar.error(title="Ошибка", content=str(error), parent=self.window())
 
     def _on_order_profiles_worker_finished(self, _worker) -> None:
-        if not self._is_current_worker_finish(self.__dict__.get("_order_load_runtime"), _worker):
-            return
-        if self._order_load_state_obj().has_pending() and not bool(self.__dict__.get("_cleanup_in_progress", False)):
-            self._schedule_order_profiles_reload()
+        self._order_load_state_obj().schedule_pending_after_finish(
+            _worker,
+            is_current_worker_finish=self._is_current_worker_finish,
+            single_shot=QTimer.singleShot,
+            run_scheduled=self._run_scheduled_order_profiles_reload,
+            cleanup_in_progress=bool(self.__dict__.get("_cleanup_in_progress", False)),
+        )
 
     def _schedule_order_profiles_reload(self) -> None:
         state = self._order_load_state_obj()

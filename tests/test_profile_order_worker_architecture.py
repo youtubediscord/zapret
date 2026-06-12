@@ -113,6 +113,15 @@ class ProfileOrderWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("self._order_load_dirty = False", init_source)
         self.assertNotIn("self._order_load_restart_scheduled = False", init_source)
 
+    def test_profile_order_load_finished_uses_shared_finish_guard(self) -> None:
+        from profile.ui.profile_order_page import ProfileOrderPageBase
+
+        finished_source = inspect.getsource(ProfileOrderPageBase._on_order_profiles_worker_finished)
+
+        self.assertIn("schedule_pending_after_finish", finished_source)
+        self.assertIn("_is_current_worker_finish", finished_source)
+        self.assertNotIn("_schedule_order_profiles_reload()", finished_source)
+
     def test_profile_order_move_queue_uses_shared_queued_worker_state(self) -> None:
         from profile.ui.profile_order_page import ProfileOrderPageBase
         from ui.queued_worker_state import QueuedWorkerState
