@@ -117,6 +117,16 @@ class ProfileSetupAccessibilityTests(unittest.TestCase):
         self.assertEqual(page._match_text.accessibleName(), "Условия применения profile")
         self.assertEqual(page._raw_profile_text.accessibleName(), "Текст profile в текущем preset")
         self.assertEqual(page._raw_profile_save_button.accessibleName(), "Сохранить текст profile")
+        self.assertEqual(page._update_user_profile_button.accessibleName(), "Изменить пользовательский profile")
+        self.assertEqual(
+            page._update_user_profile_button.property("screenReaderStateText"),
+            "Изменить пользовательский profile",
+        )
+        self.assertEqual(page._delete_user_profile_button.accessibleName(), "Удалить пользовательский profile")
+        self.assertEqual(
+            page._delete_user_profile_button.property("screenReaderStateText"),
+            "Удалить пользовательский profile",
+        )
         self.assertEqual(page._work_button.accessibleName(), "Отметить стратегию как рабочую")
         self.assertEqual(page._notwork_button.accessibleName(), "Отметить стратегию как нерабочую")
         self.assertEqual(page._favorite_button.accessibleName(), "Добавить стратегию в избранное")

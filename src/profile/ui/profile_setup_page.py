@@ -1915,6 +1915,7 @@ class ProfileSetupPageBase(BasePage):
             name="Изменить пользовательский profile",
             description="Открывает изменение пользовательского profile и обновляет связанные preset-ы.",
         )
+        set_state_text(self._update_user_profile_button, "Изменить пользовательский profile")
         self._update_user_profile_button.clicked.connect(self._on_update_user_profile_clicked)
         self._update_user_profile_button.hide()
         header_layout.addWidget(self._update_user_profile_button, 0, Qt.AlignmentFlag.AlignRight)
@@ -1924,6 +1925,7 @@ class ProfileSetupPageBase(BasePage):
             name="Удалить пользовательский profile",
             description="Удаляет пользовательский profile, его списки и связанные записи из preset-ов.",
         )
+        set_state_text(self._delete_user_profile_button, "Удалить пользовательский profile")
         self._delete_user_profile_button.clicked.connect(self._on_delete_user_profile_clicked)
         self._delete_user_profile_button.hide()
         header_layout.addWidget(self._delete_user_profile_button, 0, Qt.AlignmentFlag.AlignRight)
