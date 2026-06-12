@@ -158,6 +158,7 @@ class TelegramProxyPage(BasePage):
         self._advanced_settings_built = False
         self._advanced_signals_connected = False
         self._initial_advanced_build_scheduled = False
+        self._advanced_auto_sections: set[str] = set()
         self._initial_state = telegram_proxy_settings.TelegramProxyPageInitialStatePlan(
             upstream_catalog=telegram_proxy_settings.UpstreamCatalog(),
             settings=telegram_proxy_settings.default_state(),
@@ -791,7 +792,8 @@ class TelegramProxyPage(BasePage):
         self._update_manual_instructions()
 
         self._proxy_mode_row.setCurrentData(state.mode, block_signals=True)
-        advanced_should_open = self._advanced_settings_should_open(state)
+        self._advanced_auto_sections = self._advanced_settings_auto_sections(state)
+        advanced_should_open = bool(self._advanced_auto_sections)
         self._advanced_toggle.setChecked(advanced_should_open, block_signals=True)
         if advanced_should_open:
             self._schedule_initial_advanced_settings_build()
@@ -855,16 +857,39 @@ class TelegramProxyPage(BasePage):
         self._apply_advanced_settings_ui()
         self._apply_local_proxy_mode_ui()
         self._apply_cloudflare_ui()
+        self._apply_auto_advanced_section_visibility()
 
-    def _advanced_settings_should_open(self, state: telegram_proxy_settings.TelegramProxySettingsState) -> bool:
-        mtproxy_mode = state.mode == "mtproxy"
-        return bool(
-            mtproxy_mode
-            or state.cloudflare_enabled
+    def _advanced_settings_auto_sections(self, state: telegram_proxy_settings.TelegramProxySettingsState) -> set[str]:
+        sections: set[str] = set()
+        if state.mode == "mtproxy":
+            sections.add("mtproxy")
+        if (
+            state.upstream_enabled
+            or state.upstream_host
+            or state.upstream_user
+            or state.upstream_password
+            or state.upstream_preset_id
+        ):
+            sections.add("upstream")
+        if (
+            state.cloudflare_enabled
             or state.cloudflare_domains
             or state.cloudflare_worker_enabled
             or state.cloudflare_worker_domains
-        )
+        ):
+            sections.add("cloudflare")
+        if state.dc_ip:
+            sections.add("dc_ip")
+        if state.pool_size != 4 or state.buffer_kb != 256:
+            sections.add("performance")
+        return sections
+
+    def _advanced_settings_should_open(self, state: telegram_proxy_settings.TelegramProxySettingsState) -> bool:
+        return bool(self._advanced_settings_auto_sections(state))
+
+    def _advanced_section_visible(self, section: str) -> bool:
+        sections = set(self.__dict__.get("_advanced_auto_sections") or set())
+        return not sections or str(section or "") in sections
 
     def _try_auto_deeplink(self):
         """Open tg:// deep link automatically on first start."""
@@ -1709,7 +1734,42 @@ class TelegramProxyPage(BasePage):
         self._advanced_card.setVisible(advanced)
         self._apply_local_proxy_mode_ui()
         self._apply_cloudflare_ui()
+        self._apply_auto_advanced_section_visibility()
         enable_setting_card_group_auto_height(self._settings_card)
+        enable_setting_card_group_auto_height(self._advanced_card)
+
+    def _apply_auto_advanced_section_visibility(self) -> None:
+        if not self.__dict__.get("_advanced_settings_built", False):
+            return
+
+        show_upstream = self._advanced_section_visible("upstream")
+        self._upstream_toggle.setVisible(show_upstream)
+        if show_upstream:
+            self._apply_upstream_preset_ui(self._upstream_preset_row.combo.currentIndex())
+        else:
+            self._upstream_preset_row.setVisible(False)
+            self._upstream_catalog_hint.setVisible(False)
+            self._upstream_manual_widget.setVisible(False)
+            self._mtproxy_action_widget.setVisible(False)
+            self._upstream_mode_toggle.setVisible(False)
+
+        show_cloudflare = self._advanced_section_visible("cloudflare")
+        self._cloudflare_toggle.setVisible(show_cloudflare)
+        self._cloudflare_worker_toggle.setVisible(show_cloudflare)
+        if show_cloudflare:
+            self._apply_cloudflare_ui()
+        else:
+            self._cloudflare_domains_row.setVisible(False)
+            self._cloudflare_worker_domains_row.setVisible(False)
+
+        self._dc_ip_row.setVisible(self._advanced_section_visible("dc_ip"))
+
+        show_performance = self._advanced_section_visible("performance")
+        self._performance_label.setVisible(show_performance)
+        performance_row = self._pool_size_spin.parentWidget()
+        if performance_row is not None:
+            performance_row.setVisible(show_performance)
+
         enable_setting_card_group_auto_height(self._advanced_card)
 
     def _apply_local_proxy_mode_ui(self) -> None:
@@ -1741,6 +1801,7 @@ class TelegramProxyPage(BasePage):
 
     def _on_advanced_toggled(self, _checked: bool):
         if _checked:
+            self._advanced_auto_sections = set()
             self._ensure_advanced_settings_built()
             self._apply_advanced_settings_state(self._current_settings_state)
         self._apply_advanced_settings_ui()
