@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 
 
 def apply_profile_shell_accessibility(
@@ -21,7 +21,11 @@ def apply_profile_shell_accessibility(
 ) -> None:
     """Задаёт понятные имена toolbar-элементам профилей для экранного диктора."""
 
-    set_control_accessibility(
+    def _set_shell_control(widget, *, name: str, description: str) -> None:
+        set_control_accessibility(widget, name=name, description=description)
+        set_state_text(widget, name)
+
+    _set_shell_control(
         add_profile_btn,
         name=tr_fn(toolbar_key("add.accessible_name"), "Добавить пользовательский profile"),
         description=tr_fn(
@@ -29,7 +33,7 @@ def apply_profile_shell_accessibility(
             "Добавить новый пользовательский profile в общий список.",
         ),
     )
-    set_control_accessibility(
+    _set_shell_control(
         request_btn,
         name=tr_fn(
             toolbar_key("request.accessible_name"),
@@ -37,7 +41,7 @@ def apply_profile_shell_accessibility(
         ),
         description=request_hint,
     )
-    set_control_accessibility(
+    _set_shell_control(
         expand_btn,
         name=tr_fn(toolbar_key("expand.accessible_name"), "Развернуть все группы профилей"),
         description=tr_fn(
@@ -45,7 +49,7 @@ def apply_profile_shell_accessibility(
             "Развернуть все группы профилей в списке.",
         ),
     )
-    set_control_accessibility(
+    _set_shell_control(
         collapse_btn,
         name=tr_fn(toolbar_key("collapse.accessible_name"), "Свернуть все группы профилей"),
         description=tr_fn(
@@ -53,7 +57,7 @@ def apply_profile_shell_accessibility(
             "Свернуть все группы профилей в списке.",
         ),
     )
-    set_control_accessibility(
+    _set_shell_control(
         order_btn,
         name=tr_fn(toolbar_key("order.accessible_name"), "Открыть порядок профилей в пресете"),
         description=tr_fn(
@@ -61,7 +65,7 @@ def apply_profile_shell_accessibility(
             "Открыть отдельный список для изменения реального порядка профилей внутри файла пресета.",
         ),
     )
-    set_control_accessibility(
+    _set_shell_control(
         info_btn,
         name=tr_fn(toolbar_key("info.accessible_name"), "Показать справку по профилям"),
         description=tr_fn(
@@ -69,7 +73,7 @@ def apply_profile_shell_accessibility(
             f"Показать краткое объяснение по работе режима профилей {engine_label}.",
         ),
     )
-    set_control_accessibility(
+    _set_shell_control(
         profile_search_input,
         name=tr_fn(toolbar_key("search.accessible_name"), "Поиск профиля"),
         description=tr_fn(
