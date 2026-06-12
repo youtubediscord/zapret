@@ -39,7 +39,7 @@ from log.ui.runtime_helpers import (
     compute_errors_text_height,
     render_send_status_label,
 )
-from log.ui.send_build import build_logs_send_tab
+from log.ui.send_build import apply_logs_send_text_accessibility, build_logs_send_tab
 from log.ui.support_workflow import (
     apply_support_feedback,
     update_orchestra_indicator,
@@ -584,6 +584,12 @@ class LogsPage(BasePage):
                     language=self._ui_language,
                     default="Будет создан архив в папке logs/support_bundles. Шаблон обращения автоматически попадёт в буфер обмена.",
                 )
+            )
+            apply_logs_send_text_accessibility(
+                desc_label=self.send_desc_label,
+                info_label=self.send_info_label,
+                tr_catalog_fn=tr_catalog,
+                ui_language=self._ui_language,
             )
             self.send_log_btn.setText(
                 tr_catalog("page.logs.send.button.send", language=self._ui_language, default="Подготовить обращение")

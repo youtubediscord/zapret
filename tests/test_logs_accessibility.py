@@ -269,6 +269,20 @@ class LogsAccessibilityTests(unittest.TestCase):
             widgets.send_status_label.property("screenReaderStateText"),
             "Статус подготовки обращения: пока обращение не подготовлено",
         )
+        self.assertEqual(
+            widgets.send_desc_label.property("screenReaderStateText"),
+            (
+                "Описание подготовки обращения: Нажмите кнопку, чтобы собрать ZIP из свежих логов, "
+                "скопировать шаблон обращения и открыть GitHub Discussions."
+            ),
+        )
+        self.assertEqual(
+            widgets.send_info_label.property("screenReaderStateText"),
+            (
+                "Что будет подготовлено: Будет создан архив в папке logs/support_bundles. "
+                "Шаблон обращения автоматически попадёт в буфер обмена."
+            ),
+        )
         self.assertEqual(widgets.send_log_btn.accessibleName(), "Подготовить обращение в поддержку")
         self.assertEqual(
             widgets.send_log_btn.property("screenReaderStateText"),
@@ -310,6 +324,20 @@ class LogsAccessibilityTests(unittest.TestCase):
         self.assertEqual(
             page.open_logs_folder_btn.property("screenReaderStateText"),
             "Открыть папку логов и обращений",
+        )
+        self.assertEqual(
+            page.send_desc_label.property("screenReaderStateText"),
+            (
+                "Описание подготовки обращения: Нажмите кнопку, чтобы собрать ZIP из свежих логов, "
+                "скопировать шаблон обращения и открыть GitHub Discussions."
+            ),
+        )
+        self.assertEqual(
+            page.send_info_label.property("screenReaderStateText"),
+            (
+                "Что будет подготовлено: Будет создан архив в папке logs/support_bundles. "
+                "Шаблон обращения автоматически попадёт в буфер обмена."
+            ),
         )
 
     def test_errors_text_initial_state_is_text_for_screen_reader(self) -> None:

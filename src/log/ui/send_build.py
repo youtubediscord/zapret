@@ -11,6 +11,38 @@ from ui.fluent_widgets import set_tooltip
 from ui.theme import get_cached_qta_pixmap
 
 
+def apply_logs_send_text_accessibility(*, desc_label, info_label, tr_catalog_fn, ui_language: str) -> None:
+    """Обновляет текст для диктора у описаний вкладки поддержки."""
+
+    if desc_label is not None:
+        desc_name = tr_catalog_fn(
+            "page.logs.send.accessibility.description.name",
+            language=ui_language,
+            default="Описание подготовки обращения",
+        )
+        try:
+            desc_text = str(desc_label.text() or "").strip()
+        except Exception:
+            desc_text = ""
+        set_control_accessibility(desc_label, name=desc_name, description=desc_text)
+        if desc_text:
+            set_state_text(desc_label, f"{desc_name}: {desc_text}")
+
+    if info_label is not None:
+        info_name = tr_catalog_fn(
+            "page.logs.send.accessibility.info.name",
+            language=ui_language,
+            default="Что будет подготовлено",
+        )
+        try:
+            info_text = str(info_label.text() or "").strip()
+        except Exception:
+            info_text = ""
+        set_control_accessibility(info_label, name=info_name, description=info_text)
+        if info_text:
+            set_state_text(info_label, f"{info_name}: {info_text}")
+
+
 @dataclass(slots=True)
 class LogsSendTabWidgets:
     send_card: object
@@ -114,15 +146,6 @@ def build_logs_send_tab(
         )
     )
     send_desc_label.setWordWrap(True)
-    set_control_accessibility(
-        send_desc_label,
-        name=tr_catalog_fn(
-            "page.logs.send.accessibility.description.name",
-            language=ui_language,
-            default="Описание подготовки обращения",
-        ),
-        description=send_desc_label.text(),
-    )
     send_layout.addWidget(send_desc_label)
 
     info_container = qwidget_cls()
@@ -140,14 +163,11 @@ def build_logs_send_tab(
         )
     )
     send_info_label.setWordWrap(True)
-    set_control_accessibility(
-        send_info_label,
-        name=tr_catalog_fn(
-            "page.logs.send.accessibility.info.name",
-            language=ui_language,
-            default="Что будет подготовлено",
-        ),
-        description=send_info_label.text(),
+    apply_logs_send_text_accessibility(
+        desc_label=send_desc_label,
+        info_label=send_info_label,
+        tr_catalog_fn=tr_catalog_fn,
+        ui_language=ui_language,
     )
     info_layout.addWidget(send_info_label, 1)
     send_layout.addWidget(info_container)
