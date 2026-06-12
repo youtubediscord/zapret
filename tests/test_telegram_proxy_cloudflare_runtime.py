@@ -1026,7 +1026,7 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(seen_hosts, ["primary.tls", "fresh.tls"])
 
-    def test_upstream_connect_uses_short_failover_timeout(self) -> None:
+    def test_upstream_connect_uses_bounded_failover_timeout(self) -> None:
         from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
         from telegram_proxy.wss_proxy import TelegramWSProxy
 
@@ -1078,7 +1078,8 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
                 )
             )
 
-        self.assertLessEqual(timeouts[0], 4.0)
+        self.assertGreaterEqual(timeouts[0], 5.0)
+        self.assertLessEqual(timeouts[0], 6.0)
 
     def test_no_wss_dc_uses_upstream_fallback_without_direct_tcp_probe(self) -> None:
         from telegram_proxy.proxy.routing import UpstreamProxyConfig
