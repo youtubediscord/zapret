@@ -109,7 +109,12 @@ class ControlTopSummaryItem(QWidget):
             accessible_parts.append(details_text)
         if accessible_parts:
             accessible_text = ", ".join(accessible_parts)
-            set_control_accessibility(self, name=accessible_text)
+            description = (
+                "Нажмите Enter или Пробел, чтобы открыть связанный раздел."
+                if self._clickable
+                else None
+            )
+            set_control_accessibility(self, name=accessible_text, description=description)
             set_state_text(self, accessible_text)
 
     def mousePressEvent(self, event):  # noqa: N802
