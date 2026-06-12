@@ -5,8 +5,8 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtGui import QFocusEvent, QKeyEvent
+from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent
 from PyQt6.QtWidgets import QApplication, QWidget
 
 
@@ -132,6 +132,38 @@ class DnsChoiceListTests(unittest.TestCase):
         self.assertTrue(view._emit_custom_provider_context(custom.item, view.visualItemRect(custom.item).center()))
         self.assertEqual(requested[0][0], "Мой DNS")
         self.assertEqual(requested[0][1]["custom_id"], "custom-1")
+
+    def test_choice_list_right_click_on_custom_dns_row_requests_context_menu(self) -> None:
+        from dns.ui.choice_list import DnsChoiceListWidget
+
+        view = DnsChoiceListWidget()
+        custom = view.add_provider(
+            "Мой DNS",
+            {
+                "desc": "Пользовательский",
+                "ipv4": ["8.8.8.8"],
+                "ipv6": [],
+                "custom_id": "custom-1",
+            },
+            show_ipv6=False,
+        )
+        requested: list[str] = []
+        view.custom_provider_context_requested.connect(lambda name, _data, _pos: requested.append(name))
+
+        pos = view.visualItemRect(custom.item).center()
+        event = QMouseEvent(
+            QEvent.Type.MouseButtonRelease,
+            QPointF(pos),
+            QPointF(view.viewport().mapToGlobal(pos)),
+            Qt.MouseButton.RightButton,
+            Qt.MouseButton.RightButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+        view.mouseReleaseEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(requested, ["Мой DNS"])
 
 
 if __name__ == "__main__":

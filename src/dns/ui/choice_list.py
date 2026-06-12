@@ -94,7 +94,6 @@ class DnsChoiceListWidget(QListWidget):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.viewport().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.setItemDelegate(DnsChoiceListDelegate(self))
         set_control_accessibility(
             self,
@@ -105,7 +104,6 @@ class DnsChoiceListWidget(QListWidget):
         self.currentItemChanged.connect(lambda current, _previous: self._update_current_dns_accessibility(current))
         self.itemClicked.connect(self.activate_item)
         self.itemActivated.connect(self.activate_item)
-        self.viewport().customContextMenuRequested.connect(self._show_provider_context_menu)
         self.setStyleSheet(
             """
             QListWidget#dnsChoiceList {
@@ -236,13 +234,6 @@ class DnsChoiceListWidget(QListWidget):
         if self.currentItem() is item:
             self._update_current_dns_accessibility(item)
 
-    def _show_provider_context_menu(self, pos: QPoint) -> None:
-        item = self.itemAt(pos)
-        if item is None:
-            return
-        self.setCurrentItem(item)
-        self._emit_custom_provider_context(item, pos)
-
     def _emit_custom_provider_context(self, item: QListWidgetItem, pos: QPoint) -> bool:
         if str(item.data(KIND_ROLE) or "") != "provider":
             return False
@@ -253,6 +244,16 @@ class DnsChoiceListWidget(QListWidget):
             return False
         self.custom_provider_context_requested.emit(name, provider_data, self.viewport().mapToGlobal(pos))
         return True
+
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.RightButton:
+            item = self.itemAt(event.position().toPoint())
+            if item is not None:
+                self.setCurrentItem(item)
+                if self._emit_custom_provider_context(item, event.position().toPoint()):
+                    event.accept()
+                    return
+        super().mouseReleaseEvent(event)
 
     def _refresh_custom_widget_selection(self, item: QListWidgetItem, selected: bool) -> None:
         if self._custom_item is None or item is not self._custom_item:
