@@ -283,6 +283,21 @@ def setup_sidebar_search_completer(window) -> None:
 
     session.sidebar_search_completer = completer
     session.sidebar_search_nav_widget.set_completer(completer)
+    if not bool(getattr(session.sidebar_search_nav_widget, "_keyboard_result_connections_installed", False)):
+        navigation_signal = getattr(session.sidebar_search_nav_widget, "completionNavigationRequested", None)
+        if navigation_signal is not None:
+            navigation_signal.connect(
+                lambda step, current_window=window: select_sidebar_search_result_by_keyboard(
+                    current_window,
+                    step,
+                )
+            )
+        activation_signal = getattr(session.sidebar_search_nav_widget, "completionActivationRequested", None)
+        if activation_signal is not None:
+            activation_signal.connect(
+                lambda current_window=window: activate_sidebar_search_result_from_keyboard(current_window)
+            )
+        session.sidebar_search_nav_widget._keyboard_result_connections_installed = True
 
 
 def update_sidebar_search_suggestions(window) -> None:
@@ -295,6 +310,7 @@ def update_sidebar_search_suggestions(window) -> None:
         return
 
     model.clear()
+    reset_sidebar_search_keyboard_selection(window)
     query = (session.nav_search_query or "").strip()
     if not query:
         try:
@@ -334,6 +350,108 @@ def update_sidebar_search_suggestions(window) -> None:
 
     if session.sidebar_search_nav_widget is not None and session.sidebar_search_nav_widget.isVisible():
         session.sidebar_search_nav_widget.show_completions()
+
+
+def reset_sidebar_search_keyboard_selection(window) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    session.sidebar_search_selected_row = -1
+    widget = session.sidebar_search_nav_widget
+    set_text = getattr(widget, "set_keyboard_result_text", None)
+    if callable(set_text):
+        set_text("Глобальный поиск по ZapretGUI")
+
+
+def _sidebar_search_model_row_count(model) -> int:
+    try:
+        return int(model.rowCount())
+    except Exception:
+        return 0
+
+
+def _sidebar_search_item_for_row(model, row: int) -> QStandardItem | None:
+    try:
+        item = model.item(int(row), 0)
+    except Exception:
+        return None
+    return item
+
+
+def _sidebar_search_item_accessible_text(item: QStandardItem | None) -> str:
+    if item is None:
+        return ""
+    text = str(item.data(int(Qt.ItemDataRole.AccessibleTextRole)) or "").strip()
+    if text:
+        return text
+    return str(item.text() or "").strip()
+
+
+def _set_sidebar_search_keyboard_state(window, row: int) -> None:
+    session = get_window_ui_session(window)
+    if session is None:
+        return
+    model = session.sidebar_search_model
+    item = _sidebar_search_item_for_row(model, row) if model is not None else None
+    accessible_text = _sidebar_search_item_accessible_text(item)
+    if not accessible_text:
+        return
+    widget = session.sidebar_search_nav_widget
+    set_text = getattr(widget, "set_keyboard_result_text", None)
+    if callable(set_text):
+        set_text(accessible_text)
+
+
+def select_sidebar_search_result_by_keyboard(window, step: int) -> bool:
+    session = get_window_ui_session(window)
+    if session is None:
+        return False
+    model = session.sidebar_search_model
+    if model is None:
+        return False
+    count = _sidebar_search_model_row_count(model)
+    if count <= 0:
+        reset_sidebar_search_keyboard_selection(window)
+        return False
+
+    try:
+        current_row = int(getattr(session, "sidebar_search_selected_row", -1))
+    except Exception:
+        current_row = -1
+    step_value = 1 if int(step or 0) >= 0 else -1
+    if current_row < 0 or current_row >= count:
+        next_row = 0 if step_value > 0 else count - 1
+    else:
+        next_row = max(0, min(count - 1, current_row + step_value))
+
+    session.sidebar_search_selected_row = next_row
+    _set_sidebar_search_keyboard_state(window, next_row)
+    return True
+
+
+def activate_sidebar_search_result_from_keyboard(window) -> bool:
+    session = get_window_ui_session(window)
+    if session is None:
+        return False
+    model = session.sidebar_search_model
+    if model is None:
+        return False
+    try:
+        selected_row = int(getattr(session, "sidebar_search_selected_row", -1))
+    except Exception:
+        selected_row = -1
+
+    item = _sidebar_search_item_for_row(model, selected_row)
+    if item is not None:
+        target = _search_target_from_item(item)
+        if target is None:
+            return False
+        return _route_search_result_and_clear(window, target.page_name, target.tab_key, target.query_text)
+
+    widget = session.sidebar_search_nav_widget
+    text_getter = getattr(widget, "text", None)
+    text = text_getter() if callable(text_getter) else getattr(session, "nav_search_query", "")
+    return route_sidebar_search_by_text(window, str(text or ""), prefer_first=True)
 
 
 def _clear_sidebar_search(window) -> None:
@@ -572,13 +690,16 @@ def route_search_result(window, page_name: PageName, tab_key: str = "") -> bool:
 
 __all__ = [
     "SidebarSearchTarget",
+    "activate_sidebar_search_result_from_keyboard",
     "attach_sidebar_search_to_titlebar",
     "get_sidebar_search_pages",
     "on_sidebar_search_changed",
     "on_sidebar_search_result_activated",
     "on_sidebar_search_result_text_activated",
+    "reset_sidebar_search_keyboard_selection",
     "route_search_result",
     "route_sidebar_search_by_text",
+    "select_sidebar_search_result_by_keyboard",
     "setup_sidebar_search_completer",
     "show_page",
     "update_sidebar_search_suggestions",

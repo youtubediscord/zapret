@@ -7,6 +7,7 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 
@@ -47,6 +48,28 @@ class WindowUiFacadeLazyImportTests(unittest.TestCase):
         ]
         self.assertTrue(search_buttons)
         self.assertTrue(all(button.focusPolicy() == Qt.FocusPolicy.NoFocus for button in search_buttons))
+
+    def test_sidebar_search_widget_emits_keyboard_result_actions(self) -> None:
+        import ui.window_ui_facade as window_ui_facade
+
+        widget_cls = window_ui_facade._get_sidebar_search_nav_widget_cls()
+        widget = widget_cls()
+        self.addCleanup(widget.deleteLater)
+        navigation_steps: list[int] = []
+        activations: list[bool] = []
+        widget.completionNavigationRequested.connect(navigation_steps.append)
+        widget.completionActivationRequested.connect(lambda: activations.append(True))
+        widget.show()
+        self._app.processEvents()
+        widget._search.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(widget._search, Qt.Key.Key_Down)
+        QTest.keyClick(widget._search, Qt.Key.Key_Up)
+        QTest.keyClick(widget._search, Qt.Key.Key_Return)
+
+        self.assertEqual(navigation_steps, [1, -1])
+        self.assertEqual(activations, [True])
 
 
 if __name__ == "__main__":

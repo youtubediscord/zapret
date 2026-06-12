@@ -1508,6 +1508,79 @@ class PresetSidebarNavigationTests(unittest.TestCase):
             "Результат поиска: Discord Voice, место: Готовые стратегии. Нажмите Enter, чтобы открыть.",
         )
 
+    def test_sidebar_search_keyboard_navigation_reads_selected_result(self) -> None:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QStandardItem, QStandardItemModel
+
+        import ui.navigation.search as sidebar_search
+
+        class _SearchWidget:
+            def __init__(self) -> None:
+                self.state_texts: list[str] = []
+
+            def set_keyboard_result_text(self, text: str) -> None:
+                self.state_texts.append(text)
+
+        first = QStandardItem("DNS - Настройка DNS")
+        first.setData(
+            "Результат поиска: DNS, место: Настройка DNS. Нажмите Enter, чтобы открыть.",
+            int(Qt.ItemDataRole.AccessibleTextRole),
+        )
+        second = QStandardItem("Логи - Логи")
+        second.setData(
+            "Результат поиска: Логи, место: Логи. Нажмите Enter, чтобы открыть.",
+            int(Qt.ItemDataRole.AccessibleTextRole),
+        )
+        model = QStandardItemModel()
+        model.appendRow(first)
+        model.appendRow(second)
+        session = SimpleNamespace(
+            sidebar_search_model=model,
+            sidebar_search_nav_widget=_SearchWidget(),
+            sidebar_search_selected_row=-1,
+        )
+        window = SimpleNamespace(ui_session=session)
+
+        self.assertTrue(sidebar_search.select_sidebar_search_result_by_keyboard(window, 1))
+        self.assertEqual(session.sidebar_search_selected_row, 0)
+        self.assertEqual(
+            session.sidebar_search_nav_widget.state_texts[-1],
+            "Результат поиска: DNS, место: Настройка DNS. Нажмите Enter, чтобы открыть.",
+        )
+
+        self.assertTrue(sidebar_search.select_sidebar_search_result_by_keyboard(window, 1))
+        self.assertEqual(session.sidebar_search_selected_row, 1)
+        self.assertEqual(
+            session.sidebar_search_nav_widget.state_texts[-1],
+            "Результат поиска: Логи, место: Логи. Нажмите Enter, чтобы открыть.",
+        )
+
+    def test_sidebar_search_keyboard_activation_opens_selected_result(self) -> None:
+        from PyQt6.QtGui import QStandardItem, QStandardItemModel
+
+        from app.page_names import PageName
+        import ui.navigation.search as sidebar_search
+
+        item = QStandardItem("Логи - Логи")
+        item.setData(PageName.LOGS.name, sidebar_search._PAGE_ROLE)
+        item.setData("", sidebar_search._TAB_ROLE)
+        item.setData("", sidebar_search._QUERY_ROLE)
+        model = QStandardItemModel()
+        model.appendRow(item)
+        session = SimpleNamespace(
+            nav_search_query="лог",
+            sidebar_search_model=model,
+            sidebar_search_nav_widget=SimpleNamespace(clear=Mock()),
+            sidebar_search_selected_row=0,
+        )
+        window = SimpleNamespace(ui_session=session)
+
+        with patch.object(sidebar_search, "route_search_result", return_value=True) as route:
+            self.assertTrue(sidebar_search.activate_sidebar_search_result_from_keyboard(window))
+
+        route.assert_called_once_with(window, PageName.LOGS, "")
+        session.sidebar_search_nav_widget.clear.assert_called_once_with()
+
     def test_sidebar_search_reuses_runtime_entries_cache_while_typing(self) -> None:
         from settings.mode import ZAPRET2_MODE
         import ui.navigation.search as sidebar_search

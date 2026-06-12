@@ -36,6 +36,7 @@ class WindowUiSession:
     sidebar_search_nav_widget: Any | None = None
     sidebar_search_model: Any | None = None
     sidebar_search_completer: Any | None = None
+    sidebar_search_selected_row: int = -1
     sidebar_search_titlebar_attached: bool = False
 
     ui_language: str = "ru"

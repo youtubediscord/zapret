@@ -57,7 +57,7 @@ def _get_sidebar_search_nav_widget_cls():
     if _SIDEBAR_SEARCH_NAV_WIDGET_CLS is not None:
         return _SIDEBAR_SEARCH_NAV_WIDGET_CLS
 
-    from PyQt6.QtCore import QTimer, pyqtSignal
+    from PyQt6.QtCore import QEvent, QTimer, Qt, pyqtSignal
     from PyQt6.QtWidgets import QWidget, QHBoxLayout
     from app.ui_texts import tr as tr_catalog
     from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
@@ -65,6 +65,8 @@ def _get_sidebar_search_nav_widget_cls():
 
     class _SidebarSearchNavWidget(QWidget):
         textChanged = pyqtSignal(str)
+        completionNavigationRequested = pyqtSignal(int)
+        completionActivationRequested = pyqtSignal()
 
         def __init__(self, parent: QWidget | None = None):
             super().__init__(parent)
@@ -95,6 +97,7 @@ def _get_sidebar_search_nav_widget_cls():
                 pass
             remove_line_edit_buttons_from_tab_order(self._search)
             self._search.textChanged.connect(self.textChanged.emit)
+            self._search.installEventFilter(self)
 
             layout = QHBoxLayout(self)
             layout.setContentsMargins(0, 4, 0, 4)
@@ -114,6 +117,27 @@ def _get_sidebar_search_nav_widget_cls():
 
         def set_completer(self, completer) -> None:
             self._search.setCompleter(completer)
+
+        def set_keyboard_result_text(self, text: str) -> None:
+            value = str(text or "").strip() or "Глобальный поиск по ZapretGUI"
+            set_state_text(self, value)
+            set_state_text(self._search, value)
+
+        def eventFilter(self, watched, event):  # noqa: N802
+            if watched is self._search and event.type() == QEvent.Type.KeyPress:
+                if event.key() == Qt.Key.Key_Down:
+                    self.completionNavigationRequested.emit(1)
+                    event.accept()
+                    return True
+                if event.key() == Qt.Key.Key_Up:
+                    self.completionNavigationRequested.emit(-1)
+                    event.accept()
+                    return True
+                if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                    self.completionActivationRequested.emit()
+                    event.accept()
+                    return True
+            return super().eventFilter(watched, event)
 
         def show_completions(self) -> None:
             # Defer popup interaction to avoid re-entrant completer/model updates
