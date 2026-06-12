@@ -57,10 +57,14 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
         )
         self.assertIn("сколько стратегий", page._mode_combo.accessibleDescription())
         self.assertEqual(page._target_input.accessibleName(), "Цель подбора стратегии")
+        self.assertEqual(page._target_input.property("screenReaderStateText"), "Цель подбора стратегии")
         self.assertIn("домен или STUN-цель", page._target_input.accessibleDescription())
         self.assertEqual(page._quick_domain_btn.accessibleName(), "Быстрый выбор цели")
+        self.assertEqual(page._quick_domain_btn.property("screenReaderStateText"), "Быстрый выбор цели")
         self.assertEqual(page._start_btn.accessibleName(), "Начать подбор стратегии")
+        self.assertEqual(page._start_btn.property("screenReaderStateText"), "Начать подбор стратегии")
         self.assertEqual(page._stop_btn.accessibleName(), "Остановить подбор стратегии")
+        self.assertEqual(page._stop_btn.property("screenReaderStateText"), "Остановить подбор стратегии")
         self.assertEqual(page._progress_bar.accessibleName(), "Ход подбора стратегии: не выполняется")
         self.assertEqual(
             page._progress_bar.property("screenReaderStateText"),
@@ -79,7 +83,15 @@ class StrategyScanPageAccessibilityTests(unittest.TestCase):
             "Подробный лог подбора стратегии: пока нет записей",
         )
         self.assertEqual(page._expand_log_btn.accessibleName(), "Развернуть лог подбора стратегии")
+        self.assertEqual(
+            page._expand_log_btn.property("screenReaderStateText"),
+            "Развернуть лог подбора стратегии",
+        )
         self.assertEqual(page._prepare_support_btn.accessibleName(), "Подготовить обращение по подбору стратегии")
+        self.assertEqual(
+            page._prepare_support_btn.property("screenReaderStateText"),
+            "Подготовить обращение по подбору стратегии",
+        )
 
     def test_protocol_combo_menu_items_are_named_for_screen_reader(self) -> None:
         page = StrategyScanPage(

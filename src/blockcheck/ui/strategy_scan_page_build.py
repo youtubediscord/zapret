@@ -65,6 +65,10 @@ def build_strategy_scan_control_section(
     on_start,
     on_stop,
 ) -> StrategyScanControlWidgets:
+    def _set_action_accessibility(widget, *, name: str, description: str) -> None:
+        set_control_accessibility(widget, name=name, description=description)
+        set_state_text(widget, name)
+
     control_card = SettingsCard(
         tr_fn("page.strategy_scan.control", "Управление сканированием")
     )
@@ -139,7 +143,7 @@ def build_strategy_scan_control_section(
     target_input = line_edit_cls()
     target_input.setText(tr_fn("page.strategy_scan.target.default", "discord.com"))
     target_input.setPlaceholderText(tr_fn("page.strategy_scan.target.placeholder", "discord.com"))
-    set_control_accessibility(
+    _set_action_accessibility(
         target_input,
         name="Цель подбора стратегии",
         description="Введите домен или STUN-цель для подбора стратегии.",
@@ -154,7 +158,7 @@ def build_strategy_scan_control_section(
     )
     quick_domain_description = tr_fn("page.strategy_scan.quick_domains_hint", "Выберите домен из готового списка")
     set_tooltip(quick_domain_btn, quick_domain_description)
-    set_control_accessibility(
+    _set_action_accessibility(
         quick_domain_btn,
         name="Быстрый выбор цели",
         description=quick_domain_description,
@@ -202,7 +206,7 @@ def build_strategy_scan_control_section(
         "Запустить автоматический перебор стратегий обхода DPI для выбранной цели.",
     )
     set_tooltip(start_btn, start_description)
-    set_control_accessibility(
+    _set_action_accessibility(
         start_btn,
         name="Начать подбор стратегии",
         description=start_description,
@@ -219,7 +223,7 @@ def build_strategy_scan_control_section(
         "Остановить текущее сканирование стратегий и вернуть страницу в обычный режим.",
     )
     set_tooltip(stop_btn, stop_description)
-    set_control_accessibility(
+    _set_action_accessibility(
         stop_btn,
         name="Остановить подбор стратегии",
         description=stop_description,
@@ -293,12 +297,16 @@ def build_strategy_scan_results_section(*, tr_fn, table_cls) -> StrategyScanResu
 
 
 def build_strategy_scan_log_section(*, tr_fn, push_button_cls, parent, on_toggle_log_expand, on_prepare_support) -> StrategyScanLogWidgets:
+    def _set_action_accessibility(widget, *, name: str, description: str) -> None:
+        set_control_accessibility(widget, name=name, description=description)
+        set_state_text(widget, name)
+
     log_card = SettingsCard(
         tr_fn("page.strategy_scan.log", "Подробный лог")
     )
 
     expand_log_btn = push_button_cls("Развернуть", icon=FluentIcon.FULL_SCREEN)
-    set_control_accessibility(
+    _set_action_accessibility(
         expand_log_btn,
         name="Развернуть лог подбора стратегии",
         description="Разворачивает подробный лог подбора стратегии на странице.",
@@ -316,7 +324,7 @@ def build_strategy_scan_log_section(*, tr_fn, push_button_cls, parent, on_toggle
         tr_fn("page.strategy_scan.prepare_support", "Подготовить обращение"),
         icon=FluentIcon.GITHUB,
     )
-    set_control_accessibility(
+    _set_action_accessibility(
         prepare_support_btn,
         name="Подготовить обращение по подбору стратегии",
         description="Готовит обращение с логами подбора стратегии для поддержки.",
