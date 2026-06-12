@@ -943,6 +943,59 @@ class PresetSidebarNavigationTests(unittest.TestCase):
         self.assertEqual(hidden_item.set_visible_calls, [])
         self.assertEqual(header.set_visible_calls, [])
 
+    def test_sidebar_nav_item_exposes_screen_reader_name(self) -> None:
+        from app.page_names import PageName
+        from settings.mode import ZAPRET2_MODE
+        import ui.navigation.sidebar_builder as sidebar_builder
+
+        class FakeNavItem:
+            def __init__(self) -> None:
+                self._accessible_name = ""
+                self._accessible_description = ""
+
+            def accessibleName(self):  # noqa: N802
+                return self._accessible_name
+
+            def setAccessibleName(self, value):  # noqa: N802
+                self._accessible_name = str(value)
+
+            def accessibleDescription(self):  # noqa: N802
+                return self._accessible_description
+
+            def setAccessibleDescription(self, value):  # noqa: N802
+                self._accessible_description = str(value)
+
+        class FakeNavigationInterface:
+            def addItem(self, *, routeKey, icon, text, onClick, selectable, position):
+                _ = routeKey, icon, text, onClick, selectable, position
+                return FakeNavItem()
+
+        session = SimpleNamespace(
+            nav_items={},
+            nav_icons={},
+            nav_labels={PageName.NETWORK: "DNS и сеть"},
+            nav_scroll_position=None,
+            default_nav_icon=None,
+            ui_language="ru",
+            page_host=SimpleNamespace(ensure_page=lambda page_name: None),
+        )
+        window = SimpleNamespace(
+            ui_session=session,
+            navigationInterface=FakeNavigationInterface(),
+            get_launch_method=lambda: ZAPRET2_MODE,
+        )
+
+        with patch.object(sidebar_builder, "get_eager_page_names_for_method", return_value=()):
+            sidebar_builder.add_nav_item(window, PageName.NETWORK, None)
+
+        item = session.nav_items[PageName.NETWORK]
+
+        self.assertEqual(item.accessibleName(), "Открыть раздел: Настройка DNS")
+        self.assertEqual(
+            item.accessibleDescription(),
+            "Открывает раздел Настройка DNS в боковом меню.",
+        )
+
     def test_nav_visibility_filter_keeps_mode_items_hidden_when_state_is_missing(self) -> None:
         from app.page_names import PageName
         import ui.navigation.sidebar_builder as sidebar_builder

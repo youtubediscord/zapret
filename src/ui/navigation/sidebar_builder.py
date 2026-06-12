@@ -23,6 +23,7 @@ from ui.window_ui_session import get_window_ui_session
 from ui.navigation.sidebar_state import peek_warmed_sidebar_expanded
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
+from ui.accessibility import set_control_accessibility
 
 
 SIDEBAR_SEARCH_AFTER_INTERACTIVE_MS = 300
@@ -354,6 +355,7 @@ def add_nav_item(
         log(f"[NAV] addItem lazy {page_name.name} item={item}", "DEBUG")
 
     if item is not None:
+        _set_nav_item_accessibility(item, text)
         session.nav_items[page_name] = item
         if initial_visible is not None:
             _set_visible_if_changed(item, bool(initial_visible))
@@ -362,6 +364,17 @@ def add_nav_item(
 
     if pump_ui:
         pump_startup_ui(window)
+
+
+def _set_nav_item_accessibility(item, text: str) -> None:
+    label = " ".join(str(text or "").strip().split())
+    if not label:
+        return
+    set_control_accessibility(
+        item,
+        name=f"Открыть раздел: {label}",
+        description=f"Открывает раздел {label} в боковом меню.",
+    )
 
 
 def _install_sidebar_search(window) -> None:
