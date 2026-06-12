@@ -44,8 +44,10 @@ def start_blockcheck_page_run(
 ) -> BlockcheckRunStartResult:
     """Готовит экран и запускает фоновую проверку BlockCheck."""
     table.setRowCount(0)
+    set_state_text(table, "Результаты BlockCheck по доменам: пока нет результатов")
     if tcp_table is not None:
         tcp_table.setRowCount(0)
+        set_state_text(tcp_table, "Результаты TCP 16-20KB: пока нет результатов")
         tcp_table.setVisible(False)
     if tcp_section_label is not None:
         tcp_section_label.setVisible(False)

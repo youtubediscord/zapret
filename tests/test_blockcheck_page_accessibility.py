@@ -157,6 +157,53 @@ class BlockcheckPageAccessibilityTests(unittest.TestCase):
         self.assertEqual(progress_bar.accessibleName(), "Ход BlockCheck: не выполняется")
         self.assertEqual(progress_bar.property("screenReaderStateText"), "Ход BlockCheck: не выполняется")
 
+    def test_run_start_restores_empty_result_table_screen_reader_states(self) -> None:
+        results_table = _AccessibleTableStub()
+        tcp_table = _AccessibleTableStub()
+
+        start_blockcheck_page_run(
+            blockcheck_feature=_RunFeatureStub(),
+            mode="full",
+            extra_domains=[],
+            skip_preflight_failed=False,
+            parent=None,
+            run_runtime=_RunRuntimeStub(),
+            table=results_table,
+            tcp_table=tcp_table,
+            tcp_section_label=_WidgetStub(),
+            dpi_card=_WidgetStub(),
+            log_edit=_LogEditStub(),
+            start_button=_ButtonStub(),
+            stop_button=_ButtonStub(),
+            mode_combo=_ButtonStub(),
+            skip_failed_checkbox=_ButtonStub(),
+            progress_bar=_FakeProgressBar(),
+            status_label=_TextStub(),
+            runtime_warnings_seen=set(),
+            set_support_status=lambda _text: None,
+            tr_fn=lambda _key, default: default,
+            on_phase_changed=lambda *_args: None,
+            on_test_result=lambda *_args: None,
+            on_target_complete=lambda *_args: None,
+            on_log=lambda *_args: None,
+            on_run_log_started=lambda *_args: None,
+            on_finished=lambda *_args: None,
+        )
+
+        self.assertEqual(results_table.row_count, 0)
+        self.assertEqual(results_table.accessibleName(), "Результаты BlockCheck по доменам: пока нет результатов")
+        self.assertEqual(
+            results_table.property("screenReaderStateText"),
+            "Результаты BlockCheck по доменам: пока нет результатов",
+        )
+        self.assertEqual(tcp_table.row_count, 0)
+        self.assertFalse(tcp_table.visible)
+        self.assertEqual(tcp_table.accessibleName(), "Результаты TCP 16-20KB: пока нет результатов")
+        self.assertEqual(
+            tcp_table.property("screenReaderStateText"),
+            "Результаты TCP 16-20KB: пока нет результатов",
+        )
+
 
 class _SignalStub:
     def connect(self, _callback) -> None:
@@ -186,6 +233,39 @@ class _RunRuntimeStub:
 class _TableStub:
     def setRowCount(self, _count: int) -> None:  # noqa: N802
         pass
+
+
+class _AccessibleTableStub:
+    def __init__(self) -> None:
+        self.row_count = -1
+        self.visible = True
+        self.properties = {}
+        self.accessible_name = ""
+        self.accessible_description = ""
+
+    def setRowCount(self, count: int) -> None:  # noqa: N802
+        self.row_count = int(count)
+
+    def setVisible(self, visible: bool) -> None:  # noqa: N802
+        self.visible = bool(visible)
+
+    def accessibleName(self) -> str:  # noqa: N802
+        return self.accessible_name
+
+    def setAccessibleName(self, text: str) -> None:  # noqa: N802
+        self.accessible_name = str(text)
+
+    def accessibleDescription(self) -> str:  # noqa: N802
+        return self.accessible_description
+
+    def setAccessibleDescription(self, text: str) -> None:  # noqa: N802
+        self.accessible_description = str(text)
+
+    def property(self, name: str) -> object:
+        return self.properties.get(name)
+
+    def setProperty(self, name: str, value: object) -> None:  # noqa: N802
+        self.properties[name] = value
 
 
 class _WidgetStub:
