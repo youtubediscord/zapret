@@ -80,6 +80,7 @@ def set_state_text(widget, text: object) -> None:
         return
     set_accessible_name(widget, value)
     remove_line_edit_buttons_from_tab_order(widget)
+    remove_scrollbar_arrow_buttons_from_tab_order(widget)
     _sync_spinbox_children_accessibility(widget, name=value, description=None)
     try:
         if _clean_text(widget.property("screenReaderStateText")) == value:
