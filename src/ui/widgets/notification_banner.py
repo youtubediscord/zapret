@@ -104,6 +104,7 @@ class NotificationBanner(QWidget):
             name="Закрыть уведомление",
             description="Скрывает текущее уведомление.",
         )
+        set_state_text(self.close_btn, "Закрыть уведомление")
         self.close_btn.clicked.connect(self.hide_animated)
         layout.addWidget(self.close_btn)
 

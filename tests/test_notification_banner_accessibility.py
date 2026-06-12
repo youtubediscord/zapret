@@ -32,6 +32,7 @@ class NotificationBannerAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(len(close_buttons), 1)
         self.assertEqual(close_buttons[0].accessibleName(), "Закрыть уведомление")
+        self.assertEqual(close_buttons[0].property("screenReaderStateText"), "Закрыть уведомление")
         self.assertIn("скрывает", close_buttons[0].accessibleDescription().lower())
 
 
