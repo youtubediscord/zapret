@@ -460,6 +460,30 @@ def get_service_state(service_name: str) -> int | None:
         return None
 
 
+def get_service_registry_flags(service_name: str) -> dict[str, int | None]:
+    """Читает Start и DeleteFlag из реестра службы Windows."""
+    try:
+        import winreg
+
+        path = f"SYSTEM\\CurrentControlSet\\Services\\{service_name}"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path, 0, winreg.KEY_READ) as key:
+            values: dict[str, int | None] = {"start": None, "delete_flag": None}
+            try:
+                values["start"] = int(winreg.QueryValueEx(key, "Start")[0])
+            except FileNotFoundError:
+                values["start"] = None
+            try:
+                values["delete_flag"] = int(winreg.QueryValueEx(key, "DeleteFlag")[0])
+            except FileNotFoundError:
+                values["delete_flag"] = 0
+            return values
+    except FileNotFoundError:
+        return {"start": None, "delete_flag": None}
+    except Exception as e:
+        log(f"Ошибка чтения реестра службы {service_name}: {e}", "DEBUG")
+        return {"start": None, "delete_flag": None}
+
+
 def fast_cleanup_all() -> None:
     """
     Быстрая очистка всех служб и драйверов (не ждёт результата)

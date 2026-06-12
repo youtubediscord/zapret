@@ -14,6 +14,8 @@ _KNOWN_WINDIVERT_SERVICES = ("WinDivert", "WinDivert14", "WinDivert64", "windive
 _SERVICE_STOPPED = 0x00000001
 _SERVICE_STOP_PENDING = 0x00000003
 _SERVICE_RUNNING = 0x00000004
+_SERVICE_DISABLED = 0x00000004
+_ERROR_SERVICE_MARKED_FOR_DELETE = 1072
 _WINDIVERT_LAYER_NETWORK = 0
 _WINDIVERT_LAYER_REFLECT = 4
 _WINDIVERT_FLAG_SNIFF = 1
@@ -111,6 +113,37 @@ def get_known_windivert_service_states_runtime() -> dict[str, int | None]:
     except Exception as e:
         log(f"Ошибка чтения состояний WinDivert service: {e}", "DEBUG")
         return {service_name: None for service_name in _KNOWN_WINDIVERT_SERVICES}
+
+
+def get_known_windivert_service_registry_flags_runtime() -> dict[str, dict[str, int | None]]:
+    try:
+        from utils.service_manager import get_service_registry_flags
+
+        return {service_name: get_service_registry_flags(service_name) for service_name in _KNOWN_WINDIVERT_SERVICES}
+    except Exception as e:
+        log(f"Ошибка чтения реестра WinDivert service: {e}", "DEBUG")
+        return {service_name: {"start": None, "delete_flag": None} for service_name in _KNOWN_WINDIVERT_SERVICES}
+
+
+def find_stale_windivert_delete_pending_services_runtime() -> list[str]:
+    """Ищет редкий SCM-хвост: driver-service запущена, но отключена и уже DeleteFlag=1."""
+    states = get_known_windivert_service_states_runtime()
+    registry_flags = get_known_windivert_service_registry_flags_runtime()
+    stale: list[str] = []
+
+    for service_name in _KNOWN_WINDIVERT_SERVICES:
+        state = states.get(service_name)
+        flags = registry_flags.get(service_name) or {}
+        start_type = flags.get("start")
+        delete_flag = flags.get("delete_flag")
+        if (
+            state == _SERVICE_RUNNING
+            and start_type == _SERVICE_DISABLED
+            and int(delete_flag or 0) == 1
+        ):
+            stale.append(service_name)
+
+    return stale
 
 
 def _iter_windivert_dll_candidates_runtime() -> list[str]:
@@ -427,6 +460,20 @@ def wait_for_windivert_spawn_ready_runtime(
 
     while time.monotonic() < deadline:
         last_probe = probe_windivert_state_runtime()
+        stale_services = find_stale_windivert_delete_pending_services_runtime()
+        if stale_services:
+            service_list = ",".join(stale_services)
+            log(
+                "WinDivert service is still running but marked for deletion: "
+                f"{service_list}",
+                "WARNING",
+            )
+            return WinDivertRuntimeProbeResult(
+                installed=True,
+                ready=False,
+                error_code=_ERROR_SERVICE_MARKED_FOR_DELETE,
+                stage=f"stale_delete_pending:{service_list}",
+            )
         if last_probe.ready:
             return last_probe
         if int(last_probe.error_code or 0) == 1058 and not restored_service_start_type:

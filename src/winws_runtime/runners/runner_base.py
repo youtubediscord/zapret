@@ -17,6 +17,7 @@ from winws_runtime.health.process_health_check import (
     diagnose_startup_error, diagnose_winws_exit,
 )
 from winws_runtime.runtime.system_ops import (
+    _ERROR_SERVICE_MARKED_FOR_DELETE,
     aggressive_windivert_cleanup_runtime,
     cleanup_windivert_services_runtime,
     force_kill_all_winws_processes,
@@ -319,7 +320,7 @@ class StrategyRunnerBase(ABC):
         WinDivert ещё не готов открыть NETWORK layer. Не бесконечный retry:
         делаем один контролируемый цикл и возвращаем итоговый probe.
         """
-        transient_codes = {5, 1058, 1060, 1753}
+        transient_codes = {5, 1058, 1060, 1753, _ERROR_SERVICE_MARKED_FOR_DELETE}
         if probe.ready or int(probe.error_code or 0) not in transient_codes:
             return probe
 
