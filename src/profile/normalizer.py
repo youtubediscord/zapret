@@ -15,7 +15,7 @@ _EXCLUDE_LIST_NAMES = {
     "--ipset-exclude",
     "--ipset-exclude-ip",
 }
-_NAME_DIRECTIVE_NAMES = {"--name", "--name="}
+_NAME_DIRECTIVE_NAMES = {"--name", "--comment"}
 
 
 @dataclass(frozen=True)

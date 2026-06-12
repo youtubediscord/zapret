@@ -13,7 +13,7 @@
 
 --new
 
---name=Russia blacklist TCP wide
+--comment=Russia blacklist TCP wide
 --filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
@@ -24,7 +24,7 @@
 
 --new
 
---name=Russia blacklist TCP 443
+--comment=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multidisorder
@@ -38,7 +38,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,multidisorder
@@ -50,7 +50,7 @@
 
 --new
 
---name=discord.com
+--comment=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multidisorder
@@ -64,7 +64,7 @@
 
 --new
 
---name=youtube.com (интерфейс)
+--comment=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
@@ -78,7 +78,7 @@
 
 --new
 
---name=General list TCP
+--comment=General list TCP
 --filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multidisorder

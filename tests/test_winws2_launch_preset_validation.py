@@ -715,6 +715,7 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
         from threading import RLock
 
         from winws_runtime.runners.zapret1_runner import Winws1StrategyRunner
+        from profile.parser import parse_preset_text
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -727,7 +728,7 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
                     (
                         "# Preset: Selected",
                         "--wf-tcp=443",
-                        "--name=youtube.com (интерфейс)",
+                        "--comment=youtube.com (интерфейс)",
                         "--filter-tcp=443",
                         "--hostlist=youtube.txt",
                         "--dpi-desync=fake,split2",
@@ -747,11 +748,14 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             artifact = runner._compile_preset_artifact(str(preset_path))
 
             self.assertTrue(artifact.validation_ok, artifact.validation_report)
+            preset = parse_preset_text(preset_path.read_text(encoding="utf-8"), engine="winws1")
+            self.assertEqual(preset.profiles[0].name, "youtube.com (интерфейс)")
             self.assertEqual(len(artifact.launch_args), 1)
             self.assertTrue(artifact.launch_args[0].startswith("@"))
             at_config_path = Path(str(artifact.launch_args[0])[1:])
             at_config_text = at_config_path.read_text(encoding="utf-8")
-            self.assertIn("'--name=youtube.com (интерфейс)'", at_config_text)
+            self.assertNotIn("--name=", at_config_text)
+            self.assertIn("'--comment=youtube.com (интерфейс)'", at_config_text)
             self.assertIn(f"--hostlist={lists_dir / 'youtube.txt'}", at_config_text)
             self.assertNotIn("# Preset:", at_config_text)
 

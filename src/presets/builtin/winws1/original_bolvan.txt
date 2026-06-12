@@ -33,7 +33,7 @@
 
 --new
 
---name=youtube.com (интерфейс)
+--comment=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,multidisorder
@@ -56,7 +56,7 @@
 
 --new
 
---name=youtube.com (QUIC)
+--comment=youtube.com (QUIC)
 --filter-udp=443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake
@@ -75,7 +75,7 @@
 
 --new
 
---name=Discord UDP
+--comment=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake

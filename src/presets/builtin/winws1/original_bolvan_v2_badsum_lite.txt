@@ -56,7 +56,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,multidisorder
@@ -66,7 +66,7 @@
 
 --new
 
---name=youtube.com (QUIC)
+--comment=youtube.com (QUIC)
 --filter-udp=443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake

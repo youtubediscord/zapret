@@ -146,8 +146,9 @@ def _profile_text(row: object, *, paths: AppPaths, engine: str) -> str:
     hostlist = str(row.get("hostlist") or "").strip()
     if not hostlist:
         return ""
+    name_directive = "--comment" if engine == ENGINE_WINWS1 else "--name"
     lines = [
-        f"--name={name}",
+        f"{name_directive}={name}",
         f"--filter-{protocol}={ports}",
         f"--hostlist={hostlist}",
     ]

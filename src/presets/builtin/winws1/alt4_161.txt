@@ -16,7 +16,7 @@
 
 --new
 
---name=Discord UDP
+--comment=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
@@ -28,7 +28,7 @@
 
 --new
 
---name=General list TCP
+--comment=General list TCP
 --filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,split2
@@ -39,7 +39,7 @@
 
 --new
 
---name=discord.com
+--comment=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
@@ -51,7 +51,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,split2
@@ -61,7 +61,7 @@
 
 --new
 
---name=SoundCloud
+--comment=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,split2
@@ -73,7 +73,7 @@
 
 --new
 
---name=rutracker.org
+--comment=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,split2
@@ -85,7 +85,7 @@
 
 --new
 
---name=rutor.info (.is)
+--comment=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,split2
@@ -97,7 +97,7 @@
 
 --new
 
---name=Roblox TCP
+--comment=Roblox TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,split2
@@ -109,7 +109,7 @@
 
 --new
 
---name=itch.io
+--comment=itch.io
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,split2
@@ -121,7 +121,7 @@
 
 --new
 
---name=Facebook
+--comment=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,split2
@@ -133,7 +133,7 @@
 
 --new
 
---name=Instagram
+--comment=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,split2
@@ -145,7 +145,7 @@
 
 --new
 
---name=Twitter/X
+--comment=Twitter/X
 --filter-tcp=80,443
 --hostlist=lists/twitter.txt
 --dpi-desync=fake,split2
@@ -157,7 +157,7 @@
 
 --new
 
---name=WhatsApp
+--comment=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,split2
@@ -180,7 +180,7 @@
 
 --new
 
---name=Игровые UDP порты
+--comment=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake

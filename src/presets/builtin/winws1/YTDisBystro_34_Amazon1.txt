@@ -19,7 +19,7 @@
 
 --new
 
---name=googlevideo.com (CDN сервера)
+--comment=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --dpi-desync=multisplit
@@ -30,7 +30,7 @@
 
 --new
 
---name=youtube.com (интерфейс)
+--comment=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=multisplit
@@ -69,7 +69,7 @@
 
 --new
 
---name=Cloudflare legacy TCP
+--comment=Cloudflare legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --ipset-exclude-ip=1.1.1.1,1.0.0.1,212.109.195.93,83.220.169.155,141.105.71.21,18.244.96.0/19,18.244.128.0/19
@@ -109,7 +109,7 @@
 
 --new
 
---name=Cloudflare legacy UDP
+--comment=Cloudflare legacy UDP
 --filter-udp=443-65535
 --ipset=lists/cloudflare-ipset.txt
 --dpi-desync=fake

@@ -16,7 +16,7 @@
 
 --new
 
---name=youtube.com (интерфейс)
+--comment=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,split2

@@ -24,7 +24,7 @@
 
 --new
 
---name=General list TCP
+--comment=General list TCP
 --filter-tcp=80,443
 --hostlist=lists/list-general.txt
 --dpi-desync=fake,multisplit
@@ -42,7 +42,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
@@ -51,7 +51,7 @@
 
 --new
 
---name=Игровые UDP порты
+--comment=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake

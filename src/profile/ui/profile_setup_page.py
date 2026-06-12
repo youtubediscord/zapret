@@ -2439,7 +2439,7 @@ class ProfileSetupPageBase(BasePage):
         )
         set_tooltip(
             self._update_user_profile_button,
-            "Изменяет пользовательский profile и обновляет все preset-ы, где он найден по старому --name.",
+            "Изменяет пользовательский profile и обновляет все preset-ы, где есть profile с таким же именем.",
         )
         set_tooltip(
             self._delete_user_profile_button,
@@ -2508,7 +2508,7 @@ class ProfileSetupPageBase(BasePage):
         dialog = CreateUserProfileDialog(
             self,
             title="Изменить profile",
-            subtitle="Изменяет пользовательский profile и обновляет все preset-ы, где есть старое --name.",
+            subtitle="Изменяет пользовательский profile и обновляет все preset-ы, где есть profile с таким же именем.",
             button_text="Сохранить",
             name=str(getattr(item, "display_name", "") or ""),
             protocol=protocol,
@@ -2530,7 +2530,7 @@ class ProfileSetupPageBase(BasePage):
             return
         body = (
             "Пользовательский profile будет удалён из библиотеки, его файлы списков будут удалены, "
-            "а profile-ы с таким же --name будут убраны из preset-ов."
+            "а profile-ы с таким же именем будут убраны из preset-ов."
         )
         dialog = MessageBox(
             "Удалить profile",

@@ -964,7 +964,6 @@ class ProfilePresetService:
         old_key = str(old_name or "").strip().casefold()
         if not old_key:
             return 0
-        needle = f"--name={old_name}"
         for launch_method in sorted(PRESET_LAUNCH_METHODS):
             list_manifests = getattr(self._presets, "list_preset_manifests", None)
             read_source = getattr(self._presets, "read_preset_source_by_file_name", None)
@@ -977,7 +976,7 @@ class ProfilePresetService:
                 if not file_name:
                     continue
                 source_text = str(read_source(launch_method, file_name) or "")
-                if needle not in source_text and old_name not in source_text:
+                if old_name not in source_text:
                     continue
                 preset = parse_preset_text(source_text, engine=engine, source_name=file_name)
                 changed_indexes = [

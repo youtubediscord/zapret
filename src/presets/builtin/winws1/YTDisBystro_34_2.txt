@@ -6,7 +6,7 @@
 --wf-udp=443,50000-50090
 
 # === HTTPS YouTube ===
---name=youtube.com (RTMPS Россия)
+--comment=youtube.com (RTMPS Россия)
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-russia-youtube-rtmps.txt
 --dpi-desync=syndata
@@ -67,7 +67,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,multisplit
@@ -274,7 +274,7 @@
 
 --new
 
---name=Russia blacklist TCP 443
+--comment=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multisplit
@@ -346,7 +346,7 @@
 
 --new
 
---name=Cloudflare IPv6 legacy TCP
+--comment=Cloudflare IPv6 legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset_v6.txt
 --ipset-exclude-ip=2606:4700:4700::1111,2606:4700:4700::1001
@@ -360,7 +360,7 @@
 
 --new
 
---name=Cloudflare legacy TCP
+--comment=Cloudflare legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --ipset-exclude-ip=1.1.1.1,1.0.0.1,212.109.195.93,83.220.169.155,141.105.71.21,18.244.96.0/19,18.244.128.0/19

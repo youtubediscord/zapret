@@ -6,7 +6,7 @@
 --wf-udp=80,443,5056,27002,50000-50100
 
 # === YouTube HTTPS ===
---name=youtube.com (интерфейс)
+--comment=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=multisplit
@@ -18,7 +18,7 @@
 
 --new
 
---name=youtube.com (QUIC)
+--comment=youtube.com (QUIC)
 --filter-udp=443
 --ipset=lists/ipset-youtube.txt
 --dpi-desync=fake
@@ -29,7 +29,7 @@
 
 --new
 
---name=googlevideo.com (CDN сервера)
+--comment=googlevideo.com (CDN сервера)
 --filter-tcp=80,443
 --hostlist=lists/googlevideo.txt
 --dpi-desync=multidisorder
@@ -40,7 +40,7 @@
 
 --new
 
---name=updates.discord.com
+--comment=updates.discord.com
 --filter-tcp=443
 --hostlist=lists/discord-updates.txt
 --dpi-desync=fake,split2
@@ -53,7 +53,7 @@
 
 --new
 
---name=discord.com
+--comment=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
@@ -66,7 +66,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,split2
@@ -77,7 +77,7 @@
 
 --new
 
---name=SoundCloud
+--comment=SoundCloud
 --filter-tcp=80,443
 --hostlist=lists/soundcloud.txt
 --dpi-desync=fake,split2
@@ -90,7 +90,7 @@
 
 --new
 
---name=rutracker.org
+--comment=rutracker.org
 --filter-tcp=80,443
 --hostlist=lists/rutracker.txt
 --dpi-desync=fake,split2
@@ -103,7 +103,7 @@
 
 --new
 
---name=rutor.info (.is)
+--comment=rutor.info (.is)
 --filter-tcp=80,443
 --hostlist=lists/rutor.txt
 --dpi-desync=fake,split2
@@ -116,7 +116,7 @@
 
 --new
 
---name=Roblox TCP
+--comment=Roblox TCP
 --filter-tcp=80,443-65535
 --hostlist=lists/roblox.txt
 --dpi-desync=fake,split2
@@ -129,7 +129,7 @@
 
 --new
 
---name=itch.io
+--comment=itch.io
 --filter-tcp=80,443
 --hostlist=lists/itch.txt
 --dpi-desync=fake,split2
@@ -142,7 +142,7 @@
 
 --new
 
---name=Facebook
+--comment=Facebook
 --filter-tcp=80,443
 --hostlist=lists/facebook.txt
 --dpi-desync=fake,split2
@@ -155,7 +155,7 @@
 
 --new
 
---name=Instagram
+--comment=Instagram
 --filter-tcp=80,443
 --hostlist=lists/instagram.txt
 --dpi-desync=fake,split2
@@ -168,7 +168,7 @@
 
 --new
 
---name=WhatsApp
+--comment=WhatsApp
 --filter-tcp=80,443
 --hostlist=lists/whatsapp.txt
 --dpi-desync=fake,split2
@@ -181,7 +181,7 @@
 
 --new
 
---name=discord.media
+--comment=discord.media
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord-media.txt
 --dpi-desync=fake,split2
@@ -194,7 +194,7 @@
 
 --new
 
---name=Discord UDP
+--comment=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
@@ -227,7 +227,7 @@
 
 --new
 
---name=Twitter/X
+--comment=Twitter/X
 --filter-tcp=80,443
 --ipset=lists/ipset-twitter.txt
 --dpi-desync=fake,split2
@@ -240,7 +240,7 @@
 
 --new
 
---name=Russia blacklist TCP 443
+--comment=Russia blacklist TCP 443
 --filter-tcp=443
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=multidisorder
@@ -251,7 +251,7 @@
 
 --new
 
---name=Игровые UDP порты
+--comment=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -263,7 +263,7 @@
 
 --new
 
---name=Cloudflare UDP
+--comment=Cloudflare UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake

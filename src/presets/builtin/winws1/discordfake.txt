@@ -30,7 +30,7 @@
 
 --new
 
---name=youtube.com (интерфейс)
+--comment=youtube.com (интерфейс)
 --filter-tcp=80,443
 --hostlist=lists/youtube.txt
 --dpi-desync=fake,split2
@@ -66,7 +66,7 @@
 
 --new
 
---name=discord.com
+--comment=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=split

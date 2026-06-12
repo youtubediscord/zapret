@@ -175,7 +175,7 @@ def _parse_profile(lines: list[str], *, engine: EngineName, index: int, new_line
             continue
         if _is_directive(stripped):
             directive_name, directive_value = _split_option(stripped)
-            if directive_name in {"--name", "--name="} or directive_name == "--name":
+            if _is_profile_name_directive(engine, directive_name):
                 name = directive_value or name
             if directive_name == "--skip":
                 enabled = False
@@ -239,6 +239,13 @@ def _name_from_new_line(new_line: str) -> str:
 
 def _is_directive(stripped: str) -> bool:
     return any(stripped.startswith(prefix) for prefix in _DIRECTIVE_PREFIXES)
+
+
+def _is_profile_name_directive(engine: EngineName, directive_name: str) -> bool:
+    name = str(directive_name or "").strip().lower()
+    if engine == ENGINE_WINWS1:
+        return name == "--comment"
+    return name == "--name"
 
 
 def _is_match_line(stripped: str) -> bool:

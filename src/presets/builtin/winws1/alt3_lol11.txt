@@ -15,7 +15,7 @@
 
 --new
 
---name=Discord UDP
+--comment=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
@@ -61,7 +61,7 @@
 
 --new
 
---name=Cloudflare TCP
+--comment=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=syndata
@@ -70,7 +70,7 @@
 
 --new
 
---name=Cloudflare UDP
+--comment=Cloudflare UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake
@@ -81,7 +81,7 @@
 
 --new
 
---name=Игровые UDP порты
+--comment=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -93,7 +93,7 @@
 
 --new
 
---name=League of Legends RU UDP
+--comment=League of Legends RU UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-lol-ru.txt
 --dpi-desync=fake
@@ -103,7 +103,7 @@
 
 --new
 
---name=League of Legends RU TCP
+--comment=League of Legends RU TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-ru.txt
 --dpi-desync=syndata
@@ -112,7 +112,7 @@
 
 --new
 
---name=League of Legends EUW TCP
+--comment=League of Legends EUW TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-lol-euw.txt
 --dpi-desync=syndata
@@ -121,7 +121,7 @@
 
 --new
 
---name=League of Legends EUW UDP
+--comment=League of Legends EUW UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-lol-euw.txt
 --dpi-desync=fake

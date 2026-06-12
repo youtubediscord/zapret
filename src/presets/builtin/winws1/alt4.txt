@@ -16,7 +16,7 @@
 
 --new
 
---name=Discord UDP
+--comment=Discord UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-discord.txt
 --dpi-desync=fake
@@ -28,7 +28,7 @@
 
 --new
 
---name=discord.com
+--comment=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,split2
@@ -39,7 +39,7 @@
 
 --new
 
---name=Cloudflare TCP
+--comment=Cloudflare TCP
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake,split2
@@ -74,7 +74,7 @@
 
 --new
 
---name=Игровые UDP порты
+--comment=Игровые UDP порты
 --filter-udp=5056,27002
 --dpi-desync-any-protocol
 --dpi-desync=fake
@@ -86,7 +86,7 @@
 
 --new
 
---name=Cloudflare UDP
+--comment=Cloudflare UDP
 --filter-udp=443-65535
 --ipset=lists/ipset-cloudflare.txt
 --dpi-desync=fake

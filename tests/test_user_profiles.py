@@ -617,7 +617,7 @@ class UserProfilesTests(unittest.TestCase):
                 },
                 ZAPRET1_MODE: {
                     "three.txt": "\n".join((
-                        "--name=My Site",
+                        "--comment=My Site",
                         "--filter-tcp=80,443",
                         "--ipset=lists/ipset-my-site.txt",
                         "--dpi-desync=fake",
@@ -653,7 +653,7 @@ class UserProfilesTests(unittest.TestCase):
             self.assertIn("--filter-udp=443", store.files_by_method[ZAPRET2_MODE]["one.txt"])
             self.assertIn("--hostlist=lists/new-site.txt", store.files_by_method[ZAPRET2_MODE]["one.txt"])
             self.assertIn("--name=Other", store.files_by_method[ZAPRET2_MODE]["two.txt"])
-            self.assertIn("--name=New Site", store.files_by_method[ZAPRET1_MODE]["three.txt"])
+            self.assertIn("--comment=New Site", store.files_by_method[ZAPRET1_MODE]["three.txt"])
             self.assertIn("--filter-udp=443", store.files_by_method[ZAPRET1_MODE]["three.txt"])
             self.assertIn("--ipset=lists/ipset-new-site.txt", store.files_by_method[ZAPRET1_MODE]["three.txt"])
 
@@ -680,7 +680,7 @@ class UserProfilesTests(unittest.TestCase):
                 },
                 ZAPRET1_MODE: {
                     "two.txt": "\n".join((
-                        "--name=My Site",
+                        "--comment=My Site",
                         "--filter-tcp=80,443",
                         "--ipset=lists/ipset-my-site.txt",
                         "--dpi-desync=fake",
@@ -708,7 +708,7 @@ class UserProfilesTests(unittest.TestCase):
                 self.assertFalse((root / "lists" / "ipset-my-site.txt").exists())
                 self.assertNotIn("--name=My Site", store.files_by_method[ZAPRET2_MODE]["one.txt"])
                 self.assertIn("--name=Other", store.files_by_method[ZAPRET2_MODE]["one.txt"])
-                self.assertNotIn("--name=My Site", store.files_by_method[ZAPRET1_MODE]["two.txt"])
+                self.assertNotIn("--comment=My Site", store.files_by_method[ZAPRET1_MODE]["two.txt"])
 
     def test_template_library_is_single_entry_for_stock_and_user_profiles(self) -> None:
         with TemporaryDirectory() as temp_dir:

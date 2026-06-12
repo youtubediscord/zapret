@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import re
 
-from settings.mode import ENGINE_WINWS2
+from settings.mode import ENGINE_WINWS1, ENGINE_WINWS2
 
 from .models import EngineName, Preset, Profile, ProfileSegment
 from .parser import parse_preset_text
@@ -124,8 +124,9 @@ def with_profile_user_match(
 
     for segment in profile.segments:
         segment_name = str(segment.name or "").strip().lower()
-        if segment.kind == "directive" and segment_name == "--name":
-            result.append(ProfileSegment(kind="directive", text=f"--name={clean_name}", name="--name", value=clean_name))
+        name_directive = _profile_name_directive_name(updated.engine)
+        if segment.kind == "directive" and segment_name == name_directive:
+            result.append(_profile_name_segment(updated.engine, clean_name))
             name_written = True
             continue
         if segment.kind == "match" and segment_name.startswith("--filter-"):
@@ -148,7 +149,7 @@ def with_profile_user_match(
         result.append(segment)
 
     if not name_written:
-        result.insert(_directive_insert_index_for_segments(result), ProfileSegment(kind="directive", text=f"--name={clean_name}", name="--name", value=clean_name))
+        result.insert(_directive_insert_index_for_segments(result), _profile_name_segment(updated.engine, clean_name))
     if not filter_written:
         insert = _first_strategy_or_end_index(result)
         result.insert(insert, _segment_for_match_line(filter_line))
@@ -382,33 +383,43 @@ def _ensure_profile_boundaries(preset: Preset) -> None:
     for index, profile in enumerate(preset.profiles):
         if index == 0:
             _remove_leading_blank_segments(profile)
-            _ensure_profile_name_directive(profile)
+            _ensure_profile_name_directive(profile, preset.engine)
             profile.new_line = ""
             continue
-        if _profile_has_name_directive(profile):
+        if _profile_has_name_directive(profile, preset.engine):
             profile.new_line = "--new"
             continue
         name = str(profile.name or profile.display_name or f"profile {index + 1}").strip() or f"profile {index + 1}"
         profile.new_line = f"--new={name}"
 
 
-def _ensure_profile_name_directive(profile: Profile) -> None:
-    if _profile_has_name_directive(profile):
+def _ensure_profile_name_directive(profile: Profile, engine: EngineName) -> None:
+    if _profile_has_name_directive(profile, engine):
         return
     name = str(profile.name or "").strip()
     if not name:
         return
     profile.segments.insert(
         _directive_insert_index(profile),
-        ProfileSegment(kind="directive", text=f"--name={name}", name="--name", value=name),
+        _profile_name_segment(engine, name),
     )
 
 
-def _profile_has_name_directive(profile: Profile) -> bool:
+def _profile_has_name_directive(profile: Profile, engine: EngineName) -> bool:
+    directive_name = _profile_name_directive_name(engine)
     return any(
-        segment.kind == "directive" and str(segment.name or "").strip().lower() == "--name"
+        segment.kind == "directive" and str(segment.name or "").strip().lower() == directive_name
         for segment in profile.segments
     )
+
+
+def _profile_name_directive_name(engine: EngineName) -> str:
+    return "--comment" if engine == ENGINE_WINWS1 else "--name"
+
+
+def _profile_name_segment(engine: EngineName, name: str) -> ProfileSegment:
+    directive_name = _profile_name_directive_name(engine)
+    return ProfileSegment(kind="directive", text=f"{directive_name}={name}", name=directive_name, value=name)
 
 
 def _ensure_safe_default_strategy(profile: Profile) -> None:
@@ -439,9 +450,9 @@ def _rename_profile_copy(profile: Profile, name: str) -> None:
         renamed_new_line = True
 
     for segment in profile.segments:
-        if segment.kind == "directive" and str(segment.name or "").strip().lower() == "--name":
+        if segment.kind == "directive" and str(segment.name or "").strip().lower() == _profile_name_directive_name(profile.engine):
             segment.value = clean_name
-            segment.text = f"--name={clean_name}"
+            segment.text = f"{segment.name}={clean_name}"
             profile.name = clean_name
             profile.display_name = clean_name
             return
@@ -454,7 +465,7 @@ def _rename_profile_copy(profile: Profile, name: str) -> None:
     if current_new_line.lower() not in {"--new"}:
         profile.segments.insert(
             _directive_insert_index(profile),
-            ProfileSegment(kind="directive", text=f"--name={clean_name}", name="--name", value=clean_name),
+            _profile_name_segment(profile.engine, clean_name),
         )
     profile.name = clean_name
     profile.display_name = clean_name

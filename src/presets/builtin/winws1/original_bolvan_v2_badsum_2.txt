@@ -20,7 +20,7 @@
 
 --new
 
---name=Мои сайты
+--comment=Мои сайты
 --filter-tcp=80,443-65535
 --ipset=lists/ipset-all.txt
 --dpi-desync=fake,fakedsplit
@@ -55,7 +55,7 @@
 
 --new
 
---name=discord.com
+--comment=discord.com
 --filter-tcp=80,443,1080,2053,2083,2087,2096,8443
 --hostlist=lists/discord.txt
 --dpi-desync=fake,multisplit
@@ -74,7 +74,7 @@
 
 --new
 
---name=Russia blacklist TCP wide
+--comment=Russia blacklist TCP wide
 --filter-tcp=80,443-65535
 --hostlist=lists/russia-blacklist.txt
 --dpi-desync=fake,multidisorder
@@ -97,7 +97,7 @@
 
 --new
 
---name=Cloudflare legacy TCP
+--comment=Cloudflare legacy TCP
 --filter-tcp=80,443-65535
 --ipset=lists/cloudflare-ipset.txt
 --ipset-exclude-ip=1.1.1.1,1.0.0.1,212.109.195.93,83.220.169.155,141.105.71.21,18.244.96.0/19,18.244.128.0/19
