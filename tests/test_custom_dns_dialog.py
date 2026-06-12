@@ -214,6 +214,23 @@ class CustomDnsDialogTests(unittest.TestCase):
         self.assertEqual([server["name"] for server in dialog.servers()], ["Cloudflare", "Cloudflare копия"])
         self.assertEqual(dialog.serversList.count(), 2)
 
+    def test_context_menu_is_bound_to_exact_list_row_viewport(self) -> None:
+        from dns.ui.custom_dns_dialog import CustomDnsDialog
+
+        parent = QWidget()
+        parent.resize(640, 480)
+        dialog = CustomDnsDialog(
+            parent,
+            servers=[
+                {"id": "cloudflare", "name": "Cloudflare", "ipv4": ["1.1.1.1"], "ipv6": []},
+            ],
+        )
+
+        self.assertEqual(
+            dialog.serversList.viewport().contextMenuPolicy(),
+            Qt.ContextMenuPolicy.CustomContextMenu,
+        )
+
     def test_context_menu_copy_and_delete_actions_work_immediately(self) -> None:
         from dns.ui.custom_dns_dialog import CustomDnsDialog
 

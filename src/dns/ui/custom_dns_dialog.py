@@ -35,8 +35,10 @@ class CustomDnsDialog(MessageBoxBase):
         self.serversList = QListWidget(self.widget)
         self.serversList.setMinimumHeight(140)
         self.serversList.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.serversList.viewport().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.serversList.currentItemChanged.connect(self._on_current_item_changed)
         self.serversList.customContextMenuRequested.connect(self._show_servers_context_menu)
+        self.serversList.viewport().customContextMenuRequested.connect(self._show_servers_context_menu)
         self.serversList.installEventFilter(self)
         self.serversList.setStyleSheet(
             """
@@ -209,8 +211,6 @@ class CustomDnsDialog(MessageBoxBase):
     def _show_servers_context_menu(self, pos) -> None:
         item = self.serversList.itemAt(pos)
         if item is None:
-            item = self.serversList.currentItem()
-        if item is None:
             return
         self.serversList.setCurrentItem(item)
         self._on_current_item_changed(item, None)
@@ -238,7 +238,7 @@ class CustomDnsDialog(MessageBoxBase):
 
         chosen = exec_popup_menu(
             menu,
-            self.serversList.mapToGlobal(pos),
+            self.serversList.viewport().mapToGlobal(pos),
             owner=self,
             capture_action=True,
         )
