@@ -9,7 +9,7 @@ from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtWidgets import QHBoxLayout, QListWidget, QListWidgetItem
 from qfluentwidgets import BodyLabel, CaptionLabel, LineEdit, MessageBoxBase, PushButton, SubtitleLabel
 
-from ui.accessibility import set_control_accessibility, set_state_text
+from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
 from ui.fluent_widgets import style_semantic_caption_label
 
 
@@ -198,16 +198,19 @@ class CustomDnsDialog(MessageBoxBase):
             name="Название своего DNS",
             description="Введите понятное имя, которое будет показано в списке DNS.",
         )
+        remove_line_edit_buttons_from_tab_order(self.nameEdit)
         set_control_accessibility(
             self.primaryEdit,
             name="Основной DNS сервер",
             description="Введите первый DNS сервер. Например 8.8.8.8.",
         )
+        remove_line_edit_buttons_from_tab_order(self.primaryEdit)
         set_control_accessibility(
             self.secondaryEdit,
             name="Дополнительный DNS сервер",
             description="Введите второй DNS сервер, если он нужен.",
         )
+        remove_line_edit_buttons_from_tab_order(self.secondaryEdit)
         set_state_text(self.saveButton, "Добавить или сохранить свой DNS")
         set_control_accessibility(
             self.saveButton,

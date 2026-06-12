@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QWidget
 from qfluentwidgets import BodyLabel, LineEdit, PushButton, StrongBodyLabel
 
 from dns.ui.dns_build import build_auto_dns_ui, build_custom_dns_ui
+from dns.ui.custom_dns_dialog import CustomDnsDialog
 from dns.ui.selection import set_dns_card_selected
 
 
@@ -86,6 +87,28 @@ class CustomDnsAccessibilityTests(unittest.TestCase):
             widgets.card.property("screenReaderStateText"),
             "DNS автоматически (DHCP), выбран",
         )
+
+    def test_custom_dns_dialog_input_clear_buttons_do_not_take_tab_focus(self) -> None:
+        parent = QWidget()
+        self.addCleanup(parent.deleteLater)
+        dialog = CustomDnsDialog(parent, servers=[])
+        self.addCleanup(dialog.deleteLater)
+        dialog.nameEdit.setText("Мой DNS")
+        dialog.primaryEdit.setText("8.8.8.8")
+        dialog.secondaryEdit.setText("1.1.1.1")
+        dialog.show()
+        self._app.processEvents()
+
+        for line_edit in (dialog.nameEdit, dialog.primaryEdit, dialog.secondaryEdit):
+            with self.subTest(name=line_edit.accessibleName()):
+                buttons = [
+                    child
+                    for child in line_edit.findChildren(object)
+                    if str(getattr(child, "objectName", lambda: "")() or "") == "lineEditButton"
+                    and hasattr(child, "setFocusPolicy")
+                ]
+                self.assertTrue(buttons)
+                self.assertTrue(all(button.focusPolicy() == Qt.FocusPolicy.NoFocus for button in buttons))
 
 
 class _Card(QWidget):
