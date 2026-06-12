@@ -34,6 +34,7 @@ from ui.fluent_widgets import (
     SettingsRow,
     enable_setting_card_group_auto_height,
     insert_widget_into_setting_card_group,
+    refresh_setting_card_group_height,
 )
 from ui.latest_value_worker_state import LatestValueWorkerState
 from ui.one_shot_worker_runtime import OneShotWorkerRuntime
@@ -1500,6 +1501,9 @@ class AppearancePage(BasePage):
         tinted_container = self.__dict__.get("_tinted_intensity_container")
         if tinted_container is not None:
             tinted_container.setVisible(visible)
+        accent_group = self.__dict__.get("_accent_group")
+        if accent_group is not None:
+            refresh_setting_card_group_height(accent_group)
 
     def _on_follow_windows_accent_changed(self, state):
         """Обработчик переключения 'Акцент из Windows'."""

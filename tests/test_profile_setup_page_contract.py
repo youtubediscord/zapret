@@ -977,11 +977,12 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         self.assertIn("paint_profile_hover_row", source)
         self.assertIn("profile_hover_row_rect", source)
+        self.assertIn("show_active_marker=False", source)
         self.assertNotIn("_paint_profile_row_background", source)
         self.assertIn('painter.drawText(row_layout.dot_rect', source)
 
     def test_profile_delegate_uses_soft_badge_colors(self) -> None:
-        from profile.ui.profile_list_delegate import _badge_palette, _status_dot_color
+        from profile.ui.profile_list_delegate import _badge_palette, _profile_row_uses_accent, _status_dot_color
         from ui.widgets.profile_row_style import (
             PROFILE_BADGE_HOSTLIST_BG,
             PROFILE_BADGE_HOSTLIST_FG,
@@ -991,7 +992,16 @@ class ProfileSetupPageContractTests(unittest.TestCase):
 
         self.assertEqual(_badge_palette("hostlist"), (PROFILE_BADGE_HOSTLIST_BG, PROFILE_BADGE_HOSTLIST_FG))
         self.assertEqual(_badge_palette("ipset"), (PROFILE_BADGE_IPSET_BG, PROFILE_BADGE_IPSET_FG))
-        self.assertEqual(_status_dot_color(True, active_color="#00c2b5"), "#00c2b5")
+        self.assertFalse(_profile_row_uses_accent(True, tinted_background=False))
+        self.assertTrue(_profile_row_uses_accent(True, tinted_background=True))
+        self.assertEqual(
+            _status_dot_color(True, active_color="#00c2b5", fallback="#8f9aa6", tinted_background=False),
+            "#8f9aa6",
+        )
+        self.assertEqual(
+            _status_dot_color(True, active_color="#00c2b5", fallback="#8f9aa6", tinted_background=True),
+            "#00c2b5",
+        )
 
         source = inspect.getsource(_badge_palette)
         self.assertNotIn("#00B900", source)

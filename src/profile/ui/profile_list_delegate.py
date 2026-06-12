@@ -183,11 +183,13 @@ class ProfileListDelegate(QStyledItemDelegate):
             selected_rows=self._selected_rows,
         )
         active = str(index.data(ProfileListModel.StrategyIdRole) or "") not in {"", "none"}
+        accent_active = _profile_row_uses_accent(active)
         paint_profile_hover_row(
             painter,
             rect,
-            active=active,
+            active=accent_active,
             hovered=hovered,
+            show_active_marker=False,
         )
 
         strategy_name = str(index.data(ProfileListModel.StrategyNameRole) or "")
@@ -255,7 +257,12 @@ class ProfileListDelegate(QStyledItemDelegate):
             painter.setPen(to_qcolor(badge_fg, "#111111"))
             painter.drawText(row_layout.badge_rect, int(Qt.AlignmentFlag.AlignCenter), badge_text)
 
-        dot_color = _status_dot_color(active, active_color=tokens.accent_hex, fallback=str(tokens.fg_faint))
+        dot_color = _status_dot_color(
+            active,
+            active_color=tokens.accent_hex,
+            fallback=str(tokens.fg_faint),
+            tinted_background=accent_active,
+        )
         painter.setFont(meta_font)
         painter.setPen(to_qcolor(dot_color, "#888888"))
         painter.drawText(row_layout.dot_rect, int(Qt.AlignmentFlag.AlignCenter), "●")
@@ -389,8 +396,34 @@ def _badge_palette(list_type: str) -> tuple[str, str]:
     return "#7d8792", "#111114"
 
 
-def _status_dot_color(active: bool, *, active_color: str = "#5caee8", fallback: str = "#8f9aa6") -> str:
-    return str(active_color or "#5caee8") if active else str(fallback or "#8f9aa6")
+def _tinted_background_enabled() -> bool:
+    try:
+        from settings.appearance import peek_warmed_tinted_settings
+
+        plan = peek_warmed_tinted_settings()
+        return bool(getattr(plan, "tinted_background", False))
+    except Exception:
+        return False
+
+
+def _profile_row_uses_accent(active: bool, *, tinted_background: bool | None = None) -> bool:
+    if not bool(active):
+        return False
+    if tinted_background is None:
+        tinted_background = _tinted_background_enabled()
+    return bool(tinted_background)
+
+
+def _status_dot_color(
+    active: bool,
+    *,
+    active_color: str = "#5caee8",
+    fallback: str = "#8f9aa6",
+    tinted_background: bool | None = None,
+) -> str:
+    if _profile_row_uses_accent(active, tinted_background=tinted_background):
+        return str(active_color or "#5caee8")
+    return str(fallback or "#8f9aa6")
 
 
 def _profile_row_is_interactive(

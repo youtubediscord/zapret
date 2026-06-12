@@ -472,6 +472,7 @@ class AppearanceAccessibilityTests(unittest.TestCase):
 
     def test_tinted_toggle_hides_intensity_row_and_refreshes_from_new_state(self) -> None:
         import settings.appearance as appearance_settings
+        import ui.pages.appearance_page as appearance_page
         from ui.pages.appearance_page import AppearancePage
 
         self.addCleanup(appearance_settings.clear_warmed_tinted_settings_cache)
@@ -485,10 +486,13 @@ class AppearanceAccessibilityTests(unittest.TestCase):
 
         row = _Visible()
         container = _Visible()
+        group = object()
         saved = []
         refreshes = []
+        height_refreshes = []
 
         page = AppearancePage.__new__(AppearancePage)
+        page._accent_group = group
         page._tinted_intensity_row = row
         page._tinted_intensity_container = container
         page._is_ui_syncing = lambda: False
@@ -497,14 +501,22 @@ class AppearanceAccessibilityTests(unittest.TestCase):
 
         appearance_settings.store_warmed_tinted_settings(False, True, 70)
 
-        AppearancePage._on_tinted_bg_changed(page, False)
+        with unittest.mock.patch.object(
+            appearance_page,
+            "refresh_setting_card_group_height",
+            side_effect=lambda value: height_refreshes.append(value),
+        ):
+            AppearancePage._on_tinted_bg_changed(page, False)
+            AppearancePage._on_tinted_bg_changed(page, True)
 
-        self.assertEqual(saved, [("tinted_background", False)])
-        self.assertEqual(row.values, [False])
-        self.assertEqual(container.values, [False])
-        self.assertEqual(len(refreshes), 1)
+        self.assertEqual(saved, [("tinted_background", False), ("tinted_background", True)])
+        self.assertEqual(row.values, [False, True])
+        self.assertEqual(container.values, [False, True])
+        self.assertEqual(height_refreshes, [group, group])
+        self.assertEqual(len(refreshes), 2)
         self.assertFalse(refreshes[0].tinted_background)
-        self.assertEqual(refreshes[0].tinted_intensity, 70)
+        self.assertTrue(refreshes[1].tinted_background)
+        self.assertEqual(refreshes[1].tinted_intensity, 70)
 
     def test_saved_sidebar_icon_style_refreshes_screen_reader_state(self) -> None:
         from ui.pages.appearance_page import AppearancePage
