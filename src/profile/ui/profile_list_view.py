@@ -275,20 +275,10 @@ class ProfileListView(ListView):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event):  # noqa: N802
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            index = self.currentIndex()
-            if index.isValid() and str(index.data(ProfileListModel.KindRole) or "") == "profile":
-                profile_key = str(index.data(ProfileListModel.ProfileKeyRole) or "")
-                if profile_key:
-                    self.profile_activated.emit(profile_key)
-                    event.accept()
-                    return
-            if index.isValid() and str(index.data(ProfileListModel.KindRole) or "") == "folder":
-                group_key = str(index.data(ProfileListModel.GroupRole) or "")
-                if group_key:
-                    self.folder_toggle_requested.emit(group_key)
-                    event.accept()
-                    return
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            if self._activate_current_index_from_keyboard():
+                event.accept()
+                return
         if event.key() == Qt.Key.Key_Menu or (
             event.key() == Qt.Key.Key_F10 and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         ):
@@ -296,6 +286,25 @@ class ProfileListView(ListView):
                 event.accept()
                 return
         super().keyPressEvent(event)
+
+    def _activate_current_index_from_keyboard(self) -> bool:
+        index = self.currentIndex()
+        if not index.isValid():
+            return False
+        kind = str(index.data(ProfileListModel.KindRole) or "")
+        if kind == "profile":
+            profile_key = str(index.data(ProfileListModel.ProfileKeyRole) or "")
+            if not profile_key:
+                return False
+            self.profile_activated.emit(profile_key)
+            return True
+        if kind == "folder":
+            group_key = str(index.data(ProfileListModel.GroupRole) or "")
+            if not group_key:
+                return False
+            self.folder_toggle_requested.emit(group_key)
+            return True
+        return False
 
     def _emit_context_requested_for_current_index(self) -> bool:
         index = self.currentIndex()

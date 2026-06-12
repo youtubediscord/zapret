@@ -935,7 +935,7 @@ def _profile_accessible_text(row: dict[str, Any]) -> str:
         elif rating == "notwork":
             parts.append("не работает")
         text = ", ".join(part for part in parts if part)
-        return f"{text}. Нажмите Enter, чтобы открыть profile." if text else ""
+        return f"{text}. Нажмите Enter или Пробел, чтобы открыть profile." if text else ""
 
     group_name = str(row.get("group_name") or row.get("display_name") or "").strip()
     if group_name:
@@ -943,7 +943,7 @@ def _profile_accessible_text(row: dict[str, Any]) -> str:
         expanded_text = "свернута" if bool(row.get("collapsed", False)) else "развернута"
         return (
             f"Группа {group_name}, {_profile_count_text(count)}, {expanded_text}. "
-            "Нажмите Enter, чтобы свернуть или развернуть группу."
+            "Нажмите Enter или Пробел, чтобы свернуть или развернуть группу."
         )
     return str(row.get("display_name") or "").strip()
 

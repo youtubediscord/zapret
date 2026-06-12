@@ -28,7 +28,7 @@ class ListAccessibilityModelTests(unittest.TestCase):
         self.assertEqual(
             text,
             "YouTube, включён, есть в preset, стратегия: TLS fake, в избранном, работает. "
-            "Нажмите Enter, чтобы открыть profile.",
+            "Нажмите Enter или Пробел, чтобы открыть profile.",
         )
 
     def test_profile_folder_rows_expose_screen_reader_text(self) -> None:
@@ -48,7 +48,7 @@ class ListAccessibilityModelTests(unittest.TestCase):
 
         self.assertEqual(
             text,
-            "Группа Видео, 3 профиля, свернута. Нажмите Enter, чтобы свернуть или развернуть группу.",
+            "Группа Видео, 3 профиля, свернута. Нажмите Enter или Пробел, чтобы свернуть или развернуть группу.",
         )
 
     def test_profile_order_rows_expose_screen_reader_text(self) -> None:
