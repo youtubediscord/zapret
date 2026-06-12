@@ -717,6 +717,30 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
         cleanup.assert_called_once_with()
         wait_ready.assert_called_once()
 
+    def test_winws2_runner_does_not_retry_stale_service_cleanup_for_invalid_parameter_exit(self) -> None:
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+        import winws_runtime.runners.zapret2_runner as zapret2_runner
+
+        runner = object.__new__(Winws2StrategyRunner)
+        runner._last_spawn_exit_code = 87
+        runner._last_spawn_stderr = ""
+        runner._start_from_preset_file_locked = Mock(return_value=True)
+
+        with patch.object(
+            zapret2_runner,
+            "find_stale_windivert_delete_pending_services_runtime",
+            return_value=["Monkey"],
+        ):
+            retried = runner._maybe_retry_after_failed_spawn_locked(
+                "preset.txt",
+                "Preset",
+                cleanup_required=True,
+                retry_count=0,
+            )
+
+        self.assertFalse(retried)
+        runner._start_from_preset_file_locked.assert_not_called()
+
     def test_runtime_cleanup_keeps_windivert_service_running(self) -> None:
         from winws_runtime.runtime import runtime_api
 

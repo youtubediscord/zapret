@@ -18,7 +18,7 @@ from typing import Optional
 from log.log import log
 from settings.mode import ENGINE_WINWS2, ZAPRET2_MODE
 
-from .runner_base import StrategyRunnerBase
+from .runner_base import StrategyRunnerBase, _ERROR_SERVICE_MARKED_FOR_DELETE
 from .preset_runner_support import (
     PreparedPresetArtifact,
     PresetRunnerState,
@@ -1130,6 +1130,12 @@ class Winws2StrategyRunner(StrategyRunnerBase):
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
+        transient_service_retry = self._should_retry_transient_windivert_service_error(
+            stderr_output,
+            exit_code,
+            retry_count=retry_count,
+            max_retry_count=1,
+        )
 
         stale_services: list[str] = []
         if retry_count == 0:
@@ -1137,7 +1143,8 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 stale_services = find_stale_windivert_delete_pending_services_runtime()
             except Exception:
                 stale_services = []
-        if stale_services:
+        delete_pending_codes = {_ERROR_SERVICE_MARKED_FOR_DELETE, _ERROR_SERVICE_MARKED_FOR_DELETE & 0xFF}
+        if stale_services and (transient_service_retry or exit_code in delete_pending_codes):
             log(
                 "WinDivert service stayed stale after failed winws2 start; "
                 f"retrying with aggressive cleanup: {','.join(stale_services)}",
@@ -1151,12 +1158,7 @@ class Winws2StrategyRunner(StrategyRunnerBase):
                 stable_start_window_seconds=stable_start_window_seconds,
             )
 
-        if self._should_retry_transient_windivert_service_error(
-            stderr_output,
-            exit_code,
-            retry_count=retry_count,
-            max_retry_count=1,
-        ):
+        if transient_service_retry:
             log(
                 "Transient WinDivert service error detected, retrying with aggressive cleanup",
                 "WARNING",

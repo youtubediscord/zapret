@@ -555,7 +555,7 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
             0.35,
         )
 
-    def test_winws2_retries_exit_87_when_stale_windivert_service_remains(self) -> None:
+    def test_winws2_does_not_retry_exit_87_when_stale_windivert_service_remains(self) -> None:
         from unittest.mock import Mock, patch
 
         from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
@@ -581,15 +581,9 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
                 stable_start_window_seconds=0.35,
             )
 
-        self.assertTrue(retried)
+        self.assertFalse(retried)
         find_stale.assert_called_once_with()
-        runner._start_from_preset_file_locked.assert_called_once_with(
-            "preset.txt",
-            "Preset",
-            force_cleanup=True,
-            retry_count=1,
-            stable_start_window_seconds=0.35,
-        )
+        runner._start_from_preset_file_locked.assert_not_called()
 
     def test_winws2_dry_run_artifact_stays_inside_at_config(self) -> None:
         from winws_runtime.runners.preset_runner_support import PreparedPresetArtifact
