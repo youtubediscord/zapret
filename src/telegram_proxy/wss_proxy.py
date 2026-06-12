@@ -1849,10 +1849,10 @@ class TelegramWSProxy:
                 # Forward the buffered init packet
                 rw.write(init)
                 await rw.drain()
-                recv_total, _watchdog_fired = await self._relay_tcp(client_reader, client_writer, rr, rw, label, dc=dc)
+                recv_total, watchdog_fired = await self._relay_tcp(client_reader, client_writer, rr, rw, label, dc=dc)
                 if recv_total > 0:
                     self._mark_upstream_recv_ok(endpoint)
-                else:
+                elif watchdog_fired:
                     self._mark_upstream_zero_recv(endpoint, label)
             finally:
                 self._unmark_upstream_active(endpoint)
