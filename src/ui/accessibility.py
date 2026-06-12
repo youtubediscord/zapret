@@ -163,6 +163,24 @@ def remove_line_edit_buttons_from_tab_order(line_edit) -> None:
             pass
 
 
+def remove_scrollbar_arrow_buttons_from_tab_order(widget) -> None:
+    """Убирает служебные стрелки qfluentwidgets ScrollBar из Tab-порядка."""
+
+    if widget is None:
+        return
+    try:
+        children = widget.findChildren(object)
+    except Exception:
+        return
+    for child in children:
+        if type(child).__name__ != "ArrowButton":
+            continue
+        try:
+            child.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        except Exception:
+            pass
+
+
 def set_breadcrumb_accessibility(widget, parts: object) -> None:
     """Записывает путь навигации как обычный текст для диктора."""
 
@@ -269,6 +287,7 @@ __all__ = [
     "enable_keyboard_click",
     "enable_keyboard_toggle",
     "remove_line_edit_buttons_from_tab_order",
+    "remove_scrollbar_arrow_buttons_from_tab_order",
     "set_breadcrumb_accessibility",
     "set_accessible_description",
     "set_accessible_name",

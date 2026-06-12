@@ -16,6 +16,7 @@ from qfluentwidgets import (
 )
 
 from app.ui_texts import tr as tr_catalog, normalize_language
+from ui.accessibility import remove_scrollbar_arrow_buttons_from_tab_order
 from ui.page_performance import log_page_metric
 from ui.smooth_scroll import (
     apply_editor_smooth_scroll_preference,
@@ -112,6 +113,7 @@ class BasePage(_FluentScrollArea):
 
         # Применяем обычную прокрутку для страниц и списков.
         apply_page_smooth_scroll_preference(self)
+        remove_scrollbar_arrow_buttons_from_tab_order(self)
 
         # --- Content container ---
         self.content = QWidget(self)
