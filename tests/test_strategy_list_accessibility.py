@@ -208,6 +208,29 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         self.assertTrue(event.isAccepted())
         self.assertEqual(activated, ["TLS fake"])
 
+    def test_strategy_list_view_changes_current_row_with_real_arrow_key(self) -> None:
+        widget = _make_sync_strategy_list()
+        self.addCleanup(widget.deleteLater)
+        widget.set_rows(
+            entries={
+                "alpha": SimpleNamespace(name="Alpha", args="--alpha"),
+                "beta": SimpleNamespace(name="Beta", args="--beta"),
+            },
+            states={},
+            current_strategy_id="alpha",
+        )
+        widget.show()
+        self._app.processEvents()
+        widget._list.setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(widget._list, Qt.Key.Key_Down)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), widget._list)
+        self.assertEqual(widget._list.currentItem().data(ProfileStrategyListWidget._ROLE_NAME_TEXT), "Beta")
+        self.assertIn("Готовая стратегия: Beta", widget._list.property("screenReaderStateText"))
+
     def test_strategy_widget_forwards_arrow_and_enter_keys_to_list(self) -> None:
         widget = _make_sync_strategy_list()
         self.addCleanup(widget.deleteLater)
