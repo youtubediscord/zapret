@@ -134,6 +134,26 @@ class DpiSettingsWorkerQueueTests(unittest.TestCase):
         page._start_dpi_settings_worker.assert_called_once_with(old_payload)
         self.assertEqual(page._dpi_settings_pending, [new_payload])
 
+    def test_selecting_current_launch_method_does_not_reapply_mode(self) -> None:
+        from settings.dpi.page import DpiSettingsPage
+        from settings.mode import ZAPRET2_MODE
+
+        page = DpiSettingsPage.__new__(DpiSettingsPage)
+        page._selected_launch_method = ZAPRET2_MODE
+        page._request_launch_method_apply = Mock()
+        page._update_method_selection = Mock()
+        page._apply_visibility = Mock()
+        page._dpi_settings = SimpleNamespace(
+            describe_visibility=Mock(return_value=SimpleNamespace(show_orchestra_settings=False)),
+        )
+
+        DpiSettingsPage._select_method(page, ZAPRET2_MODE)
+
+        page._dpi_settings.describe_visibility.assert_not_called()
+        page._request_launch_method_apply.assert_not_called()
+        page._update_method_selection.assert_not_called()
+        page._apply_visibility.assert_not_called()
+
     def test_orchestra_setting_pending_restarts_after_event_loop_turn(self) -> None:
         import settings.dpi.page as dpi_page
         from settings.dpi.page import DpiSettingsPage

@@ -14,6 +14,7 @@ from settings.mode import (
     ORCHESTRA_MODE,
     ZAPRET1_MODE,
     ZAPRET2_MODE,
+    normalize_launch_method,
 )
 from ui.fluent_widgets import (
     SettingsCard,
@@ -111,6 +112,7 @@ class DpiSettingsPage(BasePage):
         self.lock_successes_spin = None
         self.unlock_fails_spin = None
         self._settings_loaded = False
+        self._selected_launch_method = ""
         self._dpi_settings_runtime = OneShotWorkerRuntime()
         self._dpi_settings_state = QueuedWorkerState[tuple[str, str]](
             self._dpi_settings_runtime,
@@ -487,13 +489,20 @@ class DpiSettingsPage(BasePage):
     
     def _update_method_selection(self, method: str):
         """Обновляет визуальное состояние выбора метода"""
-        self.method_zapret2_mode.setSelected(method == ZAPRET2_MODE)
-        self.method_zapret1_mode.setSelected(method == ZAPRET1_MODE)
-        self.method_orchestra.setSelected(method == ORCHESTRA_MODE)
+        selected_method = normalize_launch_method(method, default="")
+        self._selected_launch_method = selected_method
+        self.method_zapret2_mode.setSelected(selected_method == ZAPRET2_MODE)
+        self.method_zapret1_mode.setSelected(selected_method == ZAPRET1_MODE)
+        self.method_orchestra.setSelected(selected_method == ORCHESTRA_MODE)
     
     def _select_method(self, method: str):
         """Обработчик выбора метода"""
         try:
+            selected_method = normalize_launch_method(method, default="")
+            if selected_method and selected_method == str(
+                self.__dict__.get("_selected_launch_method", "") or ""
+            ).strip().lower():
+                return
             visibility = self._dpi_settings.describe_visibility(method)
             self._update_method_selection(method)
             self._apply_visibility(visibility)
