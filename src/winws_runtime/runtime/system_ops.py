@@ -126,7 +126,7 @@ def get_known_windivert_service_registry_flags_runtime() -> dict[str, dict[str, 
 
 
 def find_stale_windivert_delete_pending_services_runtime() -> list[str]:
-    """Ищет редкий SCM-хвост: driver-service запущена, но отключена и уже DeleteFlag=1."""
+    """Ищет редкий SCM-хвост: driver-service зависла, отключена и уже DeleteFlag=1."""
     states = get_known_windivert_service_states_runtime()
     registry_flags = get_known_windivert_service_registry_flags_runtime()
     stale: list[str] = []
@@ -137,7 +137,7 @@ def find_stale_windivert_delete_pending_services_runtime() -> list[str]:
         start_type = flags.get("start")
         delete_flag = flags.get("delete_flag")
         if (
-            state == _SERVICE_RUNNING
+            state in (_SERVICE_RUNNING, _SERVICE_STOP_PENDING)
             and start_type == _SERVICE_DISABLED
             and int(delete_flag or 0) == 1
         ):

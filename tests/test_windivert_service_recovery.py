@@ -188,6 +188,50 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
 
         self.assertEqual(stale_services, ["Monkey"])
 
+    def test_stop_pending_disabled_delete_pending_windivert_is_detected_as_stale(self) -> None:
+        from winws_runtime.runtime import system_ops
+
+        with (
+            patch.object(
+                system_ops,
+                "get_known_windivert_service_states_runtime",
+                return_value={
+                    "WinDivert": system_ops._SERVICE_STOP_PENDING,
+                    "Monkey": system_ops._SERVICE_RUNNING,
+                },
+            ),
+            patch.object(
+                system_ops,
+                "get_known_windivert_service_registry_flags_runtime",
+                return_value={
+                    "WinDivert": {"start": system_ops._SERVICE_DISABLED, "delete_flag": 1},
+                    "Monkey": {"start": system_ops._SERVICE_DISABLED, "delete_flag": 1},
+                },
+            ),
+        ):
+            stale_services = system_ops.find_stale_windivert_delete_pending_services_runtime()
+
+        self.assertEqual(stale_services, ["WinDivert", "Monkey"])
+
+    def test_stop_and_delete_runtime_services_checks_every_known_windivert_service(self) -> None:
+        from utils import service_manager
+        from winws_runtime.runtime import system_ops
+
+        stopped_services: list[str] = []
+
+        def stop_and_delete(service_name: str, *, retry_count: int = 3) -> bool:
+            stopped_services.append(f"{service_name}:{retry_count}")
+            return True
+
+        with patch.object(service_manager, "stop_and_delete_service", side_effect=stop_and_delete):
+            removed = system_ops.stop_and_delete_runtime_services(retry_count=7)
+
+        self.assertTrue(removed)
+        self.assertEqual(
+            stopped_services,
+            [f"{service_name}:7" for service_name in system_ops._KNOWN_WINDIVERT_SERVICES],
+        )
+
     def test_spawn_readiness_reports_running_disabled_delete_pending_monkey_as_not_ready(self) -> None:
         from winws_runtime.runtime import system_ops
 
