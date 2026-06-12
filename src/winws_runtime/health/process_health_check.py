@@ -713,11 +713,7 @@ def diagnose_winws_exit(exit_code: int, stderr: str = "") -> Optional[WinDivertD
 
     # 3. Fallback: generic WinDivert error
     if "windivert" in stderr_lower or "error opening filter" in stderr_lower:
-        first_line = ""
-        try:
-            first_line = stderr.strip().splitlines()[0].strip()[:200]
-        except Exception:
-            first_line = stderr[:200]
+        first_line = _extract_relevant_error_line(stderr)[:200]
         return WinDivertDiagnosis(
             cause=f"Ошибка WinDivert (код {exit_code})",
             solution=first_line or "Перезагрузите компьютер и попробуйте снова",
@@ -727,6 +723,19 @@ def diagnose_winws_exit(exit_code: int, stderr: str = "") -> Optional[WinDivertD
         )
 
     return None
+
+
+def _extract_relevant_error_line(stderr: str) -> str:
+    lines = [line.strip() for line in str(stderr or "").splitlines() if line.strip()]
+    for line in reversed(lines):
+        lower = line.lower()
+        if "windivert:" in lower or "error opening filter" in lower:
+            return line
+    for line in reversed(lines):
+        lower = line.lower()
+        if "error" in lower or "ошибка" in lower:
+            return line
+    return lines[0] if lines else ""
 
 
 # ---------------------------------------------------------------------------
@@ -863,6 +872,15 @@ def _handle_gen_failure(exit_code: int, stderr: str) -> WinDivertDiagnosis:
 def _handle_invalid_parameter(exit_code: int, stderr: str) -> WinDivertDiagnosis:
     import re
     stderr_lower = (stderr or "").lower()
+
+    if "windivert" in stderr_lower and "error opening filter" in stderr_lower:
+        if "the service cannot be started" in stderr_lower or "service is disabled" in stderr_lower:
+            return _handle_service_disabled(exit_code, stderr)
+        return WinDivertDiagnosis(
+            cause="WinDivert не смог открыть фильтр",
+            solution=_extract_relevant_error_line(stderr) or "Проверьте состояние драйвера WinDivert",
+            severity="critical",
+        )
 
     # Lua desync function not found — lua-init auto-fix didn't help,
     # meaning the .lua file itself is missing from disk.

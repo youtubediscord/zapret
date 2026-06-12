@@ -398,6 +398,19 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             return ""
 
     @staticmethod
+    def _summarize_startup_output(output: str) -> str:
+        lines = [line.strip() for line in str(output or "").splitlines() if line.strip()]
+        for line in reversed(lines):
+            lower = line.lower()
+            if "windivert:" in lower or "error opening filter" in lower:
+                return line
+        for line in reversed(lines):
+            lower = line.lower()
+            if "error" in lower or "ошибка" in lower:
+                return line
+        return lines[0] if lines else ""
+
+    @staticmethod
     def _launch_args_files_exist(launch_args: tuple[str, ...]) -> bool:
         if not launch_args:
             return False
@@ -898,7 +911,8 @@ class Winws2StrategyRunner(StrategyRunnerBase):
             if not stderr_output:
                 stderr_output = self._read_process_startup_output(self.running_process)
             if stderr_output:
-                log(f"Error: {stderr_output[:500]}", failure_log_level)
+                startup_summary = self._summarize_startup_output(stderr_output)
+                log(f"Error: {(startup_summary or stderr_output)[:500]}", failure_log_level)
 
             self._last_spawn_exit_code = int(exit_code)
             self._last_spawn_stderr = str(stderr_output or "")

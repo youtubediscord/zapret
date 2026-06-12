@@ -249,6 +249,28 @@ class WinDivertServiceRecoveryTests(unittest.TestCase):
 
         self.assertTrue(retry)
 
+    def test_windivert_error_after_lua_header_is_reported_as_service_problem(self) -> None:
+        from winws_runtime.health import process_health_check
+
+        stderr = "\n".join(
+            (
+                "github version v1.0.1 lua_compat_ver 6",
+                "Loading hostlist /lists/youtube.txt",
+                "windivert: error opening filter: The service cannot be started, either because it is disabled or because it has no enabled devices associated with it.",
+            )
+        )
+
+        with patch.object(
+            process_health_check,
+            "_probe_service_disabled_cause",
+            return_value=("WinDivert service disabled", "Restore service", None),
+        ):
+            diagnosis = process_health_check.diagnose_winws_exit(87, stderr)
+
+        self.assertIsNotNone(diagnosis)
+        self.assertEqual(diagnosis.win32_error, 1058)
+        self.assertEqual(diagnosis.cause, "WinDivert service disabled")
+
     def test_monkey_disabled_service_is_reported_as_windivert_driver_problem(self) -> None:
         from winws_runtime.health import process_health_check
 

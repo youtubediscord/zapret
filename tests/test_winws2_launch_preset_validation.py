@@ -581,6 +581,22 @@ class Winws2LaunchPresetValidationTests(unittest.TestCase):
         self.assertIn("parameter is incorrect", runner._last_spawn_stderr.lower())
         runner._read_process_startup_output.assert_not_called()
 
+    def test_winws2_startup_output_summary_prefers_windivert_error_line(self) -> None:
+        from winws_runtime.runners.zapret2_runner import Winws2StrategyRunner
+
+        output = "\n".join(
+            (
+                "github version v1.0.1 lua_compat_ver 6",
+                "Loading hostlist /lists/youtube.txt",
+                "windivert: error opening filter: The service cannot be started",
+            )
+        )
+
+        self.assertEqual(
+            Winws2StrategyRunner._summarize_startup_output(output),
+            "windivert: error opening filter: The service cannot be started",
+        )
+
     def test_winws2_retry_preserves_short_startup_stable_window(self) -> None:
         from unittest.mock import Mock
 
