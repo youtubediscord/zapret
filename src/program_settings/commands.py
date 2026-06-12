@@ -38,7 +38,12 @@ def is_auto_dpi_enabled() -> bool:
         return False
 
 
-def set_auto_dpi_enabled(enabled: bool) -> AutoDpiUpdateResult:
+def set_auto_dpi_enabled(
+    enabled: bool,
+    *,
+    status_callback: Callable[[str], None] | None = None,
+) -> AutoDpiUpdateResult:
+    _ = status_callback
     try:
         from settings.store import set_dpi_autostart
 

@@ -49,6 +49,18 @@ class ProgramSettingsWorkerArchitectureTests(unittest.TestCase):
         self.assertNotIn("import program_settings.commands", worker_source)
         self.assertNotIn("program_settings_commands.set_auto_dpi_enabled", worker_source)
 
+    def test_auto_dpi_save_action_accepts_worker_status_callback(self) -> None:
+        from unittest.mock import patch
+
+        from program_settings.commands import set_auto_dpi_enabled
+
+        with patch("settings.store.set_dpi_autostart") as save_autostart:
+            result = set_auto_dpi_enabled(False, status_callback=lambda _message: None)
+
+        save_autostart.assert_called_once_with(False)
+        self.assertFalse(result.enabled)
+        self.assertIn("отключ", result.message)
+
     def test_feature_does_not_expose_direct_program_setting_setters(self) -> None:
         for method_name in (
             "set_auto_dpi_enabled",
