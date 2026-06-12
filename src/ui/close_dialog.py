@@ -120,23 +120,25 @@ class CloseDialog(MessageBoxBase):
             name="Свернуть ZapretGUI в трей",
             description="Скрывает окно и оставляет окно доступным из трея. DPI продолжит работать.",
         )
+        set_state_text(self.trayButton, "Свернуть ZapretGUI в трей")
         set_control_accessibility(
             self.guiOnlyButton,
             name="Закрыть только окно ZapretGUI",
             description="Закрывает только GUI. DPI продолжит работать в фоне.",
         )
+        set_state_text(self.guiOnlyButton, "Закрыть только окно ZapretGUI")
         set_control_accessibility(
             self.stopDpiButton,
             name=stop_name,
             description=stop_description,
         )
-        if not self._launch_running:
-            set_state_text(self.stopDpiButton, stop_name)
+        set_state_text(self.stopDpiButton, stop_name)
         set_control_accessibility(
             self.cancelLinkButton,
             name="Отменить закрытие ZapretGUI",
             description="Закрывает этот вопрос и возвращает вас в программу.",
         )
+        set_state_text(self.cancelLinkButton, "Отменить закрытие ZapretGUI")
 
     def _on_tray(self):
         self.result_tray = True
