@@ -133,6 +133,7 @@ class TelegramWSProxy:
         self._upstream_connect_semaphore: asyncio.Semaphore | None = None
         self._upstream_zero_recv_counts: dict[tuple[str, int, str, str, bool, str, bool], int] = {}
         self._upstream_penalty_until: dict[tuple[str, int, str, str, bool, str, bool], float] = {}
+        self._upstream_active_counts: dict[tuple[str, int, str, str, bool, str, bool], int] = {}
         self._servers: list[asyncio.Server] = []
         self._tasks: set[asyncio.Task] = set()
         self._running = False
@@ -287,7 +288,7 @@ class TelegramWSProxy:
         index: int,
         endpoint: UpstreamProxyEndpoint,
         now: float,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int]:
         penalty = self._upstream_penalty_active(endpoint, now)
         if not penalty and (index == 0 or endpoint.tls):
             group = 0
@@ -297,7 +298,20 @@ class TelegramWSProxy:
             group = 2
         else:
             group = 3
-        return group, index
+        active = self._upstream_active_counts.get(self._upstream_endpoint_key(endpoint), 0)
+        return group, active, index
+
+    def _mark_upstream_active(self, endpoint: UpstreamProxyEndpoint) -> None:
+        key = self._upstream_endpoint_key(endpoint)
+        self._upstream_active_counts[key] = self._upstream_active_counts.get(key, 0) + 1
+
+    def _unmark_upstream_active(self, endpoint: UpstreamProxyEndpoint) -> None:
+        key = self._upstream_endpoint_key(endpoint)
+        count = self._upstream_active_counts.get(key, 0)
+        if count <= 1:
+            self._upstream_active_counts.pop(key, None)
+        else:
+            self._upstream_active_counts[key] = count - 1
 
     def _mark_upstream_connect_failure(
         self,
@@ -407,6 +421,7 @@ class TelegramWSProxy:
                 f"-> {endpoint.host}:{endpoint.port} tls={tls_tag}"
             )
             t_connect = time.monotonic()
+            self._mark_upstream_active(endpoint)
             try:
                 rr, rw = await socks5.connect_via_socks5(
                     endpoint.host,
@@ -447,6 +462,7 @@ class TelegramWSProxy:
                     reason=self._route_error(exc),
                 )
                 self._mark_upstream_connect_failure(endpoint, label, exc)
+                self._unmark_upstream_active(endpoint)
                 continue
 
             elapsed = time.monotonic() - t_connect
@@ -488,6 +504,7 @@ class TelegramWSProxy:
         self._dc_cooldown = {}
         self._upstream_zero_recv_counts = {}
         self._upstream_penalty_until = {}
+        self._upstream_active_counts = {}
         self._cloudflare_domain_balancer.reset()
         # Reset semaphore for fresh event loop
         reset_wss_semaphore()
@@ -1613,19 +1630,22 @@ class TelegramWSProxy:
             )
             if opened is None:
                 return False
-            rr, rw, _endpoint = opened
-            rw.write(relay_init)
-            await rw.drain()
-            await relay_mtproxy_tcp(
-                client_reader=client_reader,
-                client_writer=client_writer,
-                remote_reader=rr,
-                remote_writer=rw,
-                crypto=crypto,
-                stats=self.stats,
-                log_fn=self._log,
-                label=label,
-            )
+            rr, rw, endpoint = opened
+            try:
+                rw.write(relay_init)
+                await rw.drain()
+                await relay_mtproxy_tcp(
+                    client_reader=client_reader,
+                    client_writer=client_writer,
+                    remote_reader=rr,
+                    remote_writer=rw,
+                    crypto=crypto,
+                    stats=self.stats,
+                    log_fn=self._log,
+                    label=label,
+                )
+            finally:
+                self._unmark_upstream_active(endpoint)
         return True
 
     async def _tcp_fallback(
@@ -1785,14 +1805,17 @@ class TelegramWSProxy:
             if opened is None:
                 return False
             rr, rw, endpoint = opened
-            # Forward the buffered init packet
-            rw.write(init)
-            await rw.drain()
-            recv_total, _watchdog_fired = await self._relay_tcp(client_reader, client_writer, rr, rw, label, dc=dc)
-            if recv_total > 0:
-                self._mark_upstream_recv_ok(endpoint)
-            elif int(upstream_port or 0) != 80:
-                self._mark_upstream_zero_recv(endpoint, label)
+            try:
+                # Forward the buffered init packet
+                rw.write(init)
+                await rw.drain()
+                recv_total, _watchdog_fired = await self._relay_tcp(client_reader, client_writer, rr, rw, label, dc=dc)
+                if recv_total > 0:
+                    self._mark_upstream_recv_ok(endpoint)
+                elif int(upstream_port or 0) != 80:
+                    self._mark_upstream_zero_recv(endpoint, label)
+            finally:
+                self._unmark_upstream_active(endpoint)
         return True
 
     def _upstream_target(

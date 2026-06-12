@@ -972,6 +972,68 @@ class TelegramProxyCloudflareRuntimeTests(unittest.TestCase):
 
         self.assertLessEqual(max_active_relays, 2)
 
+    def test_upstream_burst_is_spread_across_bundled_proxies(self) -> None:
+        from telegram_proxy.proxy.routing import UpstreamProxyConfig, UpstreamProxyEndpoint
+        from telegram_proxy.wss_proxy import TelegramWSProxy
+
+        class _RemoteWriter:
+            def __init__(self):
+                self.transport = None
+
+            def write(self, _data):
+                return None
+
+            async def drain(self):
+                return None
+
+        async def fake_connect(proxy_host, *_args, **_kwargs):
+            seen_hosts.append(proxy_host)
+            await asyncio.sleep(0.02)
+            return object(), _RemoteWriter()
+
+        async def fake_relay(*_args, **_kwargs):
+            await asyncio.sleep(0.02)
+            return (1, False)
+
+        async def run_many(proxy: TelegramWSProxy):
+            await asyncio.gather(
+                *(
+                    proxy._upstream_proxy_connect(
+                        object(),
+                        object(),
+                        "149.154.175.50",
+                        443,
+                        b"x" * 64,
+                        f"test-{index}",
+                        1,
+                        False,
+                    )
+                    for index in range(3)
+                )
+            )
+
+        seen_hosts: list[str] = []
+        proxy = TelegramWSProxy(
+            upstream_config=UpstreamProxyConfig(
+                enabled=True,
+                host="primary.tls",
+                port=443,
+                tls=True,
+                mode="always",
+                fallback_proxies=(
+                    UpstreamProxyEndpoint(host="backup-a.tls", port=443, tls=True),
+                    UpstreamProxyEndpoint(host="backup-b.tls", port=443, tls=True),
+                ),
+            ),
+            pool_size=3,
+        )
+        proxy._relay_tcp = fake_relay
+
+        with patch("telegram_proxy.wss_proxy.socks5.connect_via_socks5", side_effect=fake_connect):
+            asyncio.run(run_many(proxy))
+
+        self.assertEqual(set(seen_hosts), {"primary.tls", "backup-a.tls", "backup-b.tls"})
+
     def test_proxy_server_is_bound_before_explicit_single_start_serving(self) -> None:
         from telegram_proxy.wss_proxy import TelegramWSProxy
 
