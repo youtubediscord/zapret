@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 
@@ -96,6 +98,31 @@ class ProfileTypeSelectorTests(unittest.TestCase):
         self.assertEqual(selector._buttons["all"].accessibleName(), "Тип profile: Все, не выбрано")
         self.assertEqual(selector._buttons["tcp"].accessibleName(), "Тип profile: TCP, выбрано")
         self.assertEqual(selector._buttons["tcp"].property("screenReaderStateText"), "Тип profile: TCP, выбрано")
+
+    def test_profile_type_filter_explains_keyboard_navigation_to_screen_reader(self) -> None:
+        from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
+
+        selector = ProfileTypeSelector()
+        self.addCleanup(selector.deleteLater)
+
+        self.assertIn("стрелками влево и вправо", selector.accessibleDescription().lower())
+        self.assertIn("Enter или Пробел", selector._buttons["tcp"].accessibleDescription())
+
+    def test_arrow_keys_move_focus_between_profile_type_buttons(self) -> None:
+        from profile.ui.widgets.profile_type_selector import ProfileTypeSelector
+
+        selector = ProfileTypeSelector()
+        self.addCleanup(selector.deleteLater)
+        selector.show()
+        self._app.processEvents()
+
+        selector._buttons["all"].setFocus()
+        self._app.processEvents()
+
+        QTest.keyClick(selector._buttons["all"], Qt.Key.Key_Right)
+        self._app.processEvents()
+
+        self.assertIs(self._app.focusWidget(), selector._buttons["tcp"])
 
 
 if __name__ == "__main__":

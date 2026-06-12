@@ -72,7 +72,10 @@ class ProfileTypeSelector(QWidget):
         set_control_accessibility(
             self,
             name="Фильтр типов profile",
-            description="Выберите один или несколько типов, чтобы отфильтровать список profile.",
+            description=(
+                "Выберите один или несколько типов, чтобы отфильтровать список profile. "
+                "Между типами можно ходить стрелками влево и вправо, Enter или Пробел меняет выбор."
+            ),
         )
 
         for profile_type, label in self.PROFILE_TYPES:
@@ -151,7 +154,10 @@ class ProfileTypeSelector(QWidget):
             set_state_text(btn, f"Тип profile: {label}, {state}")
             set_accessible_description(
                 btn,
-                "Фильтрует список profile. Можно выбрать несколько типов.",
+                (
+                    "Фильтрует список profile. Можно выбрать несколько типов. "
+                    "Стрелками влево и вправо перейдите к соседнему типу, Enter или Пробел меняет выбор."
+                ),
             )
 
     def reset(self):
