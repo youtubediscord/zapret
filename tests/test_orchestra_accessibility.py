@@ -65,6 +65,10 @@ class OrchestraAccessibilityTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
+    def tearDown(self) -> None:
+        self.app.closeAllWindows()
+        self.app.processEvents()
+
     def test_settings_tabs_items_read_name_and_selection_for_screen_reader(self) -> None:
         page = OrchestraSettingsPage(orchestra_feature=_OrchestraFeatureStub())
         self.addCleanup(page.deleteLater)
@@ -198,6 +202,7 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             "После ввода перейдите к списку клавишей Tab",
             page.search_input.accessibleDescription(),
         )
+        self.assertIn("или нажмите Стрелка вниз", page.search_input.accessibleDescription())
         self.assertEqual(page.refresh_btn.accessibleName(), "Обновить чёрный список стратегий")
         self.assertEqual(page.refresh_btn.property("screenReaderStateText"), "Обновить чёрный список стратегий")
         self.assertEqual(page.unblock_all_btn.accessibleName(), "Очистить пользовательские блокировки")
@@ -219,6 +224,22 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             page.strat_spin.property("screenReaderStateText"),
             "Номер блокируемой стратегии, выбрано: 9",
         )
+
+    def test_blocked_search_arrow_down_moves_focus_to_first_visible_user_row(self) -> None:
+        page = OrchestraBlockedPage(orchestra_feature=_OrchestraFeatureStub())
+        self.addCleanup(page.deleteLater)
+        row = BlockedDomainRow("blocked.example", 5, "udp", is_default=False, parent=page.rows_container)
+        page.rows_layout.addWidget(row)
+        page._blocked_rows.append(row)
+        page.show()
+        self.app.processEvents()
+        page.search_input.setFocus()
+        self.app.processEvents()
+
+        QTest.keyClick(page.search_input, Qt.Key.Key_Down)
+        self.app.processEvents()
+
+        self.assertIs(self.app.focusWidget(), row.strat_spin)
 
     def test_whitelist_page_main_controls_are_named_for_screen_reader(self) -> None:
         page = OrchestraWhitelistPage(orchestra_feature=_OrchestraFeatureStub())
