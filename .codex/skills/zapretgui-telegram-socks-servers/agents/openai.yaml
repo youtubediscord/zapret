@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZapretGUI Telegram SOCKS servers"
+  short_description: "Check and repair bundled Telegram SOCKS5 TLS servers."
+  default_prompt: "Use this when diagnosing ZapretGUI bundled Telegram SOCKS5 servers, especially UK, Norway, Netherlands, stunnel, 3proxy, or port 443 ownership."
