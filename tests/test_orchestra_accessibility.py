@@ -118,10 +118,17 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             "Номер стратегии для залочки, выбрано: 1",
         )
         self.assertEqual(page.lock_btn.accessibleName(), "Залочить стратегию для домена")
+        self.assertEqual(page.lock_btn.property("screenReaderStateText"), "Залочить стратегию для домена")
         self.assertEqual(page.search_input.accessibleName(), "Поиск по залоченным доменам")
+        self.assertEqual(page.search_input.property("screenReaderStateText"), "Поиск по залоченным доменам")
         self.assertIn("После ввода перейдите к списку клавишей Tab", page.search_input.accessibleDescription())
         self.assertEqual(page.refresh_btn.accessibleName(), "Обновить список залоченных стратегий")
+        self.assertEqual(
+            page.refresh_btn.property("screenReaderStateText"),
+            "Обновить список залоченных стратегий",
+        )
         self.assertEqual(page.unlock_all_btn.accessibleName(), "Разлочить все стратегии")
+        self.assertEqual(page.unlock_all_btn.property("screenReaderStateText"), "Разлочить все стратегии")
 
         page.proto_combo.setCurrentIndex(1)
         page.strat_spin.setValue(7)
@@ -166,13 +173,20 @@ class OrchestraAccessibilityTests(unittest.TestCase):
             "Номер блокируемой стратегии, выбрано: 1",
         )
         self.assertEqual(page.block_btn.accessibleName(), "Заблокировать стратегию для домена")
+        self.assertEqual(page.block_btn.property("screenReaderStateText"), "Заблокировать стратегию для домена")
         self.assertEqual(page.search_input.accessibleName(), "Поиск по заблокированным доменам")
+        self.assertEqual(page.search_input.property("screenReaderStateText"), "Поиск по заблокированным доменам")
         self.assertIn(
             "После ввода перейдите к списку клавишей Tab",
             page.search_input.accessibleDescription(),
         )
         self.assertEqual(page.refresh_btn.accessibleName(), "Обновить чёрный список стратегий")
+        self.assertEqual(page.refresh_btn.property("screenReaderStateText"), "Обновить чёрный список стратегий")
         self.assertEqual(page.unblock_all_btn.accessibleName(), "Очистить пользовательские блокировки")
+        self.assertEqual(
+            page.unblock_all_btn.property("screenReaderStateText"),
+            "Очистить пользовательские блокировки",
+        )
 
         page.proto_combo.setCurrentIndex(1)
         page.strat_spin.setValue(9)
@@ -193,11 +207,22 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.addCleanup(page.deleteLater)
 
         self.assertEqual(page.restart_warning.accessibleName(), "Предупреждение: изменения белого списка применятся после перезапуска оркестратора")
+        self.assertEqual(
+            page.restart_warning.property("screenReaderStateText"),
+            "Предупреждение: изменения белого списка применятся после перезапуска оркестратора",
+        )
         self.assertEqual(page.domain_input.accessibleName(), "Домен для белого списка")
+        self.assertEqual(page.domain_input.property("screenReaderStateText"), "Домен для белого списка")
         self.assertEqual(page.add_btn.accessibleName(), "Добавить домен в белый список")
+        self.assertEqual(page.add_btn.property("screenReaderStateText"), "Добавить домен в белый список")
         self.assertEqual(page.search_input.accessibleName(), "Поиск по белому списку")
+        self.assertEqual(page.search_input.property("screenReaderStateText"), "Поиск по белому списку")
         self.assertIn("После ввода перейдите к списку клавишей Tab", page.search_input.accessibleDescription())
         self.assertEqual(page.clear_user_btn.accessibleName(), "Очистить пользовательские домены белого списка")
+        self.assertEqual(
+            page.clear_user_btn.property("screenReaderStateText"),
+            "Очистить пользовательские домены белого списка",
+        )
 
     def test_locked_clear_confirmation_buttons_are_named_for_screen_reader(self) -> None:
         page = OrchestraLockedPage.__new__(OrchestraLockedPage)

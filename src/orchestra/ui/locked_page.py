@@ -424,11 +424,15 @@ class OrchestraLockedPage(BasePage):
             self._refresh_data()
 
     def _install_accessibility(self) -> None:
+        def _set_named_state(widget, text: str) -> None:
+            set_state_text(widget, text)
+
         set_control_accessibility(
             self.domain_input,
             name="Домен для залочки стратегии",
             description="Введите домен, например example.com.",
         )
+        _set_named_state(self.domain_input, "Домен для залочки стратегии")
         set_control_accessibility(
             self.proto_combo,
             description="Выберите протокол: TCP или UDP.",
@@ -442,6 +446,7 @@ class OrchestraLockedPage(BasePage):
             name="Залочить стратегию для домена",
             description="Фиксирует выбранную стратегию для указанного домена.",
         )
+        _set_named_state(self.lock_btn, "Залочить стратегию для домена")
         set_control_accessibility(
             self.search_input,
             name="Поиск по залоченным доменам",
@@ -450,16 +455,19 @@ class OrchestraLockedPage(BasePage):
                 "После ввода перейдите к списку клавишей Tab."
             ),
         )
+        _set_named_state(self.search_input, "Поиск по залоченным доменам")
         set_control_accessibility(
             self.refresh_btn,
             name="Обновить список залоченных стратегий",
             description="Перечитывает список залоченных стратегий из настроек.",
         )
+        _set_named_state(self.refresh_btn, "Обновить список залоченных стратегий")
         set_control_accessibility(
             self.unlock_all_btn,
             name="Разлочить все стратегии",
             description="Удаляет все ручные фиксации стратегий.",
         )
+        _set_named_state(self.unlock_all_btn, "Разлочить все стратегии")
         self._update_accessibility_state()
         try:
             self.proto_combo.currentIndexChanged.disconnect(self._update_accessibility_state)

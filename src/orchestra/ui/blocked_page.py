@@ -525,11 +525,15 @@ class OrchestraBlockedPage(BasePage):
             self._refresh_data()
 
     def _install_accessibility(self) -> None:
+        def _set_named_state(widget, text: str) -> None:
+            set_state_text(widget, text)
+
         set_control_accessibility(
             self.domain_input,
             name="Домен для блокировки стратегии",
             description="Введите домен, например example.com.",
         )
+        _set_named_state(self.domain_input, "Домен для блокировки стратегии")
         set_control_accessibility(
             self.proto_combo,
             description="Выберите протокол: TCP или UDP.",
@@ -543,6 +547,7 @@ class OrchestraBlockedPage(BasePage):
             name="Заблокировать стратегию для домена",
             description="Добавляет выбранную стратегию в чёрный список для указанного домена.",
         )
+        _set_named_state(self.block_btn, "Заблокировать стратегию для домена")
         set_control_accessibility(
             self.search_input,
             name="Поиск по заблокированным доменам",
@@ -551,16 +556,19 @@ class OrchestraBlockedPage(BasePage):
                 "После ввода перейдите к списку клавишей Tab."
             ),
         )
+        _set_named_state(self.search_input, "Поиск по заблокированным доменам")
         set_control_accessibility(
             self.refresh_btn,
             name="Обновить чёрный список стратегий",
             description="Перечитывает заблокированные стратегии из настроек.",
         )
+        _set_named_state(self.refresh_btn, "Обновить чёрный список стратегий")
         set_control_accessibility(
             self.unblock_all_btn,
             name="Очистить пользовательские блокировки",
             description="Удаляет все пользовательские блокировки. Системные блокировки останутся.",
         )
+        _set_named_state(self.unblock_all_btn, "Очистить пользовательские блокировки")
         self._update_accessibility_state()
         try:
             self.proto_combo.currentIndexChanged.disconnect(self._update_accessibility_state)

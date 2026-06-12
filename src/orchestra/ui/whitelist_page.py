@@ -412,21 +412,28 @@ class OrchestraWhitelistPage(BasePage):
             self._sync_whitelist_view(refresh=True)
 
     def _install_accessibility(self) -> None:
+        def _set_named_state(widget, text: str) -> None:
+            set_state_text(widget, text)
+
+        restart_warning_name = "Предупреждение: изменения белого списка применятся после перезапуска оркестратора"
         set_control_accessibility(
             self.restart_warning,
-            name="Предупреждение: изменения белого списка применятся после перезапуска оркестратора",
+            name=restart_warning_name,
             description="Если оркестратор запущен, изменения вступят в силу после его перезапуска.",
         )
+        _set_named_state(self.restart_warning, restart_warning_name)
         set_control_accessibility(
             self.domain_input,
             name="Домен для белого списка",
             description="Введите домен, который оркестратор не должен обрабатывать.",
         )
+        _set_named_state(self.domain_input, "Домен для белого списка")
         set_control_accessibility(
             self.add_btn,
             name="Добавить домен в белый список",
             description="Добавляет введённый домен в белый список.",
         )
+        _set_named_state(self.add_btn, "Добавить домен в белый список")
         set_control_accessibility(
             self.search_input,
             name="Поиск по белому списку",
@@ -435,11 +442,13 @@ class OrchestraWhitelistPage(BasePage):
                 "После ввода перейдите к списку клавишей Tab."
             ),
         )
+        _set_named_state(self.search_input, "Поиск по белому списку")
         set_control_accessibility(
             self.clear_user_btn,
             name="Очистить пользовательские домены белого списка",
             description="Удаляет все пользовательские домены. Системные домены останутся.",
         )
+        _set_named_state(self.clear_user_btn, "Очистить пользовательские домены белого списка")
 
     def on_page_activated(self) -> None:
         if not self._runtime_initialized:
