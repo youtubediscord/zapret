@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ui.accessibility import set_control_accessibility, set_state_text
+from ui.accessibility import remove_line_edit_buttons_from_tab_order, set_control_accessibility, set_state_text
 
 
 def apply_user_presets_accessibility(
@@ -74,6 +74,7 @@ def apply_user_presets_accessibility(
             ),
         ),
     )
+    remove_line_edit_buttons_from_tab_order(preset_search_input)
     list_name = tr_fn(f"{tr_prefix}.list.accessible_name", "Список пользовательских пресетов")
     set_control_accessibility(
         presets_list,

@@ -440,6 +440,14 @@ class UserPresetsAccessibilityTests(unittest.TestCase):
         self.assertIn("После ввода перейдите в список клавишей Tab", search_description)
         self.assertIn("выберите пресет стрелками вверх и вниз", search_description)
         self.assertIn("нажмите Enter или Пробел", search_description)
+        search_buttons = [
+            child
+            for child in widgets.preset_search_input.findChildren(object)
+            if str(getattr(child, "objectName", lambda: "")() or "") == "lineEditButton"
+            and hasattr(child, "setFocusPolicy")
+        ]
+        self.assertTrue(search_buttons)
+        self.assertTrue(all(button.focusPolicy() == Qt.FocusPolicy.NoFocus for button in search_buttons))
         self.assertEqual(
             widgets.presets_list.property("screenReaderStateText"),
             "Список пользовательских пресетов: список пока загружается",
