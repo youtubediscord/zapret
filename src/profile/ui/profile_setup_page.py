@@ -1120,9 +1120,13 @@ def _payload_with_strategy_branch(payload, branch_id: str):
         return payload
     states = getattr(payload, "strategy_states", {}) or {}
     strategy_id = str(getattr(branch, "strategy_id", "") or "").strip()
+    in_range = str(getattr(branch, "in_range", "") or "x").strip() or "x"
+    out_range = str(getattr(branch, "out_range", "") or "a").strip() or "a"
     return replace(
         payload,
         current_strategy_branch_id=clean_branch_id,
+        in_range=in_range,
+        out_range=out_range,
         raw_strategy_text=str(getattr(branch, "raw_strategy_text", "") or ""),
         match_tab_text=str(getattr(branch, "match_tab_text", "") or ""),
         current_strategy_state=states.get(strategy_id, ProfileStrategyState()),
@@ -3404,17 +3408,12 @@ class ProfileSetupPageBase(BasePage):
         branch = next((item for item in branches if str(getattr(item, "branch_id", "") or "").strip() == branch_id), None)
         if branch is None:
             return
-        state = (getattr(self._payload, "strategy_states", {}) or {}).get(
-            str(getattr(branch, "strategy_id", "") or "").strip(),
-            ProfileStrategyState(),
-        )
-        self._payload = replace(
-            self._payload,
-            current_strategy_branch_id=branch_id,
-            raw_strategy_text=str(getattr(branch, "raw_strategy_text", "") or ""),
-            match_tab_text=str(getattr(branch, "match_tab_text", "") or ""),
-            current_strategy_state=state,
-        )
+        self._payload = _payload_with_strategy_branch(self._payload, branch_id)
+        self._loading = True
+        try:
+            self._apply_editable_settings(self._payload)
+        finally:
+            self._loading = False
         self._strategy_list.set_current_strategy_id(str(getattr(branch, "strategy_id", "") or "none").strip() or "none")
         self._apply_feedback_buttons(self._payload)
         if self._match_tab_built:

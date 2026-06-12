@@ -32,7 +32,7 @@ from profile.profile_setup_loader import (
     ProfileUserProfileUpdateWorker,
 )
 from profile.strategy_list_filter import ProfileStrategyListFilterWorker, build_profile_strategy_list_plan
-from profile.state import ProfileListItem, ProfileSetupPayload
+from profile.state import ProfileListItem, ProfileSetupPayload, ProfileStrategyBranch
 from profile.strategy_catalog import StrategyEntry
 from profile.strategy_state import ProfileStrategyState
 from profile.ui.preset_setup_page import PresetSetupPageBase, preset_setup_title_for_payload
@@ -5787,6 +5787,68 @@ class ProfileSetupPageContractTests(unittest.TestCase):
         self.assertEqual(combo.clear_calls, 1)
         self.assertEqual(combo.add_calls, 2)
         self.assertEqual(combo.text_updates, [(0, "payload: tls — New TLS")])
+
+    def test_strategy_branch_change_updates_visible_range_settings(self) -> None:
+        class _Combo:
+            def __init__(self) -> None:
+                self.current_index = 1
+                self.rows = ("branch:1", "branch:2")
+
+            def currentIndex(self) -> int:  # noqa: N802
+                return self.current_index
+
+            def itemData(self, index: int):
+                return self.rows[index]
+
+        page = ProfileSetupPageBase.__new__(ProfileSetupPageBase)
+        page._loading = False
+        page._strategy_branch_combo = _Combo()
+        page._payload = ProfileSetupPayload(
+            item=SimpleNamespace(in_preset=True, enabled=True),
+            strategy_entries={},
+            raw_profile_text="",
+            raw_strategy_text="--lua-desync=fake",
+            match_summary="",
+            current_strategy_branch_id="branch:1",
+            in_range="x",
+            out_range="a",
+            strategy_states={"http_fake": ProfileStrategyState(rating="work")},
+            strategy_branches=(
+                ProfileStrategyBranch(
+                    branch_id="branch:1",
+                    payload="tls_client_hello",
+                    in_range="x",
+                    out_range="a",
+                    strategy_id="tls_fake",
+                    strategy_name="TLS fake",
+                    raw_strategy_text="--lua-desync=fake",
+                    match_tab_text="TLS branch",
+                ),
+                ProfileStrategyBranch(
+                    branch_id="branch:2",
+                    payload="http_req",
+                    in_range="x",
+                    out_range="-d8",
+                    strategy_id="http_fake",
+                    strategy_name="HTTP fake",
+                    raw_strategy_text="--out-range=-d8\n--payload=http_req\n--lua-desync=fake",
+                    match_tab_text="HTTP branch",
+                ),
+            ),
+        )
+        page._strategy_list = SimpleNamespace(set_current_strategy_id=Mock())
+        page._apply_editable_settings = Mock()
+        page._apply_feedback_buttons = Mock()
+        page._match_tab_built = False
+        page._apply_match_tab_payload = Mock()
+
+        ProfileSetupPageBase._on_strategy_branch_changed(page, 1)
+
+        self.assertEqual(page._payload.current_strategy_branch_id, "branch:2")
+        self.assertEqual(page._payload.in_range, "x")
+        self.assertEqual(page._payload.out_range, "-d8")
+        page._apply_editable_settings.assert_called_once_with(page._payload)
+        page._strategy_list.set_current_strategy_id.assert_called_once_with("http_fake")
 
     def test_strategy_apply_worker_emits_new_profile_key(self) -> None:
         apply_strategy = Mock(return_value="profile-1")
