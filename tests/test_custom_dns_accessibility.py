@@ -34,6 +34,10 @@ class CustomDnsAccessibilityTests(unittest.TestCase):
         self.assertEqual(widgets.secondary_input.accessibleName(), "Дополнительный DNS сервер")
         self.assertIn("второй DNS сервер", widgets.secondary_input.accessibleDescription())
         self.assertEqual(widgets.apply_button.accessibleName(), "Применить свой DNS")
+        self.assertEqual(
+            widgets.apply_button.property("screenReaderStateText"),
+            "Применить свой DNS",
+        )
         self.assertIn("указанные DNS серверы", widgets.apply_button.accessibleDescription())
 
 

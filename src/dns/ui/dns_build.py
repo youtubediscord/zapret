@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from qfluentwidgets import FluentIcon
 from PyQt6.QtCore import Qt
 
-from ui.accessibility import set_control_accessibility
+from ui.accessibility import set_control_accessibility, set_state_text
 from ui.theme import get_cached_qta_pixmap
 
 
@@ -90,14 +90,16 @@ def build_custom_dns_ui(
     )
     custom_apply_btn.setFixedSize(70, 26)
     custom_apply_btn.clicked.connect(on_apply)
+    apply_accessible_name = tr_fn("page.network.custom.apply.accessible_name", "Применить свой DNS")
     set_control_accessibility(
         custom_apply_btn,
-        name=tr_fn("page.network.custom.apply.accessible_name", "Применить свой DNS"),
+        name=apply_accessible_name,
         description=tr_fn(
             "page.network.custom.apply.accessible_description",
             "Применяет указанные DNS серверы к выбранным сетевым адаптерам.",
         ),
     )
+    set_state_text(custom_apply_btn, apply_accessible_name)
     custom_layout.addWidget(custom_apply_btn)
 
     custom_layout.addStretch()

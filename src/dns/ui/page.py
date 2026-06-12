@@ -276,6 +276,17 @@ class NetworkPage(BasePage):
             self.custom_label.setText(self._tr("page.network.custom.label", "Свой:"))
         if hasattr(self, "custom_apply_btn"):
             self.custom_apply_btn.setText(self._tr("page.network.custom.apply", "OK"))
+            custom_apply_name = self._tr("page.network.custom.apply.accessible_name", "Применить свой DNS")
+            custom_apply_description = self._tr(
+                "page.network.custom.apply.accessible_description",
+                "Применяет указанные DNS серверы к выбранным сетевым адаптерам.",
+            )
+            set_control_accessibility(
+                self.custom_apply_btn,
+                name=custom_apply_name,
+                description=custom_apply_description,
+            )
+            set_state_text(self.custom_apply_btn, custom_apply_name)
 
         self._update_test_action_text()
 
