@@ -35,7 +35,11 @@ from .constants import CREATE_NO_WINDOW
 from winws_runtime.health.process_health_check import (
     diagnose_startup_error
 )
-from winws_runtime.runtime.system_ops import get_all_winws_process_pids, get_process_pids_by_name
+from winws_runtime.runtime.system_ops import (
+    find_stale_windivert_delete_pending_services_runtime,
+    get_all_winws_process_pids,
+    get_process_pids_by_name,
+)
 
 
 _WINDOWS_ABS_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
@@ -1126,6 +1130,26 @@ class Winws2StrategyRunner(StrategyRunnerBase):
     ) -> bool:
         exit_code = int(self._last_spawn_exit_code or -1)
         stderr_output = str(self._last_spawn_stderr or "")
+
+        stale_services: list[str] = []
+        if retry_count == 0:
+            try:
+                stale_services = find_stale_windivert_delete_pending_services_runtime()
+            except Exception:
+                stale_services = []
+        if stale_services:
+            log(
+                "WinDivert service stayed stale after failed winws2 start; "
+                f"retrying with aggressive cleanup: {','.join(stale_services)}",
+                "WARNING",
+            )
+            return self._start_from_preset_file_locked(
+                preset_path,
+                strategy_name,
+                force_cleanup=True,
+                retry_count=retry_count + 1,
+                stable_start_window_seconds=stable_start_window_seconds,
+            )
 
         if self._should_retry_transient_windivert_service_error(
             stderr_output,
