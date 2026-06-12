@@ -142,6 +142,7 @@ def refresh_server_rows(
 def reset_server_rows(table, *, table_state) -> None:
     table.setRowCount(0)
     table_state.reset()
+    set_state_text(table, "Серверы обновлений: строки пока не загружены")
 
 
 def upsert_server_status(

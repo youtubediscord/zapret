@@ -105,6 +105,41 @@ class TableAccessibilityTests(unittest.TestCase):
 
         self.assertEqual(table.property("screenReaderStateText"), row_text)
 
+    def test_updater_servers_table_reset_restores_empty_screen_reader_state(self) -> None:
+        from updater.ui.main_build import build_servers_table_widget
+        from updater.ui.table_view import render_server_row, reset_server_rows
+
+        class _TableState:
+            def __init__(self) -> None:
+                self.reset_called = False
+
+            def reset(self) -> None:
+                self.reset_called = True
+
+        table = build_servers_table_widget(tr_fn=lambda _key, default: default)
+        table.setRowCount(1)
+        render_server_row(
+            table,
+            row=0,
+            server_name="server-1",
+            status={"status": "online", "response_time": 0.12, "stable_version": "1.2.3", "dev_version": "1.2.4"},
+            channel="stable",
+            language="ru",
+            accent_hex="#52c477",
+        )
+        table.setCurrentCell(0, 1)
+        table_state = _TableState()
+
+        reset_server_rows(table, table_state=table_state)
+
+        self.assertTrue(table_state.reset_called)
+        self.assertEqual(table.rowCount(), 0)
+        self.assertEqual(table.accessibleName(), "Серверы обновлений: строки пока не загружены")
+        self.assertEqual(
+            table.property("screenReaderStateText"),
+            "Серверы обновлений: строки пока не загружены",
+        )
+
     def test_updater_servers_table_has_screen_reader_name(self) -> None:
         from updater.ui.main_build import build_servers_table_widget
 
