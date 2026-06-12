@@ -455,7 +455,7 @@ class ProfileStrategyListWidget(QWidget):
             description=(
                 "Поиск по названию, параметрам --lua-desync и описанию готовой стратегии. "
                 "После ввода перейдите в список клавишей Tab, выберите стратегию стрелками вверх и вниз, "
-                "затем нажмите Enter."
+                "затем нажмите Enter или Пробел."
             ),
         )
         self._search.textChanged.connect(self._apply_filter)
@@ -480,7 +480,7 @@ class ProfileStrategyListWidget(QWidget):
         set_control_accessibility(
             self._list,
             name="Список готовых стратегий",
-            description="Выберите готовую стратегию стрелками вверх и вниз, затем нажмите Enter.",
+            description="Выберите готовую стратегию стрелками вверх и вниз, затем нажмите Enter или Пробел.",
         )
         set_state_text(self._list, "Список готовых стратегий: список пока загружается")
         self._list.setMouseTracking(True)

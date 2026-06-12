@@ -49,7 +49,16 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         description = widget._search.accessibleDescription()
         self.assertIn("перейдите в список клавишей Tab", description)
         self.assertIn("выберите стратегию стрелками", description)
-        self.assertIn("нажмите Enter", description)
+        self.assertIn("нажмите Enter или Пробел", description)
+
+    def test_strategy_list_explains_enter_or_space_activation(self) -> None:
+        widget = ProfileStrategyListWidget()
+        self.addCleanup(widget.deleteLater)
+
+        self.assertEqual(widget._list.accessibleName(), "Список готовых стратегий: список пока загружается")
+        description = widget._list.accessibleDescription()
+        self.assertIn("выберите готовую стратегию стрелками", description.lower())
+        self.assertIn("нажмите Enter или Пробел", description)
 
     def test_strategy_list_exposes_initial_loading_state(self) -> None:
         widget = ProfileStrategyListWidget()
