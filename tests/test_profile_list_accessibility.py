@@ -49,7 +49,7 @@ class ProfileListAccessibilityTests(unittest.TestCase):
         self.assertEqual(widget.property("screenReaderStateText"), "Список профилей: список пока загружается")
         self.assertEqual(widget._view.accessibleName(), "Список профилей: список пока загружается")
         self.assertEqual(widget._view.property("screenReaderStateText"), "Список профилей: список пока загружается")
-        self.assertIn("Enter открывает выбранный profile", widget._view.accessibleDescription())
+        self.assertIn("Enter или Пробел открывает выбранный profile", widget._view.accessibleDescription())
         self.assertIn("клавиша меню открывает действия", widget._view.accessibleDescription())
 
     def test_profile_list_wrapper_forwards_keyboard_focus_to_view(self) -> None:
