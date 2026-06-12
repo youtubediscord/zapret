@@ -282,6 +282,7 @@ class OrchestraWhitelistPage(BasePage):
         self.search_input.setClearButtonEnabled(True)
         remove_line_edit_buttons_from_tab_order(self.search_input)
         self.search_input.textChanged.connect(self._filter_list)
+        self.search_input.installEventFilter(self)
         top_row.addWidget(self.search_input)
 
         # Кнопка очистки пользовательских
@@ -445,7 +446,7 @@ class OrchestraWhitelistPage(BasePage):
             name="Поиск по белому списку",
             description=(
                 "Фильтрует домены белого списка по введённому тексту. "
-                "После ввода перейдите к списку клавишей Tab."
+                "После ввода перейдите к списку клавишей Tab или нажмите Стрелка вниз."
             ),
         )
         _set_named_state(self.search_input, "Поиск по белому списку")
@@ -455,6 +456,24 @@ class OrchestraWhitelistPage(BasePage):
             description="Удаляет все пользовательские домены. Системные домены останутся.",
         )
         _set_named_state(self.clear_user_btn, "Очистить пользовательские домены белого списка")
+
+    def eventFilter(self, watched, event):  # noqa: N802
+        if watched is getattr(self, "search_input", None) and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Down and self._focus_first_visible_row_control():
+                event.accept()
+                return True
+        return super().eventFilter(watched, event)
+
+    def _focus_first_visible_row_control(self) -> bool:
+        for row in self._domain_rows:
+            if row is None or not row.isVisible():
+                continue
+            target = getattr(row, "_delete_btn", None)
+            if target is None:
+                continue
+            target.setFocus(Qt.FocusReason.OtherFocusReason)
+            return True
+        return False
 
     def on_page_activated(self) -> None:
         if not self._runtime_initialized:

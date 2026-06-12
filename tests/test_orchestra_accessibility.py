@@ -257,11 +257,28 @@ class OrchestraAccessibilityTests(unittest.TestCase):
         self.assertEqual(page.search_input.accessibleName(), "Поиск по белому списку")
         self.assertEqual(page.search_input.property("screenReaderStateText"), "Поиск по белому списку")
         self.assertIn("После ввода перейдите к списку клавишей Tab", page.search_input.accessibleDescription())
+        self.assertIn("или нажмите Стрелка вниз", page.search_input.accessibleDescription())
         self.assertEqual(page.clear_user_btn.accessibleName(), "Очистить пользовательские домены белого списка")
         self.assertEqual(
             page.clear_user_btn.property("screenReaderStateText"),
             "Очистить пользовательские домены белого списка",
         )
+
+    def test_whitelist_search_arrow_down_moves_focus_to_first_visible_user_row(self) -> None:
+        page = OrchestraWhitelistPage(orchestra_feature=_OrchestraFeatureStub())
+        self.addCleanup(page.deleteLater)
+        row = WhitelistDomainRow("safe.example", is_default=False, parent=page.rows_container)
+        page.rows_layout.addWidget(row)
+        page._domain_rows.append(row)
+        page.show()
+        self.app.processEvents()
+        page.search_input.setFocus()
+        self.app.processEvents()
+
+        QTest.keyClick(page.search_input, Qt.Key.Key_Down)
+        self.app.processEvents()
+
+        self.assertIs(self.app.focusWidget(), row._delete_btn)
 
     def test_locked_clear_confirmation_buttons_are_named_for_screen_reader(self) -> None:
         page = OrchestraLockedPage.__new__(OrchestraLockedPage)
