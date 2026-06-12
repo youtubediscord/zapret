@@ -771,7 +771,7 @@ class NetworkPage(BasePage):
 
         add_action("Редактировать", icon_name="EDIT", command="edit")
         add_action("Создать копию", icon_name="COPY", command="duplicate")
-        add_action("Копировать DNS", icon_name="COPY", command="copy")
+        add_action("Копировать DNS в буфер обмена", icon_name="COPY", command="copy")
         menu.addSeparator()
         add_action("Удалить", icon_name="DELETE", command="delete")
 
@@ -836,6 +836,11 @@ class NetworkPage(BasePage):
         clipboard = QApplication.clipboard()
         if clipboard is not None:
             clipboard.setText(", ".join(dns_values))
+            InfoBar.success(
+                title="DNS скопирован",
+                content="DNS адрес скопирован в буфер обмена.",
+                parent=self.window(),
+            )
 
     def _delete_custom_dns_server(self, index: int) -> None:
         if not (0 <= index < len(self._custom_dns_servers)):

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, IndeterminateProgressBar, LineEdit, PushButton
 
@@ -211,11 +212,45 @@ class DnsPageBuildContractTests(unittest.TestCase):
             page._duplicate_custom_dns_server(0)
             self.assertEqual([server["name"] for server in page._custom_dns_servers], ["Рабочий DNS", "Рабочий DNS копия"])
 
-            page._copy_custom_dns_server(0)
+            with patch("dns.ui.page.InfoBar.success") as info_success:
+                page._copy_custom_dns_server(0)
             self.assertEqual(QApplication.clipboard().text(), "9.9.9.9")
+            info_success.assert_called_once()
+            info_text = f"{info_success.call_args.kwargs.get('title', '')} {info_success.call_args.kwargs.get('content', '')}"
+            self.assertIn("буфер обмена", info_text.lower())
 
             page._delete_custom_dns_server(0)
             self.assertEqual([server["name"] for server in page._custom_dns_servers], ["Рабочий DNS копия"])
+
+    def test_custom_dns_context_menu_copy_action_mentions_clipboard(self) -> None:
+        from dns.ui.page import NetworkPage
+
+        dns_feature = SimpleNamespace(
+            normalize_adapter_alias=lambda value: str(value),
+            consume_warmed_page_data=lambda: None,
+            create_page_load_worker=lambda request_id, parent=None: None,
+        )
+
+        with (
+            patch(
+                "dns.ui.page.get_custom_dns_servers",
+                return_value=[
+                    {"id": "my-dns", "name": "Мой DNS", "ipv4": ["8.8.8.8"], "ipv6": []},
+                ],
+            ),
+            patch("dns.ui.page.exec_popup_menu") as exec_popup,
+        ):
+            menu_labels: list[str] = []
+
+            def capture_menu(menu, *_args, **_kwargs):
+                menu_labels.extend(action.text() for action in menu.actions() if not action.isSeparator())
+                return None
+
+            exec_popup.side_effect = capture_menu
+            page = NetworkPage(deps=SimpleNamespace(dns_feature=dns_feature))
+            page._show_custom_dns_provider_menu("Мой DNS", {"custom_id": "my-dns"}, QPoint(1, 1))
+
+        self.assertIn("Копировать DNS в буфер обмена", menu_labels)
 
     def test_custom_dns_row_is_not_inserted_or_shown_by_choices_builder(self) -> None:
         class _ChoiceList:
