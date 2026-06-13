@@ -104,6 +104,26 @@ class DnsChoiceListTests(unittest.TestCase):
         self.assertTrue(event.isAccepted())
         self.assertEqual(selected, ["auto"])
 
+    def test_custom_dns_row_reads_selection_state_for_keyboard_navigation(self) -> None:
+        from dns.ui.choice_list import DnsChoiceListWidget
+
+        view = DnsChoiceListWidget()
+        custom_item = view.set_custom_choice(QWidget())
+
+        view.setCurrentItem(custom_item)
+
+        self.assertEqual(
+            view.property("screenReaderStateText"),
+            "Список DNS-серверов: Свой DNS, не выбран. Нажмите Enter или Пробел, чтобы выбрать DNS.",
+        )
+
+        view.set_item_selected(custom_item, True)
+
+        self.assertEqual(
+            view.property("screenReaderStateText"),
+            "Список DNS-серверов: Свой DNS, выбран. Нажмите Enter или Пробел, чтобы выбрать DNS.",
+        )
+
     def test_choice_list_context_menu_is_only_for_custom_dns_rows(self) -> None:
         from dns.ui.choice_list import DnsChoiceListWidget
 

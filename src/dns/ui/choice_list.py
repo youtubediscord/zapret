@@ -149,6 +149,7 @@ class DnsChoiceListWidget(QListWidget):
         item.setData(KEY_ROLE, "custom")
         item.setData(TITLE_ROLE, "Свой DNS")
         item.setData(SELECTED_ROLE, False)
+        item.setData(Qt.ItemDataRole.AccessibleTextRole, _custom_choice_accessible_text(False))
         item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
         item.setSizeHint(QSize(0, 40))
         self.addItem(item)
@@ -181,11 +182,15 @@ class DnsChoiceListWidget(QListWidget):
 
     def set_item_selected(self, item: QListWidgetItem, selected: bool) -> None:
         item.setData(SELECTED_ROLE, bool(selected))
+        if str(item.data(KIND_ROLE) or "") == "custom":
+            item.setData(Qt.ItemDataRole.AccessibleTextRole, _custom_choice_accessible_text(bool(selected)))
         row = self.row(item)
         if row >= 0:
             index = self.model().index(row, 0)
             self.viewport().update(self.visualRect(index))
         self._refresh_custom_widget_selection(item, bool(selected))
+        if self.currentItem() is item:
+            self._update_current_dns_accessibility(item)
 
     def activate_item(self, item: QListWidgetItem | None) -> None:
         if item is None:
@@ -440,6 +445,11 @@ def _provider_ip_text(data: dict, *, show_ipv6: bool) -> str:
     if primary_v6:
         return primary_v6
     return "-"
+
+
+def _custom_choice_accessible_text(selected: bool) -> str:
+    state = "выбран" if bool(selected) else "не выбран"
+    return f"Свой DNS, {state}"
 
 
 __all__ = [
