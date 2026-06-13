@@ -451,6 +451,31 @@ class AccessibilityHelpersTests(unittest.TestCase):
         self.assertEqual(widget.items["first"].accessibleName(), "Раздел: Первый, не выбрано")
         self.assertEqual(widget.items["second"].accessibleName(), "Раздел: Второй, выбрано")
 
+    def test_segmented_widget_itself_reads_current_selection(self) -> None:
+        import os
+
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+        from PyQt6.QtWidgets import QApplication
+        from qfluentwidgets import SegmentedWidget
+
+        from ui.segmented_accessibility import set_segmented_items_accessibility
+
+        app = QApplication.instance() or QApplication([])
+        self.assertIsNotNone(app)
+
+        widget = SegmentedWidget()
+        widget.addItem("first", "Первый")
+        widget.addItem("second", "Второй")
+        widget.setCurrentItem("second")
+
+        set_segmented_items_accessibility(widget, name="Раздел")
+
+        self.assertEqual(widget.accessibleName(), "Раздел, выбрано: Второй")
+        self.assertEqual(widget.property("screenReaderStateText"), "Раздел, выбрано: Второй")
+        self.assertIn("стрелками", widget.accessibleDescription())
+        self.assertIn("Enter или Пробел", widget.accessibleDescription())
+
     def test_combo_items_accessibility_updates_after_selection_change(self) -> None:
         from PyQt6.QtCore import Qt
         from qfluentwidgets import ComboBox

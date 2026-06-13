@@ -16,6 +16,19 @@ def _clean_text(text: object) -> str:
     return " ".join(str(text or "").strip().split())
 
 
+def _segmented_description(widget) -> str:
+    keyboard_hint = "Выберите пункт стрелками влево и вправо, затем нажмите Enter или Пробел."
+    try:
+        current = _clean_text(widget.accessibleDescription())
+    except Exception:
+        current = ""
+    if not current:
+        return keyboard_hint
+    if "Enter или Пробел" in current:
+        return current
+    return f"{current} {keyboard_hint}"
+
+
 def _segmented_current_key(widget) -> str:
     current_route_key = getattr(widget, "currentRouteKey", None)
     if callable(current_route_key):
@@ -88,6 +101,7 @@ def _refresh_segmented_items_accessibility(
     current_key = _segmented_current_key(widget)
     items = _segmented_items(widget)
     accessible_labels = {str(key): value for key, value in dict(labels or {}).items()}
+    current_label = ""
     for key, item in items.items():
         try:
             label = _clean_text(accessible_labels.get(str(key), item.text()))
@@ -96,9 +110,18 @@ def _refresh_segmented_items_accessibility(
         if not label:
             continue
         state = selected_word if str(key) == current_key else unselected_word
+        if str(key) == current_key:
+            current_label = label
         text = f"{title}: {label}, {state}"
         set_control_accessibility(item, name=text)
         set_state_text(item, text)
+    widget_text = f"{title}, выбрано: {current_label}" if current_label else title
+    set_control_accessibility(
+        widget,
+        name=widget_text,
+        description=_segmented_description(widget),
+    )
+    set_state_text(widget, widget_text)
 
 
 def _refresh_segmented_items_accessibility_from_widget(widget) -> None:
