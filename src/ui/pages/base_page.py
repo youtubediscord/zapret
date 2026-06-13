@@ -297,12 +297,6 @@ class BasePage(_FluentScrollArea):
         step_started_at = _time.perf_counter()
         self._sync_content_width_to_viewport()
         self._log_show_step_timing("show.event.sync_width", step_started_at)
-        is_spontaneous = bool(event is not None and event.spontaneous())
-        if is_spontaneous:
-            step_started_at = _time.perf_counter()
-            self._schedule_page_theme_refresh_flush()
-            self._log_show_step_timing("show.event.schedule_theme_flush", step_started_at)
-            return
         step_started_at = _time.perf_counter()
         self._flush_ready_callbacks()
         self._log_show_step_timing("show.event.ready_callbacks", step_started_at)

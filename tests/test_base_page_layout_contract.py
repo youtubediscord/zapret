@@ -35,6 +35,13 @@ class BasePageLayoutContractTests(unittest.TestCase):
         self.assertIn("QTimer.singleShot(0, self._flush_page_theme_refresh)", schedule_theme)
         self.assertIn("show.event.theme_flush", flush_theme)
 
+    def test_base_page_spontaneous_show_still_runs_activation_hooks(self) -> None:
+        show = inspect.getsource(BasePage.showEvent)
+
+        self.assertNotIn("event.spontaneous()", show)
+        self.assertIn("_flush_ready_callbacks", show)
+        self.assertIn("_schedule_activation", show)
+
 
 if __name__ == "__main__":
     unittest.main()
