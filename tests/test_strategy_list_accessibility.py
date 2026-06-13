@@ -127,6 +127,21 @@ class StrategyListAccessibilityTests(unittest.TestCase):
         self.assertEqual(widget._list.currentItem().data(ProfileStrategyListWidget._ROLE_NAME_TEXT), "Beta")
         self.assertIn("Готовая стратегия: Beta", widget._list.property("screenReaderStateText"))
 
+    def test_strategy_search_handles_arrow_keys_without_parent_key_propagation(self) -> None:
+        from profile.ui.profile_setup_page import ProfileStrategySearchLineEdit
+
+        search = ProfileStrategySearchLineEdit()
+        self.addCleanup(search.deleteLater)
+        requested: list[int] = []
+        search.navigate_results.connect(requested.append)
+
+        event = QKeyEvent(QEvent.Type.KeyPress, int(Qt.Key.Key_Down), Qt.KeyboardModifier.NoModifier)
+
+        search.keyPressEvent(event)
+
+        self.assertTrue(event.isAccepted())
+        self.assertEqual(requested, [int(Qt.Key.Key_Down)])
+
     def test_strategy_list_explains_enter_or_space_activation(self) -> None:
         widget = ProfileStrategyListWidget()
         self.addCleanup(widget.deleteLater)

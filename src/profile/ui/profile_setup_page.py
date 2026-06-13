@@ -451,10 +451,22 @@ class ProfileStrategySearchLineEdit(SearchLineEdit):
     """Поиск стратегий, где Enter выбирает текущий результат."""
 
     activate_current_result = pyqtSignal()
+    navigate_results = pyqtSignal(int)
 
     def keyPressEvent(self, event):  # noqa: N802
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.activate_current_result.emit()
+            event.accept()
+            return
+        if event.key() in (
+            Qt.Key.Key_Down,
+            Qt.Key.Key_Up,
+            Qt.Key.Key_Home,
+            Qt.Key.Key_End,
+            Qt.Key.Key_PageDown,
+            Qt.Key.Key_PageUp,
+        ):
+            self.navigate_results.emit(int(event.key()))
             event.accept()
             return
         super().keyPressEvent(event)
@@ -555,6 +567,7 @@ class ProfileStrategyListWidget(QWidget):
         self._list.itemActivated.connect(self._on_item_activated)
         self._list.itemClicked.connect(self._on_item_clicked)
         self._search.activate_current_result.connect(self._activate_current_search_result)
+        self._search.navigate_results.connect(self._navigate_strategy_results_from_search)
         self._list.installEventFilter(self)
         self._list.setStyleSheet(
             "QListWidget { background: rgba(255, 255, 255, 0.035); border: none; border-radius: 6px; outline: none; padding: 4px 0; }"
@@ -596,6 +609,9 @@ class ProfileStrategyListWidget(QWidget):
             return
         super().keyPressEvent(event)
 
+    def _navigate_strategy_results_from_search(self, key: int) -> None:
+        self._move_strategy_current_row(int(key))
+
     def _handle_strategy_keyboard_event(self, event) -> bool:
         key = event.key()
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
@@ -610,14 +626,30 @@ class ProfileStrategyListWidget(QWidget):
                 return True
             return False
 
-        if key not in (
-            Qt.Key.Key_Down,
-            Qt.Key.Key_Up,
-            Qt.Key.Key_Home,
-            Qt.Key.Key_End,
-            Qt.Key.Key_PageDown,
-            Qt.Key.Key_PageUp,
-        ):
+        if int(key) not in {
+            int(Qt.Key.Key_Down),
+            int(Qt.Key.Key_Up),
+            int(Qt.Key.Key_Home),
+            int(Qt.Key.Key_End),
+            int(Qt.Key.Key_PageDown),
+            int(Qt.Key.Key_PageUp),
+        }:
+            return False
+
+        if self._move_strategy_current_row(int(key)):
+            event.accept()
+            return True
+        return False
+
+    def _move_strategy_current_row(self, key: int) -> bool:
+        if int(key) not in {
+            int(Qt.Key.Key_Down),
+            int(Qt.Key.Key_Up),
+            int(Qt.Key.Key_Home),
+            int(Qt.Key.Key_End),
+            int(Qt.Key.Key_PageDown),
+            int(Qt.Key.Key_PageUp),
+        }:
             return False
 
         count = self._list.count()
@@ -627,17 +659,17 @@ class ProfileStrategyListWidget(QWidget):
         row = self._list.currentRow()
         if row < 0:
             row = 0
-        elif key == Qt.Key.Key_Down:
+        elif int(key) == int(Qt.Key.Key_Down):
             row = min(count - 1, row + 1)
-        elif key == Qt.Key.Key_Up:
+        elif int(key) == int(Qt.Key.Key_Up):
             row = max(0, row - 1)
-        elif key == Qt.Key.Key_Home:
+        elif int(key) == int(Qt.Key.Key_Home):
             row = 0
-        elif key == Qt.Key.Key_End:
+        elif int(key) == int(Qt.Key.Key_End):
             row = count - 1
-        elif key == Qt.Key.Key_PageDown:
+        elif int(key) == int(Qt.Key.Key_PageDown):
             row = min(count - 1, row + 10)
-        elif key == Qt.Key.Key_PageUp:
+        elif int(key) == int(Qt.Key.Key_PageUp):
             row = max(0, row - 10)
 
         self._list.setFocus(Qt.FocusReason.OtherFocusReason)
@@ -646,7 +678,6 @@ class ProfileStrategyListWidget(QWidget):
         if item is not None:
             item.setSelected(True)
             self._update_current_strategy_accessibility(item)
-        event.accept()
         return True
 
     def _focus_first_strategy_row(self) -> None:
